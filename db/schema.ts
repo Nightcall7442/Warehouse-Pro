@@ -397,6 +397,13 @@ export const orderItems = mysqlTable("order_items", {
   unitPrice: decimal("unit_price", { precision: 10, scale: 2 }).notNull(),
   costPrice: decimal("cost_price", { precision: 10, scale: 2 }).default("0.00").notNull(),
   subtotal:  decimal("subtotal", { precision: 12, scale: 2 }).notNull(),
+  /*
+    Откуда взялась цена строки: прайс-лист магазина или карточка товара (NULL).
+    Без этого спор «почему в накладной не та цена» разбирался по памяти:
+    список могли переименовать или отвязать назавтра. Ссылка мягкая —
+    удаление списка не должно трогать проведённые заказы.
+  */
+  priceListId: bigint("price_list_id", { mode: "number", unsigned: true }),
   // Partial delivery fields
   deliveredQuantity: decimal("delivered_quantity", { precision: 10, scale: 2 }),
   returnReason:      varchar("return_reason", { length: 100 }),

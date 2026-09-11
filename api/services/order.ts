@@ -2,6 +2,7 @@ import { eq, and, or, desc, sql, isNull, isNotNull, inArray } from "drizzle-orm"
 import { applyStockEffect, releaseStock, reserveStock, shipStock } from "./stock-ledger";
 import { alias } from "drizzle-orm/mysql-core";
 import { orders, orderItems, warehouseStock, shops, users, products, warehouses, payments, debtReminders, orderAdjustments, territories, returns, returnItems } from "@db/schema";
+import { resolvePrices } from "./price-resolver";
 import { recalcShopDebt } from "./shop-debt";
 import { OPEN_ORDER_STATUSES, CLOSED_ORDER_STATUSES, ORDER_STATUS_LABELS, holdsStock, deductsStock } from "../lib/order-status";
 import { FIELD_EDITABLE_ORDER_STATUSES } from "@contracts/constants";
@@ -1296,6 +1297,11 @@ export const OrderService = {
         }
       }
 
+      // Цена магазина поверх цены карточки: прайс-листы, привязанные к
+      // магазину, до этого не участвовали в заказе ни на одном пути.
+      const resolved = await resolvePrices(tx, tenantId, input.shopId, items, priceMap);
+      for (const [productId, r] of resolved) priceMap.set(productId, r.price);
+
       // Calculate subtotal from server-side prices
       let subtotal = 0;
       for (const item of items) {
@@ -1397,6 +1403,7 @@ export const OrderService = {
           unitPrice: unitPrice.toFixed(2),
           costPrice: costMap.get(item.productId) ?? "0.00",
           subtotal: (unitPrice * Number(item.quantity)).toFixed(2),
+          priceListId: resolved.get(item.productId)?.priceListId ?? null,
         };
       }));
 
@@ -2080,12 +2087,20 @@ export const OrderService = {
       if (newProductIds.some(id => id === undefined)) {
         throw new Error("Для новой позиции нужно указать товар");
       }
-      const productPrices = new Map<number, { costPrice: string }>();
+      const productPrices = new Map<number, { costPrice: string; unitPrice: string; priceListId: number | null }>();
       if (newProductIds.length > 0) {
-        const found = await tx.select({ id: products.id, costPrice: products.costPrice })
+        const found = await tx.select({ id: products.id, costPrice: products.costPrice, unitPrice: products.unitPrice })
           .from(products)
           .where(and(eq(products.tenantId, tenantId), inArray(products.id, newProductIds as number[])));
-        for (const p of found) productPrices.set(Number(p.id), { costPrice: p.costPrice });
+        const fallback = new Map(found.map(p => [Number(p.id), p.unitPrice]));
+        // Новая строка без цены от оператора берёт цену магазина (прайс-лист),
+        // иначе карточки — а не ноль, как было.
+        const newLines = data.items.filter(i => i.itemId === undefined).map(i => ({ productId: i.productId as number, quantity: i.quantity }));
+        const resolved = await resolvePrices(tx, tenantId, order.shopId, newLines, fallback);
+        for (const p of found) {
+          const r = resolved.get(Number(p.id));
+          productPrices.set(Number(p.id), { costPrice: p.costPrice, unitPrice: r?.price ?? p.unitPrice, priceListId: r?.priceListId ?? null });
+        }
         for (const id of newProductIds as number[]) {
           if (!productPrices.has(id)) throw new Error(`Товар #${id} не найден в вашей организации`);
         }
@@ -2138,7 +2153,7 @@ export const OrderService = {
         // ── New line ──
         if (line.quantity === 0) continue;
         const productId = line.productId as number;
-        const unitPrice = Number(line.unitPrice ?? 0);
+        const unitPrice = Number(line.unitPrice ?? productPrices.get(productId)!.unitPrice);
         if (!Number.isFinite(unitPrice) || unitPrice < 0) throw new Error("Цена не может быть отрицательной");
 
         // Товар, который в заказе уже есть, второй строкой не заводится.
@@ -2170,6 +2185,8 @@ export const OrderService = {
           unitPrice: unitPrice.toFixed(2),
           costPrice: productPrices.get(productId)?.costPrice ?? "0.00",
           subtotal: (unitPrice * line.quantity).toFixed(2),
+          // Источник цены пишется только когда цена не задана оператором руками.
+          priceListId: line.unitPrice === undefined ? (productPrices.get(productId)?.priceListId ?? null) : null,
         });
 
         newSubtotal += unitPrice * line.quantity;
