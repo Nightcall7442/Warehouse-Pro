@@ -1,0 +1,1 @@
+ALTER TABLE `order_items` ADD `price_list_id` bigint unsigned;

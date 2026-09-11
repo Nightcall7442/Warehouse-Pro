@@ -29,7 +29,7 @@ export const arrivalRouter = createRouter({
   list: operatorQuery
     .input(z.object({
       page:     z.number().default(1),
-      pageSize: z.number().default(25),
+      pageSize: z.number().int().min(1).max(10000).default(25),
       status:   z.enum(["pending", "unloading", "completed"]).optional(),
     }).optional())
     .query(async ({ input, ctx }) => {

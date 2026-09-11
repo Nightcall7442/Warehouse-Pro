@@ -70,7 +70,7 @@ export const warehouseReportsRouter = createRouter({
 
   /** Top products by inventory value */
   topByValue: operatorQuery
-    .input(z.object({ limit: z.number().default(10) }).optional())
+    .input(z.object({ limit: z.number().int().min(1).max(1000).default(10) }).optional())
     .query(async ({ input, ctx }) => {
       const db = getDb();
       const tenantId = ctx.tenant.id;

@@ -3,7 +3,8 @@ import { getDb } from "../queries/connection";
 import { logger } from "../lib/logger";
 import { env } from "../lib/env";
 import { startDump } from "../services/db-dump";
-import { s3Client, serverSideEncryption } from "../lib/s3";
+import { s3Client, serverSideEncryption, isOffsiteBackupConfigured, offsiteBackupClient } from "../lib/s3";
+import { backupLastSuccessTimestamp, backupLastSizeBytes } from "../prometheus-metrics";
 
 import { firstRow } from "../lib/db-rows";
 /**
@@ -97,7 +98,7 @@ export async function runBackup(): Promise<{ success: boolean; message: string }
     // Клиент общий на всё приложение: он же умеет чужой адрес входа, если
     // хранилище не амазоновское.
     const s3 = await s3Client();
-    await s3.send(new PutObjectCommand({
+    const put = () => new PutObjectCommand({
       Bucket: targetBucket,
       Key: backupKey,
       Body: gzipped,
@@ -115,10 +116,27 @@ export async function runBackup(): Promise<{ success: boolean; message: string }
       // входа и означает «хранилище не амазоновское».
       ...serverSideEncryption(),
       Metadata: { tableCounts: JSON.stringify(counts) },
-    }));
+    });
+    await s3.send(put());
 
-    logger.info("Backup dump uploaded to S3", { bucket: targetBucket, key: backupKey, gzippedBytes: gzipped.length, counts });
-    return { success: true, message: `Backup saved: ${backupKey} (${(gzipped.length / 1024 / 1024).toFixed(1)} MB gzipped)` };
+    /*
+      Зеркало вне площадки. Обе загрузки обязательны, если зеркало настроено:
+      копия, которая есть только на той же площадке, что и база, — это не
+      копия на случай потери площадки. Отказ зеркала = отказ работы, и он
+      уходит суперадмину тем же путём, что и любой провал крона.
+    */
+    let mirrored = false;
+    if (isOffsiteBackupConfigured()) {
+      const offsite = await offsiteBackupClient();
+      await offsite.send(put());
+      mirrored = true;
+    }
+
+    backupLastSuccessTimestamp.set(Math.floor(Date.now() / 1000));
+    backupLastSizeBytes.set(gzipped.length);
+
+    logger.info("Backup dump uploaded to S3", { bucket: targetBucket, key: backupKey, gzippedBytes: gzipped.length, counts, mirrored });
+    return { success: true, message: `Backup saved: ${backupKey} (${(gzipped.length / 1024 / 1024).toFixed(1)} MB gzipped)${mirrored ? ", mirrored offsite" : ""}` };
   } catch (err) {
     const error = err instanceof Error ? err.message : String(err);
     logger.error("Backup failed", { error });

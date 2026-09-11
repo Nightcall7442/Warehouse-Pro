@@ -5,7 +5,11 @@ vi.mock("drizzle-orm", () => ({
   and: (...conds: unknown[]) => ({ __kind: "and", conds }),
   desc: (col: unknown) => ({ __kind: "desc", col }),
   like: (col: unknown, val: unknown) => ({ __kind: "like", col, val }),
-  sql: (strings: TemplateStringsArray, ...values: unknown[]) => ({ __kind: "sql", strings, values }),
+  // Дверь остатка строит запросы через sql.join — подделка обязана его знать.
+  sql: Object.assign(
+    (strings: TemplateStringsArray, ...values: unknown[]) => ({ __kind: "sql", strings, values }),
+    { join: (chunks: unknown[], separator?: unknown) => ({ __kind: "sql_join", chunks, separator }), raw: (str: unknown) => ({ __kind: "sql_raw", str }) },
+  ),
 }));
 
 vi.mock("../telegram-router", () => ({
@@ -28,6 +32,7 @@ vi.mock("../lib/sanitize", () => ({
 
 import { warehouseStock, products, stockMovements, settings, orderItems, orders, warehouses } from "@db/schema";
 import { makeConditionEvaluator } from "./helpers/fake-conditions";
+import { createExecuteMock } from "./helpers/mock-execute";
 
 interface FakeStock {
   id: number;
@@ -236,6 +241,9 @@ function makeMockDb() {
         return Promise.resolve();
       },
     }),
+    // Корректировка идёт через дверь остатка (сырой SQL) — арифметику
+    // считает общая подделка, та же, что у остальных складских стендов.
+    execute: createExecuteMock(stockTable as never),
     transaction: async (fn: (tx: unknown) => Promise<unknown>) => fn(db),
   };
 
@@ -289,7 +297,7 @@ describe("warehouse.adjustStock", () => {
     await caller.adjustStock({ productId: 1, quantity: "200", type: "adjustment" });
 
     const stock = stockTable.find(s => s.productId === 1 && s.tenantId === 1)!;
-    expect(stock.currentStock).toBe("200");
+    expect(stock.currentStock).toBe("200.00");
   });
 
   it("creates stock movement record with type, quantity, notes", async () => {

@@ -4,7 +4,7 @@ import { getDb } from "./queries/connection";
 import { warehouses, warehouseStock, stockTransfers, products } from "@db/schema";
 import { eq, and, sql, desc, inArray } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
-import { recordStockMovement } from "./services/stock-ledger";
+import { applyStockEffect, receiveStock } from "./services/stock-ledger";
 
 export const warehouseMultiRouter = createRouter({
   /** List all warehouses for current tenant */
@@ -253,58 +253,24 @@ export const warehouseMultiRouter = createRouter({
           throw new TRPCError({ code: "BAD_REQUEST", message: "Недостаточно товара на складе отправителе" });
         }
 
-        // Deduct from source
-        await tx.update(warehouseStock)
-          .set({
-            currentStock: sql`${warehouseStock.currentStock} - ${transfer.quantity}`,
-            available: sql`${warehouseStock.available} - ${transfer.quantity}`,
-          })
-          .where(and(
-            eq(warehouseStock.tenantId, ctx.tenant.id),
-            eq(warehouseStock.warehouseId, transfer.fromWarehouseId),
-            eq(warehouseStock.productId, transfer.productId),
-          ));
-
-        // Add to destination (upsert)
-        const [existing] = await tx.select()
-          .from(warehouseStock)
-          .where(and(
-            eq(warehouseStock.tenantId, ctx.tenant.id),
-            eq(warehouseStock.warehouseId, transfer.toWarehouseId),
-            eq(warehouseStock.productId, transfer.productId),
-          ))
-          .for("update")
-          .limit(1);
-
-        if (existing) {
-          await tx.update(warehouseStock)
-            .set({
-              currentStock: sql`${warehouseStock.currentStock} + ${transfer.quantity}`,
-              available: sql`${warehouseStock.available} + ${transfer.quantity}`,
-            })
-            .where(eq(warehouseStock.id, existing.id));
-        } else {
-          await tx.insert(warehouseStock).values({
-            tenantId: ctx.tenant.id,
-            warehouseId: transfer.toWarehouseId,
-            productId: transfer.productId,
-            currentStock: transfer.quantity,
-            reserved: "0",
-            available: transfer.quantity,
-          });
-        }
-
-        // One physical move, two ledger entries — the goods leave one warehouse
-        // and arrive at the other, and each side's history has to show it.
-        await recordStockMovement(tx, {
+        /*
+          Одно физическое перемещение — две записи через дверь: ушло с одного
+          склада (с партий по FEFO), пришло на другой. Раньше оба склада
+          правились своим SQL, партии источника не трогались, а строка на
+          складе-получателе заводилась третьим путём.
+          ponytail: партия на приёмной стороне не переносится — товар ложится
+          без срока; переносить партии, когда склады начнут отчитываться по
+          срокам порознь.
+        */
+        await applyStockEffect(tx, {
           tenantId: ctx.tenant.id, warehouseId: transfer.fromWarehouseId,
-          productId: transfer.productId, type: "out", quantity: transfer.quantity,
-          reason: "transfer_out", referenceId: input.transferId,
+          items: [{ productId: transfer.productId, quantity: transfer.quantity }],
+          shift: { onHand: -1, held: 0 }, reason: "transfer_out", referenceId: input.transferId,
           notes: "Перемещение на другой склад",
         });
-        await recordStockMovement(tx, {
+        await receiveStock(tx, {
           tenantId: ctx.tenant.id, warehouseId: transfer.toWarehouseId,
-          productId: transfer.productId, type: "in", quantity: transfer.quantity,
+          productId: transfer.productId, quantity: transfer.quantity,
           reason: "transfer_in", referenceId: input.transferId,
           notes: "Перемещение с другого склада",
         });

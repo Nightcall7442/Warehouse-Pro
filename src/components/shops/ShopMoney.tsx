@@ -1,5 +1,8 @@
+import { useState } from "react";
 import { trpc } from "@/providers/trpc";
 import { useLang } from "@/i18n";
+import { useCan } from "@/hooks/useCan";
+import { notify } from "@/lib/toast";
 import { useCurrency } from "@/hooks/useCurrency";
 import { SectionNotice } from "@/components/SectionNotice";
 import { F, COLORS } from "@/components/users/types";
@@ -40,6 +43,19 @@ export function ShopMoney({ shopId }: { shopId: number }) {
   const trendQ = trpc.analytics.shopRevenueTrend.useQuery({ shopId, days: 30 });
 
   const payments = debtQ.data?.paymentHistory ?? [];
+  const can = useCan();
+  const utils = trpc.useUtils();
+  const [reversing, setReversing] = useState<number | null>(null);
+  const [reason, setReason] = useState("");
+  const reverse = trpc.shop.reversePayment.useMutation({
+    onSuccess: () => {
+      notify.success(t("Платёж сторнирован", "To'lov bekor qilindi"));
+      setReversing(null); setReason("");
+      utils.shop.getDebtDetails.invalidate({ shopId });
+      utils.shop.getById.invalidate({ id: shopId });
+    },
+    onError: e => notify.error(e.message),
+  });
   const trend = (trendQ.data ?? []).map(r => ({
     date: String(r.date).slice(5),
     revenue: Number(r.revenue ?? 0),
@@ -101,8 +117,27 @@ export function ShopMoney({ shopId }: { shopId: number }) {
                   }}>
                     {p.type === "debt" ? "+" : "−"}{fmt(Number(p.amount ?? 0))}
                   </span>
+                  {/* Сторно: платёж не удаляется, а гасится встречной строкой.
+                      Кнопка только у того, кто вправе принимать деньги, и только
+                      для платежей, ещё не сторнированных и не являющихся сторно. */}
+                  {can("payments.accept") && p.type === "payment" && p.reversalOf == null && p.status !== "reversed" && (
+                    <button type="button" className="neo-btn-xs shrink-0" onClick={() => { setReversing(p.id); setReason(""); }}>
+                      {t("Сторно", "Bekor")}
+                    </button>
+                  )}
                 </div>
               ))}
+              {reversing != null && (
+                <div className="flex items-center gap-2" style={{ fontSize: "13px" }}>
+                  <input className="neo-input" style={{ flex: 1 }} autoFocus placeholder={t("Причина сторно", "Bekor qilish sababi")}
+                    value={reason} onChange={e => setReason(e.target.value)} />
+                  <button type="button" className="neo-btn-primary neo-btn-xs" disabled={reason.trim().length < 3 || reverse.isPending}
+                    onClick={() => reverse.mutate({ paymentId: reversing, reason: reason.trim() })}>
+                    {t("Подтвердить", "Tasdiqlash")}
+                  </button>
+                  <button type="button" className="neo-btn-xs" onClick={() => setReversing(null)}>{t("Отмена", "Bekor")}</button>
+                </div>
+              )}
             </div>
           )}
         </div>

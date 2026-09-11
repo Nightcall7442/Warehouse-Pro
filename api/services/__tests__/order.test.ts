@@ -162,6 +162,7 @@ function makeMockDb() {
     const api: Record<string, unknown> = {
       from(ref: unknown) { tableName = tableOf(ref); return api; },
       leftJoin(ref: unknown, cond: unknown) { allJoins.push({ table: tableOf(ref), cond }); return api; },
+      innerJoin(ref: unknown, cond: unknown) { allJoins.push({ table: tableOf(ref), cond }); return api; },
       where(cond: unknown) {
         let filtered = rowsFor(tableName).filter((r) => evalCond(r, cond));
         if (isCountQuery) {

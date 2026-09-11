@@ -1,13 +1,13 @@
 import { Hono } from "hono";
 import { getDb } from "../queries/connection";
-import { payments, shops, warehouseStock, warehouses, onecConfig } from "@db/schema";
+import { payments, shops, warehouses, onecConfig } from "@db/schema";
 import { eq, and } from "drizzle-orm";
 import { OneCMapper } from "../services/onec-mapper";
 import { logger } from "../lib/logger";
 import { createHash } from "crypto";
 import { safeEqual } from "../lib/safe-compare";
 import { recalcShopDebt } from "../services/shop-debt";
-import { recordStockMovement } from "../services/stock-ledger";
+import { recordStockMovement, setStock } from "../services/stock-ledger";
 
 const app = new Hono<{ Variables: { validatedBody: Record<string, unknown> } }>();
 
@@ -200,34 +200,10 @@ app.post("/stock", async (c) => {
     }
 
     await db.transaction(async (tx) => {
-      // Резерв берётся с ТОГО ЖЕ склада, на который пишем. Без фильтра по
-      // складу у организации с несколькими складами сюда попадал чужой резерв,
-      // и available считался от него.
-      const [existingStock] = await tx.select({ reserved: warehouseStock.reserved })
-        .from(warehouseStock)
-        .where(and(
-          eq(warehouseStock.productId, productId),
-          eq(warehouseStock.tenantId, tenantId),
-          eq(warehouseStock.warehouseId, defaultWarehouse.id),
-        ))
-        .limit(1)
-        .for("update");
-      const reserved = Number(existingStock?.reserved ?? 0);
-      const available = parsedQty - reserved;
-
-      await tx.insert(warehouseStock).values({
-        tenantId,
-        warehouseId: defaultWarehouse.id,
-        productId,
-        currentStock: parsedQty.toFixed(2),
-        reserved: existingStock ? existingStock.reserved : "0.00",
-        available: String(available),
-      }).onDuplicateKeyUpdate({
-        set: {
-          currentStock: parsedQty.toFixed(2),
-          available: String(available),
-        },
-      });
+      // 1С называет итог. Дверь ставит его, обрезает резерв по нему,
+      // выводит available и подрезает партии — раньше всё это считалось
+      // здесь руками, а партии не трогались вовсе.
+      await setStock(tx, { tenantId, warehouseId: defaultWarehouse.id, productId, quantity: parsedQty });
 
       // 1C states the count outright rather than a delta, so the ledger records
       // an adjustment to that figure — the size of the correction is whatever

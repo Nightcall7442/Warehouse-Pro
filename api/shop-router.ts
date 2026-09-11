@@ -384,6 +384,8 @@ export const shopRouter = createRouter({
       territoryId: z.number().nullable().optional(),
       notes:    z.string().optional(),
       status:   z.enum(["active", "inactive"]).optional(),
+      // Пусто или null — снять лимит. Строкой, как все деньги в API.
+      creditLimit: z.preprocess(v => (v === "" ? null : v), z.string().regex(/^\d+(\.\d{1,2})?$/, "Лимит — неотрицательное число").nullable().optional()),
     }))
     .mutation(async ({ input, ctx }) => {
       const { id, ...data } = input;
@@ -568,6 +570,16 @@ export const shopRouter = createRouter({
       return PaymentService.addPayment(ctx.db, ctx.tenant.id, {
         ...input,
         createdBy: ctx.user.id,
+      });
+    }),
+
+  /** Сторно платежа — тем же правом, что и приём денег. */
+  reversePayment: operatorQuery.use(can("payments.accept"))
+    .input(z.object({ paymentId: z.number().int().positive(), reason: z.string().min(3).max(300) }))
+    .mutation(async ({ input, ctx }) => {
+      return PaymentService.reverse(ctx.db, ctx.tenant.id, {
+        paymentId: input.paymentId, reason: input.reason,
+        actor: { id: ctx.user.id, name: ctx.user.name, role: ctx.user.role },
       });
     }),
 

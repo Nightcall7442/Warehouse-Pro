@@ -1,0 +1,1 @@
+ALTER TABLE `settings` ADD `max_field_discount_pct` decimal(5,2);

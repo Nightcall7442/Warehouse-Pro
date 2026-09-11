@@ -74,7 +74,7 @@ services:
     restart: unless-stopped
 
   mysql:
-    image: mysql:8
+    image: mysql:9.4
     environment:
       - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD:?Задайте MYSQL_ROOT_PASSWORD в .env}
       - MYSQL_DATABASE=warehouse_pro

@@ -8,6 +8,7 @@ import { WarehouseProvider } from "@/providers/WarehouseContext"
 import { Toaster } from "@/components/ui/sonner"
 import { LangProvider } from "@/i18n"
 import { InstallPrompt } from "@/components/InstallPrompt"
+import { UpdatePrompt } from "@/components/UpdatePrompt"
 import { notify, shouldTellUser } from "@/lib/toast"
 import { uiText } from "@/lib/ui-text"
 import App from './App.tsx'
@@ -50,6 +51,7 @@ createRoot(document.getElementById('root')!).render(
           <RadixPointerEventsGuard />
           <Toaster richColors position="top-right" />
         <InstallPrompt />
+        <UpdatePrompt />
         </LangProvider>
         </WarehouseProvider>
       </TRPCProvider>

@@ -245,6 +245,7 @@ export const uz = {
       submit:        "Kirish",
       submitting:    "Kirish…",
       forgotPassword:"Parolni unutdingizmi?",
+      totpCode: "Ilovadagi kod",
       noAccount:     "Hisobingiz yo'qmi?",
       createAccount: "Yaratish",
       error:         "Email yoki parol noto'g'ri",

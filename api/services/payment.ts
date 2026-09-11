@@ -5,6 +5,7 @@ import { recalcShopDebt } from "./shop-debt";
 import { isDuplicateEntry } from "../lib/db-errors";
 
 type DrizzleInstance = ReturnType<typeof import("../queries/connection").getDb>;
+type Tx = Parameters<Parameters<DrizzleInstance["transaction"]>[0]>[0];
 
 export interface AddPaymentInput {
   shopId: number;
@@ -111,6 +112,61 @@ export const PaymentService = {
     return { success: true };
   },
 
+  /**
+   * Сторнировать платёж: отрицательная строка того же типа со ссылкой на
+   * исходную. Автор строки — автор исходного платежа, чтобы касса того же
+   * человека сошлась в ноль; кто сторнировал — в журнале действий.
+   * Повторное сторно и сторно самого сторно отвергаются.
+   */
+  async reverse(
+    db: DrizzleInstance, tenantId: number,
+    input: { paymentId: number; reason: string; actor: { id: number; name?: string; role: string } },
+  ): Promise<{ success: true; reversalId: number }> {
+    const reason = sanitizeString(input.reason);
+    if (!reason) throw new Error("Укажите причину сторно");
+    let reversalId = 0;
+    let shopId = 0;
+    let original: { amount: string; orderId: number | null } | null = null;
+    await db.transaction(async (tx) => {
+      const [p] = await tx.select({
+        id: payments.id, shopId: payments.shopId, orderId: payments.orderId, amount: payments.amount,
+        type: payments.type, paymentMethod: payments.paymentMethod, createdBy: payments.createdBy,
+        reversalOf: payments.reversalOf, status: payments.status,
+      }).from(payments)
+        .where(and(eq(payments.id, input.paymentId), eq(payments.tenantId, tenantId)))
+        .for("update").limit(1);
+      if (!p) throw new Error("Платёж не найден");
+      if (p.reversalOf != null) throw new Error("Это уже сторно — сторнировать его нельзя");
+      const [already] = await tx.select({ id: payments.id }).from(payments)
+        .where(eq(payments.reversalOf, p.id)).limit(1);
+      if (already) throw new Error("Платёж уже сторнирован");
+
+      const [row] = await tx.insert(payments).values({
+        tenantId, shopId: p.shopId, orderId: p.orderId,
+        amount: (-Number(p.amount)).toFixed(2),
+        type: p.type, paymentMethod: p.paymentMethod,
+        status: "reversal",
+        notes: `Сторно платежа #${p.id}: ${reason}`,
+        createdBy: p.createdBy,
+        reversalOf: p.id,
+        paidAt: new Date(),
+      });
+      reversalId = Number(row.insertId);
+      await tx.update(payments).set({ status: "reversed" }).where(eq(payments.id, p.id));
+      shopId = p.shopId;
+      original = { amount: p.amount, orderId: p.orderId };
+      await recalcShopDebt(tx, tenantId, shopId);
+    });
+
+    const { recordAudit } = await import("./audit-log");
+    await recordAudit(db, {
+      tenantId, actorId: input.actor.id, actorName: input.actor.name,
+      action: "payment.reverse", targetType: "payment", targetId: input.paymentId,
+      meta: { reversalId, shopId, amount: original!.amount, orderId: original!.orderId, reason, actorRole: input.actor.role },
+    });
+    return { success: true, reversalId };
+  },
+
   async getPaymentHistory(db: DrizzleInstance, tenantId: number, shopId: number) {
     return db.select()
       .from(payments)
@@ -126,6 +182,8 @@ export const PaymentService = {
       type: payments.type,
       notes: payments.notes,
       createdAt: payments.createdAt,
+      status: payments.status,
+      reversalOf: payments.reversalOf,
     })
       .from(payments)
       .where(and(
@@ -194,6 +252,33 @@ export const CASH_ROUNDING_TOLERANCE = 1.2;
  * Проверить, что принимаемая сумма помещается в остаток по заказу.
  * Бросает с текстом для человека, если нет.
  */
+/**
+ * Сколько из принятой суммы ложится на заказ, а сколько — излишек.
+ *
+ * Допуск в assertFitsRemainder пропускал до 20 % сверх остатка, и излишек
+ * исчезал: строка по заказу больше остатка обрезалась в GREATEST(0, …) при
+ * пересчёте долга, и «сдал наличные / учтено» не сходилось. Излишек теперь
+ * пишется отдельной строкой по магазину (recordExcess): он вычитается из
+ * долга по другим заказам, виден в истории и в кассе того, кто принял.
+ */
+export function splitExcess(orderTotal: number, priorPaid: number, amount: number): { onOrder: number; excess: number } {
+  const remaining = Math.max(0, orderTotal - priorPaid);
+  const onOrder = Math.min(amount, remaining);
+  return { onOrder: Number(onOrder.toFixed(2)), excess: Number((amount - onOrder).toFixed(2)) };
+}
+
+export async function recordExcess(
+  tx: Tx, tenantId: number, shopId: number, orderNumber: string, excess: number, createdBy: number,
+): Promise<void> {
+  await tx.insert(payments).values({
+    tenantId, shopId, orderId: null,
+    amount: excess.toFixed(2), type: "payment",
+    notes: `Излишек сверх остатка по заказу ${orderNumber}`,
+    createdBy,
+    paidAt: new Date(),
+  });
+}
+
 export function assertFitsRemainder(orderTotal: number, priorPaid: number, amount: number): void {
   const remaining = orderTotal - priorPaid;
   if (remaining <= 0) {

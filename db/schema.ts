@@ -96,6 +96,13 @@ export const users = mysqlTable("users", {
   role:         mysqlEnum("role", ["superadmin", "ceo", "operator", "agent", "supervisor", "merchandiser", "courier"]).default("agent").notNull(),
   status:       mysqlEnum("status", ["active", "inactive"]).default("active").notNull(),
   tokenVersion: int("token_version").default(0).notNull(),
+  /*
+    Второй фактор входа (TOTP). Секрет запечатан secret-box'ом; включён —
+    когда стоит totp_enabled_at: секрет без даты — ещё не подтверждённая
+    настройка, и на входе он не спрашивается.
+  */
+  totpSecret:    varchar("totp_secret", { length: 255 }),
+  totpEnabledAt: timestamp("totp_enabled_at"),
   pushToken:    text("push_token"),
   createdAt:    timestamp("createdAt").defaultNow().notNull(),
   updatedAt:    timestamp("updatedAt").defaultNow().notNull().$onUpdate(() => new Date()),
@@ -154,6 +161,16 @@ export const shops = mysqlTable("shops", {
   agentId:   bigint("agent_id", { mode: "number", unsigned: true }).references(() => users.id, { onDelete: "restrict" }),
   territoryId: bigint("territory_id", { mode: "number", unsigned: true }).references(() => territories.id),
   debt:      decimal("debt", { precision: 12, scale: 2 }).default("0.00").notNull(),
+  /*
+    Кредитный лимит точки. NULL — без лимита (так у всех до этой правки, и
+    ничьё поведение не меняется, пока директор не впишет число).
+
+    Дебиторка — главный операционный риск дистрибьютора; система умела её
+    посчитать и состарить, но не умела остановить: заказ «в долг» был открыт
+    любому полевому сотруднику без оглядки на долг точки. Агент, мотивированный
+    комиссией с оформленного, отгружал в долг магазину с просрочкой.
+  */
+  creditLimit: decimal("credit_limit", { precision: 12, scale: 2 }),
   status:    mysqlEnum("status", ["active", "inactive"]).default("active").notNull(),
   notes:     text("notes"),
   /**
@@ -397,6 +414,13 @@ export const orderItems = mysqlTable("order_items", {
   unitPrice: decimal("unit_price", { precision: 10, scale: 2 }).notNull(),
   costPrice: decimal("cost_price", { precision: 10, scale: 2 }).default("0.00").notNull(),
   subtotal:  decimal("subtotal", { precision: 12, scale: 2 }).notNull(),
+  /*
+    Откуда взялась цена строки: прайс-лист магазина или карточка товара (NULL).
+    Без этого спор «почему в накладной не та цена» разбирался по памяти:
+    список могли переименовать или отвязать назавтра. Ссылка мягкая —
+    удаление списка не должно трогать проведённые заказы.
+  */
+  priceListId: bigint("price_list_id", { mode: "number", unsigned: true }),
   // Partial delivery fields
   deliveredQuantity: decimal("delivered_quantity", { precision: 10, scale: 2 }),
   returnReason:      varchar("return_reason", { length: 100 }),
@@ -432,6 +456,15 @@ export const returns = mysqlTable("returns", {
   returnNumber: varchar("return_number", { length: 50 }).notNull(),
   status:       mysqlEnum("status", ["pending", "approved", "rejected", "completed"]).default("pending").notNull(),
   reason:       mysqlEnum("reason", ["defect", "wrong_item", "expired", "damaged", "other"]).default("other").notNull(),
+  /*
+    Куда делся вернувшийся товар. Решается при проведении, до того — NULL.
+
+    Раньше каждый проведённый возврат клал товар на полку — и просрочка с
+    браком продавались снова следующим же заказом. По умолчанию: брак,
+    просрочка и порча списываются, пересорт и «другое» — на склад; оператор
+    выбирает при проведении.
+  */
+  disposition:  mysqlEnum("disposition", ["restock", "write_off"]),
   notes:        text("notes"),
   totalAmount:  decimal("total_amount", { precision: 12, scale: 2 }).default("0.00").notNull(),
   createdBy:    bigint("created_by", { mode: "number", unsigned: true }).references(() => users.id, { onDelete: "restrict" }),
@@ -867,6 +900,16 @@ export const payments = mysqlTable("payments", {
   // данных.
   idempotencyKey: varchar("idempotency_key", { length: 100 }),
   createdBy: bigint("created_by", { mode: "number", unsigned: true }).references(() => users.id, { onDelete: "restrict" }),
+  /*
+    Сторно. Платёж не удаляется и не правится: ошибочно введённая оплата
+    оставалась навсегда — в собранных наличных курьера, в акте сверки, в
+    журнале долгов, — и исправлялась только ручным «новым долгом», который в
+    акте читался как начисление. Сторно — вторая строка того же типа с
+    отрицательной суммой и ссылкой сюда: все суммы по type = 'payment'
+    (долг магазина, касса курьера, ведомость) сходятся сами, а пара строк
+    видна как пара. Одно сторно на платёж — уникальный индекс ниже.
+  */
+  reversalOf: bigint("reversal_of", { mode: "number", unsigned: true }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 }, (t) => ({
   tenantIdx: index("idx_payments_tenant").on(t.tenantId),
@@ -875,6 +918,7 @@ export const payments = mysqlTable("payments", {
   tenantShopIdx: index("idx_payments_tenant_shop").on(t.tenantId, t.shopId),
   createdAtIdx:  index("idx_payments_created_at").on(t.createdAt),
   idempotencyUq: uniqueIndex("uq_payments_idempotency").on(t.tenantId, t.idempotencyKey),
+  reversalUq: uniqueIndex("uq_payments_reversal_of").on(t.reversalOf),
 }));
 
 export type Payment       = typeof payments.$inferSelect;
@@ -910,10 +954,24 @@ export const agentLocations = mysqlTable("agent_locations", {
    * в буфере три часа.
    */
   recordedAt: timestamp("recorded_at"),
+  /*
+    Точка снята с подменённых координат — так сказала система телефона
+    (Android отмечает фиктивное местоположение от приложений-эмуляторов).
+    Единственный признак фрода, который нельзя получить честно: отсутствие
+    GPS бывает у всех, подмена — только нарочно.
+  */
+  mocked: boolean("mocked").default(false).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 }, (t) => ({
   tenantIdx: index("idx_locations_tenant").on(t.tenantId),
-  tenantAgentIdx: index("idx_locations_tenant_agent").on(t.tenantId, t.agentId),
+  /*
+    Все шесть чтений следа фильтруют tenant_id + agent_id + диапазон
+    created_at. Индекс (tenant_id, agent_id) без времени заставлял InnoDB
+    перебирать всю историю агента и отсеивать по дате — карта супервайзера,
+    KPI и антифрод за день читали месяцы. Третья колонка делает диапазон
+    частью индекса; прежний двухколоночный индекс — префикс этого и не нужен.
+  */
+  tenantAgentCreatedIdx: index("idx_locations_tenant_agent_created").on(t.tenantId, t.agentId, t.createdAt),
   tenantCreatedIdx: index("idx_locations_tenant_created").on(t.tenantId, t.createdAt),
 }));
 
@@ -1071,6 +1129,26 @@ export const commissions = mysqlTable("commissions", {
     другого следа выхода на работу в системе нет, и выдумывать табель ради
     двух сумм не стоит.
   */
+  /*
+    Оклад. Жил в sales_targets.target_amount — в той же колонке, куда экран
+    «Нормы месяца» и мобильный экран целей пишут ПЛАН ПРОДАЖ. Одно число, два
+    смысла, два независимых пути записи: супервайзер применял подсказанные
+    нормы (45 млн выручки) — в ведомости у агента появлялся оклад 45 млн и от
+    него считался вычет; директор ставил оклад 3 млн — план агента становился
+    3 млн. Здесь оклад лежит рядом со ставкой, обедом и дорожными — это одна
+    строка условий оплаты человека на месяц.
+  */
+  baseSalary:      decimal("base_salary",      { precision: 14, scale: 2 }).default("0.00").notNull(),
+  /*
+    Утверждённый вычет за подозрительные визиты — за ЭТОТ период.
+
+    Раньше вычет считался формулой (оклад × доля подозрительных × ½) и
+    вычитался из зарплаты сам, без чьего-либо решения и без строки в
+    ведомости супервайзера: человек недосчитывался денег за день без GPS.
+    Теперь формула даёт ПРЕДЛОЖЕНИЕ, а из зарплаты вычитается только то, что
+    директор утвердил здесь. NULL — не утверждали, вычета нет.
+  */
+  fraudDeduction:  decimal("fraud_deduction",  { precision: 14, scale: 2 }),
   mealAllowance:   decimal("meal_allowance",   { precision: 12, scale: 2 }).default("0.00").notNull(),
   travelAllowance: decimal("travel_allowance", { precision: 12, scale: 2 }).default("0.00").notNull(),
   periodType:   mysqlEnum("period_type", ["monthly", "quarterly"]).default("monthly").notNull(),
@@ -1213,6 +1291,16 @@ export const settings = mysqlTable("settings", {
   currencySymbol:      varchar("currency_symbol", { length: 10 }).default("сум").notNull(),
   defaultReorderPoint: decimal("default_reorder_point", { precision: 10, scale: 2 }).default("0.00").notNull(),
   lowStockThreshold:   decimal("low_stock_threshold", { precision: 10, scale: 2 }).default("50.00").notNull(),
+  /*
+    Порог скидки для полевых ролей (агент, мерчандайзер, супервайзер), в
+    процентах. NULL — порога нет, как было у всех: заказ со скидкой до 100 %
+    мог оформить любой полевой сотрудник без согласования и без записи в
+    журнал — классическая схема «своему магазину со скидкой», при которой
+    склад и долг сходятся, а P&L показывает падение маржи без объяснения.
+    Скидка выше порога — отказ у прилавка; заказ со скидкой выше порога
+    оформляет офис (ceo, operator), и это остаётся в журнале действий.
+  */
+  maxFieldDiscountPct: decimal("max_field_discount_pct", { precision: 5, scale: 2 }),
   symbolPosition:      mysqlEnum("symbol_position", ["before", "after"]).default("after").notNull(),
   // UZ: address for official documents (printed on invoices)
   companyAddress:      text("company_address"),

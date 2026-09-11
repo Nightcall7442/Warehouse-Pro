@@ -155,6 +155,69 @@
       "when": 1789083808559,
       "tag": "0021_telegram_groups",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "5",
+      "when": 1789148493606,
+      "tag": "0022_agent_locations_index",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "5",
+      "when": 1789164375061,
+      "tag": "0023_order_items_price_list",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "5",
+      "when": 1789164790490,
+      "tag": "0024_commissions_base_salary",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "5",
+      "when": 1789165246567,
+      "tag": "0025_shops_credit_limit",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "5",
+      "when": 1789165738605,
+      "tag": "0026_settings_field_discount_cap",
+      "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "5",
+      "when": 1789166380295,
+      "tag": "0027_payments_reversal",
+      "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "5",
+      "when": 1789167759031,
+      "tag": "0028_fraud_deduction_and_mocked_gps",
+      "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "5",
+      "when": 1789168804443,
+      "tag": "0029_returns_disposition",
+      "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "5",
+      "when": 1789169348927,
+      "tag": "0030_users_totp",
+      "breakpoints": true
     }
   ]
 }

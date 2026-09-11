@@ -174,46 +174,9 @@ function makeMockDb() {
     delete: () => ({
       where: () => Promise.resolve(),
     }),
-    execute: (sqlObj: unknown) => {
-      if (!sqlObj || typeof sqlObj !== "object" || (sqlObj as Record<string, unknown>).__kind !== "sql") return Promise.resolve();
-      const s = sqlObj as { strings: string[]; values: unknown[] };
-      const fullSql = s.strings.join("");
-      if (!fullSql.includes("UPDATE warehouse_stock")) return Promise.resolve();
-
-      const updates: Array<{ productId: number; field: string; op: string; amount: number }> = [];
-      const isCreatePattern = fullSql.includes("reserved = reserved +") || fullSql.includes("available = available -");
-      const isDeductPattern = fullSql.includes("current_stock = current_stock -") && fullSql.includes("reserved = reserved -");
-
-      let caseIndex = 0;
-      for (const val of s.values) {
-        if (!val || typeof val !== "object") continue;
-        const obj = val as Record<string, unknown>;
-        if (obj.__kind === "sql_join" && Array.isArray(obj.chunks)) {
-          if (caseIndex < 2) {
-            const field = isDeductPattern ? (caseIndex === 0 ? "currentStock" : "reserved") : (caseIndex === 0 ? "reserved" : "available");
-            const op = isCreatePattern ? (caseIndex === 0 ? "+" : "-") : (isDeductPattern ? "-" : (caseIndex === 0 ? "-" : "+"));
-            for (const chunk of obj.chunks) {
-              if (!chunk || typeof chunk !== "object") continue;
-              const c = chunk as { __kind: string; strings: string[]; values: unknown[] };
-              if (c.__kind !== "sql") continue;
-              updates.push({ productId: Number(c.values[0]), field, op, amount: Number(c.values[1]) });
-            }
-          }
-          caseIndex++;
-        }
-      }
-
-      const tenantId = s.values.filter(v => typeof v !== "object" || v === null).pop();
-      for (const u of updates) {
-        for (const row of stockTable) {
-          if (String(row.productId) === String(u.productId) && String(row.tenantId) === String(tenantId) && u.field) {
-            const cur = Number((row as unknown as Record<string, string>)[u.field]);
-            (row as unknown as Record<string, string>)[u.field] = (u.op === "+" ? cur + u.amount : cur - u.amount).toFixed(2);
-          }
-        }
-      }
-      return Promise.resolve();
-    },
+    // Корректировка идёт через дверь остатка — арифметику считает общая
+    // подделка (helpers/mock-execute), а не свой разбор текста запроса.
+    execute: createExecuteMock(stockTable as never),
     transaction: async (fn: (tx: unknown) => Promise<unknown>) => fn(db),
   };
   return db;
@@ -229,6 +192,7 @@ beforeEach(() => {
 
 import { StockService } from "../stock";
 import { makeConditionEvaluator } from "../../../api/__tests__/helpers/fake-conditions";
+import { createExecuteMock } from "../../../api/__tests__/helpers/mock-execute";
 
 /*
   Здесь были наборы для StockService.reserve, .release и .deduct.
@@ -273,7 +237,7 @@ describe("StockService.adjust", () => {
     await StockService.adjust(mockDb as any, 1, 1, 75, "adjustment");
 
     const stock = stockTable.find((s) => s.productId === 1)!;
-    expect(stock.currentStock).toBe("75");
+    expect(stock.currentStock).toBe("75.00");
   });
 
   it("emits stock.low event when out adjustment drops below reorder point", async () => {

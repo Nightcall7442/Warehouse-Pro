@@ -63,6 +63,7 @@ async function setScope(
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ commands, scope }),
+    signal: AbortSignal.timeout(10_000),
   });
   if (!res.ok) {
     const detail = await res.text().catch(() => "");

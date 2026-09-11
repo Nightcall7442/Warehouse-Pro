@@ -49,6 +49,30 @@ export const httpRequestErrorsTotal = new client.Counter({
   registers: [register],
 });
 
+/*
+  Возраст последней удачной копии. Ночная копия «отрабатывала» отказом в
+  журнал, который никто не читает, — и о том, что копий нет, узнали через
+  месяцы. Правило в docs/observability/alerts.yml тревожит, когда метрики
+  нет 26 часов или она старше 26 часов. Значение живёт в памяти процесса:
+  после перезапуска метрика отсутствует до следующей копии — поэтому у
+  правила `for: 26h`, а не мгновенное срабатывание.
+*/
+export const backupLastSuccessTimestamp = new client.Gauge({
+  name: "backup_last_success_timestamp_seconds",
+  help: "Unix time of the last successful database backup upload",
+  registers: [register],
+});
+export const restoreDrillLastSuccessTimestamp = new client.Gauge({
+  name: "backup_restore_drill_last_success_timestamp_seconds",
+  help: "Unix time of the last successful restore drill (latest backup restored into a scratch database and verified)",
+  registers: [register],
+});
+export const backupLastSizeBytes = new client.Gauge({
+  name: "backup_last_size_bytes",
+  help: "Gzipped size of the last successful database backup",
+  registers: [register],
+});
+
 /**
  * Render all registered metrics in Prometheus exposition format.
  */

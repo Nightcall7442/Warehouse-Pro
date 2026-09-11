@@ -476,41 +476,12 @@ export const importRouter = createRouter({
 
               const productId = Number(r.insertId);
 
-              // Create warehouse_stock record
-              try {
-                await db.execute(sql`INSERT INTO warehouse_stock (tenant_id, warehouse_id, product_id, current_stock, reserved, available) VALUES (${tenantId}, ${defaultWarehouse.id}, ${productId}, ${row.initialStock}, '0.00', ${row.initialStock})`);
-              } catch (stockErr: unknown) {
-                const stockMsg = (stockErr as { message?: string })?.message ?? "";
-                // If duplicate, try update instead
-                if (stockMsg.includes("Duplicate") || stockMsg.includes("uq_stock")) {
-                  // Scope to the same warehouse the INSERT targeted — an unscoped
-                  // UPDATE overwrote the product's stock in every warehouse. And
-                  // `available` must account for what is already reserved.
-                  // Импорт называет остаток целиком, поэтому current_stock
-                  // присваивается, а не сдвигается. Резерв при этом не может
-                  // превышать названный остаток — зарезервировать больше, чем
-                  // лежит на полке, нельзя, — так что reserved обрезается по
-                  // новому количеству, а available = остаток минус обрезанный
-                  // резерв.
-                  //
-                  /*
-                    Импорт называет ИТОГ, а не движение: остаток присваивается
-                    числом, а резерв обрезается по нему — зарезервировать
-                    больше, чем лежит на полке, нельзя.
-
-                    Прежняя запись правила все три колонки руками и обязана была
-                    ставить available первым, чтобы обрезка успела прочитать
-                    старый резерв. Дверь выводит available от новых значений, и
-                    порядок перестал быть ловушкой.
-                  */
-                  await setStock(db, {
-                    tenantId, warehouseId: defaultWarehouse.id,
-                    productId, quantity: row.initialStock,
-                  });
-                } else {
-                  console.error(`[IMPORT] warehouse_stock failed for ${row.code}:`, stockMsg);
-                }
-              }
+              // Начальный остаток — через дверь: строку заводит она сама, а
+              // при повторном импорте ставит итог и обрезает резерв по нему.
+              await setStock(db, {
+                tenantId, warehouseId: defaultWarehouse.id,
+                productId, quantity: row.initialStock,
+              });
               // An import states the opening count, so it enters the ledger the
               // same way a manual correction does.
               if (Number(row.initialStock) > 0) {

@@ -2,6 +2,7 @@ import * as cookie from "cookie";
 import { Session } from "@contracts/constants";
 import { Errors } from "@contracts/errors";
 import { verifySessionToken } from "./session";
+import { isSessionRevoked } from "./revocation";
 import { findUserById } from "../queries/users";
 import { findTenantById } from "../queries/tenants";
 import type { Tenant, User } from "@db/schema";
@@ -11,7 +12,7 @@ import type { Tenant, User } from "@db/schema";
  * authenticated request never carries one around — the two flows that need it
  * (login, change password) read it themselves.
  */
-export type AuthenticatedUser = Omit<User, "passwordHash">;
+export type AuthenticatedUser = Omit<User, "passwordHash" | "totpSecret">;
 
 export type AuthResult = {
   user: AuthenticatedUser;
@@ -35,6 +36,8 @@ export async function authenticateRequest(headers: Headers): Promise<AuthResult>
 
   const claim = await verifySessionToken(token);
   if (!claim)  throw Errors.forbidden("Invalid authentication token.");
+  // Выход отзывает сессию: токен подписан верно, но им уже вышли.
+  if (claim.jti && await isSessionRevoked(claim.jti)) throw Errors.forbidden("Session expired. Please re-login.");
 
   const user = await findUserById(claim.userId);
   if (!user)   throw Errors.forbidden("User not found. Please re-login.");

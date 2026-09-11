@@ -9,7 +9,7 @@ import { calculateAgentKpi, calculateAllAgentsKpi, calculateCourierStats, calcul
 import { withCache, CacheTTL, cache, CacheKeys } from "./lib/cache";
 import { recordAudit } from "./services/audit-log";
 import { getClientIp } from "./lib/rate-limit";
-import { commissions, salaryPayouts, salesTargets, shops, users } from "@db/schema";
+import { commissions, salaryPayouts, shops, users } from "@db/schema";
 import { NotificationService } from "./services/NotificationService";
 import { sendPushToUser } from "./services/push-service";
 import { alias } from "drizzle-orm/mysql-core";
@@ -529,7 +529,8 @@ export const kpiRouter = createRouter({
   /*
     Задать оклад и ставку комиссии.
 
-    Оклад лежит в salesTargets, ставка — в commissions, и задать их можно
+    Оклад и ставка лежат в одной строке commissions (оклад раньше жил в
+    salesTargets и смешивался с планом продаж), и задать их можно
     было только на других экранах: на зарплатах человек с пустым окладом
     показывался строкой «оклад не задан», а куда идти дальше, экран не
     говорил. Здесь обе величины ставятся там же, где их видно.
@@ -537,6 +538,62 @@ export const kpiRouter = createRouter({
     Обе — с ТЕКУЩЕГО месяца, даже если открыт прошлый: задним числом
     менять закрытый период значит переписывать то, по чему уже заплатили.
   */
+  /*
+    Утвердить (или снять) вычет за подозрительные визиты за месяц.
+
+    Сумма пишется в строку условий оплаты за этот месяц; расчёт вычитает
+    только её. Утверждённый или оплаченный период менять нельзя — по нему
+    уже заплатили.
+  */
+  setFraudDeduction: adminQuery
+    .input(z.object({
+      userId: z.number().int().positive(),
+      // Сколько месяцев назад: 0 — текущий, 1 — прошлый.
+      offset: z.number().int().min(0).max(36).default(0),
+      // null — снять вычет.
+      amount: z.number().min(0).max(1e12).nullable(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const db = getDb();
+      const [person] = await db.select({ id: users.id, name: users.name })
+        .from(users)
+        .where(and(eq(users.id, input.userId), eq(users.tenantId, ctx.tenant.id), sql`${users.role} <> 'superadmin'`))
+        .limit(1);
+      if (!person) throw new TRPCError({ code: "NOT_FOUND", message: "Сотрудник не найден в вашей организации" });
+
+      const now = new Date();
+      const { start: monthStart, end: monthEnd } = monthRange(new Date(now.getFullYear(), now.getMonth() - input.offset, 1));
+      const [terms] = await db.select({ id: commissions.id, status: commissions.status })
+        .from(commissions)
+        .where(and(
+          eq(commissions.tenantId, ctx.tenant.id),
+          eq(commissions.userId, person.id),
+          eq(commissions.periodType, "monthly"),
+          onDate(commissions.periodStart, monthStart),
+        ))
+        .limit(1);
+      if (terms && terms.status !== "pending") {
+        throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Период уже закрыт — по нему заплатили" });
+      }
+      const value = input.amount == null ? null : input.amount.toFixed(2);
+      if (terms) {
+        await db.update(commissions).set({ fraudDeduction: value }).where(eq(commissions.id, terms.id));
+      } else if (value != null) {
+        await db.insert(commissions).values({
+          tenantId: ctx.tenant.id, userId: person.id, periodType: "monthly",
+          periodStart: sql`${monthStart}`, periodEnd: sql`${monthEnd}`,
+          fraudDeduction: value,
+        });
+      }
+      cache.invalidate(CacheKeys.commissions(ctx.tenant.id));
+      await recordAudit(db, {
+        tenantId: ctx.tenant.id, actorId: ctx.user.id, actorName: ctx.user.name,
+        action: "salary.fraud_deduction", targetType: "user", targetId: person.id,
+        meta: { userName: person.name, month: monthStart, amount: input.amount },
+      });
+      return { success: true };
+    }),
+
   setSalary: adminQuery
     .input(z.object({
       userId: z.number().int().positive(),
@@ -562,61 +619,39 @@ export const kpiRouter = createRouter({
       // общий со всеми, кто пишет и читает те же строки.
       const { start: monthStart, end: monthEnd } = monthRange();
 
-      const [existingTarget] = await db.select({ id: salesTargets.id })
-        .from(salesTargets)
+      // Оклад и ставка — одна строка условий оплаты на месяц. Строка
+      // заводится, если её нет; ставка меняется только когда передана.
+      const [existingTerms] = await db.select({ id: commissions.id })
+        .from(commissions)
         .where(and(
-          eq(salesTargets.tenantId, ctx.tenant.id),
-          eq(salesTargets.userId, person.id),
-          eq(salesTargets.periodType, "monthly"),
-          onDate(salesTargets.periodStart, monthStart),
+          eq(commissions.tenantId, ctx.tenant.id),
+          eq(commissions.userId, person.id),
+          eq(commissions.periodType, "monthly"),
+          onDate(commissions.periodStart, monthStart),
         ))
         .limit(1);
 
-      if (existingTarget) {
-        await db.update(salesTargets)
-          .set({ targetAmount: input.baseSalary.toFixed(2) })
-          .where(eq(salesTargets.id, existingTarget.id));
+      if (existingTerms) {
+        await db.update(commissions)
+          .set({
+            baseSalary: input.baseSalary.toFixed(2),
+            ...(input.commissionRate != null ? { commissionRate: input.commissionRate.toFixed(2) } : {}),
+          })
+          .where(eq(commissions.id, existingTerms.id));
       } else {
-        await db.insert(salesTargets).values({
-          tenantId:     ctx.tenant.id,
-          userId:       person.id,
-          periodType:   "monthly",
-          periodStart:  sql`${monthStart}`,
-          periodEnd:    sql`${monthEnd}`,
-          targetAmount: input.baseSalary.toFixed(2),
+        await db.insert(commissions).values({
+          tenantId:       ctx.tenant.id,
+          userId:         person.id,
+          baseSalary:     input.baseSalary.toFixed(2),
+          commissionRate: (input.commissionRate ?? 0).toFixed(2),
+          periodType:     "monthly",
+          periodStart:    sql`${monthStart}`,
+          periodEnd:      sql`${monthEnd}`,
+          salesAmount:      "0.00",
+          commissionAmount: "0.00",
         });
       }
 
-      if (input.commissionRate != null) {
-        const [existingRate] = await db.select({ id: commissions.id })
-          .from(commissions)
-          .where(and(
-            eq(commissions.tenantId, ctx.tenant.id),
-            eq(commissions.userId, person.id),
-            eq(commissions.periodType, "monthly"),
-            onDate(commissions.periodStart, monthStart),
-          ))
-          .limit(1);
-
-        if (existingRate) {
-          await db.update(commissions)
-            .set({ commissionRate: input.commissionRate.toFixed(2) })
-            .where(eq(commissions.id, existingRate.id));
-        } else {
-          await db.insert(commissions).values({
-            tenantId:       ctx.tenant.id,
-            userId:         person.id,
-            commissionRate: input.commissionRate.toFixed(2),
-            periodType:     "monthly",
-            periodStart:    sql`${monthStart}`,
-            periodEnd:      sql`${monthEnd}`,
-            salesAmount:      "0.00",
-            commissionAmount: "0.00",
-          });
-        }
-      }
-
-      cache.invalidate(CacheKeys.salesTargets(ctx.tenant.id));
       cache.invalidate(CacheKeys.commissions(ctx.tenant.id));
 
       await recordAudit(db, {

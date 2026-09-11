@@ -396,6 +396,8 @@ export const agentRouter = createRouter({
       // Когда точка снята устройством. Приходит у точек, пролежавших в буфере
       // без связи; у отправленных сразу его нет и оно не нужно.
       recordedAt: z.string().datetime().optional(),
+      // Система телефона пометила координаты как подменённые (Android).
+      mocked: z.boolean().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
       await getDb().insert(agentLocations).values({
@@ -406,6 +408,7 @@ export const agentRouter = createRouter({
         accuracy: input.accuracy,
         batteryLevel: input.batteryLevel,
         recordedAt: sanitizeRecordedAt(input.recordedAt),
+        mocked: input.mocked === true,
       });
 
       sseBus.emit({
@@ -500,6 +503,10 @@ export const agentRouter = createRouter({
         .where(and(
           eq(agentLocations.tenantId, ctx.tenant.id),
           eq(agentLocations.agentId, input.agentId),
+          // Предусловие по created_at для индекса (COALESCE его не умеет).
+          // Границы точные из окна sanitizeRecordedAt: skew 5 мин, буфер 7 сут.
+          sql`${agentLocations.createdAt} >= DATE_SUB(${start}, INTERVAL 5 MINUTE)`,
+          sql`${agentLocations.createdAt} <= DATE_ADD(${end}, INTERVAL 7 DAY)`,
           // Границы периода тоже по времени съёмки: иначе точка, снятая в два
           // часа дня и залитая в шесть вечера, не попала бы в запрос за
           // дневной отрезок — то есть именно тот случай, ради которого поле и

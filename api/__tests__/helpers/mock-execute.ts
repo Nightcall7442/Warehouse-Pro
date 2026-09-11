@@ -49,8 +49,8 @@ interface ExecuteMockOptions {
 /** Пакетный сдвиг: shiftStock. Два числа задаются, третье выводится. */
 const DOOR_SHIFT = /SET current_stock = current_stock \+ CASE ELSE 0 END, reserved = GREATEST\(0, reserved \+ CASE ELSE 0 END\), available = current_stock - reserved/;
 
-/** Установка абсолютным числом: setStock. */
-const DOOR_SET = /SET current_stock = , reserved = LEAST\(reserved, \), available = current_stock - reserved/;
+/** Установка абсолютным числом: setStock. Заводит строку, если её нет. */
+const DOOR_SET = /INSERT INTO warehouse_stock .*ON DUPLICATE KEY UPDATE current_stock = , reserved = LEAST\(reserved, \), available = current_stock - reserved/;
 
 /** Приход: заводит строку, если её нет. */
 const DOOR_RECEIVE = /INSERT INTO warehouse_stock .*ON DUPLICATE KEY UPDATE current_stock = current_stock \+ , available = current_stock - reserved/;
@@ -142,9 +142,9 @@ export function createExecuteMock<T extends StockRow>(stockTable: T[], options: 
     }
 
     if (DOOR_SET.test(norm)) {
-      // Подстановки: [количество, то же количество (в LEAST), товар, орг., склад].
-      const quantity = Number(s.values[0]);
-      return applyAbsolute(quantity, s, stockTable);
+      // Подстановки: [орг., склад, товар, кол-во, кол-во (available), кол-во, кол-во (LEAST)].
+      const [tenantId, , productId, quantity] = s.values.map(Number);
+      return applyAbsolute(tenantId, productId, quantity, stockTable);
     }
 
     if (DOOR_RECEIVE.test(norm)) {
@@ -249,10 +249,16 @@ function applyShift<T extends StockRow>(
 }
 
 /** Установка числом: резерв обрезается по новому остатку. */
-function applyAbsolute<T extends StockRow>(quantity: number, s: SqlObj, stockTable: T[]) {
-  const tenantId = tenantOf(s);
-  const productId = Number(bound(s, "product_id"));
-  for (const row of rowsFor(stockTable, tenantId, productId)) {
+function applyAbsolute<T extends StockRow>(tenantId: number, productId: number, quantity: number, stockTable: T[]) {
+  const rows = rowsFor(stockTable, tenantId, productId);
+  if (rows.length === 0) {
+    stockTable.push({
+      productId, tenantId,
+      currentStock: money(quantity), reserved: "0.00", available: money(quantity),
+    } as unknown as T);
+    return Promise.resolve();
+  }
+  for (const row of rows) {
     const nowReserved = Math.min(Number(row.reserved), quantity);
     row.currentStock = money(quantity);
     row.reserved = money(nowReserved);

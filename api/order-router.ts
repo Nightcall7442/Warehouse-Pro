@@ -2,10 +2,13 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { createRouter, operatorQuery, fieldSalesQuery, can } from "./middleware";
 import { OrderService, assertOrderVisible, assertItemsEditableBy } from "./services/order";
+
+/** Кто делает правку — для журнала действий службы заказа. */
+const actorOf = (ctx: { user: { id: number; role: string; name: string } }) => ({ id: ctx.user.id, role: ctx.user.role, name: ctx.user.name });
 // Погрузочные листы живут своим модулем: с заказом у них общая только ссылка.
 import { LoadingListService } from "./services/loading-list";
 import { getDb } from "./queries/connection";
-import { savedFilters, orderComments, shops, payments, users, orders, returns } from "@db/schema";
+import { savedFilters, orderComments, shops, payments, users, orders, returns, settings } from "@db/schema";
 import { eq, and, or, desc, sql, isNull, inArray } from "drizzle-orm";
 import { sanitizeString } from "./lib/sanitize";
 import { OPEN_ORDER_STATUSES, CLOSED_ORDER_STATUSES } from "./lib/order-status";
@@ -334,10 +337,39 @@ export const orderRouter = createRouter({
           }
         }
 
-        return await OrderService.create(ctx.db, ctx.tenant.id, agentId, {
+        /*
+          Порог скидки для полевых ролей — настройка организации. Проверка
+          здесь, а не в службе: только у роутера есть роль, и офису (ceo,
+          operator) порог не мешает — их скидка остаётся в журнале ниже.
+        */
+        const discountPct = Number(input.discount ?? 0);
+        if (discountPct > 0 && !["ceo", "operator"].includes(ctx.user.role)) {
+          const [cfg] = await ctx.db.select({ max: settings.maxFieldDiscountPct }).from(settings)
+            .where(eq(settings.tenantId, ctx.tenant.id)).limit(1);
+          if (cfg?.max != null && discountPct > Number(cfg.max)) {
+            throw new TRPCError({
+              code: "FORBIDDEN",
+              message: `Скидка ${discountPct}% выше порога ${Number(cfg.max)}% для полевых сотрудников — согласуйте с офисом`,
+            });
+          }
+        }
+
+        const created = await OrderService.create(ctx.db, ctx.tenant.id, agentId, {
           ...input,
           promisedDeliveryAt: input.promisedDeliveryAt ? new Date(input.promisedDeliveryAt) : null,
         });
+
+        // След оформления: создание заказа не попадало в журнал вовсе, а
+        // именно здесь решается скидка. Повтор по ключу след не задваивает.
+        if (!created.idempotent) {
+          const { recordAudit } = await import("./services/audit-log");
+          await recordAudit(ctx.db, {
+            tenantId: ctx.tenant.id, actorId: ctx.user.id, actorName: ctx.user.name,
+            action: "order.create", targetType: "order", targetId: created.id,
+            meta: { orderNumber: created.orderNumber, shopId: input.shopId, agentId, discountPct, paymentMethod: input.paymentMethod ?? "cash", actorRole: ctx.user.role },
+          });
+        }
+        return created;
       } catch (err) {
         const cause = err instanceof Error ? err.cause : undefined;
         console.error("[order.create FAILED]", {
@@ -389,7 +421,7 @@ export const orderRouter = createRouter({
         ...(promisedDeliveryAt === undefined
           ? {}
           : { promisedDeliveryAt: promisedDeliveryAt === null ? null : new Date(promisedDeliveryAt) }),
-      });
+      }, actorOf(ctx));
     }),
 
   /*
@@ -427,7 +459,7 @@ export const orderRouter = createRouter({
 
       return OrderService.update(ctx.db, ctx.tenant.id, input.orderId, {
         promisedDeliveryAt: input.promisedDeliveryAt === null ? null : new Date(input.promisedDeliveryAt),
-      });
+      }, actorOf(ctx));
     }),
 
   /*
@@ -467,19 +499,19 @@ export const orderRouter = createRouter({
       const actor = { id: ctx.user.id, role: ctx.user.role };
       await assertOrderVisible(ctx.db, ctx.tenant.id, input.id, actor, "Менять состав");
       await assertItemsEditableBy(ctx.db, ctx.tenant.id, input.id, actor);
-      return OrderService.updateItems(ctx.db, ctx.tenant.id, input.id, { items: input.items });
+      return OrderService.updateItems(ctx.db, ctx.tenant.id, input.id, { items: input.items }, actorOf(ctx));
     }),
 
   delete: operatorQuery.use(can("orders.delete"))
     .input(z.object({ id: z.number().int().positive() }))
     .mutation(async ({ input, ctx }) => {
-      return OrderService.delete(ctx.db, ctx.tenant.id, input.id);
+      return OrderService.delete(ctx.db, ctx.tenant.id, input.id, actorOf(ctx));
     }),
 
   restore: operatorQuery.use(can("orders.delete"))
     .input(z.object({ id: z.number().int().positive() }))
     .mutation(async ({ input, ctx }) => {
-      return OrderService.restore(ctx.db, ctx.tenant.id, input.id);
+      return OrderService.restore(ctx.db, ctx.tenant.id, input.id, actorOf(ctx));
     }),
 
   // ── Batch Print Invoices ────────────────────────────────────────────────────
@@ -803,6 +835,7 @@ export const orderRouter = createRouter({
       method: z.enum(["cash", "card", "transfer"]),
       debtDueDate: z.string().optional(),
       notes: z.string().max(500).optional(),
+      idempotencyKey: z.string().min(8).max(100).optional(),
     }))
     .mutation(async ({ input, ctx }) => {
       return OrderService.recordPartialPayment(ctx.db, ctx.tenant.id, { id: ctx.user.id, role: ctx.user.role }, input);
@@ -837,6 +870,7 @@ export const orderRouter = createRouter({
         method: z.enum(["cash", "card", "transfer"]),
         debtDueDate: z.string().optional(),
         notes: z.string().max(500).optional(),
+        idempotencyKey: z.string().min(8).max(100).optional(),
       }),
       photos: z.array(z.string()).optional(),
     }))

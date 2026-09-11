@@ -41,6 +41,10 @@ import {
  */
 
 type Status = "pending" | "approved" | "rejected" | "completed";
+type Disposition = "restock" | "write_off";
+/** Та же логика, что defaultDisposition на сервере: брак, просрочка, порча — списать. */
+const defaultDisposition = (reason: string | null | undefined): Disposition =>
+  reason === "defect" || reason === "expired" || reason === "damaged" ? "write_off" : "restock";
 
 const STATUS_CHIP: Record<Status, string> = {
   pending:   "bg-warning/15 text-warning border-warning/30",
@@ -120,19 +124,22 @@ export default function Returns() {
     «Проведён» возвращает товар на склад и уменьшает долг магазина, и обратной
     дороги у него нет — состояние терминальное.
   */
-  const act = async (id: number, to: Status, number: string) => {
+  const act = async (id: number, to: Status, number: string, disposition?: Disposition) => {
     if (to === "completed") {
+      const restock = disposition !== "write_off";
       const ok = await confirm({
-        title: t("Провести возврат?", "Qaytarish o'tkazilsinmi?"),
-        message: t(
-          `${number}: товар вернётся на склад, долг магазина уменьшится. Отменить проведение нельзя.`,
-          `${number}: mahsulot omborga qaytadi, do'kon qarzi kamayadi. Bekor qilib bo'lmaydi.`,
-        ),
-        confirmText: t("Провести", "O'tkazish"),
+        title: restock ? t("Провести возврат на склад?", "Omborga qaytarish o'tkazilsinmi?") : t("Провести возврат списанием?", "Hisobdan chiqarib o'tkazilsinmi?"),
+        message: restock
+          ? t(`${number}: товар вернётся на склад, долг магазина уменьшится. Отменить проведение нельзя.`,
+              `${number}: mahsulot omborga qaytadi, do'kon qarzi kamayadi. Bekor qilib bo'lmaydi.`)
+          : t(`${number}: товар списывается и на склад не попадёт, долг магазина уменьшится. Отменить проведение нельзя.`,
+              `${number}: mahsulot hisobdan chiqariladi va omborga tushmaydi, do'kon qarzi kamayadi. Bekor qilib bo'lmaydi.`),
+        confirmText: restock ? t("На склад", "Omborga") : t("Списать", "Hisobdan chiqarish"),
+        danger: !restock,
       });
       if (!ok) return;
     }
-    move.mutate({ id, status: to });
+    move.mutate({ id, status: to, disposition });
   };
 
   const rows = listQ.data?.data ?? [];
@@ -302,7 +309,7 @@ export default function Returns() {
                           <td style={{ ...tdStyle, textAlign: "right" }}>
                             <Actions
                               status={st} pending={move.isPending}
-                              onAct={to => act(r.id, to, r.returnNumber)}
+                              onAct={(to, d) => act(r.id, to, r.returnNumber, d)} reason={r.reason}
                               t={t}
                             />
                           </td>
@@ -353,7 +360,7 @@ export default function Returns() {
                       </span>
                       <Actions
                         status={st} pending={move.isPending}
-                        onAct={to => act(r.id, to, r.returnNumber)}
+                        onAct={(to, d) => act(r.id, to, r.returnNumber, d)} reason={r.reason}
                         t={t}
                       />
                     </div>
@@ -385,9 +392,10 @@ export default function Returns() {
 }
 
 /** Кнопки перехода — ровно те, что примет сервер. */
-function Actions({ status, pending, onAct, t }: {
+function Actions({ status, pending, onAct, reason, t }: {
   status: Status; pending: boolean;
-  onAct: (to: Status) => void;
+  onAct: (to: Status, disposition?: Disposition) => void;
+  reason?: string | null;
   t: (ru: string, uz: string) => string;
 }) {
   const next = NEXT[status];
@@ -408,12 +416,24 @@ function Actions({ status, pending, onAct, t }: {
           <X size={14} />{t("Отклонить", "Rad etish")}
         </button>
       )}
-      {next.includes("completed") && (
-        <button className="neo-btn-primary" disabled={pending} onClick={() => onAct("completed")}
-          style={{ display: "flex", alignItems: "center", gap: "5px", fontSize: "13px" }}>
-          <PackageCheck size={14} />{t("Провести", "O'tkazish")}
-        </button>
-      )}
+      {/* Две кнопки вместо одной: куда девать товар — решение оператора.
+          Главная — та, что подсказана причиной возврата. */}
+      {next.includes("completed") && (() => {
+        const suggested = defaultDisposition(reason);
+        const btn = (d: Disposition, label: string, testId: string) => (
+          <button key={d} className={suggested === d ? "neo-btn-primary" : "neo-btn"} disabled={pending}
+            onClick={() => onAct("completed", d)} data-testid={testId}
+            style={{ display: "flex", alignItems: "center", gap: "5px", fontSize: "13px" }}>
+            <PackageCheck size={14} />{label}
+          </button>
+        );
+        return (
+          <>
+            {btn("restock", t("На склад", "Omborga"), "return-restock")}
+            {btn("write_off", t("Списать", "Hisobdan chiqarish"), "return-write-off")}
+          </>
+        );
+      })()}
     </div>
   );
 }

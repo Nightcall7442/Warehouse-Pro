@@ -156,6 +156,8 @@ function makeMockDb() {
     const api: Record<string, unknown> = {
       from(ref: unknown) { currentTable = tableOf(ref); return api; },
       leftJoin() { return api; },
+      // Прайс-лист магазина читается JOIN-ом; у подделки списков нет — пусто = цена карточки.
+      innerJoin() { return api; },
       where(cond: Record<string, unknown>) {
         const filtered = rowsFor(currentTable).filter((r) => evalCond(r, cond));
         return wrap(filtered);
@@ -297,7 +299,7 @@ describe("warehouse.adjustStock — stock adjustment via API", () => {
     await caller.adjustStock({ productId: 1, quantity: "200", type: "adjustment" });
 
     const stock = stockTable.find(s => s.productId === 1 && s.tenantId === 1)!;
-    expect(stock.currentStock).toBe("200");
+    expect(stock.currentStock).toBe("200.00");
   });
 
   it("creates a stock movement record", async () => {

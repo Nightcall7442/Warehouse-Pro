@@ -137,7 +137,7 @@ export const productRouter = createRouter({
   list: fieldSalesQuery
     .input(z.object({
       page:       z.number().default(1),
-      pageSize:   z.number().default(25),
+      pageSize:   z.number().int().min(1).max(10000).default(25),
       search:     z.string().optional(),
       category:   z.string().optional(),
       includeAll: z.boolean().optional(),

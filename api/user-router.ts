@@ -8,13 +8,15 @@ import { TRPCError } from "@trpc/server";
 import { checkRateLimit, getClientIp, rateLimitSubject } from "./lib/rate-limit";
 import { sanitizeSearch } from "./lib/sanitize";
 import { recordAudit } from "./services/audit-log";
+import { generateTotpSecret, verifyTotp, otpauthUrl } from "./lib/totp";
+import { seal, open as unseal } from "./lib/secret-box";
 import { ROLES } from "@contracts/types";
 
 export const userRouter = createRouter({
   list: adminQuery
     .input(z.object({
       page:     z.number().default(1),
-      pageSize: z.number().default(25),
+      pageSize: z.number().int().min(1).max(10000).default(25),
       search:   z.string().optional(),
       role:     z.enum(ROLES).optional(),
     }).optional())
@@ -265,6 +267,45 @@ export const userRouter = createRouter({
     }),
 
   // Logout all devices — increment tokenVersion to invalidate all sessions
+  /*
+    Второй фактор: три шага. setup даёт секрет и ссылку для QR (ещё не
+    включено); enable подтверждает первым кодом и включает; disable — по
+    коду же. Секрет хранится запечатанным, наружу уходит один раз, при setup.
+  */
+  totpSetup: authedQuery
+    .mutation(async ({ ctx }) => {
+      const secret = generateTotpSecret();
+      await getDb().update(users)
+        .set({ totpSecret: seal(secret), totpEnabledAt: null })
+        .where(eq(users.id, ctx.user.id));
+      return { secret, url: otpauthUrl("Warehouse Pro", ctx.user.email, secret) };
+    }),
+
+  totpEnable: authedQuery
+    .input(z.object({ code: z.string().min(6).max(8) }))
+    .mutation(async ({ input, ctx }) => {
+      const db = getDb();
+      const [row] = await db.select({ totpSecret: users.totpSecret }).from(users).where(eq(users.id, ctx.user.id)).limit(1);
+      if (!row?.totpSecret) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Сначала получите секрет (totpSetup)" });
+      if (!verifyTotp(unseal(row.totpSecret), input.code)) throw new TRPCError({ code: "BAD_REQUEST", message: "Неверный код — проверьте время на телефоне" });
+      await db.update(users).set({ totpEnabledAt: new Date() }).where(eq(users.id, ctx.user.id));
+      await recordAudit(db, { tenantId: ctx.tenant.id, actorId: ctx.user.id, actorName: ctx.user.name, action: "user.totp_enable", targetType: "user", targetId: ctx.user.id });
+      return { success: true };
+    }),
+
+  totpDisable: authedQuery
+    .input(z.object({ code: z.string().min(6).max(8) }))
+    .mutation(async ({ input, ctx }) => {
+      const db = getDb();
+      const [row] = await db.select({ totpSecret: users.totpSecret }).from(users).where(eq(users.id, ctx.user.id)).limit(1);
+      if (!row?.totpSecret || !verifyTotp(unseal(row.totpSecret), input.code)) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Неверный код" });
+      }
+      await db.update(users).set({ totpSecret: null, totpEnabledAt: null }).where(eq(users.id, ctx.user.id));
+      await recordAudit(db, { tenantId: ctx.tenant.id, actorId: ctx.user.id, actorName: ctx.user.name, action: "user.totp_disable", targetType: "user", targetId: ctx.user.id });
+      return { success: true };
+    }),
+
   logoutAll: authedQuery
     .mutation(async ({ ctx }) => {
       const db = getDb();

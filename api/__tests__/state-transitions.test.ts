@@ -25,6 +25,8 @@ vi.mock("drizzle-orm", () => {
     and: (...conds: unknown[]) => ({ __kind: "and", conds }),
     desc: (col: unknown) => ({ __kind: "desc", col }),
     isNull: (col: unknown) => ({ __kind: "isNull", col }),
+    // Прайс-лист магазина читается по inArray(productId); у подделки списков нет.
+    inArray: (col: unknown, vals: unknown[]) => ({ __kind: "inArray", col, vals }),
     sql: sqlFn,
   };
 });
@@ -198,6 +200,8 @@ function makeMockDb() {
     const api = {
       from(ref: unknown) { table = tableOf(ref); return api; },
       leftJoin() { return api; },
+      // Прайс-лист магазина читается JOIN-ом; у подделки списков нет — пусто = цена карточки.
+      innerJoin() { return api; },
       where(cond: unknown) {
         const filtered = rowsFor(table).filter((r) => evalCond(r, cond));
         const chain = Object.assign(Promise.resolve(filtered), {

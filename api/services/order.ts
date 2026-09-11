@@ -1,7 +1,8 @@
 import { eq, and, or, desc, sql, isNull, isNotNull, inArray } from "drizzle-orm";
-import { applyStockEffect, releaseStock, reserveStock, shipStock } from "./stock-ledger";
+import { applyStockEffect, expiredByProduct, releaseStock, reserveStock, shipStock } from "./stock-ledger";
 import { alias } from "drizzle-orm/mysql-core";
 import { orders, orderItems, warehouseStock, shops, users, products, warehouses, payments, debtReminders, orderAdjustments, territories, returns, returnItems } from "@db/schema";
+import { resolvePrices } from "./price-resolver";
 import { recalcShopDebt } from "./shop-debt";
 import { OPEN_ORDER_STATUSES, CLOSED_ORDER_STATUSES, ORDER_STATUS_LABELS, holdsStock, deductsStock } from "../lib/order-status";
 import { FIELD_EDITABLE_ORDER_STATUSES } from "@contracts/constants";
@@ -603,6 +604,27 @@ function ownerScope(actor: Actor) {
 
 /** Кто выполняет операцию: идентификатор для записи авторства и роль для прав. */
 type Actor = { id: number; role: string };
+/** Кто делает правку — для журнала действий. Необязателен: крон и вебхуки без человека. */
+type AuditActor = { id: number; role: string; name?: string };
+
+/**
+ * След правки заказа, меняющей выручку или долг.
+ *
+ * Удаление, восстановление, правка скидки и способа оплаты, переписывание
+ * строк — операции, которые убирают доставленный долговой заказ из
+ * дебиторки или меняют его сумму, — не оставляли ни записи в журнале, ни
+ * автора. Долг магазина можно было уменьшить или стереть без ответа «кто и
+ * когда». Пишется ПОСЛЕ транзакции: журнал не должен уметь отменить правку.
+ */
+async function traceOrderChange(
+  db: Db, tenantId: number, orderId: number, action: string, actor: AuditActor | undefined, meta: Record<string, unknown>,
+): Promise<void> {
+  const { recordAudit } = await import("./audit-log");
+  await recordAudit(db, {
+    tenantId, actorId: actor?.id, actorName: actor?.name, action, targetType: "order", targetId: orderId,
+    meta: { ...meta, actorRole: actor?.role },
+  });
+}
 
 /*
   След от того, кто уменьшил долг магазина.
@@ -687,9 +709,28 @@ async function traceDebtChange(
     logger.error("Не удалось уведомить офис об изменении долга", { orderId: entry.orderId, error: String(err) });
   }
 }
+/** Тип платежа по заказу — один для всех трёх денежных процедур. */
+type OrderPaymentInput = {
+  orderId: number; paidAmount: string; method: "cash" | "card" | "transfer";
+  debtDueDate?: string; notes?: string;
+  /**
+   * Ключ повтора. Клиент делает его один раз при открытии окна оплаты и шлёт
+   * тот же при каждой попытке. Без ключа обрыв связи после commit давал два
+   * платежа: агент вносит 400 из 1 000, ответ теряется, вводит снова — в базе
+   * 800, долг занижен на 400, а наличных на 400 меньше, чем учтено. Ловится
+   * только ручной сверкой кассы. Уникальный индекс uq_payments_idempotency
+   * стоял в базе с самого начала — им пользовался shop.addPayment, а этот
+   * путь нет.
+   */
+  idempotencyKey?: string;
+};
+
+/** Деньги сравниваются в тийинах, а не в double: см. проверку остатка ниже. */
+const tiyin = (x: number) => Math.round(x * 100);
+
 async function applyPartialPayment(
   tx: Tx, tenantId: number, actor: Actor,
-  input: { orderId: number; paidAmount: string; method: "cash" | "card" | "transfer"; debtDueDate?: string; notes?: string },
+  input: OrderPaymentInput,
 ): Promise<void> {
   const userId = actor.id;
   const paid = Number(input.paidAmount);
@@ -727,7 +768,11 @@ async function applyPartialPayment(
     .where(and(eq(payments.orderId, order.id), eq(payments.tenantId, tenantId), eq(payments.type, "payment")));
   const priorPaid = Number(priorPaidRaw);
 
-  if (priorPaid + paid > total) throw new Error("Сумма оплаты не может превышать сумму заказа");
+  // В целых тийинах. В double точный остаток отвергался примерно в 11 %
+  // случаев с копейками (любой заказ с процентной скидкой): 0.1 + 0.2 > 0.3.
+  // Оператор закрывал пачку «все оплачены» — часть заказов уходила
+  // доставленными без записи оплаты.
+  if (tiyin(priorPaid) + tiyin(paid) > tiyin(total)) throw new Error("Сумма оплаты не может превышать сумму заказа");
 
   const debt = total - priorPaid - paid;
 
@@ -751,6 +796,7 @@ async function applyPartialPayment(
     paidAt: new Date(),
     notes: input.notes ?? null,
     createdBy: userId,
+    idempotencyKey: input.idempotencyKey ?? null,
   });
 
   // Create debt reminder if there's remaining debt and a due date
@@ -1007,6 +1053,21 @@ export function isIdempotencyDuplicate(err: unknown): boolean {
   return isDuplicateOf(err, "uq_orders_idempotency");
 }
 
+/**
+ * Уже ли записан платёж с этим ключом у этой организации.
+ *
+ * Нужен recordDeliveryAndPayment: на повторе первой отказывает доставка
+ * («заказ уже доставлен»), до INSERT платежа дело не доходит, и уникальный
+ * индекс сработать не успевает. Тогда ответ на вопрос «это повтор?» даёт сама
+ * таблица платежей.
+ */
+async function isRepeatOfCompletedDelivery(db: Db, tenantId: number, idempotencyKey: string): Promise<boolean> {
+  const [row] = await db.select({ id: payments.id }).from(payments)
+    .where(and(eq(payments.tenantId, tenantId), eq(payments.idempotencyKey, idempotencyKey)))
+    .limit(1);
+  return !!row;
+}
+
 export const OrderService = {
   /*
     opts обязателен, а не необязателен.
@@ -1207,7 +1268,7 @@ export const OrderService = {
     const items = mergeDuplicateItems(input.items);
 
     // P0-1 FIX: Validate shop belongs to this tenant
-    const [shop] = await db.select({ id: shops.id }).from(shops)
+    const [shop] = await db.select({ id: shops.id, name: shops.name, debt: shops.debt, creditLimit: shops.creditLimit }).from(shops)
       .where(and(eq(shops.id, input.shopId), eq(shops.tenantId, tenantId))).limit(1);
     if (!shop) throw new Error("Магазин не найден в вашей организации");
 
@@ -1257,6 +1318,11 @@ export const OrderService = {
         }
       }
 
+      // Цена магазина поверх цены карточки: прайс-листы, привязанные к
+      // магазину, до этого не участвовали в заказе ни на одном пути.
+      const resolved = await resolvePrices(tx, tenantId, input.shopId, items, priceMap);
+      for (const [productId, r] of resolved) priceMap.set(productId, r.price);
+
       // Calculate subtotal from server-side prices
       let subtotal = 0;
       for (const item of items) {
@@ -1265,6 +1331,24 @@ export const OrderService = {
       }
       const discount = subtotal * (discountPercent / 100);
       const total = subtotal - discount;
+
+      /*
+        Кредитный контроль. Заказ «в долг» должен деньгами с момента
+        оформления (services/shop-debt.ts), поэтому проверяется здесь, а не
+        при отгрузке: агент узнаёт отказ у прилавка, а не через два дня от
+        курьера. Долг магазина — выведенное число, пересчитанное последней
+        операцией; читается под той же транзакцией. Лимит пустой — проверки
+        нет, как и было у всех до появления поля.
+      */
+      if (input.paymentMethod === "debt" && shop.creditLimit != null) {
+        const limit = Number(shop.creditLimit);
+        const debt = Number(shop.debt);
+        if (debt + total > limit) {
+          throw new Error(
+            `Кредитный лимит магазина «${shop.name}» ${limit.toFixed(0)} превышен: долг ${debt.toFixed(0)} + заказ ${total.toFixed(0)}. Примите оплату или попросите офис поднять лимит.`,
+          );
+        }
+      }
 
       // Reserve from one explicit warehouse. Without this filter a product with
       // stock rows in several warehouses yielded an arbitrary row for the
@@ -1282,6 +1366,9 @@ export const OrderService = {
 
       const stockMap = new Map<number, typeof stockRows[number]>();
       for (const row of stockRows) stockMap.set(row.productId, row);
+      // Просроченные партии лежат на полке и входят в available, но продать
+      // их нельзя: годное — за их вычетом. Отгрузка их и не возьмёт (дверь).
+      const expired = await expiredByProduct(tx, tenantId, reserveWarehouseId, items.map(i => i.productId));
 
       /*
         Отказ называет товар по имени.
@@ -1302,8 +1389,12 @@ export const OrderService = {
         if (available < 0) {
           throw new Error(`Некорректный остаток на складе: «${name}» (доступно: ${available}). Обратитесь к администратору.`);
         }
-        if (available < Number(item.quantity)) {
-          throw new Error(`«${name}»: на складе ${available}, а в заказе ${item.quantity}`);
+        const rotten = expired.get(item.productId) ?? 0;
+        const sellable = available - rotten;
+        if (sellable < Number(item.quantity)) {
+          throw new Error(rotten > 0
+            ? `«${name}»: на складе ${available}, из них ${rotten} просрочено — годных ${sellable}, а в заказе ${item.quantity}`
+            : `«${name}»: на складе ${available}, а в заказе ${item.quantity}`);
         }
       }
 
@@ -1358,6 +1449,7 @@ export const OrderService = {
           unitPrice: unitPrice.toFixed(2),
           costPrice: costMap.get(item.productId) ?? "0.00",
           subtotal: (unitPrice * Number(item.quantity)).toFixed(2),
+          priceListId: resolved.get(item.productId)?.priceListId ?? null,
         };
       }));
 
@@ -1846,7 +1938,8 @@ export const OrderService = {
     return { success: true };
   },
 
-  async delete(db: Db, tenantId: number, orderId: number) {
+  async delete(db: Db, tenantId: number, orderId: number, actor?: AuditActor) {
+    let deletedMeta: Record<string, unknown> = {};
     await db.transaction(async (tx) => {
       // Locked for the same reason as cancel() above: without it, two
       // concurrent deletes both pass the `deletedAt IS NULL` check and each
@@ -1860,6 +1953,7 @@ export const OrderService = {
         paymentMethod: orders.paymentMethod,
       }).from(orders).where(and(eq(orders.id, orderId), eq(orders.tenantId, tenantId), isNull(orders.deletedAt))).for("update").limit(1);
       if (!order) throw new Error("Заказ не найден или уже удалён");
+      deletedMeta = { status: order.status, total: order.total, paymentMethod: order.paymentMethod, shopId: order.shopId };
 
       // Release reserved stock if order is new or processing
       if (holdsStock(order.status)) {
@@ -1901,6 +1995,7 @@ export const OrderService = {
     });
 
     cache.invalidate(CacheKeys.dashboardKpis(Number(tenantId)));
+    await traceOrderChange(db, tenantId, orderId, "order.delete", actor, deletedMeta);
 
     return { success: true };
   },
@@ -1917,6 +2012,7 @@ export const OrderService = {
       */
       promisedDeliveryAt?: Date | null;
     },
+    actor?: AuditActor,
   ) {
     // discount is a percentage (0-100), same contract as OrderService.create.
     if (data.discount !== undefined) {
@@ -1937,7 +2033,12 @@ export const OrderService = {
         shopId: orders.shopId,
         paymentMethod: orders.paymentMethod,
         deletedAt: orders.deletedAt,
-      }).from(orders).where(and(eq(orders.id, orderId), eq(orders.tenantId, tenantId), isNull(orders.deletedAt))).limit(1);
+      }).from(orders).where(and(eq(orders.id, orderId), eq(orders.tenantId, tenantId), isNull(orders.deletedAt)))
+        // Под замком: субтотал и статус читаются здесь, а пишутся ниже. Без
+        // замка курьер, закрывающий этот же заказ в телефоне, успевал между
+        // чтением и записью — скидка пересчитывалась от старой суммы.
+        .for("update")
+        .limit(1);
       if (!order) throw new Error("Заказ не найден");
 
       const updates: Record<string, unknown> = {};
@@ -1968,6 +2069,13 @@ export const OrderService = {
     });
 
     cache.invalidate(CacheKeys.dashboardKpis(Number(tenantId)));
+    // Только денежные поля: заметки и срок доставки долга не меняют.
+    if (data.discount !== undefined || data.paymentMethod !== undefined) {
+      await traceOrderChange(db, tenantId, orderId, "order.update", actor, {
+        ...(data.discount !== undefined ? { discountPct: Number(data.discount) } : {}),
+        ...(data.paymentMethod !== undefined ? { paymentMethod: data.paymentMethod } : {}),
+      });
+    }
 
     return { success: true };
   },
@@ -1985,13 +2093,23 @@ export const OrderService = {
   async updateItems(
     db: Db, tenantId: number, orderId: number,
     data: { items: Array<{ itemId?: number; productId?: number; quantity: number; unitPrice?: string }> },
+    actor?: AuditActor,
   ) {
+    // TS сужает let-переменную до never после замыкания; объект с полями обходит это.
+    const totals: { before?: string; after?: string } = {};
     await db.transaction(async (tx) => {
       const [order] = await tx.select({
         id: orders.id, status: orders.status, shopId: orders.shopId,
         subtotal: orders.subtotal, total: orders.total, discount: orders.discount,
         paymentMethod: orders.paymentMethod, deletedAt: orders.deletedAt,
-      }).from(orders).where(and(eq(orders.id, orderId), eq(orders.tenantId, tenantId), isNull(orders.deletedAt))).limit(1);
+      }).from(orders).where(and(eq(orders.id, orderId), eq(orders.tenantId, tenantId), isNull(orders.deletedAt)))
+        // Под замком до выбора режима склада. Без него: T1 (правка состава)
+        // читает status=new, T2 (updateStatus new→delivered) блокирует заказ,
+        // списывает и коммитит; T1 дожидается замков остатка и резервирует
+        // под уже доставленный заказ — магазин должен за 15, уехало 10, пять
+        // единиц висят в reserved без заказа, который бы их объяснял.
+        .for("update")
+        .limit(1);
       if (!order) throw new Error("Заказ не найден");
 
       const mode = stockModeFor(order.status);
@@ -2029,12 +2147,20 @@ export const OrderService = {
       if (newProductIds.some(id => id === undefined)) {
         throw new Error("Для новой позиции нужно указать товар");
       }
-      const productPrices = new Map<number, { costPrice: string }>();
+      const productPrices = new Map<number, { costPrice: string; unitPrice: string; priceListId: number | null }>();
       if (newProductIds.length > 0) {
-        const found = await tx.select({ id: products.id, costPrice: products.costPrice })
+        const found = await tx.select({ id: products.id, costPrice: products.costPrice, unitPrice: products.unitPrice })
           .from(products)
           .where(and(eq(products.tenantId, tenantId), inArray(products.id, newProductIds as number[])));
-        for (const p of found) productPrices.set(Number(p.id), { costPrice: p.costPrice });
+        const fallback = new Map(found.map(p => [Number(p.id), p.unitPrice]));
+        // Новая строка без цены от оператора берёт цену магазина (прайс-лист),
+        // иначе карточки — а не ноль, как было.
+        const newLines = data.items.filter(i => i.itemId === undefined).map(i => ({ productId: i.productId as number, quantity: i.quantity }));
+        const resolved = await resolvePrices(tx, tenantId, order.shopId, newLines, fallback);
+        for (const p of found) {
+          const r = resolved.get(Number(p.id));
+          productPrices.set(Number(p.id), { costPrice: p.costPrice, unitPrice: r?.price ?? p.unitPrice, priceListId: r?.priceListId ?? null });
+        }
         for (const id of newProductIds as number[]) {
           if (!productPrices.has(id)) throw new Error(`Товар #${id} не найден в вашей организации`);
         }
@@ -2087,7 +2213,7 @@ export const OrderService = {
         // ── New line ──
         if (line.quantity === 0) continue;
         const productId = line.productId as number;
-        const unitPrice = Number(line.unitPrice ?? 0);
+        const unitPrice = Number(line.unitPrice ?? productPrices.get(productId)!.unitPrice);
         if (!Number.isFinite(unitPrice) || unitPrice < 0) throw new Error("Цена не может быть отрицательной");
 
         // Товар, который в заказе уже есть, второй строкой не заводится.
@@ -2119,6 +2245,8 @@ export const OrderService = {
           unitPrice: unitPrice.toFixed(2),
           costPrice: productPrices.get(productId)?.costPrice ?? "0.00",
           subtotal: (unitPrice * line.quantity).toFixed(2),
+          // Источник цены пишется только когда цена не задана оператором руками.
+          priceListId: line.unitPrice === undefined ? (productPrices.get(productId)?.priceListId ?? null) : null,
         });
 
         newSubtotal += unitPrice * line.quantity;
@@ -2137,6 +2265,7 @@ export const OrderService = {
       const discountPct = Number(order.subtotal) > 0 ? (Number(order.discount) / Number(order.subtotal)) * 100 : 0;
       const newDiscount = newSubtotal * (discountPct / 100);
       const newTotal = newSubtotal - newDiscount;
+      totals.before = String(order.total); totals.after = newTotal.toFixed(2);
 
       await tx.update(orders).set({
         subtotal: newSubtotal.toFixed(2),
@@ -2148,10 +2277,11 @@ export const OrderService = {
     });
 
     cache.invalidate(CacheKeys.dashboardKpis(Number(tenantId)));
+    await traceOrderChange(db, tenantId, orderId, "order.update_items", actor, { totalBefore: totals.before, totalAfter: totals.after, lines: data.items.length });
     return { success: true };
   },
 
-  async restore(db: Db, tenantId: number, orderId: number) {
+  async restore(db: Db, tenantId: number, orderId: number, actor?: AuditActor) {
     await db.transaction(async (tx) => {
       // Читаем заказ ВНУТРИ транзакции и под блокировкой — первым же запросом.
       //
@@ -2229,6 +2359,7 @@ export const OrderService = {
     });
 
     cache.invalidate(CacheKeys.dashboardKpis(Number(tenantId)));
+    await traceOrderChange(db, tenantId, orderId, "order.restore", actor, {});
 
     return { success: true };
   },
@@ -2380,15 +2511,19 @@ export const OrderService = {
 
   async recordPartialPayment(
     db: Db, tenantId: number, actor: Actor,
-    input: {
-      orderId: number;
-      paidAmount: string;
-      method: "cash" | "card" | "transfer";
-      debtDueDate?: string;
-      notes?: string;
-    },
+    input: OrderPaymentInput,
   ) {
-    await db.transaction((tx) => applyPartialPayment(tx, tenantId, actor, input));
+    try {
+      await db.transaction((tx) => applyPartialPayment(tx, tenantId, actor, input));
+    } catch (e) {
+      // Повтор той же попытки: транзакция откатилась целиком, лишней строки
+      // нет, долг не тронут. Разбирать код безопасно только при переданном
+      // ключе — без ключа конфликтовать нечему (см. services/payment.ts).
+      if (input.idempotencyKey && isDuplicateOf(e, "uq_payments_idempotency")) {
+        return { success: true, duplicate: true };
+      }
+      throw e;
+    }
     cache.invalidate(CacheKeys.dashboardKpis(tenantId));
 
     /*
@@ -2635,24 +2770,37 @@ export const OrderService = {
     input: {
       orderId: number;
       deliveredItems: Array<{ itemId: number; deliveredQuantity: number; returnReason?: string }>;
-      payment: { paidAmount: string; method: "cash" | "card" | "transfer"; debtDueDate?: string; notes?: string };
+      payment: { paidAmount: string; method: "cash" | "card" | "transfer"; debtDueDate?: string; notes?: string; idempotencyKey?: string };
       photos?: string[];
     },
   ) {
-    await db.transaction(async (tx) => {
-      await applyPartialDelivery(tx, tenantId, actor, {
-        orderId: input.orderId,
-        items: input.deliveredItems,
-        photos: input.photos,
+    try {
+      await db.transaction(async (tx) => {
+        await applyPartialDelivery(tx, tenantId, actor, {
+          orderId: input.orderId,
+          items: input.deliveredItems,
+          photos: input.photos,
+        });
+        await applyPartialPayment(tx, tenantId, actor, {
+          orderId: input.orderId,
+          paidAmount: input.payment.paidAmount,
+          method: input.payment.method,
+          debtDueDate: input.payment.debtDueDate,
+          notes: input.payment.notes,
+          idempotencyKey: input.payment.idempotencyKey,
+        });
       });
-      await applyPartialPayment(tx, tenantId, actor, {
-        orderId: input.orderId,
-        paidAmount: input.payment.paidAmount,
-        method: input.payment.method,
-        debtDueDate: input.payment.debtDueDate,
-        notes: input.payment.notes,
-      });
-    });
+    } catch (e) {
+      // Повтор после потерянного ответа: доставка и оплата уже проведены той
+      // же попыткой, откат — целиком. На повторе applyPartialDelivery может
+      // отказать раньше по статусу, до INSERT платежа, и индекс не сработает
+      // — тогда ответ даёт сама таблица платежей (isRepeatOfCompletedDelivery).
+      if (input.payment.idempotencyKey && (isDuplicateOf(e, "uq_payments_idempotency")
+          || await isRepeatOfCompletedDelivery(db, tenantId, input.payment.idempotencyKey))) {
+        return { success: true, duplicate: true };
+      }
+      throw e;
+    }
 
     cache.invalidate(CacheKeys.dashboardKpis(tenantId));
     return { success: true };

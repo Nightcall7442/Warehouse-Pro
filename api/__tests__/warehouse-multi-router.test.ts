@@ -4,7 +4,11 @@ import { asTestContext } from "./helpers/test-context";
 
 vi.mock("drizzle-orm", async () => {
   const { drizzleMock } = await import("./helpers/drizzle-mock");
-  const sqlFn = (strings: TemplateStringsArray, ...values: unknown[]) => ({ __kind: "sql", strings, values, rawStrings: strings, rawValues: values });
+  // Дверь остатка строит запрос через sql.join — подделка обязана его знать.
+  const sqlFn = Object.assign(
+    (strings: TemplateStringsArray, ...values: unknown[]) => ({ __kind: "sql", strings, values, rawStrings: strings, rawValues: values }),
+    { join: (chunks: unknown[], separator?: unknown) => ({ __kind: "sql_join", chunks, separator }), raw: (str: unknown) => ({ __kind: "sql_raw", str }) },
+  );
   return drizzleMock({ sql: sqlFn });
 });
 
@@ -207,6 +211,13 @@ function makeMockDb() {
       }
       if (fullSql.includes("INSERT INTO warehouse_stock")) {
         const vals = sqlObj.rawValues;
+        // Приход через дверь — upsert: строка есть — прибавить, нет — завести.
+        const existing = warehouseStockTable.find(r => r.tenantId === vals[0] && r.warehouseId === vals[1] && r.productId === vals[2]);
+        if (existing) {
+          existing.currentStock = (Number(existing.currentStock) + Number(vals[3])).toFixed(2);
+          existing.available = (Number(existing.currentStock) - Number(existing.reserved)).toFixed(2);
+          return Promise.resolve([]);
+        }
         warehouseStockTable.push({
           id: nextId++, tenantId: vals[0], warehouseId: vals[1], productId: vals[2],
           currentStock: vals[3], reserved: vals[4] ?? "0.00", available: vals[5] ?? vals[3],
@@ -385,6 +396,10 @@ describe("warehouseMulti.completeTransfer", () => {
     const result = await caller.completeTransfer({ transferId: 500 });
     expect(result.success).toBe(true);
     expect(stockTransfersTable.find(t => t.id === 500)?.status).toBe("completed");
+    // Приёмная сторона заведена дверью (receiveStock). Списание с источника —
+    // пакетный сдвиг той же двери; его арифметику держит real-db/stock-door.
+    const dest = warehouseStockTable.find(r => r.warehouseId === 2 && r.productId === 1);
+    expect(dest?.currentStock).toBe("40.00"); // было 30, приехало 10
   });
 
   it("rejects for nonexistent transfer", async () => {

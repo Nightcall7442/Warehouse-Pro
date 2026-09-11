@@ -10,6 +10,9 @@ import type { Role } from "@contracts/types";
 import { createLinkToken, createGroupToken } from "./telegram/link-token";
 import { NotificationService } from "./services/NotificationService";
 
+/** Сколько ждать ответ api.telegram.org. Вызов стоит на пути заказа. */
+const TELEGRAM_TIMEOUT_MS = 5_000;
+
 /**
  * Escape a value that is about to be dropped into a Telegram message.
  *
@@ -55,6 +58,10 @@ export async function sendTelegram(
       method:  "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ chat_id: chatId, text, parse_mode: "HTML", ...extra }),
+      // Предел обязателен: этот вызов ждёт оформление заказа после commit.
+      // Без него замедлившийся Telegram растягивал подтверждение заказа
+      // агенту до минут — заказ при этом уже записан, но выглядит зависшим.
+      signal: AbortSignal.timeout(TELEGRAM_TIMEOUT_MS),
     });
     if (!res.ok) {
       // Say why. A rejected message is indistinguishable from a disabled
@@ -506,7 +513,7 @@ export const telegramRouter = createRouter({
     if (!botToken) return { url: null, error: "Telegram bot not configured" };
 
     // Get bot username from token
-    const botInfo = await fetch(`https://api.telegram.org/bot${botToken}/getMe`)
+    const botInfo = await fetch(`https://api.telegram.org/bot${botToken}/getMe`, { signal: AbortSignal.timeout(TELEGRAM_TIMEOUT_MS) })
       .then(r => r.json() as Promise<{ result?: { username?: string } }>)
       .catch(() => null);
 
