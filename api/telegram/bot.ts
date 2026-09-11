@@ -300,9 +300,10 @@ telegramBot.post("/api/webhooks/telegram", async (c) => {
 
     const user = await findByChat(chatId);
     if (!user) {
-      // Вежливо и без единого числа из системы: чат чужой, но человек может
-      // быть своим — просто ещё не привязался.
-      await sendTelegram(chatId, T.unknownChat.ru);
+      // Чат чужой, но человек может быть своим — просто ещё не привязался.
+      // Ни одного числа ИЗ СИСТЕМЫ: называется только его собственный номер
+      // чата, который он и так только что нам прислал.
+      await sendTelegram(chatId, T.unknownChat.ru.replace("{id}", chatId));
       return c.json({ ok: true });
     }
 

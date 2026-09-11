@@ -57,8 +57,9 @@ export function TelegramTeam() {
 
     Личная ссылка требует, чтобы человек сам зашёл в приложение и нажал
     кнопку. Половина смены этого не сделает никогда: агент работает с
-    телефона, в настройки веба не заходит. Номера своих людей директор видит
-    в общем чате — Telegram показывает их в списке участников.
+    телефона, в настройки веба не заходит. Номер сотрудник узнаёт у самого
+    бота: нажал «Запустить» — бот ответил номером, — и пересылает директору.
+    В списке участников группы номера не видно: Telegram его не показывает.
 
     Ответ приходит РАЗНЫЙ, и это важнее удобства: пока человек не нажал
     «Запустить» в самом боте, Telegram не даёт боту написать первым. Тогда
@@ -259,8 +260,14 @@ export function TelegramTeam() {
                             <input
                               className="neo-input"
                               inputMode="numeric"
-                              placeholder={t("Номер в Telegram, только цифры", "Telegram raqami, faqat raqamlar")}
-                              aria-label={t("Номер в Telegram", "Telegram raqami")}
+                              /*
+                                «Telegram ID», а не «номер»: под номером
+                                человек понимает телефон и вписывает его —
+                                а это другое число, и подключение молча не
+                                сработает.
+                              */
+                              placeholder={t("Telegram ID (не телефон), только цифры", "Telegram ID (telefon emas), faqat raqamlar")}
+                              aria-label={t("Telegram ID сотрудника", "Xodimning Telegram ID'si")}
                               value={idInput}
                               onChange={e => setIdInput(e.target.value.replace(/\D/g, ""))}
                               style={{ flex: "1 1 200px" }}
@@ -282,8 +289,8 @@ export function TelegramTeam() {
                           */}
                           <p className="text-xs text-tertiary mt-1.5">
                             {t(
-                              "Номер видно в списке участников общего чата. Сотрудник должен один раз открыть бота и нажать «Запустить» — до этого Telegram не даёт боту написать первым.",
-                              "Raqam umumiy chat ishtirokchilari ro'yxatida ko'rinadi. Xodim bir marta botni ochib «Ishga tushirish»ni bosishi kerak.",
+                              "Где взять: сотрудник открывает бота и нажимает «Запустить» — бот в ответ пишет его Telegram ID. Пусть перешлёт это сообщение вам. Это не номер телефона. Пока он не нажал «Запустить», Telegram не даёт боту написать первым.",
+                              "Qayerdan olish: xodim botni ochib «Ishga tushirish»ni bosadi — bot javobida uning Telegram ID'sini yozadi. O'sha xabarni sizga yuborsin. Bu telefon raqami emas. U bosmaguncha Telegram botga birinchi bo'lib yozishga ruxsat bermaydi.",
                             )}
                           </p>
                         </>
