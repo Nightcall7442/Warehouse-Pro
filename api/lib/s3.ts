@@ -42,6 +42,23 @@ export function isS3Configured(): boolean {
  * Импорт внутри функции, а не наверху файла: пакет aws-sdk весит немало, и
  * приложению без хранилища он не нужен ни на запуске, ни потом.
  */
+/** Настроено ли зеркало копий вне площадки (см. env.ts). */
+export function isOffsiteBackupConfigured(): boolean {
+  return !!(env.backupS3Endpoint && env.backupS3AccessKey && env.backupS3SecretKey);
+}
+
+/** Клиент второго назначения копии. Только когда оно настроено. */
+export async function offsiteBackupClient() {
+  const { S3Client } = await import("@aws-sdk/client-s3");
+  return new S3Client({
+    region: env.backupS3Region || "auto",
+    credentials: { accessKeyId: env.backupS3AccessKey, secretAccessKey: env.backupS3SecretKey },
+    endpoint: env.backupS3Endpoint,
+    forcePathStyle: env.backupS3ForcePathStyle,
+    requestHandler: { connectionTimeout: 5_000, requestTimeout: 120_000 },
+  });
+}
+
 export async function s3Client() {
   const { S3Client } = await import("@aws-sdk/client-s3");
   return new S3Client({

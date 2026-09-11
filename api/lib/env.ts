@@ -140,6 +140,22 @@ export const env = {
   /** Имя бакета в пути, а не в поддомене. Нужно почти всем, кроме AWS. */
   s3ForcePathStyle: optional("S3_FORCE_PATH", "") !== "",
 
+  /*
+    Второе назначение ночной копии — ВНЕ площадки.
+
+    Основное S3 — MinIO в том же проекте Railway, что и база: потерю доступа
+    к проекту (спор об оплате, компрометация, ошибка поставщика) такая копия
+    не переживает. Заполненный BACKUP_S3_ENDPOINT включает зеркало: дамп
+    уходит и в MinIO, и сюда (R2/B2 — см. docs/deployment.md). Бакет — тот же
+    S3_BACKUP_BUCKET по имени: заводить его на второй площадке тем же
+    скриптом.
+  */
+  backupS3Endpoint:  optional("BACKUP_S3_ENDPOINT"),
+  backupS3Region:    optional("BACKUP_S3_REGION", "auto"),
+  backupS3AccessKey: optional("BACKUP_S3_ACCESS_KEY"),
+  backupS3SecretKey: optional("BACKUP_S3_SECRET_KEY"),
+  backupS3ForcePathStyle: optional("BACKUP_S3_FORCE_PATH", "") !== "",
+
   // Redis
   redisUrl:            optional("REDIS_URL"),
 
