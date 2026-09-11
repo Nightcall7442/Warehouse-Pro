@@ -140,6 +140,16 @@ const JOBS: Job[] = [
     daily: { hour: 3, minute: 50 },
     run: async () => (await import("../public/export-log")).purgeOldExports(),
   },
+  {
+    /*
+      Сырые GPS-точки старше девяноста дней. Своей работой по тому же правилу,
+      что и соседние стирающие: споткнись одна — остальные выполняются.
+      После ночной копии (03:00), как и все уборки: в копии точки ещё есть.
+    */
+    name: "agent-locations-cleanup",
+    daily: { hour: 4, minute: 0 },
+    run: async () => (await import("../services/location-retention")).purgeOldLocations(),
+  },
 ];
 
 /** Когда работа выполнялась в последний раз — чтобы не повторяться в ту же минуту. */

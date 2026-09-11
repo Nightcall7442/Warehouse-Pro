@@ -913,7 +913,14 @@ export const agentLocations = mysqlTable("agent_locations", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 }, (t) => ({
   tenantIdx: index("idx_locations_tenant").on(t.tenantId),
-  tenantAgentIdx: index("idx_locations_tenant_agent").on(t.tenantId, t.agentId),
+  /*
+    Все шесть чтений следа фильтруют tenant_id + agent_id + диапазон
+    created_at. Индекс (tenant_id, agent_id) без времени заставлял InnoDB
+    перебирать всю историю агента и отсеивать по дате — карта супервайзера,
+    KPI и антифрод за день читали месяцы. Третья колонка делает диапазон
+    частью индекса; прежний двухколоночный индекс — префикс этого и не нужен.
+  */
+  tenantAgentCreatedIdx: index("idx_locations_tenant_agent_created").on(t.tenantId, t.agentId, t.createdAt),
   tenantCreatedIdx: index("idx_locations_tenant_created").on(t.tenantId, t.createdAt),
 }));
 

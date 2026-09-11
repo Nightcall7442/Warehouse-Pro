@@ -500,6 +500,16 @@ export const agentRouter = createRouter({
         .where(and(
           eq(agentLocations.tenantId, ctx.tenant.id),
           eq(agentLocations.agentId, input.agentId),
+          // Предусловие по created_at, которое умеет индекс. COALESCE в WHERE
+          // индексом не пользуется, и выборка шла по всей истории агента.
+          // Границы точные, а не «с запасом»: сервер принимает время съёмки
+          // не позже получения (skew 5 мин) и не раньше семи суток назад
+          // (sanitizeRecordedAt), значит created_at ∈ [start − 5 мин, end + 7 сут]
+          // для любой точки, попадающей в период по времени съёмки.
+          // Теми же строковыми литералами и в той же сессии MySQL, что и
+          // сравнение ниже, — иначе разошлись бы часовые пояса.
+          sql`${agentLocations.createdAt} >= DATE_SUB(${start}, INTERVAL 5 MINUTE)`,
+          sql`${agentLocations.createdAt} <= DATE_ADD(${end}, INTERVAL 7 DAY)`,
           // Границы периода тоже по времени съёмки: иначе точка, снятая в два
           // часа дня и залитая в шесть вечера, не попала бы в запрос за
           // дневной отрезок — то есть именно тот случай, ради которого поле и
