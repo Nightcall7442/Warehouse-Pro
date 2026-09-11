@@ -68,7 +68,7 @@ export async function registerTelegramWebhook(): Promise<void> {
   const target = `${env.appUrl.replace(/\/+$/, "")}/api/webhooks/telegram`;
 
   try {
-    const info = await fetch(`https://api.telegram.org/bot${token}/getWebhookInfo`)
+    const info = await fetch(`https://api.telegram.org/bot${token}/getWebhookInfo`, { signal: AbortSignal.timeout(10_000) })
       .then(r => r.json() as Promise<{ result?: { url?: string; allowed_updates?: string[] } }>);
 
     const current = [...(info?.result?.allowed_updates ?? [])].sort();
@@ -90,6 +90,7 @@ export async function registerTelegramWebhook(): Promise<void> {
 
     const res = await fetch(`https://api.telegram.org/bot${token}/setWebhook`, {
       method: "POST",
+      signal: AbortSignal.timeout(10_000),
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         url: target,

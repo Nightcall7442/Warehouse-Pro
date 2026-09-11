@@ -23,6 +23,7 @@ import { isIP } from "node:net";
  */
 
 const MAX_REDIRECTS = 3;
+const DEFAULT_TIMEOUT_MS = 15_000;
 
 /** Hostname suffixes that resolve only inside a provider's network. */
 const INTERNAL_SUFFIXES = [".railway.internal", ".internal", ".local", ".localdomain"];
@@ -125,10 +126,13 @@ export async function assertPublicHttpUrl(raw: string): Promise<URL> {
  */
 export async function safeFetch(raw: string, init: RequestInit = {}): Promise<Response> {
   let target = raw;
+  // Предел по умолчанию: вызывающие из onec-bridge ставят свой, остальные
+  // забывали, и зависший чужой сервер держал крон-работу до перезапуска.
+  const signal = init.signal ?? AbortSignal.timeout(DEFAULT_TIMEOUT_MS);
 
   for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
     const url = await assertPublicHttpUrl(target);
-    const res = await fetch(url.toString(), { ...init, redirect: "manual" });
+    const res = await fetch(url.toString(), { ...init, redirect: "manual", signal });
 
     if (res.status < 300 || res.status >= 400) return res;
 

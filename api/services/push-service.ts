@@ -5,6 +5,12 @@ import type { User } from "@db/schema";
 import { eq, and } from "drizzle-orm";
 
 const EXPO_PUSH_URL = "https://exp.host/--/api/v2/push/send";
+/**
+ * Предел ожидания Expo. Отправка идёт после commit заказа и до ответа агенту:
+ * без предела зависший сокет держал подтверждение заказа, пока undici не
+ * сдастся сам (минуты).
+ */
+const EXPO_TIMEOUT_MS = 5_000;
 
 interface PushMessage {
   title: string;
@@ -52,6 +58,7 @@ async function sendExpoPush(token: string, message: PushMessage): Promise<PushOu
   try {
     const response = await fetch(EXPO_PUSH_URL, {
       method: "POST",
+      signal: AbortSignal.timeout(EXPO_TIMEOUT_MS),
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         to: token,
@@ -122,6 +129,7 @@ export async function sendPushToRole(tenantId: number, role: User["role"], messa
     try {
       const response = await fetch(EXPO_PUSH_URL, {
         method: "POST",
+        signal: AbortSignal.timeout(EXPO_TIMEOUT_MS),
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(
           batch.map(t => ({
@@ -182,6 +190,7 @@ export async function sendPushToTenant(tenantId: number, message: PushMessage): 
     try {
       const response = await fetch(EXPO_PUSH_URL, {
         method: "POST",
+        signal: AbortSignal.timeout(EXPO_TIMEOUT_MS),
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(
           batch.map(t => ({

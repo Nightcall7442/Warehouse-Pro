@@ -46,6 +46,9 @@ export async function s3Client() {
   const { S3Client } = await import("@aws-sdk/client-s3");
   return new S3Client({
     region: env.s3Region || "auto",
+    // Без пределов /health с HeadBucket и ночная копия зависали на мёртвом
+    // MinIO бесконечно; запрос — длинный, потому что через него идёт дамп.
+    requestHandler: { connectionTimeout: 5_000, requestTimeout: 120_000 },
     credentials: {
       accessKeyId: env.s3AccessKey,
       secretAccessKey: env.s3SecretKey,
