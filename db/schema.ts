@@ -1085,6 +1085,16 @@ export const commissions = mysqlTable("commissions", {
     другого следа выхода на работу в системе нет, и выдумывать табель ради
     двух сумм не стоит.
   */
+  /*
+    Оклад. Жил в sales_targets.target_amount — в той же колонке, куда экран
+    «Нормы месяца» и мобильный экран целей пишут ПЛАН ПРОДАЖ. Одно число, два
+    смысла, два независимых пути записи: супервайзер применял подсказанные
+    нормы (45 млн выручки) — в ведомости у агента появлялся оклад 45 млн и от
+    него считался вычет; директор ставил оклад 3 млн — план агента становился
+    3 млн. Здесь оклад лежит рядом со ставкой, обедом и дорожными — это одна
+    строка условий оплаты человека на месяц.
+  */
+  baseSalary:      decimal("base_salary",      { precision: 14, scale: 2 }).default("0.00").notNull(),
   mealAllowance:   decimal("meal_allowance",   { precision: 12, scale: 2 }).default("0.00").notNull(),
   travelAllowance: decimal("travel_allowance", { precision: 12, scale: 2 }).default("0.00").notNull(),
   periodType:   mysqlEnum("period_type", ["monthly", "quarterly"]).default("monthly").notNull(),

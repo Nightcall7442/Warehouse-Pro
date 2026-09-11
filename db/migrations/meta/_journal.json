@@ -169,6 +169,13 @@
       "when": 1789164375061,
       "tag": "0023_order_items_price_list",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "5",
+      "when": 1789164790490,
+      "tag": "0024_commissions_base_salary",
+      "breakpoints": true
     }
   ]
 }

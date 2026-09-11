@@ -779,6 +779,7 @@ export async function calculateSalary(
 
   const [commissionRecord] = await db.select({
     commissionRate: sql<string>`commission_rate`,
+    baseSalary: sql<string>`base_salary`,
     deliveryRate: sql<string>`delivery_rate`,
     courierPayMode: sql<string>`courier_pay_mode`,
     mealAllowance: sql<string>`meal_allowance`,
@@ -869,21 +870,10 @@ export async function calculateSalary(
   */
   const kpi = preloadedKpi ?? await calculateAgentKpi(db, agentId, tenantId, periodStart, periodEnd);
 
-  const [targetRecord] = await db.select({
-    targetAmount: sql<string>`target_amount`,
-  }).from(salesTargets)
-    .where(and(
-      eq(salesTargets.tenantId, tenantId),
-      eq(salesTargets.userId, agentId),
-      eq(salesTargets.periodType, "monthly"),
-      // Тот же расчёт, что и у ставки: оклад берётся тот, что действовал
-      // в показанном месяце.
-      untilDate(salesTargets.periodStart, effectiveOn),
-    ))
-    .orderBy(desc(salesTargets.periodStart))
-    .limit(1);
-
-  const baseSalary = Number(targetRecord?.targetAmount ?? 0);
+  // Оклад — из той же строки условий оплаты, что и ставка: он действовал в
+  // показанном месяце. Из sales_targets больше не читается: там план продаж,
+  // и одна колонка на два смысла путала зарплату с нормой.
+  const baseSalary = Number(commissionRecord?.baseSalary ?? 0);
 
   const fraudDeduction = Number((baseSalary * (kpi.fraudRate / 100) * 0.5).toFixed(2));
 
