@@ -123,6 +123,30 @@ Sentry.init({
   sendDefaultPii: false,
 });
 
+/*
+  Последняя линия защиты процесса.
+
+  Node 22 завершает процесс на необработанном отказе промиса. Обработчиков
+  здесь не было, и любой `void something()` без catch — тик планировщика при
+  недоступной базе, забытое уведомление — ронял всё приложение для всех
+  организаций разом, а в журнале оставалась одна строка стека без контекста.
+
+  Отказ промиса — пишем и живём дальше: состояние процесса не повреждено,
+  упала одна ветка. Исключение вне промиса — состояние неизвестно, поэтому
+  пишем, досылаем в Sentry и выходим с кодом 1: Railway перезапустит, а в
+  журнале останется причина, а не тишина.
+*/
+process.on("unhandledRejection", (reason) => {
+  const error = reason instanceof Error ? reason : new Error(String(reason));
+  logger.error("unhandled promise rejection", { error: error.message, stack: error.stack });
+  Sentry.captureException(error);
+});
+process.on("uncaughtException", (error) => {
+  logger.error("uncaught exception, exiting", { error: error.message, stack: error.stack });
+  Sentry.captureException(error);
+  void Sentry.flush(2000).finally(() => process.exit(1));
+});
+
 const app = new Hono<{ Bindings: HttpBindings }>();
 
 // ── Response compression ─────────────────────────────────────────────────────

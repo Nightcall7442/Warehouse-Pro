@@ -169,7 +169,21 @@ async function runExclusively(job: Job): Promise<void> {
   const pool = getPool();
   if (!pool) return;
 
-  const conn = await pool.getConnection();
+  // Соединение берётся ВНУТРИ защиты. Стояло снаружи: когда в минуту тика база
+  // недоступна (перезапуск MySQL, сетевой сбой, пул опустел после idleTimeout),
+  // getConnection отклонял промис, тик запускал работу через `void`, и ловить
+  // отказ было некому — Node 22 завершает процесс на необработанном отказе.
+  // Кратковременный сбой базы превращался в падение всего приложения, а после
+  // десяти перезапусков Railway — в простой до ручного вмешательства.
+  let conn: Awaited<ReturnType<typeof pool.getConnection>>;
+  try {
+    conn = await pool.getConnection();
+  } catch (e) {
+    logger.error("cron job skipped: database unavailable", {
+      job: job.name, error: e instanceof Error ? e.message : String(e),
+    });
+    return;
+  }
   try {
     const [rows] = await conn.query("SELECT GET_LOCK(?, 0) AS ok", [`warehouse_pro:cron:${job.name}`]);
     const ok = Number((rows as Array<{ ok: number | null }>)[0]?.ok ?? 0) === 1;
@@ -235,4 +249,4 @@ export function scheduledJobs(): Array<{ name: string; when: string }> {
 }
 
 /** Оставлено ради проверки: тот же расчёт, что и в тике. */
-export const _internals = { isDue, stamp, JOBS };
+export const _internals = { isDue, stamp, JOBS, runExclusively };
