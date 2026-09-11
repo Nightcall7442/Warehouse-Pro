@@ -77,3 +77,58 @@ export function readLinkToken(token: string, now: number = Date.now()):
 
   return { ok: true, userId };
 }
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Код для связывания ГРУППЫ сотрудников.
+
+   ── Чем отличается от личного ───────────────────────────────────────────────
+
+   Личный токен несёт идентификатор человека: чат привязывается к нему одному.
+   Групповой несёт организацию — потому что привязывается чат, а не человек, и
+   получать события в нём будут все, кто в группе.
+
+   Кто связал, тоже едет в токене: вопрос «кто добавил бота в наш чат» задают,
+   и отвечать «не знаем» на него нельзя.
+
+   ── Почему та же короткая жизнь ─────────────────────────────────────────────
+
+   Четверть часа хватает открыть Telegram и вставить код в чат. Дольше —
+   значит код успеет полежать в переписке, а он даёт право слить рабочие
+   события организации в любой чат, куда его вставят.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+export function createGroupToken(tenantId: number, userId: number, now: number = Date.now()): string {
+  const expires = now + LINK_TTL_MS;
+  const payload = `g${tenantId}.${userId}.${expires}`;
+  return `${payload}.${sign(payload)}`;
+}
+
+export function readGroupToken(token: string, now: number = Date.now()):
+  { ok: true; tenantId: number; userId: number } | { ok: false; reason: "expired" | "invalid" } {
+  const parts = token.split(".");
+  if (parts.length !== 4) return { ok: false, reason: "invalid" };
+  const [rawTenant, rawUser, rawExpires, signature] = parts;
+  if (!rawTenant.startsWith("g")) return { ok: false, reason: "invalid" };
+
+  const payload = `${rawTenant}.${rawUser}.${rawExpires}`;
+  const expected = sign(payload);
+  /*
+    Сравнение постоянного времени — той же функцией, что и у личного токена.
+    Обычное сравнение строк отвечает тем быстрее, чем раньше расходятся
+    байты, и по времени ответа подпись подбирается.
+  */
+  const a = Buffer.from(signature);
+  const b = Buffer.from(expected);
+  if (a.length !== b.length || !timingSafeEqual(a, b)) return { ok: false, reason: "invalid" };
+
+  const expires = Number(rawExpires);
+  if (!Number.isFinite(expires) || expires < now) return { ok: false, reason: "expired" };
+
+  const tenantId = Number(rawTenant.slice(1));
+  const userId = Number(rawUser);
+  if (!Number.isInteger(tenantId) || tenantId <= 0) return { ok: false, reason: "invalid" };
+  if (!Number.isInteger(userId) || userId <= 0) return { ok: false, reason: "invalid" };
+
+  return { ok: true, tenantId, userId };
+}

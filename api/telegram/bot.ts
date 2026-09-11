@@ -1,15 +1,15 @@
 import { Hono } from "hono";
 import { and, eq, ne } from "drizzle-orm";
 import { getDb } from "../queries/connection";
-import { tenants, users } from "@db/schema";
+import { tenants, telegramGroups, users } from "@db/schema";
 import { env } from "../lib/env";
 import { logger } from "../lib/logger";
 import { safeEqual } from "../lib/safe-compare";
 import { checkRateLimit } from "../lib/rate-limit";
 import { sendTelegram, tgEscape } from "../telegram-router";
-import { readLinkToken } from "./link-token";
+import { readLinkToken, readGroupToken } from "./link-token";
 import { T, MENU, detectIntent, type Lang } from "./texts";
-import { answerStock, answerOrders, answerSummary, answerTop, answerDebts, answerSearch } from "./answers";
+import { answerStock, answerOrders, answerSummary, answerTop, answerDebts, answerSearch, answerStaff, answerPlans } from "./answers";
 
 /* ═══════════════════════════════════════════════════════════════════════════
    Телеграм-бот: приём сообщений.
@@ -113,6 +113,69 @@ async function link(chatId: string, token: string): Promise<string> {
   return "";
 }
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   Группа сотрудников: связать и отвязать.
+
+   ── Зачем ───────────────────────────────────────────────────────────────────
+
+   Подключиться к боту сотрудник может только сам, и это правильно: ссылка
+   подписана его идентификатором, иначе пересланная ссылка стала бы способом
+   читать чужие уведомления. Но чтобы события видела вся смена, каждого надо
+   уговорить проделать это лично — у организации на двадцать человек так не
+   выходит никогда.
+
+   Директор делает одно действие: заводит чат, добавляет бота и вставляет туда
+   код. Дальше рабочие события видят все, кто в чате.
+
+   ── Чем доказывается право ──────────────────────────────────────────────────
+
+   Кодом. Он подписан, живёт четверть часа и виден только директору в
+   настройках. Проверять отправителя дополнительно нельзя: в группе команду
+   может набрать любой, кому директор код передал, — а раз он его передал,
+   значит доверил.
+
+   Личность самого чата тоже проверяется: команда работает ТОЛЬКО в группе.
+   В личной переписке связывать нечего — там уже есть личная привязка, и
+   подмена одного другим сделала бы уведомления человека общими.
+   ═══════════════════════════════════════════════════════════════════════════ */
+async function linkGroup(
+  chatId: string,
+  chatType: string,
+  chatTitle: string,
+  token: string,
+): Promise<string> {
+  if (chatType !== "group" && chatType !== "supergroup") return T.groupOnlyInGroup.ru;
+
+  const parsed = readGroupToken(token);
+  if (!parsed.ok) return T.groupBadCode.ru;
+
+  const db = getDb();
+  const [existing] = await db.select({ id: telegramGroups.id, chatId: telegramGroups.chatId })
+    .from(telegramGroups)
+    .where(eq(telegramGroups.tenantId, parsed.tenantId))
+    .limit(1);
+
+  if (existing) {
+    /*
+      Одна группа на организацию: новая ЗАМЕНЯЕТ прежнюю, и об этом говорят
+      прямо. Молча оставить обе значило бы разослать рабочие события в чат,
+      про который все забыли.
+    */
+    await db.update(telegramGroups)
+      .set({ chatId, title: chatTitle.slice(0, 200), linkedBy: parsed.userId })
+      .where(eq(telegramGroups.id, existing.id));
+    return existing.chatId === chatId ? T.groupLinked.ru : T.groupReplaced.ru;
+  }
+
+  await db.insert(telegramGroups).values({
+    tenantId: parsed.tenantId,
+    chatId,
+    title: chatTitle.slice(0, 200),
+    linkedBy: parsed.userId,
+  });
+  return T.groupLinked.ru;
+}
+
 /** Ответ на вопрос — уже после всех ворот. */
 async function answer(user: Linked, lang: Lang, text: string): Promise<string> {
   switch (detectIntent(text)) {
@@ -121,6 +184,8 @@ async function answer(user: Linked, lang: Lang, text: string): Promise<string> {
     case "summary": return answerSummary(user.tenantId, lang);
     case "top":     return answerTop(user.tenantId, lang);
     case "debts":   return answerDebts(user.tenantId, lang);
+    case "staff":   return answerStaff(user.tenantId, lang);
+    case "plans":   return answerPlans(user.tenantId, lang);
     case "help":    return `<b>${tgEscape(user.brand)}</b>\n\n${T.help[lang]}`;
     default:        return answerSearch(user.tenantId, lang, text);
   }
@@ -142,7 +207,9 @@ telegramBot.post("/api/webhooks/telegram", async (c) => {
 
   try {
     const update = await c.req.json() as {
-      message?: { text?: string; chat?: { id?: number | string } };
+      /* Тип и название чата нужны командам группы: связывать личную
+         переписку нельзя, а название показывается директору. */
+      message?: { text?: string; chat?: { id?: number | string; type?: string; title?: string } };
       callback_query?: { id: string; data?: string; message?: { chat?: { id?: number | string } } };
     };
 
@@ -170,6 +237,44 @@ telegramBot.post("/api/webhooks/telegram", async (c) => {
       боту, и каждый ответ это несколько запросов к базе.
     */
     if (!(await checkRateLimit(`tg:${chatId}`, { windowMs: 60_000, limit: 20, namespace: "telegram-bot" }))) {
+      return c.json({ ok: true });
+    }
+
+    /* ── Команды группового чата ────────────────────────────────────────────
+
+       Стоят ДО поиска личной привязки: у группового чата её нет и быть не
+       может, а без этой ветки бот ответил бы «свяжите Telegram в настройках»
+       — то есть посоветовал бы группе сделать то, что делает человек.
+    */
+    const chatType = String(message?.chat?.type ?? "private");
+    const chatTitle = String(message?.chat?.title ?? "");
+
+    if (text.startsWith("/link")) {
+      const code = text.slice("/link".length).trim().split(/\s+/)[0] ?? "";
+      const reply = code
+        ? await linkGroup(chatId, chatType, chatTitle, code)
+        : T.groupNeedsCode.ru;
+      await sendTelegram(chatId, reply);
+      return c.json({ ok: true });
+    }
+
+    if (text.startsWith("/unlink")) {
+      // Отвязать может любой участник чата: это не разглашение, а прекращение
+      // рассылки в него. Спорить о правах здесь дороже, чем позволить.
+      await getDb().delete(telegramGroups).where(eq(telegramGroups.chatId, chatId));
+      await sendTelegram(chatId, T.groupUnlinked.ru);
+      return c.json({ ok: true });
+    }
+
+    if (chatType === "group" || chatType === "supergroup") {
+      /*
+        Больше в группе бот не отвечает ничего.
+
+        Ответы бота — это остатки, выручка и долги организации. В личной
+        переписке их читает человек, чья роль это позволяет; в группе — все,
+        кого туда добавили, включая тех, кому такие числа не показывают.
+        Поэтому группа только ПОЛУЧАЕТ события, а спрашивать в ней нельзя.
+      */
       return c.json({ ok: true });
     }
 

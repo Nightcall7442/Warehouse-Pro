@@ -1,12 +1,13 @@
 import { z } from "zod";
-import { eq, and } from "drizzle-orm";
+import { eq, and, sql, isNull } from "drizzle-orm";
 import { createRouter, authedQuery, adminQuery, managementQuery } from "./middleware";
 import { getDb } from "./queries/connection";
-import { users, telegramRules } from "@db/schema";
+import { users, telegramRules, telegramGroups } from "@db/schema";
 import { env } from "./lib/env";
 import { onDay, onDate } from "./lib/date-range";
 import type { Role } from "@contracts/types";
-import { createLinkToken } from "./telegram/link-token";
+import { createLinkToken, createGroupToken } from "./telegram/link-token";
+import { NotificationService } from "./services/NotificationService";
 
 /**
  * Escape a value that is about to be dropped into a Telegram message.
@@ -245,6 +246,128 @@ export const telegramRouter = createRouter({
     const [user] = await db.select({ chatId: users.telegramChatId })
       .from(users).where(eq(users.id, ctx.user.id)).limit(1);
     return { connected: !!user?.chatId, chatId: user?.chatId ?? null };
+  }),
+
+  /* ═════════════════════════════════════════════════════════════════════════
+     Кто из сотрудников подключил Telegram.
+
+     ── Чего не хватало ──────────────────────────────────────────────────────
+
+     Подключиться сотрудник может только САМ: ссылка подписана его
+     идентификатором и живёт четверть часа. Это правильно — иначе директор
+     привязал бы к своему телефону чужую учётную запись, а пересланная ссылка
+     стала бы способом читать чужие уведомления.
+
+     Но из этого следовало неудобное: директор, подключивший организацию, не
+     мог узнать НИЧЕГО. Ни кто уже подключился, ни кому напомнить. Уведомления
+     уходили половине людей, и почему именно этой половине — было не выяснить.
+
+     Здесь список: имя, должность, подключён или нет. Ни одного chat_id: он
+     нужен серверу, а человеку показывает лишь то, что и так видно в самом
+     Telegram.
+     ═════════════════════════════════════════════════════════════════════════ */
+  teamStatus: adminQuery.query(async ({ ctx }) => {
+    const db = getDb();
+    const rows = await db.select({
+      id: users.id,
+      name: users.name,
+      role: users.role,
+      connected: sql<number>`CASE WHEN ${users.telegramChatId} IS NULL THEN 0 ELSE 1 END`,
+    })
+      .from(users)
+      .where(and(
+        eq(users.tenantId, ctx.tenant.id),
+        eq(users.status, "active"),
+      ))
+      .orderBy(users.name);
+
+    return rows.map(r => ({
+      id: Number(r.id),
+      name: r.name,
+      role: r.role,
+      connected: Number(r.connected) === 1,
+    }));
+  }),
+
+  /**
+   * Напомнить о подключении тем, кто ещё не подключился.
+   *
+   * Не рассылка «всем подряд»: получают её ровно те, у кого Telegram не
+   * привязан. Подключившийся не должен получать напоминание сделать то, что
+   * он уже сделал, — от таких сообщений люди перестают читать все остальные.
+   *
+   * Уведомление идёт внутрь приложения (и на телефон, если стоит мобильное):
+   * в Telegram написать этим людям нельзя по определению — именно его у них и
+   * нет.
+   */
+  remindToConnect: adminQuery.mutation(async ({ ctx }) => {
+    const db = getDb();
+    const pending = await db.select({ id: users.id })
+      .from(users)
+      .where(and(
+        eq(users.tenantId, ctx.tenant.id),
+        eq(users.status, "active"),
+        isNull(users.telegramChatId),
+      ));
+
+    for (const u of pending) {
+      await NotificationService.create(db, {
+        tenantId: ctx.tenant.id,
+        userId: Number(u.id),
+        type: "system",
+        title: "Подключите Telegram",
+        message: "Настройки → Telegram. Так вы будете получать заказы и задачи в телефон.",
+        link: "/settings",
+      });
+    }
+
+    return { sent: pending.length };
+  }),
+
+  /* ═════════════════════════════════════════════════════════════════════════
+     Группа сотрудников: код для связывания и текущее состояние.
+
+     Подключать людей по одному не нужно — достаточно одного чата: директор
+     заводит группу, добавляет бота и вставляет туда код. Дальше рабочие
+     события видят все, кто в чате, включая тех, кто ничего не настраивал.
+
+     Код живёт четверть часа и подписан. Дольше — значит он успеет полежать в
+     переписке, а он даёт право слить рабочие события организации в любой чат,
+     куда его вставят.
+     ═════════════════════════════════════════════════════════════════════════ */
+  groupStatus: adminQuery.query(async ({ ctx }) => {
+    const db = getDb();
+    const [group] = await db.select({
+      chatId: telegramGroups.chatId,
+      title: telegramGroups.title,
+      createdAt: telegramGroups.createdAt,
+    })
+      .from(telegramGroups)
+      .where(eq(telegramGroups.tenantId, ctx.tenant.id))
+      .limit(1);
+
+    return {
+      linked: !!group,
+      title: group?.title ?? null,
+      since: group?.createdAt ?? null,
+      /* Сам идентификатор чата наружу не отдаём: серверу он нужен, человеку
+         ничего не говорит, а в журнале браузера ему делать нечего. */
+    };
+  }),
+
+  groupCode: adminQuery.query(async ({ ctx }) => {
+    return {
+      code: createGroupToken(ctx.tenant.id, ctx.user.id),
+      /* Показываем срок словами: «код на 15 минут» человек понимает, а
+         метку времени — нет. */
+      minutes: 15,
+    };
+  }),
+
+  unlinkGroup: adminQuery.mutation(async ({ ctx }) => {
+    const db = getDb();
+    await db.delete(telegramGroups).where(eq(telegramGroups.tenantId, ctx.tenant.id));
+    return { ok: true };
   }),
 
   /** Admin: test message to all agents in tenant */

@@ -1,6 +1,6 @@
 import { and, desc, eq, gt, gte, inArray, isNull, like, sql } from "drizzle-orm";
 import { getDb } from "../queries/connection";
-import { orders, orderItems, products, shops, warehouseStock } from "@db/schema";
+import { orders, orderItems, products, shops, warehouseStock, users, dailyPlans } from "@db/schema";
 import { REVENUE_ORDER_STATUSES, deliveredQty } from "../lib/order-status";
 import { tgEscape } from "../telegram-router";
 import { T, type Lang } from "./texts";
@@ -193,4 +193,79 @@ export async function answerSearch(tenantId: number, lang: Lang, query: string):
   const lines = rows.map(r =>
     `• ${tgEscape(r.name)} — ${T.wLeft[lang]} ${qty(r.available)} ${tgEscape(r.unit)}, ${T.wPrice[lang]} ${money(r.price)}`);
   return block(T.hProduct[lang], lines, T.nothing[lang]);
+}
+
+/**
+ * Кто из сотрудников подключён к боту.
+ *
+ * ── Зачем это директору ─────────────────────────────────────────────────────
+ *
+ * Подключается человек только сам, и директор не может ни сделать это за него,
+ * ни узнать, сделал ли. Отсюда обычная жалоба «уведомления приходят не всем» —
+ * а приходят они ровно тем, кто подключился.
+ *
+ * Список отвечает на это прямо: имя, должность, подключён или нет. Ни одного
+ * chat_id: он нужен серверу, а человеку не говорит ничего, чего он не видит в
+ * самом Telegram.
+ */
+export async function answerStaff(tenantId: number, lang: Lang): Promise<string> {
+  const rows = await getDb()
+    .select({
+      name: users.name,
+      role: users.role,
+      connected: sql<number>`CASE WHEN ${users.telegramChatId} IS NULL THEN 0 ELSE 1 END`,
+    })
+    .from(users)
+    .where(and(eq(users.tenantId, tenantId), eq(users.status, "active")))
+    .orderBy(users.name)
+    .limit(40);
+
+  if (rows.length === 0) return block(T.hStaff[lang], [], T.wNoStaff[lang]);
+
+  const on = rows.filter(r => Number(r.connected) === 1);
+  const off = rows.filter(r => Number(r.connected) !== 1);
+
+  const lines = [
+    `Подключены: ${on.length} из ${rows.length}`,
+    "",
+    ...on.map(r => `✓ ${tgEscape(r.name)} — ${tgEscape(r.role)}`),
+    ...(off.length ? ["", "Не подключены:"] : []),
+    ...off.map(r => `• ${tgEscape(r.name)} — ${tgEscape(r.role)}`),
+    ...(off.length ? ["", T.staffHint[lang]] : []),
+  ];
+  return block(T.hStaff[lang], lines, T.wNoStaff[lang]);
+}
+
+/**
+ * Визиты на сегодня и сколько из них выполнено.
+ *
+ * Вопрос «объехали ли то, что планировали» задают в середине дня и из
+ * телефона — за компьютером на него отвечает экран планов, а по дороге
+ * отвечать было нечем.
+ */
+export async function answerPlans(tenantId: number, lang: Lang): Promise<string> {
+  const today = new Date().toISOString().slice(0, 10);
+
+  const rows = await getDb()
+    .select({
+      agent: users.name,
+      total: sql<number>`COUNT(*)`,
+      done: sql<number>`SUM(CASE WHEN ${dailyPlans.status} = 'completed' THEN 1 ELSE 0 END)`,
+    })
+    .from(dailyPlans)
+    .innerJoin(users, eq(users.id, dailyPlans.agentId))
+    .where(and(
+      eq(dailyPlans.tenantId, tenantId),
+      sql`DATE(${dailyPlans.planDate}) = ${today}`,
+    ))
+    .groupBy(users.id, users.name)
+    .orderBy(users.name)
+    .limit(LIMIT);
+
+  const lines = rows.map(r => {
+    const total = Number(r.total ?? 0);
+    const done = Number(r.done ?? 0);
+    return `• ${tgEscape(r.agent)} — ${done} из ${total}`;
+  });
+  return block(T.hPlans[lang], lines, T.wNoPlans[lang]);
 }

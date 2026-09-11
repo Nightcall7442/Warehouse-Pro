@@ -45,6 +45,16 @@ const trpcStub = vi.hoisted(() => {
       // экрана, и без заглушки раздел падает на чтении несуществующей.
       testBroadcast: { useMutation: mutation },
       dailyDigest: { useQuery: query({ text: "", stats: {} }) },
+      /*
+        Подключение сотрудников: список, кто уже в боте, и общая группа.
+        Без заглушек раздел падает на чтении несуществующей ручки — а именно
+        так и ловится ручка, которую забыли добавить в мок.
+      */
+      teamStatus: { useQuery: query([]) },
+      groupStatus: { useQuery: query({ linked: false, title: null, since: null }) },
+      groupCode: { useQuery: query({ code: "g1.2.3.sig", minutes: 15 }) },
+      remindToConnect: { useMutation: mutation },
+      unlinkGroup: { useMutation: mutation },
     },
     onec: {
       health: { useQuery: query({ healthy: false }) },
@@ -62,7 +72,11 @@ const trpcStub = vi.hoisted(() => {
       settings: { get: { invalidate: vi.fn() } },
       branding: { get: { invalidate: vi.fn() }, cssVariables: { invalidate: vi.fn() } },
       warehouseMulti: { list: { invalidate: vi.fn() } },
-      telegram: { myStatus: { invalidate: vi.fn() }, rules: { invalidate: vi.fn() } },
+      telegram: {
+        myStatus: { invalidate: vi.fn() },
+        rules: { invalidate: vi.fn() },
+        groupStatus: { invalidate: vi.fn() },
+      },
       onec: { health: { invalidate: vi.fn() }, status: { invalidate: vi.fn() } },
       auth: { me: { invalidate: vi.fn() } },
     }),

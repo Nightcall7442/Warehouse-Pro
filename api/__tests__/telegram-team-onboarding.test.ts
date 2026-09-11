@@ -1,0 +1,235 @@
+import { describe, it, expect, beforeAll } from "vitest";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
+/**
+ * Подключение сотрудников к Telegram.
+ *
+ * ── Задача, которую это решает ──────────────────────────────────────────────
+ *
+ * Подключиться к боту человек может только САМ: ссылка подписана его
+ * идентификатором. Это правильно — иначе пересланная ссылка стала бы способом
+ * читать чужие уведомления, — но из этого следовало, что подключить смену из
+ * двадцати человек можно только уговорив каждого.
+ *
+ * Отсюда два ответа: общая группа (одно действие директора на всю смену) и
+ * список, кто подключён лично.
+ *
+ * ── Что здесь стережётся в первую очередь ───────────────────────────────────
+ *
+ * Не удобство, а РАЗГЛАШЕНИЕ. В общий чат попадают рабочие события, и ровно
+ * поэтому туда не должно попасть ничего личного: зарплата, своя задача, свои
+ * показатели. Ошибка здесь выглядит как удобство ровно до того дня, когда вся
+ * смена прочитает, кто сколько получил.
+ */
+const read = (p: string) => readFileSync(join(process.cwd(), p), "utf8").replace(/\r\n/g, "\n");
+
+/** Комментарий — не код: разборы ниже сами называют и группу, и зарплату. */
+const strip = (code: string) =>
+  code.replace(/\/\*[\s\S]*?\*\//g, " ").replace(/(^|[^:])\/\/.*$/gm, "$1");
+
+const NOTIFY = strip(read("api/services/telegram-notify.ts"));
+const ROUTER = strip(read("api/telegram-router.ts"));
+const BOT = strip(read("api/telegram/bot.ts"));
+const TEAM_UI = strip(read("src/components/settings/TelegramTeam.tsx"));
+const SETTINGS_UI = strip(read("src/components/settings/TelegramSettings.tsx"));
+
+describe("в общий чат не уходит личное", () => {
+  it("адресное уведомление в группу не идёт", () => {
+    /*
+      Главная проверка файла. `onlyUserId` стоит там, где сообщение
+      предназначено ОДНОМУ человеку. Убери это условие — и зарплата, названная
+      по имени, уйдёт в чат, где сидит вся смена.
+    */
+    /*
+      Ищем ЧТЕНИЕ группы, а не слово «telegramGroups»: первым в файле стоит
+      импорт, и окно перед ним — начало файла, где условия быть не может.
+      Поймано нарочной поломкой.
+    */
+    const at = NOTIFY.indexOf(".from(telegramGroups)");
+    expect(at, "группа не подключена к рассылке").toBeGreaterThan(-1);
+
+    const before = NOTIFY.slice(Math.max(0, at - 400), at);
+    expect(before, "группа получает и адресные уведомления").toContain("if (!input.onlyUserId)");
+  });
+
+  it("группа берётся по организации отправителя", () => {
+    // Иначе событие одной организации уехало бы в чат другой — и заметить это
+    // можно было бы только по жалобе.
+    const at = NOTIFY.indexOf(".from(telegramGroups)");
+    expect(at, "чтения группы нет").toBeGreaterThan(-1);
+    const stmt = NOTIFY.slice(at, NOTIFY.indexOf(";", at));
+    expect(stmt).toContain("eq(telegramGroups.tenantId, input.tenantId)");
+  });
+
+  it("тихие часы действуют и на группу", () => {
+    /*
+      Ночью сообщение ложится в очередь, а не будит. Если бы группа
+      добавлялась ПОСЛЕ проверки тихого часа, чат смены звенел бы в три ночи,
+      когда личные телефоны молчат.
+    */
+    const groupAt = NOTIFY.indexOf("chats.push(group.chatId)");
+    const quietAt = NOTIFY.indexOf("if (isQuiet(now))");
+    expect(groupAt, "группа не добавляется в список чатов").toBeGreaterThan(-1);
+    expect(quietAt, "тихий час пропал").toBeGreaterThan(-1);
+    expect(groupAt, "группа добавляется после проверки тихого часа").toBeLessThan(quietAt);
+  });
+});
+
+describe("связать группу может только тот, кому дали код", () => {
+  it("код подписан и недолог", () => {
+    const TOKEN = strip(read("api/telegram/link-token.ts"));
+    expect(TOKEN).toContain("export function createGroupToken");
+    expect(TOKEN).toContain("export function readGroupToken");
+    // Тот же срок, что и у личной ссылки: дольше — значит код полежит в
+    // переписке, а он даёт право слить события организации в любой чат.
+    const at = TOKEN.indexOf("export function createGroupToken");
+    expect(TOKEN.slice(at, TOKEN.indexOf("\n}", at))).toContain("LINK_TTL_MS");
+  });
+
+  it("подпись сверяется постоянным временем", () => {
+    // Обычное сравнение строк отвечает тем быстрее, чем раньше расходятся
+    // байты, и по времени ответа подпись подбирается.
+    const TOKEN = strip(read("api/telegram/link-token.ts"));
+    const at = TOKEN.indexOf("export function readGroupToken");
+    expect(TOKEN.slice(at, TOKEN.indexOf("\n}\n", at))).toContain("timingSafeEqual");
+  });
+
+  it("код выдаётся только директору", () => {
+    for (const proc of ["groupCode", "groupStatus", "unlinkGroup", "teamStatus", "remindToConnect"]) {
+      const at = ROUTER.indexOf(`\n  ${proc}: `);
+      expect(at, `процедура ${proc} не найдена`).toBeGreaterThan(-1);
+      expect(
+        ROUTER.slice(at, at + 60),
+        `${proc} открыта шире, чем директору организации`,
+      ).toContain("adminQuery");
+    }
+  });
+
+  it("идентификатор чата наружу не отдаётся", () => {
+    /*
+      Серверу он нужен, человеку не говорит ничего, а в журнале браузера ему
+      делать нечего. Отдаём название и факт связи.
+    */
+    const at = ROUTER.indexOf("\n  groupStatus: ");
+    const body = ROUTER.slice(at, ROUTER.indexOf("\n  }),", at));
+    expect(body).toContain("linked:");
+    expect(body, "идентификатор чата уезжает на экран").not.toMatch(/return\s*{[\s\S]*chatId[\s\S]*}/);
+  });
+});
+
+describe("группа — это получатель, а не собеседник", () => {
+  it("в групповом чате бот не отвечает на вопросы", () => {
+    /*
+      Ответы бота — остатки, выручка и долги. В личной переписке их читает
+      человек, чья роль это позволяет; в группе — все, кого туда добавили.
+    */
+    const cut = BOT.indexOf('if (chatType === "group"');
+    const answers = BOT.indexOf("await answer(user");
+    expect(cut, "группа не отделена").toBeGreaterThan(-1);
+    expect(cut, "группа доходит до ответов").toBeLessThan(answers);
+  });
+
+  it("связывание работает только в группе", () => {
+    const at = BOT.indexOf("async function linkGroup(");
+    const body = BOT.slice(at, BOT.indexOf("\n}", at));
+    expect(body).toContain('chatType !== "group" && chatType !== "supergroup"');
+  });
+
+  it("новая группа заменяет прежнюю, а не добавляется к ней", () => {
+    // Иначе рабочие события ушли бы и в чат, про который все забыли.
+    const SCHEMA = read("db/schema.ts");
+    const at = SCHEMA.indexOf("export const telegramGroups");
+    expect(SCHEMA.slice(at, SCHEMA.indexOf("export type TelegramGroup", at)))
+      .toContain("uniqueIndex(\"uq_tg_group_tenant\")");
+  });
+});
+
+describe("директор видит, кого не хватает", () => {
+  it("список сотрудников с признаком подключения", () => {
+    const at = ROUTER.indexOf("\n  teamStatus: ");
+    const body = ROUTER.slice(at, ROUTER.indexOf("\n  }),", at));
+    expect(body).toContain("telegramChatId");
+    expect(body, "список не сужен организацией").toContain("eq(users.tenantId, ctx.tenant.id)");
+    expect(body, "в списке уволенные").toContain('eq(users.status, "active")');
+  });
+
+  it("напоминание идёт ТОЛЬКО неподключённым", () => {
+    /*
+      Подключившийся не должен получать напоминание сделать то, что он уже
+      сделал: от таких сообщений люди перестают читать все остальные.
+    */
+    const at = ROUTER.indexOf("\n  remindToConnect: ");
+    const body = ROUTER.slice(at, ROUTER.indexOf("\n  }),", at));
+    expect(body).toContain("isNull(users.telegramChatId)");
+  });
+
+  it("напоминание идёт не в Telegram", () => {
+    // В Telegram написать этим людям нельзя по определению — именно его у них
+    // и нет. Уведомление идёт внутрь приложения.
+    const at = ROUTER.indexOf("\n  remindToConnect: ");
+    const body = ROUTER.slice(at, ROUTER.indexOf("\n  }),", at));
+    expect(body).toContain("NotificationService.create");
+    expect(body, "напоминание шлётся туда, чего у человека нет").not.toContain("sendTelegram");
+  });
+});
+
+describe("до всего этого можно дойти", () => {
+  it("блок подключения стоит на экране настроек", () => {
+    const tag = SETTINGS_UI.match(/<TelegramTeam(?![A-Za-z0-9_])/);
+    expect(tag, "блока подключения нет в настройках Telegram").not.toBeNull();
+  });
+
+  it("и стоит выше правил рассылки", () => {
+    /*
+      Правила отвечают на «кому что приходит», но пока человек не подключён,
+      ему не приходит ничего. Сперва подключить, потом настраивать.
+    */
+    const team = SETTINGS_UI.indexOf("<TelegramTeam");
+    const rules = SETTINGS_UI.indexOf("<TelegramRules");
+    expect(team).toBeGreaterThan(-1);
+    expect(rules).toBeGreaterThan(-1);
+    expect(team, "правила рассылки стоят раньше подключения").toBeLessThan(rules);
+  });
+
+  it("экран зовёт все заведённые ручки", () => {
+    for (const proc of ["teamStatus", "groupStatus", "groupCode", "remindToConnect", "unlinkGroup"]) {
+      expect(TEAM_UI, `ручка ${proc} не вызывается ниоткуда`).toContain(`telegram.${proc}`);
+    }
+  });
+
+  it("инструкция называет все три шага", () => {
+    // «Добавьте бота» без «создайте группу» — это тупик: человек не понимает,
+    // куда добавлять.
+    expect(TEAM_UI).toMatch(/Создайте группу/);
+    expect(TEAM_UI).toMatch(/Добавьте туда бота/);
+    expect(TEAM_UI).toMatch(/\/link/);
+  });
+});
+
+describe("бот объясняет себя", () => {
+  let TEXTS = "";
+  beforeAll(() => { TEXTS = read("api/telegram/texts.ts"); });
+
+  it("на команду без кода отвечает, где его взять", () => {
+    // Иначе человек получает «код не подошёл» на пустую команду и не знает,
+    // что делать дальше.
+    /*
+      Имя целиком, с двоеточием: «groupNeedsCodeGone» тоже содержит
+      «groupNeedsCode», и переименование прошло бы мимо стража. Поймано
+      нарочной поломкой.
+    */
+    expect(TEXTS).toMatch(/groupNeedsCode:/);
+    expect(TEXTS).toMatch(/Настройки → Telegram/);
+  });
+
+  it("говорит, что личное в группу не уходит", () => {
+    // Это первое, о чём спрашивает директор, и первое, чего боится сотрудник.
+    expect(TEXTS).toMatch(/Личное[^"]*не уходит|зарплата[^"]*не уходит/i);
+  });
+
+  it("новые ответы названы в помощи", () => {
+    expect(TEXTS).toMatch(/Сотрудники<\/b>/);
+    expect(TEXTS).toMatch(/Планы<\/b>/);
+  });
+});

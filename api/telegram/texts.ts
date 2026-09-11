@@ -55,6 +55,41 @@ export const T = {
     ru: "Уведомления отключены. Чтобы включить снова — /start",
     uz: "Bildirishnomalar o'chirildi. Qayta yoqish uchun — /start",
   },
+  hStaff: { ru: "Сотрудники", uz: "Xodimlar" },
+  wNoStaff: { ru: "Сотрудников нет.", uz: "Xodimlar yo'q." },
+  staffHint: {
+    ru: "Не подключённые к боту уведомлений не получают. Настройки → Telegram в приложении.",
+    uz: "Botga ulanmaganlar bildirishnoma olmaydi. Ilovada Sozlamalar → Telegram.",
+  },
+  hPlans: { ru: "Визиты на сегодня", uz: "Bugungi tashriflar" },
+  wNoPlans: { ru: "На сегодня визитов не запланировано.", uz: "Bugunga tashrif rejalashtirilmagan." },
+
+  /* ── Группа сотрудников ──────────────────────────────────────────────── */
+  groupLinked: {
+    ru: "Готово: этот чат связан с вашей организацией.\n\nСюда будут приходить рабочие события — новые заказы, низкие остатки, просроченные долги. Личное (зарплата, свои задачи) в общий чат не уходит никогда.",
+    uz: "Tayyor: bu chat tashkilotingizga bog'landi.\n\nBu yerga ish hodisalari keladi — yangi buyurtmalar, kam qoldiq, muddati o'tgan qarzlar. Shaxsiy narsalar (oylik, shaxsiy vazifalar) umumiy chatga hech qachon yuborilmaydi.",
+  },
+  groupReplaced: {
+    ru: "Готово: теперь события приходят в этот чат. Прежняя группа отключена — в неё больше ничего не придёт.",
+    uz: "Tayyor: endi hodisalar shu chatga keladi. Oldingi guruh o'chirildi.",
+  },
+  groupNeedsCode: {
+    ru: "Чтобы связать этот чат с организацией, отправьте сюда команду с кодом:\n<code>/link КОД</code>\n\nКод берётся в приложении: Настройки → Telegram → «Группа сотрудников». Он живёт 15 минут.",
+    uz: "Bu chatni tashkilot bilan bog'lash uchun kod bilan buyruq yuboring:\n<code>/link KOD</code>\n\nKodni ilovada oling: Sozlamalar → Telegram → «Xodimlar guruhi». U 15 daqiqa yashaydi.",
+  },
+  groupBadCode: {
+    ru: "Код не подошёл. Возможно, он устарел — возьмите новый в приложении: Настройки → Telegram.",
+    uz: "Kod to'g'ri kelmadi. Ehtimol eskirgan — ilovadan yangisini oling: Sozlamalar → Telegram.",
+  },
+  groupUnlinked: {
+    ru: "Чат отключён от организации. События сюда больше не приходят.",
+    uz: "Chat tashkilotdan uzildi. Hodisalar bu yerga kelmaydi.",
+  },
+  groupOnlyInGroup: {
+    ru: "Эта команда работает в групповом чате: создайте группу, добавьте туда бота и отправьте команду там.",
+    uz: "Bu buyruq guruh chatida ishlaydi: guruh yarating, botni qo'shing va buyruqni o'sha yerda yuboring.",
+  },
+
   help: {
     ru: [
       "Что умею:",
@@ -64,6 +99,8 @@ export const T = {
       "• <b>Сводка</b> — итоги за сегодня",
       "• <b>Топ</b> — что лучше продаётся",
       "• <b>Долги</b> — кто должен и сколько",
+      "• <b>Сотрудники</b> — кто подключён к боту, а кому напомнить",
+      "• <b>Планы</b> — визиты на сегодня и сколько выполнено",
       "",
       "Название товара тоже понимаю: напишите «кока-кола» — покажу остаток и цену.",
       "",
@@ -78,6 +115,8 @@ export const T = {
       "• <b>Hisobot</b> — bugungi yakun",
       "• <b>Top</b> — nima yaxshi sotilyapti",
       "• <b>Qarzlar</b> — kim qancha qarz",
+      "• <b>Xodimlar</b> — kim botga ulangan, kimga eslatish kerak",
+      "• <b>Rejalar</b> — bugungi tashriflar va bajarilgani",
       "",
       "Mahsulot nomini ham tushunaman: «coca-cola» deb yozing — qoldiq va narxni ko'rsataman.",
       "",
@@ -117,8 +156,8 @@ export function say(key: keyof typeof T, lang: Lang): string {
 
 /** Подписи кнопок постоянного меню. */
 export const MENU: Record<Lang, string[][]> = {
-  ru: [["Остатки", "Заказы"], ["Сводка", "Топ"], ["Долги", "Помощь"]],
-  uz: [["Qoldiq", "Buyurtmalar"], ["Hisobot", "Top"], ["Qarzlar", "Yordam"]],
+  ru: [["Остатки", "Заказы"], ["Сводка", "Топ"], ["Долги", "Сотрудники"], ["Планы", "Помощь"]],
+  uz: [["Qoldiq", "Buyurtmalar"], ["Hisobot", "Top"], ["Qarzlar", "Xodimlar"], ["Rejalar", "Yordam"]],
 };
 
 /**
@@ -127,7 +166,13 @@ export const MENU: Record<Lang, string[][]> = {
  * Кнопки шлют ровно те же слова, что и клавиатура, поэтому отдельной ветки для
  * них не нужно: нажатие и набранное вручную слово приходят одинаково.
  */
-export type Intent = "stock" | "orders" | "summary" | "top" | "debts" | "help" | "lang" | "stop" | "search";
+/*
+  «staff» и «plans» добавлены для директора: первое отвечает на «кто из
+  моих подключён к боту», второе — на «объехали ли сегодня то, что
+  planировали». Оба вопроса задают из телефона и по дороге, а не за
+  компьютером.
+*/
+export type Intent = "stock" | "orders" | "summary" | "top" | "debts" | "staff" | "plans" | "help" | "lang" | "stop" | "search";
 
 export function detectIntent(raw: string): Intent {
   const t = raw.trim().toLowerCase();
@@ -139,5 +184,7 @@ export function detectIntent(raw: string): Intent {
   if (/^\/?(summary|сводк|итог|отчёт|отчет|hisobot|yakun)/.test(t)) return "summary";
   if (/^\/?(top|топ|лучш|популярн)/.test(t)) return "top";
   if (/^\/?(debts?|долг|qarz)/.test(t)) return "debts";
+  if (/^\/?(staff|сотрудник|команд[аы]|персонал|xodim)/.test(t)) return "staff";
+  if (/^\/?(plans?|план|визит|reja|tashrif)/.test(t)) return "plans";
   return "search";
 }

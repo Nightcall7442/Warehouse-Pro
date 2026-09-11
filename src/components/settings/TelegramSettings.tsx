@@ -5,6 +5,7 @@ import { notify } from "@/lib/toast";
 import { Loader2, Send, CheckCircle2, XCircle, CalendarDays, ShoppingCart, Package, AlertTriangle } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { TelegramRules } from "./TelegramRules";
+import { TelegramTeam } from "./TelegramTeam";
 
 export function TelegramSettings() {
   const [chatId, setChatId] = useState("");
@@ -189,6 +190,14 @@ export function TelegramSettings() {
           личная. Остальные видят выше, что придёт лично им. */}
       {user?.role === "ceo" && (
         <div className="pt-4" style={{ borderTop: "1px solid var(--color-border)" }}>
+          {/*
+            Подключение сотрудников стоит ПЕРЕД правилами рассылки.
+
+            Правила отвечают на «кому что приходит», но пока человек не
+            подключён, ему не приходит ничего — и настройка правил для него
+            бессмысленна. Сперва подключить, потом настраивать.
+          */}
+          <TelegramTeam />
           <TelegramRules />
         </div>
       )}

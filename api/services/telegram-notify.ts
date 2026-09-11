@@ -1,6 +1,6 @@
 import { and, eq, inArray, isNull, isNotNull, lte, sql } from "drizzle-orm";
 import { getDb } from "../queries/connection";
-import { telegramOutbox, telegramRules, tenants, users } from "@db/schema";
+import { telegramGroups, telegramOutbox, telegramRules, tenants, users } from "@db/schema";
 import { sendTelegram } from "../telegram-router";
 import { logger } from "../lib/logger";
 
@@ -128,6 +128,28 @@ export async function notifyEvent(input: NotifyInput): Promise<{ sent: number; q
     .filter(u => !input.onlyUserId || u.id === input.onlyUserId)
     .map(u => u.chatId!)
     .filter(Boolean);
+
+  /*
+    ── Общий чат смены ───────────────────────────────────────────────────────
+
+    Если организация связала группу, рабочее событие уходит и туда. Это и есть
+    ответ на «как подключить всех сотрудников»: подключать по одному не нужно,
+    достаточно одного чата.
+
+    И ровно одно исключение, которое важнее самой возможности: адресное
+    уведомление в группу НЕ идёт. `onlyUserId` стоит там, где сообщение
+    предназначено ОДНОМУ человеку, — и такие вещи, как зарплата или личная
+    задача, в общем чате были бы разглашением, а не удобством. За этим следит
+    отдельная проверка: слово «личное» в комментарии ничего не гарантирует.
+  */
+  if (!input.onlyUserId) {
+    const [group] = await db.select({ chatId: telegramGroups.chatId })
+      .from(telegramGroups)
+      .where(eq(telegramGroups.tenantId, input.tenantId))
+      .limit(1);
+    if (group?.chatId) chats.push(group.chatId);
+  }
+
   if (chats.length === 0) return { sent: 0, queued: 0 };
 
   if (isQuiet(now)) {
