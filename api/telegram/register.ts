@@ -12,8 +12,26 @@ import { logger } from "../lib/logger";
  * а причина лежит на стороне Telegram, куда никто не смотрит.
  *
  * Приложение спрашивает у Telegram, куда он сейчас стучится, и переставляет
- * адрес, только если тот отличается. Лишний вызов setWebhook на каждом запуске
- * сбрасывал бы очередь необработанных сообщений.
+ * подписку, только если та отличается. Лишний вызов setWebhook на каждом
+ * запуске сбрасывал бы очередь необработанных сообщений.
+ *
+ * ── Почему сверяется не только адрес ────────────────────────────────────────
+ *
+ * Потому что на этом уже обожглись, и молча. Вебхук оказался подписан ТОЛЬКО
+ * на `callback_query`: текстовые сообщения Telegram не присылал вовсе. Адрес
+ * при этом совпадал, ошибок не было, очередь пустая — и проверка говорила
+ * «вебхук уже на месте». Бот не отвечал ни одному человеку, а по всем
+ * признакам был исправен.
+ *
+ * Это худший вид поломки: ни отказа, ни записи в журнале. Поэтому сверяется
+ * ВЕСЬ набор типов обновлений, а не только адрес.
+ *
+ * ── Чего сверить нельзя ─────────────────────────────────────────────────────
+ *
+ * Секрет. Telegram его не возвращает, и смену секрета этой проверкой не
+ * поймать. Но она и не нужна: с чужим секретом запросы доходят и получают
+ * отказ — то есть видны в журнале как 401, в отличие от подписки, которая
+ * просто молчит.
  *
  * ── Чего здесь нет ──────────────────────────────────────────────────────────
  *
@@ -21,6 +39,15 @@ import { logger } from "../lib/logger";
  * имени бота кому угодно, и место ему в переменных окружения, а не в журнале,
  * который уходит в Loki и живёт там месяц.
  */
+/**
+ * Что мы просим присылать.
+ *
+ * Названо здесь, а не внутри запроса: этот набор нужен и для СВЕРКИ с тем, что
+ * стоит у Telegram сейчас. Две копии списка разъехались бы, и сверка перестала
+ * бы ловить ровно то, ради чего заведена.
+ */
+const ALLOWED_UPDATES = ["message", "callback_query"] as const;
+
 export async function registerTelegramWebhook(): Promise<void> {
   const token = env.telegramBotToken;
   const secret = env.telegramWebhookSecret;
@@ -42,11 +69,23 @@ export async function registerTelegramWebhook(): Promise<void> {
 
   try {
     const info = await fetch(`https://api.telegram.org/bot${token}/getWebhookInfo`)
-      .then(r => r.json() as Promise<{ result?: { url?: string } }>);
+      .then(r => r.json() as Promise<{ result?: { url?: string; allowed_updates?: string[] } }>);
 
-    if (info?.result?.url === target) {
-      logger.info("telegram: вебхук уже на месте", { url: target });
+    const current = [...(info?.result?.allowed_updates ?? [])].sort();
+    const wanted = [...ALLOWED_UPDATES].sort();
+    const sameUrl = info?.result?.url === target;
+    const sameUpdates = current.length === wanted.length && current.every((v, i) => v === wanted[i]);
+
+    if (sameUrl && sameUpdates) {
+      logger.info("telegram: вебхук уже на месте", { url: target, allowed: wanted });
       return;
+    }
+
+    if (sameUrl) {
+      // Адрес тот же, а типы разъехались — именно так бот и молчал.
+      logger.warn("telegram: подписка на типы обновлений не та — переставляем", {
+        было: current, стало: wanted,
+      });
     }
 
     const res = await fetch(`https://api.telegram.org/bot${token}/setWebhook`, {
@@ -57,7 +96,7 @@ export async function registerTelegramWebhook(): Promise<void> {
         secret_token: secret,
         // Нас интересуют только сообщения и нажатия кнопок. Остальное Telegram
         // не присылает вовсе — это меньше трафика и меньше поводов ошибиться.
-        allowed_updates: ["message", "callback_query"],
+        allowed_updates: [...ALLOWED_UPDATES],
         // Накопленное за время простоя не нужно: человек написал вчера, а
         // ответ придёт сегодня — это хуже молчания.
         drop_pending_updates: true,
