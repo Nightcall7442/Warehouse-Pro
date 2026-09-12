@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { AppModal, modalSectionLabel, modalFieldLabel } from "@/components/ui/AppModal";
 import { useConfirm } from "@/components/ConfirmDialog";
 import { PremiumSelect } from "@/components/PremiumSelect";
@@ -146,6 +146,7 @@ export function QuickOrderModal({ open, onOpenChange, preselectedShopId, initial
   );
   const { data: productsData } = trpc.product.listAll.useQuery({ search: productSearch || undefined });
 
+
   const filteredShops = useMemo(() => {
     const q = shopSearch.trim().toLowerCase();
     const list = shops;
@@ -225,6 +226,25 @@ export function QuickOrderModal({ open, onOpenChange, preselectedShopId, initial
       setCart([...cart, { productId: product.id, name: product.name, code: product.code, unitPrice: Number(product.unitPrice), quantity: 1 }]);
     }
   };
+
+  /*
+    Сканер-клавиатура: код + Enter. Список ищется на сервере и приходит
+    позже, чем Enter, — поэтому Enter только запоминает код, а в корзину
+    товар ложится, когда ответ на этот код пришёл и совпал целиком.
+  */
+  const [pendingScan, setPendingScan] = useState<string | null>(null);
+  useEffect(() => {
+    if (!pendingScan || !productsData || productSearch !== pendingScan) return;
+    const norm = pendingScan.trim().toLowerCase();
+    const hit = productsData.find(p => (p.barcode ?? "").toLowerCase() === norm || (p.code ?? "").toLowerCase() === norm);
+    /* eslint-disable react-hooks/set-state-in-effect */
+    setPendingScan(null);
+    if (!hit) return;
+    addToCart(hit);
+    setProductSearch("");
+    /* eslint-enable react-hooks/set-state-in-effect */
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingScan, productsData, productSearch]);
 
   const updateQty = (productId: number, qty: number) => {
     if (qty <= 0) { setCart(cart.filter(c => c.productId !== productId)); return; }
@@ -363,6 +383,8 @@ export function QuickOrderModal({ open, onOpenChange, preselectedShopId, initial
                   placeholder={t("Поиск товаров…", "Tovar qidirish…")}
                   value={productSearch}
                   onChange={e => setProductSearch(e.target.value)}
+                  onKeyDown={e => { if (e.key === "Enter" && productSearch.trim()) { e.preventDefault(); setPendingScan(productSearch); } }}
+                  data-testid="quick-order-product-search"
                 />
               </div>
               <div

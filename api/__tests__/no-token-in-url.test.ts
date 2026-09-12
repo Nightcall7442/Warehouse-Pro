@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync, existsSync, globSync } from "node:fs";
 import { join } from "node:path";
+import { bootSource } from "./helpers/boot-source";
 
 /**
  * Токен сессии не ходит в адресе.
@@ -28,7 +29,7 @@ describe("мёртвый WebSocket не вернулся", () => {
   });
 
   it("запуск его не подключает", () => {
-    const boot = read("api/boot.ts");
+    const boot = bootSource();
     expect(boot).not.toContain("attachWebSocket(");
     expect(boot).not.toMatch(/import\("\.\/lib\/ws"\)/);
   });

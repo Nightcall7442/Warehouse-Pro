@@ -41,3 +41,16 @@ scrape_configs:
       - targets:
           - www.warehouse-pro.uz
     scrape_interval: 15s
+
+  # Экспортёры базы и Redis — отдельные службы Railway (см.
+  # docs/observability/exporters.md). Пока их нет, цели просто «down», и ни
+  # одна тревога на это не рассчитана: правила по ним срабатывают только на
+  # настоящих числах, не на отсутствии.
+  - job_name: mysql
+    static_configs:
+      - targets:
+          - mysqld-exporter.railway.internal:9104
+  - job_name: redis
+    static_configs:
+      - targets:
+          - redis-exporter.railway.internal:9121

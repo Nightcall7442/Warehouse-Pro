@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { mkdtemp, mkdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
+import { bootSource } from "./helpers/boot-source";
 
 /**
  * Догон миграций, пропущенных штатным мигратором.
@@ -221,7 +222,7 @@ describe("что догон прощает, а что нет", () => {
 });
 
 describe("догон включён в запуск", () => {
-  const boot = readFileSync(join(__dirname, "..", "boot.ts"), "utf8");
+  const boot = bootSource();
 
   it("вызывается при старте", () => {
     expect(boot).toContain("catchUpMigrations");

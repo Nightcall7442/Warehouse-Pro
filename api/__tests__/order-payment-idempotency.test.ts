@@ -30,6 +30,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { orderSource } from "./helpers/order-source";
 
 vi.mock("../lib/logger", () => ({ logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() } }));
 vi.mock("../lib/cache", () => ({ cache: { invalidate: vi.fn(), invalidatePrefix: vi.fn(), get: vi.fn(), set: vi.fn() }, CacheKeys: new Proxy({}, { get: () => () => "k" }) }));
@@ -81,7 +82,7 @@ describe("повтор оплаты по заказу", () => {
 });
 
 describe("форма кода", () => {
-  const ORDER = readFileSync(resolve(__dirname, "../services/order.ts"), "utf-8");
+  const ORDER = orderSource();
   const ROUTER = readFileSync(resolve(__dirname, "../order-router.ts"), "utf-8");
   const body = ORDER.slice(ORDER.indexOf("async function applyPartialPayment"), ORDER.indexOf("async function", ORDER.indexOf("async function applyPartialPayment") + 10));
 

@@ -1,4 +1,6 @@
-import { memo, useCallback, useMemo, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useState } from "react";
+import { useAuth } from "@/hooks/useAuth";
+import { saveArrivalDraft, loadArrivalDraft, clearArrivalDraft, arrivalDraftHasWork, type ArrivalDraft } from "./Arrivals.draft";
 import { DecimalInput } from "@/components/ui/DecimalInput";
 import { createPortal } from "react-dom";
 import type { inferRouterInputs } from "@trpc/server";
@@ -14,7 +16,9 @@ import {
 } from "lucide-react";
 import { exportToExcel, formatArrivalsForExport } from "@/lib/excel";
 import { notify } from "@/lib/toast";
+import { printLabels } from "@/lib/documents";
 import { PremiumSelect } from "@/components/PremiumSelect";
+import { BarcodeScanner } from "@/components/BarcodeScanner";
 import { QueryErrorFallback } from "@/components/QueryErrorFallback";
 import { useConfirm } from "@/components/ConfirmDialog";
 import { formatQty } from "@/lib/format";
@@ -129,20 +133,79 @@ function ArrivalForm({ onSave, onClose, isPending }: { onSave: (d: ArrivalCreate
   const [supplyRate, setSupplyRate] = useState("");
   const [supplyDueDate, setSupplyDueDate] = useState("");
 
+  const { user } = useAuth();
+  const [restored, setRestored] = useState(false);
+
   const supplierValid =
     supplierMode === "none" ||
     ((supplierMode === "existing" ? supplierId > 0 : newSupplierName.trim().length > 0)
       && Number(supplyAmount) > 0
       && (supplyCurrency === "UZS" || Number(supplyRate) > 0));
-  const [items, setItems] = useState<{ productId: number; quantity: string; costPrice: string; sellingPrice: string; condition: string; unit: string; unitWeight: number; batchNumber: string; expiresAt: string }[]>([
-    { productId: 0, quantity: "", costPrice: "", sellingPrice: "", condition: "Хорошее", unit: "pcs", unitWeight: 0, batchNumber: "", expiresAt: "" },
+  const [items, setItems] = useState<{ productId: number; quantity: string; costPrice: string; sellingPrice: string; condition: string; unit: string; unitWeight: number; batchNumber: string; expiresAt: string; expected: string }[]>([
+    { productId: 0, quantity: "", costPrice: "", sellingPrice: "", condition: "Хорошее", unit: "pcs", unitWeight: 0, batchNumber: "", expiresAt: "", expected: "" },
   ]);
 
   const totalExpense = Number(form.fuelCost) + Number(form.tollCost) + Number(form.otherCost);
   const totalWeight = items.reduce((s, i) => s + Number(i.quantity || 0) * (i.unitWeight || 1), 0);
   const totalCost = items.reduce((s, i) => s + Number(i.quantity || 0) * Number(i.costPrice || 0), 0);
 
-  const addItem = () => setItems(p => [...p, { productId: 0, quantity: "", costPrice: "", sellingPrice: "", condition: "Хорошее", unit: "pcs", unitWeight: 0, batchNumber: "", expiresAt: "" }]);
+  const addItem = () => setItems(p => [...p, { productId: 0, quantity: "", costPrice: "", sellingPrice: "", condition: "Хорошее", unit: "pcs", unitWeight: 0, batchNumber: "", expiresAt: "", expected: "" }]);
+
+  /*
+    Черновик: восстанавливается при открытии, сохраняется на каждое
+    изменение (см. Arrivals.draft.ts). Раньше клик мимо окна или перезагрузка
+    теряли сорок набранных строк. Восстановление — только один раз, на первый
+    показ: дальше правит человек.
+  */
+  useEffect(() => {
+    if (!user || restored) return;
+    /* eslint-disable react-hooks/set-state-in-effect */
+    setRestored(true);
+    const d = loadArrivalDraft(user.id);
+    if (!d || !arrivalDraftHasWork(d)) return;
+    setForm(d.form); setSupplierMode(d.supplierMode); setSupplierId(d.supplierId); setNewSupplierName(d.newSupplierName);
+    setSupplyAmount(d.supplyAmount); setSupplyCurrency(d.supplyCurrency); setSupplyRate(d.supplyRate); setSupplyDueDate(d.supplyDueDate);
+    setItems(d.items);
+    /* eslint-enable react-hooks/set-state-in-effect */
+    notify.info(t("Продолжаем набранный приход", "Boshlangan kelish tiklandi"));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
+
+  useEffect(() => {
+    if (!user || !restored) return;
+    const d: ArrivalDraft = { form, supplierMode, supplierId, newSupplierName, supplyAmount, supplyCurrency, supplyRate, supplyDueDate, items };
+    if (arrivalDraftHasWork(d)) saveArrivalDraft(user.id, d); else clearArrivalDraft(user.id);
+  }, [user, restored, form, supplierMode, supplierId, newSupplierName, supplyAmount, supplyCurrency, supplyRate, supplyDueDate, items]);
+
+  /*
+    Сканер на приёмке: код найден — строка с этим товаром получает +1 (или
+    заполняется первая пустая), так что двадцать коробок — двадцать сканов,
+    а не двадцать раз «выберите товар». Партия и срок заполняются руками.
+  */
+  const [scanning, setScanning] = useState(false);
+  const [lastScanned, setLastScanned] = useState<string | null>(null);
+  // Поле для сканера-клавиатуры: код + Enter → строка получает единицу.
+  const [wedge, setWedge] = useState("");
+  const onScanned = (code: string) => {
+    const norm = code.trim().toLowerCase();
+    const product = products?.data?.find(p => (p.barcode ?? "").toLowerCase() === norm || (p.code ?? "").toLowerCase() === norm);
+    if (!product) {
+      setLastScanned(t(`Не найден: ${code}`, `Topilmadi: ${code}`));
+      notify.error(t(`Товар со штрих-кодом ${code} не найден`, `${code} shtrix-kodli mahsulot topilmadi`));
+      return;
+    }
+    setItems(p => {
+      const i = p.findIndex(it => it.productId === product.id);
+      if (i >= 0) return p.map((it, idx) => idx === i ? { ...it, quantity: String(Number(it.quantity || 0) + 1) } : it);
+      const row = {
+        productId: product.id, quantity: "1", costPrice: product.costPrice ?? "", sellingPrice: product.unitPrice ?? "",
+        condition: "Хорошее", unit: product.unit ?? "pcs", unitWeight: Number(product.unitWeight ?? 0), batchNumber: "", expiresAt: "", expected: "",
+      };
+      const empty = p.findIndex(it => it.productId === 0);
+      return empty >= 0 ? p.map((it, idx) => idx === empty ? row : it) : [...p, row];
+    });
+    setLastScanned(product.name);
+  };
   const removeItem = (i: number) => setItems(p => p.filter((_, idx) => idx !== i));
   const updateItem = (i: number, field: string, val: string | number) => {
     setItems(p => p.map((item, idx) => {
@@ -165,6 +228,15 @@ function ArrivalForm({ onSave, onClose, isPending }: { onSave: (d: ArrivalCreate
 
   return createPortal(
     <>
+    {scanning && (
+      <BarcodeScanner
+        continuous
+        lastResult={lastScanned}
+        onScan={onScanned}
+        onClose={() => setScanning(false)}
+        label={t("Сканируйте товары — каждый код добавляет единицу", "Mahsulotlarni skanerlang — har bir kod bittadan qo'shadi")}
+      />
+    )}
     <div style={{ position: "fixed", inset: 0, zIndex: 9999, backgroundColor: "var(--overlay-scrim)" }} onClick={onClose} />
 
     <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 overflow-y-auto">
@@ -285,7 +357,19 @@ function ArrivalForm({ onSave, onClose, isPending }: { onSave: (d: ArrivalCreate
           <div>
             <div className="flex items-center justify-between mb-3">
               <p className={sectionLabel} style={{ marginBottom: 0 }}>{t("Товары", "Tovarlar")}</p>
-              <div className="flex gap-4">
+              <div className="flex gap-4 items-center">
+                <input
+                  className="neo-input"
+                  style={{ width: "180px", padding: "4px 8px", fontSize: "12px" }}
+                  placeholder={t("Штрих-код + Enter", "Shtrix-kod + Enter")}
+                  value={wedge}
+                  onChange={e => setWedge(e.target.value)}
+                  onKeyDown={e => { if (e.key === "Enter" && wedge.trim()) { e.preventDefault(); onScanned(wedge); setWedge(""); } }}
+                  data-testid="arrival-wedge"
+                />
+                <button type="button" className="neo-btn neo-btn-xs tap" onClick={() => { setLastScanned(null); setScanning(true); }} data-testid="arrival-scan">
+                  {t("Сканер", "Skaner")}
+                </button>
                 {totalWeight > 0 && <span className="text-xs font-semibold text-secondary">{formatQty(totalWeight)} {t("кг", "kg")}</span>}
                 {totalCost > 0 && <span className="text-xs font-semibold text-primary font-data">{fmt(totalCost.toFixed(0))}</span>}
               </div>
@@ -316,6 +400,35 @@ function ArrivalForm({ onSave, onClose, isPending }: { onSave: (d: ArrivalCreate
                     <div>
                       <label className="font-label text-[10px] text-secondary mb-1.5 block">{t("Состояние", "Holat")}</label>
                       <input className="neo-input" style={{ padding: "8px 10px" }} placeholder={t("Хорошее", "Yaxshi")} value={item.condition} onChange={e => updateItem(i, "condition", e.target.value)} />
+                    </div>
+                    {/* Тара: считают коробками — вводят коробки, количество считается само. */}
+                    {(() => {
+                      const p = products?.data?.find(pr => pr.id === item.productId);
+                      const pack = p?.packSize != null ? Number(p.packSize) : 0;
+                      if (!(pack > 0)) return null;
+                      const boxes = Number(item.quantity || 0) / pack;
+                      return (
+                        <div>
+                          <label className="font-label text-[10px] text-secondary mb-1.5 block">{p?.packLabel || t("Упаковок", "Qadoqlar")} × {formatQty(pack)}</label>
+                          <DecimalInput className="neo-input" style={{ textAlign: "right", padding: "8px 10px" }} placeholder="0"
+                            value={Number.isInteger(boxes) && boxes > 0 ? String(boxes) : ""}
+                            onValueChange={v => { const n = Number(v); if (Number.isFinite(n) && n >= 0) updateItem(i, "quantity", n === 0 ? "" : String(n * pack)); }}
+                            data-testid={`arrival-boxes-${i}`} />
+                        </div>
+                      );
+                    })()}
+                    {/* По накладной поставщика. Разница с принятым — недовоз или
+                        излишек, и спор с поставщиком начинается с этого числа. */}
+                    <div>
+                      <label className="font-label text-[10px] text-secondary mb-1.5 block">
+                        {t("Ожидалось", "Kutilgan")}
+                        {item.expected !== "" && Number(item.quantity) > 0 && Number(item.expected) !== Number(item.quantity) && (
+                          <span style={{ color: "var(--color-danger-text)", marginLeft: 6 }}>
+                            {Number(item.quantity) > Number(item.expected) ? "+" : ""}{formatQty(Number(item.quantity) - Number(item.expected))}
+                          </span>
+                        )}
+                      </label>
+                      <DecimalInput className="neo-input" style={{ textAlign: "right", padding: "8px 10px" }} placeholder={t("по накладной", "hujjat bo'yicha")} value={item.expected} onValueChange={v => updateItem(i, "expected", v)} data-testid={`arrival-expected-${i}`} />
                     </div>
                     {/*
                       Партия и срок годности.
@@ -377,6 +490,7 @@ function ArrivalForm({ onSave, onClose, isPending }: { onSave: (d: ArrivalCreate
                   // появился бы номер «».
                   batchNumber: i.batchNumber.trim() || undefined,
                   expiresAt: i.expiresAt || undefined,
+                  expectedQuantity: i.expected.trim() === "" ? undefined : i.expected.trim(),
                 })),
                 supplier: supplierMode === "none" ? undefined : {
                   supplierId:      supplierMode === "existing" ? supplierId : undefined,
@@ -393,7 +507,9 @@ function ArrivalForm({ onSave, onClose, isPending }: { onSave: (d: ArrivalCreate
               {isPending && <Loader2 size={15} className="animate-spin" />}
               {t("Сохранить", "Saqlash")}
             </button>
-            <button onClick={onClose} className="neo-btn flex-1 h-12 text-sm">
+            {/* «Отмена» — это отказ от набранного, и черновик стирается вместе
+                с ним. Клик мимо окна и перезагрузка черновик не трогают. */}
+            <button onClick={() => { if (user) clearArrivalDraft(user.id); onClose(); }} className="neo-btn flex-1 h-12 text-sm">
               {t("Отмена", "Bekor qilish")}
             </button>
           </div>
@@ -539,7 +655,7 @@ function SupplierDebtSection({ arrivalId }: { arrivalId: number }) {
 
 // ── Arrival Detail Modal ─────────────────────────────────────────────────────
 function ArrivalDetail({ arrivalId, onClose }: { arrivalId: number; onClose: () => void }) {
-  const { fmt, symbol } = useCurrency();
+  const { fmt, symbol, currency } = useCurrency();
   const { lang } = useLang();
   const t = useCallback((ru: string, uz: string) => lang === "uz" ? uz : ru, [lang]);
   const { data: detail, isLoading } = trpc.arrival.getById.useQuery({ id: arrivalId });
@@ -653,6 +769,13 @@ function ArrivalDetail({ arrivalId, onClose }: { arrivalId: number; onClose: () 
               <button onClick={handlePrintInvoice} style={{ padding: "8px 16px", borderRadius: "10px", background: "color-mix(in srgb, var(--color-on-primary) 18%, transparent)", border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: "6px", color: "var(--color-on-primary)", fontSize: "12px", fontWeight: 600 }}>
                 <Printer size={14} /> {t("Накладная", "Hujjat")}
               </button>
+              {/* Сколько пришло — столько и наклеек: этикетки по приходу, а не по одной со страницы «Штрих-коды». */}
+              <button data-testid="arrival-print-labels" onClick={() => printLabels(detail.items.map(i => ({
+                name: i.productName ?? "", code: i.productCode ?? "", barcode: i.barcode ?? null,
+                price: i.sellingPrice ?? "0", currency, count: Number(i.quantity ?? 1),
+              })))} style={{ padding: "8px 16px", borderRadius: "10px", background: "color-mix(in srgb, var(--color-on-primary) 18%, transparent)", border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: "6px", color: "var(--color-on-primary)", fontSize: "12px", fontWeight: 600 }}>
+                <Printer size={14} /> {t("Этикетки", "Yorliqlar")}
+              </button>
               <button onClick={onClose} style={{ width: "40px", height: "40px", borderRadius: "12px", background: "color-mix(in srgb, var(--color-on-primary) 18%, transparent)", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--color-on-primary)" }}>
                 <X size={20} />
               </button>
@@ -716,7 +839,7 @@ function ArrivalDetail({ arrivalId, onClose }: { arrivalId: number; onClose: () 
                 <table style={{ width: "100%", minWidth: "520px", borderCollapse: "separate", borderSpacing: 0 }}>
                   <thead>
                     <tr>
-                      {[t("Товар", "Mahsulot"), t("Код", "Kod"), t("Кол-во", "Miqdor"), t("Себест.", "Tannarx"), t("Продажа", "Sotish"), t("Состояние", "Holat"), t("Партия", "Partiya"), t("Годен до", "Muddati")].map(h => (
+                      {[t("Товар", "Mahsulot"), t("Код", "Kod"), t("Кол-во", "Miqdor"), t("Ожидалось", "Kutilgan"), t("Себест.", "Tannarx"), t("Продажа", "Sotish"), t("Состояние", "Holat"), t("Партия", "Partiya"), t("Годен до", "Muddati")].map(h => (
                         <th key={h} style={{ fontSize: "10px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--color-text-tertiary)", padding: "10px 14px", textAlign: "left", borderBottom: "1px solid var(--color-border)", background: "var(--color-surface-light)" }}>{h}</th>
                       ))}
                     </tr>
@@ -727,6 +850,16 @@ function ArrivalDetail({ arrivalId, onClose }: { arrivalId: number; onClose: () 
                         <td style={{ padding: "12px 14px", fontSize: "13px", color: "var(--color-text-primary)", borderBottom: "1px solid var(--color-border)" }}>{item.productName ?? "—"}</td>
                         <td style={{ padding: "12px 14px", fontSize: "12px", color: "var(--color-text-tertiary)", fontFamily: "monospace", borderBottom: "1px solid var(--color-border)" }}>{item.productCode ?? "—"}</td>
                         <td style={{ padding: "12px 14px", fontSize: "13px", fontWeight: 600, color: "var(--color-text-primary)", borderBottom: "1px solid var(--color-border)" }}>{formatQty(item.quantity)}</td>
+                        <td style={{ padding: "12px 14px", fontSize: "13px", borderBottom: "1px solid var(--color-border)", color: item.expectedQuantity != null && Number(item.expectedQuantity) !== Number(item.quantity) ? "var(--color-danger-text)" : "var(--color-text-secondary)" }} data-testid={`arrival-detail-expected-${i}`}>
+                          {item.expectedQuantity == null ? "—" : (
+                            <>
+                              {formatQty(item.expectedQuantity)}
+                              {Number(item.expectedQuantity) !== Number(item.quantity) && (
+                                <span style={{ marginLeft: 6, fontWeight: 700 }}>({Number(item.quantity) > Number(item.expectedQuantity) ? "+" : ""}{formatQty(Number(item.quantity) - Number(item.expectedQuantity))})</span>
+                              )}
+                            </>
+                          )}
+                        </td>
                         <td style={{ padding: "12px 14px", fontSize: "13px", color: "var(--color-text-secondary)", borderBottom: "1px solid var(--color-border)", textAlign: "right" }}>{fmt(item.costPrice ?? 0)}</td>
                         <td style={{ padding: "12px 14px", fontSize: "13px", color: "var(--color-text-primary)", fontWeight: 600, borderBottom: "1px solid var(--color-border)", textAlign: "right" }}>{fmt(item.sellingPrice ?? 0)}</td>
                         <td style={{ padding: "12px 14px", fontSize: "13px", color: "var(--color-text-secondary)", borderBottom: "1px solid var(--color-border)" }}>{item.condition ?? "—"}</td>
@@ -821,8 +954,11 @@ export default function Arrivals() {
   const { data: all } = trpc.arrival.list.useQuery({ page: 1, pageSize: 5000 });
   const utils = trpc.useUtils();
 
+  const { user: me } = useAuth();
   const createMutation = trpc.arrival.create.useMutation({
-    onSuccess: () => { utils.arrival.list.invalidate(); setShowForm(false); notify.success(t("Приход добавлен", "Kelish qo'shildi")); },
+    // Приход сохранён — черновику конец, иначе следующее открытие формы
+    // предложит его снова.
+    onSuccess: () => { if (me) clearArrivalDraft(me.id); utils.arrival.list.invalidate(); setShowForm(false); notify.success(t("Приход добавлен", "Kelish qo'shildi")); },
     onError: (e) => notify.error(e.message),
   });
   const updateStatus = trpc.arrival.update.useMutation({

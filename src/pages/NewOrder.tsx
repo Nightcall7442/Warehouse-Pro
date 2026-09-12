@@ -255,12 +255,13 @@ export default function NewOrder() {
 
   const invalidateOrderCaches = useInvalidateOrderCaches();
   const createOrder = trpc.order.create.useMutation({
-    onSuccess: () => {
+    onSuccess: (created) => {
       invalidateOrderCaches();
       // Заказ ушёл — черновику конец. Иначе следующий заход на «Заказ»
       // предложил бы продолжить только что отправленный.
       if (user) clearDraft(user.id);
-      notify.success(t("Заказ создан!", "Buyurtma yaratildi!"));
+      if (created.held) notify.info(t("Заказ оформлен и ждёт подтверждения офиса — скидка выше порога", "Buyurtma rasmiylashtirildi va ofis tasdig'ini kutmoqda — chegirma chegaradan yuqori"));
+      else notify.success(t("Заказ создан!", "Buyurtma yaratildi!"));
       const role = user?.role;
       if (role === "ceo" || role === "operator" || role === "superadmin") {
         navigate("/orders");

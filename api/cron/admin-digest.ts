@@ -2,7 +2,7 @@ import { and, count, eq, gte, lte, ne, sum } from "drizzle-orm";
 import { getDb } from "../queries/connection";
 import { orders, subscriptions, tenants } from "@db/schema";
 import { inbox } from "../services/support-chat";
-import { notifyAdmin, tgMessages } from "../telegram-router";
+import { notifyAdmin, tgMessages } from "../lib/telegram";
 import { logger } from "../lib/logger";
 
 /**

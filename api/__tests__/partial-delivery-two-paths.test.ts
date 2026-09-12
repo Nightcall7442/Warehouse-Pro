@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join, relative, sep } from "node:path";
+import { orderSource } from "./helpers/order-source";
 
 /**
  * Частичную доставку умеют ДВА пути, и они обязаны писать одно и то же.
@@ -37,8 +38,8 @@ import { join, relative, sep } from "node:path";
 const API_DIR = join(__dirname, "..");
 const read = (rel: string) => readFileSync(join(API_DIR, rel.split("/").join(sep)), "utf8").replace(/\r\n/g, "\n");
 
-const ORDER_SERVICE = read("services/order.ts");
-const COURIER = read("courier-router.ts");
+const ORDER_SERVICE = orderSource();
+const COURIER = read("services/courier-delivery.ts");
 
 /** Тело операторской частичной доставки. */
 const operatorPath = (() => {

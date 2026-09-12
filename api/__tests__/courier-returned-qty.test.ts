@@ -79,9 +79,10 @@ describe("courier.completeDelivery: границы returnedQty", () => {
   // живут внутри процедуры и наружу не вынесены. Поэтому отдельно — привязка к
   // настоящему файлу: без неё тест остался бы зелёным, даже если бы обе
   // проверки из роутера убрали.
-  it("обе проверки действительно стоят в api/courier-router.ts", async () => {
+  it("обе проверки действительно стоят: схема в роутере, граница по строке — в службе", async () => {
     const { readFile } = await import("node:fs/promises");
-    const src = await readFile("api/courier-router.ts", "utf-8");
+    // Логика доставки живёт в services/courier-delivery.ts; роутеру остался zod.
+    const src = await readFile("api/courier-router.ts", "utf-8") + await readFile("api/services/courier-delivery.ts", "utf-8");
 
     expect(src, "в схеме returnedItems пропал .min(0)")
       .toMatch(/returnedQty:\s*z\.number\(\)\.min\(0/);

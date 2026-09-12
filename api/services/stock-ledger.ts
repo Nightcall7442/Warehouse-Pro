@@ -27,7 +27,9 @@ export type StockMovementReason =
   | "transfer_in"        // arrived here from another warehouse
   | "manual_adjustment"  // a person corrected the count
   | "import"             // set by a spreadsheet import
-  | "onec_sync";         // set by the 1C integration
+  | "onec_sync"          // set by the 1C integration
+  | "inventory"          // документ инвентаризации применён
+  | "supplier_return";   // возврат товара поставщику
 
 /**
  * Records one movement of physical goods.
@@ -271,6 +273,8 @@ export interface BatchRef {
   /** «ГГГГ-ММ-ДД». */
   expiresAt?: string | null;
   arrivalItemId?: number | null;
+  /** Себестоимость единицы по этой приёмке. */
+  costPrice?: string | null;
 }
 
 /**
@@ -405,13 +409,15 @@ async function receiveBatch(
 
   await tx.execute(sql`
     INSERT INTO stock_batches
-      (tenant_id, warehouse_id, product_id, batch_number, expires_at, batch_key, quantity, arrival_item_id)
+      (tenant_id, warehouse_id, product_id, batch_number, expires_at, batch_key, quantity, arrival_item_id, cost_price)
     VALUES (
       ${entry.tenantId}, ${entry.warehouseId}, ${entry.productId},
       ${batchNumber ?? null}, ${expiresAt ?? null}, ${batchKeyOf(entry.batch)},
-      ${entry.quantity}, ${entry.batch.arrivalItemId ?? null}
+      ${entry.quantity}, ${entry.batch.arrivalItemId ?? null}, ${entry.batch.costPrice ?? null}
     )
-    ON DUPLICATE KEY UPDATE quantity = quantity + ${entry.quantity}
+    ON DUPLICATE KEY UPDATE
+      quantity = quantity + ${entry.quantity},
+      cost_price = COALESCE(${entry.batch.costPrice ?? null}, cost_price)
   `);
 }
 
@@ -606,8 +612,8 @@ export async function applyStockEffect(
   },
 ): Promise<void> {
   const items = normalize(entry.items, "смена статуса");
-  // Списание руками — единственный путь, которому просрочка нужна первой.
-  await shiftStock(tx, entry.tenantId, entry.warehouseId, uniform(items, entry.shift), entry.reason === "manual_adjustment");
+  // Списание руками и возврат поставщику — пути, которым просрочка нужна первой.
+  await shiftStock(tx, entry.tenantId, entry.warehouseId, uniform(items, entry.shift), entry.reason === "manual_adjustment" || entry.reason === "supplier_return");
 
   // Движение — только когда товар правда двигался. Статус, который лишь
   // откладывает или освобождает, перекладывает два числа и в журнал не идёт.

@@ -218,6 +218,48 @@
       "when": 1789169348927,
       "tag": "0030_users_totp",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "5",
+      "when": 1789212482982,
+      "tag": "0031_orders_hold_reason",
+      "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "5",
+      "when": 1789213944226,
+      "tag": "0032_stock_counts",
+      "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "5",
+      "when": 1789214711500,
+      "tag": "0033_arrival_items_expected",
+      "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "5",
+      "when": 1789215033345,
+      "tag": "0034_products_pack",
+      "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "5",
+      "when": 1789215449628,
+      "tag": "0035_supplier_payment_return",
+      "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "5",
+      "when": 1789215643132,
+      "tag": "0036_stock_batches_cost",
+      "breakpoints": true
     }
   ]
 }

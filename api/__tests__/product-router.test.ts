@@ -3,6 +3,8 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 vi.mock("drizzle-orm", () => ({
   eq:  (col: unknown, val: unknown) => ({ __kind: "eq", col, val }),
   and: (...conds: unknown[]) => ({ __kind: "and", conds }),
+  // Поиск — по названию ИЛИ коду ИЛИ штрих-коду.
+  or:  (...conds: unknown[]) => ({ __kind: "or", conds }),
   desc: (col: unknown) => ({ __kind: "desc", col }),
   like: (col: unknown, val: unknown) => ({ __kind: "like", col, val }),
   sql: (strings: TemplateStringsArray, ...values: unknown[]) => ({ __kind: "sql", strings, values }),
@@ -327,6 +329,16 @@ describe("product.list", () => {
     const catResult = (await caller.list({ category: "Widgets" })) as any;
     expect(catResult.data).toHaveLength(2);
     expect(catResult.total).toBe(2);
+  });
+
+  it("находит по коду и по штрих-коду целиком — скан со страницы «Штрих-коды» отвечает товаром", async () => {
+    // Искалось только по названию: скан «BC002» отвечал «Товар не найден».
+    const { productRouter } = await import("../product-router");
+    const caller = productRouter.createCaller({ ...makeCtx(1, 10), db: mockDb });
+    expect(((await caller.list({ search: "BC002" })) as any).data.map((p: any) => p.id)).toEqual([2]);
+    expect(((await caller.list({ search: "WA-001" })) as any).data.map((p: any) => p.id)).toEqual([1]);
+    // часть чужого штрих-кода — не находка
+    expect(((await caller.list({ search: "C00" })) as any).data).toHaveLength(0);
   });
 });
 

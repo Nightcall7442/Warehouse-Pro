@@ -20,6 +20,9 @@ const h = vi.hoisted(() => ({
   checkRateLimit: vi.fn(),
   startDump: vi.fn(),
   recordAudit: vi.fn(),
+  // Второй фактор суперадмина: секрет в базе и проверка кода.
+  totpRow: { totpSecret: "sealed", totpEnabledAt: new Date() } as { totpSecret: string | null; totpEnabledAt: Date | null } | undefined,
+  verifyTotp: vi.fn(),
 }));
 
 vi.mock("../auth", () => ({ authenticateRequest: h.authenticateRequest }));
@@ -34,7 +37,11 @@ vi.mock("../services/db-dump", () => ({
   startDump: h.startDump,
   DumpUnavailableError: class DumpUnavailableError extends Error {},
 }));
-vi.mock("../queries/connection", () => ({ getDb: () => ({}) }));
+vi.mock("../queries/connection", () => ({
+  getDb: () => ({ select: () => ({ from: () => ({ where: () => ({ limit: async () => (h.totpRow ? [h.totpRow] : []) }) }) }) }),
+}));
+vi.mock("../lib/totp", () => ({ verifyTotp: h.verifyTotp }));
+vi.mock("../lib/secret-box", () => ({ open: (v: string) => v, seal: (v: string) => v, isSealed: () => true }));
 vi.mock("../lib/logger", () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
 }));
@@ -53,9 +60,12 @@ beforeEach(() => {
   h.checkRateLimit.mockReset().mockResolvedValue(true);
   h.startDump.mockReset().mockResolvedValue(dumpOf("dump-bytes"));
   h.recordAudit.mockReset().mockResolvedValue(undefined);
+  h.totpRow = { totpSecret: "sealed", totpEnabledAt: new Date() };
+  h.verifyTotp.mockReset().mockReturnValue(true);
 });
 
-const req = () => app.request("/api/admin/backup/download");
+// По умолчанию — с кодом: выгрузка всей базы требует второго фактора.
+const req = (headers: Record<string, string> = { "x-totp-code": "123456" }) => app.request("/api/admin/backup/download", { headers });
 
 describe("скачивание резервной копии", () => {
   it("постороннему — отказ, и выгрузка даже не запускается", async () => {
@@ -149,5 +159,45 @@ describe("скачивание резервной копии", () => {
     // Оборвись передача на середине — данные всё равно уже покинули сервер,
     // и запись об этом должна существовать.
     expect(order).toEqual(["dump", "audit"]);
+  });
+
+  /*
+    Второй фактор перед выгрузкой. Сессия живёт 30 дней, и украденной куки
+    хватало унести данные всех организаций одним запросом. Код подтверждает,
+    что это сам человек, здесь и сейчас; без включённого фактора — закрыто.
+  */
+  describe("второй фактор обязателен", () => {
+    it("без кода — 401 с подсказкой, выгрузка не запускается", async () => {
+      h.authenticateRequest.mockResolvedValue(SUPERADMIN);
+      const res = await req({});
+      expect(res.status).toBe(401);
+      expect(await res.json()).toMatchObject({ code: "TOTP_REQUIRED" });
+      expect(h.startDump).not.toHaveBeenCalled();
+    });
+
+    it("неверный код — 401", async () => {
+      h.authenticateRequest.mockResolvedValue(SUPERADMIN);
+      h.verifyTotp.mockReturnValue(false);
+      const res = await req({ "x-totp-code": "000000" });
+      expect(res.status).toBe(401);
+      expect(await res.json()).toMatchObject({ code: "TOTP_INVALID" });
+      expect(h.startDump).not.toHaveBeenCalled();
+    });
+
+    it("второй фактор не включён — 403: выгрузка закрыта, пока не включат", async () => {
+      h.authenticateRequest.mockResolvedValue(SUPERADMIN);
+      h.totpRow = { totpSecret: null, totpEnabledAt: null };
+      const res = await req();
+      expect(res.status).toBe(403);
+      expect(await res.json()).toMatchObject({ code: "TOTP_NOT_ENROLLED" });
+      expect(h.startDump).not.toHaveBeenCalled();
+    });
+
+    it("экран спрашивает код и шлёт его заголовком", async () => {
+      const { readFileSync } = await import("node:fs");
+      const src = readFileSync("src/components/superadmin/BackupSection.tsx", "utf-8");
+      expect(src).toContain('data-testid="backup-totp"');
+      expect(src).toContain('headers: { "x-totp-code": code.trim() }');
+    });
   });
 });

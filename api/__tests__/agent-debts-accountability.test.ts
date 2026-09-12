@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
+import { orderSource } from "./helpers/order-source";
 
 /**
  * Долги агента: он их видит, может собрать — и не может сделать это незаметно.
@@ -20,7 +21,7 @@ import path from "node:path";
  * Ни один из двух путей раньше не писал ни в журнал действий, ни в уведомления.
  */
 const read = (p: string) => fs.readFileSync(path.resolve(process.cwd(), p), "utf8");
-const ORDER = read("api/services/order.ts");
+const ORDER = orderSource();
 const AGENT = read("api/agent-router.ts");
 const ORDER_ROUTER = read("api/order-router.ts");
 
@@ -47,20 +48,20 @@ describe("список долгов агента", () => {
 
 describe("уменьшить долг незаметно нельзя", () => {
   it("оплата оставляет след и уведомляет офис", () => {
-    const at = ORDER.indexOf("async recordPartialPayment");
+    const at = ORDER.indexOf("async function recordPartialPayment");
     expect(at, "recordPartialPayment не найден").toBeGreaterThan(0);
-    const body = ORDER.slice(at, ORDER.indexOf("async recordPartialDelivery", at));
+    const body = ORDER.slice(at, ORDER.indexOf("async function recordPartialDelivery", at));
     expect(body, "оплата больше не оставляет следа").toContain("traceDebtChange");
     expect(body, "след пишется до подтверждения сделки").toContain("await db.transaction");
   });
 
   it("отмена долгового заказа тоже", () => {
-    const at = ORDER.indexOf("async cancel(");
+    const at = ORDER.indexOf("async function cancel(");
     expect(at, "cancel не найден").toBeGreaterThan(0);
     // До следующего метода сервиса, а не на глазок: функция длинная, и срез
     // фиксированной длины не доставал до её конца — проверка падала на
     // собственной близорукости, а не на настоящей беде.
-    const body = ORDER.slice(at, ORDER.indexOf("  async ", at + 10));
+    const body = ORDER.slice(at, ORDER.indexOf("\nexport ", at + 10));
     expect(body, "отмена долгового заказа проходит без следа").toContain("traceDebtChange");
     expect(body, "след ставят и на обычную отмену — это шум").toContain('order.paymentMethod === "debt"');
   });

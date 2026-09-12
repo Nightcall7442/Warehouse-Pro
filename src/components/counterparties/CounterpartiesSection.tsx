@@ -13,6 +13,7 @@ import { CounterpartyList } from "./CounterpartyList";
 import { CounterpartyForm } from "./CounterpartyForm";
 import { CounterpartyDetail } from "./CounterpartyDetail";
 import { PaymentForm } from "./PaymentForm";
+import { SupplierReturnForm } from "./SupplierReturnForm";
 import type { CounterpartyRow } from "./CounterpartyList";
 import type { PayableSupply } from "./PaymentForm";
 import { COLORS } from "./constants";
@@ -43,6 +44,7 @@ export function CounterpartiesSection() {
   const [editing, setEditing] = useState<CounterpartyRow | null>(null);
   const [detailId, setDetailId] = useState<number | null>(null);
   const [paying, setPaying] = useState<PayableSupply | null>(null);
+  const [returning, setReturning] = useState<PayableSupply | null>(null);
   /*
     Заведение поставщика и оплата ему — деньги, уходящие из организации.
     Арендатор может закрыть это оператору (Настройки → Права оператора).
@@ -85,6 +87,17 @@ export function CounterpartiesSection() {
       setFormOpen(false);
       setEditing(null);
       notify.success(t("Сохранено", "Saqlandi"));
+    },
+    onError: (e) => notify.error(e.message),
+  });
+
+  const returnMutation = trpc.supplier.returnGoods.useMutation({
+    onSuccess: (res) => {
+      refreshAll();
+      setReturning(null);
+      notify.success(res.duplicate
+        ? t("Этот возврат уже был записан", "Bu qaytarish allaqachon yozilgan")
+        : t(`Возврат записан: долг уменьшен на ${res.credited}`, `Qaytarish yozildi: qarz ${res.credited} ga kamaydi`));
     },
     onError: (e) => notify.error(e.message),
   });
@@ -202,6 +215,19 @@ export function CounterpartiesSection() {
             setFormOpen(true);
           }}
           onPay={canManageSuppliers ? setPaying : undefined}
+          onReturn={canManageSuppliers ? setReturning : undefined}
+        />
+      )}
+
+      {returning && (
+        <SupplierReturnForm
+          key={`r-${returning.id}`}
+          open
+          supply={returning}
+          lang={lang}
+          isPending={returnMutation.isPending}
+          onClose={() => setReturning(null)}
+          onSubmit={(values) => returnMutation.mutate(values)}
         />
       )}
 

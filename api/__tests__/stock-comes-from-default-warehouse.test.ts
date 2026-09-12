@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
+import { orderSource } from "./helpers/order-source";
 
 /**
  * Остаток показывается со склада по умолчанию — с того же, откуда спишется
@@ -23,7 +24,7 @@ import path from "node:path";
  */
 const read = (p: string) => fs.readFileSync(path.resolve(process.cwd(), p), "utf8");
 const ROUTER = read("api/product-router.ts");
-const ORDER = read("api/services/order.ts");
+const ORDER = orderSource();
 
 describe("остатки и склад по умолчанию", () => {
   it("каталог берёт остаток со склада по умолчанию", () => {

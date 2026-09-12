@@ -13,14 +13,26 @@
 #
 # ── Что нужно задать в переменных службы AlertManager ────────────────────────
 #
-#   TELEGRAM_BOT_TOKEN      — токен бота
-#   TELEGRAM_ALERT_CHAT_ID  — числовой идентификатор чата (у групп он со знаком минус)
+#   TELEGRAM_BOT_TOKEN           — токен бота
+#   TELEGRAM_ALERT_CHAT_ID       — числовой идентификатор чата (у групп он со знаком минус)
+#   ALERTMANAGER_WEBHOOK_SECRET  — тот же ключ, что у службы Warehouse-Pro:
+#                                  второй канал, вебхук в приложение → push и
+#                                  уведомление суперадминам. Единственный канал
+#                                  (Telegram) молчит, если сломался бот или чат.
 #
 # Чат лучше завести отдельный, не тот, куда приложение шлёт обычные
 # уведомления: тревога, потерявшаяся среди сообщений о заказах, бесполезна.
 
 route:
   receiver: telegram
+
+  # Каждая тревога уходит обоими каналами: Telegram и вебхук в приложение
+  # (push на телефон суперадмина + уведомление в интерфейсе). continue —
+  # чтобы совпадение с первым маршрутом не остановило второй.
+  routes:
+    - receiver: app-webhook
+      continue: true
+    - receiver: telegram
 
   # Группировка по имени тревоги: одна авария не должна превращаться в двадцать
   # сообщений подряд.
@@ -38,6 +50,11 @@ route:
   repeat_interval: 4h
 
 receivers:
+  - name: app-webhook
+    webhook_configs:
+      - url: https://www.warehouse-pro.uz/api/webhooks/alertmanager?secret=$ALERTMANAGER_WEBHOOK_SECRET
+        send_resolved: true
+        max_alerts: 20
   - name: telegram
     telegram_configs:
       - bot_token: $TELEGRAM_BOT_TOKEN

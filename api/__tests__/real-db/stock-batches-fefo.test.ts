@@ -357,4 +357,14 @@ describeIf("партии остатка на настоящей базе", () =>
     const m = await expiredByProduct(db as never, s.tenantId, s.warehouseId, [s.productId]);
     expect(m.get(s.productId)).toBe(10);
   });
+
+  it("себестоимость партии — с приёмки; повтор партии без цены цену не стирает", async () => {
+    await receiveStock(db as never, { tenantId: s.tenantId, warehouseId: s.warehouseId, productId: s.productId, quantity: 4, reason: "arrival",
+      batch: { batchNumber: "C", expiresAt: LATER, costPrice: "9500.00" } });
+    await receiveStock(db as never, { tenantId: s.tenantId, warehouseId: s.warehouseId, productId: s.productId, quantity: 2, reason: "arrival",
+      batch: { batchNumber: "C", expiresAt: LATER } });
+    const [rows] = await db.execute(sql`SELECT quantity, cost_price AS cost FROM stock_batches WHERE batch_number = 'C'`) as unknown as [Array<{ quantity: string; cost: string | null }>];
+    expect(rows).toEqual([{ quantity: "6.00", cost: "9500.00" }]);
+  });
 });
+

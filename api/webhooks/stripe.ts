@@ -8,7 +8,7 @@ import { verifyWebhook } from "../lib/stripe";
 import { sendEmail } from "../lib/mailer";
 import { env } from "../lib/env";
 import { logger } from "../lib/logger";
-import { notifyAdmin, tgMessages } from "../telegram-router";
+import { notifyAdmin, tgMessages } from "../lib/telegram";
 
 /** Stripe sets this in checkout metadata; anything else is not a plan we sell. */
 type PaidPlan = "basic" | "pro" | "exclusive";

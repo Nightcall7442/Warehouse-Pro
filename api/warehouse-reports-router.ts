@@ -310,9 +310,10 @@ export const warehouseReportsRouter = createRouter({
         batchNumber:   stockBatches.batchNumber,
         expiresAt:     stockBatches.expiresAt,
         quantity:      stockBatches.quantity,
-        // Цена ЗАКУПКИ: столько денег сгорает вместе с товаром. Цена продажи
-        // здесь ни при чём — непроданный товар выручки не приносил.
-        costPrice:     products.costPrice,
+        // Цена ЗАКУПКИ этой партии (карточка — только у партий без своей):
+        // столько денег сгорает вместе с товаром. Цена продажи здесь ни при
+        // чём — непроданный товар выручки не приносил.
+        costPrice:     sql<string>`COALESCE(${stockBatches.costPrice}, ${products.costPrice})`,
         daysLeft:      sql`DATEDIFF(${stockBatches.expiresAt}, ${today})`.mapWith(Number),
       })
         .from(stockBatches)
@@ -356,10 +357,10 @@ export const warehouseReportsRouter = createRouter({
 
       const [row] = await db.select({
         expiredCount: sql`COUNT(CASE WHEN ${stockBatches.expiresAt} < ${today} THEN 1 END)`.mapWith(Number),
-        expiredValue: sql`COALESCE(SUM(CASE WHEN ${stockBatches.expiresAt} < ${today} THEN ${stockBatches.quantity} * COALESCE(${products.costPrice}, 0) ELSE 0 END), 0)`.mapWith(Number),
+        expiredValue: sql`COALESCE(SUM(CASE WHEN ${stockBatches.expiresAt} < ${today} THEN ${stockBatches.quantity} * COALESCE(${stockBatches.costPrice}, ${products.costPrice}, 0) ELSE 0 END), 0)`.mapWith(Number),
         urgentCount:  sql`COUNT(CASE WHEN ${stockBatches.expiresAt} >= ${today} AND DATEDIFF(${stockBatches.expiresAt}, ${today}) <= 7 THEN 1 END)`.mapWith(Number),
         soonCount:    sql`COUNT(CASE WHEN DATEDIFF(${stockBatches.expiresAt}, ${today}) > 7 THEN 1 END)`.mapWith(Number),
-        liveValue:    sql`COALESCE(SUM(CASE WHEN ${stockBatches.expiresAt} >= ${today} THEN ${stockBatches.quantity} * COALESCE(${products.costPrice}, 0) ELSE 0 END), 0)`.mapWith(Number),
+        liveValue:    sql`COALESCE(SUM(CASE WHEN ${stockBatches.expiresAt} >= ${today} THEN ${stockBatches.quantity} * COALESCE(${stockBatches.costPrice}, ${products.costPrice}, 0) ELSE 0 END), 0)`.mapWith(Number),
       })
         .from(stockBatches)
         .innerJoin(products, and(eq(stockBatches.productId, products.id), eq(products.tenantId, tenantId)))

@@ -1,7 +1,7 @@
 import { and, eq, inArray, isNull, isNotNull, lte, sql } from "drizzle-orm";
 import { getDb } from "../queries/connection";
 import { telegramGroups, telegramOutbox, telegramRules, tenants, users } from "@db/schema";
-import { sendTelegram } from "../telegram-router";
+import { sendTelegram } from "../lib/telegram";
 import { logger } from "../lib/logger";
 
 /* ═══════════════════════════════════════════════════════════════════════════

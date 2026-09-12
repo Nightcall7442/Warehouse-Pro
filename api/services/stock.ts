@@ -205,7 +205,7 @@ export const StockService = {
         const lowName = productName;
         const lowLeft = String(updatedAvailable);
         void import("./telegram-notify").then(async ({ notifyEvent }) => {
-          const { tgMessages } = await import("../telegram-router");
+          const { tgMessages } = await import("../lib/telegram");
           await notifyEvent({
             tenantId,
             event: "stock.low",

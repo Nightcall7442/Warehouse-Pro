@@ -119,3 +119,81 @@ groups:
             или старше восьми дней: копия могла перестать разворачиваться, а
             узнать об этом в день аварии — поздно. Смотреть журнал работы
             restore-drill в Loki.
+
+  # ── База и Redis (нужны экспортёры, docs/observability/exporters.md) ──────
+  - name: mysql-redis
+    rules:
+      - alert: СоединенийСБазойПочтиПредел
+        expr: mysql_global_status_threads_connected / mysql_global_variables_max_connections > 0.8
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Соединений с MySQL больше 80 % от предела"
+          description: >-
+            Пул приложения плюс кроны и репетиция восстановления подбираются к
+            max_connections. Дальше — «Too many connections» и отказ старта.
+            Смотреть DB_CONNECTION_LIMIT приложения и max_connections базы.
+
+      - alert: МедленныеЗапросыРастут
+        expr: rate(mysql_global_status_slow_queries[10m]) > 0.1
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "MySQL пишет медленные запросы чаще шести в минуту"
+          description: >-
+            Обычно это отчёт без индекса или большой экспорт. Сверить со
+            trpc_procedure_duration_seconds — какая процедура тормозит.
+
+      - alert: RedisПочтиБезПамяти
+        expr: redis_memory_used_bytes / redis_memory_max_bytes > 0.9 and redis_memory_max_bytes > 0
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Redis занял больше 90 % отведённой памяти"
+          description: >-
+            Кэш и лимиты запросов живут в Redis; при нехватке памяти он
+            начинает вытеснять ключи или отказывать в записи — приложение
+            переходит на память процесса и одна реплика перестаёт быть равна
+            другой.
+
+      - alert: RedisНедоступен
+        expr: redis_up == 0
+        for: 3m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Redis не отвечает экспортёру"
+          description: >-
+            Отзыв сессий, лимиты и кэш перешли в память процесса. Проверить
+            службу Redis в Railway.
+
+  # ── Процедуры tRPC ──────────────────────────────────────────────────────────
+  - name: trpc
+    rules:
+      - alert: ПроцедураОтказывает
+        expr: >-
+          sum by (path) (rate(trpc_procedure_errors_total{code="INTERNAL_SERVER_ERROR"}[10m]))
+          / sum by (path) (rate(trpc_procedure_duration_seconds_count[10m])) > 0.05
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Процедура {{ $labels.path }} падает внутренней ошибкой чаще 5 %"
+          description: >-
+            Не отказ по существу (те идут другими кодами), а именно падение.
+            Смотреть журнал по path в Loki и Sentry.
+
+      - alert: ПроцедураМедленная
+        expr: histogram_quantile(0.95, sum by (path, le) (rate(trpc_procedure_duration_seconds_bucket[10m]))) > 2
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Процедура {{ $labels.path }}: 95-й перцентиль дольше двух секунд"
+          description: >-
+            Человек ждёт экран больше двух секунд в одном вызове из двадцати.
+            Обычно отчёт без индекса; сверить с медленными запросами MySQL.
+

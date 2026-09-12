@@ -28,11 +28,46 @@ export const httpRequestsTotal = new client.Counter({
   registers: [register],
 });
 
+/*
+  Кто и какой версией ходит. Заголовок x-client-version ставят веб
+  (сборка) и мобилка (app.json); без него — «unknown». По этой метрике видно,
+  сколько телефонов ещё на старой сборке — до этого о версиях в поле не
+  знал никто, и ошибка «у агента не работает» не привязывалась к сборке.
+  Версия — из заголовка, но ограниченной формы (см. boot.ts): произвольная
+  строка от клиента раздула бы набор меток.
+*/
+export const clientRequestsTotal = new client.Counter({
+  name: "client_requests_total",
+  help: "Requests by client kind and version (x-client-version header)",
+  labelNames: ["client", "version"] as const,
+  registers: [register],
+});
+
 export const httpRequestDurationSeconds = new client.Histogram({
   name: "http_request_duration_seconds",
   help: "HTTP request duration in seconds",
   labelNames: ["method", "path", "status"] as const,
   buckets: [0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10],
+  registers: [register],
+});
+
+/*
+  По процедурам tRPC, а не по HTTP-пути: все вызовы приложения идут через
+  /api/trpc/*, и http_request_duration_seconds видит их одной строкой.
+  Какая именно ручка тормозит или сыплет отказами — только отсюда.
+  Метка path — имя процедуры (order.create), их конечное число.
+*/
+export const trpcProcedureDurationSeconds = new client.Histogram({
+  name: "trpc_procedure_duration_seconds",
+  help: "tRPC procedure duration in seconds, by procedure path and outcome",
+  labelNames: ["path", "type", "ok"] as const,
+  buckets: [0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10],
+  registers: [register],
+});
+export const trpcProcedureErrorsTotal = new client.Counter({
+  name: "trpc_procedure_errors_total",
+  help: "tRPC procedure errors by path and tRPC error code",
+  labelNames: ["path", "code"] as const,
   registers: [register],
 });
 

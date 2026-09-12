@@ -22,6 +22,7 @@ import { colorMix } from "@/lib/color-mix";
 
 import { SearchInput } from "@/components/SearchInput";
 import { StockTransfers } from "@/components/warehouse/StockTransfers";
+import { StockCounts } from "@/components/warehouse/StockCounts";
 import { DemandForecast } from "@/components/warehouse/DemandForecast";
 // warehouseMulti.getStock is raw SQL behind db.execute, so tRPC infers its rows
 // as `unknown` — these two mirror the SELECT lists in that procedure. Decimal
@@ -67,7 +68,7 @@ export default function Warehouse() {
   // `unit` is captured for the adjust dialog, which today renders quantities
   // without a unit label — AdjustModal takes no unit prop yet.
   const [adjusting, setAdjusting] = useState<{ id: number; name: string; stock: number; unit: string; unitWeight: number } | null>(null);
-  const [activeTab, setActiveTab] = useState<"stock" | "deadstock" | "reorder" | "forecast" | "transfers">("stock");
+  const [activeTab, setActiveTab] = useState<"stock" | "deadstock" | "reorder" | "forecast" | "transfers" | "counts">("stock");
   const [deadStockDays, setDeadStockDays] = useState(30);
   const [showLowStock, setShowLowStock] = useState(false);
 
@@ -152,6 +153,22 @@ export default function Warehouse() {
 
   const stock = data?.data as StockRow[] | undefined;
   const summary = data?.summary as StockSummary | undefined;
+
+  /*
+    Окно строк. Сервер отдаёт до 10 000 позиций, и все они рисовались разом:
+    у арендатора с большим каталогом таблица собиралась секунды, а прокрутка
+    дёргалась. Первые две сотни — сразу, дальше по кнопке; новый поиск
+    начинает с начала.
+  */
+  const PAGE = 200;
+  // Окно сбрасывается на новый поиск/склад прямо при отрисовке — без эффекта.
+  const windowKey = `${debouncedSearch}|${warehouseId ?? ""}`;
+  const [win, setWin] = useState({ key: windowKey, rows: PAGE });
+  if (win.key !== windowKey) setWin({ key: windowKey, rows: PAGE });
+  const visibleRows = win.key === windowKey ? win.rows : PAGE;
+  const setVisibleRows = (f: (v: number) => number) => setWin(w => ({ key: windowKey, rows: f(w.rows) }));
+  const shown = stock?.slice(0, visibleRows);
+  const hidden = Math.max(0, (stock?.length ?? 0) - visibleRows);
   const lowCount = Number(summary?.lowStockCount ?? 0);
 
   const kpis = useMemo(() => [
@@ -188,6 +205,8 @@ export default function Warehouse() {
     */
     { key: "forecast" as const, label: t("Прогноз", "Prognoz"), count: 0 },
     { key: "transfers" as const, label: t("Перемещения", "Ko'chirishlar"), count: pendingTransfers },
+    // Инвентаризация — документ: снимок, счёт (в т. ч. сканером), применение разом.
+    { key: "counts" as const, label: t("Инвентаризация", "Inventarizatsiya"), count: 0 },
   ], [summary, deadStockItems, reorderSuggestions, pendingTransfers, t]);
 
   if (isLoadingError) return <QueryErrorFallback onRetry={refetch} />;
@@ -357,7 +376,7 @@ export default function Warehouse() {
                 ? Array.from({ length: 4 }).map((_, i) => (
                     <div key={i} className="h-28 rounded-2xl animate-pulse" style={{ background: "var(--color-surface-light, #f6f4f0)" }} />
                   ))
-                : stock?.map((item) => {
+                : shown?.map((item) => {
                     const low = Number(item.available ?? 0) < Number(item.reorderPoint ?? 0);
                     return (
                       <div key={item.id} className="rounded-2xl overflow-hidden"
@@ -402,6 +421,11 @@ export default function Warehouse() {
                       </div>
                     );
                   })}
+              {hidden > 0 && (
+                <button type="button" className="neo-btn tap w-full" onClick={() => setVisibleRows(v => v + PAGE)} data-testid="stock-show-more-m">
+                  {t(`Показать ещё ${Math.min(PAGE, hidden)} (осталось ${hidden})`, `Yana ${Math.min(PAGE, hidden)} ko'rsatish (qoldi ${hidden})`)}
+                </button>
+              )}
             </div>
           ) : (
             <div className="rounded-2xl"
@@ -430,7 +454,7 @@ export default function Warehouse() {
                     ? <tr><td colSpan={9} className="text-center py-16 text-sm" style={{ color: "var(--color-text-tertiary, #6b6760)" }}>
                         {t("Нет товаров на складе","Omborda mahsulot yo'q")}
                       </td></tr>
-                    : stock?.map((item) => {
+                    : shown?.map((item) => {
                         const low = Number(item.available ?? 0) < Number(item.reorderPoint ?? 0);
                         return (
                           <tr key={item.id} style={low ? { background: "rgba(232,80,80,0.03)" } : undefined}>
@@ -481,6 +505,13 @@ export default function Warehouse() {
                       })}
                 </tbody>
               </table>
+              {hidden > 0 && (
+                <div className="flex justify-center py-3" style={{ borderTop: "1px solid var(--color-border)" }}>
+                  <button type="button" className="neo-btn tap" onClick={() => setVisibleRows(v => v + PAGE)} data-testid="stock-show-more">
+                    {t(`Показать ещё ${Math.min(PAGE, hidden)} (осталось ${hidden})`, `Yana ${Math.min(PAGE, hidden)} ko'rsatish (qoldi ${hidden})`)}
+                  </button>
+                </div>
+              )}
             </div>
           )}
         </>
@@ -496,6 +527,10 @@ export default function Warehouse() {
 
       {activeTab === "transfers" && (
         <StockTransfers warehouses={warehousesQ.data ?? []} />
+      )}
+
+      {activeTab === "counts" && canAdjust && (
+        <StockCounts warehouses={warehousesQ.data ?? []} />
       )}
 
       {activeTab === "deadstock" && (

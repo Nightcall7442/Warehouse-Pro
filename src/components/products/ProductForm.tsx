@@ -22,6 +22,8 @@ export type ProductDraft = {
   unitPrice:    string;
   unit:         Unit;
   unitWeight:   string;
+  packSize:     string;
+  packLabel:    string;
   reorderPoint: string;
   description:  string;
   photoUrl?:    string;
@@ -41,7 +43,7 @@ function isUnit(v: string): v is Unit {
 
 export function ProductForm({ onSave, onCancel, isPending, lang, categories = [] }: ProductFormProps) {
   const t = (ru: string, uz: string) => lang === "uz" ? uz : ru;
-  const [d, setD] = useState<Omit<ProductDraft, "photoUrl">>({ code: "", barcode: "", name: "", category: "", costPrice: "", unitPrice: "", unit: "pcs", unitWeight: "", reorderPoint: "10.00", description: "" });
+  const [d, setD] = useState<Omit<ProductDraft, "photoUrl">>({ code: "", barcode: "", name: "", category: "", costPrice: "", unitPrice: "", unit: "pcs", unitWeight: "", packSize: "", packLabel: "", reorderPoint: "10.00", description: "" });
   const [photo, setPhoto] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const handlePhoto = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -96,6 +98,8 @@ export function ProductForm({ onSave, onCancel, isPending, lang, categories = []
           <DecimalInput data-testid="product-price" className="neo-input font-data" placeholder={t("Цена продажи *", "Sotish narxi *")} value={d.unitPrice} onValueChange={v => setD({ ...d, unitPrice: v })} />
           <DecimalInput className="neo-input font-data" placeholder={t("Масса 1 ед. в кг (ящик=8)", "1 dona vazni, kg")} value={d.unitWeight} onValueChange={v => setD({ ...d, unitWeight: v })} />
           <DecimalInput className="neo-input font-data" placeholder={t("Порог дозаказа", "Qayta buyurtma chegarasi")} value={d.reorderPoint} onValueChange={v => setD({ ...d, reorderPoint: v })} />
+          <DecimalInput className="neo-input font-data" placeholder={t("В упаковке, ед. (12)", "Qadoqda, dona (12)")} value={d.packSize} onValueChange={v => setD({ ...d, packSize: v })} data-testid="product-pack-size" />
+          <input className="neo-input" placeholder={t("Название упаковки (коробка)", "Qadoq nomi (quti)")} value={d.packLabel} onChange={e => setD({ ...d, packLabel: e.target.value })} />
           <input className="neo-input sm:col-span-2" placeholder={t("Описание", "Tavsif")} value={d.description} onChange={e => setD({ ...d, description: e.target.value })} />
         </div>
       </div>

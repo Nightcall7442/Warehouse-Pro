@@ -12,9 +12,9 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { orderMethod } from "./helpers/order-source";
 
-const ORDER = readFileSync(resolve(__dirname, "../services/order.ts"), "utf-8");
-const create = ORDER.slice(ORDER.indexOf("  async create("), ORDER.indexOf("\n  async ", ORDER.indexOf("  async create(") + 10));
+const create = orderMethod("create");
 
 describe("кредитный контроль при оформлении", () => {
   it("проверяется до резерва склада и записи заказа", () => {

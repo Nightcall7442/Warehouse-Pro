@@ -6,6 +6,7 @@ import type { Role } from "@contracts/types";
 import { env } from "./lib/env";
 import { hasSubscriptionAccess } from "./lib/feature-gating";
 import { checkRateLimit, rateLimitSubject } from "./lib/rate-limit";
+import { trpcProcedureDurationSeconds, trpcProcedureErrorsTotal } from "./prometheus-metrics";
 
 // ── Translate ZodError codes into user-friendly Russian messages ─────────────
 const FIELD_LABELS: Record<string, string> = {
@@ -205,6 +206,20 @@ const t = initTRPC.context<TrpcContext>().create({
 export const createRouter = t.router;
 
 // ── Correlation ID middleware ──────────────────────────────────────────────────
+/*
+  Время и исход каждой процедуры — в Prometheus. Первым слоем, чтобы в
+  замер попали и отказы доступа, и лимиты: медленная ручка и ручка, которую
+  все получают 429, — обе видны. Ошибка процедуры не проглатывается:
+  считается и летит дальше.
+*/
+const withProcedureMetrics = t.middleware(async ({ path, type, next }) => {
+  const end = trpcProcedureDurationSeconds.startTimer({ path, type });
+  const result = await next();
+  end({ ok: result.ok ? "1" : "0" });
+  if (!result.ok) trpcProcedureErrorsTotal.inc({ path, code: result.error.code });
+  return result;
+});
+
 const withCorrelationId = t.middleware(async ({ ctx, next }) => {
   const headers = new Headers(ctx.resHeaders);
   const corrId = ctx.req.headers.get("x-correlation-id")
@@ -355,13 +370,13 @@ const withSubscriptionGate = t.middleware(async ({ ctx, next, path }) => {
 });
 
 // ── Base public procedure with correlation ID ─────────────────────────────────
-const basePublic = t.procedure.use(withCorrelationId);
+const basePublic = t.procedure.use(withProcedureMetrics).use(withCorrelationId);
 
 // Re-export as `publicQuery` — all public procedures get correlation IDs
 export const publicQuery = basePublic;
 
 // ── Compose authenticated procedures ──────────────────────────────────────────
-export const authedQuery     = t.procedure.use(withCorrelationId).use(withTenantIsolation).use(withGlobalRateLimit).use(requireAuth).use(withSubscriptionGate);
+export const authedQuery     = t.procedure.use(withProcedureMetrics).use(withCorrelationId).use(withTenantIsolation).use(withGlobalRateLimit).use(requireAuth).use(withSubscriptionGate);
 
 // superAdminQuery — platform-level operations: manage tenants, billing, platform stats.
 // Only superadmin can access these endpoints.

@@ -2,7 +2,7 @@ import { and, desc, eq, gt, gte, inArray, isNull, like, sql } from "drizzle-orm"
 import { getDb } from "../queries/connection";
 import { orders, orderItems, products, shops, warehouseStock, users, dailyPlans } from "@db/schema";
 import { REVENUE_ORDER_STATUSES, deliveredQty } from "../lib/order-status";
-import { tgEscape } from "../telegram-router";
+import { tgEscape } from "../lib/telegram";
 import { T, type Lang } from "./texts";
 
 /* ═══════════════════════════════════════════════════════════════════════════

@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { bootSource } from "./helpers/boot-source";
 
 /* ═══════════════════════════════════════════════════════════════════════════
    Выгрузка наружу: изоляция организаций и безопасность ключей.
@@ -219,7 +220,7 @@ describe("отказы называют себя правильным кодом
       сможет и в лучшем случае запишет «непонятная ошибка», а в худшем —
       посчитает ответ пустым и опубликует неполный отчёт.
     */
-    const BOOT = strip(read("api/boot.ts"));
+    const BOOT = strip(bootSource());
     const at = BOOT.indexOf("app.onError(");
     expect(at, "общего обработчика ошибок нет").toBeGreaterThan(-1);
     const body = BOOT.slice(at, BOOT.indexOf("\n});", at));

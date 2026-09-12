@@ -5,7 +5,7 @@ import { isSafePhotoValue, PHOTO_VALUE_ERROR } from "./lib/photo-value";
 import { createRouter, operatorQuery, fieldSalesQuery, can } from "./middleware";
 import { getDb } from "./queries/connection";
 import { products, warehouseStock, stockMovements, warehouses } from "@db/schema";
-import { eq, like, and, sql, desc } from "drizzle-orm";
+import { eq, like, and, or, sql, desc } from "drizzle-orm";
 import { sanitizeString, sanitizeSearch } from "./lib/sanitize";
 import { decimalOrDefault } from "./lib/zod-decimal";
 import { cache, withCache, CacheKeys, CacheTTL } from "./lib/cache";
@@ -67,6 +67,19 @@ async function getDefaultWarehouseId(db: ReturnType<typeof getDb>, tenantId: num
   return wh?.id ?? null;
 }
 
+/**
+ * Поиск товара — по названию, коду и штрих-коду.
+ *
+ * Искалось только по названию: страница «Штрих-коды» после скана искала
+ * «4870001234567» в названии и отвечала «Товар не найден», хотя штрих-код в
+ * карточке стоял. Код и штрих-код сравниваются целиком: скан — точное
+ * совпадение, а «12» в середине чужого штрих-кода — не находка.
+ */
+function productMatches(raw: string) {
+  const q = sanitizeSearch(raw);
+  return or(like(products.name, `%${q}%`), eq(products.code, q), eq(products.barcode, q))!;
+}
+
 export const productRouter = createRouter({
   /** All active products for a tenant — no pagination, used by mobile catalog & selectors */
   listAll: fieldSalesQuery
@@ -80,7 +93,7 @@ export const productRouter = createRouter({
       const warehouseId = await getDefaultWarehouseId(db, tenantId);
 
       const conditions = [eq(products.tenantId, tenantId), eq(products.status, "active")];
-      if (input?.search)   conditions.push(like(products.name, `%${sanitizeSearch(input.search)}%`));
+      if (input?.search)   conditions.push(productMatches(input.search));
       if (input?.category) conditions.push(eq(products.category, input?.category));
       const where = and(...conditions);
 
@@ -111,11 +124,16 @@ export const productRouter = createRouter({
       const data = await db.select({
         id:           products.id,
         code:         products.code,
+        // Штрих-код поставщика: по нему сканер в заказе находит товар без
+        // сети — каталог лежит копией на устройстве.
+        barcode:      products.barcode,
         name:         products.name,
         category:     products.category,
         unitPrice:    products.unitPrice,
         unit:         products.unit,
         unitWeight:   products.unitWeight,
+        packSize:     products.packSize,
+        packLabel:    products.packLabel,
         description:  products.description,
         photoUrl:     photoRef("product", products.id, products.photoUrl, products.updatedAt),
         reorderPoint: products.reorderPoint,
@@ -162,7 +180,7 @@ export const productRouter = createRouter({
       return withCache(cacheKey, CacheTTL.products, async () => {
       const conditions = [eq(products.tenantId, tenantId)];
       if (!input?.includeAll) conditions.push(eq(products.status, "active"));
-      if (input?.search)   conditions.push(like(products.name, `%${sanitizeSearch(input.search)}%`));
+      if (input?.search)   conditions.push(productMatches(input.search));
       if (input?.category) conditions.push(eq(products.category, input?.category));
       const where = and(...conditions);
 
@@ -188,12 +206,16 @@ export const productRouter = createRouter({
         db.select({
           id:           products.id,
           code:         products.code,
+          // Штрих-код поставщика: на этикетке печатается он, а не код.
+          barcode:      products.barcode,
           name:         products.name,
           category:     products.category,
           costPrice:    products.costPrice,
           unitPrice:    products.unitPrice,
           unit:         products.unit,
           unitWeight:   products.unitWeight,
+        packSize:     products.packSize,
+        packLabel:    products.packLabel,
           description:  products.description,
           photoUrl:     photoRef("product", products.id, products.photoUrl, products.updatedAt),
           reorderPoint: products.reorderPoint,
@@ -235,7 +257,7 @@ export const productRouter = createRouter({
       const [product] = await db.select({
         id: products.id, code: products.code, barcode: products.barcode, name: products.name,
         category: products.category, costPrice: products.costPrice, unitPrice: products.unitPrice,
-        unit: products.unit, unitWeight: products.unitWeight, description: products.description,
+        unit: products.unit, unitWeight: products.unitWeight, packSize: products.packSize, packLabel: products.packLabel, description: products.description,
         photoUrl: products.photoUrl, reorderPoint: products.reorderPoint, status: products.status,
         createdAt: products.createdAt,
       }).from(products)
@@ -294,6 +316,9 @@ export const productRouter = createRouter({
       unitPrice:    z.string().refine(v => Number(v) > 0, "Цена должна быть положительной"),
       unit:         z.enum(["kg", "l", "pcs", "box", "pack", "m", "block"]).default("pcs"),
       unitWeight:   decimalOrDefault("0.000").default("0.000"),
+      // Упаковка: «12» и «коробка». Пусто — тары нет.
+      packSize:     z.preprocess(v => (v === "" ? null : v), z.string().regex(/^\d+(\.\d{1,2})?$/, "Упаковка — число").refine(v => Number(v) > 0, "Упаковка — больше нуля").nullable().optional()),
+      packLabel:    z.string().max(30).nullable().optional(),
       description:  z.string().optional(),
       photoUrl:     z.string().max(2_800_000, "Файл слишком большой (макс. 2 МБ)")
         .refine(isSafePhotoValue, PHOTO_VALUE_ERROR).optional(),
@@ -395,6 +420,8 @@ export const productRouter = createRouter({
       unitPrice:    z.string().refine(v => v === undefined || Number(v) > 0, "Цена должна быть положительной").optional(),
       unit:         z.enum(["kg", "l", "pcs", "box", "pack", "m", "block"]).optional(),
       unitWeight:   decimalOrDefault("0.000").optional(),
+      packSize:     z.preprocess(v => (v === "" ? null : v), z.string().regex(/^\d+(\.\d{1,2})?$/, "Упаковка — число").refine(v => Number(v) > 0, "Упаковка — больше нуля").nullable().optional()),
+      packLabel:    z.string().max(30).nullable().optional(),
       description:  z.string().optional(),
       photoUrl:     z.string().max(2_800_000, "Файл слишком большой (макс. 2 МБ)")
         .refine(isSafePhotoValue, PHOTO_VALUE_ERROR).nullable().optional(),

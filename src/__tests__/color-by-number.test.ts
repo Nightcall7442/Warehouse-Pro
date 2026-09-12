@@ -78,7 +78,7 @@ function countColours(): { total: number; byFile: Array<[string, number]> } {
  * 1088 — замер 10.09.2026, после уборки карточки достижений. Опускается, когда
  * экран переводят на токены; расти не должен.
  */
-const BASELINE = 1088;
+const BASELINE = 1086;
 
 describe("цвет числом", () => {
   const { total, byFile } = countColours();

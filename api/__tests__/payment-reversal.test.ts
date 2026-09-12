@@ -53,7 +53,7 @@ describe("форма сторно", () => {
   });
 
   it("курьер: оба пути делят излишек и пишут его отдельной строкой", () => {
-    const COURIER = readFileSync(resolve(__dirname, "../courier-router.ts"), "utf-8");
+    const COURIER = readFileSync(resolve(__dirname, "../services/courier-delivery.ts"), "utf-8");
     expect((COURIER.match(/splitExcess\(/g) ?? []).length).toBe(2);
     expect((COURIER.match(/recordExcess\(tx/g) ?? []).length).toBe(2);
   });

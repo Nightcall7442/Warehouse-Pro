@@ -72,11 +72,11 @@ export default function Products() {
   const { data: categories } = trpc.product.categories.useQuery();
   const utils = trpc.useUtils();
   const createMutation = trpc.product.create.useMutation({
-    onSuccess: () => { utils.product.list.invalidate(); setShowForm(false); notify.success("Товар добавлен"); },
+    onSuccess: () => { utils.product.list.invalidate(); setShowForm(false); notify.success(lang === "uz" ? "Mahsulot qo'shildi" : "Товар добавлен"); },
     onError: (e) => notify.error(e.message),
   });
   const deleteMutation = trpc.product.delete.useMutation({
-    onSuccess: () => { utils.product.list.invalidate(); notify.success("Товар удалён"); },
+    onSuccess: () => { utils.product.list.invalidate(); notify.success(lang === "uz" ? "Mahsulot o'chirildi" : "Товар удалён"); },
     onError: (e) => notify.error(e.message),
   });
   const bulkDeleteMutation = trpc.product.bulkDelete.useMutation({

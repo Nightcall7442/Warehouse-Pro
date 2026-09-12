@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { orderSource } from "./helpers/order-source";
 
 /**
  * Один заказ нельзя провести доставкой дважды — ни с какой стороны.
@@ -32,8 +33,8 @@ const API_DIR = join(process.cwd(), "api");
 
 describe("двойное проведение доставки отвергается с обеих сторон", () => {
   it("courier.completeDelivery отказывает по уже завершённому заказу", () => {
-    const src = readFileSync(join(API_DIR, "courier-router.ts"), "utf8");
-    const proc = src.slice(src.indexOf("completeDelivery:"));
+    const src = readFileSync(join(API_DIR, "services", "courier-delivery.ts"), "utf8");
+    const proc = src.slice(src.indexOf("export async function completeDelivery("));
 
     // Проверять deliveryStatus мало: операторская доставка его не меняет.
     expect(proc, "completeDelivery не проверяет orders.status — операторская доставка пройдёт второй раз")
@@ -45,7 +46,7 @@ describe("двойное проведение доставки отвергае�
   });
 
   it("applyPartialDelivery отказывает по уже доставленному заказу", () => {
-    const src = readFileSync(join(API_DIR, join("services", "order.ts")), "utf8");
+    const src = orderSource();
     const fn = src.slice(src.indexOf("async function applyPartialDelivery"));
     const guard = fn.slice(0, fn.indexOf("let newSubtotal"));
 
@@ -56,8 +57,8 @@ describe("двойное проведение доставки отвергае�
   });
 
   it("markDelivered сохраняет свою защиту — она была образцом для остальных", () => {
-    const src = readFileSync(join(API_DIR, "courier-router.ts"), "utf8");
-    const proc = src.slice(src.indexOf("markDelivered:"), src.indexOf("completeDelivery:"));
+    const src = readFileSync(join(API_DIR, "services", "courier-delivery.ts"), "utf8");
+    const proc = src.slice(src.indexOf("export async function markDelivered("), src.indexOf("export async function completeDelivery("));
     expect(proc).toMatch(/order\.status\s*===\s*"delivered"/);
   });
 });

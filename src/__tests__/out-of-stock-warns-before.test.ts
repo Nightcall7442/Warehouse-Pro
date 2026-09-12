@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
+import { orderSource } from "../../api/__tests__/helpers/order-source";
 
 /**
  * О кончившемся товаре агент узнаёт ДО разговора, а не после.
@@ -51,7 +52,7 @@ describe("мастер заказа", () => {
 });
 
 describe("отказ сервера называет товар", () => {
-  const order = read("api/services/order.ts");
+  const order = orderSource();
 
   it("в тексте отказа имя, а не номер строки в базе", () => {
     /*

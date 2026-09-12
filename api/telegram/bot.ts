@@ -6,7 +6,7 @@ import { env } from "../lib/env";
 import { logger } from "../lib/logger";
 import { safeEqual } from "../lib/safe-compare";
 import { checkRateLimit } from "../lib/rate-limit";
-import { sendTelegram, tgEscape } from "../telegram-router";
+import { sendTelegram, tgEscape } from "../lib/telegram";
 import { readLinkToken, readGroupToken } from "./link-token";
 import { T, MENU, detectIntent, type Lang } from "./texts";
 import { answerStock, answerOrders, answerSummary, answerTop, answerDebts, answerSearch, answerStaff, answerPlans } from "./answers";

@@ -12,6 +12,7 @@ import { savedFilters, orderComments, shops, payments, users, orders, returns, s
 import { eq, and, or, desc, sql, isNull, inArray } from "drizzle-orm";
 import { sanitizeString } from "./lib/sanitize";
 import { OPEN_ORDER_STATUSES, CLOSED_ORDER_STATUSES } from "./lib/order-status";
+import { NotificationService } from "./services/NotificationService";
 
 /**
  * Скидка — процент от суммы заказа, от нуля до ста.
@@ -343,21 +344,41 @@ export const orderRouter = createRouter({
           operator) порог не мешает — их скидка остаётся в журнале ниже.
         */
         const discountPct = Number(input.discount ?? 0);
+        let holdReason: string | null = null;
         if (discountPct > 0 && !["ceo", "operator"].includes(ctx.user.role)) {
           const [cfg] = await ctx.db.select({ max: settings.maxFieldDiscountPct }).from(settings)
             .where(eq(settings.tenantId, ctx.tenant.id)).limit(1);
           if (cfg?.max != null && discountPct > Number(cfg.max)) {
-            throw new TRPCError({
-              code: "FORBIDDEN",
-              message: `Скидка ${discountPct}% выше порога ${Number(cfg.max)}% для полевых сотрудников — согласуйте с офисом`,
-            });
+            /*
+              Не отказ, а ожидание. Отказ у прилавка означал: агент либо
+              торгуется заново, либо звонит в офис и ждёт. Теперь заказ
+              оформляется как есть, держит резерв и стоит в «ожидает» с
+              причиной; офис подтверждает переводом в «новый» или отменяет.
+              Снять ожидание могут только ceo/operator (updateStatus).
+            */
+            holdReason = `Скидка ${discountPct}% выше порога ${Number(cfg.max)}% для полевых сотрудников`;
           }
         }
 
         const created = await OrderService.create(ctx.db, ctx.tenant.id, agentId, {
           ...input,
           promisedDeliveryAt: input.promisedDeliveryAt ? new Date(input.promisedDeliveryAt) : null,
+          holdReason,
         });
+
+        // Офису — уведомление: заказ ждёт решения, и без него не поедет.
+        if (holdReason && !created.idempotent) {
+          const office = await ctx.db.select({ id: users.id }).from(users)
+            .where(and(eq(users.tenantId, ctx.tenant.id), eq(users.status, "active"), sql`${users.role} IN ('ceo', 'operator')`));
+          await NotificationService.createBulk(ctx.db, {
+            tenantId: ctx.tenant.id,
+            userIds: office.map(u => u.id),
+            type: "order",
+            title: `Заказ ${created.orderNumber} ждёт подтверждения`,
+            message: `${ctx.user.name}: ${holdReason}. Подтвердите переводом в «новый» или отмените.`,
+            link: `/orders/${created.id}`,
+          });
+        }
 
         // След оформления: создание заказа не попадало в журнал вовсе, а
         // именно здесь решается скидка. Повтор по ключу след не задваивает.

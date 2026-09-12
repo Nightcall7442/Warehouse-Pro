@@ -21,8 +21,7 @@
  * «отвечает» этого не было бы видно никогда.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
+import { bootSource } from "./helpers/boot-source";
 
 const env: Record<string, unknown> = {};
 vi.mock("../lib/env", () => ({ env }));
@@ -121,7 +120,7 @@ describe("карточка Sentry", () => {
  * была мёртвой.
  */
 describe("трассировка не регистрируется дважды", () => {
-  const boot = readFileSync(join(process.cwd(), "api", "boot.ts"), "utf8");
+  const boot = bootSource();
   const init = boot.slice(boot.indexOf("Sentry.init({"), boot.indexOf("const app = new Hono"));
 
   it("Sentry не поднимает свой OpenTelemetry", () => {

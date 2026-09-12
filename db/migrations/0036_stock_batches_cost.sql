@@ -1,0 +1,1 @@
+ALTER TABLE `stock_batches` ADD `cost_price` decimal(12,2);

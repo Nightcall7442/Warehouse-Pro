@@ -25,8 +25,7 @@
  * из try — первая проверка падает с «promise rejected».
  */
 import { describe, it, expect, vi } from "vitest";
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { bootSource } from "./helpers/boot-source";
 
 const getConnection = vi.fn();
 vi.mock("../queries/connection", () => ({
@@ -58,7 +57,7 @@ describe("тик планировщика при недоступной базе
   });
 
   it("boot.ts держит обработчики unhandledRejection и uncaughtException", () => {
-    const src = readFileSync(resolve(__dirname, "../boot.ts"), "utf-8");
+    const src = bootSource();
     expect(src).toMatch(/process\.on\("unhandledRejection"/);
     expect(src).toMatch(/process\.on\("uncaughtException"/);
     // Исключение вне промиса — выход с ненулевым кодом, чтобы Railway перезапустил.

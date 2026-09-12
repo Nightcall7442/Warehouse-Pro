@@ -1110,6 +1110,7 @@ function buildSingleInvoice(order: BatchOrderData, opts: BatchPrintOptions, comp
         <div style="text-align:right">
           <span style="font-size:10pt;font-weight:700">Накладная № ${escapeHtml(order.orderNumber)}</span>
           <span style="font-size:8pt;color:#666;margin-left:8px">от ${new Date(order.createdAt).toLocaleDateString("ru-RU")}</span>
+          ${opts.includeBarcodes ? `<div style="display:flex;justify-content:flex-end;margin-top:2px">${barcodeCell(order.orderNumber)}</div>` : ""}
         </div>
       </div>
       <div style="display:flex;gap:16px;font-size:8pt;color:#666;margin-bottom:4px">
@@ -1263,6 +1264,67 @@ export function printBatchInvoices(orders: BatchOrderData[], opts: BatchPrintOpt
 
 // ── 6. LOADING LIST — for warehouse workers ────────────────────────────────
 
+import { code128Svg } from "./code128";
+
+/** Штрих-код для бумаги; код с не-ASCII (кириллица) остаётся текстом. */
+function barcodeCell(value: string | null | undefined): string {
+  if (!value) return "";
+  try { return `<div style="height:9mm">${code128Svg(value, { height: 28, label: false }).replace(/ width="\d+" height="\d+"/, ' style="height:100%"')}</div>`; }
+  catch { return ""; }
+}
+
+/** Одна этикетка на бумаге. count — сколько штук печатать (по приходу: сколько пришло). */
+export type LabelItem = { name: string; code: string; barcode?: string | null; price: string; currency: string; count?: number };
+
+/** Не больше — иначе одна кнопка отправляет на принтер рулон. */
+export const MAX_LABELS = 500;
+
+/**
+ * Этикетки 50×30 мм со штрих-кодом Code 128.
+ *
+ * До этого этикетки печатались только со страницы «Штрих-коды» по одной
+ * очереди, а после прихода их печатали руками по количеству. Здесь: список
+ * с числом штук — на приход это «сколько пришло, столько и наклеек».
+ */
+export function printLabels(items: LabelItem[]) {
+  const labels: string[] = [];
+  for (const it of items) {
+    const n = Math.max(1, Math.floor(it.count ?? 1));
+    let svg = "";
+    try { svg = code128Svg(it.barcode || it.code, { height: 40, label: true }); } catch { svg = ""; }
+    const one = `<div class="label">
+      <div class="label-name">${escapeHtml(it.name)}</div>
+      ${svg ? `<div class="label-bar">${svg}</div>` : `<div class="label-code">Код: ${escapeHtml(it.code)}</div>`}
+      <div class="label-price">${Number(it.price).toLocaleString("ru-RU")} ${escapeHtml(it.currency)}</div>
+    </div>`;
+    for (let k = 0; k < n && labels.length < MAX_LABELS; k++) labels.push(one);
+  }
+  const styles = `
+    @page { margin: 5mm; }
+    body { margin: 0; font-family: Arial, sans-serif; }
+    .label-grid { display: flex; flex-wrap: wrap; gap: 4mm; }
+    .label { width: 50mm; height: 30mm; border: 0.5px solid #ccc; box-sizing: border-box; padding: 2mm;
+      display: flex; flex-direction: column; align-items: center; justify-content: center; page-break-inside: avoid; }
+    .label-name { font-size: 7pt; font-weight: bold; text-align: center; line-height: 1.1; max-height: 8mm; overflow: hidden; }
+    .label-bar { width: 44mm; height: 11mm; margin: 1mm 0; } .label-bar svg { width: 100%; height: 100%; }
+    .label-code { font-size: 7pt; color: #555; margin: 1mm 0; }
+    .label-price { font-size: 10pt; font-weight: bold; }
+  `;
+  openPrintWindow(`<div class="label-grid">${labels.join("")}</div>`, "Этикетки", styles);
+}
+
+/** «12 кор. + 3 шт» под количеством: кладовщик собирает тарой, а не штуками. */
+function packBreakdown(item: { totalQty: string; packSize?: string | null; packLabel?: string | null; unit: string }): string {
+  const pack = Number(item.packSize ?? 0);
+  if (!(pack > 0)) return "";
+  const qty = Number(item.totalQty);
+  const boxes = Math.floor(qty / pack);
+  const rest = Number((qty - boxes * pack).toFixed(2));
+  if (boxes === 0) return "";
+  const label = escapeHtml(item.packLabel || "уп.");
+  return `<div style="font-size:8pt;color:#666;font-weight:400">${boxes} ${label}${rest > 0 ? ` + ${cleanNum(rest)} ${unitLabel(item.unit)}` : ""}</div>`;
+}
+
 export type LoadingListData = {
   listId: number;
   listNumber: string;
@@ -1292,8 +1354,13 @@ export type LoadingListData = {
     productId: number;
     productName: string;
     productCode: string | null;
+    /** Штрих-код поставщика, если задан; на бумаге печатается он, иначе код. */
+    barcode?: string | null;
     unit: string;
     unitWeight: string;
+    /** Упаковка: сколько единиц в таре и как она называется. Склад собирает коробками. */
+    packSize?: string | null;
+    packLabel?: string | null;
     totalQty: string;
     totalPrice: string;
   }>;
@@ -1309,13 +1376,14 @@ export type LoadingListData = {
 };
 
 function buildLoadingListAggregated(data: LoadingListData, currency: string): string {
+  // Штрих-код в строке: кладовщик собирает по сканеру, а не по названию.
   const itemRows = data.items.map((item, i) => `
     <tr>
       <td class="center">${i + 1}</td>
-      <td>${escapeHtml(item.productCode ?? "")}</td>
+      <td>${escapeHtml(item.productCode ?? "")}${barcodeCell(item.barcode || item.productCode)}</td>
       <td>${escapeHtml(item.productName)}</td>
       <td class="center">${unitLabel(item.unit)}</td>
-      <td class="right bold">${cleanNum(item.totalQty)}</td>
+      <td class="right bold">${cleanNum(item.totalQty)}${packBreakdown(item)}</td>
       <td class="right">${cleanNum(Number(item.totalQty) * Number(item.unitWeight))}</td>
     </tr>`).join("");
 

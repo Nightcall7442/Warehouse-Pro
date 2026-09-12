@@ -1,4 +1,5 @@
 import { authRouter }         from "./auth-router";
+import { stockCountRouter }   from "./stock-count-router";
 import { tenantRouter }       from "./tenant-router";
 import { dashboardRouter }    from "./dashboard-router";
 import { shopRouter }         from "./shop-router";
@@ -76,6 +77,7 @@ export const appRouter = createRouter({
   audit:        auditRouter,
   warehouseReports: warehouseReportsRouter,
   warehouseMulti: warehouseMultiRouter,
+  stockCount:   stockCountRouter,
   apiKey:       apiKeyRouter,
   upload:       uploadRouter,
   territory:    territoryRouter,

@@ -1,7 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
 import { assertDeliveryCoversAllLines } from "../services/order";
+import { orderSource } from "./helpers/order-source";
 
 /**
  * Частичная доставка обязана перечислять все позиции заказа.
@@ -85,7 +84,7 @@ describe("полнота позиций в частичной доставке",
 
 describe("правило подключено к самой доставке", () => {
   it("проверка стоит до первой записи в базу", () => {
-    const src = readFileSync(join(process.cwd(), "api", "services", "order.ts"), "utf8");
+    const src = orderSource();
     const fn = src.slice(src.indexOf("async function applyPartialDelivery"));
     const body = fn.slice(0, fn.indexOf("\n}\n"));
 

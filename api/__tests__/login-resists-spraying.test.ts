@@ -1,6 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
+import { bootSource } from "./helpers/boot-source";
 
 /**
  * Вход считает попытки дважды — и это не избыточность.
@@ -18,8 +17,8 @@ import { join } from "node:path";
  *
  * Убери любой из двух — и одна из атак перестанет считаться вовсе.
  */
-const boot = readFileSync(join(process.cwd(), "api", "boot.ts"), "utf8");
-const LOGIN = boot.slice(boot.indexOf('app.post("/api/login"'), boot.indexOf("GENERIC_AUTH_ERROR"));
+const boot = bootSource();
+const LOGIN = boot.slice(boot.indexOf('routes.post("/api/login"'), boot.indexOf("GENERIC_AUTH_ERROR"));
 
 describe("вход считает попытки по аккаунту и по адресу", () => {
   it("по аккаунту — против перебора пароля", () => {

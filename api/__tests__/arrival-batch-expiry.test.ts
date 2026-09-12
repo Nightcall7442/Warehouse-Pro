@@ -105,7 +105,8 @@ describe("сколько дней осталось", () => {
 
 // ── Разбор исходников ────────────────────────────────────────────────────────
 describe("данные доходят от формы до базы и обратно", () => {
-  const ROUTER = read("api/arrival-router.ts");
+  // Роутеру остался zod и чтение; проведение прихода живёт в services/arrival.ts.
+  const ROUTER = read("api/arrival-router.ts") + read("api/services/arrival.ts");
   const PAGE = read("src/pages/Arrivals.tsx");
 
   it("вход принимает партию и срок", () => {
@@ -296,5 +297,19 @@ describe("пустых партий на полке не остаётся", () =
     );
     const guards = REPORTS.split('gt(stockBatches.quantity, "0")').length - 1;
     expect(guards, "отчёт по партиям перестал отбрасывать пустые").toBeGreaterThanOrEqual(3);
+  });
+});
+
+describe("ожидалось по накладной поставщика", () => {
+  it("строка прихода принимает expectedQuantity, хранит и отдаёт с разницей на экране", async () => {
+    const { readFileSync } = await import("node:fs");
+    const router = readFileSync("api/arrival-router.ts", "utf-8");
+    expect(router).toMatch(/expectedQuantity: z\.string\(\)\.regex\(/);
+    expect(readFileSync("api/services/arrival.ts", "utf-8")).toContain("expectedQuantity: item.expectedQuantity ?? null,");
+    expect(router).toContain("ai.expected_quantity AS expectedQuantity");
+    const page = readFileSync("src/pages/Arrivals.tsx", "utf-8");
+    expect(page).toContain('expectedQuantity: i.expected.trim() === "" ? undefined : i.expected.trim(),');
+    expect(page).toContain("data-testid={`arrival-detail-expected-${i}`}");
+    expect(readFileSync("db/migrations/0033_arrival_items_expected.sql", "utf-8").trim()).toBe("ALTER TABLE `arrival_items` ADD `expected_quantity` decimal(12,2);");
   });
 });

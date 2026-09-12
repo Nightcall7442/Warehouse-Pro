@@ -10,6 +10,7 @@ import { describe, it, expect, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import { defaultDisposition } from "../returns-router";
 import { expiredByProduct } from "../services/stock-ledger";
+import { orderSource } from "./helpers/order-source";
 
 describe("куда девать вернувшийся товар", () => {
   it("брак, просрочка и порча — списать; пересорт и другое — на склад", () => {
@@ -49,7 +50,7 @@ describe("просрочка вне отгрузки", () => {
   });
 
   it("годное к продаже = available − просроченное; отказ называет просрочку", () => {
-    const order = readFileSync("api/services/order.ts", "utf-8");
+    const order = orderSource();
     expect(order).toContain("const expired = await expiredByProduct(tx, tenantId, reserveWarehouseId, items.map(i => i.productId));");
     expect(order).toContain("const sellable = available - rotten;");
     expect(order).toContain("просрочено — годных");
@@ -66,5 +67,15 @@ describe("просрочка вне отгрузки", () => {
     const none = await expiredByProduct(tx, 1, 1, []);
     expect(none.size).toBe(0);
     expect(execute).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("себестоимость партии", () => {
+  it("приёмка отдаёт цену партии; отчёт «что сгорает» считает по цене партии, карточка — запасной путь", () => {
+    const arrival = readFileSync("api/services/arrival.ts", "utf-8");
+    expect(arrival).toContain("costPrice: item.costPrice != null && Number(item.costPrice) > 0 ? String(item.costPrice) : null,");
+    const report = readFileSync("api/warehouse-reports-router.ts", "utf-8");
+    expect((report.match(/COALESCE\(\$\{stockBatches\.costPrice\}, \$\{products\.costPrice\}/g) ?? []).length).toBeGreaterThanOrEqual(3);
+    expect(readFileSync("db/migrations/0036_stock_batches_cost.sql", "utf-8").trim()).toBe("ALTER TABLE `stock_batches` ADD `cost_price` decimal(12,2);");
   });
 });

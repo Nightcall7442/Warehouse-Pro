@@ -363,6 +363,51 @@ describe("courier.assignCourier", () => {
   });
 });
 
+/*
+  Повтор отметки — «уже сделано», а не отказ.
+
+  Очередь телефона повторяет запрос, ответ на который не дошёл. Раньше
+  повтор по уже довезённому заказу получал «не найден или не назначен на
+  вас», и курьер видел красную строку по проведённому заказу. Чужой заказ и
+  чужой курьер — по-прежнему отказ.
+*/
+describe("повтор отметки курьера — дубль, не ошибка", () => {
+  const paymentsBefore = () => paymentsTable.length;
+
+  it("markDelivered по уже довезённому мною заказу — success + duplicate, без второго платежа", async () => {
+    ordersTable[0].deliveryStatus = "delivered"; ordersTable[0].status = "delivered";
+    const { courierRouter } = await import("../courier-router");
+    const caller = courierRouter.createCaller(makeCtx(1, 100));
+    const n = paymentsBefore();
+    const r = await caller.markDelivered({ orderId: 1, cashAmount: "500.00" });
+    expect(r).toEqual({ success: true, duplicate: true });
+    expect(paymentsBefore()).toBe(n);
+  });
+
+  it("completeDelivery по уже довезённому мною заказу — success + duplicate", async () => {
+    ordersTable[0].deliveryStatus = "delivered"; ordersTable[0].status = "delivered";
+    const { courierRouter } = await import("../courier-router");
+    const caller = courierRouter.createCaller(makeCtx(1, 100));
+    const r = await caller.completeDelivery({ orderId: 1, result: "paid", paidAmount: "500.00" });
+    expect(r).toMatchObject({ success: true, duplicate: true, finalStatus: "delivered" });
+  });
+
+  it("markOutForDelivery по заказу уже в пути — дубль", async () => {
+    const { courierRouter } = await import("../courier-router");
+    const caller = courierRouter.createCaller(makeCtx(1, 100));
+    const r = await caller.markOutForDelivery({ orderId: 3 });
+    expect(r).toEqual({ success: true, duplicate: true });
+  });
+
+  it("чужой курьер по довезённому заказу — по-прежнему отказ", async () => {
+    ordersTable[0].deliveryStatus = "delivered"; ordersTable[0].status = "delivered";
+    const { courierRouter } = await import("../courier-router");
+    const caller = courierRouter.createCaller(makeCtx(1, 101));
+    await expect(caller.markDelivered({ orderId: 1 })).rejects.toThrow("не назначен на вас");
+    await expect(caller.completeDelivery({ orderId: 1, result: "paid" })).rejects.toThrow("не назначен на вас");
+  });
+});
+
 describe("courier.markOutForDelivery", () => {
   it("changes deliveryStatus to out_for_delivery", async () => {
     const { courierRouter } = await import("../courier-router");

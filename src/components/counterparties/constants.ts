@@ -44,4 +44,9 @@ export function money(amount: number, currency: string): string {
   Karta», а на заказах — «Карта / Plastik». Один и тот же способ оплаты у
   поставщика и у магазина назывался по-разному.
 */
-export { PAYMENT_METHOD_LABEL as PAYMENT_METHODS } from "@/lib/entity-labels";
+import { PAYMENT_METHOD_LABEL } from "@/lib/entity-labels";
+/** Способы платежа поставщику: как у заказа плюс «возврат товара». */
+export const PAYMENT_METHODS: Record<string, { ru: string; uz: string }> = {
+  ...PAYMENT_METHOD_LABEL,
+  return: { ru: "Возврат товара", uz: "Mahsulot qaytarish" },
+};

@@ -2,6 +2,7 @@ import { deriveShopDebt } from "./helpers/shop-debt-recalc";
 import { describe, it, expect } from "vitest";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join, relative, sep } from "node:path";
+import { orderSource } from "./helpers/order-source";
 
 /**
  * `shops.debt` is derived, not maintained by hand — every mutation that can
@@ -87,13 +88,14 @@ describe("every path that can change what a shop owes re-derives the balance", (
   const MUTATORS = [
     "services/order.ts",
     "services/payment.ts",
-    "courier-router.ts",
+    "services/courier-delivery.ts",
     "returns-router.ts",
     "webhooks/onec.ts",
   ];
 
   it.each(MUTATORS)("%s calls recalcShopDebt", (relPath) => {
-    const source = readFileSync(join(API_DIR, relPath.split("/").join(sep)), "utf8");
+    // Служба заказа разнесена по файлам — читаем её одним куском.
+    const source = relPath === "services/order.ts" ? orderSource() : readFileSync(join(API_DIR, relPath.split("/").join(sep)), "utf8");
     expect(source).toMatch(/recalcShopDebt\s*\(/);
   });
 });
@@ -163,7 +165,7 @@ describe("the two return routes cannot credit the same goods twice", () => {
   });
 
   it("updateStatus sizes its stock delta net of units already returned by document", () => {
-    const source = readFileSync(join(API_DIR, join("services", "order.ts")), "utf8");
+    const source = orderSource();
     // Сколько единиц двигает смена статуса, решает heldQuantity: из доставленного
     // (или заказанного) вычитается уже возвращённое проведённым документом.
     // Раньше этот расчёт был вписан прямо в updateStatus, и проверка искала его

@@ -236,6 +236,15 @@ export const products = mysqlTable("products", {
   unitPrice:    decimal("unit_price", { precision: 10, scale: 2 }).notNull(),
   unit:         mysqlEnum("unit", ["kg", "l", "pcs", "box", "pack", "m", "block"]).default("pcs").notNull(),
   unitWeight:   decimal("unit_weight", { precision: 10, scale: 3 }).default("0.000").notNull(),
+  /*
+    Упаковка: сколько единиц учёта в одной таре (12 бутылок в коробке, 6
+    пачек в блоке) и как она называется. Остаток и цена — всегда в единицах
+    учёта; упаковка нужна там, где человек считает тарой: «+ коробка» в
+    заказе, «коробок» на приёмке, «12 кор. + 3 шт» в загрузочном листе.
+    Пусто — тары нет (так было у всех).
+  */
+  packSize:     decimal("pack_size", { precision: 10, scale: 2 }),
+  packLabel:    varchar("pack_label", { length: 30 }),
   description:  text("description"),
   photoUrl:     mediumtext("photo_url"),
   reorderPoint: decimal("reorder_point", { precision: 10, scale: 2 }).default("0.00").notNull(),
@@ -344,6 +353,14 @@ export const orders = mysqlTable("orders", {
     быть не может: подставленный срок — это чужое обещание от лица агента.
   */
   promisedDeliveryAt: timestamp("promised_delivery_at"),
+  /*
+    Почему заказ ждёт офиса (status = pending). Скидка полевого сотрудника
+    выше порога раньше отказывалась у прилавка; теперь заказ оформляется,
+    держит резерв и ждёт подтверждения офиса — а причина стоит здесь, чтобы
+    директор видел, ЧТО подтверждает. Стирается, когда заказ выходит из
+    ожидания.
+  */
+  holdReason: varchar("hold_reason", { length: 255 }),
   deliveredAt: timestamp("delivered_at"),
   invoicePrintedAt: timestamp("invoice_printed_at"),
   deliveryResult: varchar("delivery_result", { length: 30 }), // paid, partial_paid, returned, partial_returned
@@ -640,6 +657,13 @@ export const stockBatches = mysqlTable("stock_batches", {
   receivedAt:   timestamp("received_at").defaultNow().notNull(),
   /** Строка приёмки, которой партия заведена. Для разбора, откуда она взялась. */
   arrivalItemId: bigint("arrival_item_id", { mode: "number", unsigned: true }),
+  /*
+    Себестоимость единицы ЭТОЙ партии — с приёмки. Карточка товара держит
+    одну цену на всё, а поставки приходят по разным: «сгорает на 4 млн»
+    считалось по последней цене карточки, а не по той, за которую партию
+    купили. Пусто — партии, заведённые до колонки; тогда берётся карточка.
+  */
+  costPrice:    decimal("cost_price", { precision: 12, scale: 2 }),
   updatedAt:    timestamp("updated_at").defaultNow().notNull().$onUpdate(() => new Date()),
 }, (t) => ({
   /*
@@ -689,6 +713,46 @@ export type StockMovement       = typeof stockMovements.$inferSelect;
 export type InsertStockMovement = typeof stockMovements.$inferInsert;
 
 // ============================================
+// STOCK COUNTS — инвентаризация
+// ============================================
+//
+// Пересчёт полки был кнопкой «Скорректировать» по одному товару: без
+// документа, без «ожидалось / посчитано», без общего итога недостачи. Здесь
+// — документ: черновик со снимком остатков на момент начала, строка на
+// товар с посчитанным числом, применение одним действием через дверь
+// остатка (setStock) и след в журнале. Применённый документ не правится.
+export const stockCounts = mysqlTable("stock_counts", {
+  id:          serial("id").primaryKey(),
+  tenantId:    bigint("tenant_id", { mode: "number", unsigned: true }).notNull().references(() => tenants.id, { onDelete: "restrict" }),
+  warehouseId: bigint("warehouse_id", { mode: "number", unsigned: true }).notNull().references(() => warehouses.id, { onDelete: "restrict" }),
+  number:      varchar("number", { length: 30 }).notNull(),
+  status:      mysqlEnum("status", ["draft", "applied", "cancelled"]).default("draft").notNull(),
+  notes:       text("notes"),
+  createdBy:   bigint("created_by", { mode: "number", unsigned: true }).notNull().references(() => users.id, { onDelete: "restrict" }),
+  appliedBy:   bigint("applied_by", { mode: "number", unsigned: true }).references(() => users.id, { onDelete: "restrict" }),
+  appliedAt:   timestamp("applied_at"),
+  createdAt:   timestamp("created_at").defaultNow().notNull(),
+}, (t) => ({
+  tenantIdx: index("idx_stock_counts_tenant").on(t.tenantId, t.createdAt),
+}));
+
+export const stockCountItems = mysqlTable("stock_count_items", {
+  id:        serial("id").primaryKey(),
+  countId:   bigint("count_id", { mode: "number", unsigned: true }).notNull().references(() => stockCounts.id, { onDelete: "cascade" }),
+  productId: bigint("product_id", { mode: "number", unsigned: true }).notNull().references(() => products.id, { onDelete: "restrict" }),
+  /** Остаток по учёту на момент, когда строка попала в документ. */
+  expected:  decimal("expected", { precision: 12, scale: 2 }).notNull(),
+  /** Что насчитали на полке. Пусто — ещё не считали; такая строка при применении пропускается. */
+  counted:   decimal("counted", { precision: 12, scale: 2 }),
+  note:      varchar("note", { length: 255 }),
+}, (t) => ({
+  countProductUq: uniqueIndex("uq_stock_count_items_count_product").on(t.countId, t.productId),
+}));
+
+export type StockCount     = typeof stockCounts.$inferSelect;
+export type StockCountItem = typeof stockCountItems.$inferSelect;
+
+// ============================================
 // ARRIVALS — приход фур
 // ============================================
 export const arrivals = mysqlTable("arrivals", {
@@ -726,6 +790,13 @@ export const arrivalItems = mysqlTable("arrival_items", {
   arrivalId:    bigint("arrival_id", { mode: "number", unsigned: true }).notNull().references(() => arrivals.id, { onDelete: "cascade" }),
   productId:    bigint("product_id", { mode: "number", unsigned: true }).notNull().references(() => products.id, { onDelete: "restrict" }),
   quantity:     decimal("quantity", { precision: 12, scale: 2 }).notNull(),
+  /*
+    Сколько должно было приехать — по накладной поставщика. Пусто — не
+    сверяли (так было у всех приходов до этой колонки). Разница с quantity
+    — недовоз или излишек: раньше её нигде не было, и спор с поставщиком
+    начинался с «а сколько вы вообще ждали?».
+  */
+  expectedQuantity: decimal("expected_quantity", { precision: 12, scale: 2 }),
   costPrice:    decimal("cost_price", { precision: 10, scale: 2 }).default("0.00"),
   sellingPrice: decimal("selling_price", { precision: 10, scale: 2 }).default("0.00"),
   /*
@@ -851,7 +922,12 @@ export const supplierPayments = mysqlTable("supplier_payments", {
   amount:         decimal("amount", { precision: 15, scale: 2 }).notNull(),
   paidUzs:        decimal("paid_uzs", { precision: 15, scale: 2 }),
   rateToUzs:      decimal("rate_to_uzs", { precision: 12, scale: 4 }),
-  paymentMethod:  mysqlEnum("payment_method", ["cash", "card", "transfer"]).default("transfer").notNull(),
+  /*
+    «return» — не деньги, а возвращённый поставщику товар по себестоимости:
+    он гасит долг по поставке так же, как платёж, и в акте сверки стоит своей
+    строкой. Сам товар уходит со склада движением supplier_return.
+  */
+  paymentMethod:  mysqlEnum("payment_method", ["cash", "card", "transfer", "return"]).default("transfer").notNull(),
   paidAt:         timestamp("paid_at").defaultNow().notNull(),
   notes:          text("notes"),
   createdBy:      bigint("created_by", { mode: "number", unsigned: true }).references(() => users.id, { onDelete: "restrict" }),

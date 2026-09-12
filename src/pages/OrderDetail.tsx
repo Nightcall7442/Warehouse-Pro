@@ -411,6 +411,14 @@ export default function OrderDetail() {
                 {format(new Date(order.firstOrderedAt), "d MMMM yyyy", { locale: dateRu })}
               </p>
             )}
+            {/* Заказ ждёт офиса: причина — рядом со статусом, чтобы директор
+                подтверждал не вслепую. Снимается сама при выходе из «ожидает». */}
+            {order.status === "pending" && order.holdReason && (
+              <p className="text-xs mt-1 font-semibold" style={{ color: "var(--color-warning-text)" }} data-testid="order-hold-reason">
+                {lang === "uz" ? "Ofis tasdig'ini kutmoqda" : "Ждёт подтверждения офиса"}: {order.holdReason}
+                {isOperatorOrCeo && (lang === "uz" ? " — tasdiqlash uchun holatni «yangi»ga o'tkazing" : " — чтобы подтвердить, переведите в «новый»")}
+              </p>
+            )}
           </div>
           <div className="flex items-center gap-2 flex-wrap">
             {/* Status dropdown */}
