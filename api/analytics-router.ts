@@ -294,7 +294,7 @@ export const analyticsRouter = createRouter({
         // revenueOrderConditions. Две цифры на одной странице расходились:
         // удалённый заказ попадал в карточку прибыли и не попадал в график.
         const orderConds = revenuePeriodConditions(tid, dateFrom, dateTo);
-        const revRow = await db.select({
+        const revRowP = db.select({
           totalRevenue: sql<string>`COALESCE(SUM(${orders.total}), 0)`,
           totalDiscount: sql<string>`COALESCE(SUM(${orders.discount}), 0)`,
           orderCount: sql<number>`count(*)`,
@@ -312,7 +312,7 @@ export const analyticsRouter = createRouter({
         // чистая прибыль в карточке занижались ровно на себестоимость
         // удалённого заказа, а месячный график на том же экране считал через
         // общие условия и показывал другую цифру.
-        const cogsRow = await db.select({
+        const cogsRowP = db.select({
           totalCOGS: sql<string>`COALESCE(SUM(${deliveredQty()} * ${orderItems.costPrice}), 0)`,
         })
           .from(orderItems)
@@ -328,7 +328,7 @@ export const analyticsRouter = createRouter({
             sql`${orders.createdAt} <= ${dateTo + " 23:59:59"}`,
           ));
 
-        const expenseRow = await db.select({
+        const expenseRowP = db.select({
           totalExpenses: sql<string>`COALESCE(SUM(${arrivals.totalExpense}), 0)`,
           arrivalCount: sql<number>`count(*)`,
         })
@@ -367,7 +367,7 @@ export const analyticsRouter = createRouter({
           гасят встречной записью, и вычесть её из расходов — ровно то, что
           нужно.
         */
-        const payrollRow = await db.select({
+        const payrollRowP = db.select({
           totalPayroll: sql<string>`COALESCE(SUM(${salaryPayouts.amount}), 0)`,
           payoutCount: sql<number>`count(*)`,
         })
@@ -390,7 +390,12 @@ export const analyticsRouter = createRouter({
           Себестоимость вычитается вместе с выручкой: вернуть первое, забыв
           второе, значит показать убыток там, где его нет.
         */
-        const returned = totalReturned(await returnsInPeriod(db, tid, dateFrom, dateTo));
+        // Пять независимых чтений — разом, а не друг за другом: страница
+        // прибыли ждала сумму пяти задержек базы, теперь — самую долгую из них.
+        const [revRow, cogsRow, expenseRow, payrollRow, returnsRows] = await Promise.all([
+          revRowP, cogsRowP, expenseRowP, payrollRowP, returnsInPeriod(db, tid, dateFrom, dateTo),
+        ]);
+        const returned = totalReturned(returnsRows);
 
         const revenue = Number(revRow[0]?.totalRevenue ?? 0) - returned.amount;
         const discount = Number(revRow[0]?.totalDiscount ?? 0);
@@ -418,10 +423,11 @@ export const analyticsRouter = createRouter({
         };
       }
 
-      const current = await calcPeriod(from, to);
-      const previous = input.compareWithPrev
-        ? await calcPeriod(prevFrom, prevTo)
-        : null;
+      // Текущий и прошлый период — тоже разом.
+      const [current, previous] = await Promise.all([
+        calcPeriod(from, to),
+        input.compareWithPrev ? calcPeriod(prevFrom, prevTo) : Promise.resolve(null),
+      ]);
 
       const delta = (curr: number, prev: number | null) => {
         if (prev === null || prev === 0) return null;

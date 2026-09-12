@@ -458,51 +458,73 @@ export const importRouter = createRouter({
           let room = planRoom.limit === null ? Number.POSITIVE_INFINITY : Math.max(0, planRoom.limit - planRoom.current);
           let blockedByPlan = 0;
 
-          for (const row of parsedRows) {
-            if (room <= 0) { blockedByPlan++; continue; }
-            try {
+          /*
+            Пачками по сто строк в одной транзакции, а не по одной с автокоммитом.
+
+            На каждый товар — четыре-пять запросов (товар, остаток, партии,
+            движение); две тысячи строк давали десять тысяч автокоммитов, и
+            каждый — fsync на управляемой базе: минута-две внутри одного
+            HTTP-запроса. В транзакции коммит один на сотню строк. Ошибка
+            одной строки (дубль кода) транзакцию в MySQL не роняет — ловится
+            по месту, остальные строки пачки идут дальше. Фото в S3 —
+            заранее, снаружи транзакции: сеть держать под открытой
+            транзакцией незачем.
+          */
+          const CHUNK = 100;
+          const noteRowError = (row: { code: string; rowNum: number }, err: unknown) => {
+            const e = err as { cause?: { message?: string }; message?: string; sqlMessage?: string; code?: string };
+            const causeMsg = e?.cause?.message || "";
+            const fullMsg = [e?.message, causeMsg, e?.sqlMessage].filter(Boolean).join(" | ");
+            if (causeMsg.includes("Duplicate") || fullMsg.includes("Duplicate") || fullMsg.includes("uq_product") || e?.code === "ER_DUP_ENTRY") {
+              skipped.push(`${row.code} — уже существует`);
+            } else {
+              errors.push(`Строка ${row.rowNum}: ${fullMsg}`);
+            }
+          };
+          for (let i = 0; i < parsedRows.length; i += CHUNK) {
+            const chunk = parsedRows.slice(i, i + CHUNK);
+            const photos = new Map<number, string | undefined>();
+            for (const row of chunk) {
               let photoUrl = row.photoUrl;
               if (photoUrl && photoUrl.startsWith("data:image/")) {
-                photoUrl = await uploadBase64ToS3(photoUrl, "products", tenantId);
+                try { photoUrl = await uploadBase64ToS3(photoUrl, "products", tenantId); } catch { photoUrl = undefined; }
               }
-
-              const [r] = await db.insert(products).values({
-                tenantId, code: row.code, name: row.name, barcode: row.barcode,
-                category: existingSpelling(row.category, knownCategories), costPrice: row.costPrice, unitPrice: row.unitPrice,
-                unit: (["kg", "l", "pcs", "box", "pack", "m", "block"].includes(row.unit) ? row.unit : "pcs") as "kg" | "l" | "pcs" | "box" | "pack" | "m" | "block", unitWeight: row.unitWeight,
-                reorderPoint: row.reorderPoint, description: row.description,
-                photoUrl, status: "active",
-              });
-
-              const productId = Number(r.insertId);
-
-              // Начальный остаток — через дверь: строку заводит она сама, а
-              // при повторном импорте ставит итог и обрезает резерв по нему.
-              await setStock(db, {
-                tenantId, warehouseId: defaultWarehouse.id,
-                productId, quantity: row.initialStock,
-              });
-              // An import states the opening count, so it enters the ledger the
-              // same way a manual correction does.
-              if (Number(row.initialStock) > 0) {
-                await recordStockMovement(db, {
-                  tenantId, warehouseId: defaultWarehouse.id, productId,
-                  type: "adjustment", quantity: row.initialStock,
-                  reason: "import", notes: `Импорт: начальный остаток ${row.initialStock}`,
-                });
-              }
-              success++;
-              room--;
-            } catch (err: unknown) {
-              const e = err as { cause?: { message?: string }; message?: string; sqlMessage?: string; code?: string };
-              const causeMsg = e?.cause?.message || "";
-              const fullMsg = [e?.message, causeMsg, e?.sqlMessage].filter(Boolean).join(" | ");
-              if (causeMsg.includes("Duplicate") || fullMsg.includes("Duplicate") || fullMsg.includes("uq_product") || e?.code === "ER_DUP_ENTRY") {
-                skipped.push(`${row.code} — уже существует`);
-              } else {
-                errors.push(`Строка ${row.rowNum}: ${fullMsg}`);
-              }
+              photos.set(row.rowNum, photoUrl);
             }
+            await db.transaction(async (tx) => {
+              for (const row of chunk) {
+                if (room <= 0) { blockedByPlan++; continue; }
+                try {
+                  const [r] = await tx.insert(products).values({
+                    tenantId, code: row.code, name: row.name, barcode: row.barcode,
+                    category: existingSpelling(row.category, knownCategories), costPrice: row.costPrice, unitPrice: row.unitPrice,
+                    unit: (["kg", "l", "pcs", "box", "pack", "m", "block"].includes(row.unit) ? row.unit : "pcs") as "kg" | "l" | "pcs" | "box" | "pack" | "m" | "block", unitWeight: row.unitWeight,
+                    reorderPoint: row.reorderPoint, description: row.description,
+                    photoUrl: photos.get(row.rowNum), status: "active",
+                  });
+                  const productId = Number(r.insertId);
+                  // Начальный остаток — через дверь: строку заводит она сама, а
+                  // при повторном импорте ставит итог и обрезает резерв по нему.
+                  await setStock(tx, {
+                    tenantId, warehouseId: defaultWarehouse.id,
+                    productId, quantity: row.initialStock,
+                  });
+                  if (Number(row.initialStock) > 0) {
+                    // An import states the opening count, so it enters the ledger the
+                    // same way a manual correction does.
+                    await recordStockMovement(tx, {
+                      tenantId, warehouseId: defaultWarehouse.id, productId,
+                      type: "adjustment", quantity: row.initialStock,
+                      reason: "import", notes: `Импорт: начальный остаток ${row.initialStock}`,
+                    });
+                  }
+                  success++;
+                  room--;
+                } catch (err: unknown) {
+                  noteRowError(row, err);
+                }
+              }
+            });
           }
 
           if (blockedByPlan > 0) {

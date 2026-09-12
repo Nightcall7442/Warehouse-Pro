@@ -128,15 +128,12 @@ export const courierRouter = createRouter({
         message: `Заказ ${order.orderNumber} → ${shop?.name ?? "Магазин"}`,
       });
 
-      // Send push notification to courier
-      try {
-        const { sendPushToUser } = await import("./services/push-service");
-        await sendPushToUser(input.courierId, {
-          title: "Назначен заказ на доставку",
-          body: `Заказ ${order.orderNumber} → ${shop?.name ?? "Магазин"}`,
-          data: { type: "delivery", orderId: input.orderId },
-        });
-      } catch { /* push is non-critical */ }
+      // Push курьеру — после ответа: оператор не ждёт Expo.
+      void import("./services/push-service").then(({ sendPushToUser }) => sendPushToUser(input.courierId, {
+        title: "Назначен заказ на доставку",
+        body: `Заказ ${order.orderNumber} → ${shop?.name ?? "Магазин"}`,
+        data: { type: "delivery", orderId: input.orderId },
+      })).catch(() => { /* push is non-critical */ });
 
       sseBus.emit({
         type: "notification.new",
@@ -146,16 +143,15 @@ export const courierRouter = createRouter({
       });
 
       // Только назначенному курьеру: остальным это не новость, а шум.
-      const { notifyEvent } = await import("./services/telegram-notify");
-      const { tgEscape: esc } = await import("./telegram-router");
-      await notifyEvent({
+      // Тоже после ответа — Telegram не на пути назначения.
+      void Promise.all([import("./services/telegram-notify"), import("./telegram-router")]).then(([{ notifyEvent }, { tgEscape: esc }]) => notifyEvent({
         tenantId: ctx.tenant.id,
         event: "delivery.assigned",
         onlyUserId: input.courierId,
         text: `🚚 <b>Назначена доставка</b>
 📋 ${esc(order.orderNumber)}
 🏪 ${esc(shop?.name ?? "Магазин")}`,
-      });
+      })).catch(e => logger.warn("delivery.assigned notify failed", { error: String(e) }));
 
       logger.info("courier assigned", { orderId: input.orderId, courierId: input.courierId });
 

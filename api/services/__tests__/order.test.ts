@@ -359,7 +359,9 @@ describe("OrderService.create", () => {
       shopId: 1, items: [{ productId: 1, quantity: "20" }],
     });
 
-    expect(notificationsTable.length).toBeGreaterThan(0);
+    // Уведомления идут после ответа (responses-do-not-wait-for-notifications):
+    // ответ уже пришёл, запись в колокольчик — следом, ждём её.
+    await vi.waitFor(() => expect(notificationsTable.length).toBeGreaterThan(0));
     expect(notificationsTable.every(n => n.tenantId === 1)).toBe(true);
     expect(notificationsTable.map(n => n.userId)).not.toContain(20);
 

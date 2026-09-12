@@ -63,7 +63,7 @@ describe("предел по товарам спрашивают на каждо�
       по времени раньше, чем упирался в предел.
     */
     const at = src.indexOf('checkPlanLimits(db, tenantId, "products")');
-    const loop = src.indexOf("for (const row of parsedRows)", at);
+    const loop = src.indexOf("for (const row of chunk)", at);
     expect(loop, "проверка оказалась после цикла").toBeGreaterThan(at);
     expect(src).toContain("if (room <= 0) { blockedByPlan++; continue; }");
     expect(src).toContain("room--;");
