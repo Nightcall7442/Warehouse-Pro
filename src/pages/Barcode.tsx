@@ -34,6 +34,7 @@ function LabelSheet({ products }: { products: Array<{ name: string; code: string
           padding: 2mm; box-sizing: border-box; page-break-inside: avoid;
         }
         .label-name  { font-size: 7pt; font-weight: bold; text-align: center; line-height: 1.1; max-height: 8mm; overflow: hidden; }
+        .label-code  { font-size: 7pt; color: #555; margin: 1mm 0; }
         .label-bar   { width: 44mm; height: 11mm; margin: 1mm 0; }
         .label-bar svg { width: 100%; height: 100%; }
         .label-price { font-size: 10pt; font-weight: bold; }
@@ -55,7 +56,7 @@ function LabelSheet({ products }: { products: Array<{ name: string; code: string
 /** Код с не-ASCII (кириллица в артикуле) штрих-кодом не станет — печатаем текстом. */
 function safeBarcode(value: string): string {
   try { return code128Svg(value, { height: 40, label: true }); }
-  catch { return `<div style="font-size:7pt;color:#555">Код: ${value.replace(/&/g, "&amp;").replace(/</g, "&lt;")}</div>`; }
+  catch { return `<div class="label-code">Код: ${value.replace(/&/g, "&amp;").replace(/</g, "&lt;")}</div>`; }
 }
 
 export default function BarcodePage() {

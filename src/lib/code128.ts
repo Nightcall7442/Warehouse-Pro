@@ -93,5 +93,5 @@ export function code128Svg(text: string, opts: { module?: number; height?: numbe
   }
   const esc = text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
   const label = labelH ? `<text x="${width / 2}" y="${height + 8}" font-family="monospace" font-size="8" text-anchor="middle">${esc}</text>` : "";
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height + labelH}" width="${width}" height="${height + labelH}" shape-rendering="crispEdges" fill="#000">${rects}${label}</svg>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height + labelH}" width="${width}" height="${height + labelH}" shape-rendering="crispEdges">${rects}${label}</svg>`;
 }
