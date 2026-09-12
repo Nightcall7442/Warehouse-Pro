@@ -34,7 +34,10 @@ describe("метрики процедур", () => {
     expect(prom).toContain("mysqld-exporter.railway.internal:9104");
     expect(prom).toContain("redis-exporter.railway.internal:9121");
     const am = readFileSync("docs/observability/alertmanager.yml", "utf-8");
-    expect(am).toContain("/api/webhooks/alertmanager?secret=$ALERTMANAGER_WEBHOOK_SECRET");
+    // Ключ — заголовком, не в адресе (адрес оседает в журналах прокси).
+    expect(am).toMatch(/url: https:\/\/www\.warehouse-pro\.uz\/api\/webhooks\/alertmanager\s*$/m);
+    expect(am).toContain("credentials: $ALERTMANAGER_WEBHOOK_SECRET");
+    expect(am).not.toContain("alertmanager?secret=");
     expect(am).toMatch(/- receiver: app-webhook\s+continue: true/);
     const alerts = readFileSync("docs/observability/alerts.yml", "utf-8");
     for (const name of ["ПроцедураОтказывает", "ПроцедураМедленная", "RedisНедоступен", "СоединенийСБазойПочтиПредел"]) expect(alerts).toContain(`alert: ${name}`);

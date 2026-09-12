@@ -25,7 +25,7 @@ describe("x-client-version → client_requests_total", () => {
 
   it("сервер считает по /api/*, пускает заголовок через CORS; веб ставит его в каждый запрос", () => {
     const boot = bootSource();
-    expect(boot).toContain('export function clientVersionOf(header: string | undefined)');
+    expect(readFileSync("api/lib/client-version.ts", "utf-8")).toContain('export function clientVersionOf(header: string | undefined)');
     expect(boot).toContain('if (path.startsWith("/api/")) clientRequestsTotal.inc(clientVersionOf(c.req.header("x-client-version")));');
     expect(boot).toMatch(/allowHeaders: \[[^\]]*"x-client-version"/);
     expect(readFileSync("api/prometheus-metrics.ts", "utf-8")).toContain('name: "client_requests_total"');

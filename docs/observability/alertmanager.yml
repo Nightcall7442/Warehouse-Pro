@@ -52,7 +52,12 @@ route:
 receivers:
   - name: app-webhook
     webhook_configs:
-      - url: https://www.warehouse-pro.uz/api/webhooks/alertmanager?secret=$ALERTMANAGER_WEBHOOK_SECRET
+      - url: https://www.warehouse-pro.uz/api/webhooks/alertmanager
+        # Ключ — заголовком, не в адресе: адрес оседает в журналах прокси.
+        http_config:
+          authorization:
+            type: Bearer
+            credentials: $ALERTMANAGER_WEBHOOK_SECRET
         send_resolved: true
         max_alerts: 20
   - name: telegram

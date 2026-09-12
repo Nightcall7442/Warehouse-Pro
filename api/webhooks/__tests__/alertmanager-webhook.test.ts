@@ -29,8 +29,13 @@ const payload = {
   ],
 };
 
-const post = (url: string, body: unknown = payload) =>
-  app.request(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+// Ключ — заголовком Authorization: Bearer (не в адресе): /?secret=… → без заголовка.
+const post = (url: string, body: unknown = payload) => {
+  const m = /[?&]secret=([^&]*)/.exec(url);
+  const headers: Record<string, string> = { "content-type": "application/json" };
+  if (m) headers.authorization = `Bearer ${m[1]}`;
+  return app.request(url.replace(/\?secret=[^&]*/, ""), { method: "POST", headers, body: JSON.stringify(body) });
+};
 
 beforeEach(() => {
   h.create.mockClear(); h.push.mockClear();
@@ -61,7 +66,7 @@ describe("вебхук AlertManager", () => {
   });
 
   it("плохой JSON — 400; пустой список — ничего", async () => {
-    const bad = await app.request("/?secret=s3cret-s3cret", { method: "POST", body: "{oops" });
+    const bad = await app.request("/", { method: "POST", headers: { authorization: "Bearer s3cret-s3cret" }, body: "{oops" });
     expect(bad.status).toBe(400);
     const empty = await post("/?secret=s3cret-s3cret", { alerts: [] });
     expect(await empty.json()).toEqual({ ok: true, delivered: 0 });

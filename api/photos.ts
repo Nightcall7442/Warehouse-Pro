@@ -6,6 +6,8 @@ import { getDb } from "./queries/connection";
 import { authenticateRequest } from "./auth";
 import { isAppError } from "@contracts/errors";
 import { SAFE_IMAGE_TYPES } from "./lib/photo-value";
+import { legacyPhotoTokenTotal } from "./prometheus-metrics";
+import { clientVersionOf } from "./lib/client-version";
 
 /**
  * Photo delivery for entities whose photo is stored in the database as a base64
@@ -101,6 +103,9 @@ async function serve(
     const headers = new Headers(c.req.raw.headers);
     if (!authHeader && token) {
       headers.set("Authorization", `Bearer ${token}`);
+      // Считаем, какие сборки ещё ходят с токеном в адресе: когда счётчик
+      // перестанет расти — убрать этот блок целиком.
+      legacyPhotoTokenTotal.inc(clientVersionOf(c.req.header("x-client-version")));
     }
     const auth = await authenticateRequest(headers);
     if (!auth.tenant) return c.json({ error: "Unauthorized" }, 401);

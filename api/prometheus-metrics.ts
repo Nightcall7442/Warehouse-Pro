@@ -43,6 +43,14 @@ export const clientRequestsTotal = new client.Counter({
   registers: [register],
 });
 
+/** Фото с сессионным токеном в адресе (?token=) — сколько и какие сборки ещё так ходят. */
+export const legacyPhotoTokenTotal = new client.Counter({
+  name: "legacy_photo_query_token_total",
+  help: "Photo requests that still pass the session token in the URL, by client version",
+  labelNames: ["client", "version"] as const,
+  registers: [register],
+});
+
 export const httpRequestDurationSeconds = new client.Histogram({
   name: "http_request_duration_seconds",
   help: "HTTP request duration in seconds",

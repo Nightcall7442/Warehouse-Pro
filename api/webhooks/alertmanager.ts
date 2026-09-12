@@ -35,7 +35,10 @@ const app = new Hono();
 app.post("/", async (c) => {
   const secret = (process.env.ALERTMANAGER_WEBHOOK_SECRET ?? "").trim();
   if (!secret) return c.json({ error: "Webhook is not configured" }, 404);
-  const given = c.req.query("secret") ?? "";
+  // Только заголовком: адрес с ключом оседает в журналах прокси и Loki.
+  // Alertmanager шлёт его через http_config.authorization (docs/observability/alertmanager.yml).
+  const auth = c.req.header("authorization") ?? "";
+  const given = auth.startsWith("Bearer ") ? auth.slice(7).trim() : "";
   if (!given || !safeEqual(given, secret)) return c.json({ error: "Unauthorized" }, 401);
 
   let payload: AlertPayload;

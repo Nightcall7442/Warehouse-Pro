@@ -47,7 +47,7 @@ redeploy` прежнюю настройку не перечитывает).
 
 Telegram был единственным каналом: сломался бот, потерялся чат — тревоги
 молча исчезают. Теперь AlertManager дополнительно бьёт в
-`POST https://www.warehouse-pro.uz/api/webhooks/alertmanager?secret=…`, а
+`POST https://www.warehouse-pro.uz/api/webhooks/alertmanager` с заголовком `Authorization: Bearer <ALERTMANAGER_WEBHOOK_SECRET>`, а
 приложение кладёт тревогу в уведомления суперадминов и шлёт push на
 телефон — другой путь доставки.
 

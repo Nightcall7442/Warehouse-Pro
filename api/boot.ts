@@ -46,19 +46,15 @@ import {
 
 import * as Sentry from "@sentry/node";
 import backupRoutes from "./http/backup";
+import { cronDenied } from "./http/cron-guard";
 import authRoutes from "./http/auth";
 import trpcAdapter from "./http/trpc-adapter";
 
 const APP_VERSION = "1.0.0";
 
-/**
- * Разбор x-client-version: «web/1.4.2» или «mobile/2.0.1». Всё, что не
- * похоже на это, — unknown: метка из произвольной строки раздула бы метрику.
- */
-export function clientVersionOf(header: string | undefined): { client: string; version: string } {
-  const m = /^(web|mobile)\/([0-9A-Za-z.+-]{1,32})$/.exec((header ?? "").trim());
-  return m ? { client: m[1], version: m[2] } : { client: "unknown", version: "unknown" };
-}
+// Разбор x-client-version — в lib/client-version.ts: нужен и здесь, и ручке фото.
+import { clientVersionOf } from "./lib/client-version";
+export { clientVersionOf };
 
 
 /*
@@ -398,13 +394,8 @@ app.route("/api/photos", photos);
 
 // ── Cron: trial ending reminders ─────────────────────────────────────────────
 app.get("/api/cron/trial-reminders", async (c) => {
-  if (!env.cronSecret) {
-    return c.json({ error: "Cron endpoint not configured" }, 401);
-  }
-  const secret = c.req.query("secret") ?? c.req.header("x-cron-secret");
-  if (!safeEqual(secret ?? "", env.cronSecret)) {
-    return c.json({ error: "Unauthorized" }, 401);
-  }
+  const denied = cronDenied(c);
+  if (denied) return c.json({ error: denied }, 401);
   const { runTrialReminders } = await import("./cron/trial-reminders");
   const result = await runTrialReminders();
   return c.json(result);
@@ -415,13 +406,8 @@ app.route("/", backupRoutes);
 
 // ── Cron: debt reminders ────────────────────────────────────────────────────
 app.get("/api/cron/debt-reminders", async (c) => {
-  if (!env.cronSecret) {
-    return c.json({ error: "Cron endpoint not configured" }, 401);
-  }
-  const secret = c.req.query("secret") ?? c.req.header("x-cron-secret");
-  if (!safeEqual(secret ?? "", env.cronSecret)) {
-    return c.json({ error: "Unauthorized" }, 401);
-  }
+  const denied = cronDenied(c);
+  if (denied) return c.json({ error: denied }, 401);
   const { runDebtReminders } = await import("./cron/debt-reminders");
   const result = await runDebtReminders();
   return c.json(result, result.success ? 200 : 500);
@@ -437,21 +423,16 @@ app.get("/api/cron/debt-reminders", async (c) => {
   расписание снаружи, а не код, чтобы её можно было позвать руками и проверить,
   не дожидаясь вечера.
 */
-const cronGuard = (c: { req: { query: (k: string) => string | undefined; header: (k: string) => string | undefined } }) => {
-  if (!env.cronSecret) return "Cron endpoint not configured";
-  const secret = c.req.query("secret") ?? c.req.header("x-cron-secret");
-  return safeEqual(secret ?? "", env.cronSecret) ? null : "Unauthorized";
-};
 
 app.get("/api/cron/telegram-outbox", async (c) => {
-  const denied = cronGuard(c);
+  const denied = cronDenied(c);
   if (denied) return c.json({ error: denied }, 401);
   const { drainOutbox } = await import("./services/telegram-notify");
   return c.json(await drainOutbox());
 });
 
 app.get("/api/cron/telegram-digest", async (c) => {
-  const denied = cronGuard(c);
+  const denied = cronDenied(c);
   if (denied) return c.json({ error: denied }, 401);
   const { runTelegramDigest } = await import("./cron/telegram-digest");
   return c.json(await runTelegramDigest());

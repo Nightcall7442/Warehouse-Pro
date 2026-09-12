@@ -7,8 +7,6 @@ import { getDb } from "./queries/connection";
 import { products, shops, warehouses, territories } from "@db/schema";
 import { eq, and, sql } from "drizzle-orm";
 import { cache } from "./lib/cache";
-import { env } from "./lib/env";
-import { s3Client, publicUrl } from "./lib/s3";
 import { recordStockMovement, setStock } from "./services/stock-ledger";
 import { isSafePhotoValue } from "./lib/photo-value";
 // Type-only: exceljs itself stays behind the dynamic imports below so it never
@@ -16,6 +14,7 @@ import { isSafePhotoValue } from "./lib/photo-value";
 import type { CellValue } from "exceljs";
 
 import { firstRow } from "./lib/db-rows";
+import { uploadBase64ToS3 } from "./lib/photo-upload";
 /**
  * A spreadsheet cell is whatever exceljs hands back — a string or number for
  * the templates we publish, but also a Date, a formula result or rich text for
@@ -31,27 +30,6 @@ type ParsedRow = Record<string, CellValue>;
  * это делает ручная загрузка фото товара (product.uploadPhoto). Прежде здесь
  * возвращалась пустая строка, и снимок пропадал молча.
  */
-async function uploadBase64ToS3(dataUrl: string, folder: string, tenantId: number): Promise<string> {
-  const isS3 = !!(env.s3Bucket && env.s3AccessKey && env.s3SecretKey);
-  if (!isS3) return dataUrl;
-
-  const match = dataUrl.match(/^data:image\/(\w+);base64,(.+)$/);
-  if (!match) return dataUrl;
-
-  const ext = match[1].toLowerCase() === "jpeg" ? "jpg" : match[1].toLowerCase();
-  const buffer = Buffer.from(match[2], "base64");
-  const key = `${folder}/${tenantId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
-
-  const { PutObjectCommand } = await import("@aws-sdk/client-s3");
-  const s3 = await s3Client();
-  await s3.send(new PutObjectCommand({
-    Bucket: env.s3Bucket!,
-    Key: key,
-    Body: buffer,
-    ContentType: `image/${ext === "jpg" ? "jpeg" : ext}`,
-  }));
-  return publicUrl(key);
-}
 
 /**
  * Значение колонки «фото», которое браузер сможет показать.
