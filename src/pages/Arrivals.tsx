@@ -15,6 +15,7 @@ import {
 import { exportToExcel, formatArrivalsForExport } from "@/lib/excel";
 import { notify } from "@/lib/toast";
 import { PremiumSelect } from "@/components/PremiumSelect";
+import { BarcodeScanner } from "@/components/BarcodeScanner";
 import { QueryErrorFallback } from "@/components/QueryErrorFallback";
 import { useConfirm } from "@/components/ConfirmDialog";
 import { formatQty } from "@/lib/format";
@@ -143,6 +144,34 @@ function ArrivalForm({ onSave, onClose, isPending }: { onSave: (d: ArrivalCreate
   const totalCost = items.reduce((s, i) => s + Number(i.quantity || 0) * Number(i.costPrice || 0), 0);
 
   const addItem = () => setItems(p => [...p, { productId: 0, quantity: "", costPrice: "", sellingPrice: "", condition: "Хорошее", unit: "pcs", unitWeight: 0, batchNumber: "", expiresAt: "" }]);
+
+  /*
+    Сканер на приёмке: код найден — строка с этим товаром получает +1 (или
+    заполняется первая пустая), так что двадцать коробок — двадцать сканов,
+    а не двадцать раз «выберите товар». Партия и срок заполняются руками.
+  */
+  const [scanning, setScanning] = useState(false);
+  const [lastScanned, setLastScanned] = useState<string | null>(null);
+  const onScanned = (code: string) => {
+    const norm = code.trim().toLowerCase();
+    const product = products?.data?.find(p => (p.barcode ?? "").toLowerCase() === norm || (p.code ?? "").toLowerCase() === norm);
+    if (!product) {
+      setLastScanned(t(`Не найден: ${code}`, `Topilmadi: ${code}`));
+      notify.error(t(`Товар со штрих-кодом ${code} не найден`, `${code} shtrix-kodli mahsulot topilmadi`));
+      return;
+    }
+    setItems(p => {
+      const i = p.findIndex(it => it.productId === product.id);
+      if (i >= 0) return p.map((it, idx) => idx === i ? { ...it, quantity: String(Number(it.quantity || 0) + 1) } : it);
+      const row = {
+        productId: product.id, quantity: "1", costPrice: product.costPrice ?? "", sellingPrice: product.unitPrice ?? "",
+        condition: "Хорошее", unit: product.unit ?? "pcs", unitWeight: Number(product.unitWeight ?? 0), batchNumber: "", expiresAt: "",
+      };
+      const empty = p.findIndex(it => it.productId === 0);
+      return empty >= 0 ? p.map((it, idx) => idx === empty ? row : it) : [...p, row];
+    });
+    setLastScanned(product.name);
+  };
   const removeItem = (i: number) => setItems(p => p.filter((_, idx) => idx !== i));
   const updateItem = (i: number, field: string, val: string | number) => {
     setItems(p => p.map((item, idx) => {
@@ -165,6 +194,15 @@ function ArrivalForm({ onSave, onClose, isPending }: { onSave: (d: ArrivalCreate
 
   return createPortal(
     <>
+    {scanning && (
+      <BarcodeScanner
+        continuous
+        lastResult={lastScanned}
+        onScan={onScanned}
+        onClose={() => setScanning(false)}
+        label={t("Сканируйте товары — каждый код добавляет единицу", "Mahsulotlarni skanerlang — har bir kod bittadan qo'shadi")}
+      />
+    )}
     <div style={{ position: "fixed", inset: 0, zIndex: 9999, backgroundColor: "var(--overlay-scrim)" }} onClick={onClose} />
 
     <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 overflow-y-auto">
@@ -285,7 +323,10 @@ function ArrivalForm({ onSave, onClose, isPending }: { onSave: (d: ArrivalCreate
           <div>
             <div className="flex items-center justify-between mb-3">
               <p className={sectionLabel} style={{ marginBottom: 0 }}>{t("Товары", "Tovarlar")}</p>
-              <div className="flex gap-4">
+              <div className="flex gap-4 items-center">
+                <button type="button" className="neo-btn neo-btn-xs tap" onClick={() => { setLastScanned(null); setScanning(true); }} data-testid="arrival-scan">
+                  {t("Сканер", "Skaner")}
+                </button>
                 {totalWeight > 0 && <span className="text-xs font-semibold text-secondary">{formatQty(totalWeight)} {t("кг", "kg")}</span>}
                 {totalCost > 0 && <span className="text-xs font-semibold text-primary font-data">{fmt(totalCost.toFixed(0))}</span>}
               </div>

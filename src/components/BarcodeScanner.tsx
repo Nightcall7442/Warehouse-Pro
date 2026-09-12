@@ -14,11 +14,22 @@ interface Props {
   onScan:   (code: string) => void;
   onClose:  () => void;
   label?:   string;
+  /**
+   * Не закрываться после первого кода. Приёмка и сборка заказа — это
+   * двадцать товаров подряд; открывать окно на каждый значит вернуть
+   * кладовщика к ручному вводу. Тот же код второй раз подряд принимается
+   * только через паузу — иначе одна коробка в кадре считалась бы десять раз.
+   */
+  continuous?: boolean;
+  /** Что показать под окном после кода в режиме «много подряд» (название найденного товара). */
+  lastResult?: string | null;
 }
+
+const REPEAT_COOLDOWN_MS = 1500;
 
 const SUPPORTED = typeof window !== "undefined" && "BarcodeDetector" in window;
 
-export function BarcodeScanner({ onScan, onClose, label = "Scan barcode" }: Props) {
+export function BarcodeScanner({ onScan, onClose, label = "Scan barcode", continuous = false, lastResult = null }: Props) {
   const t = useTranslate();
   const videoRef    = useRef<HTMLVideoElement>(null);
   const streamRef   = useRef<MediaStream | null>(null);
@@ -27,6 +38,7 @@ export function BarcodeScanner({ onScan, onClose, label = "Scan barcode" }: Prop
   const [error,  setError]    = useState("");
   const [scanned, setScanned] = useState<string | null>(null);
   const scanning = useRef(true);
+  const lastSeen = useRef<{ code: string; at: number }>({ code: "", at: 0 });
 
   const stopCamera = useCallback(() => {
     scanning.current = false;
@@ -36,11 +48,21 @@ export function BarcodeScanner({ onScan, onClose, label = "Scan barcode" }: Prop
 
   const handleDetected = useCallback((code: string) => {
     if (!scanning.current) return;
+    if (continuous) {
+      const now = Date.now();
+      if (code === lastSeen.current.code && now - lastSeen.current.at < REPEAT_COOLDOWN_MS) return;
+      lastSeen.current = { code, at: now };
+      setScanned(code);
+      onScan(code);
+      // Камера продолжает работать; зелёная вспышка гаснет сама.
+      setTimeout(() => setScanned(null), 700);
+      return;
+    }
     scanning.current = false;
     setScanned(code);
     // Short delay so user sees the result before closing
     setTimeout(() => { onScan(code); stopCamera(); }, 600);
-  }, [onScan, stopCamera]);
+  }, [continuous, onScan, stopCamera]);
 
   useEffect(() => {
     if (manual || !SUPPORTED) return;
@@ -67,7 +89,7 @@ export function BarcodeScanner({ onScan, onClose, label = "Scan barcode" }: Prop
             const barcodes = await detector.detect(videoRef.current);
             if (barcodes.length > 0) {
               handleDetected(barcodes[0].rawValue);
-              return;
+              if (!continuous) return;
             }
           } catch { /* ignore detection errors */ }
         }
@@ -84,7 +106,7 @@ export function BarcodeScanner({ onScan, onClose, label = "Scan barcode" }: Prop
       cancelAnimationFrame(rafId);
       stopCamera();
     };
-  }, [manual, handleDetected, stopCamera, t]);
+  }, [manual, continuous, handleDetected, stopCamera, t]);
 
   useEffect(() => {
     return () => stopCamera();
@@ -120,10 +142,10 @@ export function BarcodeScanner({ onScan, onClose, label = "Scan barcode" }: Prop
               value={input}
               onChange={e => setInput(e.target.value)}
               autoFocus
-              onKeyDown={e => { if (e.key === "Enter" && input.trim()) onScan(input.trim()); }}
+              onKeyDown={e => { if (e.key === "Enter" && input.trim()) { onScan(input.trim()); if (continuous) setInput(""); } }}
             />
             <button
-              onClick={() => input.trim() && onScan(input.trim())}
+              onClick={() => { if (input.trim()) { onScan(input.trim()); if (continuous) setInput(""); } }}
               disabled={!input.trim()}
               className="btn-primary w-full disabled:opacity-40"
             >
@@ -175,10 +197,15 @@ export function BarcodeScanner({ onScan, onClose, label = "Scan barcode" }: Prop
           </div>
         )}
 
-        {/* Camera mode hint */}
+        {/* Camera mode hint; в режиме «много подряд» — что нашлось последним */}
         {!manual && !scanned && !error && (
           <div className="px-4 py-2 text-center">
             <p className="text-xs text-text-secondary">{t("Наведите камеру на штрих-код", "Kamerani shtrix-kodga qarating")}</p>
+          </div>
+        )}
+        {continuous && lastResult && (
+          <div className="px-4 pb-3 text-center" data-testid="scanner-last-result">
+            <p className="text-sm font-semibold text-text-primary">{lastResult}</p>
           </div>
         )}
       </div>

@@ -111,6 +111,9 @@ export const productRouter = createRouter({
       const data = await db.select({
         id:           products.id,
         code:         products.code,
+        // Штрих-код поставщика: по нему сканер в заказе находит товар без
+        // сети — каталог лежит копией на устройстве.
+        barcode:      products.barcode,
         name:         products.name,
         category:     products.category,
         unitPrice:    products.unitPrice,
@@ -188,6 +191,8 @@ export const productRouter = createRouter({
         db.select({
           id:           products.id,
           code:         products.code,
+          // Штрих-код поставщика: на этикетке печатается он, а не код.
+          barcode:      products.barcode,
           name:         products.name,
           category:     products.category,
           costPrice:    products.costPrice,

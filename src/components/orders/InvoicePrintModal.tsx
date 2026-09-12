@@ -25,7 +25,8 @@ interface Props {
 // literal "orderNumber" to be sendable as mutation input.
 const PRINT_OPTIONS = {
   includeQrCode: true,
-  includeBarcodes: false,
+  // Штрих-код номера заказа в шапке: по нему находят заказ сканером.
+  includeBarcodes: true,
   includeCostPrice: false,
   includeSignature: true,
   includeNotes: true,

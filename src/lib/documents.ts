@@ -1110,6 +1110,7 @@ function buildSingleInvoice(order: BatchOrderData, opts: BatchPrintOptions, comp
         <div style="text-align:right">
           <span style="font-size:10pt;font-weight:700">Накладная № ${escapeHtml(order.orderNumber)}</span>
           <span style="font-size:8pt;color:#666;margin-left:8px">от ${new Date(order.createdAt).toLocaleDateString("ru-RU")}</span>
+          ${opts.includeBarcodes ? `<div style="display:flex;justify-content:flex-end;margin-top:2px">${barcodeCell(order.orderNumber)}</div>` : ""}
         </div>
       </div>
       <div style="display:flex;gap:16px;font-size:8pt;color:#666;margin-bottom:4px">
@@ -1263,6 +1264,15 @@ export function printBatchInvoices(orders: BatchOrderData[], opts: BatchPrintOpt
 
 // ── 6. LOADING LIST — for warehouse workers ────────────────────────────────
 
+import { code128Svg } from "./code128";
+
+/** Штрих-код для бумаги; код с не-ASCII (кириллица) остаётся текстом. */
+function barcodeCell(value: string | null | undefined): string {
+  if (!value) return "";
+  try { return `<div style="height:9mm">${code128Svg(value, { height: 28, label: false }).replace(/ width="\d+" height="\d+"/, ' style="height:100%"')}</div>`; }
+  catch { return ""; }
+}
+
 export type LoadingListData = {
   listId: number;
   listNumber: string;
@@ -1292,6 +1302,8 @@ export type LoadingListData = {
     productId: number;
     productName: string;
     productCode: string | null;
+    /** Штрих-код поставщика, если задан; на бумаге печатается он, иначе код. */
+    barcode?: string | null;
     unit: string;
     unitWeight: string;
     totalQty: string;
@@ -1309,10 +1321,11 @@ export type LoadingListData = {
 };
 
 function buildLoadingListAggregated(data: LoadingListData, currency: string): string {
+  // Штрих-код в строке: кладовщик собирает по сканеру, а не по названию.
   const itemRows = data.items.map((item, i) => `
     <tr>
       <td class="center">${i + 1}</td>
-      <td>${escapeHtml(item.productCode ?? "")}</td>
+      <td>${escapeHtml(item.productCode ?? "")}${barcodeCell(item.barcode || item.productCode)}</td>
       <td>${escapeHtml(item.productName)}</td>
       <td class="center">${unitLabel(item.unit)}</td>
       <td class="right bold">${cleanNum(item.totalQty)}</td>

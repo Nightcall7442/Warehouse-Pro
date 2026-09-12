@@ -3,7 +3,9 @@ import { createPortal } from "react-dom";
 import { useCurrency } from "@/hooks/useCurrency";
 import { trpc } from "@/providers/trpc";
 import { useLang } from "@/i18n";
-import { Package, Search, ShoppingCart, Plus, Minus, Trash2, ChevronUp, ChevronDown, X } from "lucide-react";
+import { Package, Search, ShoppingCart, Plus, Minus, Trash2, ChevronUp, ChevronDown, X, ScanLine } from "lucide-react";
+import { BarcodeScanner } from "@/components/BarcodeScanner";
+import { notify } from "@/lib/toast";
 import { unitLabel } from "./types";
 import type { OrderItem } from "./types";
 import { formatQty } from "@/lib/format";
@@ -32,6 +34,8 @@ export function ProductSelector({ items, onChange, cartOpen = false, onCartOpenC
   const { data: products, isLoading, isLoadingError, refetch } = trpc.product.listAll.useQuery(undefined);
   const [search, setSearch] = useState("");
   const searchRef = useRef<HTMLInputElement>(null);
+  const [scanning, setScanning] = useState(false);
+  const [lastScanned, setLastScanned] = useState<string | null>(null);
 
   // Без связи — отложенная копия каталога: иначе офлайн-заказ не из чего
   // собрать, а ради этого вкладка «Офлайн» и заведена.
@@ -40,6 +44,24 @@ export function ProductSelector({ items, onChange, cartOpen = false, onCartOpenC
   const filtered = (catalog ?? []).filter((p) =>
     !search || p.name?.toLowerCase().includes(search.toLowerCase()) || (p.code ?? "").toLowerCase().includes(search.toLowerCase())
   );
+
+  /*
+    Сканер добавляет в корзину сразу: каждый код — плюс единица. Ищем по
+    штрих-коду поставщика и по коду товара в копии каталога — работает и без
+    связи. Не нашли — код попадает в поиск, чтобы было видно, чего нет.
+  */
+  const onScanned = (code: string) => {
+    const norm = code.trim().toLowerCase();
+    const product = (catalog ?? []).find(p => (p.barcode ?? "").toLowerCase() === norm || (p.code ?? "").toLowerCase() === norm);
+    if (!product) {
+      setLastScanned(t(`Не найден: ${code}`, `Topilmadi: ${code}`));
+      setSearch(code);
+      notify.error(t(`Товар со штрих-кодом ${code} не найден`, `${code} shtrix-kodli mahsulot topilmadi`));
+      return;
+    }
+    addToCart(product, 1);
+    setLastScanned(product.name as string);
+  };
 
   const addToCart = useCallback((product: CatalogProduct, qty?: number) => {
     const addQty = qty ?? 1;
@@ -337,19 +359,35 @@ export function ProductSelector({ items, onChange, cartOpen = false, onCartOpenC
           </span>
         </div>
 
-        {/* Search */}
-        <div style={{ position: "relative", marginBottom: "12px" }}>
-          <Search size={14} style={{ position: "absolute", left: "12px", top: "50%", transform: "translateY(-50%)", color: "var(--color-text-tertiary)", pointerEvents: "none" }} />
-          <input
-            data-testid="product-search"
-            ref={searchRef}
-            className="neo-input"
-            style={{ paddingLeft: "36px", width: "100%" }}
-            placeholder={t("Поиск по названию или коду…", "Nomi yoki kodi bo'yicha qidirish…")}
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-          />
+        {/* Search + сканер */}
+        <div style={{ position: "relative", marginBottom: "12px", display: "flex", gap: "8px" }}>
+          <div style={{ position: "relative", flex: 1 }}>
+            <Search size={14} style={{ position: "absolute", left: "12px", top: "50%", transform: "translateY(-50%)", color: "var(--color-text-tertiary)", pointerEvents: "none" }} />
+            <input
+              data-testid="product-search"
+              ref={searchRef}
+              className="neo-input"
+              style={{ paddingLeft: "36px", width: "100%" }}
+              placeholder={t("Поиск по названию или коду…", "Nomi yoki kodi bo'yicha qidirish…")}
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+            />
+          </div>
+          <button type="button" className="neo-btn tap" onClick={() => { setLastScanned(null); setScanning(true); }}
+            title={t("Сканировать штрих-код", "Shtrix-kodni skanerlash")} data-testid="product-scan"
+            style={{ display: "flex", alignItems: "center", gap: "6px", whiteSpace: "nowrap" }}>
+            <ScanLine size={16} /><span className="hidden sm:inline">{t("Сканер", "Skaner")}</span>
+          </button>
         </div>
+        {scanning && (
+          <BarcodeScanner
+            continuous
+            lastResult={lastScanned}
+            onScan={onScanned}
+            onClose={() => setScanning(false)}
+            label={t("Сканируйте товары — каждый код добавляет единицу", "Mahsulotlarni skanerlang — har bir kod bittadan qo'shadi")}
+          />
+        )}
 
         {/* Product list.
             Раньше здесь стоял maxHeight: 520px, overflowY: auto — отдельная

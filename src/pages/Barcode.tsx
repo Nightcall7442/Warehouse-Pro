@@ -9,10 +9,16 @@ import { useLang } from "@/i18n";
 import { BarcodeScanner } from "@/components/BarcodeScanner";
 import { useNavigate } from "react-router";
 import { printElement } from "@/lib/print";
+import { code128Svg } from "@/lib/code128";
 import { unitShort } from "@/lib/units";
 import { Scan, Package, Plus, Printer, Search, AlertTriangle } from "lucide-react";
 
-function LabelSheet({ products }: { products: Array<{ name: string; code: string; price: string; currency: string }> }) {
+/*
+  Этикетка 50×30 мм: название, штрих-код Code 128 (штрих-код поставщика,
+  если задан, иначе код товара) и цена. Раньше код печатался текстом —
+  сканер такое не читает, и кладовщик набирал его руками.
+*/
+function LabelSheet({ products }: { products: Array<{ name: string; code: string; barcode: string | null; price: string; currency: string }> }) {
   return (
     <div id="label-print-area" className="hidden">
       <style>{`
@@ -27,15 +33,17 @@ function LabelSheet({ products }: { products: Array<{ name: string; code: string
           justify-content: center; font-family: Arial, sans-serif;
           padding: 2mm; box-sizing: border-box; page-break-inside: avoid;
         }
-        .label-name  { font-size: 8pt; font-weight: bold; text-align: center; }
-        .label-code  { font-size: 7pt; color: #555; margin: 1mm 0; }
-        .label-price { font-size: 11pt; font-weight: bold; }
+        .label-name  { font-size: 7pt; font-weight: bold; text-align: center; line-height: 1.1; max-height: 8mm; overflow: hidden; }
+        .label-bar   { width: 44mm; height: 11mm; margin: 1mm 0; }
+        .label-bar svg { width: 100%; height: 100%; }
+        .label-price { font-size: 10pt; font-weight: bold; }
       `}</style>
       <div className="label-grid">
         {products.map((p, i) => (
           <div key={i} className="label">
             <div className="label-name">{p.name}</div>
-            <div className="label-code">Код: {p.code}</div>
+            {/* SVG собран нами из кода товара (ASCII), текст в нём экранирован — чужого HTML тут нет. */}
+            <div className="label-bar" dangerouslySetInnerHTML={{ __html: safeBarcode(p.barcode || p.code) }} />
             <div className="label-price">{Number(p.price).toLocaleString("ru-RU")} {p.currency}</div>
           </div>
         ))}
@@ -44,11 +52,17 @@ function LabelSheet({ products }: { products: Array<{ name: string; code: string
   );
 }
 
+/** Код с не-ASCII (кириллица в артикуле) штрих-кодом не станет — печатаем текстом. */
+function safeBarcode(value: string): string {
+  try { return code128Svg(value, { height: 40, label: true }); }
+  catch { return `<div style="font-size:7pt;color:#555">Код: ${value.replace(/&/g, "&amp;").replace(/</g, "&lt;")}</div>`; }
+}
+
 export default function BarcodePage() {
   const [scanning, setScanning]     = useState(false);
   const [searchCode, setSearchCode] = useState("");
   const [labelQueue, setLabelQueue] = useState<
-    Array<{ id: number; name: string; code: string; unitPrice: string }>
+    Array<{ id: number; name: string; code: string; barcode: string | null; unitPrice: string }>
   >([]);
   const { fmt, currency } = useCurrency();
   const { lang }          = useLang();
@@ -87,6 +101,7 @@ export default function BarcodePage() {
       <LabelSheet products={labelQueue.map((p) => ({
         name:     p.name,
         code:     p.code ?? "",
+        barcode:  p.barcode ?? null,
         price:    p.unitPrice ?? "0",
         currency,
       }))}/>
