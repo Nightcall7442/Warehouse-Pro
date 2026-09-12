@@ -10,7 +10,7 @@ import { saveArrivalDraft, loadArrivalDraft, clearArrivalDraft, arrivalDraftHasW
 const empty = (): ArrivalDraft => ({
   form: { truckId: "", driverName: "", driverPhone: "", arrivalDate: "2026-09-12", fuelCost: "0", tollCost: "0", otherCost: "0", notes: "" },
   supplierMode: "none", supplierId: 0, newSupplierName: "", supplyAmount: "", supplyCurrency: "UZS", supplyRate: "", supplyDueDate: "",
-  items: [{ productId: 0, quantity: "", costPrice: "", sellingPrice: "", condition: "Хорошее", unit: "pcs", unitWeight: 0, batchNumber: "", expiresAt: "" }],
+  items: [{ productId: 0, quantity: "", costPrice: "", sellingPrice: "", condition: "Хорошее", unit: "pcs", unitWeight: 0, batchNumber: "", expiresAt: "", expected: "" }],
 });
 
 beforeEach(() => localStorage.clear());

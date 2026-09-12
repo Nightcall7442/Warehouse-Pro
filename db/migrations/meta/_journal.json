@@ -232,6 +232,13 @@
       "when": 1789213944226,
       "tag": "0032_stock_counts",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "5",
+      "when": 1789214711500,
+      "tag": "0033_arrival_items_expected",
+      "breakpoints": true
     }
   ]
 }

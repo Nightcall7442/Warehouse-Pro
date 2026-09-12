@@ -22,6 +22,7 @@ type ArrivalItemRow = {
   productName:  string | null;
   productCode:  string | null;
   barcode:      string | null;
+  expectedQuantity: string | null;
   batchNumber:  string | null;
   expiresAt:    string | null;
 };
@@ -91,15 +92,16 @@ export const arrivalRouter = createRouter({
       if (!arrival) return null;
 
       // Always use raw SQL for items — avoids Drizzle referencing non-existent columns
-      let items: Array<{ id: number; productId: number; quantity: number; condition: string; notes: string; productName: string; productCode: string; barcode: string | null; costPrice: string; sellingPrice: string; batchNumber: string | null; expiresAt: string | null }>;
+      let items: Array<{ id: number; productId: number; quantity: number; expectedQuantity: number | null; condition: string; notes: string; productName: string; productCode: string; barcode: string | null; costPrice: string; sellingPrice: string; batchNumber: string | null; expiresAt: string | null }>;
       try {
         // p.barcode — для печати этикеток по приходу: на них штрих-код поставщика, если есть.
-        const result = await db.execute(sql`SELECT ai.id, ai.product_id AS productId, ai.quantity, ai.condition, ai.notes, ai.cost_price AS costPrice, ai.selling_price AS sellingPrice, ai.batch_number AS batchNumber, DATE_FORMAT(ai.expires_at, '%Y-%m-%d') AS expiresAt, p.name AS productName, p.code AS productCode, p.barcode AS barcode FROM arrival_items ai LEFT JOIN products p ON ai.product_id = p.id WHERE ai.arrival_id = ${arrival.id}`);
+        const result = await db.execute(sql`SELECT ai.id, ai.product_id AS productId, ai.quantity, ai.expected_quantity AS expectedQuantity, ai.condition, ai.notes, ai.cost_price AS costPrice, ai.selling_price AS sellingPrice, ai.batch_number AS batchNumber, DATE_FORMAT(ai.expires_at, '%Y-%m-%d') AS expiresAt, p.name AS productName, p.code AS productCode, p.barcode AS barcode FROM arrival_items ai LEFT JOIN products p ON ai.product_id = p.id WHERE ai.arrival_id = ${arrival.id}`);
         const [rows] = result as unknown as [ArrivalItemRow[], unknown];
         items = Array.isArray(rows) ? rows.map(r => ({
           id: Number(r.id),
           productId: Number(r.productId),
           quantity: Number(r.quantity),
+          expectedQuantity: r.expectedQuantity == null ? null : Number(r.expectedQuantity),
           condition: String(r.condition ?? ""),
           notes: String(r.notes ?? ""),
           productName: String(r.productName ?? ""),
@@ -140,6 +142,8 @@ export const arrivalRouter = createRouter({
       items:       z.array(z.object({
         productId: z.number(),
         quantity: z.string().refine(v => Number(v) > 0, "Количество должно быть положительным"),
+        // По накладной поставщика; необязательно. Ноль допустим: ждали, не приехало вовсе.
+        expectedQuantity: z.string().regex(/^\d+(\.\d{1,2})?$/, "Ожидалось — число").optional(),
         costPrice: decimalOrDefault("0.00").optional(),
         sellingPrice: decimalOrDefault("0.00").optional(),
         condition: z.string().optional(),
@@ -283,6 +287,7 @@ export const arrivalRouter = createRouter({
               arrivalId,
               productId: item.productId,
               quantity: item.quantity,
+              expectedQuantity: item.expectedQuantity ?? null,
               costPrice: item.costPrice ?? "0.00",
               sellingPrice: item.sellingPrice ?? "0.00",
               condition: item.condition ? sanitizeString(item.condition) : undefined,

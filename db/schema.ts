@@ -774,6 +774,13 @@ export const arrivalItems = mysqlTable("arrival_items", {
   arrivalId:    bigint("arrival_id", { mode: "number", unsigned: true }).notNull().references(() => arrivals.id, { onDelete: "cascade" }),
   productId:    bigint("product_id", { mode: "number", unsigned: true }).notNull().references(() => products.id, { onDelete: "restrict" }),
   quantity:     decimal("quantity", { precision: 12, scale: 2 }).notNull(),
+  /*
+    Сколько должно было приехать — по накладной поставщика. Пусто — не
+    сверяли (так было у всех приходов до этой колонки). Разница с quantity
+    — недовоз или излишек: раньше её нигде не было, и спор с поставщиком
+    начинался с «а сколько вы вообще ждали?».
+  */
+  expectedQuantity: decimal("expected_quantity", { precision: 12, scale: 2 }),
   costPrice:    decimal("cost_price", { precision: 10, scale: 2 }).default("0.00"),
   sellingPrice: decimal("selling_price", { precision: 10, scale: 2 }).default("0.00"),
   /*

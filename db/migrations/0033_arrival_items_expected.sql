@@ -1,0 +1,1 @@
+ALTER TABLE `arrival_items` ADD `expected_quantity` decimal(12,2);

@@ -298,3 +298,17 @@ describe("пустых партий на полке не остаётся", () =
     expect(guards, "отчёт по партиям перестал отбрасывать пустые").toBeGreaterThanOrEqual(3);
   });
 });
+
+describe("ожидалось по накладной поставщика", () => {
+  it("строка прихода принимает expectedQuantity, хранит и отдаёт с разницей на экране", async () => {
+    const { readFileSync } = await import("node:fs");
+    const router = readFileSync("api/arrival-router.ts", "utf-8");
+    expect(router).toMatch(/expectedQuantity: z\.string\(\)\.regex\(/);
+    expect(router).toContain("expectedQuantity: item.expectedQuantity ?? null,");
+    expect(router).toContain("ai.expected_quantity AS expectedQuantity");
+    const page = readFileSync("src/pages/Arrivals.tsx", "utf-8");
+    expect(page).toContain('expectedQuantity: i.expected.trim() === "" ? undefined : i.expected.trim(),');
+    expect(page).toContain("data-testid={`arrival-detail-expected-${i}`}");
+    expect(readFileSync("db/migrations/0033_arrival_items_expected.sql", "utf-8").trim()).toBe("ALTER TABLE `arrival_items` ADD `expected_quantity` decimal(12,2);");
+  });
+});

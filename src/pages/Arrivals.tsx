@@ -141,15 +141,15 @@ function ArrivalForm({ onSave, onClose, isPending }: { onSave: (d: ArrivalCreate
     ((supplierMode === "existing" ? supplierId > 0 : newSupplierName.trim().length > 0)
       && Number(supplyAmount) > 0
       && (supplyCurrency === "UZS" || Number(supplyRate) > 0));
-  const [items, setItems] = useState<{ productId: number; quantity: string; costPrice: string; sellingPrice: string; condition: string; unit: string; unitWeight: number; batchNumber: string; expiresAt: string }[]>([
-    { productId: 0, quantity: "", costPrice: "", sellingPrice: "", condition: "Хорошее", unit: "pcs", unitWeight: 0, batchNumber: "", expiresAt: "" },
+  const [items, setItems] = useState<{ productId: number; quantity: string; costPrice: string; sellingPrice: string; condition: string; unit: string; unitWeight: number; batchNumber: string; expiresAt: string; expected: string }[]>([
+    { productId: 0, quantity: "", costPrice: "", sellingPrice: "", condition: "Хорошее", unit: "pcs", unitWeight: 0, batchNumber: "", expiresAt: "", expected: "" },
   ]);
 
   const totalExpense = Number(form.fuelCost) + Number(form.tollCost) + Number(form.otherCost);
   const totalWeight = items.reduce((s, i) => s + Number(i.quantity || 0) * (i.unitWeight || 1), 0);
   const totalCost = items.reduce((s, i) => s + Number(i.quantity || 0) * Number(i.costPrice || 0), 0);
 
-  const addItem = () => setItems(p => [...p, { productId: 0, quantity: "", costPrice: "", sellingPrice: "", condition: "Хорошее", unit: "pcs", unitWeight: 0, batchNumber: "", expiresAt: "" }]);
+  const addItem = () => setItems(p => [...p, { productId: 0, quantity: "", costPrice: "", sellingPrice: "", condition: "Хорошее", unit: "pcs", unitWeight: 0, batchNumber: "", expiresAt: "", expected: "" }]);
 
   /*
     Черновик: восстанавливается при открытии, сохраняется на каждое
@@ -199,7 +199,7 @@ function ArrivalForm({ onSave, onClose, isPending }: { onSave: (d: ArrivalCreate
       if (i >= 0) return p.map((it, idx) => idx === i ? { ...it, quantity: String(Number(it.quantity || 0) + 1) } : it);
       const row = {
         productId: product.id, quantity: "1", costPrice: product.costPrice ?? "", sellingPrice: product.unitPrice ?? "",
-        condition: "Хорошее", unit: product.unit ?? "pcs", unitWeight: Number(product.unitWeight ?? 0), batchNumber: "", expiresAt: "",
+        condition: "Хорошее", unit: product.unit ?? "pcs", unitWeight: Number(product.unitWeight ?? 0), batchNumber: "", expiresAt: "", expected: "",
       };
       const empty = p.findIndex(it => it.productId === 0);
       return empty >= 0 ? p.map((it, idx) => idx === empty ? row : it) : [...p, row];
@@ -401,6 +401,19 @@ function ArrivalForm({ onSave, onClose, isPending }: { onSave: (d: ArrivalCreate
                       <label className="font-label text-[10px] text-secondary mb-1.5 block">{t("Состояние", "Holat")}</label>
                       <input className="neo-input" style={{ padding: "8px 10px" }} placeholder={t("Хорошее", "Yaxshi")} value={item.condition} onChange={e => updateItem(i, "condition", e.target.value)} />
                     </div>
+                    {/* По накладной поставщика. Разница с принятым — недовоз или
+                        излишек, и спор с поставщиком начинается с этого числа. */}
+                    <div>
+                      <label className="font-label text-[10px] text-secondary mb-1.5 block">
+                        {t("Ожидалось", "Kutilgan")}
+                        {item.expected !== "" && Number(item.quantity) > 0 && Number(item.expected) !== Number(item.quantity) && (
+                          <span style={{ color: "var(--color-danger-text)", marginLeft: 6 }}>
+                            {Number(item.quantity) > Number(item.expected) ? "+" : ""}{formatQty(Number(item.quantity) - Number(item.expected))}
+                          </span>
+                        )}
+                      </label>
+                      <DecimalInput className="neo-input" style={{ textAlign: "right", padding: "8px 10px" }} placeholder={t("по накладной", "hujjat bo'yicha")} value={item.expected} onValueChange={v => updateItem(i, "expected", v)} data-testid={`arrival-expected-${i}`} />
+                    </div>
                     {/*
                       Партия и срок годности.
 
@@ -461,6 +474,7 @@ function ArrivalForm({ onSave, onClose, isPending }: { onSave: (d: ArrivalCreate
                   // появился бы номер «».
                   batchNumber: i.batchNumber.trim() || undefined,
                   expiresAt: i.expiresAt || undefined,
+                  expectedQuantity: i.expected.trim() === "" ? undefined : i.expected.trim(),
                 })),
                 supplier: supplierMode === "none" ? undefined : {
                   supplierId:      supplierMode === "existing" ? supplierId : undefined,
@@ -809,7 +823,7 @@ function ArrivalDetail({ arrivalId, onClose }: { arrivalId: number; onClose: () 
                 <table style={{ width: "100%", minWidth: "520px", borderCollapse: "separate", borderSpacing: 0 }}>
                   <thead>
                     <tr>
-                      {[t("Товар", "Mahsulot"), t("Код", "Kod"), t("Кол-во", "Miqdor"), t("Себест.", "Tannarx"), t("Продажа", "Sotish"), t("Состояние", "Holat"), t("Партия", "Partiya"), t("Годен до", "Muddati")].map(h => (
+                      {[t("Товар", "Mahsulot"), t("Код", "Kod"), t("Кол-во", "Miqdor"), t("Ожидалось", "Kutilgan"), t("Себест.", "Tannarx"), t("Продажа", "Sotish"), t("Состояние", "Holat"), t("Партия", "Partiya"), t("Годен до", "Muddati")].map(h => (
                         <th key={h} style={{ fontSize: "10px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--color-text-tertiary)", padding: "10px 14px", textAlign: "left", borderBottom: "1px solid var(--color-border)", background: "var(--color-surface-light)" }}>{h}</th>
                       ))}
                     </tr>
@@ -820,6 +834,16 @@ function ArrivalDetail({ arrivalId, onClose }: { arrivalId: number; onClose: () 
                         <td style={{ padding: "12px 14px", fontSize: "13px", color: "var(--color-text-primary)", borderBottom: "1px solid var(--color-border)" }}>{item.productName ?? "—"}</td>
                         <td style={{ padding: "12px 14px", fontSize: "12px", color: "var(--color-text-tertiary)", fontFamily: "monospace", borderBottom: "1px solid var(--color-border)" }}>{item.productCode ?? "—"}</td>
                         <td style={{ padding: "12px 14px", fontSize: "13px", fontWeight: 600, color: "var(--color-text-primary)", borderBottom: "1px solid var(--color-border)" }}>{formatQty(item.quantity)}</td>
+                        <td style={{ padding: "12px 14px", fontSize: "13px", borderBottom: "1px solid var(--color-border)", color: item.expectedQuantity != null && Number(item.expectedQuantity) !== Number(item.quantity) ? "var(--color-danger-text)" : "var(--color-text-secondary)" }} data-testid={`arrival-detail-expected-${i}`}>
+                          {item.expectedQuantity == null ? "—" : (
+                            <>
+                              {formatQty(item.expectedQuantity)}
+                              {Number(item.expectedQuantity) !== Number(item.quantity) && (
+                                <span style={{ marginLeft: 6, fontWeight: 700 }}>({Number(item.quantity) > Number(item.expectedQuantity) ? "+" : ""}{formatQty(Number(item.quantity) - Number(item.expectedQuantity))})</span>
+                              )}
+                            </>
+                          )}
+                        </td>
                         <td style={{ padding: "12px 14px", fontSize: "13px", color: "var(--color-text-secondary)", borderBottom: "1px solid var(--color-border)", textAlign: "right" }}>{fmt(item.costPrice ?? 0)}</td>
                         <td style={{ padding: "12px 14px", fontSize: "13px", color: "var(--color-text-primary)", fontWeight: 600, borderBottom: "1px solid var(--color-border)", textAlign: "right" }}>{fmt(item.sellingPrice ?? 0)}</td>
                         <td style={{ padding: "12px 14px", fontSize: "13px", color: "var(--color-text-secondary)", borderBottom: "1px solid var(--color-border)" }}>{item.condition ?? "—"}</td>

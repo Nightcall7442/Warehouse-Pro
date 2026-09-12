@@ -18,7 +18,7 @@ export type ArrivalDraft = {
   supplyCurrency: "UZS" | "USD";
   supplyRate: string;
   supplyDueDate: string;
-  items: Array<{ productId: number; quantity: string; costPrice: string; sellingPrice: string; condition: string; unit: string; unitWeight: number; batchNumber: string; expiresAt: string }>;
+  items: Array<{ productId: number; quantity: string; costPrice: string; sellingPrice: string; condition: string; unit: string; unitWeight: number; batchNumber: string; expiresAt: string; expected: string }>;
 };
 
 const KEY = "warehouse_pro_arrival_draft";
@@ -41,6 +41,8 @@ export function loadArrivalDraft(ownerId: number): ArrivalDraft | null {
     if (!raw) return null;
     const d = JSON.parse(raw) as ArrivalDraft;
     if (!d || !d.form || !Array.isArray(d.items)) return null;
+    // Черновики до появления «ожидалось» этого поля не имеют.
+    d.items = d.items.map(i => ({ ...i, expected: i.expected ?? "" }));
     return d;
   } catch {
     return null;
