@@ -1,4 +1,6 @@
-import { memo, useCallback, useMemo, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useState } from "react";
+import { useAuth } from "@/hooks/useAuth";
+import { saveArrivalDraft, loadArrivalDraft, clearArrivalDraft, arrivalDraftHasWork, type ArrivalDraft } from "./Arrivals.draft";
 import { DecimalInput } from "@/components/ui/DecimalInput";
 import { createPortal } from "react-dom";
 import type { inferRouterInputs } from "@trpc/server";
@@ -130,6 +132,9 @@ function ArrivalForm({ onSave, onClose, isPending }: { onSave: (d: ArrivalCreate
   const [supplyRate, setSupplyRate] = useState("");
   const [supplyDueDate, setSupplyDueDate] = useState("");
 
+  const { user } = useAuth();
+  const [restored, setRestored] = useState(false);
+
   const supplierValid =
     supplierMode === "none" ||
     ((supplierMode === "existing" ? supplierId > 0 : newSupplierName.trim().length > 0)
@@ -144,6 +149,32 @@ function ArrivalForm({ onSave, onClose, isPending }: { onSave: (d: ArrivalCreate
   const totalCost = items.reduce((s, i) => s + Number(i.quantity || 0) * Number(i.costPrice || 0), 0);
 
   const addItem = () => setItems(p => [...p, { productId: 0, quantity: "", costPrice: "", sellingPrice: "", condition: "Хорошее", unit: "pcs", unitWeight: 0, batchNumber: "", expiresAt: "" }]);
+
+  /*
+    Черновик: восстанавливается при открытии, сохраняется на каждое
+    изменение (см. Arrivals.draft.ts). Раньше клик мимо окна или перезагрузка
+    теряли сорок набранных строк. Восстановление — только один раз, на первый
+    показ: дальше правит человек.
+  */
+  useEffect(() => {
+    if (!user || restored) return;
+    /* eslint-disable react-hooks/set-state-in-effect */
+    setRestored(true);
+    const d = loadArrivalDraft(user.id);
+    if (!d || !arrivalDraftHasWork(d)) return;
+    setForm(d.form); setSupplierMode(d.supplierMode); setSupplierId(d.supplierId); setNewSupplierName(d.newSupplierName);
+    setSupplyAmount(d.supplyAmount); setSupplyCurrency(d.supplyCurrency); setSupplyRate(d.supplyRate); setSupplyDueDate(d.supplyDueDate);
+    setItems(d.items);
+    /* eslint-enable react-hooks/set-state-in-effect */
+    notify.info(t("Продолжаем набранный приход", "Boshlangan kelish tiklandi"));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
+
+  useEffect(() => {
+    if (!user || !restored) return;
+    const d: ArrivalDraft = { form, supplierMode, supplierId, newSupplierName, supplyAmount, supplyCurrency, supplyRate, supplyDueDate, items };
+    if (arrivalDraftHasWork(d)) saveArrivalDraft(user.id, d); else clearArrivalDraft(user.id);
+  }, [user, restored, form, supplierMode, supplierId, newSupplierName, supplyAmount, supplyCurrency, supplyRate, supplyDueDate, items]);
 
   /*
     Сканер на приёмке: код найден — строка с этим товаром получает +1 (или
@@ -445,7 +476,9 @@ function ArrivalForm({ onSave, onClose, isPending }: { onSave: (d: ArrivalCreate
               {isPending && <Loader2 size={15} className="animate-spin" />}
               {t("Сохранить", "Saqlash")}
             </button>
-            <button onClick={onClose} className="neo-btn flex-1 h-12 text-sm">
+            {/* «Отмена» — это отказ от набранного, и черновик стирается вместе
+                с ним. Клик мимо окна и перезагрузка черновик не трогают. */}
+            <button onClick={() => { if (user) clearArrivalDraft(user.id); onClose(); }} className="neo-btn flex-1 h-12 text-sm">
               {t("Отмена", "Bekor qilish")}
             </button>
           </div>
@@ -873,8 +906,11 @@ export default function Arrivals() {
   const { data: all } = trpc.arrival.list.useQuery({ page: 1, pageSize: 5000 });
   const utils = trpc.useUtils();
 
+  const { user: me } = useAuth();
   const createMutation = trpc.arrival.create.useMutation({
-    onSuccess: () => { utils.arrival.list.invalidate(); setShowForm(false); notify.success(t("Приход добавлен", "Kelish qo'shildi")); },
+    // Приход сохранён — черновику конец, иначе следующее открытие формы
+    // предложит его снова.
+    onSuccess: () => { if (me) clearArrivalDraft(me.id); utils.arrival.list.invalidate(); setShowForm(false); notify.success(t("Приход добавлен", "Kelish qo'shildi")); },
     onError: (e) => notify.error(e.message),
   });
   const updateStatus = trpc.arrival.update.useMutation({
