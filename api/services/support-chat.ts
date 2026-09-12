@@ -267,7 +267,7 @@ async function notifyPlatformAboutQuestion(tenantId: number, userId: number, bod
     const [who] = await db.select({ name: users.name })
       .from(users).where(eq(users.id, userId)).limit(1);
 
-    const { notifyAdmin, tgMessages } = await import("../telegram-router");
+    const { notifyAdmin, tgMessages } = await import("../lib/telegram");
     await notifyAdmin(tgMessages.supportMessage(
       org?.name ?? `#${tenantId}`,
       who?.name ?? `#${userId}`,

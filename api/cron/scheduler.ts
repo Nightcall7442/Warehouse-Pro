@@ -223,7 +223,7 @@ async function runExclusively(job: Job): Promise<void> {
       logger.error("cron job failed", { job: job.name, error });
       // Суперадмину: тихий провал ночной работы иначе замечают через месяцы
       // (см. шапку файла — так и вышло с копией базы).
-      const { notifyAdmin, tgMessages } = await import("../telegram-router");
+      const { notifyAdmin, tgMessages } = await import("../lib/telegram");
       void notifyAdmin(tgMessages.cronFailed(job.name, error));
     } finally {
       await conn.query("SELECT RELEASE_LOCK(?) AS ok", [`warehouse_pro:cron:${job.name}`]).catch(() => {});

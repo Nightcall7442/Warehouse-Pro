@@ -23,11 +23,10 @@
  * ними, то есть один и тот же вопрос имел два ответа.
  */
 import { describe, it, expect, beforeEach } from "vitest";
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
 import { noteStaleAssetHit, getStaleAssetHits, resetStaleAssetHits } from "../lib/deploy-signals";
+import { bootSource } from "./helpers/boot-source";
 
-const BOOT = readFileSync(join(__dirname, "..", "boot.ts"), "utf8");
+const BOOT = bootSource();
 
 /** Условие, которым boot.ts решает, что запрос был ошибкой. */
 function requestCounterRule(): string {

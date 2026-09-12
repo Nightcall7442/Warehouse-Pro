@@ -1,7 +1,7 @@
 import { eq, inArray, isNotNull, and } from "drizzle-orm";
 import { getDb } from "../queries/connection";
 import { tenants, users } from "@db/schema";
-import { sendTelegram } from "../telegram-router";
+import { sendTelegram } from "../lib/telegram";
 import { answerSummary } from "../telegram/answers";
 import { logger } from "../lib/logger";
 import type { Lang } from "../telegram/texts";

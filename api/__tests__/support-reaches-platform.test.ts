@@ -81,7 +81,7 @@ describe("письмо арендатора уведомляет платфор�
       Название организации приходит из формы регистрации, имя — из профиля.
       Оба вводит человек, и оба уходят в HTML-разметку телеграма.
     */
-    const tg = read("api/telegram-router.ts");
+    const tg = read("api/lib/telegram.ts");
     const at = tg.indexOf("supportMessage:");
     const body = tg.slice(at, tg.indexOf("newRegistration:", at));
     expect((body.match(/tgEscape\(/g) ?? []).length).toBe(3);

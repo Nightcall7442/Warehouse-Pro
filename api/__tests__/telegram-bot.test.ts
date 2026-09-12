@@ -25,6 +25,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { bootSource } from "./helpers/boot-source";
 
 vi.mock("../lib/env", () => ({ env: { appSecret: "тест-секрет", appUrl: "https://x", telegramBotToken: "", telegramWebhookSecret: "" } }));
 vi.mock("drizzle-orm", async () => {
@@ -50,7 +51,7 @@ const { detectIntent } = await import("../telegram/texts");
 const strip = (t: string) => t.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^[^\S\r\n]*\/\/.*$/gm, "");
 const ROUTER = strip(readFileSync(join(__dirname, "..", "telegram-router.ts"), "utf8"));
 const BOT = strip(readFileSync(join(__dirname, "..", "telegram", "bot.ts"), "utf8"));
-const BOOT = strip(readFileSync(join(__dirname, "..", "boot.ts"), "utf8"));
+const BOOT = strip(bootSource());
 
 beforeEach(() => vi.clearAllMocks());
 

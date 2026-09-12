@@ -287,7 +287,7 @@ export async function create(db: Db, tenantId: number, agentId: number, input: {
       Telegram есть у всех, и именно там люди сидят весь день.
     */
     const { notifyEvent } = await import("./telegram-notify");
-    const { tgMessages } = await import("../telegram-router");
+    const { tgMessages } = await import("../lib/telegram");
     await notifyEvent({
       tenantId,
       event: "order.created",

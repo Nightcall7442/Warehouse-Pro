@@ -5,6 +5,7 @@
  */
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
+import { bootSource } from "./helpers/boot-source";
 
 // Разбор вынесен в boot.ts; чтобы не тянуть весь boot, проверяем той же
 // регуляркой и по исходнику.
@@ -23,7 +24,7 @@ describe("x-client-version → client_requests_total", () => {
   });
 
   it("сервер считает по /api/*, пускает заголовок через CORS; веб ставит его в каждый запрос", () => {
-    const boot = readFileSync("api/boot.ts", "utf-8");
+    const boot = bootSource();
     expect(boot).toContain('export function clientVersionOf(header: string | undefined)');
     expect(boot).toContain('if (path.startsWith("/api/")) clientRequestsTotal.inc(clientVersionOf(c.req.header("x-client-version")));');
     expect(boot).toMatch(/allowHeaders: \[[^\]]*"x-client-version"/);

@@ -5,7 +5,7 @@ import { subscriptions, billingEvents, tenants, users } from "@db/schema";
 import { sendTrialEndingEmail } from "../lib/mailer";
 import { env } from "../lib/env";
 import { logger } from "../lib/logger";
-import { notifyAdmin, tgMessages } from "../telegram-router";
+import { notifyAdmin, tgMessages } from "../lib/telegram";
 
 /**
  * Send trial-ending reminder emails to tenants whose trial ends in ≤3 days.

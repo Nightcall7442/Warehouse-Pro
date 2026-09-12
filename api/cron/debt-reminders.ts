@@ -254,7 +254,7 @@ export async function runDebtReminders() {
         списке уведомлений.
       */
       const { notifyEvent } = await import("../services/telegram-notify");
-      const { tgEscape: esc } = await import("../telegram-router");
+      const { tgEscape: esc } = await import("../lib/telegram");
       await notifyEvent({
         tenantId: reminder.tenantId,
         event: "debt.overdue",

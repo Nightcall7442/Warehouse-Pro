@@ -18,6 +18,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { isAlreadyThere } from "../lib/migration-catchup";
+import { bootSource } from "./helpers/boot-source";
 
 const RULE_FROM_IDX = 28;
 const journal = JSON.parse(readFileSync("db/migrations/meta/_journal.json", "utf-8")) as { entries: Array<{ idx: number; tag: string }> };
@@ -60,7 +61,7 @@ describe("миграции с 0028: один DDL-файл или одно иде
 
 describe("оборванный файл не глушит запуск навсегда", () => {
   it("boot: «уже есть» от штатного мигратора — предупреждение и догон, остальное — отказ", () => {
-    const boot = readFileSync("api/boot.ts", "utf-8");
+    const boot = bootSource();
     const block = boot.slice(boot.indexOf("await withMigrationLock("), boot.indexOf("caughtUp = await catchUpMigrations"));
     expect(block).toContain("if (!isAlreadyThere(e)) throw e;");
   });

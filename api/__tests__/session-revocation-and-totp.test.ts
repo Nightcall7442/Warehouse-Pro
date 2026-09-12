@@ -15,6 +15,7 @@ vi.mock("../lib/env", () => ({ env: { appSecret: "test-secret-test-secret-test-s
 import { signSessionToken, verifySessionToken } from "../auth/session";
 import { revokeSession, isSessionRevoked, _revocationInternals } from "../auth/revocation";
 import { totpCode, verifyTotp, generateTotpSecret, base32Decode, base32Encode, otpauthUrl } from "../lib/totp";
+import { bootSource } from "./helpers/boot-source";
 
 describe("сессия: jti и отзыв", () => {
   beforeEach(() => _revocationInternals.memory.clear());
@@ -42,8 +43,8 @@ describe("сессия: jti и отзыв", () => {
   });
 
   it("refresh — ротация: прежний токен отзывается через минуту запаса", () => {
-    const boot = readFileSync("api/boot.ts", "utf-8");
-    const refresh = boot.slice(boot.indexOf('app.post("/api/refresh-token"'), boot.indexOf('app.post("/api/logout-all"'));
+    const boot = bootSource();
+    const refresh = boot.slice(boot.indexOf('routes.post("/api/refresh-token"'), boot.indexOf('routes.post("/api/logout-all"'));
     expect(refresh).toContain("setTimeout(() => { revokeSession(jti, exp).catch(() => {}); }, 60_000).unref();");
     // отзыв — после выдачи нового токена, а не вместо неё
     expect(refresh.indexOf("signSessionToken({")).toBeLessThan(refresh.indexOf("revokeSession(jti, exp)"));
@@ -52,10 +53,10 @@ describe("сессия: jti и отзыв", () => {
   it("authenticateRequest и refresh отказывают отозванной; logout отзывает", () => {
     const auth = readFileSync("api/auth/index.ts", "utf-8");
     expect(auth).toContain("if (claim.jti && await isSessionRevoked(claim.jti)) throw");
-    const boot = readFileSync("api/boot.ts", "utf-8");
-    const logout = boot.slice(boot.indexOf('app.post("/api/logout"'), boot.indexOf('app.post("/api/refresh-token"'));
+    const boot = bootSource();
+    const logout = boot.slice(boot.indexOf('routes.post("/api/logout"'), boot.indexOf('routes.post("/api/refresh-token"'));
     expect(logout).toContain("await revokeSession(claim.jti, claim.exp)");
-    const refresh = boot.slice(boot.indexOf('app.post("/api/refresh-token"'), boot.indexOf('app.post("/api/logout-all"'));
+    const refresh = boot.slice(boot.indexOf('routes.post("/api/refresh-token"'), boot.indexOf('routes.post("/api/logout-all"'));
     expect(refresh).toContain("isSessionRevoked(claim.jti)");
   });
 });
@@ -88,8 +89,8 @@ describe("TOTP", () => {
   });
 
   it("на входе код спрашивается только после верного пароля; секрет запечатан и наружу не идёт", () => {
-    const boot = readFileSync("api/boot.ts", "utf-8");
-    const login = boot.slice(boot.indexOf('app.post("/api/login"'), boot.indexOf('app.post("/api/logout"'));
+    const boot = bootSource();
+    const login = boot.slice(boot.indexOf('routes.post("/api/login"'), boot.indexOf('routes.post("/api/logout"'));
     // после проверки пароля и до выдачи токена
     expect(login.indexOf("TOTP_REQUIRED")).toBeGreaterThan(login.indexOf("matched.length === 0"));
     expect(login.indexOf("TOTP_REQUIRED")).toBeLessThan(login.indexOf("signSessionToken({"));

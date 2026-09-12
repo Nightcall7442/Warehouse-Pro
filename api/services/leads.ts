@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import { leads } from "@db/schema";
-import { sendTelegram } from "../telegram-router";
+import { sendTelegram } from "../lib/telegram";
 import { env } from "../lib/env";
 import { logger } from "../lib/logger";
 
