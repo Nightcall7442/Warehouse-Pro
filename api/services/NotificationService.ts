@@ -6,6 +6,7 @@ import { sseBus } from "../lib/sse";
 import { DEBT_NOTIFICATION_THRESHOLD } from "../lib/constants";
 import { logger } from "../lib/logger";
 import { onDate } from "../lib/date-range";
+import { lowStockCondition, onDefaultWarehouse } from "./reorder";
 
 type Db = ReturnType<typeof import("../queries/connection").getDb>;
 
@@ -315,7 +316,7 @@ export const NotificationService = {
       })
         .from(warehouseStock)
         .leftJoin(products, and(eq(warehouseStock.productId, products.id), eq(products.tenantId, tenantId)))
-        .where(and(eq(warehouseStock.tenantId, tenantId), sql`${warehouseStock.available} < ${products.reorderPoint}`))
+        .where(and(eq(warehouseStock.tenantId, tenantId), onDefaultWarehouse(tenantId), lowStockCondition()))
         .limit(5),
 
       db.select({ count: sql<number>`count(*)` })

@@ -1,0 +1,1 @@
+ALTER TABLE `warehouse_stock` DROP COLUMN `reorder_point`;

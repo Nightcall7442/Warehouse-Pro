@@ -3,6 +3,7 @@ import { createRouter, operatorQuery, can } from "./middleware";
 import { warehouseStock, products, stockMovements, settings, orderItems, orders, warehouses } from "@db/schema";
 import { eq, like, and, sql, desc } from "drizzle-orm";
 import { StockService } from "./services/stock";
+import { lowStockCondition } from "./services/reorder";
 
 export const warehouseRouter = createRouter({
   list: operatorQuery
@@ -59,7 +60,7 @@ export const warehouseRouter = createRouter({
         db.select({
           totalSKUs:     sql<number>`count(*)`,
           totalWeight:   sql<string>`COALESCE(SUM(CAST(${warehouseStock.currentStock} AS DECIMAL(15,3)) * CAST(COALESCE(${products.unitWeight}, '0') AS DECIMAL(15,3))), 0)`,
-          lowStockCount: sql<number>`count(CASE WHEN ${warehouseStock.available} < ${products.reorderPoint} THEN 1 END)`,
+          lowStockCount: sql<number>`count(CASE WHEN ${products.reorderPoint} > 0 AND ${warehouseStock.available} <= ${products.reorderPoint} THEN 1 END)`,
         }).from(warehouseStock).leftJoin(products, and(eq(warehouseStock.productId, products.id), eq(products.tenantId, ctx.tenant.id))).where(where),
       ]);
 
@@ -203,8 +204,7 @@ export const warehouseRouter = createRouter({
       .leftJoin(products, and(eq(warehouseStock.productId, products.id), eq(products.tenantId, ctx.tenant.id)))
       .where(and(
         eq(warehouseStock.tenantId, tenantId),
-        sql`${warehouseStock.available} <= ${products.reorderPoint}`,
-        sql`${products.reorderPoint} > 0`,
+        lowStockCondition(),
       ))
       .orderBy(sql`${warehouseStock.available} / NULLIF(${products.reorderPoint}, 0)`);
 

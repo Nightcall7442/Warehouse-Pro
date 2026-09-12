@@ -9,6 +9,7 @@ import {
 import { eq, and, sql, desc, gt } from "drizzle-orm";
 import { revenueOrderConditions } from "./lib/order-status";
 import { dayKey } from "./lib/period";
+import { onDefaultWarehouse } from "./services/reorder";
 
 export const warehouseReportsRouter = createRouter({
   /** Stock breakdown by product category */
@@ -30,7 +31,7 @@ export const warehouseReportsRouter = createRouter({
       totalUnits: sql<number>`COALESCE(SUM(${warehouseStock.currentStock}), 0)`,
       totalValue: sql<number>`COALESCE(SUM(${warehouseStock.currentStock} * COALESCE(${products.costPrice}, 0)), 0)`,
       totalRetail: sql<number>`COALESCE(SUM(${warehouseStock.currentStock} * COALESCE(${products.unitPrice}, 0)), 0)`,
-      lowStockCount: sql<number>`COUNT(CASE WHEN ${warehouseStock.available} <= ${products.reorderPoint} THEN 1 END)`,
+      lowStockCount: sql<number>`COUNT(CASE WHEN ${products.reorderPoint} > 0 AND ${warehouseStock.available} <= ${products.reorderPoint} THEN 1 END)`,
     })
       .from(warehouseStock)
       .leftJoin(products, and(eq(warehouseStock.productId, products.id), eq(products.tenantId, ctx.tenant.id)))
@@ -213,12 +214,15 @@ export const warehouseReportsRouter = createRouter({
         productCode: products.code,
         category: products.category,
         currentStock: warehouseStock.currentStock,
-        reorderPoint: warehouseStock.reorderPoint,
+        available: warehouseStock.available,
+        // Порог — один, на товаре (services/reorder.ts). Колонка на строке
+        // склада никем не писалась и отдавала нули.
+        reorderPoint: products.reorderPoint,
         soldQty: sql<string>`COALESCE((SELECT SUM(${orderItems.quantity}) FROM ${orderItems} INNER JOIN ${orders} o ON ${orderItems.orderId} = o.id WHERE ${orderItems.productId} = ${products.id} AND o.tenant_id = ${tenantId} AND o.deleted_at IS NULL AND o.status = 'delivered' AND o.created_at >= ${cutoff}), 0)`,
       })
         .from(warehouseStock)
         .innerJoin(products, and(eq(warehouseStock.productId, products.id), eq(products.tenantId, ctx.tenant.id)))
-        .where(eq(warehouseStock.tenantId, tenantId))
+        .where(and(eq(warehouseStock.tenantId, tenantId), onDefaultWarehouse(tenantId)))
         .orderBy(sql`COALESCE((SELECT SUM(${orderItems.quantity}) FROM ${orderItems} INNER JOIN ${orders} o ON ${orderItems.orderId} = o.id WHERE ${orderItems.productId} = ${products.id} AND o.tenant_id = ${tenantId} AND o.deleted_at IS NULL AND o.status = 'delivered' AND o.created_at >= ${cutoff}), 0) DESC`)
         .limit(50);
 
@@ -228,13 +232,15 @@ export const warehouseReportsRouter = createRouter({
         const dailyVelocity = sold / days; // units per day
         const daysUntilStockout = dailyVelocity > 0 ? Math.round(stock / dailyVelocity) : 999;
 
-        // Dynamic reorder point: velocity * lead time (assume 7 days lead time)
+        // Рекомендация по скорости продаж (неделя запаса) — подсказка к порогу
+        // в карточке, а не второе правило.
         const dynamicReorderPoint = Math.ceil(dailyVelocity * 7);
 
-        // Alert levels
+        const point = Number(r.reorderPoint ?? 0);
+        const belowPoint = point > 0 && Number(r.available ?? 0) <= point;
         let alertLevel: "ok" | "warning" | "critical" = "ok";
-        if (daysUntilStockout <= 3) alertLevel = "critical";
-        else if (daysUntilStockout <= 7) alertLevel = "warning";
+        if (daysUntilStockout <= 3 || (belowPoint && Number(r.available ?? 0) <= 0)) alertLevel = "critical";
+        else if (daysUntilStockout <= 7 || belowPoint) alertLevel = "warning";
 
         return {
           ...r,

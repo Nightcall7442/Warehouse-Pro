@@ -576,7 +576,15 @@ export const warehouseStock = mysqlTable("warehouse_stock", {
   currentStock: decimal("current_stock", { precision: 12, scale: 2 }).default("0.00").notNull(),
   reserved:     decimal("reserved", { precision: 12, scale: 2 }).default("0.00").notNull(),
   available:    decimal("available", { precision: 12, scale: 2 }).default("0.00").notNull(),
-  reorderPoint: decimal("reorder_point", { precision: 12, scale: 2 }).default("0.00").notNull(),
+  /*
+    Когда по этой строке уже предупредили «остаток ниже точки заказа».
+    Пусто — не предупреждали (или остаток вернулся выше точки, и тревога
+    снята). Так каждое пересечение точки даёт ровно одно уведомление, с
+    какого бы пути остаток ни ушёл вниз: заказ, курьер, списание, перемещение.
+    Своей точки заказа у строки склада нет — она одна, на товаре
+    (products.reorder_point); прежняя колонка здесь никем не писалась.
+  */
+  lowStockAlertedAt: timestamp("low_stock_alerted_at"),
   updatedAt:    timestamp("updated_at").defaultNow().notNull().$onUpdate(() => new Date()),
 }, (t) => ({
   productWarehouseTenant: uniqueIndex("uq_stock_product_warehouse_tenant").on(t.productId, t.warehouseId, t.tenantId),

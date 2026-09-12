@@ -112,8 +112,11 @@ export const tgMessages = {
   newOrder: (n: string, shop: string, total: string, cur: string) =>
     `🛒 <b>Новый заказ</b>\n📋 ${tgEscape(n)}\n🏪 ${tgEscape(shop)}\n💰 ${tgEscape(total)} ${tgEscape(cur)}`,
 
-  lowStock: (name: string, qty: string) =>
-    `⚠️ <b>Мало на складе</b>\n📦 ${tgEscape(name)}\n📉 Остаток: ${tgEscape(qty)} кг`,
+  /** Одним сообщением на организацию — списком, а не по товару; единица — своя у каждого. */
+  lowStockList: (items: Array<{ name: string; qty: string; unit: string; point: string }>, more = 0) =>
+    `📉 <b>Остаток ниже точки заказа</b>\n` +
+    items.map(i => `• ${tgEscape(i.name)} — ${tgEscape(i.qty)} ${tgEscape(i.unit)} (порог ${tgEscape(i.point)})`).join("\n") +
+    (more > 0 ? `\n… и ещё ${tgEscape(more)}` : ""),
 
   supportMessage: (org: string, who: string, preview: string) =>
     `💬 <b>Вопрос в поддержку</b>\n🏢 ${tgEscape(org)}\n👤 ${tgEscape(who)}\n\n${tgEscape(preview)}`,

@@ -240,15 +240,11 @@ describe("StockService.adjust", () => {
     expect(stock.currentStock).toBe("75.00");
   });
 
-  it("emits stock.low event when out adjustment drops below reorder point", async () => {
+  it("тревогу «ниже точки заказа» списание не шлёт само — это делает крон low-stock-alerts", async () => {
+    // Раньше тревога стояла только здесь, и отгрузка по заказу молчала.
+    // Теперь один крон (services/reorder.ts) смотрит все пути; см.
+    // reorder-point-is-one-rule.test.ts.
     await StockService.adjust(mockDb as any, 1, 1, 95, "out");
-
-    expect(sseBus.emit).toHaveBeenCalledWith(
-      expect.objectContaining({
-        type: "stock.low",
-        tenantId: 1,
-        data: expect.objectContaining({ productId: 1, productName: "Product A" }),
-      }),
-    );
+    expect(sseBus.emit).not.toHaveBeenCalledWith(expect.objectContaining({ type: "stock.low" }));
   });
 });

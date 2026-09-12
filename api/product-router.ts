@@ -15,6 +15,7 @@ import { isDuplicateOf } from "./lib/db-errors";
 import { existingSpelling } from "./lib/category";
 import { TRPCError } from "@trpc/server";
 import { recordAudit, auditActor, changedFields } from "./services/audit-log";
+import { defaultReorderPoint } from "./services/reorder";
 
 /**
  * Код товара занят — это ответ оператору, а не внутренний сбой.
@@ -323,7 +324,7 @@ export const productRouter = createRouter({
       description:  z.string().optional(),
       photoUrl:     z.string().max(2_800_000, "Файл слишком большой (макс. 2 МБ)")
         .refine(isSafePhotoValue, PHOTO_VALUE_ERROR).optional(),
-      reorderPoint: decimalOrDefault("10.00").default("10.00"),
+      reorderPoint: decimalOrDefault("10.00").optional(),
     }))
     .mutation(async ({ input, ctx }) => {
       const db       = getDb();
@@ -355,6 +356,8 @@ export const productRouter = createRouter({
         name: sanitizeString(input.name),
         category: input.category ? sanitizeString(input.category) : undefined,
         description: input.description ? sanitizeString(input.description) : undefined,
+        // Не указали — порог из настроек организации, а не молчаливые «10».
+        reorderPoint: input.reorderPoint ?? await defaultReorderPoint(db, tenantId),
       };
 
       /*
@@ -515,7 +518,7 @@ export const productRouter = createRouter({
             if (removedStock.length > 0) {
               await tx.insert(warehouseStock).values(removedStock.map(s => ({
                 tenantId: s.tenantId, warehouseId: s.warehouseId, productId: s.productId,
-                currentStock: s.currentStock, reserved: s.reserved, available: s.available, reorderPoint: s.reorderPoint,
+                currentStock: s.currentStock, reserved: s.reserved, available: s.available,
               })));
             }
             await tx.update(products)
