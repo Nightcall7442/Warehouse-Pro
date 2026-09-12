@@ -23,7 +23,7 @@ import { Section, Input, BtnPrimary, BtnSecondary } from "./ui";
  */
 const KEY = "wp.aiOfficeUrl";
 
-export function readOfficeUrl(): string {
+function readOfficeUrl(): string {
   try { return localStorage.getItem(KEY) || ""; } catch { return ""; }
 }
 
