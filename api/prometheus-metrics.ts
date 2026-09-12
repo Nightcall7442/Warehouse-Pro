@@ -28,6 +28,21 @@ export const httpRequestsTotal = new client.Counter({
   registers: [register],
 });
 
+/*
+  Кто и какой версией ходит. Заголовок x-client-version ставят веб
+  (сборка) и мобилка (app.json); без него — «unknown». По этой метрике видно,
+  сколько телефонов ещё на старой сборке — до этого о версиях в поле не
+  знал никто, и ошибка «у агента не работает» не привязывалась к сборке.
+  Версия — из заголовка, но ограниченной формы (см. boot.ts): произвольная
+  строка от клиента раздула бы набор меток.
+*/
+export const clientRequestsTotal = new client.Counter({
+  name: "client_requests_total",
+  help: "Requests by client kind and version (x-client-version header)",
+  labelNames: ["client", "version"] as const,
+  registers: [register],
+});
+
 export const httpRequestDurationSeconds = new client.Histogram({
   name: "http_request_duration_seconds",
   help: "HTTP request duration in seconds",

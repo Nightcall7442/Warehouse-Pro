@@ -93,8 +93,14 @@ queryClient.getMutationCache().config.onError = (error: Error) => {
   // Toast показывается в конкретных useMutation({ onError }) — глобальный fallback только логирует
 };
 
-const customFetch = (input: RequestInfo | URL, init?: RequestInit) =>
-  globalThis.fetch(input, { ...init, credentials: "include" });
+// Версия сборки — в каждом запросе: по ней сервер считает, кто на какой
+// сборке (client_requests_total), и Sentry получает ту же строку.
+const CLIENT_VERSION = `web/${import.meta.env.VITE_APP_VERSION || "dev"}`;
+const customFetch = (input: RequestInfo | URL, init?: RequestInit) => {
+  const headers = new Headers(init?.headers);
+  headers.set("x-client-version", CLIENT_VERSION);
+  return globalThis.fetch(input, { ...init, credentials: "include", headers });
+};
 
 export const trpcClient = trpc.createClient({
   links: [

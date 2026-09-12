@@ -39,6 +39,7 @@ import {
   getMetricsText,
   prometheusContentType,
   httpRequestsTotal,
+  clientRequestsTotal,
   httpRequestDurationSeconds,
   httpRequestsActive,
   httpRequestErrorsTotal,
@@ -48,6 +49,15 @@ import {
 import * as Sentry from "@sentry/node";
 
 const APP_VERSION = "1.0.0";
+
+/**
+ * Разбор x-client-version: «web/1.4.2» или «mobile/2.0.1». Всё, что не
+ * похоже на это, — unknown: метка из произвольной строки раздула бы метрику.
+ */
+export function clientVersionOf(header: string | undefined): { client: string; version: string } {
+  const m = /^(web|mobile)\/([0-9A-Za-z.+-]{1,32})$/.exec((header ?? "").trim());
+  return m ? { client: m[1], version: m[2] } : { client: "unknown", version: "unknown" };
+}
 
 /**
  * Код ошибки tRPC в код ответа HTTP.
@@ -189,6 +199,8 @@ if (env.prometheusEnabled) {
 
       endTimer({ method, path, status });
       httpRequestsTotal.inc({ method, path, status });
+      // Только запросы приложения: сканеры и статика версией не подписаны.
+      if (path.startsWith("/api/")) clientRequestsTotal.inc(clientVersionOf(c.req.header("x-client-version")));
       if (Number(status) >= 500) httpRequestErrorsTotal.inc({ method, path, status });
       httpRequestsActive.dec();
     }
@@ -343,7 +355,7 @@ app.use(secureHeaders({
 app.use("/api/*", cors({
   origin: (origin) => (origin && env.allowedOrigins.includes(origin)) ? origin : null,
   allowMethods: ["GET", "POST", "OPTIONS"],
-  allowHeaders: ["Content-Type", "Authorization", "ngrok-skip-browser-warning", "x-correlation-id", "x-csrf-token", "Last-Event-ID"],
+  allowHeaders: ["Content-Type", "Authorization", "ngrok-skip-browser-warning", "x-correlation-id", "x-csrf-token", "x-client-version", "Last-Event-ID"],
   credentials: true,
   maxAge: 86400,
 }));
