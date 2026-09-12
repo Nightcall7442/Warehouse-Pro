@@ -11,6 +11,7 @@ import { recordAudit } from "./services/audit-log";
 import { generateTotpSecret, verifyTotp, otpauthUrl } from "./lib/totp";
 import { seal, open as unseal } from "./lib/secret-box";
 import { ROLES } from "@contracts/types";
+import { invalidateAuthUser } from "./auth";
 
 export const userRouter = createRouter({
   list: adminQuery
@@ -91,6 +92,7 @@ export const userRouter = createRouter({
         passwordHash: newHash,
         tokenVersion: sql`COALESCE(${users.tokenVersion}, 0) + 1`,
       }).where(eq(users.id, ctx.user.id));
+      invalidateAuthUser(ctx.user.id);
       return { success: true };
     }),
 
@@ -127,6 +129,7 @@ export const userRouter = createRouter({
 
       await db.update(users).set(data)
         .where(and(eq(users.id, id), eq(users.tenantId, ctx.tenant.id)));
+      invalidateAuthUser(id);
 
       // Audit: user updated (role/status change)
       if (data.role || data.status) {
@@ -188,6 +191,7 @@ export const userRouter = createRouter({
 
       await db.update(users).set({ status: "inactive" })
         .where(and(eq(users.id, input.id), eq(users.tenantId, ctx.tenant.id)));
+      invalidateAuthUser(input.id);
 
       await recordAudit(db, {
         tenantId: ctx.tenant.id,
@@ -246,6 +250,7 @@ export const userRouter = createRouter({
 
       await db.update(users).set(updateData)
         .where(and(eq(users.id, id), eq(users.tenantId, ctx.tenant.id)));
+      invalidateAuthUser(id);
 
       await recordAudit(db, {
         tenantId: ctx.tenant.id,

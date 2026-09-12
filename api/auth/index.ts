@@ -5,7 +5,47 @@ import { verifySessionToken } from "./session";
 import { isSessionRevoked } from "./revocation";
 import { findUserById } from "../queries/users";
 import { findTenantById } from "../queries/tenants";
+import { cache } from "../lib/cache";
 import type { Tenant, User } from "@db/schema";
+
+/*
+  Пользователь и организация — на каждый запрос.
+
+  Каждый вызов делал два SELECT (users, tenants) — при 343 процедурах и
+  экране, который за секунду зовёт десяток, это была почти половина
+  обращений к базе. Теперь оба ответа живут в памяти процесса десять секунд:
+  экран с десятью вызовами обходится одним чтением.
+
+  Только в памяти, не в Redis: в строках есть даты, а JSON их превращает в
+  строки. Сброс — рассылается репликам (lib/cache.ts), так что деактивация,
+  «выйти отовсюду» и приостановка организации действуют сразу и везде;
+  остальные правки (имя, телефон) доезжают в пределах десяти секунд.
+  Отзыв сессии (jti) проверяется в Redis до кэша и кэша не касается.
+*/
+const AUTH_TTL_MS = 10_000;
+const userKey = (id: number) => `auth:user:${id}`;
+const tenantKey = (id: number) => `auth:tenant:${id}`;
+
+/** Пользователь изменился так, что это влияет на вход: статус, роль, tokenVersion. */
+export function invalidateAuthUser(userId: number): void { cache.invalidate(userKey(userId)); }
+/** Организация приостановлена, удалена или сменила тариф. */
+export function invalidateAuthTenant(tenantId: number): void { cache.invalidate(tenantKey(tenantId)); }
+
+async function cachedUser(id: number) {
+  const hit = cache.get<Awaited<ReturnType<typeof findUserById>>>(userKey(id));
+  if (hit !== undefined) return hit;
+  const row = await findUserById(id);
+  cache.setLocal(userKey(id), row, AUTH_TTL_MS);
+  return row;
+}
+
+async function cachedTenant(id: number) {
+  const hit = cache.get<Awaited<ReturnType<typeof findTenantById>>>(tenantKey(id));
+  if (hit !== undefined) return hit;
+  const row = await findTenantById(id);
+  cache.setLocal(tenantKey(id), row, AUTH_TTL_MS);
+  return row;
+}
 
 /**
  * findUserById projects every column except the password hash, so an
@@ -39,7 +79,7 @@ export async function authenticateRequest(headers: Headers): Promise<AuthResult>
   // Выход отзывает сессию: токен подписан верно, но им уже вышли.
   if (claim.jti && await isSessionRevoked(claim.jti)) throw Errors.forbidden("Session expired. Please re-login.");
 
-  const user = await findUserById(claim.userId);
+  const user = await cachedUser(claim.userId);
   if (!user)   throw Errors.forbidden("User not found. Please re-login.");
   if (user.status !== "active") throw Errors.forbidden("Account is inactive.");
 
@@ -48,7 +88,7 @@ export async function authenticateRequest(headers: Headers): Promise<AuthResult>
     throw Errors.forbidden("Session expired. Please re-login.");
   }
 
-  const tenant = await findTenantById(user.tenantId);
+  const tenant = await cachedTenant(user.tenantId);
   if (!tenant || tenant.status !== "active") throw Errors.forbidden("Organisation is suspended.");
 
   return { user, tenant };

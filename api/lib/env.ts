@@ -82,6 +82,10 @@ export const env = {
 
   // Database
   dbConnectionLimit:    parseInt(optional("DB_CONNECTION_LIMIT", "20"), 10),
+  /** Потолок очереди за соединением пула; 0 — без предела (так было). */
+  dbQueueLimit:         parseInt(optional("DB_QUEUE_LIMIT", "500"), 10),
+  /** max_execution_time для SELECT, мс; 0 — без предела. */
+  dbStatementTimeoutMs: parseInt(optional("DB_STATEMENT_TIMEOUT_MS", "30000"), 10),
 
   // Rate limiting
   rateLimitGlobalMax:   parseInt(optional("RATE_LIMIT_GLOBAL_MAX", "120"), 10),
