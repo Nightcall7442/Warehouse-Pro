@@ -217,10 +217,12 @@ const lastRun = new Map<string, string>();
    в cron_runs, когда она удавалась в последний раз, и пока удачи после
    назначенного момента нет — пробует раз в час, в окне catchUpHours.
 
-   Догоняются только работы, удававшиеся хотя бы однажды: у работы без отметки
-   планировщик не знает, делалась ли она сегодня старым процессом, и после
-   каждой выкладки слал бы напоминания второй раз. Такая работа идёт как
-   прежде — ровно в свою минуту, — пока не удастся впервые.
+   Догоняются только работы, о которых процесс что-то знает: удавалась хотя бы
+   однажды (отметка в базе) или он сам её уже пробовал. У работы без того и
+   другого планировщик не знает, делалась ли она сегодня старым процессом, и
+   после каждой выкладки слал бы напоминания второй раз — такая идёт как
+   прежде, ровно в свою минуту; но упала она в эту минуту — повтор через час,
+   как у всех.
 
    Ежедневные работы одного тика идут по одной, в порядке списка: уборки
    стоят после ночной копии не случайно, и догон обязан это сохранить.
@@ -311,8 +313,8 @@ async function tick(now = new Date()): Promise<void> {
     if (!stateLoaded) await loadState();
     for (const job of JOBS) {
       if (job.everyMinutes) continue;
-      const known = stateLoaded && lastSuccess.has(job.name);
-      const due = known ? dueSlot(job, now) : (exactMinute(job, now) ? now : null);
+      const known = stateLoaded && (lastSuccess.has(job.name) || lastAttempt.has(job.name));
+      const due = known ? dueSlot(job, now) : (exactMinute(job, now) ? lastDue(job, now) : null);
       if (!due) continue;
       lastAttempt.set(job.name, now.getTime());
       await runExclusively(job, due);
@@ -389,9 +391,22 @@ async function runExclusively(job: Job, due?: Date): Promise<void> {
       const at = new Date();
       lastSuccess.set(job.name, at.getTime());
       cronLastSuccessTimestamp.set({ job: job.name }, Math.floor(at.getTime() / 1000));
-      await store.saveSuccess(job.name, at).catch(e => logger.warn("cron run not recorded", {
-        job: job.name, error: e instanceof Error ? e.message : String(e),
-      }));
+      // Незаписанная удача после перезапуска обернётся повтором работы —
+      // для рассылки второй копией у получателей. Поэтому три попытки с паузой.
+      for (let attempt = 1; ; attempt++) {
+        try {
+          await store.saveSuccess(job.name, at);
+          break;
+        } catch (e) {
+          if (attempt >= 3) {
+            logger.error("cron run NOT recorded — a restart may repeat this job", {
+              job: job.name, error: e instanceof Error ? e.message : String(e),
+            });
+            break;
+          }
+          await new Promise(r => setTimeout(r, 2_000 * attempt));
+        }
+      }
     } catch (e) {
       const error = e instanceof Error ? e.message : String(e);
       logger.error("cron job failed", { job: job.name, error });

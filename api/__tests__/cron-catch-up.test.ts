@@ -126,17 +126,39 @@ describe("догон пропущенной ежедневной работы", 
     expect(run).not.toHaveBeenCalled();
   });
 
-  it("работа без единой удачи идёт как прежде — ровно в свою минуту", async () => {
+  it("работа без единой удачи идёт как прежде — ровно в свою минуту; упала — повтор через час", async () => {
     /*
       Без отметки планировщик не знает, делалась ли работа сегодня старым
       процессом. Догонять «на всякий случай» — это после каждой выкладки слать
-      напоминания второй раз.
+      напоминания второй раз. Но свою же неудачную попытку он помнит: первая
+      ночь после выкладки с «повторите позже» от хранилища — ровно тот случай,
+      ради которого догон писался.
     */
-    const run = vi.spyOn(job("backup"), "run").mockResolvedValue("ok");
+    const run = vi.spyOn(job("backup"), "run").mockRejectedValue(new Error("SlowDown"));
     await at(tk(8, 6, 0));
     expect(run).not.toHaveBeenCalled();
     await at(tk(9, 3, 0));
     expect(run).toHaveBeenCalledTimes(1);
+    expect(notifyAdmin).toHaveBeenCalledWith("backup|SlowDown|true"); // обещание повтора — честное
+    await at(tk(9, 3, 30));
+    expect(run).toHaveBeenCalledTimes(1);
+    run.mockResolvedValue("ok");
+    await at(tk(9, 4, 1));
+    expect(run).toHaveBeenCalledTimes(2);
+    expect(notifyAdmin).toHaveBeenCalledTimes(1);
+  });
+
+  it("незаписанная удача: три попытки записи, потом ошибка в журнал", async () => {
+    loaded = [{ job: "backup", lastSuccessAt: tk(7, 3, 4) }];
+    vi.spyOn(job("backup"), "run").mockResolvedValue("ok");
+    vi.spyOn(store, "saveSuccess").mockRejectedValue(new Error("ECONNRESET"));
+    vi.useFakeTimers({ toFake: ["Date", "setTimeout"] });
+    const t = at(tk(8, 6, 0));
+    await vi.advanceTimersByTimeAsync(10_000);
+    await t;
+    expect(vi.mocked(store.saveSuccess).mock.calls.filter(([j]) => j === "backup")).toHaveLength(3);
+    const { logger } = await import("../lib/logger");
+    expect(logger.error).toHaveBeenCalledWith(expect.stringContaining("NOT recorded"), expect.objectContaining({ job: "backup" }));
   });
 
   it("отметки не прочитались (база лежала на старте) — догона нет, минута работает", async () => {
