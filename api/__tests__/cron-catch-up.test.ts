@@ -57,6 +57,7 @@ beforeEach(() => {
   // Остальные работы в этой проверке — пустышки: настоящие полезли бы в базу.
   for (const j of JOBS) vi.spyOn(j, "run").mockResolvedValue(undefined);
   vi.spyOn(store, "load").mockImplementation(async () => loaded);
+  vi.spyOn(store, "lastSuccess").mockImplementation(async j => loaded.find(r => r.job === j)?.lastSuccessAt ?? null);
   vi.spyOn(store, "saveSuccess").mockResolvedValue();
   vi.spyOn(store, "saveFailure").mockResolvedValue();
   notifyAdmin.mockClear();
@@ -164,6 +165,23 @@ describe("догон пропущенной ежедневной работы", 
     vi.spyOn(job("support-cleanup"), "run").mockImplementation(async () => { order.push("support-cleanup"); });
     await at(tk(8, 6, 0));
     expect(order).toEqual(["backup", "support-cleanup"]);
+  });
+
+  it("вторая реплика не догоняет то, что первая уже сделала", async () => {
+    /*
+      Отметки читаются при старте. Первая реплика сняла копию в 03:00, вторая
+      в тот момент не взяла замок — и через час, по своей вчерашней отметке,
+      пошла бы снимать вторую. Для напоминаний это дубли у всех получателей.
+    */
+    loaded = [{ job: "debt-reminders", lastSuccessAt: tk(7, 9, 1) }];
+    const run = vi.spyOn(job("debt-reminders"), "run").mockResolvedValue(undefined);
+    conn.query.mockResolvedValueOnce([[{ ok: 0 }]]); // замок у соседа
+    await at(tk(8, 9, 1)); // в 09:00 замок спросила бы ещё и частая очередь
+    expect(run).not.toHaveBeenCalled();
+
+    loaded = [{ job: "debt-reminders", lastSuccessAt: tk(8, 9, 2) }]; // сосед записал удачу
+    await at(tk(8, 10, 1));
+    expect(run).not.toHaveBeenCalled();
   });
 
   it("частая работа догона не знает и не ждёт ежедневных", async () => {

@@ -1,4 +1,5 @@
 import { getPool, getDb } from "../queries/connection";
+import { eq } from "drizzle-orm";
 import { cronRuns } from "@db/schema";
 import { logger } from "../lib/logger";
 import { cronLastSuccessTimestamp } from "../prometheus-metrics";
@@ -238,6 +239,10 @@ const store = {
   async load(): Promise<Array<{ job: string; lastSuccessAt: Date | null }>> {
     return getDb().select({ job: cronRuns.job, lastSuccessAt: cronRuns.lastSuccessAt }).from(cronRuns);
   },
+  async lastSuccess(job: string): Promise<Date | null> {
+    const [row] = await getDb().select({ at: cronRuns.lastSuccessAt }).from(cronRuns).where(eq(cronRuns.job, job)).limit(1);
+    return row?.at ?? null;
+  },
   async saveSuccess(job: string, at: Date): Promise<void> {
     await getDb().insert(cronRuns).values({ job, lastSuccessAt: at })
       .onDuplicateKeyUpdate({ set: { lastSuccessAt: at } });
@@ -361,6 +366,21 @@ async function runExclusively(job: Job, due?: Date): Promise<void> {
     const [rows] = await conn.query("SELECT GET_LOCK(?, 0) AS ok", [`warehouse_pro:cron:${job.name}`]);
     const ok = Number((rows as Array<{ ok: number | null }>)[0]?.ok ?? 0) === 1;
     if (!ok) return;
+
+    /*
+      Догон сверяется с базой, а не только с памятью. Вторая реплика узнаёт об
+      удаче первой только отсюда: её собственная отметка осталась вчерашней, и
+      через час она догнала бы то, что уже сделано, — для напоминаний это
+      вторая копия у каждого получателя. Сверка не удалась — считаем, что не
+      сделано: лишняя копия базы дешевле пропущенной.
+    */
+    if (due) {
+      const done = await store.lastSuccess(job.name).catch(() => null);
+      if (done && done.getTime() >= due.getTime()) {
+        lastSuccess.set(job.name, done.getTime());
+        return;
+      }
+    }
 
     try {
       const started = Date.now();
