@@ -90,6 +90,13 @@ describe("сканер-клавиатура: код + Enter", () => {
     expect(input.value).toBe("Печ");
   });
 
+  it("быстрый заказ: Enter запоминает код, товар ложится, когда пришёл ответ на него", () => {
+    const src = readFileSync("src/components/orders/QuickOrderModal.tsx", "utf-8");
+    expect(src).toContain('data-testid="quick-order-product-search"');
+    expect(src).toContain("setPendingScan(productSearch)");
+    expect(src).toContain("if (!pendingScan || !productsData || productSearch !== pendingScan) return;");
+  });
+
   it("на приёмке есть поле «штрих-код + Enter»", () => {
     const src = readFileSync("src/pages/Arrivals.tsx", "utf-8");
     expect(src).toContain('data-testid="arrival-wedge"');
