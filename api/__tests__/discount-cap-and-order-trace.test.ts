@@ -40,6 +40,25 @@ describe("порог скидки полевых ролей", () => {
     expect(create.indexOf("settings.maxFieldDiscountPct")).toBeLessThan(create.indexOf("OrderService.create("));
   });
 
+  /*
+    Выше порога — не отказ, а ожидание: заказ оформляется в pending с
+    причиной, офис получает уведомление и подтверждает переводом в «новый»
+    (updateStatus — только ceo/operator). Причина стирается при выходе из
+    ожидания.
+  */
+  it("выше порога — заказ ждёт офиса с причиной и уведомлением, а не отказ", () => {
+    expect(create).not.toContain('code: "FORBIDDEN"');
+    expect(create).toContain("holdReason = `Скидка ${discountPct}% выше порога");
+    expect(create).toMatch(/holdReason,\s*\}\);/);
+    expect(create).toContain("NotificationService.createBulk(ctx.db, {");
+    expect(create).toContain("sql`${users.role} IN ('ceo', 'operator')`");
+    const service = readFileSync(resolve(__dirname, "../services/order.ts"), "utf-8");
+    expect(service).toContain('status: input.holdReason ? "pending" : "new"');
+    expect(service).toContain('const holdPatch = order.status === "pending" && newStatus !== "pending" ? { holdReason: null } : {};');
+    expect(service).toContain("held: Boolean(input.holdReason)");
+    expect(readFileSync(resolve(__dirname, "../../src/pages/OrderDetail.tsx"), "utf-8")).toContain('data-testid="order-hold-reason"');
+  });
+
   it("поле принимает роутер настроек и показывает экран компании", () => {
     expect(readFileSync(resolve(__dirname, "../settings-router.ts"), "utf-8")).toMatch(/maxFieldDiscountPct: z\.preprocess/);
     expect(readFileSync(resolve(__dirname, "../../src/components/settings/CompanySettings.tsx"), "utf-8")).toContain('set("maxFieldDiscountPct")');

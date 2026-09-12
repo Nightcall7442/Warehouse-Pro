@@ -344,6 +344,14 @@ export const orders = mysqlTable("orders", {
     быть не может: подставленный срок — это чужое обещание от лица агента.
   */
   promisedDeliveryAt: timestamp("promised_delivery_at"),
+  /*
+    Почему заказ ждёт офиса (status = pending). Скидка полевого сотрудника
+    выше порога раньше отказывалась у прилавка; теперь заказ оформляется,
+    держит резерв и ждёт подтверждения офиса — а причина стоит здесь, чтобы
+    директор видел, ЧТО подтверждает. Стирается, когда заказ выходит из
+    ожидания.
+  */
+  holdReason: varchar("hold_reason", { length: 255 }),
   deliveredAt: timestamp("delivered_at"),
   invoicePrintedAt: timestamp("invoice_printed_at"),
   deliveryResult: varchar("delivery_result", { length: 30 }), // paid, partial_paid, returned, partial_returned

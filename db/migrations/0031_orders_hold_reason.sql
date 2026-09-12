@@ -1,0 +1,1 @@
+ALTER TABLE `orders` ADD `hold_reason` varchar(255);

@@ -1204,6 +1204,8 @@ export const OrderService = {
       // Обещанный срок. Пусто — значит срок магазину не называли; это
       // законное значение, а не «нет данных».
       promisedDeliveryAt: orders.promisedDeliveryAt,
+      // Почему заказ в «ожидает» — директору видно, что он подтверждает.
+      holdReason: orders.holdReason,
       paymentMethod: orders.paymentMethod, invoicePrintedAt: orders.invoicePrintedAt,
     }).from(orders).where(and(eq(orders.id, orderId), eq(orders.tenantId, tenantId), isNull(orders.deletedAt), ...scope)).limit(1);
     if (!order) return null;
@@ -1251,7 +1253,7 @@ export const OrderService = {
     return { data, total: Number(countResult[0]?.count ?? 0) };
   },
 
-  async create(db: Db, tenantId: number, agentId: number, input: { shopId: number; warehouseId?: number; items: Array<{ productId: number; quantity: string }>; notes?: string; discount?: string; idempotencyKey?: string; paymentMethod?: "cash" | "card" | "transfer" | "debt"; promisedDeliveryAt?: Date | null }) {
+  async create(db: Db, tenantId: number, agentId: number, input: { shopId: number; warehouseId?: number; items: Array<{ productId: number; quantity: string }>; notes?: string; discount?: string; idempotencyKey?: string; paymentMethod?: "cash" | "card" | "transfer" | "debt"; promisedDeliveryAt?: Date | null; /** Причина, по которой заказ ждёт офиса: создаётся в pending. */ holdReason?: string | null }) {
     // discount is a percentage (0-100) entered by the user — converted to a
     // money amount below and stored as such (orders.discount stays a money
     // column so revenue/P&L reports that SUM it keep meaning "money discounted").
@@ -1414,7 +1416,10 @@ export const OrderService = {
       for (let attempt = 0; ; attempt++) {
         try {
           const [result] = await tx.insert(orders).values({
-            tenantId, orderNumber: number, shopId: input.shopId, agentId, status: "new",
+            tenantId, orderNumber: number, shopId: input.shopId, agentId,
+            // Заказ с причиной ждёт офиса: резерв держит, в работу не идёт.
+            status: input.holdReason ? "pending" : "new",
+            holdReason: input.holdReason ?? null,
             subtotal: subtotal.toFixed(2), discount: discount.toFixed(2), total: total.toFixed(2),
             notes: input.notes,
             idempotencyKey: input.idempotencyKey ?? null,
@@ -1543,7 +1548,7 @@ export const OrderService = {
     // время подняли прайс, накладная приходит на другую сумму, чем записано
     // на бумаге у владельца, и разбираться с этим агенту у двери магазина.
     // Зная итог, приложение сообщает о расхождении сразу после отправки.
-    return { id: orderId, orderNumber, total: orderTotal };
+    return { id: orderId, orderNumber, total: orderTotal, held: Boolean(input.holdReason) };
   },
 
   async cancel(db: Db, tenantId: number, orderId: number, opts: { userId: number; userRole: string }) {
@@ -1861,7 +1866,9 @@ export const OrderService = {
         ? { deliveryStatus: "delivered" as const, deliveredAt: new Date() }
         : {};
 
-      const [statusUpdateResult] = await tx.update(orders).set({ status: newStatus, ...deliveryPatch })
+      // Выход из ожидания снимает причину: подтверждено или отклонено — она отработала.
+      const holdPatch = order.status === "pending" && newStatus !== "pending" ? { holdReason: null } : {};
+      const [statusUpdateResult] = await tx.update(orders).set({ status: newStatus, ...deliveryPatch, ...holdPatch })
         .where(and(eq(orders.id, orderId), eq(orders.tenantId, tenantId), eq(orders.status, order.status)));
       if ((statusUpdateResult as { affectedRows?: number }).affectedRows !== 1) {
         throw new Error("Статус заказа уже был изменён другим действием");
