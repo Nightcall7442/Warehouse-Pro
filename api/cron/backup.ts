@@ -7,6 +7,36 @@ import { s3Client, serverSideEncryption, isOffsiteBackupConfigured, offsiteBacku
 import { backupLastSuccessTimestamp, backupLastSizeBytes } from "../prometheus-metrics";
 
 import { firstRow } from "../lib/db-rows";
+
+/**
+ * Хранилище иногда отвечает не «нет», а «не сейчас»: MinIO на одном узле
+ * отдаёт «A timeout occurred while trying to lock a resource, please reduce
+ * your request rate» (SlowDown), когда его внутренняя блокировка занята,
+ * R2 — InternalError под нагрузкой, сеть — ECONNRESET. Ночная копия из-за
+ * такого падала целиком, хотя через десять секунд загрузка проходит.
+ * Повторяем только эти, временные, ошибки; «нет доступа» или «нет корзины»
+ * — нет смысла, они не пройдут и с пятого раза.
+ */
+const TRANSIENT = /lock a resource|reduce your request rate|SlowDown|InternalError|ServiceUnavailable|ECONNRESET|ETIMEDOUT|EPIPE|socket hang up|RequestTimeout/i;
+const RETRY_ATTEMPTS = 5;
+// базовая пауза; в тестах её обнуляют переменной, чтобы отказ зеркала не ждал полминуты
+const retryBaseMs = () => Number(process.env.BACKUP_RETRY_BASE_MS ?? 2_000);
+
+export async function withStorageRetry<T>(label: string, fn: () => Promise<T>,
+                                          sleep: (ms: number) => Promise<void> = ms => new Promise(r => setTimeout(r, ms))): Promise<T> {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      if (attempt >= RETRY_ATTEMPTS || !TRANSIENT.test(message)) throw err;
+      const wait = retryBaseMs() * 2 ** (attempt - 1);
+      logger.warn("Backup: storage asked to retry", { label, attempt, wait, message });
+      await sleep(wait);
+    }
+  }
+}
+
 /**
  * Database backup cron job
  * Runs daily at 3 AM UTC
@@ -117,7 +147,7 @@ export async function runBackup(): Promise<{ success: boolean; message: string }
       ...serverSideEncryption(),
       Metadata: { tableCounts: JSON.stringify(counts) },
     });
-    await s3.send(put());
+    await withStorageRetry("primary", () => s3.send(put()));
 
     /*
       Зеркало вне площадки. Обе загрузки обязательны, если зеркало настроено:
@@ -128,7 +158,7 @@ export async function runBackup(): Promise<{ success: boolean; message: string }
     let mirrored = false;
     if (isOffsiteBackupConfigured()) {
       const offsite = await offsiteBackupClient();
-      await offsite.send(put());
+      await withStorageRetry("offsite", () => offsite.send(put()));
       mirrored = true;
     }
 
