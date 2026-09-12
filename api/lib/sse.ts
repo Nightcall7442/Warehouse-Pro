@@ -1,4 +1,4 @@
-import { getRedis, getSubscriber, isRedisAvailable } from "./redis";
+import { subscribeChannel, publishChannel, INSTANCE_ID } from "./redis";
 
 export type SSEEventType =
   | "order.created"
@@ -31,6 +31,13 @@ type SSEListener = {
 
 const REDIS_SSE_CHANNEL = "sse:events";
 
+/*
+  Событие в Redis несёт метку процесса-отправителя. Без неё отправитель
+  получал бы своё же событие обратно и раздавал его слушателям второй раз —
+  ровно это и случилось бы в тот день, когда подписка наконец заработала.
+*/
+type WireEvent = SSEEvent & { origin: string };
+
 /**
  * Адресовано ли событие этому пользователю.
  *
@@ -46,7 +53,7 @@ function isVisibleTo(event: SSEEvent, userId: number): boolean {
   return !event.userId || event.userId === userId;
 }
 
-class SSEBus {
+export class SSEBus {
   private listeners = new Map<string, Set<SSEListener>>();
   private eventHistory = new Map<string, SSEEvent[]>();
   private maxHistoryPerChannel = 50;
@@ -54,33 +61,42 @@ class SSEBus {
   private lastEviction = Date.now();
   private evictionInterval = 60 * 1000;
   private redisSubscribed = false;
+  private readonly origin: string;
 
-  constructor() {
-    this.setupRedisSubscription();
+  constructor(origin: string = INSTANCE_ID) {
+    this.origin = origin;
   }
 
-  private setupRedisSubscription(): void {
-    if (!isRedisAvailable() || this.redisSubscribed) return;
+  /*
+    Подписка ленивая — при первом emit/subscribe после того, как Redis поднят.
+    В конструкторе она стояла зря: модуль импортируется раньше connectRedis(),
+    и подписка не ставилась никогда (см. lib/redis.ts, subscribeChannel).
+  */
+  private ensureRedis(): void {
+    if (this.redisSubscribed) return;
+    this.redisSubscribed = subscribeChannel(REDIS_SSE_CHANNEL, this.onWire);
+  }
 
-    try {
-      const sub = getSubscriber();
-      sub.subscribe(REDIS_SSE_CHANNEL, (err) => {
-        if (err) {
-          console.error("SSE Redis subscribe error:", err.message);
-          return;
-        }
-        this.redisSubscribed = true;
-      });
+  /** Событие с другой реплики: слушателям и в историю (для догона после обрыва). */
+  private readonly onWire = (message: string): void => {
+    let event: WireEvent;
+    try { event = JSON.parse(message); } catch { return; }
+    if (event.origin === this.origin) return;
+    const { origin: _o, ...local } = event;
+    void _o;
+    this.remember(local);
+    this.dispatchToLocalListeners(local);
+  };
 
-      sub.on("message", (channel, message) => {
-        if (channel !== REDIS_SSE_CHANNEL) return;
-        try {
-          const event: SSEEvent = JSON.parse(message);
-          this.dispatchToLocalListeners(event);
-        } catch { /* ignore malformed messages */ }
-      });
-    } catch {
-      // Redis unavailable, SSE works in single-instance mode
+  private remember(event: SSEEvent): void {
+    const channel = `tenant:${event.tenantId}`;
+    if (!this.eventHistory.has(channel)) {
+      this.eventHistory.set(channel, []);
+    }
+    const history = this.eventHistory.get(channel)!;
+    history.push(event);
+    if (history.length > this.maxHistoryPerChannel) {
+      history.splice(0, history.length - this.maxHistoryPerChannel);
     }
   }
 
@@ -125,6 +141,7 @@ class SSEBus {
     userId: number,
     controller: ReadableStreamDefaultController,
   ): () => void {
+    this.ensureRedis();
     const channel = `tenant:${tenantId}`;
     if (!this.listeners.has(channel)) {
       this.listeners.set(channel, new Set());
@@ -148,29 +165,15 @@ class SSEBus {
 
   emit(event: Omit<SSEEvent, "timestamp">): void {
     this.evictStaleEntries();
+    this.ensureRedis();
 
     const fullEvent: SSEEvent = { ...event, timestamp: Date.now() };
-    const channel = `tenant:${event.tenantId}`;
-
-    // Store in local history (always)
-    if (!this.eventHistory.has(channel)) {
-      this.eventHistory.set(channel, []);
-    }
-    const history = this.eventHistory.get(channel)!;
-    history.push(fullEvent);
-    if (history.length > this.maxHistoryPerChannel) {
-      history.splice(0, history.length - this.maxHistoryPerChannel);
-    }
-
-    // Dispatch to local listeners
+    this.remember(fullEvent);
     this.dispatchToLocalListeners(fullEvent);
 
-    // Publish to Redis so other instances receive it
-    if (isRedisAvailable()) {
-      try {
-        getRedis().publish(REDIS_SSE_CHANNEL, JSON.stringify(fullEvent)).catch(() => {});
-      } catch { /* Redis unavailable */ }
-    }
+    // Остальным репликам — с меткой отправителя, чтобы себе не раздать дважды.
+    const wire: WireEvent = { ...fullEvent, origin: this.origin };
+    publishChannel(REDIS_SSE_CHANNEL, JSON.stringify(wire));
   }
 
   /**
