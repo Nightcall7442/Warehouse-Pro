@@ -697,6 +697,46 @@ export type StockMovement       = typeof stockMovements.$inferSelect;
 export type InsertStockMovement = typeof stockMovements.$inferInsert;
 
 // ============================================
+// STOCK COUNTS — инвентаризация
+// ============================================
+//
+// Пересчёт полки был кнопкой «Скорректировать» по одному товару: без
+// документа, без «ожидалось / посчитано», без общего итога недостачи. Здесь
+// — документ: черновик со снимком остатков на момент начала, строка на
+// товар с посчитанным числом, применение одним действием через дверь
+// остатка (setStock) и след в журнале. Применённый документ не правится.
+export const stockCounts = mysqlTable("stock_counts", {
+  id:          serial("id").primaryKey(),
+  tenantId:    bigint("tenant_id", { mode: "number", unsigned: true }).notNull().references(() => tenants.id, { onDelete: "restrict" }),
+  warehouseId: bigint("warehouse_id", { mode: "number", unsigned: true }).notNull().references(() => warehouses.id, { onDelete: "restrict" }),
+  number:      varchar("number", { length: 30 }).notNull(),
+  status:      mysqlEnum("status", ["draft", "applied", "cancelled"]).default("draft").notNull(),
+  notes:       text("notes"),
+  createdBy:   bigint("created_by", { mode: "number", unsigned: true }).notNull().references(() => users.id, { onDelete: "restrict" }),
+  appliedBy:   bigint("applied_by", { mode: "number", unsigned: true }).references(() => users.id, { onDelete: "restrict" }),
+  appliedAt:   timestamp("applied_at"),
+  createdAt:   timestamp("created_at").defaultNow().notNull(),
+}, (t) => ({
+  tenantIdx: index("idx_stock_counts_tenant").on(t.tenantId, t.createdAt),
+}));
+
+export const stockCountItems = mysqlTable("stock_count_items", {
+  id:        serial("id").primaryKey(),
+  countId:   bigint("count_id", { mode: "number", unsigned: true }).notNull().references(() => stockCounts.id, { onDelete: "cascade" }),
+  productId: bigint("product_id", { mode: "number", unsigned: true }).notNull().references(() => products.id, { onDelete: "restrict" }),
+  /** Остаток по учёту на момент, когда строка попала в документ. */
+  expected:  decimal("expected", { precision: 12, scale: 2 }).notNull(),
+  /** Что насчитали на полке. Пусто — ещё не считали; такая строка при применении пропускается. */
+  counted:   decimal("counted", { precision: 12, scale: 2 }),
+  note:      varchar("note", { length: 255 }),
+}, (t) => ({
+  countProductUq: uniqueIndex("uq_stock_count_items_count_product").on(t.countId, t.productId),
+}));
+
+export type StockCount     = typeof stockCounts.$inferSelect;
+export type StockCountItem = typeof stockCountItems.$inferSelect;
+
+// ============================================
 // ARRIVALS — приход фур
 // ============================================
 export const arrivals = mysqlTable("arrivals", {

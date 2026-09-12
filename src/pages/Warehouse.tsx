@@ -22,6 +22,7 @@ import { colorMix } from "@/lib/color-mix";
 
 import { SearchInput } from "@/components/SearchInput";
 import { StockTransfers } from "@/components/warehouse/StockTransfers";
+import { StockCounts } from "@/components/warehouse/StockCounts";
 import { DemandForecast } from "@/components/warehouse/DemandForecast";
 // warehouseMulti.getStock is raw SQL behind db.execute, so tRPC infers its rows
 // as `unknown` — these two mirror the SELECT lists in that procedure. Decimal
@@ -67,7 +68,7 @@ export default function Warehouse() {
   // `unit` is captured for the adjust dialog, which today renders quantities
   // without a unit label — AdjustModal takes no unit prop yet.
   const [adjusting, setAdjusting] = useState<{ id: number; name: string; stock: number; unit: string; unitWeight: number } | null>(null);
-  const [activeTab, setActiveTab] = useState<"stock" | "deadstock" | "reorder" | "forecast" | "transfers">("stock");
+  const [activeTab, setActiveTab] = useState<"stock" | "deadstock" | "reorder" | "forecast" | "transfers" | "counts">("stock");
   const [deadStockDays, setDeadStockDays] = useState(30);
   const [showLowStock, setShowLowStock] = useState(false);
 
@@ -204,6 +205,8 @@ export default function Warehouse() {
     */
     { key: "forecast" as const, label: t("Прогноз", "Prognoz"), count: 0 },
     { key: "transfers" as const, label: t("Перемещения", "Ko'chirishlar"), count: pendingTransfers },
+    // Инвентаризация — документ: снимок, счёт (в т. ч. сканером), применение разом.
+    { key: "counts" as const, label: t("Инвентаризация", "Inventarizatsiya"), count: 0 },
   ], [summary, deadStockItems, reorderSuggestions, pendingTransfers, t]);
 
   if (isLoadingError) return <QueryErrorFallback onRetry={refetch} />;
@@ -524,6 +527,10 @@ export default function Warehouse() {
 
       {activeTab === "transfers" && (
         <StockTransfers warehouses={warehousesQ.data ?? []} />
+      )}
+
+      {activeTab === "counts" && canAdjust && (
+        <StockCounts warehouses={warehousesQ.data ?? []} />
       )}
 
       {activeTab === "deadstock" && (

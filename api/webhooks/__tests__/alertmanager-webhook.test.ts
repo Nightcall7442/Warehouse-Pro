@@ -53,8 +53,9 @@ describe("вебхук AlertManager", () => {
     expect(await res.json()).toEqual({ ok: true, delivered: 4 });
     // 2 тревоги × 2 админа
     expect(h.create).toHaveBeenCalledTimes(4);
-    expect(h.create.mock.calls[0][1]).toMatchObject({ userId: 1, type: "system", title: "🔴 Копия старше суток", message: "Проверить BACKUP_S3_*" });
-    expect(h.create.mock.calls[2][1]).toMatchObject({ title: "✅ Приложение не отвечает" });
+    const calls = h.create.mock.calls as unknown as Array<[unknown, Record<string, unknown>]>;
+    expect(calls[0][1]).toMatchObject({ userId: 1, type: "system", title: "🔴 Копия старше суток", message: "Проверить BACKUP_S3_*" });
+    expect(calls[2][1]).toMatchObject({ title: "✅ Приложение не отвечает" });
     // push — 2 админа × 1 горящая
     expect(h.push).toHaveBeenCalledTimes(2);
   });

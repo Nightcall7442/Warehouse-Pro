@@ -27,7 +27,8 @@ export type StockMovementReason =
   | "transfer_in"        // arrived here from another warehouse
   | "manual_adjustment"  // a person corrected the count
   | "import"             // set by a spreadsheet import
-  | "onec_sync";         // set by the 1C integration
+  | "onec_sync"          // set by the 1C integration
+  | "inventory";         // документ инвентаризации применён
 
 /**
  * Records one movement of physical goods.

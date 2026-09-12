@@ -225,6 +225,13 @@
       "when": 1789212482982,
       "tag": "0031_orders_hold_reason",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "5",
+      "when": 1789213944226,
+      "tag": "0032_stock_counts",
+      "breakpoints": true
     }
   ]
 }
