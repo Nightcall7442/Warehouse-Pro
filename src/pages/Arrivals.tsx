@@ -152,6 +152,8 @@ function ArrivalForm({ onSave, onClose, isPending }: { onSave: (d: ArrivalCreate
   */
   const [scanning, setScanning] = useState(false);
   const [lastScanned, setLastScanned] = useState<string | null>(null);
+  // Поле для сканера-клавиатуры: код + Enter → строка получает единицу.
+  const [wedge, setWedge] = useState("");
   const onScanned = (code: string) => {
     const norm = code.trim().toLowerCase();
     const product = products?.data?.find(p => (p.barcode ?? "").toLowerCase() === norm || (p.code ?? "").toLowerCase() === norm);
@@ -324,6 +326,15 @@ function ArrivalForm({ onSave, onClose, isPending }: { onSave: (d: ArrivalCreate
             <div className="flex items-center justify-between mb-3">
               <p className={sectionLabel} style={{ marginBottom: 0 }}>{t("Товары", "Tovarlar")}</p>
               <div className="flex gap-4 items-center">
+                <input
+                  className="neo-input"
+                  style={{ width: "180px", padding: "4px 8px", fontSize: "12px" }}
+                  placeholder={t("Штрих-код + Enter", "Shtrix-kod + Enter")}
+                  value={wedge}
+                  onChange={e => setWedge(e.target.value)}
+                  onKeyDown={e => { if (e.key === "Enter" && wedge.trim()) { e.preventDefault(); onScanned(wedge); setWedge(""); } }}
+                  data-testid="arrival-wedge"
+                />
                 <button type="button" className="neo-btn neo-btn-xs tap" onClick={() => { setLastScanned(null); setScanning(true); }} data-testid="arrival-scan">
                   {t("Сканер", "Skaner")}
                 </button>

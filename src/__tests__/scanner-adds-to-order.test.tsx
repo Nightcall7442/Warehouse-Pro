@@ -76,6 +76,27 @@ describe("сканер добавляет в корзину заказа", () =>
   });
 });
 
+describe("сканер-клавиатура: код + Enter", () => {
+  it("в поиске заказа точное совпадение по Enter — в корзину, поле пустеет", () => {
+    render(<Harness />);
+    const input = screen.getByTestId("product-search") as HTMLInputElement;
+    fireEvent.change(input, { target: { value: "4870001234567" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(JSON.parse(screen.getByTestId("cart-json").textContent ?? "[]")).toEqual([expect.objectContaining({ productId: 1, quantity: "1" })]);
+    expect(input.value).toBe("");
+    // обычный поиск по части названия Enter не трогает
+    fireEvent.change(input, { target: { value: "Печ" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(input.value).toBe("Печ");
+  });
+
+  it("на приёмке есть поле «штрих-код + Enter»", () => {
+    const src = readFileSync("src/pages/Arrivals.tsx", "utf-8");
+    expect(src).toContain('data-testid="arrival-wedge"');
+    expect(src).toContain('if (e.key === "Enter" && wedge.trim()) { e.preventDefault(); onScanned(wedge); setWedge(""); }');
+  });
+});
+
 describe("сканер на приёмке и режим «много подряд»", () => {
   it("приёмка: кнопка, поиск по штрих-коду и коду, +1 к строке", () => {
     const src = readFileSync("src/pages/Arrivals.tsx", "utf-8");

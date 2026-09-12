@@ -371,6 +371,17 @@ export function ProductSelector({ items, onChange, cartOpen = false, onCartOpenC
               placeholder={t("Поиск по названию или коду…", "Nomi yoki kodi bo'yicha qidirish…")}
               value={search}
               onChange={e => setSearch(e.target.value)}
+              // Сканер-клавиатура (USB/Bluetooth) печатает код и жмёт Enter:
+              // точное совпадение по штрих-коду или коду — в корзину, поле пусто.
+              onKeyDown={e => {
+                if (e.key !== "Enter" || !search.trim()) return;
+                const norm = search.trim().toLowerCase();
+                const hit = (catalog ?? []).find(p => (p.barcode ?? "").toLowerCase() === norm || (p.code ?? "").toLowerCase() === norm);
+                if (!hit) return;
+                e.preventDefault();
+                addToCart(hit, 1);
+                setSearch("");
+              }}
             />
           </div>
           <button type="button" className="neo-btn tap" onClick={() => { setLastScanned(null); setScanning(true); }}
