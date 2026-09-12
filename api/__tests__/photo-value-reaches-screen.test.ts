@@ -98,7 +98,9 @@ describe("вход: в поле фотографии не попадает то,
       случае кладёт строку данных прямо в базу, столбец mediumtext для этого и
       заведён, а размер ограничен пределом запроса в 10 МБ на весь файл.
     */
-    expect(IMPORT).toMatch(/if \(!isS3\) return dataUrl;/);
+    // Загрузка теперь общая — lib/photo-upload.ts; импорт зовёт её.
+    expect(IMPORT).toContain('import { uploadBase64ToS3 } from "./lib/photo-upload";');
+    expect(readFileSync("api/lib/photo-upload.ts", "utf8")).toMatch(/if \(!isS3Configured\(\)\) return dataUrl;/);
   });
 
   it("о непринятых ячейках человеку говорят вслух", () => {

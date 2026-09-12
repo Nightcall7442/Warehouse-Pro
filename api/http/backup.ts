@@ -1,12 +1,11 @@
 import { Hono } from "hono";
-import { env } from "../lib/env";
 import { authenticateRequest } from "../auth";
 import { getDb } from "../queries/connection";
 import { checkRateLimit } from "../lib/rate-limit";
 import { logger } from "../lib/logger";
-import { safeEqual } from "../lib/safe-compare";
 import { checkTotpStepUp } from "../auth/step-up";
 import { isAppError } from "@contracts/errors";
+import { cronDenied } from "./cron-guard";
 
 /*
   Резервные копии: ежедневный крон и скачивание дампа суперадмином.
@@ -17,13 +16,8 @@ const routes = new Hono();
 
 // ── Cron: daily database backup ──────────────────────────────────────────────
 routes.get("/api/cron/backup", async (c) => {
-  if (!env.cronSecret) {
-    return c.json({ error: "Cron endpoint not configured" }, 401);
-  }
-  const secret = c.req.query("secret") ?? c.req.header("x-cron-secret");
-  if (!safeEqual(secret ?? "", env.cronSecret)) {
-    return c.json({ error: "Unauthorized" }, 401);
-  }
+  const denied = cronDenied(c);
+  if (denied) return c.json({ error: denied }, 401);
   const { runBackup } = await import("../cron/backup");
   const result = await runBackup();
   // Non-200 on failure so an external cron/uptime monitor watching this
