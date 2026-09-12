@@ -684,3 +684,17 @@ export async function setStock(
     await consumeBatches(tx, entry.tenantId, entry.warehouseId, entry.productId, inBatches - q, true);
   }
 }
+
+/*
+  Пометка «предупредили о низком остатке» — единственное поле warehouse_stock,
+  которое не про количество. Пишется здесь, потому что правило «строку
+  остатка меняет только дверь» проверяется по тексту и не различает колонок;
+  числа эти два вызова не трогают.
+*/
+export async function markLowStockAlerted(tx: LedgerWriter, stockIds: number[], at: Date | null): Promise<void> {
+  if (stockIds.length === 0) return;
+  await tx.execute(sql`
+    UPDATE warehouse_stock SET low_stock_alerted_at = ${at}
+    WHERE id IN (${sql.join(stockIds.map(id => sql`${id}`), sql`, `)})
+  `);
+}

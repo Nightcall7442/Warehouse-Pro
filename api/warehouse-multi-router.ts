@@ -5,6 +5,7 @@ import { warehouses, warehouseStock, stockTransfers, products } from "@db/schema
 import { eq, and, sql, desc, inArray } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { applyStockEffect, receiveStock } from "./services/stock-ledger";
+import { recordAudit, auditActor } from "./services/audit-log";
 
 export const warehouseMultiRouter = createRouter({
   /** List all warehouses for current tenant */
@@ -124,7 +125,7 @@ export const warehouseMultiRouter = createRouter({
       const summaryQuery = sql`
         SELECT COUNT(*) AS totalSKUs,
                COALESCE(SUM(CAST(COALESCE(ws.current_stock, '0') AS DECIMAL(15,3)) * CAST(COALESCE(p.unit_weight, '0') AS DECIMAL(15,3))), 0) AS totalWeight,
-               COUNT(CASE WHEN CAST(COALESCE(ws.available, '0') AS DECIMAL(15,3)) < CAST(p.reorder_point AS DECIMAL(15,3)) THEN 1 END) AS lowStockCount
+               COUNT(CASE WHEN CAST(p.reorder_point AS DECIMAL(15,3)) > 0 AND CAST(COALESCE(ws.available, '0') AS DECIMAL(15,3)) <= CAST(p.reorder_point AS DECIMAL(15,3)) THEN 1 END) AS lowStockCount
         FROM products p
         LEFT JOIN warehouse_stock ws ON ws.product_id = p.id AND ws.tenant_id = p.tenant_id ${warehouseCondition}
         WHERE p.tenant_id = ${tenantId} AND p.status = 'active' ${searchCondition}
@@ -286,6 +287,10 @@ export const warehouseMultiRouter = createRouter({
         if ((updateResult as { affectedRows?: number }).affectedRows !== 1) {
           throw new TRPCError({ code: "CONFLICT", message: "Перемещение уже было выполнено" });
         }
+        await recordAudit(tx as unknown as typeof db, {
+          ...auditActor(ctx), action: "stock.transfer_completed", targetType: "stock_transfer", targetId: input.transferId,
+          meta: { fromWarehouseId: transfer.fromWarehouseId, toWarehouseId: transfer.toWarehouseId, productId: transfer.productId, quantity: transfer.quantity },
+        }, { strict: true });
       });
 
       return { success: true };

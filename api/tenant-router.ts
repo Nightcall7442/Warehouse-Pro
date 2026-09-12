@@ -19,6 +19,7 @@ import { notifyAdmin, tgMessages } from "./telegram-router";
 import { rowsOf } from "./lib/db-rows";
 import { checkTotpStepUp } from "./auth/step-up";
 import { countTenantRows, offboardTenant, TenantNotSuspendedError } from "./services/tenant-offboard";
+import { invalidateAuthTenant } from "./auth";
 /**
  * Ограничения на публичную регистрацию.
  *
@@ -577,6 +578,8 @@ export const tenantRouter = createRouter({
       await getDb().update(tenants)
         .set({ status: input.status, updatedAt: new Date() })
         .where(eq(tenants.id, input.tenantId));
+      // Приостановка действует на следующий же запрос, а не через десять секунд.
+      invalidateAuthTenant(input.tenantId);
       return { success: true };
     }),
 
@@ -627,6 +630,7 @@ export const tenantRouter = createRouter({
         if (e instanceof TenantNotSuspendedError) throw new TRPCError({ code: "PRECONDITION_FAILED", message: e.message });
         throw e;
       }
+      invalidateAuthTenant(t.id);
       logger.warn("tenant offboarded by superadmin", { tenantId: t.id, slug: t.slug, by: ctx.user.id, total: result.total });
       void notifyAdmin(tgMessages.tenantOffboarded(t.name, t.slug, ctx.user.name, result.total));
       return { success: true, ...result };

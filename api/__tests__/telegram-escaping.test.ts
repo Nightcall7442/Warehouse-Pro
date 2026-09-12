@@ -37,7 +37,7 @@ describe("tgMessages templates", () => {
   const templates = Object.entries(tgMessages) as [string, (...a: never[]) => string][];
 
   /*
-    Три суперадминских шаблона берут не строки, а списки и объект — им
+    Четыре шаблона берут не строки, а списки и объект — им
     враждебное значение подставляется в каждое поле формы. Остальным, как и
     прежде, по строке на параметр.
   */
@@ -45,6 +45,8 @@ describe("tgMessages templates", () => {
     trials:      v => [[{ org: v, days: v }], [v]],
     serverUp:    v => [v, [v]],
     adminDigest: v => [{ registrations: v, orders: v, revenue: 0, unanswered: v, trialsEnding: v, pastDue: v, activeTenants: v }],
+    // Точка заказа: список товаров и число «ещё N».
+    lowStockList: v => [[{ name: v, qty: v, unit: v, point: v }], 3],
   };
   const argsFor = (name: string, fn: (...a: never[]) => string, v: string) =>
     (SHAPES[name]?.(v) ?? Array(fn.length).fill(v)) as never[];

@@ -43,12 +43,15 @@ type CompanyForm = {
   logoUrl: string;
   /** Порог скидки полевых ролей, %. Пусто — порога нет. */
   maxFieldDiscountPct: string;
+  /** Точка заказа для новых товаров, если в карточке не указали. */
+  defaultReorderPoint: string;
 };
 
 const EMPTY: CompanyForm = {
   companyName: "", companyAddress: "", companyInn: "", companyDirector: "", companyPhone: "",
   companyBank: "", companyBankAccount: "", companyMfo: "", currency: "UZS", logoUrl: "",
   maxFieldDiscountPct: "",
+  defaultReorderPoint: "",
 };
 
 /** Загрузка отвергает файл больше этого; подпись под кнопкой берёт число отсюда же. */
@@ -187,6 +190,12 @@ export function CompanySettings() {
               оформить такой заказ может только офис, и это остаётся в журнале. */}
           <Field label={t("Порог скидки для полевых сотрудников, % (пусто — без порога)", "Dala xodimlari uchun chegirma chegarasi, % (bo'sh — chegarasiz)")}>
             <input className="neo-input font-data" inputMode="decimal" placeholder="10" value={form.maxFieldDiscountPct} onChange={set("maxFieldDiscountPct")} />
+          </Field>
+          {/* Одно правило на склад, бота и уведомления: товар «заканчивается», когда
+              остаток на основном складе не выше его точки заказа. Здесь — какой
+              порог получает новый товар, если в карточке его не указали. */}
+          <Field label={t("Точка заказа для новых товаров (пусто — 10)", "Yangi tovarlar uchun buyurtma nuqtasi (bo'sh — 10)")}>
+            <input className="neo-input font-data" inputMode="decimal" placeholder="10" value={form.defaultReorderPoint} onChange={set("defaultReorderPoint")} data-testid="default-reorder-point" />
           </Field>
         </FieldRow>
       </FieldGroup>

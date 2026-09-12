@@ -4,6 +4,7 @@ import { orders, orderItems, products, shops, warehouseStock, users, dailyPlans 
 import { REVENUE_ORDER_STATUSES, deliveredQty } from "../lib/order-status";
 import { tgEscape } from "../lib/telegram";
 import { T, type Lang } from "./texts";
+import { lowStockRows, lowStockCondition, onDefaultWarehouse } from "../services/reorder";
 
 /* ═══════════════════════════════════════════════════════════════════════════
    Ответы бота — только чтение.
@@ -32,26 +33,18 @@ function block(title: string, lines: string[], empty: string): string {
   return `<b>${title}</b>\n\n${lines.join("\n")}`;
 }
 
-/** Что заканчивается: остаток ниже точки заказа. */
+/**
+ * Что заканчивается: остаток ниже точки заказа.
+ *
+ * Правило одно на всех — services/reorder.ts: основной склад, порог на товаре.
+ * Здесь стояла своя формула по колонке warehouse_stock.reorder_point, которую
+ * никто не писал: бот отвечал «всё в порядке», пока товар не кончался совсем.
+ * И суммировал остаток по всем складам — а продают только с основного (ADR 0008).
+ */
 export async function answerStock(tenantId: number, lang: Lang): Promise<string> {
-  const rows = await getDb()
-    .select({
-      name: products.name,
-      unit: products.unit,
-      available: sql<number>`sum(${warehouseStock.available})`,
-      point: sql<number>`max(${warehouseStock.reorderPoint})`,
-    })
-    .from(warehouseStock)
-    .innerJoin(products, and(eq(products.id, warehouseStock.productId), eq(products.tenantId, tenantId)))
-    .where(and(eq(warehouseStock.tenantId, tenantId), eq(products.status, "active")))
-    .groupBy(products.id, products.name, products.unit)
-    // Сравнение после группировки: остаток считается по всем складам сразу,
-    // и товар, которого нет на одном, но много на другом, не тревога.
-    .having(sql`sum(${warehouseStock.available}) <= max(${warehouseStock.reorderPoint})`)
-    .orderBy(sql`sum(${warehouseStock.available}) asc`)
-    .limit(LIMIT);
+  const rows = await lowStockRows(getDb(), tenantId, LIMIT);
 
-  const lines = rows.map(r => `• ${tgEscape(r.name)} — ${qty(r.available)} ${tgEscape(r.unit)}`);
+  const lines = rows.map(r => `• ${tgEscape(r.productName)} — ${qty(Number(r.available))} ${tgEscape(r.unit)}`);
   return block(T.hStock[lang], lines, T.wStockOk[lang]);
 }
 
@@ -96,9 +89,12 @@ export async function answerSummary(tenantId: number, lang: Lang): Promise<strin
       .from(shops).where(eq(shops.tenantId, tenantId)),
     db.select({ count: sql<number>`count(*)` })
       .from(warehouseStock)
+      .innerJoin(products, and(eq(products.id, warehouseStock.productId), eq(products.tenantId, tenantId)))
       .where(and(
         eq(warehouseStock.tenantId, tenantId),
-        sql`${warehouseStock.available} <= ${warehouseStock.reorderPoint}`,
+        eq(products.status, "active"),
+        onDefaultWarehouse(tenantId),
+        lowStockCondition(),
       )),
   ]);
 

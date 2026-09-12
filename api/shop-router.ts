@@ -20,6 +20,7 @@ import {
 } from "./services/shop-archive";
 import { shopStatement } from "./services/shop-statement";
 import { debtJournal } from "./services/debt-journal";
+import { recordAudit, auditActor, changedFields } from "./services/audit-log";
 
 /**
  * Проверить, что чужие идентификаторы в запросе принадлежат этой организации.
@@ -402,8 +403,22 @@ export const shopRouter = createRouter({
 
       await assertTenantOwnsRefs(getDb(), ctx.tenant.id, { agentId: data.agentId, territoryId: data.territoryId });
 
-      await getDb().update(shops).set(sanitized)
-        .where(and(eq(shops.id, id), eq(shops.tenantId, ctx.tenant.id)));
+      // Кредитный лимит решает, отпустят ли магазину в долг; смена — в той же
+      // транзакции, что и след о ней.
+      await getDb().transaction(async (tx) => {
+        const [before] = await tx.select({ creditLimit: shops.creditLimit, name: shops.name })
+          .from(shops).where(and(eq(shops.id, id), eq(shops.tenantId, ctx.tenant.id))).for("update").limit(1);
+        if (!before) throw new Error("Магазин не найден");
+        await tx.update(shops).set(sanitized)
+          .where(and(eq(shops.id, id), eq(shops.tenantId, ctx.tenant.id)));
+        const changed = changedFields(before, sanitized, ["creditLimit"]);
+        if (Object.keys(changed).length > 0) {
+          await recordAudit(tx as unknown as ReturnType<typeof getDb>, {
+            ...auditActor(ctx), action: "shop.credit_limit_changed", targetType: "shop", targetId: id,
+            meta: { shop: before.name, ...changed.creditLimit },
+          }, { strict: true });
+        }
+      });
       cache.invalidatePrefix(`shops:${ctx.tenant.id}`);
       cache.invalidate(CacheKeys.shopCities(ctx.tenant.id));
       return { success: true };

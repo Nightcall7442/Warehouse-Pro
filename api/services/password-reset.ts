@@ -4,6 +4,7 @@ import { eq, and, gt, isNull, sql } from "drizzle-orm";
 import { hashPassword } from "../auth/password";
 import { sendEmail } from "../lib/mailer";
 import { logger } from "../lib/logger";
+import { invalidateAuthUser } from "../auth";
 
 type Db = ReturnType<typeof import("../queries/connection").getDb>;
 
@@ -151,6 +152,7 @@ export const PasswordResetService = {
       await tx.update(users)
         .set({ tokenVersion: sql`COALESCE(${users.tokenVersion}, 0) + 1` })
         .where(eq(users.id, resetToken.userId));
+      invalidateAuthUser(resetToken.userId);
 
       await tx.update(passwordResetTokens)
         .set({ usedAt: new Date() })

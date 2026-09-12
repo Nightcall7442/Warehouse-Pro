@@ -260,6 +260,20 @@
       "when": 1789215643132,
       "tag": "0036_stock_batches_cost",
       "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "5",
+      "when": 1789225560803,
+      "tag": "0037_low_stock_alerted",
+      "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "5",
+      "when": 1789225562221,
+      "tag": "0038_drop_stock_reorder_point",
+      "breakpoints": true
     }
   ]
 }

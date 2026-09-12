@@ -8,6 +8,7 @@ import { findUsersByEmailAnyTenant, updateUserLastSignIn } from "../queries/user
 import { findTenantById } from "../queries/tenants";
 import { signSessionToken } from "../auth/session";
 import { checkRateLimit, rateLimitSubject } from "../lib/rate-limit";
+import { invalidateAuthUser } from "../auth";
 
 /*
   Вход, выход, обновление сессии, выход отовсюду. Вынесено из boot.ts как
@@ -293,6 +294,7 @@ routes.post("/api/logout-all", async (c) => {
     await db.update(users)
       .set({ tokenVersion: sql`COALESCE(${users.tokenVersion}, 0) + 1` })
       .where(eq(users.id, claim.userId));
+    invalidateAuthUser(claim.userId);
 
     c.header("set-cookie", cookie.serialize(Session.cookieName, "", {
       httpOnly: true,

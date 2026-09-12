@@ -1,6 +1,5 @@
 import { warehouseStock, products, warehouses } from "@db/schema";
 import { eq, and } from "drizzle-orm";
-import { sseBus } from "../lib/sse";
 import { recordAudit } from "./audit-log";
 import { recordStockMovement, receiveStock, applyStockEffect, setStock } from "./stock-ledger";
 import { TRPCError } from "@trpc/server";
@@ -87,7 +86,6 @@ export const StockService = {
 
     let updatedAvailable: string | undefined;
     let productName: string | undefined;
-    let reorderPoint: string | undefined;
     let adjustmentDiff = 0;
 
     await db.transaction(async (tx) => {
@@ -157,12 +155,11 @@ export const StockService = {
         // Условие по организации и на чтении: в базе могут лежать строки
         // warehouse_stock с чужим product_id, записанные до появления проверки
         // выше, и подставлять в уведомление название чужого товара нельзя.
-        const [product] = await tx.select({ name: products.name, reorderPoint: products.reorderPoint })
+        const [product] = await tx.select({ name: products.name })
           .from(products).where(and(eq(products.id, productId), eq(products.tenantId, tenantId))).limit(1);
 
         updatedAvailable = updatedStock?.available;
         productName = product?.name;
-        reorderPoint = product?.reorderPoint;
       } else {
         // Инвентаризация задаёт новое АБСОЛЮТНОЕ количество. Опустить его ниже
         // резерва нельзя: зарезервированное уже обещано открытым заказам, и
@@ -192,30 +189,11 @@ export const StockService = {
       }
     });
 
-    if (type === "out" && updatedAvailable !== undefined && productName !== undefined && reorderPoint !== undefined) {
-      if (Number(updatedAvailable) < Number(reorderPoint)) {
-        sseBus.emit({
-          type: "stock.low",
-          tenantId,
-          data: { productId, productName, available: updatedAvailable, reorderPoint },
-        });
-
-        // Живое событие видно только тому, у кого открыт экран. Про
-        // заканчивающийся товар надо узнать и тому, кто закупает.
-        const lowName = productName;
-        const lowLeft = String(updatedAvailable);
-        void import("./telegram-notify").then(async ({ notifyEvent }) => {
-          const { tgMessages } = await import("../lib/telegram");
-          await notifyEvent({
-            tenantId,
-            event: "stock.low",
-            text: tgMessages.lowStock(lowName, lowLeft),
-          });
-        });
-      }
-    }
-
-    recordAudit(db, {
+    // Тревога «ниже точки заказа» здесь больше не шлётся: раньше она стояла
+    // только на ручном списании, а отгрузка по заказу молчала. Теперь один
+    // крон (services/reorder.ts) смотрит все пути и предупреждает по факту
+    // пересечения — ровно раз.
+    await recordAudit(db, {
       tenantId,
       actorId: actor?.id,
       actorName: actor?.name,

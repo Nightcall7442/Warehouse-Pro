@@ -7,6 +7,7 @@ import { cache, withCache, CacheKeys, CacheTTL } from "./lib/cache";
 import { sanitizeString, isSafeUrl } from "./lib/sanitize";
 import { decimalOrDefault } from "./lib/zod-decimal";
 import { LOGO_MAX_CHARS } from "@contracts/image-limits";
+import { recordAudit, auditActor, changedFields } from "./services/audit-log";
 
 export const settingsRouter = createRouter({
   get: authedQuery.query(async ({ ctx }) => {
@@ -102,6 +103,15 @@ export const settingsRouter = createRouter({
           await tx.update(settings).set({ ...sanitized, updatedAt: new Date() }).where(eq(settings.tenantId, tenantId));
         } else {
           await tx.insert(settings).values({ tenantId, ...sanitized });
+        }
+        // Порог скидки, валюта, точка заказа — правила дела; след в той же
+        // транзакции. Логотип — без содержимого, только факт смены.
+        const changed = changedFields((existing ?? {}) as Record<string, unknown>, sanitized, Object.keys(sanitized).filter(k => k !== "logoUrl"));
+        if ("logoUrl" in sanitized && (existing?.logoUrl ?? null) !== (sanitized.logoUrl ?? null)) changed.logoUrl = { from: "…", to: "…" };
+        if (Object.keys(changed).length > 0) {
+          await recordAudit(tx as unknown as typeof db, {
+            ...auditActor(ctx), action: "settings.updated", targetType: "settings", meta: { changed },
+          }, { strict: true });
         }
       });
 

@@ -7,6 +7,7 @@ import { sseBus } from "../lib/sse";
 import { isDuplicateOf } from "../lib/db-errors";
 import { dateColumnDay } from "../lib/period";
 import type { Db } from "./order-shared";
+import { recordAudit } from "./audit-log";
 
 /*
   Приход товара: создать, провести (оприходовать на склад через дверь
@@ -198,7 +199,7 @@ export async function createArrival(db: Db, tenantId: number, userId: number, in
   });
 }
 
-export async function updateArrival(db: Db, tenantId: number, input: UpdateArrivalInput) {
+export async function updateArrival(db: Db, tenantId: number, input: UpdateArrivalInput, actor?: { id: number; name: string; ip?: string }) {
   const { id, ...data } = input;
   const targetWarehouseId = data.warehouseId;
   delete data.warehouseId;
@@ -381,6 +382,12 @@ export async function updateArrival(db: Db, tenantId: number, input: UpdateArriv
       if ((statusUpdateResult as { affectedRows?: number }).affectedRows !== 1) {
         throw new Error("Приход уже завершён");
       }
+      // Проведение кладёт товар на склад — след в той же транзакции.
+      await recordAudit(tx as unknown as Db, {
+        tenantId, actorId: actor?.id, actorName: actor?.name, ip: actor?.ip,
+        action: "arrival.completed", targetType: "arrival", targetId: id,
+        meta: { arrivalNumber, items: items.length },
+      }, { strict: true });
     });
 
     // Notify connected frontends that stock has changed

@@ -11,6 +11,7 @@ import { recordAudit } from "./services/audit-log";
 import { generateTotpSecret, verifyTotp, otpauthUrl } from "./lib/totp";
 import { seal, open as unseal } from "./lib/secret-box";
 import { ROLES } from "@contracts/types";
+import { invalidateAuthUser } from "./auth";
 
 export const userRouter = createRouter({
   list: adminQuery
@@ -91,6 +92,7 @@ export const userRouter = createRouter({
         passwordHash: newHash,
         tokenVersion: sql`COALESCE(${users.tokenVersion}, 0) + 1`,
       }).where(eq(users.id, ctx.user.id));
+      invalidateAuthUser(ctx.user.id);
       return { success: true };
     }),
 
@@ -127,10 +129,11 @@ export const userRouter = createRouter({
 
       await db.update(users).set(data)
         .where(and(eq(users.id, id), eq(users.tenantId, ctx.tenant.id)));
+      invalidateAuthUser(id);
 
       // Audit: user updated (role/status change)
       if (data.role || data.status) {
-        recordAudit(db, {
+        await recordAudit(db, {
           tenantId: ctx.tenant.id,
           actorId: ctx.user.id,
           actorName: ctx.user.name,
@@ -156,7 +159,7 @@ export const userRouter = createRouter({
       await db.update(users).set({ passwordHash: newHash })
         .where(and(eq(users.id, input.id), eq(users.tenantId, ctx.tenant.id)));
 
-      recordAudit(db, {
+      await recordAudit(db, {
         tenantId: ctx.tenant.id,
         actorId: ctx.user.id,
         actorName: ctx.user.name,
@@ -188,8 +191,9 @@ export const userRouter = createRouter({
 
       await db.update(users).set({ status: "inactive" })
         .where(and(eq(users.id, input.id), eq(users.tenantId, ctx.tenant.id)));
+      invalidateAuthUser(input.id);
 
-      recordAudit(db, {
+      await recordAudit(db, {
         tenantId: ctx.tenant.id,
         actorId: ctx.user.id,
         actorName: ctx.user.name,
@@ -246,8 +250,9 @@ export const userRouter = createRouter({
 
       await db.update(users).set(updateData)
         .where(and(eq(users.id, id), eq(users.tenantId, ctx.tenant.id)));
+      invalidateAuthUser(id);
 
-      recordAudit(db, {
+      await recordAudit(db, {
         tenantId: ctx.tenant.id,
         actorId: ctx.user.id,
         actorName: ctx.user.name,

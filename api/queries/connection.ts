@@ -49,7 +49,14 @@ export function getDb(): DrizzleInstance {
       uri: env.databaseUrl,
       waitForConnections: true,
       connectionLimit: env.dbConnectionLimit,
-      queueLimit: 0,
+      /*
+        Очередь за соединением — с потолком. При нуле она была бесконечной:
+        застрявшая база копила тысячи ожидающих запросов, и когда она
+        оживала, они обрушивались на неё разом. Пятьсот — это 25 очередей на
+        каждое из 20 соединений; дальше запрос падает сразу, и это видно в
+        метриках, а не через минуту в виде общего тайм-аута.
+      */
+      queueLimit: env.dbQueueLimit,
       enableKeepAlive: true,
       keepAliveInitialDelay: 0,
       connectTimeout: 30_000,
@@ -67,6 +74,19 @@ export function getDb(): DrizzleInstance {
     // ошибку типов приведением самого обработчика.
     (pool as unknown as import("node:events").EventEmitter).on("error", (err: { message?: string }) => {
       console.error("[DB Pool Error]", err?.message ?? String(err));
+    });
+
+    /*
+      Тайм-аут SQL — на стороне сервера, на каждое новое соединение пула.
+      mysql2 своего тайм-аута запроса не имеет; max_execution_time (мс)
+      прерывает только чтение (SELECT) — запись он не трогает, и это верно:
+      оборванный UPDATE посреди транзакции хуже долгого. Тридцать секунд:
+      отчёт за год укладывается, забытый JOIN без индекса — нет.
+    */
+    (pool as unknown as import("node:events").EventEmitter).on("connection", (conn: { query: (sql: string, cb: (err: unknown) => void) => void }) => {
+      conn.query(`SET SESSION max_execution_time = ${env.dbStatementTimeoutMs}`, (err: unknown) => {
+        if (err) console.error("[DB] max_execution_time not set", (err as { message?: string })?.message ?? String(err));
+      });
     });
 
     // NOTE: drizzle-orm's generic inference doesn't fully resolve when `schema`

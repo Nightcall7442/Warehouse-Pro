@@ -11,6 +11,7 @@ import { logger } from "./lib/logger";
 import { getMetricsSummary } from "./lib/metrics";
 import { getSyncStatus } from "./services/onec-status";
 import { seal, open } from "./lib/secret-box";
+import { recordAudit, auditActor } from "./services/audit-log";
 
 export const onecRouter = createRouter({
   // ── Setup Wizard ──────────────────────────────────────────────────────────
@@ -57,6 +58,11 @@ export const onecRouter = createRouter({
 
         clearBridgeCache();
         logger.info("1C config saved", { tenantId: ctx.tenant.id });
+        // Адрес и логин — да; пароль в журнал не попадает никогда.
+        await recordAudit(db, {
+          ...auditActor(ctx), action: "onec.config_saved", targetType: "onec_config",
+          meta: { url: input.url, username: input.username, syncProducts: input.syncProducts, syncOrders: input.syncOrders, intervalMinutes: input.intervalMinutes },
+        });
         return { success: true };
       }),
 

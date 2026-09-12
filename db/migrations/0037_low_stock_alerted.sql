@@ -1,0 +1,1 @@
+ALTER TABLE `warehouse_stock` ADD `low_stock_alerted_at` timestamp;
