@@ -15,7 +15,7 @@ describe("документ инвентаризации", () => {
     expect(router).toMatch(/if \(count\.status !== "draft"\) throw new TRPCError\(\{ code: "PRECONDITION_FAILED"/);
     // разница — от ТЕКУЩЕГО остатка под блокировкой, не от снимка
     expect(router).toMatch(/\.for\("update"\)\.limit\(1\);\s*const current = Number\(row\?\.current \?\? 0\);/);
-    expect(readFileSync("api/services/stock-ledger.ts", "utf-8")).toContain('| "inventory";');
+    expect(readFileSync("api/services/stock-ledger.ts", "utf-8")).toMatch(/\| "inventory"\s/);
   });
 
   it("только офис с правом warehouse.adjust; в дереве роутеров; вкладка на складе со сканером", () => {

@@ -253,6 +253,13 @@
       "when": 1789215449628,
       "tag": "0035_supplier_payment_return",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "5",
+      "when": 1789215643132,
+      "tag": "0036_stock_batches_cost",
+      "breakpoints": true
     }
   ]
 }

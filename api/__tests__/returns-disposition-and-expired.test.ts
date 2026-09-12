@@ -68,3 +68,13 @@ describe("просрочка вне отгрузки", () => {
     expect(execute).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("себестоимость партии", () => {
+  it("приёмка отдаёт цену партии; отчёт «что сгорает» считает по цене партии, карточка — запасной путь", () => {
+    const arrival = readFileSync("api/arrival-router.ts", "utf-8");
+    expect(arrival).toContain("costPrice: item.costPrice != null && Number(item.costPrice) > 0 ? String(item.costPrice) : null,");
+    const report = readFileSync("api/warehouse-reports-router.ts", "utf-8");
+    expect((report.match(/COALESCE\(\$\{stockBatches\.costPrice\}, \$\{products\.costPrice\}/g) ?? []).length).toBeGreaterThanOrEqual(3);
+    expect(readFileSync("db/migrations/0036_stock_batches_cost.sql", "utf-8").trim()).toBe("ALTER TABLE `stock_batches` ADD `cost_price` decimal(12,2);");
+  });
+});

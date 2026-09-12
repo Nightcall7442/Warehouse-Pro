@@ -447,6 +447,8 @@ export const arrivalRouter = createRouter({
                 batchNumber: item.batchNumber,
                 expiresAt: item.expiresAt == null ? null : dateColumnDay(item.expiresAt),
                 arrivalItemId: item.id,
+                // Себестоимость этой приёмки — на партию: «сгорает на N» считается по ней.
+                costPrice: item.costPrice != null && Number(item.costPrice) > 0 ? String(item.costPrice) : null,
               } : null,
             });
 

@@ -374,7 +374,9 @@ describe("партии остатка", () => {
     });
     const [insert] = batchQueries(queries);
     expect(insert.text).toContain("INSERT INTO stock_batches");
-    expect(insert.text).toContain("ON DUPLICATE KEY UPDATE quantity = quantity +");
+    // Повтор партии прибавляет количество и обновляет себестоимость, если её прислали.
+    expect(insert.text).toMatch(/ON DUPLICATE KEY UPDATE\s+quantity = quantity \+/);
+    expect(insert.text).toContain("cost_price = COALESCE(");
     expect(insert.values).toEqual(expect.arrayContaining(["A", "2026-03-01", "A|2026-03-01", 5]));
   });
 

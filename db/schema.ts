@@ -657,6 +657,13 @@ export const stockBatches = mysqlTable("stock_batches", {
   receivedAt:   timestamp("received_at").defaultNow().notNull(),
   /** Строка приёмки, которой партия заведена. Для разбора, откуда она взялась. */
   arrivalItemId: bigint("arrival_item_id", { mode: "number", unsigned: true }),
+  /*
+    Себестоимость единицы ЭТОЙ партии — с приёмки. Карточка товара держит
+    одну цену на всё, а поставки приходят по разным: «сгорает на 4 млн»
+    считалось по последней цене карточки, а не по той, за которую партию
+    купили. Пусто — партии, заведённые до колонки; тогда берётся карточка.
+  */
+  costPrice:    decimal("cost_price", { precision: 12, scale: 2 }),
   updatedAt:    timestamp("updated_at").defaultNow().notNull().$onUpdate(() => new Date()),
 }, (t) => ({
   /*

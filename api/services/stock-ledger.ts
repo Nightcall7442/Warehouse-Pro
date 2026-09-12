@@ -273,6 +273,8 @@ export interface BatchRef {
   /** «ГГГГ-ММ-ДД». */
   expiresAt?: string | null;
   arrivalItemId?: number | null;
+  /** Себестоимость единицы по этой приёмке. */
+  costPrice?: string | null;
 }
 
 /**
@@ -407,13 +409,15 @@ async function receiveBatch(
 
   await tx.execute(sql`
     INSERT INTO stock_batches
-      (tenant_id, warehouse_id, product_id, batch_number, expires_at, batch_key, quantity, arrival_item_id)
+      (tenant_id, warehouse_id, product_id, batch_number, expires_at, batch_key, quantity, arrival_item_id, cost_price)
     VALUES (
       ${entry.tenantId}, ${entry.warehouseId}, ${entry.productId},
       ${batchNumber ?? null}, ${expiresAt ?? null}, ${batchKeyOf(entry.batch)},
-      ${entry.quantity}, ${entry.batch.arrivalItemId ?? null}
+      ${entry.quantity}, ${entry.batch.arrivalItemId ?? null}, ${entry.batch.costPrice ?? null}
     )
-    ON DUPLICATE KEY UPDATE quantity = quantity + ${entry.quantity}
+    ON DUPLICATE KEY UPDATE
+      quantity = quantity + ${entry.quantity},
+      cost_price = COALESCE(${entry.batch.costPrice ?? null}, cost_price)
   `);
 }
 
