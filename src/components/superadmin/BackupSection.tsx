@@ -14,15 +14,19 @@ import { Section, BtnPrimary } from "./ui";
  */
 export function BackupSection() {
   const [busy, setBusy] = useState(false);
+  // Код второго фактора: выгрузка всей базы требует подтверждения здесь и
+  // сейчас, а не только живой сессии.
+  const [code, setCode] = useState("");
 
   async function download() {
+    if (code.trim().length < 6) { notify.error("Введите код из приложения-аутентификатора"); return; }
     setBusy(true);
     try {
       // Скачивание идёт запросом, а не обычной ссылкой, ради внятной ошибки.
       // По ссылке отказ сервера открылся бы новой вкладкой с техническим
       // текстом; здесь он превращается в понятное сообщение, а браузер не
       // уходит со страницы.
-      const res = await fetch("/api/admin/backup/download", { credentials: "include" });
+      const res = await fetch("/api/admin/backup/download", { credentials: "include", headers: { "x-totp-code": code.trim() } });
       if (!res.ok) {
         const body = await res.json().catch(() => ({ error: `Ошибка ${res.status}` })) as { error?: string };
         notify.error(body.error ?? `Ошибка ${res.status}`);
@@ -62,6 +66,21 @@ export function BackupSection() {
         доступ к самой базе, и держите копию вне этого сервера — в этом весь
         смысл.
       </p>
+      <div style={{ display: "flex", gap: "8px", alignItems: "center", marginBottom: "12px", maxWidth: "620px" }}>
+        <input
+          className="neo-input"
+          style={{ width: "160px" }}
+          inputMode="numeric"
+          autoComplete="one-time-code"
+          placeholder="Код из приложения"
+          value={code}
+          onChange={e => setCode(e.target.value)}
+          data-testid="backup-totp"
+        />
+        <span style={{ fontFamily: F.body, fontSize: "12px", color: COLORS.textTertiary }}>
+          Второй фактор обязателен: без него выгрузка закрыта (включается в профиле).
+        </span>
+      </div>
       <BtnPrimary onClick={download} disabled={busy}>
         {busy
           ? <><Loader2 size={14} style={{ animation: "spin 1s linear infinite" }} /> Готовится…</>

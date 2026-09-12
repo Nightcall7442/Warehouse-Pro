@@ -41,6 +41,14 @@ describe("сессия: jti и отзыв", () => {
     expect(until - Date.now()).toBeLessThanOrEqual(1000);
   });
 
+  it("refresh — ротация: прежний токен отзывается через минуту запаса", () => {
+    const boot = readFileSync("api/boot.ts", "utf-8");
+    const refresh = boot.slice(boot.indexOf('app.post("/api/refresh-token"'), boot.indexOf('app.post("/api/logout-all"'));
+    expect(refresh).toContain("setTimeout(() => { revokeSession(jti, exp).catch(() => {}); }, 60_000).unref();");
+    // отзыв — после выдачи нового токена, а не вместо неё
+    expect(refresh.indexOf("signSessionToken({")).toBeLessThan(refresh.indexOf("revokeSession(jti, exp)"));
+  });
+
   it("authenticateRequest и refresh отказывают отозванной; logout отзывает", () => {
     const auth = readFileSync("api/auth/index.ts", "utf-8");
     expect(auth).toContain("if (claim.jti && await isSessionRevoked(claim.jti)) throw");

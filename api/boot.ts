@@ -483,6 +483,33 @@ app.get("/api/admin/backup/download", async (c) => {
     return c.json({ error: "Forbidden" }, 403);
   }
 
+  /*
+    Второй фактор перед выгрузкой всей базы — обязателен.
+
+    Сессия суперадмина живёт 30 дней, и украденной куки хватало, чтобы
+    унести данные всех организаций одним запросом. Код из приложения
+    подтверждает, что это сам человек, здесь и сейчас; без включённого
+    второго фактора выгрузка закрыта вовсе — включается в профиле.
+  */
+  {
+    const { getDb } = await import("./queries/connection");
+    const { users } = await import("@db/schema");
+    const { eq } = await import("drizzle-orm");
+    const [row] = await getDb().select({ totpSecret: users.totpSecret, totpEnabledAt: users.totpEnabledAt })
+      .from(users).where(eq(users.id, auth.user.id)).limit(1);
+    if (!row?.totpSecret || !row.totpEnabledAt) {
+      return c.json({ error: "Выгрузка базы доступна только со вторым фактором — включите его в профиле", code: "TOTP_NOT_ENROLLED" }, 403);
+    }
+    const code = c.req.header("x-totp-code") ?? "";
+    const { verifyTotp } = await import("./lib/totp");
+    const { open } = await import("./lib/secret-box");
+    if (!code) return c.json({ error: "Введите код из приложения-аутентификатора", code: "TOTP_REQUIRED" }, 401);
+    if (!verifyTotp(open(row.totpSecret), code)) {
+      logger.warn("backup download refused: bad TOTP", { userId: auth.user.id });
+      return c.json({ error: "Неверный код подтверждения", code: "TOTP_INVALID" }, 401);
+    }
+  }
+
   // Выгрузка стоит дорого и базе, и процессу. Ограничение считается по
   // пользователю, а не по адресу: адрес подделывается заголовком, а
   // идентификатор берётся из проверенной сессии.
@@ -827,6 +854,21 @@ app.post("/api/refresh-token", async (c) => {
     if ((user.tokenVersion ?? 0) !== claim.tv) return c.json({ error: "Token revoked" }, 401);
 
     const newToken = await signSessionToken({ userId: user.id, tv: user.tokenVersion ?? 0 });
+
+    /*
+      Ротация: прежний токен отзывается, а не живёт до своего срока рядом с
+      новым. Иначе украденный токен обновлялся бы бесконечно, а «выход»
+      отзывал бы только последний из цепочки. Минута запаса — телефон мог
+      отправить фоновую точку GPS старым токеном за мгновение до того, как
+      записал новый; после минуты старый мёртв.
+      ponytail: таймер живёт в процессе — при перезапуске в эту минуту
+      старый токен доживает свой срок, как было до ротации.
+    */
+    if (claim.jti && claim.exp) {
+      const { revokeSession } = await import("./auth/revocation");
+      const { jti, exp } = claim;
+      setTimeout(() => { revokeSession(jti, exp).catch(() => {}); }, 60_000).unref();
+    }
     return c.json({ token: newToken });
   } catch {
     return c.json({ error: "Refresh failed" }, 500);
