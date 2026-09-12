@@ -48,3 +48,18 @@ describe("Code 128", () => {
     expect((svg.match(/<rect /g) ?? []).length).toBeGreaterThan(10);
   });
 });
+
+describe("этикетки по приходу", () => {
+  it("printLabels: столько наклеек, сколько пришло, с потолком; приход отдаёт штрих-код", async () => {
+    const { readFileSync } = await import("node:fs");
+    const docs = readFileSync("src/lib/documents.ts", "utf-8");
+    expect(docs).toContain("export function printLabels(items: LabelItem[])");
+    expect(docs).toContain("labels.length < MAX_LABELS");
+    expect(readFileSync("src/pages/Arrivals.tsx", "utf-8")).toContain('data-testid="arrival-print-labels"');
+    expect(readFileSync("api/arrival-router.ts", "utf-8")).toContain("p.barcode AS barcode");
+    // одна разметка этикетки на весь продукт: страница «Штрих-коды» печатает тем же
+    const page = readFileSync("src/pages/Barcode.tsx", "utf-8");
+    expect(page).toContain('import { printLabels as printLabelSheet } from "@/lib/documents";');
+    expect(page).not.toContain("label-print-area");
+  });
+});

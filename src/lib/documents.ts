@@ -1273,6 +1273,46 @@ function barcodeCell(value: string | null | undefined): string {
   catch { return ""; }
 }
 
+/** Одна этикетка на бумаге. count — сколько штук печатать (по приходу: сколько пришло). */
+export type LabelItem = { name: string; code: string; barcode?: string | null; price: string; currency: string; count?: number };
+
+/** Не больше — иначе одна кнопка отправляет на принтер рулон. */
+export const MAX_LABELS = 500;
+
+/**
+ * Этикетки 50×30 мм со штрих-кодом Code 128.
+ *
+ * До этого этикетки печатались только со страницы «Штрих-коды» по одной
+ * очереди, а после прихода их печатали руками по количеству. Здесь: список
+ * с числом штук — на приход это «сколько пришло, столько и наклеек».
+ */
+export function printLabels(items: LabelItem[]) {
+  const labels: string[] = [];
+  for (const it of items) {
+    const n = Math.max(1, Math.floor(it.count ?? 1));
+    let svg = "";
+    try { svg = code128Svg(it.barcode || it.code, { height: 40, label: true }); } catch { svg = ""; }
+    const one = `<div class="label">
+      <div class="label-name">${escapeHtml(it.name)}</div>
+      ${svg ? `<div class="label-bar">${svg}</div>` : `<div class="label-code">Код: ${escapeHtml(it.code)}</div>`}
+      <div class="label-price">${Number(it.price).toLocaleString("ru-RU")} ${escapeHtml(it.currency)}</div>
+    </div>`;
+    for (let k = 0; k < n && labels.length < MAX_LABELS; k++) labels.push(one);
+  }
+  const styles = `
+    @page { margin: 5mm; }
+    body { margin: 0; font-family: Arial, sans-serif; }
+    .label-grid { display: flex; flex-wrap: wrap; gap: 4mm; }
+    .label { width: 50mm; height: 30mm; border: 0.5px solid #ccc; box-sizing: border-box; padding: 2mm;
+      display: flex; flex-direction: column; align-items: center; justify-content: center; page-break-inside: avoid; }
+    .label-name { font-size: 7pt; font-weight: bold; text-align: center; line-height: 1.1; max-height: 8mm; overflow: hidden; }
+    .label-bar { width: 44mm; height: 11mm; margin: 1mm 0; } .label-bar svg { width: 100%; height: 100%; }
+    .label-code { font-size: 7pt; color: #555; margin: 1mm 0; }
+    .label-price { font-size: 10pt; font-weight: bold; }
+  `;
+  openPrintWindow(`<div class="label-grid">${labels.join("")}</div>`, "Этикетки", styles);
+}
+
 export type LoadingListData = {
   listId: number;
   listNumber: string;

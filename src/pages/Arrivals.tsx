@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { exportToExcel, formatArrivalsForExport } from "@/lib/excel";
 import { notify } from "@/lib/toast";
+import { printLabels } from "@/lib/documents";
 import { PremiumSelect } from "@/components/PremiumSelect";
 import { BarcodeScanner } from "@/components/BarcodeScanner";
 import { QueryErrorFallback } from "@/components/QueryErrorFallback";
@@ -624,7 +625,7 @@ function SupplierDebtSection({ arrivalId }: { arrivalId: number }) {
 
 // ── Arrival Detail Modal ─────────────────────────────────────────────────────
 function ArrivalDetail({ arrivalId, onClose }: { arrivalId: number; onClose: () => void }) {
-  const { fmt, symbol } = useCurrency();
+  const { fmt, symbol, currency } = useCurrency();
   const { lang } = useLang();
   const t = useCallback((ru: string, uz: string) => lang === "uz" ? uz : ru, [lang]);
   const { data: detail, isLoading } = trpc.arrival.getById.useQuery({ id: arrivalId });
@@ -737,6 +738,13 @@ function ArrivalDetail({ arrivalId, onClose }: { arrivalId: number; onClose: () 
             <div style={{ display: "flex", gap: "8px" }}>
               <button onClick={handlePrintInvoice} style={{ padding: "8px 16px", borderRadius: "10px", background: "color-mix(in srgb, var(--color-on-primary) 18%, transparent)", border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: "6px", color: "var(--color-on-primary)", fontSize: "12px", fontWeight: 600 }}>
                 <Printer size={14} /> {t("Накладная", "Hujjat")}
+              </button>
+              {/* Сколько пришло — столько и наклеек: этикетки по приходу, а не по одной со страницы «Штрих-коды». */}
+              <button data-testid="arrival-print-labels" onClick={() => printLabels(detail.items.map(i => ({
+                name: i.productName ?? "", code: i.productCode ?? "", barcode: i.barcode ?? null,
+                price: i.sellingPrice ?? "0", currency, count: Number(i.quantity ?? 1),
+              })))} style={{ padding: "8px 16px", borderRadius: "10px", background: "color-mix(in srgb, var(--color-on-primary) 18%, transparent)", border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: "6px", color: "var(--color-on-primary)", fontSize: "12px", fontWeight: 600 }}>
+                <Printer size={14} /> {t("Этикетки", "Yorliqlar")}
               </button>
               <button onClick={onClose} style={{ width: "40px", height: "40px", borderRadius: "12px", background: "color-mix(in srgb, var(--color-on-primary) 18%, transparent)", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--color-on-primary)" }}>
                 <X size={20} />

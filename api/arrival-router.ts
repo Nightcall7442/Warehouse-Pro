@@ -21,6 +21,7 @@ type ArrivalItemRow = {
   sellingPrice: string | null;
   productName:  string | null;
   productCode:  string | null;
+  barcode:      string | null;
   batchNumber:  string | null;
   expiresAt:    string | null;
 };
@@ -90,9 +91,10 @@ export const arrivalRouter = createRouter({
       if (!arrival) return null;
 
       // Always use raw SQL for items — avoids Drizzle referencing non-existent columns
-      let items: Array<{ id: number; productId: number; quantity: number; condition: string; notes: string; productName: string; productCode: string; costPrice: string; sellingPrice: string; batchNumber: string | null; expiresAt: string | null }>;
+      let items: Array<{ id: number; productId: number; quantity: number; condition: string; notes: string; productName: string; productCode: string; barcode: string | null; costPrice: string; sellingPrice: string; batchNumber: string | null; expiresAt: string | null }>;
       try {
-        const result = await db.execute(sql`SELECT ai.id, ai.product_id AS productId, ai.quantity, ai.condition, ai.notes, ai.cost_price AS costPrice, ai.selling_price AS sellingPrice, ai.batch_number AS batchNumber, DATE_FORMAT(ai.expires_at, '%Y-%m-%d') AS expiresAt, p.name AS productName, p.code AS productCode FROM arrival_items ai LEFT JOIN products p ON ai.product_id = p.id WHERE ai.arrival_id = ${arrival.id}`);
+        // p.barcode — для печати этикеток по приходу: на них штрих-код поставщика, если есть.
+        const result = await db.execute(sql`SELECT ai.id, ai.product_id AS productId, ai.quantity, ai.condition, ai.notes, ai.cost_price AS costPrice, ai.selling_price AS sellingPrice, ai.batch_number AS batchNumber, DATE_FORMAT(ai.expires_at, '%Y-%m-%d') AS expiresAt, p.name AS productName, p.code AS productCode, p.barcode AS barcode FROM arrival_items ai LEFT JOIN products p ON ai.product_id = p.id WHERE ai.arrival_id = ${arrival.id}`);
         const [rows] = result as unknown as [ArrivalItemRow[], unknown];
         items = Array.isArray(rows) ? rows.map(r => ({
           id: Number(r.id),
@@ -102,6 +104,7 @@ export const arrivalRouter = createRouter({
           notes: String(r.notes ?? ""),
           productName: String(r.productName ?? ""),
           productCode: String(r.productCode ?? ""),
+          barcode: r.barcode ?? null,
           costPrice: String(r.costPrice ?? "0.00"),
           sellingPrice: String(r.sellingPrice ?? "0.00"),
           // Пусто — это «не заполняли», а не пустая строка: у бытовой химии
