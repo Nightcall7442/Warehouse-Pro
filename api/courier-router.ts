@@ -14,6 +14,29 @@ import { productLabel } from "./services/order";
 import { releaseStock, shipStock } from "./services/stock-ledger";
 import { NotificationService } from "./services/NotificationService";
 
+/*
+  Повтор отметки курьера — не ошибка, а «уже сделано».
+
+  Телефон в поле шлёт отметку, сервер её проводит, а ответ не доходит
+  (обрыв связи, тайм-аут). Очередь на телефоне повторяет запрос — и
+  получала «Заказ не найден или не назначен на вас»: заказ уже delivered и
+  под условие assigned/out_for_delivery не попадает. Курьер видел красную
+  строку по заказу, который на самом деле проведён, и вводил наличные ещё
+  раз. Здесь: заказ, который ЭТОТ курьер уже довёз, отвечает успехом с
+  пометкой duplicate — ничего не списывается и не записывается второй раз.
+  Ключ идемпотентности не нужен: один заказ один курьер довозит один раз.
+*/
+async function alreadyDeliveredByMe(
+  db: ReturnType<typeof getDb>, tenantId: number, courierId: number, orderId: number,
+): Promise<{ orderNumber: string } | null> {
+  const [done] = await db.select({ orderNumber: orders.orderNumber }).from(orders)
+    .where(and(
+      eq(orders.id, orderId), eq(orders.tenantId, tenantId), eq(orders.courierId, courierId),
+      eq(orders.deliveryStatus, "delivered"),
+    )).limit(1);
+  return done ?? null;
+}
+
 export const courierRouter = createRouter({
   listMyDeliveries: courierQuery.query(async ({ ctx }) => {
     const db = getDb();
@@ -180,7 +203,14 @@ export const courierRouter = createRouter({
           eq(orders.courierId, courierId),
           eq(orders.deliveryStatus, "assigned"),
         )).limit(1);
-      if (!order) throw new Error("Заказ не найден или не назначен на вас");
+      if (!order) {
+        // Повтор из очереди: заказ уже в пути или уже довезён этим курьером.
+        const [mine] = await db.select({ deliveryStatus: orders.deliveryStatus }).from(orders)
+          .where(and(eq(orders.id, input.orderId), eq(orders.tenantId, ctx.tenant.id), eq(orders.courierId, courierId),
+            sql`${orders.deliveryStatus} IN ('out_for_delivery', 'delivered')`)).limit(1);
+        if (mine) return { success: true, duplicate: true };
+        throw new Error("Заказ не найден или не назначен на вас");
+      }
 
       await db.update(orders)
         .set({ deliveryStatus: "out_for_delivery" })
@@ -211,7 +241,14 @@ export const courierRouter = createRouter({
           isNull(orders.deletedAt),
           sql`${orders.deliveryStatus} IN ('assigned', 'out_for_delivery')`,
         )).limit(1);
-      if (!order) throw new Error("Заказ не найден или не назначен на вас");
+      if (!order) {
+        const done = await alreadyDeliveredByMe(db, ctx.tenant.id, courierId, input.orderId);
+        if (done) {
+          logger.info("markDelivered: повтор по уже довезённому заказу — принято как дубль", { orderId: input.orderId, courierId });
+          return { success: true, duplicate: true };
+        }
+        throw new Error("Заказ не найден или не назначен на вас");
+      }
 
       /*
         'returned' стоит наравне с остальными двумя — у соседней процедуры
@@ -220,6 +257,9 @@ export const courierRouter = createRouter({
         заказу уводило reserved в минус, молча аннулируя резерв ЧУЖИХ
         открытых заказов.
       */
+      // Довезён этим же курьером — дубль (см. alreadyDeliveredByMe); проведён
+      // оператором или отменён — отказ, как и раньше.
+      if (order.status === "delivered" && order.deliveryStatus === "delivered") return { success: true, duplicate: true };
       if (order.status === "delivered" || order.status === "cancelled" || order.status === "returned") {
         throw new Error("Заказ уже завершён, отменён или возвращён — повторное списание невозможно");
       }
@@ -418,7 +458,14 @@ export const courierRouter = createRouter({
           eq(orders.courierId, courierId),
           sql`${orders.deliveryStatus} IN ('assigned', 'out_for_delivery')`,
         )).limit(1);
-      if (!order) throw new Error("Заказ не найден или не назначен на вас");
+      if (!order) {
+        const done = await alreadyDeliveredByMe(db, ctx.tenant.id, courierId, input.orderId);
+        if (done) {
+          logger.info("completeDelivery: повтор по уже довезённому заказу — принято как дубль", { orderId: input.orderId, courierId, result: input.result });
+          return { success: true, result: input.result, finalStatus: "delivered", duplicate: true };
+        }
+        throw new Error("Заказ не найден или не назначен на вас");
+      }
 
       // Та же защита, что в markDelivered выше. Здесь её не было, и проверялся
       // только deliveryStatus — а операторская частичная доставка
@@ -430,6 +477,9 @@ export const courierRouter = createRouter({
       // которых физически 84. GREATEST(0, ...) в обоих местах маскировал это —
       // reserved в минус не уходил, а current_stock уходил.
       // Недостача всплывала только при инвентаризации.
+      if (order.status === "delivered" && order.deliveryStatus === "delivered") {
+        return { success: true, result: input.result, finalStatus: "delivered", duplicate: true };
+      }
       if (order.status === "delivered" || order.status === "cancelled" || order.status === "returned") {
         throw new Error(`Заказ уже завершён (статус «${ORDER_STATUS_LABELS[order.status]}») — повторное списание невозможно`);
       }
