@@ -259,7 +259,7 @@ function OperatorOrders() {
   );
 
   const updateStatus = trpc.order.updateStatus.useMutation({
-    onSuccess: () => { invalidateOrderCaches(); notify.success("Заказ обновлён"); },
+    onSuccess: () => { invalidateOrderCaches(); notify.success(t("Заказ обновлён", "Buyurtma yangilandi")); },
     onError:   (e) => notify.error(e.message),
   });
 
@@ -360,7 +360,7 @@ function OperatorOrders() {
         });
       }
 
-      notify.success("Заказ завершён");
+      notify.success(t("Заказ завершён", "Buyurtma yakunlandi"));
       setShowCompletion(false);
       setPendingStatus(null);
       setCompletionOrderId(null);
@@ -370,12 +370,12 @@ function OperatorOrders() {
   }
 
   const deleteOrder = trpc.order.delete.useMutation({
-    onSuccess: () => { invalidateOrderCaches(); notify.success("Заказ удалён"); },
+    onSuccess: () => { invalidateOrderCaches(); notify.success(t("Заказ удалён", "Buyurtma o'chirildi")); },
     onError:   (e) => notify.error(e.message),
   });
 
   const restoreOrder = trpc.order.restore.useMutation({
-    onSuccess: () => { invalidateOrderCaches(); notify.success("Заказ восстановлен"); },
+    onSuccess: () => { invalidateOrderCaches(); notify.success(t("Заказ восстановлен", "Buyurtma tiklandi")); },
     onError:   (e) => notify.error(e.message),
   });
 

@@ -107,7 +107,7 @@ export default function Shops() {
   const utils = trpc.useUtils();
 
   const createMutation = trpc.shop.create.useMutation({
-    onSuccess: () => { utils.shop.list.invalidate(); utils.shop.cities.invalidate(); setShowForm(false); notify.success("Магазин добавлен"); },
+    onSuccess: () => { utils.shop.list.invalidate(); utils.shop.cities.invalidate(); setShowForm(false); notify.success(lang === "uz" ? "Do'kon qo'shildi" : "Магазин добавлен"); },
     onError: (e) => notify.error(e.message),
   });
   /*

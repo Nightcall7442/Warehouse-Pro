@@ -41,6 +41,16 @@ const LangContext = createContext<LangCtx>({
   t:       (k) => k,
 });
 
+/**
+ * Язык вне React — для помощников вроде выгрузки в Excel, где хука нет.
+ * Тот же ключ, что у LangProvider; по умолчанию русский.
+ */
+export function currentLang(): Lang {
+  try { const s = localStorage.getItem("lang"); return s === "uz" ? "uz" : "ru"; } catch { return "ru"; }
+}
+/** Пара «русский / узбекский» по текущему языку — для тостов вне компонентов. */
+export const tt = (ru: string, uz: string): string => (currentLang() === "uz" ? uz : ru);
+
 export function LangProvider({ children }: { children: ReactNode }) {
   const [lang, setLangState] = useState<Lang>(() => {
     const stored = localStorage.getItem("lang");

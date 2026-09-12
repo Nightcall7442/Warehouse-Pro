@@ -2,6 +2,7 @@ import ExcelJS from "exceljs";
 import { unitShort } from "./units";
 import { openPrintWindowOrExplain } from "./print";
 import { notify } from "./toast";
+import { tt } from "@/i18n";
 
 /**
  * Export data to Excel (.xlsx) file.
@@ -25,7 +26,7 @@ export async function exportToExcel(sheets: Array<{
     себя по-разному.
   */
   if (!sheets.some(sheet => sheet.data.length > 0)) {
-    notify.info("Нет данных для выгрузки");
+    notify.info(tt("Нет данных для выгрузки", "Yuklab olish uchun ma'lumot yo'q"));
     return;
   }
 

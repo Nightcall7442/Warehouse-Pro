@@ -8,6 +8,7 @@ import ExcelJS from "exceljs";
 import { movementKind, movementDocument, movementNote } from "@/lib/stock-movement-text";
 import { formatQty } from "@/lib/format";
 import { notify } from "@/lib/toast";
+import { tt } from "@/i18n";
 import { unitShort } from "@/lib/units";
 import { cssVar } from "@/lib/css-var";
 import {
@@ -148,7 +149,7 @@ export async function exportToExcel(
   // большинстве из них это одна строка в обработчике нажатия без разбора
   // ошибок. Одно место — значит ни одно из девятнадцати не промолчит.
   if (!rows.length) {
-    notify.info("Нет данных для выгрузки");
+    notify.info(tt("Нет данных для выгрузки", "Yuklab olish uchun ma'lumot yo'q"));
     return;
   }
 

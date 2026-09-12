@@ -101,7 +101,7 @@ export default function ProductDetail() {
     try {
       const compressed = await compressImage(file);
       uploadPhoto.mutate({ productId: Number(id), dataUrl: compressed });
-    } catch { notify.error("Ошибка обработки изображения"); }
+    } catch { notify.error(tr("Ошибка обработки изображения", "Rasmni qayta ishlashda xatolik")); }
     e.target.value = "";
   };
 
