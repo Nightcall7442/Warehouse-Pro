@@ -20,6 +20,7 @@ import { createContext } from "./context";
 import { env } from "./lib/env";
 import { registerStripeWebhook } from "./webhooks/stripe";
 import onecWebhooks from "./webhooks/onec";
+import alertmanagerWebhook from "./webhooks/alertmanager";
 import { telegramBot } from "./telegram/bot";
 import publicApi from "./public-api";
 import photos from "./photos";
@@ -404,6 +405,8 @@ registerStripeWebhook(app);
 // ── 1C webhook (receives payments & stock updates) ───────────────────────────
 app.use("/api/webhooks/1c/*", bodyLimit({ maxSize: 256 * 1024 })); // 256 KB max
 app.route("/api/webhooks/1c", onecWebhooks);
+// Второй канал тревог: AlertManager → уведомления и push суперадминам.
+app.route("/api/webhooks/alertmanager", alertmanagerWebhook);
 
 /*
   Телеграм-бот.

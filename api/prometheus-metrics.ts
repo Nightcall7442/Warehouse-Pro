@@ -51,6 +51,26 @@ export const httpRequestDurationSeconds = new client.Histogram({
   registers: [register],
 });
 
+/*
+  По процедурам tRPC, а не по HTTP-пути: все вызовы приложения идут через
+  /api/trpc/*, и http_request_duration_seconds видит их одной строкой.
+  Какая именно ручка тормозит или сыплет отказами — только отсюда.
+  Метка path — имя процедуры (order.create), их конечное число.
+*/
+export const trpcProcedureDurationSeconds = new client.Histogram({
+  name: "trpc_procedure_duration_seconds",
+  help: "tRPC procedure duration in seconds, by procedure path and outcome",
+  labelNames: ["path", "type", "ok"] as const,
+  buckets: [0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10],
+  registers: [register],
+});
+export const trpcProcedureErrorsTotal = new client.Counter({
+  name: "trpc_procedure_errors_total",
+  help: "tRPC procedure errors by path and tRPC error code",
+  labelNames: ["path", "code"] as const,
+  registers: [register],
+});
+
 export const httpRequestsActive = new client.Gauge({
   name: "http_requests_active",
   help: "Number of HTTP requests currently being processed",
