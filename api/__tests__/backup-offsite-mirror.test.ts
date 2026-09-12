@@ -68,6 +68,7 @@ const { runBackup } = await import("../cron/backup");
 const { backupLastSuccessTimestamp } = await import("../prometheus-metrics");
 
 beforeEach(() => {
+  process.env.BACKUP_RETRY_BASE_MS = "0";      // ETIMEDOUT зеркала — временная ошибка, её пробуют пять раз; ждать незачем
   puts.length = 0;
   failEndpoint = null;
   envState.backupS3Endpoint = "";
