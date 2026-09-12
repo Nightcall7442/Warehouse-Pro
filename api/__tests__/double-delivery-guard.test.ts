@@ -33,8 +33,8 @@ const API_DIR = join(process.cwd(), "api");
 
 describe("двойное проведение доставки отвергается с обеих сторон", () => {
   it("courier.completeDelivery отказывает по уже завершённому заказу", () => {
-    const src = readFileSync(join(API_DIR, "courier-router.ts"), "utf8");
-    const proc = src.slice(src.indexOf("completeDelivery:"));
+    const src = readFileSync(join(API_DIR, "services", "courier-delivery.ts"), "utf8");
+    const proc = src.slice(src.indexOf("export async function completeDelivery("));
 
     // Проверять deliveryStatus мало: операторская доставка его не меняет.
     expect(proc, "completeDelivery не проверяет orders.status — операторская доставка пройдёт второй раз")
@@ -57,8 +57,8 @@ describe("двойное проведение доставки отвергае�
   });
 
   it("markDelivered сохраняет свою защиту — она была образцом для остальных", () => {
-    const src = readFileSync(join(API_DIR, "courier-router.ts"), "utf8");
-    const proc = src.slice(src.indexOf("markDelivered:"), src.indexOf("completeDelivery:"));
+    const src = readFileSync(join(API_DIR, "services", "courier-delivery.ts"), "utf8");
+    const proc = src.slice(src.indexOf("export async function markDelivered("), src.indexOf("export async function completeDelivery("));
     expect(proc).toMatch(/order\.status\s*===\s*"delivered"/);
   });
 });

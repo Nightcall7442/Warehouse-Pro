@@ -72,7 +72,7 @@ describe("просрочка вне отгрузки", () => {
 
 describe("себестоимость партии", () => {
   it("приёмка отдаёт цену партии; отчёт «что сгорает» считает по цене партии, карточка — запасной путь", () => {
-    const arrival = readFileSync("api/arrival-router.ts", "utf-8");
+    const arrival = readFileSync("api/services/arrival.ts", "utf-8");
     expect(arrival).toContain("costPrice: item.costPrice != null && Number(item.costPrice) > 0 ? String(item.costPrice) : null,");
     const report = readFileSync("api/warehouse-reports-router.ts", "utf-8");
     expect((report.match(/COALESCE\(\$\{stockBatches\.costPrice\}, \$\{products\.costPrice\}/g) ?? []).length).toBeGreaterThanOrEqual(3);

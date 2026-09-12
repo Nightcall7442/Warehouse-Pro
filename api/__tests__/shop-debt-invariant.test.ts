@@ -88,7 +88,7 @@ describe("every path that can change what a shop owes re-derives the balance", (
   const MUTATORS = [
     "services/order.ts",
     "services/payment.ts",
-    "courier-router.ts",
+    "services/courier-delivery.ts",
     "returns-router.ts",
     "webhooks/onec.ts",
   ];

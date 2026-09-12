@@ -105,7 +105,8 @@ describe("сколько дней осталось", () => {
 
 // ── Разбор исходников ────────────────────────────────────────────────────────
 describe("данные доходят от формы до базы и обратно", () => {
-  const ROUTER = read("api/arrival-router.ts");
+  // Роутеру остался zod и чтение; проведение прихода живёт в services/arrival.ts.
+  const ROUTER = read("api/arrival-router.ts") + read("api/services/arrival.ts");
   const PAGE = read("src/pages/Arrivals.tsx");
 
   it("вход принимает партию и срок", () => {
@@ -304,7 +305,7 @@ describe("ожидалось по накладной поставщика", () =
     const { readFileSync } = await import("node:fs");
     const router = readFileSync("api/arrival-router.ts", "utf-8");
     expect(router).toMatch(/expectedQuantity: z\.string\(\)\.regex\(/);
-    expect(router).toContain("expectedQuantity: item.expectedQuantity ?? null,");
+    expect(readFileSync("api/services/arrival.ts", "utf-8")).toContain("expectedQuantity: item.expectedQuantity ?? null,");
     expect(router).toContain("ai.expected_quantity AS expectedQuantity");
     const page = readFileSync("src/pages/Arrivals.tsx", "utf-8");
     expect(page).toContain('expectedQuantity: i.expected.trim() === "" ? undefined : i.expected.trim(),');

@@ -39,7 +39,7 @@ const API_DIR = join(__dirname, "..");
 const read = (rel: string) => readFileSync(join(API_DIR, rel.split("/").join(sep)), "utf8").replace(/\r\n/g, "\n");
 
 const ORDER_SERVICE = orderSource();
-const COURIER = read("courier-router.ts");
+const COURIER = read("services/courier-delivery.ts");
 
 /** Тело операторской частичной доставки. */
 const operatorPath = (() => {
