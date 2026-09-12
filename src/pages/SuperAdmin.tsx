@@ -3,16 +3,18 @@ import { trpc } from "@/providers/trpc";
 import { Zap, RefreshCw, Plus } from "lucide-react";
 import { F, COLORS } from "@/components/superadmin/types";
 import { BtnPrimary, BtnSecondary } from "@/components/superadmin/ui";
-import { PlatformStats, TenantList, TenantDetail, AdminActions, CreateTenantModal, BackupSection, SupportInbox, FeatureUsage, LeadInbox, SandboxSection, AiOfficeSection } from "@/components/superadmin";
+import { PlatformStats, TenantList, TenantDetail, AdminActions, CreateTenantModal, BackupSection, SupportInbox, FeatureUsage, LeadInbox, SandboxSection, AiOfficeSection, AiOfficeFrame } from "@/components/superadmin";
 
 export default function SuperAdmin() {
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [showCreate, setShowCreate] = useState(false);
+  const [officeUrl, setOfficeUrl] = useState<string | null>(null);
   const { refetch } = trpc.tenant.list.useQuery();
   const utils = trpc.useUtils();
   const invalidate = () => { utils.tenant.list.invalidate(); utils.tenant.platformStats.invalidate(); };
 
   if (selectedId !== null) return <TenantDetail tenantId={selectedId} onBack={() => setSelectedId(null)} />;
+  if (officeUrl) return <AiOfficeFrame url={officeUrl} onBack={() => setOfficeUrl(null)} />;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
@@ -70,7 +72,7 @@ export default function SuperAdmin() {
       */}
       <SandboxSection />
       {/* ИИ-офис — служебный ярлык владельца: рядом с личными делами администратора, не выше организаций. */}
-      <AiOfficeSection />
+      <AiOfficeSection onEmbed={setOfficeUrl} />
       <AdminActions />
       <BackupSection />
     </div>
