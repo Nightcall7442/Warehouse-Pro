@@ -1313,6 +1313,18 @@ export function printLabels(items: LabelItem[]) {
   openPrintWindow(`<div class="label-grid">${labels.join("")}</div>`, "Этикетки", styles);
 }
 
+/** «12 кор. + 3 шт» под количеством: кладовщик собирает тарой, а не штуками. */
+function packBreakdown(item: { totalQty: string; packSize?: string | null; packLabel?: string | null; unit: string }): string {
+  const pack = Number(item.packSize ?? 0);
+  if (!(pack > 0)) return "";
+  const qty = Number(item.totalQty);
+  const boxes = Math.floor(qty / pack);
+  const rest = Number((qty - boxes * pack).toFixed(2));
+  if (boxes === 0) return "";
+  const label = escapeHtml(item.packLabel || "уп.");
+  return `<div style="font-size:8pt;color:#666;font-weight:400">${boxes} ${label}${rest > 0 ? ` + ${cleanNum(rest)} ${unitLabel(item.unit)}` : ""}</div>`;
+}
+
 export type LoadingListData = {
   listId: number;
   listNumber: string;
@@ -1346,6 +1358,9 @@ export type LoadingListData = {
     barcode?: string | null;
     unit: string;
     unitWeight: string;
+    /** Упаковка: сколько единиц в таре и как она называется. Склад собирает коробками. */
+    packSize?: string | null;
+    packLabel?: string | null;
     totalQty: string;
     totalPrice: string;
   }>;
@@ -1368,7 +1383,7 @@ function buildLoadingListAggregated(data: LoadingListData, currency: string): st
       <td>${escapeHtml(item.productCode ?? "")}${barcodeCell(item.barcode || item.productCode)}</td>
       <td>${escapeHtml(item.productName)}</td>
       <td class="center">${unitLabel(item.unit)}</td>
-      <td class="right bold">${cleanNum(item.totalQty)}</td>
+      <td class="right bold">${cleanNum(item.totalQty)}${packBreakdown(item)}</td>
       <td class="right">${cleanNum(Number(item.totalQty) * Number(item.unitWeight))}</td>
     </tr>`).join("");
 

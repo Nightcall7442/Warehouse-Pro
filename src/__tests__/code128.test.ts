@@ -63,3 +63,17 @@ describe("этикетки по приходу", () => {
     expect(page).not.toContain("label-print-area");
   });
 });
+
+describe("упаковка: коробки там, где считают коробками", () => {
+  it("товар несёт packSize/packLabel; заказ — «+ упаковка»; приёмка — коробки × упаковка; лист — «N кор. + M шт»", async () => {
+    const { readFileSync } = await import("node:fs");
+    expect(readFileSync("db/migrations/0034_products_pack.sql", "utf-8")).toContain("ADD `pack_size` decimal(10,2)");
+    const router = readFileSync("api/product-router.ts", "utf-8");
+    expect((router.match(/packSize:\s+products\.packSize/g) ?? []).length).toBeGreaterThanOrEqual(3);
+    expect(readFileSync("src/components/orders/ProductSelector.tsx", "utf-8")).toContain("updateQuantity(product.id, Number(product.packSize))");
+    expect(readFileSync("src/pages/Arrivals.tsx", "utf-8")).toContain('updateItem(i, "quantity", n === 0 ? "" : String(n * pack))');
+    const docs = readFileSync("src/lib/documents.ts", "utf-8");
+    expect(docs).toContain("function packBreakdown(");
+    expect(docs).toContain("${cleanNum(item.totalQty)}${packBreakdown(item)}");
+  });
+});

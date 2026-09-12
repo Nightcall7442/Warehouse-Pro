@@ -613,6 +613,15 @@ export function ProductSelector({ items, onChange, cartOpen = false, onCartOpenC
                         style={{ width: "44px", height: "44px", borderRadius: "6px", border: "1px solid var(--color-border)", background: "var(--color-surface)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "var(--color-text-secondary)" }}>
                         <Plus size={16} />
                       </button>
+                      {/* Тара: магазин берёт коробками, а не штуками. Одно нажатие — одна упаковка. */}
+                      {product.packSize != null && Number(product.packSize) > 0 && (
+                        <button
+                          data-testid={`product-add-pack-${product.id}`}
+                          onClick={(e) => { e.stopPropagation(); updateQuantity(product.id, Number(product.packSize)); }}
+                          style={{ gridColumn: "1 / -1", height: "32px", borderRadius: "6px", border: "1px dashed var(--color-border)", background: "transparent", cursor: "pointer", color: "var(--color-text-secondary)", fontSize: "12px" }}>
+                          + {product.packLabel || t("упаковка", "qadoq")} ({formatQty(product.packSize)} {unitLabel(product.unit, lang)}) · {formatQty(Math.floor(Number(inCart.quantity) / Number(product.packSize)))} {t("уп.", "qad.")}
+                        </button>
+                      )}
                     </>
                   ) : (
                     <>

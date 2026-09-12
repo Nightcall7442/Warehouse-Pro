@@ -198,6 +198,13 @@ export default function ProductDetail() {
                 <DecimalInput className="neo-input font-data" placeholder={tr("Порог дозаказа","Qayta buyurtma chegarasi")}
                   value={String(editData.reorderPoint ?? product.reorderPoint ?? "")}
                   onValueChange={v=>setEditData((d: Record<string, unknown>)=>({...d,reorderPoint:v}))}/>
+                {/* Упаковка: «12» и «коробка». Пусто — тары нет. */}
+                <DecimalInput className="neo-input font-data" placeholder={tr("В упаковке, ед. (12)","Qadoqda, dona (12)")}
+                  value={String(editData.packSize ?? product.packSize ?? "")}
+                  onValueChange={v=>setEditData((d: Record<string, unknown>)=>({...d,packSize:v}))}/>
+                <input className="neo-input" placeholder={tr("Название упаковки (коробка)","Qadoq nomi (quti)")}
+                  value={String(editData.packLabel ?? product.packLabel ?? "")}
+                  onChange={e=>setEditData((d: Record<string, unknown>)=>({...d,packLabel:e.target.value}))}/>
                 <input className="neo-input col-span-2" placeholder={tr("Описание","Tavsif")}
                   defaultValue={product.description ?? ""}
                   onChange={e=>setEditData((d: Record<string, unknown>)=>({...d,description:e.target.value}))}/>
@@ -228,6 +235,11 @@ export default function ProductDetail() {
                   {Number(product.unitWeight) > 0 && (
                     <span className="text-xs px-2 py-0.5 rounded-full bg-surface-light text-secondary">
                       1 {unitLabel(product.unit)} = {formatQty(product.unitWeight)} {tr("кг","kg")}
+                    </span>
+                  )}
+                  {product.packSize != null && Number(product.packSize) > 0 && (
+                    <span className="text-xs px-2 py-0.5 rounded-full bg-surface-light text-secondary" data-testid="product-pack">
+                      1 {product.packLabel || tr("упаковка","qadoq")} = {formatQty(product.packSize)} {unitLabel(product.unit)}
                     </span>
                   )}
                 </div>

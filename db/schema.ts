@@ -236,6 +236,15 @@ export const products = mysqlTable("products", {
   unitPrice:    decimal("unit_price", { precision: 10, scale: 2 }).notNull(),
   unit:         mysqlEnum("unit", ["kg", "l", "pcs", "box", "pack", "m", "block"]).default("pcs").notNull(),
   unitWeight:   decimal("unit_weight", { precision: 10, scale: 3 }).default("0.000").notNull(),
+  /*
+    Упаковка: сколько единиц учёта в одной таре (12 бутылок в коробке, 6
+    пачек в блоке) и как она называется. Остаток и цена — всегда в единицах
+    учёта; упаковка нужна там, где человек считает тарой: «+ коробка» в
+    заказе, «коробок» на приёмке, «12 кор. + 3 шт» в загрузочном листе.
+    Пусто — тары нет (так было у всех).
+  */
+  packSize:     decimal("pack_size", { precision: 10, scale: 2 }),
+  packLabel:    varchar("pack_label", { length: 30 }),
   description:  text("description"),
   photoUrl:     mediumtext("photo_url"),
   reorderPoint: decimal("reorder_point", { precision: 10, scale: 2 }).default("0.00").notNull(),

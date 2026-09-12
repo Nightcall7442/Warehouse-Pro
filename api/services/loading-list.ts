@@ -169,13 +169,15 @@ export const LoadingListService = {
       barcode: products.barcode,
       unit: products.unit,
       unitWeight: products.unitWeight,
+      packSize: products.packSize,
+      packLabel: products.packLabel,
       totalQty: sql<string>`SUM(${orderItems.quantity})`,
       totalPrice: sql<string>`SUM(${orderItems.subtotal})`,
     }).from(orderItems)
       .innerJoin(products, and(eq(orderItems.productId, products.id), eq(products.tenantId, tenantId)))
       .innerJoin(orders, eq(orderItems.orderId, orders.id))
       .where(and(eq(orders.tenantId, tenantId), inArray(orderItems.orderId, input.orderIds)))
-      .groupBy(orderItems.productId, products.name, products.code, products.barcode, products.unit, products.unitWeight);
+      .groupBy(orderItems.productId, products.name, products.code, products.barcode, products.unit, products.unitWeight, products.packSize, products.packLabel);
 
     // Fetch items grouped by (product, agent) for the route/agent-matrix format
     const itemsByAgent = await db.select({

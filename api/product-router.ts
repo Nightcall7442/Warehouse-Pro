@@ -132,6 +132,8 @@ export const productRouter = createRouter({
         unitPrice:    products.unitPrice,
         unit:         products.unit,
         unitWeight:   products.unitWeight,
+        packSize:     products.packSize,
+        packLabel:    products.packLabel,
         description:  products.description,
         photoUrl:     photoRef("product", products.id, products.photoUrl, products.updatedAt),
         reorderPoint: products.reorderPoint,
@@ -212,6 +214,8 @@ export const productRouter = createRouter({
           unitPrice:    products.unitPrice,
           unit:         products.unit,
           unitWeight:   products.unitWeight,
+        packSize:     products.packSize,
+        packLabel:    products.packLabel,
           description:  products.description,
           photoUrl:     photoRef("product", products.id, products.photoUrl, products.updatedAt),
           reorderPoint: products.reorderPoint,
@@ -253,7 +257,7 @@ export const productRouter = createRouter({
       const [product] = await db.select({
         id: products.id, code: products.code, barcode: products.barcode, name: products.name,
         category: products.category, costPrice: products.costPrice, unitPrice: products.unitPrice,
-        unit: products.unit, unitWeight: products.unitWeight, description: products.description,
+        unit: products.unit, unitWeight: products.unitWeight, packSize: products.packSize, packLabel: products.packLabel, description: products.description,
         photoUrl: products.photoUrl, reorderPoint: products.reorderPoint, status: products.status,
         createdAt: products.createdAt,
       }).from(products)
@@ -312,6 +316,9 @@ export const productRouter = createRouter({
       unitPrice:    z.string().refine(v => Number(v) > 0, "Цена должна быть положительной"),
       unit:         z.enum(["kg", "l", "pcs", "box", "pack", "m", "block"]).default("pcs"),
       unitWeight:   decimalOrDefault("0.000").default("0.000"),
+      // Упаковка: «12» и «коробка». Пусто — тары нет.
+      packSize:     z.preprocess(v => (v === "" ? null : v), z.string().regex(/^\d+(\.\d{1,2})?$/, "Упаковка — число").refine(v => Number(v) > 0, "Упаковка — больше нуля").nullable().optional()),
+      packLabel:    z.string().max(30).nullable().optional(),
       description:  z.string().optional(),
       photoUrl:     z.string().max(2_800_000, "Файл слишком большой (макс. 2 МБ)")
         .refine(isSafePhotoValue, PHOTO_VALUE_ERROR).optional(),
@@ -413,6 +420,8 @@ export const productRouter = createRouter({
       unitPrice:    z.string().refine(v => v === undefined || Number(v) > 0, "Цена должна быть положительной").optional(),
       unit:         z.enum(["kg", "l", "pcs", "box", "pack", "m", "block"]).optional(),
       unitWeight:   decimalOrDefault("0.000").optional(),
+      packSize:     z.preprocess(v => (v === "" ? null : v), z.string().regex(/^\d+(\.\d{1,2})?$/, "Упаковка — число").refine(v => Number(v) > 0, "Упаковка — больше нуля").nullable().optional()),
+      packLabel:    z.string().max(30).nullable().optional(),
       description:  z.string().optional(),
       photoUrl:     z.string().max(2_800_000, "Файл слишком большой (макс. 2 МБ)")
         .refine(isSafePhotoValue, PHOTO_VALUE_ERROR).nullable().optional(),

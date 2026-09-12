@@ -401,6 +401,22 @@ function ArrivalForm({ onSave, onClose, isPending }: { onSave: (d: ArrivalCreate
                       <label className="font-label text-[10px] text-secondary mb-1.5 block">{t("Состояние", "Holat")}</label>
                       <input className="neo-input" style={{ padding: "8px 10px" }} placeholder={t("Хорошее", "Yaxshi")} value={item.condition} onChange={e => updateItem(i, "condition", e.target.value)} />
                     </div>
+                    {/* Тара: считают коробками — вводят коробки, количество считается само. */}
+                    {(() => {
+                      const p = products?.data?.find(pr => pr.id === item.productId);
+                      const pack = p?.packSize != null ? Number(p.packSize) : 0;
+                      if (!(pack > 0)) return null;
+                      const boxes = Number(item.quantity || 0) / pack;
+                      return (
+                        <div>
+                          <label className="font-label text-[10px] text-secondary mb-1.5 block">{p?.packLabel || t("Упаковок", "Qadoqlar")} × {formatQty(pack)}</label>
+                          <DecimalInput className="neo-input" style={{ textAlign: "right", padding: "8px 10px" }} placeholder="0"
+                            value={Number.isInteger(boxes) && boxes > 0 ? String(boxes) : ""}
+                            onValueChange={v => { const n = Number(v); if (Number.isFinite(n) && n >= 0) updateItem(i, "quantity", n === 0 ? "" : String(n * pack)); }}
+                            data-testid={`arrival-boxes-${i}`} />
+                        </div>
+                      );
+                    })()}
                     {/* По накладной поставщика. Разница с принятым — недовоз или
                         излишек, и спор с поставщиком начинается с этого числа. */}
                     <div>
