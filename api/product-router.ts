@@ -5,7 +5,7 @@ import { isSafePhotoValue, PHOTO_VALUE_ERROR } from "./lib/photo-value";
 import { createRouter, operatorQuery, fieldSalesQuery, can } from "./middleware";
 import { getDb } from "./queries/connection";
 import { products, warehouseStock, stockMovements, warehouses } from "@db/schema";
-import { eq, like, and, sql, desc } from "drizzle-orm";
+import { eq, like, and, or, sql, desc } from "drizzle-orm";
 import { sanitizeString, sanitizeSearch } from "./lib/sanitize";
 import { decimalOrDefault } from "./lib/zod-decimal";
 import { cache, withCache, CacheKeys, CacheTTL } from "./lib/cache";
@@ -67,6 +67,19 @@ async function getDefaultWarehouseId(db: ReturnType<typeof getDb>, tenantId: num
   return wh?.id ?? null;
 }
 
+/**
+ * Поиск товара — по названию, коду и штрих-коду.
+ *
+ * Искалось только по названию: страница «Штрих-коды» после скана искала
+ * «4870001234567» в названии и отвечала «Товар не найден», хотя штрих-код в
+ * карточке стоял. Код и штрих-код сравниваются целиком: скан — точное
+ * совпадение, а «12» в середине чужого штрих-кода — не находка.
+ */
+function productMatches(raw: string) {
+  const q = sanitizeSearch(raw);
+  return or(like(products.name, `%${q}%`), eq(products.code, q), eq(products.barcode, q))!;
+}
+
 export const productRouter = createRouter({
   /** All active products for a tenant — no pagination, used by mobile catalog & selectors */
   listAll: fieldSalesQuery
@@ -80,7 +93,7 @@ export const productRouter = createRouter({
       const warehouseId = await getDefaultWarehouseId(db, tenantId);
 
       const conditions = [eq(products.tenantId, tenantId), eq(products.status, "active")];
-      if (input?.search)   conditions.push(like(products.name, `%${sanitizeSearch(input.search)}%`));
+      if (input?.search)   conditions.push(productMatches(input.search));
       if (input?.category) conditions.push(eq(products.category, input?.category));
       const where = and(...conditions);
 
@@ -165,7 +178,7 @@ export const productRouter = createRouter({
       return withCache(cacheKey, CacheTTL.products, async () => {
       const conditions = [eq(products.tenantId, tenantId)];
       if (!input?.includeAll) conditions.push(eq(products.status, "active"));
-      if (input?.search)   conditions.push(like(products.name, `%${sanitizeSearch(input.search)}%`));
+      if (input?.search)   conditions.push(productMatches(input.search));
       if (input?.category) conditions.push(eq(products.category, input?.category));
       const where = and(...conditions);
 
