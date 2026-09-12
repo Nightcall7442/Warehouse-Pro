@@ -136,7 +136,8 @@ export const tenantBrandingRouter = createRouter({
         loginTitle:     row.loginTitle,
         loginSubtitle:  row.loginSubtitle,
         footerText:     row.footerText,
-        mobileTheme:    row.mobileTheme ?? "auto",
+        // Колонка — varchar; на входе стоит z.enum, так что сузить безопасно.
+        mobileTheme:    (row.mobileTheme ?? "auto") as "light" | "dark" | "auto",
       };
     });
   }),

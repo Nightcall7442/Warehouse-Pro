@@ -633,7 +633,9 @@ export const productRouter = createRouter({
 
     const results = await getDb().select({ category: products.category })
       .from(products).where(and(eq(products.tenantId, tenantId), eq(products.status, "active"))).groupBy(products.category);
-    const cats = results.map(r => r.category).filter(Boolean);
+    // Тип-предикат, а не просто filter(Boolean): иначе ответ остаётся (string | null)[],
+    // и контракт мобилки (string[]) с ним расходится на ровном месте.
+    const cats = results.map(r => r.category).filter((c): c is string => !!c);
     cache.set(cacheKey, cats, CacheTTL.categories);
     return cats;
   }),

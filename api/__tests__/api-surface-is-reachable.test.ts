@@ -102,34 +102,16 @@ function webSources(): string {
 }
 
 /**
- * Ручки, которые зовёт ТОЛЬКО мобильное приложение.
+ * Ручки, которые зовёт мобильное приложение.
  *
  * Оно живёт отдельным репозиторием (Warehouse-Pro-Mobile), и его исходников
- * здесь нет. Список именной, чтобы «мобилка зовёт» нельзя было сказать про
- * что угодно: каждая строка проверена поиском по src/api.ts мобилки.
+ * здесь нет. Раньше список вёлся руками и ветшал; теперь его порождает
+ * scripts/mobile-contract.mjs из src/api.ts мобилки —
+ * contracts/mobile-procedures.json. Что в нём есть — зовёт мобилка, и точка.
  */
-const MOBILE_ONLY = new Set([
-  "agent.availableShops", "agent.getOptimizedRoute", "agent.getShopById",
-  "agent.getShopByIdSupervisor", "agent.listAllShops", "agent.listShopsForPlan",
-  "agent.myWorkZones", "agent.updateMyShop", "agent.uploadMyShopPhoto",
-  "courier.completeDelivery",
-  "dashboard.revenueTrend", "dashboard.supervisorDashboard",
-  "order.cancel", "order.myOrders",
-  // priceList.getById / list ушли отсюда: их зовёт и веб — раздел настроек,
-  // которым прайс-листы наконец можно завести.
-  "priceList.getPrice",
-  "product.findByBarcode",
-  // returns.list / getById / summary ушли отсюда: их зовёт и веб — страница
-  // возвратов, которой раньше не было вовсе.
-  "returns.create",
-  // salesTarget.upsert нашёлся, когда проверка перестала считать вызовом
-  // упоминание в комментарии: его зовёт мобилка (src/api.ts:1046), а веб — нет.
-  "salesTarget.myQuota", "salesTarget.upsert",
-  "settings.brandingAuth",
-  "upload.file",
-  "user.registerPushToken", "user.removePushToken",
-  "warehouseReports.reorderAlerts",
-]);
+const MOBILE_ONLY = new Set(
+  (JSON.parse(read(join(API_DIR, "..", "contracts", "mobile-procedures.json"))) as Array<{ path: string }>).map(c => c.path),
+);
 
 /**
  * Сколько ручек сейчас не зовёт НИКТО — ни экраны, ни мобилка.
@@ -293,7 +275,7 @@ describe("вся поверхность API кем-то вызывается", (
         `Так у арендатора встала сборка: ручки закрытия погрузочного листа были\n` +
         `написаны и не позваны, и одиннадцать заказов заперлись без выхода.\n\n` +
         `Позовите её с экрана, уберите — или, если она нужна мобилке, впишите\n` +
-        `в MOBILE_ONLY, проверив по src/api.ts мобильного приложения.`,
+        `в contracts/mobile-procedures.json (его порождает scripts/mobile-contract.mjs).`,
     ).toBeLessThanOrEqual(BASELINE);
   });
 
@@ -314,11 +296,5 @@ describe("вся поверхность API кем-то вызывается", (
     */
     const stale = [...MOBILE_ONLY].filter(key => !procedures.has(key));
     expect(stale, `в MOBILE_ONLY остались ручки, которых больше нет: ${stale.join(", ")}`).toEqual([]);
-  });
-
-  it("в список мобильных не попали те, кого зовут экраны", () => {
-    // Иначе он прикрывал бы живые ручки и тихо рос.
-    const alsoWeb = [...MOBILE_ONLY].filter(key => web.includes(key));
-    expect(alsoWeb, `эти ручки зовут экраны — из MOBILE_ONLY их надо убрать: ${alsoWeb.join(", ")}`).toEqual([]);
   });
 });
