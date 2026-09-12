@@ -373,7 +373,7 @@ export default function Warehouse() {
                 ? Array.from({ length: 4 }).map((_, i) => (
                     <div key={i} className="h-28 rounded-2xl animate-pulse" style={{ background: "var(--color-surface-light, #f6f4f0)" }} />
                   ))
-                : stock?.map((item) => {
+                : shown?.map((item) => {
                     const low = Number(item.available ?? 0) < Number(item.reorderPoint ?? 0);
                     return (
                       <div key={item.id} className="rounded-2xl overflow-hidden"
@@ -418,6 +418,11 @@ export default function Warehouse() {
                       </div>
                     );
                   })}
+              {hidden > 0 && (
+                <button type="button" className="neo-btn tap w-full" onClick={() => setVisibleRows(v => v + PAGE)} data-testid="stock-show-more-m">
+                  {t(`Показать ещё ${Math.min(PAGE, hidden)} (осталось ${hidden})`, `Yana ${Math.min(PAGE, hidden)} ko'rsatish (qoldi ${hidden})`)}
+                </button>
+              )}
             </div>
           ) : (
             <div className="rounded-2xl"
@@ -498,7 +503,7 @@ export default function Warehouse() {
                 </tbody>
               </table>
               {hidden > 0 && (
-                <div className="flex justify-center py-3" style={{ borderTop: "1px solid var(--color-border, #d8d5cd)" }}>
+                <div className="flex justify-center py-3" style={{ borderTop: "1px solid var(--color-border)" }}>
                   <button type="button" className="neo-btn tap" onClick={() => setVisibleRows(v => v + PAGE)} data-testid="stock-show-more">
                     {t(`Показать ещё ${Math.min(PAGE, hidden)} (осталось ${hidden})`, `Yana ${Math.min(PAGE, hidden)} ko'rsatish (qoldi ${hidden})`)}
                   </button>
