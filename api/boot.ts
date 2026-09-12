@@ -312,6 +312,10 @@ app.use(secureHeaders({
     connectSrc: ["'self'", "https://api-maps.yandex.ru", "https://*.ingest.de.sentry.io", "https://*.sentry.io"],
     workerSrc:  ["'self'", "blob:"],                      // tRPC, SSE, WebSocket, Yandex Maps
     fontSrc:    ["'self'", "data:", "https://fonts.gstatic.com"],             // Google Fonts files
+    // ИИ-офис встраивается страницей в супер-админку: он живёт на компьютере
+    // владельца и виден либо по адресу туннеля Cloudflare, либо с того же
+    // компьютера по localhost. Без frame-src браузер молча показывает пустой кадр.
+    frameSrc:   ["'self'", "https://*.trycloudflare.com", "http://localhost:*", "http://127.0.0.1:*"],
     frameAncestors: ["'none'"],
     objectSrc:  ["'none'"],
     baseUri:    ["'self'"],
