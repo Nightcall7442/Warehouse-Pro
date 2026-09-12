@@ -1,0 +1,29 @@
+# Выпуск по метке v*: страница Release на GitHub с разделом из CHANGELOG.md.
+# Метку ставит scripts/release.mjs (он же пишет CHANGELOG и версию). Сборку и
+# выкладку это не трогает — их делают ci.yml и Railway по main.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Раздел из CHANGELOG.md
+        run: |
+          awk -v tag="${GITHUB_REF_NAME}" '
+            $0 ~ "^## " tag " " { on = 1; next }
+            on && /^## / { exit }
+            on { print }
+          ' CHANGELOG.md > notes.md
+          test -s notes.md || echo "Раздел ${GITHUB_REF_NAME} в CHANGELOG.md не найден." > notes.md
+      - name: Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "${GITHUB_REF_NAME}" --title "${GITHUB_REF_NAME}" --notes-file notes.md

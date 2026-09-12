@@ -204,27 +204,6 @@ describe("сырого SQL по остатку не становится бол�
       `сырых UPDATE warehouse_stock стало ${hits.length} (было ${BASELINE}):\n${hits.join("\n")}`,
     ).toBeLessThanOrEqual(BASELINE);
   });
-
-  it.skip("три главные операции склада всё ещё никем не зовутся — это и есть причина", () => {
-    /*
-      Проверка-напоминание, а не требование. StockService.reserve/release/deduct
-      написаны и мертвы: каждый путь пишет остаток сам. Пока это так, партии не
-      на что опереть. Появится вызов — проверка упадёт, и это будет ХОРОШАЯ
-      новость: значит, дверь начали строить, и здесь пора пересмотреть план.
-    */
-    const callers: string[] = [];
-    const walk = (dir: string) => {
-      for (const e of fs.readdirSync(path.resolve(process.cwd(), dir), { withFileTypes: true })) {
-        const rel = `${dir}/${e.name}`;
-        if (e.isDirectory()) { if (e.name !== "__tests__") walk(rel); }
-        else if (e.name.endsWith(".ts") && rel !== "api/services/stock.ts") {
-          if (/StockService\.(reserve|release|deduct)\(/.test(read(rel))) callers.push(rel);
-        }
-      }
-    };
-    walk("api");
-    expect(callers, "кто-то начал звать StockService — пора строить дверь для остатка и вернуться к партиям").toEqual([]);
-  });
 });
 
 beforeEach(() => { mocks.inserted.length = 0; });

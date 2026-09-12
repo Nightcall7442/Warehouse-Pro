@@ -121,6 +121,9 @@ export const tgMessages = {
   newRegistration: (org: string, email: string) =>
     `🆕 <b>Новая регистрация</b>\n🏢 ${tgEscape(org)}\n📧 ${tgEscape(email)}`,
 
+  tenantOffboarded: (org: string, slug: string, who: string, rows: number) =>
+    `🗑 <b>Организация удалена</b>\n🏢 ${tgEscape(org)} (${tgEscape(slug)})\n👤 ${tgEscape(who)}\n📦 Стёрто строк: ${tgEscape(rows)}`,
+
   upgradeRequest: (org: string, plan: string, price: string, contact: string) =>
     `💳 <b>Запрос на апгрейд</b>\n🏢 ${tgEscape(org)}\n📈 Тариф: ${tgEscape(plan)}\n💰 ${tgEscape(price)} сум/мес\n📞 ${tgEscape(contact)}`,
 

@@ -85,6 +85,28 @@ jobs:
         env:
           TEST_DATABASE_URL: mysql://root:test@127.0.0.1:3306/warehouse_test
 
+  # Контракт мобилки: типы ответов и входов роутера против src/api.ts
+  # мобильного приложения (scripts/mobile-contract.mjs). Раньше переименование
+  # поля на сервере проходило CI и ломало APK у агентов. Репозиторий мобилки
+  # публичный, токен не нужен; ветка берётся из переменной MOBILE_REF
+  # (Settings → Variables), по умолчанию master — та, из которой собирается APK.
+  mobile-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7
+        with:
+          repository: Nightcall7442/Warehouse-Pro-Mobile
+          ref: ${{ vars.MOBILE_REF || 'master' }}
+          path: mobile
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --legacy-peer-deps
+      - name: Контракт мобилки
+        run: bash scripts/ci-run.sh "Контракт мобилки" node scripts/mobile-contract.mjs --mobile mobile
+
   # Сквозные проверки: настоящий браузер, настоящее приложение, настоящая база.
   #
   # Прежний набор в CI не запускался вовсе, и это было видно по нему самому:

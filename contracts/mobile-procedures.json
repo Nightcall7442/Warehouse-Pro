@@ -1,0 +1,457 @@
+[
+  {
+    "fn": "getAvailableShops",
+    "path": "agent.availableShops",
+    "kind": "query"
+  },
+  {
+    "fn": "createPlan",
+    "path": "agent.createPlan",
+    "kind": "mutation"
+  },
+  {
+    "fn": "createPlans",
+    "path": "agent.createPlans",
+    "kind": "mutation"
+  },
+  {
+    "fn": "createShop",
+    "path": "agent.createShop",
+    "kind": "mutation"
+  },
+  {
+    "fn": "getAgentLocations",
+    "path": "agent.getLocations",
+    "kind": "query"
+  },
+  {
+    "fn": "getOptimizedRoute",
+    "path": "agent.getOptimizedRoute",
+    "kind": "query"
+  },
+  {
+    "fn": "getPlans",
+    "path": "agent.getPlans",
+    "kind": "query"
+  },
+  {
+    "fn": "getShop",
+    "path": "agent.getShopById",
+    "kind": "query"
+  },
+  {
+    "fn": "getShopForSupervisor",
+    "path": "agent.getShopByIdSupervisor",
+    "kind": "query"
+  },
+  {
+    "fn": "getAgentsList",
+    "path": "agent.listAgents",
+    "kind": "query"
+  },
+  {
+    "fn": "getAllShopsForSupervisor",
+    "path": "agent.listAllShops",
+    "kind": "query"
+  },
+  {
+    "fn": "getAllShops",
+    "path": "agent.listShopsForPlan",
+    "kind": "query"
+  },
+  {
+    "fn": "getMyDebts",
+    "path": "agent.myDebts",
+    "kind": "query"
+  },
+  {
+    "fn": "getMyShops",
+    "path": "agent.myShops",
+    "kind": "query"
+  },
+  {
+    "fn": "getMyWorkZones",
+    "path": "agent.myWorkZones",
+    "kind": "query"
+  },
+  {
+    "fn": "saveLocation",
+    "path": "agent.saveLocation",
+    "kind": "mutation"
+  },
+  {
+    "fn": "saveVisitPhoto",
+    "path": "agent.saveVisitPhoto",
+    "kind": "mutation"
+  },
+  {
+    "fn": "updateShop",
+    "path": "agent.updateMyShop",
+    "kind": "mutation"
+  },
+  {
+    "fn": "updatePlanStatus",
+    "path": "agent.updatePlanStatus",
+    "kind": "mutation"
+  },
+  {
+    "fn": "uploadShopPhoto",
+    "path": "agent.uploadMyShopPhoto",
+    "kind": "mutation"
+  },
+  {
+    "fn": "getMe",
+    "path": "auth.me",
+    "kind": "query"
+  },
+  {
+    "fn": "getTenantBranding",
+    "path": "branding.get",
+    "kind": "query"
+  },
+  {
+    "fn": "getCommissions",
+    "path": "commission.list",
+    "kind": "query"
+  },
+  {
+    "fn": "setCommissionRate",
+    "path": "commission.setRate",
+    "kind": "mutation"
+  },
+  {
+    "fn": "assignCourier",
+    "path": "courier.assignCourier",
+    "kind": "mutation"
+  },
+  {
+    "fn": "completeDelivery",
+    "path": "courier.completeDelivery",
+    "kind": "mutation"
+  },
+  {
+    "fn": "listMyDeliveries",
+    "path": "courier.listMyDeliveries",
+    "kind": "query"
+  },
+  {
+    "fn": "markDelivered",
+    "path": "courier.markDelivered",
+    "kind": "mutation"
+  },
+  {
+    "fn": "markFailed",
+    "path": "courier.markFailed",
+    "kind": "mutation"
+  },
+  {
+    "fn": "markOutForDelivery",
+    "path": "courier.markOutForDelivery",
+    "kind": "mutation"
+  },
+  {
+    "fn": "getDashboardActivity",
+    "path": "dashboard.activity",
+    "kind": "query"
+  },
+  {
+    "fn": "getAgentDashboard",
+    "path": "dashboard.agentDashboard",
+    "kind": "query"
+  },
+  {
+    "fn": "getDashboardKpis",
+    "path": "dashboard.kpis",
+    "kind": "query"
+  },
+  {
+    "fn": "getRevenueTrend",
+    "path": "dashboard.revenueTrend",
+    "kind": "query"
+  },
+  {
+    "fn": "getDashboardStatusBreakdown",
+    "path": "dashboard.statusBreakdown",
+    "kind": "query"
+  },
+  {
+    "fn": "getSupervisorDashboard",
+    "path": "dashboard.supervisorDashboard",
+    "kind": "query"
+  },
+  {
+    "fn": "getDashboardTrends",
+    "path": "dashboard.trends",
+    "kind": "query"
+  },
+  {
+    "fn": "getAgentKpi",
+    "path": "kpi.agentKpi",
+    "kind": "query"
+  },
+  {
+    "fn": "confirmPayout",
+    "path": "kpi.confirmPayout",
+    "kind": "mutation"
+  },
+  {
+    "fn": "getCourierKpi",
+    "path": "kpi.courierKpi",
+    "kind": "query"
+  },
+  {
+    "fn": "getMyPayouts",
+    "path": "kpi.myPayouts",
+    "kind": "query"
+  },
+  {
+    "fn": "getMySalary",
+    "path": "kpi.salary",
+    "kind": "query"
+  },
+  {
+    "fn": "getReportById",
+    "path": "merchandiser.getReportById",
+    "kind": "query"
+  },
+  {
+    "fn": "getReportsByShop",
+    "path": "merchandiser.getReportsByShop",
+    "kind": "query"
+  },
+  {
+    "fn": "submitVisitReport",
+    "path": "merchandiser.submitReport",
+    "kind": "mutation"
+  },
+  {
+    "fn": "getNotificationCounts",
+    "path": "notification.counts",
+    "kind": "query"
+  },
+  {
+    "fn": "getNotifications",
+    "path": "notification.list",
+    "kind": "query"
+  },
+  {
+    "fn": "markAllNotificationsRead",
+    "path": "notification.markAllRead",
+    "kind": "mutation"
+  },
+  {
+    "fn": "markNotificationRead",
+    "path": "notification.markRead",
+    "kind": "mutation"
+  },
+  {
+    "fn": "getSmartAlerts",
+    "path": "notification.smartAlerts",
+    "kind": "query"
+  },
+  {
+    "fn": "addOrderComment",
+    "path": "order.addComment",
+    "kind": "mutation"
+  },
+  {
+    "fn": "cancelOrder",
+    "path": "order.cancel",
+    "kind": "mutation"
+  },
+  {
+    "fn": "createOrder",
+    "path": "order.create",
+    "kind": "mutation"
+  },
+  {
+    "fn": "deleteOrder",
+    "path": "order.delete",
+    "kind": "mutation"
+  },
+  {
+    "fn": "getOrderAdjustments",
+    "path": "order.getAdjustments",
+    "kind": "query"
+  },
+  {
+    "fn": "getOrderById",
+    "path": "order.getById",
+    "kind": "query"
+  },
+  {
+    "fn": "getOrderPayments",
+    "path": "order.getOrderPayments",
+    "kind": "query"
+  },
+  {
+    "fn": "listAllOrders",
+    "path": "order.list",
+    "kind": "query"
+  },
+  {
+    "fn": "getOrderComments",
+    "path": "order.listComments",
+    "kind": "query"
+  },
+  {
+    "fn": "getMyOrders",
+    "path": "order.myOrders",
+    "kind": "query"
+  },
+  {
+    "fn": "recordDeliveryAndPayment",
+    "path": "order.recordDeliveryAndPayment",
+    "kind": "mutation"
+  },
+  {
+    "fn": "recordPartialDelivery",
+    "path": "order.recordPartialDelivery",
+    "kind": "mutation"
+  },
+  {
+    "fn": "recordPartialPayment",
+    "path": "order.recordPartialPayment",
+    "kind": "mutation"
+  },
+  {
+    "fn": "restoreOrder",
+    "path": "order.restore",
+    "kind": "mutation"
+  },
+  {
+    "fn": "setPromisedDelivery",
+    "path": "order.setPromisedDelivery",
+    "kind": "mutation"
+  },
+  {
+    "fn": "updateOrder",
+    "path": "order.update",
+    "kind": "mutation"
+  },
+  {
+    "fn": "updateOrderItems",
+    "path": "order.updateItems",
+    "kind": "mutation"
+  },
+  {
+    "fn": "getPriceListById",
+    "path": "priceList.getById",
+    "kind": "query"
+  },
+  {
+    "fn": "getPriceForProduct",
+    "path": "priceList.getPrice",
+    "kind": "query"
+  },
+  {
+    "fn": "getPriceLists",
+    "path": "priceList.list",
+    "kind": "query"
+  },
+  {
+    "fn": "getCategories",
+    "path": "product.categories",
+    "kind": "query"
+  },
+  {
+    "fn": "findByBarcode",
+    "path": "product.findByBarcode",
+    "kind": "query"
+  },
+  {
+    "fn": "getProducts",
+    "path": "product.listAll",
+    "kind": "query"
+  },
+  {
+    "fn": "createReturn",
+    "path": "returns.create",
+    "kind": "mutation"
+  },
+  {
+    "fn": "getReturnById",
+    "path": "returns.getById",
+    "kind": "query"
+  },
+  {
+    "fn": "getReturns",
+    "path": "returns.list",
+    "kind": "query"
+  },
+  {
+    "fn": "getReturnsSummary",
+    "path": "returns.summary",
+    "kind": "query"
+  },
+  {
+    "fn": "bulkCreateSalesTargets",
+    "path": "salesTarget.bulkUpsert",
+    "kind": "mutation"
+  },
+  {
+    "fn": "getSalesTargets",
+    "path": "salesTarget.list",
+    "kind": "query"
+  },
+  {
+    "fn": "getMyQuota",
+    "path": "salesTarget.myQuota",
+    "kind": "query"
+  },
+  {
+    "fn": "getSalesTargetSummary",
+    "path": "salesTarget.summary",
+    "kind": "query"
+  },
+  {
+    "fn": "createSalesTarget",
+    "path": "salesTarget.upsert",
+    "kind": "mutation"
+  },
+  {
+    "fn": "getTenantMoneySettings",
+    "path": "settings.brandingAuth",
+    "kind": "query"
+  },
+  {
+    "fn": "getReceivablesAging",
+    "path": "shop.receivablesAging",
+    "kind": "query"
+  },
+  {
+    "fn": "getTerritories",
+    "path": "territory.list",
+    "kind": "query"
+  },
+  {
+    "fn": "uploadFile",
+    "path": "upload.file",
+    "kind": "mutation"
+  },
+  {
+    "fn": "changePassword",
+    "path": "user.changePassword",
+    "kind": "mutation"
+  },
+  {
+    "fn": "registerPushToken",
+    "path": "user.registerPushToken",
+    "kind": "mutation"
+  },
+  {
+    "fn": "removePushToken",
+    "path": "user.removePushToken",
+    "kind": "mutation"
+  },
+  {
+    "fn": "updateProfile",
+    "path": "user.updateMe",
+    "kind": "mutation"
+  },
+  {
+    "fn": "getReorderAlerts",
+    "path": "warehouseReports.reorderAlerts",
+    "kind": "query"
+  }
+]

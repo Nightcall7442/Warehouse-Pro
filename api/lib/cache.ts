@@ -1,4 +1,4 @@
-import { getRedis, isRedisAvailable } from "./redis";
+import { getRedis, isRedisAvailable, subscribeChannel, publishChannel, INSTANCE_ID } from "./redis";
 
 type CacheEntry<T> = {
   value: T;
@@ -105,6 +105,9 @@ class MemoryCache {
   }
 }
 
+const REDIS_CACHE_CHANNEL = "cache:invalidate";
+type InvalidateMessage = { op: "key" | "prefix" | "clear"; key?: string; origin: string };
+
 /**
  * Unified cache: uses in-memory store for synchronous operations
  * and lazily populates Redis in the background when available.
@@ -112,16 +115,47 @@ class MemoryCache {
  * All sync methods (get/set/invalidate) work identically to the
  * original MemoryCache — no changes needed in callers.
  * Redis is used as a secondary cache for multi-instance scenarios.
+ *
+ * ── Две реплики ─────────────────────────────────────────────────────────────
+ *
+ * Память — своя у каждого процесса. Запись и сброс уходили в Redis, но
+ * ЧТЕНИЕ шло только из памяти: реплика B держала устаревшее значение до
+ * конца TTL после того, как A его сбросила. Теперь сброс рассылается по
+ * каналу cache:invalidate, и каждая реплика выкидывает ключ из своей
+ * памяти; withCache при промахе в памяти смотрит в Redis, прежде чем
+ * считать заново. Без Redis всё как было — один процесс, одна память.
  */
-class UnifiedCache {
+export class UnifiedCache {
   private memory: MemoryCache;
+  private redisSubscribed = false;
+  private readonly origin: string;
 
-  constructor() {
+  constructor(origin: string = INSTANCE_ID) {
+    this.origin = origin;
     this.memory = new MemoryCache({
       maxEntries: parseInt(process.env.CACHE_MAX_ENTRIES ?? "500", 10),
       defaultTtlMs: parseInt(process.env.CACHE_DEFAULT_TTL_MS ?? "60000", 10),
     });
-    // Warm Redis from memory on startup (best-effort)
+  }
+
+  /** Подписка ленивая — Redis поднимается после import (см. lib/redis.ts). */
+  private ensureRedis(): void {
+    if (this.redisSubscribed) return;
+    this.redisSubscribed = subscribeChannel(REDIS_CACHE_CHANNEL, this.onWire);
+  }
+
+  private readonly onWire = (message: string): void => {
+    let m: InvalidateMessage;
+    try { m = JSON.parse(message); } catch { return; }
+    if (m.origin === this.origin) return;
+    if (m.op === "key" && m.key) this.memory.invalidate(m.key);
+    else if (m.op === "prefix" && m.key) this.memory.invalidatePrefix(m.key);
+    else if (m.op === "clear") this.memory.clear();
+  };
+
+  private broadcast(op: InvalidateMessage["op"], key?: string): void {
+    const m: InvalidateMessage = { op, key, origin: this.origin };
+    publishChannel(REDIS_CACHE_CHANNEL, JSON.stringify(m));
   }
 
   // ── Sync API (backward compatible, always uses in-memory) ──
@@ -131,6 +165,7 @@ class UnifiedCache {
   }
 
   set<T>(key: string, value: T, ttlMs?: number): void {
+    this.ensureRedis();
     this.memory.set(key, value, ttlMs);
     // Fire-and-forget: also set in Redis if available
     if (isRedisAvailable()) {
@@ -139,26 +174,32 @@ class UnifiedCache {
   }
 
   invalidate(key: string): boolean {
+    this.ensureRedis();
     const result = this.memory.invalidate(key);
     if (isRedisAvailable()) {
       getRedis().del(key).catch(() => {});
+      this.broadcast("key", key);
     }
     return result;
   }
 
   invalidatePrefix(prefix: string): number {
+    this.ensureRedis();
     const count = this.memory.invalidatePrefix(prefix);
     if (isRedisAvailable()) {
       getRedis().keys(`${prefix}*`).then(keys => {
         if (keys.length > 0) getRedis().del(...keys).catch(() => {});
       }).catch(() => {});
+      this.broadcast("prefix", prefix);
     }
     return count;
   }
 
   clear(): void {
+    this.ensureRedis();
     this.memory.clear();
     if (isRedisAvailable()) {
+      this.broadcast("clear");
       const prefixes = new Set<string>();
       for (const keyFn of Object.values(CacheKeys)) {
         try {
@@ -185,14 +226,29 @@ class UnifiedCache {
   }
 
   async getRedisValue<T>(key: string): Promise<T | undefined> {
+    return (await this.getRedisEntry<T>(key))?.value;
+  }
+
+  /**
+   * Значение из Redis вместе с остатком его срока. Остаток нужен, чтобы
+   * положить его в свою память НЕ дольше, чем ему осталось жить: иначе две
+   * реплики, читая друг за другом, продлевали бы срок до бесконечности и
+   * значение не пересчитывалось бы никогда.
+   */
+  async getRedisEntry<T>(key: string): Promise<{ value: T; ttlMs: number } | undefined> {
     if (!isRedisAvailable()) return undefined;
     try {
-      const raw = await getRedis().get(key);
-      if (raw === null) return undefined;
-      return JSON.parse(raw) as T;
+      const [[, raw], [, pttl]] = (await getRedis().multi().get(key).pttl(key).exec()) ?? [];
+      if (raw == null) return undefined;
+      return { value: JSON.parse(String(raw)) as T, ttlMs: Number(pttl) };
     } catch {
       return undefined;
     }
+  }
+
+  /** Положить только в свою память — Redis уже это знает. */
+  setLocal<T>(key: string, value: T, ttlMs?: number): void {
+    this.memory.set(key, value, ttlMs);
   }
 
   getStats(): CacheStats & { hitRate: string } {
@@ -243,6 +299,12 @@ export async function withCache<T>(
 ): Promise<T> {
   const hit = cache.get<T>(key);
   if (hit !== undefined) return hit;
+  // Вторая реплика могла уже посчитать — её ответ лежит в Redis.
+  const shared = await cache.getRedisEntry<T>(key);
+  if (shared !== undefined) {
+    cache.setLocal(key, shared.value, shared.ttlMs > 0 ? Math.min(ttlMs, shared.ttlMs) : ttlMs);
+    return shared.value;
+  }
   const value = await produce();
   cache.set(key, value, ttlMs);
   return value;

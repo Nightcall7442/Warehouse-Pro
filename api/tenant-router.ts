@@ -17,6 +17,8 @@ import { env } from "./lib/env";
 import { notifyAdmin, tgMessages } from "./telegram-router";
 
 import { rowsOf } from "./lib/db-rows";
+import { checkTotpStepUp } from "./auth/step-up";
+import { countTenantRows, offboardTenant, TenantNotSuspendedError } from "./services/tenant-offboard";
 /**
  * Ограничения на публичную регистрацию.
  *
@@ -576,6 +578,58 @@ export const tenantRouter = createRouter({
         .set({ status: input.status, updatedAt: new Date() })
         .where(eq(tenants.id, input.tenantId));
       return { success: true };
+    }),
+
+  /** Что будет стёрто при уходе организации — по таблицам. */
+  offboardPreview: superAdminQuery
+    .input(z.object({ tenantId: z.number() }))
+    .query(async ({ input }) => {
+      const db = getDb();
+      const [t] = await db.select({ id: tenants.id, name: tenants.name, slug: tenants.slug, status: tenants.status })
+        .from(tenants).where(eq(tenants.id, input.tenantId)).limit(1);
+      if (!t) throw new TRPCError({ code: "NOT_FOUND", message: "Организация не найдена" });
+      const rows = await countTenantRows(db, t.id);
+      return { tenant: t, rows, total: Object.values(rows).reduce((a, b) => a + b, 0) };
+    }),
+
+  /*
+    Уход организации: стереть всё её из базы (services/tenant-offboard.ts).
+
+    Три замка, и все проверяются здесь, а не на экране: организация должна
+    быть приостановлена (значит, решение уже принималось однажды), slug
+    набран руками, код второго фактора — здесь и сейчас. Сессия
+    суперадмина живёт 30 дней; без кода украденной куки хватило бы.
+  */
+  offboard: superAdminQuery
+    .input(z.object({
+      tenantId:    z.number(),
+      confirmSlug: z.string().min(1),
+      totpCode:    z.string().min(1, "Введите код из приложения-аутентификатора"),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const db = getDb();
+      const [t] = await db.select({ id: tenants.id, name: tenants.name, slug: tenants.slug, status: tenants.status })
+        .from(tenants).where(eq(tenants.id, input.tenantId)).limit(1);
+      if (!t) throw new TRPCError({ code: "NOT_FOUND", message: "Организация не найдена" });
+      if (t.status !== "suspended") throw new TRPCError({ code: "PRECONDITION_FAILED", message: new TenantNotSuspendedError().message });
+      if (input.confirmSlug.trim() !== t.slug) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: `Наберите slug организации точно: ${t.slug}` });
+      }
+      const step = await checkTotpStepUp(db, ctx.user.id, input.totpCode);
+      if (!step.ok) {
+        throw new TRPCError({ code: step.code === "TOTP_NOT_ENROLLED" ? "FORBIDDEN" : "UNAUTHORIZED", message: step.message });
+      }
+
+      let result;
+      try {
+        result = await offboardTenant(db, t.id);
+      } catch (e) {
+        if (e instanceof TenantNotSuspendedError) throw new TRPCError({ code: "PRECONDITION_FAILED", message: e.message });
+        throw e;
+      }
+      logger.warn("tenant offboarded by superadmin", { tenantId: t.id, slug: t.slug, by: ctx.user.id, total: result.total });
+      void notifyAdmin(tgMessages.tenantOffboarded(t.name, t.slug, ctx.user.name, result.total));
+      return { success: true, ...result };
     }),
 
   /** Продлить trial */

@@ -5,6 +5,7 @@ import { getDb } from "../queries/connection";
 import { checkRateLimit } from "../lib/rate-limit";
 import { logger } from "../lib/logger";
 import { safeEqual } from "../lib/safe-compare";
+import { checkTotpStepUp } from "../auth/step-up";
 import { isAppError } from "@contracts/errors";
 
 /*
@@ -71,21 +72,10 @@ routes.get("/api/admin/backup/download", async (c) => {
     второго фактора выгрузка закрыта вовсе — включается в профиле.
   */
   {
-    const { getDb } = await import("../queries/connection");
-    const { users } = await import("@db/schema");
-    const { eq } = await import("drizzle-orm");
-    const [row] = await getDb().select({ totpSecret: users.totpSecret, totpEnabledAt: users.totpEnabledAt })
-      .from(users).where(eq(users.id, auth.user.id)).limit(1);
-    if (!row?.totpSecret || !row.totpEnabledAt) {
-      return c.json({ error: "Выгрузка базы доступна только со вторым фактором — включите его в профиле", code: "TOTP_NOT_ENROLLED" }, 403);
-    }
-    const code = c.req.header("x-totp-code") ?? "";
-    const { verifyTotp } = await import("../lib/totp");
-    const { open } = await import("../lib/secret-box");
-    if (!code) return c.json({ error: "Введите код из приложения-аутентификатора", code: "TOTP_REQUIRED" }, 401);
-    if (!verifyTotp(open(row.totpSecret), code)) {
-      logger.warn("backup download refused: bad TOTP", { userId: auth.user.id });
-      return c.json({ error: "Неверный код подтверждения", code: "TOTP_INVALID" }, 401);
+    const step = await checkTotpStepUp(getDb(), auth.user.id, c.req.header("x-totp-code"));
+    if (!step.ok) {
+      if (step.code === "TOTP_INVALID") logger.warn("backup download refused: bad TOTP", { userId: auth.user.id });
+      return c.json({ error: step.message, code: step.code }, step.code === "TOTP_NOT_ENROLLED" ? 403 : 401);
     }
   }
 
