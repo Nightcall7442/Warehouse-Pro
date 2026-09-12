@@ -13,6 +13,7 @@ import { recalcShopDebt } from "./services/shop-debt";
 import { productLabel } from "./services/order";
 
 import { affectedRows } from "./lib/db-rows";
+import { recordAudit, auditActor } from "./services/audit-log";
 /**
  * Куда девать вернувшийся товар, если оператор не сказал. Брак, просрочка и
  * порча — списать: они и вернулись потому, что продавать их нельзя. Пересорт
@@ -396,6 +397,12 @@ export const returnsRouter = createRouter({
           throw new Error("Статус возврата изменился — повторите операцию");
         }
       }
+      // Возврат меняет долг магазина и остаток; переход статуса — со следом
+      // в той же транзакции, включая решение «на склад / списать».
+      await recordAudit(tx as unknown as typeof db, {
+        ...auditActor(ctx), action: "return.status", targetType: "return", targetId: input.id,
+        meta: { from: ret.status, to: input.status, disposition: input.status === "completed" ? (input.disposition ?? defaultDisposition(ret.reason)) : undefined },
+      }, { strict: true });
       });
 
       cache.invalidate(CacheKeys.returns(tenantId));

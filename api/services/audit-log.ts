@@ -1,6 +1,7 @@
 import { auditLog } from "@db/schema";
 import { eq, and, desc, sql, gte, lte } from "drizzle-orm";
 import { logger } from "../lib/logger";
+import { getClientIp } from "../lib/rate-limit";
 
 type Db = ReturnType<typeof import("../queries/connection").getDb>;
 
@@ -16,11 +17,20 @@ export interface AuditRecord {
 }
 
 /**
- * Record an audit log entry.
- * Called inside or alongside business transactions.
- * Fire-and-forget by default — audit failures don't block the main operation.
+ * Записать след в журнал.
+ *
+ * Два режима, и разница — в том, что происходит, когда след записать нельзя.
+ *
+ * Мягкий (по умолчанию): след пишется ПОСЛЕ сделки, откатывать уже нечего;
+ * ошибка уходит в лог, работа не останавливается. Так остаются уведомления
+ * и следы «кто напечатал накладную».
+ *
+ * Строгий (`strict: true`, всегда с `tx`): след — часть сделки. Цена,
+ * себестоимость, лимит, настройки, проведение возврата или прихода —
+ * действия, после которых спорят о деньгах; действие без следа хуже, чем
+ * отказ. Ошибка пробрасывается, транзакция откатывается вместе с ней.
  */
-export async function recordAudit(db: Db, entry: AuditRecord): Promise<void> {
+export async function recordAudit(db: Db, entry: AuditRecord, opts?: { strict?: boolean }): Promise<void> {
   try {
     await db.insert(auditLog).values({
       tenantId:  entry.tenantId,
@@ -33,9 +43,29 @@ export async function recordAudit(db: Db, entry: AuditRecord): Promise<void> {
       ip:        entry.ip ?? null,
     });
   } catch (err) {
-    // Audit log is non-critical — log the failure but don't throw
     logger.error("Failed to write audit log", { action: entry.action, error: String(err) });
+    if (opts?.strict) throw err;
   }
+}
+
+/** Кто и откуда — из контекста процедуры, чтобы не собирать по месту. */
+export function auditActor(ctx: { tenant: { id: number }; user: { id: number; name: string }; req?: Request }): Pick<AuditRecord, "tenantId" | "actorId" | "actorName" | "ip"> {
+  return { tenantId: ctx.tenant.id, actorId: ctx.user.id, actorName: ctx.user.name, ip: ctx.req ? getClientIp(ctx.req) ?? undefined : undefined };
+}
+
+/**
+ * Что изменилось: только поля, у которых значение стало другим. Числа
+ * сравниваются как числа, чтобы «10.00» и «10» не считались правкой.
+ */
+export function changedFields(before: Record<string, unknown>, after: Record<string, unknown>, fields: string[]): Record<string, { from: unknown; to: unknown }> {
+  const out: Record<string, { from: unknown; to: unknown }> = {};
+  for (const f of fields) {
+    if (!(f in after) || after[f] === undefined) continue;
+    const a = before[f], b = after[f];
+    const same = a === b || (a != null && b != null && !Number.isNaN(Number(a)) && !Number.isNaN(Number(b)) && String(a).trim() !== "" && Number(a) === Number(b));
+    if (!same) out[f] = { from: a ?? null, to: b ?? null };
+  }
+  return out;
 }
 
 export interface AuditFilters {

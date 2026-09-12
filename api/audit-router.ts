@@ -1,6 +1,9 @@
 import { z } from "zod";
 import { createRouter, auditQuery, superAdminQuery } from "./middleware";
 import { getAuditLog, exportAuditCsv, purgeOldAuditLogs } from "./services/audit-log";
+import { checkTotpStepUp } from "./auth/step-up";
+import { TRPCError } from "@trpc/server";
+import { recordAudit, auditActor } from "./services/audit-log";
 
 export const auditRouter = createRouter({
   /** List audit log entries with extended filters */
@@ -39,9 +42,18 @@ export const auditRouter = createRouter({
     .input(z.object({
       tenantId:      z.number(),
       retentionDays: z.number().int().min(7).max(3650).default(90),
+      totpCode:      z.string().min(1, "Введите код из приложения-аутентификатора"),
     }))
     .mutation(async ({ input, ctx }) => {
+      /*
+        Журнал и есть бумага, по которой разбирают спор; стереть его — то же
+        необратимое действие, что выгрузить дамп или удалить организацию.
+        Код второго фактора здесь и сейчас, украденной куки мало.
+      */
+      const step = await checkTotpStepUp(ctx.db, ctx.user.id, input.totpCode);
+      if (!step.ok) throw new TRPCError({ code: step.code === "TOTP_NOT_ENROLLED" ? "FORBIDDEN" : "UNAUTHORIZED", message: step.message });
       const deleted = await purgeOldAuditLogs(ctx.db, input.tenantId, input.retentionDays);
+      await recordAudit(ctx.db, { ...auditActor(ctx), action: "audit.purged", targetType: "tenant", targetId: input.tenantId, meta: { retentionDays: input.retentionDays, deleted } });
       return { deleted, retentionDays: input.retentionDays };
     }),
 });

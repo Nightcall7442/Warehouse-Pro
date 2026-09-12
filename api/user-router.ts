@@ -130,7 +130,7 @@ export const userRouter = createRouter({
 
       // Audit: user updated (role/status change)
       if (data.role || data.status) {
-        recordAudit(db, {
+        await recordAudit(db, {
           tenantId: ctx.tenant.id,
           actorId: ctx.user.id,
           actorName: ctx.user.name,
@@ -156,7 +156,7 @@ export const userRouter = createRouter({
       await db.update(users).set({ passwordHash: newHash })
         .where(and(eq(users.id, input.id), eq(users.tenantId, ctx.tenant.id)));
 
-      recordAudit(db, {
+      await recordAudit(db, {
         tenantId: ctx.tenant.id,
         actorId: ctx.user.id,
         actorName: ctx.user.name,
@@ -189,7 +189,7 @@ export const userRouter = createRouter({
       await db.update(users).set({ status: "inactive" })
         .where(and(eq(users.id, input.id), eq(users.tenantId, ctx.tenant.id)));
 
-      recordAudit(db, {
+      await recordAudit(db, {
         tenantId: ctx.tenant.id,
         actorId: ctx.user.id,
         actorName: ctx.user.name,
@@ -247,7 +247,7 @@ export const userRouter = createRouter({
       await db.update(users).set(updateData)
         .where(and(eq(users.id, id), eq(users.tenantId, ctx.tenant.id)));
 
-      recordAudit(db, {
+      await recordAudit(db, {
         tenantId: ctx.tenant.id,
         actorId: ctx.user.id,
         actorName: ctx.user.name,

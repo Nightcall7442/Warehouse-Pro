@@ -215,7 +215,7 @@ export const StockService = {
       }
     }
 
-    recordAudit(db, {
+    await recordAudit(db, {
       tenantId,
       actorId: actor?.id,
       actorName: actor?.name,

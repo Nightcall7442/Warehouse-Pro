@@ -10,6 +10,7 @@ import { eq, and, desc } from "drizzle-orm";
 import { createHash, randomBytes } from "crypto";
 import { TRPCError } from "@trpc/server";
 import { exportHealth, recentExports } from "./public/export-log";
+import { recordAudit, auditActor } from "./services/audit-log";
 
 const SCOPE_LIST = ["read", "write", "orders", "products", "stock", "shops", "webhooks"] as const;
 
@@ -100,6 +101,9 @@ export const apiKeyRouter = createRouter({
         expiresAt,
       });
 
+      // Ключ — вход в данные организации снаружи; кто и какой завёл — в журнал (сам ключ — нет).
+      await recordAudit(db, { ...auditActor(ctx), action: "api_key.created", targetType: "api_key", meta: { name: input.name, prefix, scopes: input.scopes, expiresAt } });
+
       return { key: raw, prefix, name: input.name, scopes: input.scopes };
     }),
 
@@ -114,6 +118,7 @@ export const apiKeyRouter = createRouter({
       await db.delete(apiKeys).where(
         and(eq(apiKeys.id, input.id), eq(apiKeys.tenantId, ctx.user.tenantId))
       );
+      await recordAudit(db, { ...auditActor(ctx), action: "api_key.revoked", targetType: "api_key", targetId: input.id });
       return { ok: true };
     }),
 
@@ -128,6 +133,7 @@ export const apiKeyRouter = createRouter({
       await db.update(apiKeys)
         .set({ status: input.status })
         .where(and(eq(apiKeys.id, input.id), eq(apiKeys.tenantId, ctx.user.tenantId)));
+      await recordAudit(db, { ...auditActor(ctx), action: "api_key.status", targetType: "api_key", targetId: input.id, meta: { status: input.status } });
       return { ok: true };
     }),
 });

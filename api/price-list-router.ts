@@ -4,6 +4,7 @@ import { getDb } from "./queries/connection";
 import { assertProductsBelongToTenant } from "./lib/tenant-refs";
 import { priceLists, priceListItems, priceListAssignments, products, shops } from "@db/schema";
 import { eq, and, desc, sql } from "drizzle-orm";
+import { recordAudit, auditActor } from "./services/audit-log";
 
 export const priceListRouter = createRouter({
   // List price lists
@@ -105,6 +106,7 @@ export const priceListRouter = createRouter({
       const db = getDb();
       await db.delete(priceLists)
         .where(and(eq(priceLists.id, input.id), eq(priceLists.tenantId, ctx.tenant.id)));
+      await recordAudit(db, { ...auditActor(ctx), action: "price_list.deleted", targetType: "price_list", targetId: input.id });
       return { success: true };
     }),
 
@@ -154,6 +156,12 @@ export const priceListRouter = createRouter({
           minQuantity: input.minQuantity.toFixed(2),
         });
       }
+
+      // Цена в прайсе — это цена заказа для магазина; спор о ней — спор о деньгах.
+      await recordAudit(db, {
+        ...auditActor(ctx), action: "price_list.item_set", targetType: "price_list", targetId: input.priceListId,
+        meta: { productId: input.productId, price: input.price.toFixed(2), minQuantity: input.minQuantity.toFixed(2), was: existing ? { price: existing.price, minQuantity: existing.minQuantity } : null },
+      });
 
       return { success: true };
     }),

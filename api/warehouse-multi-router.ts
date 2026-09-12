@@ -5,6 +5,7 @@ import { warehouses, warehouseStock, stockTransfers, products } from "@db/schema
 import { eq, and, sql, desc, inArray } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { applyStockEffect, receiveStock } from "./services/stock-ledger";
+import { recordAudit, auditActor } from "./services/audit-log";
 
 export const warehouseMultiRouter = createRouter({
   /** List all warehouses for current tenant */
@@ -286,6 +287,10 @@ export const warehouseMultiRouter = createRouter({
         if ((updateResult as { affectedRows?: number }).affectedRows !== 1) {
           throw new TRPCError({ code: "CONFLICT", message: "Перемещение уже было выполнено" });
         }
+        await recordAudit(tx as unknown as typeof db, {
+          ...auditActor(ctx), action: "stock.transfer_completed", targetType: "stock_transfer", targetId: input.transferId,
+          meta: { fromWarehouseId: transfer.fromWarehouseId, toWarehouseId: transfer.toWarehouseId, productId: transfer.productId, quantity: transfer.quantity },
+        }, { strict: true });
       });
 
       return { success: true };

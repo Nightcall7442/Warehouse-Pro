@@ -5,6 +5,7 @@ import { arrivals } from "@db/schema";
 import { eq, and, sql, desc } from "drizzle-orm";
 import { decimalOrDefault } from "./lib/zod-decimal";
 import { arrivalSupplyColumns } from "./supplier-router";
+import { auditActor } from "./services/audit-log";
 
 type ArrivalItemRow = {
   id:           number;
@@ -177,7 +178,7 @@ export const arrivalRouter = createRouter({
       otherCost:   decimalOrDefault("0.00").optional(),
       notes:       z.string().optional(),
     }))
-    .mutation(({ input, ctx }) => updateArrival(ctx.db, ctx.tenant.id, input)),
+    .mutation(({ input, ctx }) => updateArrival(ctx.db, ctx.tenant.id, input, { id: ctx.user.id, name: ctx.user.name, ip: auditActor(ctx).ip })),
 
   delete: operatorQuery
     .input(z.object({ id: z.number() }))

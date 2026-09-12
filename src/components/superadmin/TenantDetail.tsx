@@ -46,6 +46,8 @@ export function TenantDetail({ tenantId, onBack }: TenantDetailProps) {
   // 90 дней — то же умолчание, что и на сервере: поле открывается с ним, а не
   // пустым, чтобы никто не убрал журнал за неделю по недосмотру.
   const [purgeDays, setPurgeDays] = useState(90);
+  // Код второго фактора: уборка журнала — необратимое действие, как дамп.
+  const [purgeCode, setPurgeCode] = useState("");
   const [extraUsers, setExtraUsers] = useState(0);
   const [extraProducts, setExtraProducts] = useState(0);
 
@@ -244,6 +246,8 @@ export function TenantDetail({ tenantId, onBack }: TenantDetailProps) {
               <label style={{ fontSize: "12px", color: COLORS.textSecondary }}>Хранить дней</label>
               <input type="number" min="7" max="3650" value={purgeDays} onChange={e => setPurgeDays(Number(e.target.value))}
                 style={{ width: "80px", padding: "6px 10px", borderRadius: "8px", border: `1px solid ${COLORS.border}`, background: COLORS.surfaceLight, color: COLORS.textPrimary, fontSize: "12px" }} />
+              <input value={purgeCode} onChange={e => setPurgeCode(e.target.value)} placeholder="Код из приложения" inputMode="numeric" autoComplete="one-time-code" data-testid="purge-totp"
+                style={{ width: "150px", padding: "6px 10px", borderRadius: "8px", border: `1px solid ${COLORS.border}`, background: COLORS.surfaceLight, color: COLORS.textPrimary, fontSize: "12px" }} />
               <BtnPrimary
                 onClick={async () => {
                   /*
@@ -257,9 +261,9 @@ export function TenantDetail({ tenantId, onBack }: TenantDetailProps) {
                     confirmText: "Убрать",
                     danger: true,
                   });
-                  if (ok) { purgeAudit.mutate({ tenantId, retentionDays: purgeDays }); setShowPurge(false); }
+                  if (ok) { purgeAudit.mutate({ tenantId, retentionDays: purgeDays, totpCode: purgeCode.trim() }); setShowPurge(false); setPurgeCode(""); }
                 }}
-                disabled={purgeAudit.isPending}
+                disabled={purgeAudit.isPending || purgeCode.trim().length < 6}
                 style={{ padding: "6px 14px", fontSize: "12px" }}
               >
                 {purgeAudit.isPending ? "…" : "Убрать"}

@@ -14,6 +14,7 @@ import { ProductService } from "./services/ProductService";
 import { isDuplicateOf } from "./lib/db-errors";
 import { existingSpelling } from "./lib/category";
 import { TRPCError } from "@trpc/server";
+import { recordAudit, auditActor, changedFields } from "./services/audit-log";
 
 /**
  * Код товара занят — это ответ оператору, а не внутренний сбой.
@@ -445,11 +446,26 @@ export const productRouter = createRouter({
       // Skip update if no fields to set
       if (Object.keys(sanitized).length === 0) return { success: true };
 
-      // Тот же разбор, что и при создании: сменить код товара на уже занятый
-      // так же обычно, как завести его дважды.
-      await getDb().update(products).set(sanitized)
-        .where(and(eq(products.id, id), eq(products.tenantId, ctx.tenant.id)))
-        .catch(e => rethrowAsBusyCode(e, typeof sanitized.code === "string" ? sanitized.code : undefined));
+      // Цена, себестоимость, точка заказа и статус — то, о чём спорят; след
+      // пишется в той же транзакции, что и правка: без следа нет правки.
+      const TRACED = ["unitPrice", "costPrice", "reorderPoint", "status"];
+      await getDb().transaction(async (tx) => {
+        const [before] = await tx.select({ unitPrice: products.unitPrice, costPrice: products.costPrice, reorderPoint: products.reorderPoint, status: products.status, code: products.code })
+          .from(products).where(and(eq(products.id, id), eq(products.tenantId, ctx.tenant.id))).for("update").limit(1);
+        if (!before) throw new Error("Товар не найден");
+        // Тот же разбор, что и при создании: сменить код товара на уже занятый
+        // так же обычно, как завести его дважды.
+        await tx.update(products).set(sanitized)
+          .where(and(eq(products.id, id), eq(products.tenantId, ctx.tenant.id)))
+          .catch(e => rethrowAsBusyCode(e, typeof sanitized.code === "string" ? sanitized.code : undefined));
+        const changed = changedFields(before, sanitized, TRACED);
+        if (Object.keys(changed).length > 0) {
+          await recordAudit(tx as unknown as ReturnType<typeof getDb>, {
+            ...auditActor(ctx), action: "product.updated", targetType: "product", targetId: id,
+            meta: { code: before.code, changed },
+          }, { strict: true });
+        }
+      });
       cache.invalidatePrefix(`products:${ctx.tenant.id}`);
       cache.invalidatePrefix(`product_cats:${ctx.tenant.id}`);
       cache.invalidatePrefix(`warehouse:${ctx.tenant.id}`);
@@ -515,6 +531,10 @@ export const productRouter = createRouter({
       cache.invalidatePrefix(`product_cats:${tenantId}`);
       cache.invalidatePrefix(`warehouse:${tenantId}`);
       cache.invalidatePrefix(`warehouse_valuation:${tenantId}`);
+      await recordAudit(db, {
+        ...auditActor(ctx), action: "product.deleted", targetType: "product", targetId: input.id,
+        meta: { code: existingProduct.code, name: existingProduct.name },
+      });
       return { success: true };
     }),
 
