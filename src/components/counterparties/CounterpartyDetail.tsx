@@ -32,13 +32,15 @@ const esc = (s: string | null | undefined) =>
  * платежей, «сойдёмся ли мы с заводом» — акт сверки. Смешать их в одну ленту
  * значит заставить искать нужное в чужих строках.
  */
-export function CounterpartyDetail({ supplierId, lang, onClose, onEdit, onPay }: {
+export function CounterpartyDetail({ supplierId, lang, onClose, onEdit, onPay, onReturn }: {
   supplierId: number;
   lang: string;
   onClose: () => void;
   onEdit: () => void;
   /** Нет обработчика — оплата этому человеку закрыта: кнопку не рисуем. */
   onPay?: (supply: PayableSupply) => void;
+  /** Возврат товара поставщику по этой поставке — гасит долг по себестоимости. */
+  onReturn?: (supply: PayableSupply) => void;
 }) {
   const t = (ru: string, uz: string) => lang === "uz" ? uz : ru;
   const [tab, setTab] = useState<Tab>("debts");
@@ -256,6 +258,16 @@ export function CounterpartyDetail({ supplierId, lang, onClose, onEdit, onPay }:
                           style={{ whiteSpace: "nowrap" }}
                         >
                           {t("Оплатить", "To'lash")}
+                        </button>
+                      )}
+                      {r.debt > 0 && onReturn && (
+                        <button
+                          data-testid={`cp-return-${r.id}`}
+                          onClick={() => onReturn({ id: r.id, supplyNumber: r.supplyNumber, supplierName: r.supplierName, currency: r.currency, debt: r.debt })}
+                          className="neo-btn neo-btn-sm"
+                          style={{ whiteSpace: "nowrap", marginLeft: 6 }}
+                        >
+                          {t("Вернуть товар", "Mahsulot qaytarish")}
                         </button>
                       )}
                     </td>

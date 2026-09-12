@@ -1,6 +1,8 @@
 import { z } from "zod";
 import { createRouter, operatorQuery, can } from "./middleware";
-import { suppliers, supplies, supplierPayments, users } from "@db/schema";
+import { suppliers, supplies, supplierPayments, users, products, warehouses } from "@db/schema";
+import { applyStockEffect } from "./services/stock-ledger";
+import { recordAudit } from "./services/audit-log";
 import { eq, and, sql, desc, like } from "drizzle-orm";
 import { sanitizeString, sanitizeSearch } from "./lib/sanitize";
 import { decimalOrDefault } from "./lib/zod-decimal";
@@ -461,6 +463,7 @@ export const supplierRouter = createRouter({
       amount:         decimalOrDefault("0.00").refine(v => Number(v) > 0, "Сумма платежа должна быть положительной"),
       paidUzs:        decimalOrDefault("0.00").optional(),
       rateToUzs:      decimalOrDefault("0.00").optional(),
+      // «return» сюда не принимается: возврат товара идёт своей процедурой.
       paymentMethod:  z.enum(["cash", "card", "transfer"]).default("transfer"),
       notes:          z.string().max(2000).optional(),
       idempotencyKey: z.string().uuid(),
@@ -540,6 +543,109 @@ export const supplierRouter = createRouter({
           }
           throw e;
         }
+      });
+    }),
+
+  /**
+   * Возврат товара поставщику.
+   *
+   * Брак и просрочку возвращали на завод, а в системе это не отражалось
+   * никак: товар списывали «корректировкой», долг гасили «платежом
+   * наличными» — и в акте сверки всё выглядело как деньги. Здесь одно
+   * действие: товар уходит со склада (движение supplier_return, с
+   * просроченных партий первым), а долг по поставке уменьшается на сумму
+   * по себестоимости строкой «возврат товара». Больше остатка долга не
+   * гасится: лишнее — предмет разговора с поставщиком, а не минус в учёте.
+   */
+  returnGoods: operatorQuery.use(can("suppliers.manage"))
+    .input(z.object({
+      supplyId:       z.number().int().positive(),
+      warehouseId:    z.number().int().positive().optional(),
+      items:          z.array(z.object({
+        productId: z.number().int().positive(),
+        quantity:  z.string().refine(v => Number(v) > 0, "Количество должно быть положительным"),
+        // Себестоимость единицы в сумах; пусто — из карточки товара.
+        unitCost:  z.string().regex(/^\d+(\.\d{1,2})?$/).optional(),
+      })).min(1).max(200),
+      notes:          z.string().max(2000).optional(),
+      idempotencyKey: z.string().uuid(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const db       = ctx.db;
+      const tenantId = ctx.tenant.id;
+
+      return await db.transaction(async (tx) => {
+        const [supply] = await tx.select({
+          id: supplies.id, supplierId: supplies.supplierId, amount: supplies.amount,
+          currency: supplies.currency, rateToUzs: supplies.rateToUzs, supplyNumber: supplies.supplyNumber, paid: paidSubquery,
+        }).from(supplies)
+          .where(and(eq(supplies.id, input.supplyId), eq(supplies.tenantId, tenantId)))
+          .limit(1).for("update");
+        if (!supply) throw new Error("Поставка не найдена");
+
+        const [wh] = input.warehouseId
+          ? await tx.select({ id: warehouses.id }).from(warehouses).where(and(eq(warehouses.id, input.warehouseId), eq(warehouses.tenantId, tenantId))).limit(1)
+          : await tx.select({ id: warehouses.id }).from(warehouses).where(and(eq(warehouses.tenantId, tenantId), eq(warehouses.isDefault, true))).limit(1);
+        if (!wh) throw new Error("Склад не найден");
+
+        const ids = input.items.map(i => i.productId);
+        const rows = await tx.select({ id: products.id, name: products.name, costPrice: products.costPrice, available: sql<string>`(
+          SELECT ws.available FROM warehouse_stock ws WHERE ws.product_id = ${products.id} AND ws.warehouse_id = ${wh.id} AND ws.tenant_id = ${tenantId} LIMIT 1)` })
+          .from(products).where(and(eq(products.tenantId, tenantId), sql`${products.id} IN (${sql.join(ids.map(id => sql`${id}`), sql`, `)})`));
+        const byId = new Map(rows.map(r => [r.id, r]));
+
+        let creditUzs = 0;
+        for (const it of input.items) {
+          const p = byId.get(it.productId);
+          if (!p) throw new Error(`Товар #${it.productId} не найден в вашей организации`);
+          const qty = Number(it.quantity);
+          if (Number(p.available ?? 0) < qty) throw new Error(`«${p.name}»: свободно ${Number(p.available ?? 0)}, вернуть ${qty} нельзя`);
+          creditUzs += qty * Number(it.unitCost ?? p.costPrice ?? 0);
+        }
+
+        // Долг считается в валюте поставки: доллары — по курсу самой поставки.
+        let credit = creditUzs;
+        if (supply.currency === "USD") {
+          const rate = Number(supply.rateToUzs ?? 0);
+          if (!(rate > 0)) throw new Error("У поставки в USD не задан курс — сумму возврата пересчитать не во что");
+          credit = creditUzs / rate;
+        }
+        const remaining = Number(supply.amount) - Number(supply.paid);
+        const applied = Math.max(0, Math.min(credit, remaining));
+
+        let paymentId = 0;
+        try {
+          const [result] = await tx.insert(supplierPayments).values({
+            tenantId, supplierId: supply.supplierId, supplyId: supply.id,
+            amount: applied.toFixed(2), paymentMethod: "return",
+            paidUzs: supply.currency === "USD" ? (applied * Number(supply.rateToUzs)).toFixed(2) : applied.toFixed(2),
+            rateToUzs: supply.rateToUzs ?? undefined,
+            notes: `Возврат товара: ${input.items.map(i => `${byId.get(i.productId)?.name} × ${Number(i.quantity)}`).join(", ")}${input.notes ? `. ${sanitizeString(input.notes)}` : ""}`,
+            createdBy: ctx.user.id, idempotencyKey: input.idempotencyKey,
+          });
+          paymentId = Number(result.insertId);
+        } catch (e) {
+          if (isDuplicateOf(e, "uq_supplier_payment_idem")) return { duplicate: true, credited: 0, debt: remaining };
+          throw e;
+        }
+
+        // Товар уходит со склада — той же дверью, что и всё остальное.
+        await applyStockEffect(tx, {
+          tenantId, warehouseId: wh.id,
+          items: input.items.map(i => ({ productId: i.productId, quantity: i.quantity })),
+          shift: { onHand: -1, held: 0 }, reason: "supplier_return", referenceId: paymentId,
+          notes: `Возврат поставщику по поставке ${supply.supplyNumber}`,
+        });
+
+        const debtAfter = Math.round((remaining - applied) * 100) / 100;
+        if (credit > remaining + 0.005) {
+          logger.warn("возврат поставщику больше остатка долга — лишнее не учтено", { supplyId: supply.id, credit, remaining });
+        }
+        await recordAudit(tx as unknown as typeof db, {
+          tenantId, actorId: ctx.user.id, actorName: ctx.user.name, action: "supplier.return_goods", targetType: "supply", targetId: supply.id,
+          meta: { paymentId, credited: applied, currency: supply.currency, items: input.items, warehouseId: wh.id },
+        });
+        return { id: paymentId, credited: applied, debt: debtAfter, uncredited: Math.max(0, Math.round((credit - applied) * 100) / 100) };
       });
     }),
 

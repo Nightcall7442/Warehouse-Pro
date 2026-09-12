@@ -1,0 +1,1 @@
+ALTER TABLE `supplier_payments` MODIFY COLUMN `payment_method` enum('cash','card','transfer','return') NOT NULL DEFAULT 'transfer';

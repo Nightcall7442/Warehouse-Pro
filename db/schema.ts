@@ -915,7 +915,12 @@ export const supplierPayments = mysqlTable("supplier_payments", {
   amount:         decimal("amount", { precision: 15, scale: 2 }).notNull(),
   paidUzs:        decimal("paid_uzs", { precision: 15, scale: 2 }),
   rateToUzs:      decimal("rate_to_uzs", { precision: 12, scale: 4 }),
-  paymentMethod:  mysqlEnum("payment_method", ["cash", "card", "transfer"]).default("transfer").notNull(),
+  /*
+    «return» — не деньги, а возвращённый поставщику товар по себестоимости:
+    он гасит долг по поставке так же, как платёж, и в акте сверки стоит своей
+    строкой. Сам товар уходит со склада движением supplier_return.
+  */
+  paymentMethod:  mysqlEnum("payment_method", ["cash", "card", "transfer", "return"]).default("transfer").notNull(),
   paidAt:         timestamp("paid_at").defaultNow().notNull(),
   notes:          text("notes"),
   createdBy:      bigint("created_by", { mode: "number", unsigned: true }).references(() => users.id, { onDelete: "restrict" }),

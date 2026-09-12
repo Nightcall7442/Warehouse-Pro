@@ -28,7 +28,8 @@ export type StockMovementReason =
   | "manual_adjustment"  // a person corrected the count
   | "import"             // set by a spreadsheet import
   | "onec_sync"          // set by the 1C integration
-  | "inventory";         // документ инвентаризации применён
+  | "inventory"          // документ инвентаризации применён
+  | "supplier_return";   // возврат товара поставщику
 
 /**
  * Records one movement of physical goods.
@@ -607,8 +608,8 @@ export async function applyStockEffect(
   },
 ): Promise<void> {
   const items = normalize(entry.items, "смена статуса");
-  // Списание руками — единственный путь, которому просрочка нужна первой.
-  await shiftStock(tx, entry.tenantId, entry.warehouseId, uniform(items, entry.shift), entry.reason === "manual_adjustment");
+  // Списание руками и возврат поставщику — пути, которым просрочка нужна первой.
+  await shiftStock(tx, entry.tenantId, entry.warehouseId, uniform(items, entry.shift), entry.reason === "manual_adjustment" || entry.reason === "supplier_return");
 
   // Движение — только когда товар правда двигался. Статус, который лишь
   // откладывает или освобождает, перекладывает два числа и в журнал не идёт.
