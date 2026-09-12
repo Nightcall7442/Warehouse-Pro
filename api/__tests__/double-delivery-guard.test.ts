@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { orderSource } from "./helpers/order-source";
 
 /**
  * Один заказ нельзя провести доставкой дважды — ни с какой стороны.
@@ -45,7 +46,7 @@ describe("двойное проведение доставки отвергае�
   });
 
   it("applyPartialDelivery отказывает по уже доставленному заказу", () => {
-    const src = readFileSync(join(API_DIR, join("services", "order.ts")), "utf8");
+    const src = orderSource();
     const fn = src.slice(src.indexOf("async function applyPartialDelivery"));
     const guard = fn.slice(0, fn.indexOf("let newSubtotal"));
 

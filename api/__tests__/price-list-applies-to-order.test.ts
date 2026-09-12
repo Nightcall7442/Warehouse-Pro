@@ -22,9 +22,8 @@
  * из pickTier — первая группа падает на ярусе 50.
  */
 import { describe, it, expect } from "vitest";
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
 import { pickTier } from "../services/price-resolver";
+import { orderMethod } from "./helpers/order-source";
 
 const tier = (priceListId: number, priority: number, minQuantity: string, price: string) =>
   ({ productId: 1, priceListId, priority, minQuantity, price });
@@ -52,10 +51,9 @@ describe("выбор яруса прайс-листа", () => {
 });
 
 describe("заказ читает прайс-лист", () => {
-  const ORDER = readFileSync(resolve(__dirname, "../services/order.ts"), "utf-8");
 
   it("create разрешает цены через resolvePrices после карточных и пишет источник", () => {
-    const create = ORDER.slice(ORDER.indexOf("  async create("), ORDER.indexOf("\n  async ", ORDER.indexOf("  async create(") + 10));
+    const create = orderMethod("create");
     expect(create).toContain("resolvePrices(tx, tenantId, input.shopId, items, priceMap)");
     expect(create).toContain("priceListId: resolved.get(item.productId)?.priceListId ?? null");
     // Прайс-лист применяется ДО расчёта subtotal.
@@ -63,7 +61,7 @@ describe("заказ читает прайс-лист", () => {
   });
 
   it("updateItems: новая строка без цены оператора берёт цену магазина", () => {
-    const upd = ORDER.slice(ORDER.indexOf("  async updateItems("), ORDER.indexOf("\n  async ", ORDER.indexOf("  async updateItems(") + 10));
+    const upd = orderMethod("updateItems");
     expect(upd).toContain("resolvePrices(tx, tenantId, order.shopId, newLines, fallback)");
     expect(upd).toContain("Number(line.unitPrice ?? productPrices.get(productId)!.unitPrice)");
     expect(upd).not.toContain("Number(line.unitPrice ?? 0)");

@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
+import { orderSource } from "./helpers/order-source";
 
 /**
  * Два правила вместо двух заплаток.
@@ -78,7 +79,7 @@ describe("правило 1: заказ отдаётся только тому, �
   it("сама выборка «своих» живёт в одном месте", () => {
     // Два правила рядом разъезжаются; здесь оно одно — viewerScope/ownerScope
     // в сервисе, и все пути зовут его.
-    const SRC = read("api/services/order.ts");
+    const SRC = orderSource();
     expect(SRC).toContain("function viewerScope(viewer: OrderViewer)");
     expect(SRC, "внутренний вызов должен называть себя, а не молчать").toContain("SYSTEM_VIEW");
     /*
@@ -161,7 +162,7 @@ describe("правило 2: отказ называет вещь, а не её �
   });
 
   it("имя берётся общим помощником", () => {
-    const SRC = read("api/services/order.ts");
+    const SRC = orderSource();
     expect(SRC).toContain("export async function productLabel(");
     // Помощник не должен ронять отказ, если имя не прочиталось: сообщение —
     // украшение, а отказ — суть.

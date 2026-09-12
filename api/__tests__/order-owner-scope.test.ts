@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { canSeeAnyOrder, canSettleAnyOrder, canCancelAnyOrder } from "../services/order";
+import { orderSource } from "./helpers/order-source";
 
 /**
  * Чужой заказ провести нельзя.
@@ -28,7 +29,7 @@ import { canSeeAnyOrder, canSettleAnyOrder, canCancelAnyOrder } from "../service
  * поэтому здесь она и не бросалась в глаза: образец в файле был.
  */
 
-const SRC = readFileSync(join(process.cwd(), "api", "services", "order.ts"), "utf8").replace(/\r\n/g, "\n");
+const SRC = orderSource().replace(/\r\n/g, "\n");
 const ROUTER = readFileSync(join(process.cwd(), "api", "order-router.ts"), "utf8").replace(/\r\n/g, "\n");
 
 /**
@@ -273,7 +274,7 @@ describe("состав частично доставленного заказа 
     // возвращал магазину в долг стоимость товара, который он уже вернул, а
     // попытка исправить это руками зачисляла возвращённые единицы на склад
     // второй раз.
-    const start = SRC.indexOf("async updateItems(");
+    const start = SRC.indexOf("async function updateItems(");
     expect(start).toBeGreaterThan(-1);
     const body = SRC.slice(start, start + 6000);
     expect(body).toContain("deliveredQuantity !== null");

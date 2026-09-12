@@ -27,17 +27,14 @@
  * проверка называет метод.
  */
 import { describe, it, expect } from "vitest";
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { orderMethod } from "./helpers/order-source";
 
-const ORDER = readFileSync(resolve(__dirname, "../services/order.ts"), "utf-8");
 
 /** Тело метода OrderService от заголовка до следующего метода. */
 function methodBody(name: string): string {
-  const at = ORDER.indexOf(`  async ${name}(`);
-  expect(at, `${name} не найден`).toBeGreaterThan(0);
-  const next = ORDER.indexOf("\n  async ", at + 10);
-  return ORDER.slice(at, next < 0 ? undefined : next);
+  const body = orderMethod(name);
+  expect(body, `${name} не найден`).not.toBe("");
+  return body;
 }
 
 /** Первое чтение из orders внутри тела: от `.from(orders)` до `.limit(1)`. */

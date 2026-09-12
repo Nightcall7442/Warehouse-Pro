@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
+import { orderSource } from "./helpers/order-source";
 
 /**
  * KPI у курьера и оператора: пункт меню не должен вести в отказ.
@@ -473,7 +474,7 @@ describe("курьеру засчитывают доставленный зак�
 });
 
 describe("веб-закрытие оставляет след доставки", () => {
-  const order = read("api/services/order.ts");
+  const order = orderSource();
 
   it("смена статуса на «доставлен» ставит отметку и дату", () => {
     /*

@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { orderSource } from "./helpers/order-source";
 
 /**
  * За кем числится заказ.
@@ -63,7 +64,7 @@ describe("заказ достаётся тому, кому назначили", 
 
   it("служба чужого не проверяет — это дело резолвера", () => {
     // Иначе проверка задвоится и подорожает на каждом заказе.
-    const service = read("api/services/order.ts");
+    const service = orderSource();
     const at = service.indexOf("async create(db: Db, tenantId: number, agentId: number");
     const body = service.slice(at, at + 2500);
     expect(body).not.toContain("Сотрудник не найден");

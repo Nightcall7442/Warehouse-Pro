@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { orderSource } from "./helpers/order-source";
 
 /**
  * Who may see what the company pays for its goods.
@@ -259,7 +260,7 @@ describe("per-agent scoping matches between a list and its totals", () => {
   const PRIVILEGED = /\["ceo", "operator", "supervisor", "superadmin"\]/;
 
   it("OrderService.list narrows to the caller", () => {
-    const src = api("services/order.ts");
+    const src = orderSource();
     expect(src).toMatch(PRIVILEGED);
     expect(src).toMatch(/eq\(orders\.agentId,\s*opts\.userId\)/);
   });

@@ -15,6 +15,7 @@
  */
 import { describe, it, expect } from "vitest";
 import { z } from "zod";
+import { orderSource } from "./helpers/order-source";
 
 /**
  * Копия правила из api/order-router.ts.
@@ -89,7 +90,7 @@ describe("правило на границе и в службах не разо�
   });
 
   it("обе службы отсекают не-число", async () => {
-    const src = await read("api/services/order.ts");
+    const src = orderSource();
     const guards = src.match(/Number\.isFinite\((?:discountPercent|pct)\)/g) ?? [];
     expect(
       guards.length,

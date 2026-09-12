@@ -24,9 +24,9 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { orderSource, orderMethod } from "./helpers/order-source";
 
 const ROUTER = readFileSync(resolve(__dirname, "../order-router.ts"), "utf-8");
-const ORDER = readFileSync(resolve(__dirname, "../services/order.ts"), "utf-8");
 const create = ROUTER.slice(ROUTER.indexOf("create: fieldSalesQuery"), ROUTER.indexOf("cancel: fieldSalesQuery"));
 
 describe("порог скидки полевых ролей", () => {
@@ -52,7 +52,7 @@ describe("порог скидки полевых ролей", () => {
     expect(create).toMatch(/holdReason,\s*\}\);/);
     expect(create).toContain("NotificationService.createBulk(ctx.db, {");
     expect(create).toContain("sql`${users.role} IN ('ceo', 'operator')`");
-    const service = readFileSync(resolve(__dirname, "../services/order.ts"), "utf-8");
+    const service = orderSource();
     expect(service).toContain('status: input.holdReason ? "pending" : "new"');
     expect(service).toContain('const holdPatch = order.status === "pending" && newStatus !== "pending" ? { holdReason: null } : {};');
     expect(service).toContain("held: Boolean(input.holdReason)");
@@ -84,8 +84,8 @@ describe("след правок заказа", () => {
 
   it("служба пишет след после транзакции в каждом из четырёх методов", () => {
     for (const [m, action] of [["delete", "order.delete"], ["restore", "order.restore"], ["update", "order.update"], ["updateItems", "order.update_items"]] as const) {
-      const at = ORDER.indexOf(`  async ${m}(`);
-      const body = ORDER.slice(at, ORDER.indexOf("\n  async ", at + 10));
+      // `delete` — зарезервированное слово: в модуле метод зовётся deleteOrder.
+      const body = orderMethod(m === "delete" ? "deleteOrder" : m);
       expect(body, `${m} без следа`).toContain(`"${action}"`);
       expect(body.indexOf("await db.transaction"), `${m}: след внутри транзакции`).toBeLessThan(body.indexOf(`"${action}"`));
     }

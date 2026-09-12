@@ -1,7 +1,6 @@
 import { describe, it, expect } from "vitest";
 import "./sqlite-engine"; // требует Node 22.5+ и объясняет, если его нет
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
+import { orderSource } from "./helpers/order-source";
 
 /**
  * Номера заказов: «№149» вместо «ORD-B650EBBC369B».
@@ -90,7 +89,7 @@ describe("следующий номер заказа", () => {
 
 describe("генерация номера в продукте", () => {
   it("прежней случайной генерации из UUID не осталось", () => {
-    const src = readFileSync(join(process.cwd(), "api", "services", "order.ts"), "utf8");
+    const src = orderSource();
     expect(src, "номер снова собирается из случайного UUID").not.toMatch(/ORD-\$\{/);
     expect(src).toContain("nextOrderNumber");
   });
@@ -103,7 +102,7 @@ describe("генерация номера в продукте", () => {
     // разбор ошибок (lib/db-errors) — и уехала правильно: читать код ошибки с
     // верхнего уровня нельзя, drizzle заворачивает её в свою, и проверка
     // давала false всегда. Ищем теперь сам повтор, а не название константы.
-    const src = readFileSync(join(process.cwd(), "api", "services", "order.ts"), "utf8");
+    const src = orderSource();
     /*
       Окно — до конца функции, а не «плюс полторы тысячи знаков». Отмеренное
       длиной окно однажды уже соврало: добавление одного поля в тот же insert

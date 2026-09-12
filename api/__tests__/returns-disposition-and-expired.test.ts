@@ -10,6 +10,7 @@ import { describe, it, expect, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import { defaultDisposition } from "../returns-router";
 import { expiredByProduct } from "../services/stock-ledger";
+import { orderSource } from "./helpers/order-source";
 
 describe("куда девать вернувшийся товар", () => {
   it("брак, просрочка и порча — списать; пересорт и другое — на склад", () => {
@@ -49,7 +50,7 @@ describe("просрочка вне отгрузки", () => {
   });
 
   it("годное к продаже = available − просроченное; отказ называет просрочку", () => {
-    const order = readFileSync("api/services/order.ts", "utf-8");
+    const order = orderSource();
     expect(order).toContain("const expired = await expiredByProduct(tx, tenantId, reserveWarehouseId, items.map(i => i.productId));");
     expect(order).toContain("const sellable = available - rotten;");
     expect(order).toContain("просрочено — годных");
