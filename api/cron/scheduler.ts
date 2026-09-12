@@ -1,5 +1,8 @@
-import { getPool } from "../queries/connection";
+import { getPool, getDb } from "../queries/connection";
+import { eq } from "drizzle-orm";
+import { cronRuns } from "@db/schema";
 import { logger } from "../lib/logger";
+import { cronLastSuccessTimestamp } from "../prometheus-metrics";
 
 /* ═══════════════════════════════════════════════════════════════════════════
    Расписание работ — внутри приложения.
@@ -43,6 +46,12 @@ type Job = {
   daily?: { hour: number; minute: number; weekday?: number };
   /** Либо просто «раз в столько-то минут». */
   everyMinutes?: number;
+  /**
+    Сколько часов после назначенного времени работу ещё стоит догонять.
+    Без значения — до следующего назначенного времени. Напоминаниям и сводкам
+    хватает трёх: сводка за день, пришедшая в полночь, никому не нужна.
+  */
+  catchUpHours?: number;
   run: () => Promise<unknown>;
 };
 
@@ -59,17 +68,20 @@ const JOBS: Job[] = [
     // два часа — сообщение успевает прийти сегодня, а не лечь в очередь.
     name: "telegram-digest",
     daily: { hour: 20, minute: 0 },
+    catchUpHours: 3,
     run: async () => (await import("./telegram-digest")).runTelegramDigest(),
   },
   {
     // Долги — утром рабочего дня: по ним звонят, а не читают на ночь.
     name: "debt-reminders",
     daily: { hour: 9, minute: 0 },
+    catchUpHours: 3,
     run: async () => (await import("./debt-reminders")).runDebtReminders(),
   },
   {
     name: "trial-reminders",
     daily: { hour: 9, minute: 30 },
+    catchUpHours: 3,
     run: async () => (await import("./trial-reminders")).runTrialReminders(),
   },
   {
@@ -88,6 +100,7 @@ const JOBS: Job[] = [
     // Сводка суперадмину — после вечерних сводок арендаторам (20:00).
     name: "admin-digest",
     daily: { hour: 21, minute: 0 },
+    catchUpHours: 3,
     run: async () => (await import("./admin-digest")).runAdminDigest(),
   },
   {
@@ -188,6 +201,129 @@ const JOBS: Job[] = [
 /** Когда работа выполнялась в последний раз — чтобы не повторяться в ту же минуту. */
 const lastRun = new Map<string, string>();
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   Догон пропущенного.
+
+   ── Что было ────────────────────────────────────────────────────────────────
+
+   Ежедневная работа срабатывала ровно в свою минуту — и только в неё. Процесс
+   перезапустился в 02:59 и поднялся в 03:02 — копии за эту ночь нет. Упала
+   сама работа (хранилище ответило «повторите позже») — тоже до завтра. Узнать
+   об этом можно было только по тревоге через 26 часов.
+
+   ── Что теперь ──────────────────────────────────────────────────────────────
+
+   Ежедневная работа ДОЛЖНА выполниться после своего часа. Планировщик помнит
+   в cron_runs, когда она удавалась в последний раз, и пока удачи после
+   назначенного момента нет — пробует раз в час, в окне catchUpHours.
+
+   Догоняются только работы, о которых процесс что-то знает: удавалась хотя бы
+   однажды (отметка в базе) или он сам её уже пробовал. У работы без того и
+   другого планировщик не знает, делалась ли она сегодня старым процессом, и
+   после каждой выкладки слал бы напоминания второй раз — такая идёт как
+   прежде, ровно в свою минуту; но упала она в эту минуту — повтор через час,
+   как у всех.
+
+   Ежедневные работы одного тика идут по одной, в порядке списка: уборки
+   стоят после ночной копии не случайно, и догон обязан это сохранить.
+   Работы «раз в N минут» догона не знают: следующий запуск и есть догон.
+   ═══════════════════════════════════════════════════════════════════════════ */
+const RETRY_MS = 60 * 60_000;
+
+const lastSuccess = new Map<string, number>();   // из cron_runs; мс
+const lastAttempt = new Map<string, number>();   // только память; мс
+const notified = new Map<string, number>();      // работа → назначенный момент, о провале которого уже сказано
+let stateLoaded = false;
+let ticking = false;
+
+/** Отметки в базе. Отдельным объектом — чтобы проверки подменяли его, а не drizzle. */
+const store = {
+  async load(): Promise<Array<{ job: string; lastSuccessAt: Date | null }>> {
+    return getDb().select({ job: cronRuns.job, lastSuccessAt: cronRuns.lastSuccessAt }).from(cronRuns);
+  },
+  async lastSuccess(job: string): Promise<Date | null> {
+    const [row] = await getDb().select({ at: cronRuns.lastSuccessAt }).from(cronRuns).where(eq(cronRuns.job, job)).limit(1);
+    return row?.at ?? null;
+  },
+  async saveSuccess(job: string, at: Date): Promise<void> {
+    await getDb().insert(cronRuns).values({ job, lastSuccessAt: at })
+      .onDuplicateKeyUpdate({ set: { lastSuccessAt: at } });
+  },
+  async saveFailure(job: string, at: Date, error: string): Promise<void> {
+    const lastError = error.slice(0, 2000);
+    await getDb().insert(cronRuns).values({ job, lastErrorAt: at, lastError })
+      .onDuplicateKeyUpdate({ set: { lastErrorAt: at, lastError } });
+  },
+};
+
+async function loadState(): Promise<void> {
+  try {
+    for (const r of await store.load()) {
+      if (!r.lastSuccessAt) continue;
+      lastSuccess.set(r.job, r.lastSuccessAt.getTime());
+      cronLastSuccessTimestamp.set({ job: r.job }, Math.floor(r.lastSuccessAt.getTime() / 1000));
+    }
+    stateLoaded = true;
+  } catch (e) {
+    logger.warn("cron state not loaded — no catch-up until it is", { error: e instanceof Error ? e.message : String(e) });
+  }
+}
+
+/** Последний назначенный момент работы не позже `now`; для еженедельной — в её день. */
+function lastDue(job: Job, now: Date): Date | null {
+  const d = job.daily!;
+  const local = new Date(now.getTime() + OFFSET_MS);
+  const today = Date.UTC(local.getUTCFullYear(), local.getUTCMonth(), local.getUTCDate(), d.hour, d.minute) - OFFSET_MS;
+  for (let back = 0; back < 8; back++) {
+    const at = today - back * 86_400_000;
+    if (at > now.getTime()) continue;
+    if (d.weekday !== undefined && new Date(at + OFFSET_MS).getUTCDay() !== d.weekday) continue;
+    return new Date(at);
+  }
+  return null;
+}
+
+/** Ради какого назначенного момента работу надо запустить сейчас — или null. */
+function dueSlot(job: Job, now: Date): Date | null {
+  const due = lastDue(job, now);
+  if (!due) return null;
+  if (now.getTime() - due.getTime() > (job.catchUpHours ?? 24) * 3_600_000) return null;
+  if ((lastSuccess.get(job.name) ?? 0) >= due.getTime()) return null;
+  if (now.getTime() - (lastAttempt.get(job.name) ?? -Infinity) < RETRY_MS) return null;
+  return due;
+}
+
+/** Как прежде: ровно в свою минуту и не дважды в неё. */
+function exactMinute(job: Job, now: Date): boolean {
+  if (!isDue(job, now)) return false;
+  const key = stamp(now);
+  if (lastRun.get(job.name) === key) return false;
+  lastRun.set(job.name, key);
+  return true;
+}
+
+async function tick(now = new Date()): Promise<void> {
+  for (const job of JOBS) {
+    if (job.everyMinutes && exactMinute(job, now)) void runExclusively(job);
+  }
+  // Ежедневные — по одной. Прошлый тик ещё не закончил (идёт копия) — ждём его.
+  if (ticking) return;
+  ticking = true;
+  try {
+    if (!stateLoaded) await loadState();
+    for (const job of JOBS) {
+      if (job.everyMinutes) continue;
+      const known = stateLoaded && (lastSuccess.has(job.name) || lastAttempt.has(job.name));
+      const due = known ? dueSlot(job, now) : (exactMinute(job, now) ? lastDue(job, now) : null);
+      if (!due) continue;
+      lastAttempt.set(job.name, now.getTime());
+      await runExclusively(job, due);
+    }
+  } finally {
+    ticking = false;
+  }
+}
+
 /** Отметка «год-месяц-день час:минута» по Ташкенту. */
 function stamp(at: Date): string {
   return new Date(at.getTime() + OFFSET_MS).toISOString().slice(0, 16);
@@ -209,7 +345,7 @@ function isDue(job: Job, at: Date): boolean {
  * Замок не ждёт очереди (нулевой тайм-аут): если его держит другая реплика,
  * значит работа уже идёт, и вторая копия не нужна.
  */
-async function runExclusively(job: Job): Promise<void> {
+async function runExclusively(job: Job, due?: Date): Promise<void> {
   const pool = getPool();
   if (!pool) return;
 
@@ -233,17 +369,59 @@ async function runExclusively(job: Job): Promise<void> {
     const ok = Number((rows as Array<{ ok: number | null }>)[0]?.ok ?? 0) === 1;
     if (!ok) return;
 
+    /*
+      Догон сверяется с базой, а не только с памятью. Вторая реплика узнаёт об
+      удаче первой только отсюда: её собственная отметка осталась вчерашней, и
+      через час она догнала бы то, что уже сделано, — для напоминаний это
+      вторая копия у каждого получателя. Сверка не удалась — считаем, что не
+      сделано: лишняя копия базы дешевле пропущенной.
+    */
+    if (due) {
+      const done = await store.lastSuccess(job.name).catch(() => null);
+      if (done && done.getTime() >= due.getTime()) {
+        lastSuccess.set(job.name, done.getTime());
+        return;
+      }
+    }
+
     try {
       const started = Date.now();
       const result = await job.run();
       logger.info("cron job finished", { job: job.name, ms: Date.now() - started, result });
+      const at = new Date();
+      lastSuccess.set(job.name, at.getTime());
+      cronLastSuccessTimestamp.set({ job: job.name }, Math.floor(at.getTime() / 1000));
+      // Незаписанная удача после перезапуска обернётся повтором работы —
+      // для рассылки второй копией у получателей. Поэтому три попытки с паузой.
+      for (let attempt = 1; ; attempt++) {
+        try {
+          await store.saveSuccess(job.name, at);
+          break;
+        } catch (e) {
+          if (attempt >= 3) {
+            logger.error("cron run NOT recorded — a restart may repeat this job", {
+              job: job.name, error: e instanceof Error ? e.message : String(e),
+            });
+            break;
+          }
+          await new Promise(r => setTimeout(r, 2_000 * attempt));
+        }
+      }
     } catch (e) {
       const error = e instanceof Error ? e.message : String(e);
       logger.error("cron job failed", { job: job.name, error });
+      await store.saveFailure(job.name, new Date(), error).catch(() => {});
       // Суперадмину: тихий провал ночной работы иначе замечают через месяцы
-      // (см. шапку файла — так и вышло с копией базы).
-      const { notifyAdmin, tgMessages } = await import("../lib/telegram");
-      void notifyAdmin(tgMessages.cronFailed(job.name, error));
+      // (см. шапку файла — так и вышло с копией базы). Но один раз на
+      // назначенный момент (частой работе — раз в час): догон пробует снова
+      // каждый час, и то же сообщение час за часом — шум, за которым потеряется
+      // настоящее.
+      const slot = due?.getTime() ?? Math.floor(Date.now() / 3_600_000);
+      if (notified.get(job.name) !== slot) {
+        notified.set(job.name, slot);
+        const { notifyAdmin, tgMessages } = await import("../lib/telegram");
+        void notifyAdmin(tgMessages.cronFailed(job.name, error, due !== undefined));
+      }
     } finally {
       await conn.query("SELECT RELEASE_LOCK(?) AS ok", [`warehouse_pro:cron:${job.name}`]).catch(() => {});
     }
@@ -264,16 +442,8 @@ let timer: ReturnType<typeof setInterval> | null = null;
 export function startScheduler(): void {
   if (timer) return;
 
-  timer = setInterval(() => {
-    const now = new Date();
-    const key = stamp(now);
-    for (const job of JOBS) {
-      if (!isDue(job, now)) continue;
-      if (lastRun.get(job.name) === key) continue;
-      lastRun.set(job.name, key);
-      void runExclusively(job);
-    }
-  }, 60_000);
+  void loadState();
+  timer = setInterval(() => { void tick(); }, 60_000);
 
   // Таймер не должен держать процесс живым при остановке.
   timer.unref?.();
@@ -293,4 +463,11 @@ export function scheduledJobs(): Array<{ name: string; when: string }> {
 }
 
 /** Оставлено ради проверки: тот же расчёт, что и в тике. */
-export const _internals = { isDue, stamp, JOBS, runExclusively };
+export const _internals = {
+  isDue, stamp, JOBS, runExclusively, tick, lastDue, dueSlot, store,
+  /** Забыть всё между проверками: отметки, попытки, флаг загрузки. */
+  reset(): void {
+    lastRun.clear(); lastSuccess.clear(); lastAttempt.clear(); notified.clear();
+    stateLoaded = false; ticking = false;
+  },
+};

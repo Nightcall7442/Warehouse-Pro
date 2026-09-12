@@ -103,7 +103,7 @@ export const OFFBOARD_ORDER: readonly OffboardStep[] = [
 ];
 
 /** Платформенные таблицы без tenant_id — их уход организации не касается. */
-export const NOT_TENANT_OWNED = ["tenants", "leads"] as const;
+export const NOT_TENANT_OWNED = ["tenants", "leads", "cron_runs"] as const;
 
 function stepTable(step: OffboardStep): string {
   return typeof step === "string" ? step : step.table;

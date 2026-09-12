@@ -163,8 +163,9 @@ export const tgMessages = {
     return lines.join("\n");
   },
 
-  cronFailed: (job: string, error: string) =>
-    `🟠 <b>Крон упал</b>\n⚙️ ${tgEscape(job)}\n${tgEscape(error.slice(0, 300))}`,
+  cronFailed: (job: string, error: string, willRetry = false) =>
+    `🟠 <b>Крон упал</b>\n⚙️ ${tgEscape(job)}\n${tgEscape(error.slice(0, 300))}` +
+    (willRetry ? "\n🔁 Попробую снова через час; о повторных провалах молчу, об удаче — тоже" : ""),
 
   serverUp: (version: string, caughtUp: string[]) =>
     `🚀 <b>Сервер запущен</b>\n🏷 ${tgEscape(version.slice(0, 12))}` +
