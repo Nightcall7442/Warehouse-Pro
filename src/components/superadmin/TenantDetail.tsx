@@ -4,7 +4,7 @@ import { format } from "date-fns";
 import { trpc } from "@/providers/trpc";
 import { notify } from "@/lib/toast";
 import { useConfirm } from "@/components/ConfirmDialog";
-import { ArrowLeft, Users, ShoppingCart, Package, Store, Shield, Lock, BarChart3, Zap, Calendar, Power, Plus, ShieldCheck, Eraser } from "lucide-react";
+import { ArrowLeft, Users, ShoppingCart, Package, Store, Shield, Lock, BarChart3, Zap, Calendar, Power, Plus, ShieldCheck, Eraser, Trash2 } from "lucide-react";
 import { PremiumSelect } from "@/components/PremiumSelect";
 import { labelled, ROLE_LABEL } from "@/lib/entity-labels";
 import { EXTRA_PRICES_UZS } from "@contracts/constants";
@@ -51,6 +51,24 @@ export function TenantDetail({ tenantId, onBack }: TenantDetailProps) {
 
   const setExtra = trpc.tenant.setExtraLimits.useMutation({
     onSuccess: () => { invalidate(); notify.success("Лимиты обновлены"); setShowExtra(false); },
+    onError: (e) => notify.error(e.message),
+  });
+
+  /*
+    Уход организации. Окно открывается только у приостановленной: первый
+    замок — сам статус, второй — slug руками, третий — код второго фактора.
+    Список «что будет стёрто» берётся с сервера, а не считается на глаз.
+  */
+  const [showOffboard, setShowOffboard] = useState(false);
+  const [offboardSlug, setOffboardSlug] = useState("");
+  const [offboardCode, setOffboardCode] = useState("");
+  const offboardPreview = trpc.tenant.offboardPreview.useQuery({ tenantId }, { enabled: showOffboard });
+  const offboard = trpc.tenant.offboard.useMutation({
+    onSuccess: (r) => {
+      notify.success(`Организация удалена: стёрто ${r.total} строк`);
+      utils.tenant.list.invalidate(); utils.tenant.platformStats.invalidate();
+      onBack();
+    },
     onError: (e) => notify.error(e.message),
   });
 
@@ -255,6 +273,58 @@ export function TenantDetail({ tenantId, onBack }: TenantDetailProps) {
           )}
         </div>
       </Section>
+
+      {/*
+        Уход организации — отдельный раздел, а не ещё одна кнопка в ряду:
+        рядом с «Приостановить» она читалась бы как обратимая.
+      */}
+      <Section title="Уход организации" icon={Trash2}>
+        <p style={{ fontSize: "12px", color: COLORS.textSecondary, margin: "0 0 12px", lineHeight: 1.5 }}>
+          Стирает из базы всё, что принадлежит организации: заказы, магазины, сотрудников, остатки, GPS-следы.
+          Обратного пути нет; резервные копии хранят данные до истечения своего срока.
+          {tenant.status !== "suspended" && " Сначала приостановите организацию."}
+        </p>
+        <BtnSecondary
+          onClick={() => { setOffboardSlug(""); setOffboardCode(""); setShowOffboard(true); }}
+          disabled={tenant.status !== "suspended"}
+          style={{ padding: "6px 14px", fontSize: "12px", color: COLORS.danger, borderColor: "color-mix(in srgb, var(--color-danger) 30%, transparent)" }}
+        >
+          <Trash2 size={13} /> Удалить организацию
+        </BtnSecondary>
+      </Section>
+
+      {showOffboard && (
+        <Modal
+          onClose={() => setShowOffboard(false)}
+          title={`Удалить «${tenant.name}»?`}
+          subtitle="Безвозвратно. Наберите slug и код из приложения-аутентификатора."
+          footer={
+            <div style={{ display: "flex", gap: "8px", justifyContent: "flex-end" }}>
+              <BtnSecondary onClick={() => setShowOffboard(false)} style={{ padding: "8px 14px", fontSize: "12px" }}>Отмена</BtnSecondary>
+              <BtnPrimary
+                onClick={() => offboard.mutate({ tenantId, confirmSlug: offboardSlug.trim(), totpCode: offboardCode.trim() })}
+                disabled={offboard.isPending || offboardSlug.trim() !== tenant.slug || offboardCode.trim().length < 6}
+                style={{ padding: "8px 14px", fontSize: "12px", background: COLORS.danger }}
+              >
+                {offboard.isPending ? "Удаляю…" : "Удалить безвозвратно"}
+              </BtnPrimary>
+            </div>
+          }
+        >
+          <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+            <div style={{ fontSize: "12px", color: COLORS.textSecondary, lineHeight: 1.6 }} data-testid="offboard-preview">
+              {offboardPreview.isLoading && "Считаю строки…"}
+              {offboardPreview.data && (
+                offboardPreview.data.total === 0
+                  ? "В базе нет ни одной строки этой организации, кроме неё самой."
+                  : <>Будет стёрто <b>{offboardPreview.data.total}</b> строк: {Object.entries(offboardPreview.data.rows).map(([t, n]) => `${t} — ${n}`).join(", ")}.</>
+              )}
+            </div>
+            <Input label={`Slug организации (${tenant.slug})`} value={offboardSlug} onChange={e => setOffboardSlug(e.target.value)} autoComplete="off" data-testid="offboard-slug" />
+            <Input label="Код из приложения" value={offboardCode} onChange={e => setOffboardCode(e.target.value)} inputMode="numeric" autoComplete="one-time-code" data-testid="offboard-totp" />
+          </div>
+        </Modal>
+      )}
 
       {/*
         Права оператора — тот же список, что у директора в настройках.

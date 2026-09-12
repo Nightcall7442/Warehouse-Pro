@@ -130,11 +130,11 @@ export function BtnPrimary({ children, disabled, onClick, style: s }: {
   );
 }
 
-export function BtnSecondary({ children, onClick, style: s }: {
-  children: React.ReactNode; onClick?: () => void; style?: React.CSSProperties;
+export function BtnSecondary({ children, disabled, onClick, style: s }: {
+  children: React.ReactNode; disabled?: boolean; onClick?: () => void; style?: React.CSSProperties;
 }) {
   return (
-    <button onClick={onClick} style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: "6px", padding: "10px 20px", borderRadius: "10px", fontSize: "13px", fontWeight: 600, fontFamily: F.body, color: COLORS.textSecondary, background: COLORS.surface, border: `1px solid ${COLORS.border}`, cursor: "pointer", transition: "all 0.15s", ...s }}>
+    <button onClick={onClick} disabled={disabled} style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: "6px", padding: "10px 20px", borderRadius: "10px", fontSize: "13px", fontWeight: 600, fontFamily: F.body, color: COLORS.textSecondary, background: COLORS.surface, border: `1px solid ${COLORS.border}`, cursor: disabled ? "not-allowed" : "pointer", opacity: disabled ? 0.5 : 1, transition: "all 0.15s", ...s }}>
       {children}
     </button>
   );
