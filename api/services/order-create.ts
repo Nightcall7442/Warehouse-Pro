@@ -251,9 +251,33 @@ export async function create(db: Db, tenantId: number, agentId: number, input: {
 
   cache.invalidate(CacheKeys.dashboardKpis(Number(tenantId)));
 
-  // Notify operators/CEO about new order (in-app + push)
+  /*
+    Уведомления — ПОСЛЕ ответа, не перед ним.
+
+    Заказ уже записан; дальше — запись в колокольчик, push через Expo и
+    сообщение в Telegram. Раньше агент у прилавка ждал все три: тайм-ауты
+    стоят (по 5 с на Expo и Telegram), но три роли push и один Telegram —
+    это до 20 с ожидания при задержке сторонних API, а заказ при этом давно
+    в базе. Теперь ответ уходит сразу; уведомления доходят своим чередом,
+    отказ — в журнал. Telegram вне рабочих часов и так ложится в outbox.
+  */
+  void notifyAboutNewOrder(db, { tenantId, orderId, orderNumber, orderTotal, shopId: input.shopId });
+
+  // total возвращается наружу, чтобы клиент мог сверить его с суммой,
+  // которую агент назвал владельцу магазина.
+  //
+  // Заказ, оформленный офлайн, уходит на сервер спустя часы, а цены сервер
+  // берёт из базы на момент отправки — свои, не присланные. Если за это
+  // время подняли прайс, накладная приходит на другую сумму, чем записано
+  // на бумаге у владельца, и разбираться с этим агенту у двери магазина.
+  // Зная итог, приложение сообщает о расхождении сразу после отправки.
+  return { id: orderId, orderNumber, total: orderTotal, held: Boolean(input.holdReason) };
+}
+
+async function notifyAboutNewOrder(db: Db, o: { tenantId: number; orderId: number; orderNumber: string; orderTotal: number; shopId: number }): Promise<void> {
+  const { tenantId, orderId, orderNumber, orderTotal } = o;
   try {
-    const [shop] = await db.select({ name: shops.name }).from(shops).where(eq(shops.id, input.shopId)).limit(1);
+    const [shop] = await db.select({ name: shops.name }).from(shops).where(eq(shops.id, o.shopId)).limit(1);
     const operators = await db.select({ id: users.id }).from(users)
       .where(and(eq(users.tenantId, tenantId), sql`${users.role} IN ('ceo', 'operator')`, eq(users.status, "active")));
 
@@ -294,16 +318,6 @@ export async function create(db: Db, tenantId: number, agentId: number, input: {
       text: tgMessages.newOrder(orderNumber, shop?.name ?? "Магазин", orderTotal.toLocaleString("ru"), "сум"),
     });
   } catch (e) {
-    logger.warn("Order notification failed", { error: String(e) });
+    logger.warn("Order notification failed", { orderId, error: String(e) });
   }
-
-  // total возвращается наружу, чтобы клиент мог сверить его с суммой,
-  // которую агент назвал владельцу магазина.
-  //
-  // Заказ, оформленный офлайн, уходит на сервер спустя часы, а цены сервер
-  // берёт из базы на момент отправки — свои, не присланные. Если за это
-  // время подняли прайс, накладная приходит на другую сумму, чем записано
-  // на бумаге у владельца, и разбираться с этим агенту у двери магазина.
-  // Зная итог, приложение сообщает о расхождении сразу после отправки.
-  return { id: orderId, orderNumber, total: orderTotal, held: Boolean(input.holdReason) };
 }

@@ -390,12 +390,13 @@ export async function updateStatus(
     if (orderRow?.agentId) {
       const [shop] = await db.select({ name: shops.name }).from(shops).where(eq(shops.id, orderRow.shopId)).limit(1);
       const label = ORDER_STATUS_LABELS[newStatus];
-      const { sendPushToUser } = await import("./push-service");
-      await sendPushToUser(orderRow.agentId, {
+      // После ответа: смена статуса не ждёт Expo.
+      const agentId = orderRow.agentId;
+      void import("./push-service").then(({ sendPushToUser }) => sendPushToUser(agentId, {
         title: `Заказ ${orderRow.orderNumber}`,
         body: `Статус изменён: ${label}${shop?.name ? ` (${shop.name})` : ""}`,
         data: { type: "order.status_changed", orderId },
-      }).catch(() => {});
+      })).catch(() => {});
     }
   } catch (e) {
     logger.warn("Status change notification failed", { error: String(e) });
