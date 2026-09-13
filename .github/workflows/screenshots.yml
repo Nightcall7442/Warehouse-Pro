@@ -1,0 +1,107 @@
+# Снимки экранов для обучения — с настоящего приложения на засеве.
+#
+# Запускается руками (workflow_dispatch). Поднимает MySQL с засевом demo-uz,
+# собирает веб и, если удаётся, мобилку в веб (Expo web), и прогоняет
+# scripts/screenshots.mjs по ролям и языкам. Результат — артефакт
+# «screenshots» (PNG + index.json), из него собирается руководство
+# docs/training. Ни одна проверка здесь не ломает сборку: снимок — материал.
+name: Screenshots
+
+on:
+  workflow_dispatch:
+    inputs:
+      mobile_ref:
+        description: "Ветка мобилки (Warehouse-Pro-Mobile) для снимков; пусто — без мобилки"
+        default: "master"
+        required: false
+      langs:
+        description: "Языки через запятую"
+        default: "ru,uz"
+        required: false
+
+jobs:
+  shoot:
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:9.4
+        env:
+          MYSQL_ROOT_PASSWORD: test
+          MYSQL_DATABASE: warehouse_shots
+        ports: ["3306:3306"]
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -ptest"
+          --health-interval=5s --health-timeout=5s --health-retries=20
+    env:
+      DATABASE_URL: mysql://root:test@127.0.0.1:3306/warehouse_shots
+      APP_SECRET: screenshots-ephemeral-secret-not-used-anywhere-else
+      APP_URL: http://127.0.0.1:3100
+      # Мобилка в вебе живёт на 8081 и ходит в API с другого источника.
+      ALLOWED_ORIGINS: http://127.0.0.1:3100,http://127.0.0.1:8081,http://localhost:8081
+      RATE_LIMIT_GLOBAL_MAX: "5000"
+      PORT: "3100"
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7
+        if: ${{ inputs.mobile_ref != '' }}
+        with:
+          repository: Nightcall7442/Warehouse-Pro-Mobile
+          ref: ${{ inputs.mobile_ref }}
+          path: mobile
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --legacy-peer-deps
+      - run: npx playwright install --with-deps chromium
+
+      # Тот же путь, что у сквозных проверок: схема push-ем, журнал отмечен, засев.
+      - name: Схема и засев
+        run: |
+          npx drizzle-kit push --force
+          node scripts/e2e-baseline-journal.mjs
+          npm run db:seed
+
+      - name: Сборка и запуск веба
+        run: |
+          npm run build
+          NODE_ENV=production nohup node dist/boot.js > /tmp/web.log 2>&1 &
+          for i in $(seq 1 60); do curl -sf http://127.0.0.1:3100/health/ready && break; sleep 2; done
+          curl -sf http://127.0.0.1:3100/health/ready || { echo "веб не поднялся"; tail -50 /tmp/web.log; exit 1; }
+
+      # Мобилка в веб: Expo web. Не поднялась — снимки веба всё равно будут.
+      - name: Мобилка в веб
+        id: mobile
+        if: ${{ inputs.mobile_ref != '' }}
+        continue-on-error: true
+        working-directory: mobile
+        env:
+          EXPO_PUBLIC_API_URL: http://127.0.0.1:3100
+        run: |
+          npm ci --legacy-peer-deps
+          npx expo export --platform web --output-dir dist
+          nohup npx -y serve -s dist -l 8081 > /tmp/mobile.log 2>&1 &
+          for i in $(seq 1 30); do curl -sf http://127.0.0.1:8081/ >/dev/null && break; sleep 2; done
+          curl -sf http://127.0.0.1:8081/ >/dev/null || { echo "мобилка не поднялась"; tail -30 /tmp/mobile.log; exit 1; }
+          echo "url=http://127.0.0.1:8081" >> "$GITHUB_OUTPUT"
+
+      - name: Снимки
+        env:
+          WEB_URL: http://127.0.0.1:3100
+          MOBILE_URL: ${{ steps.mobile.outputs.url }}
+          LANGS: ${{ inputs.langs }}
+          OUT: screenshots
+        run: node scripts/screenshots.mjs
+
+      - name: Журнал сервера при провалах
+        if: always()
+        run: |
+          echo "----- index"; cat screenshots/index.json | head -80 || true
+          echo "----- web.log (хвост)"; tail -40 /tmp/web.log || true
+          echo "----- mobile.log (хвост)"; tail -40 /tmp/mobile.log 2>/dev/null || true
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: screenshots
+          path: screenshots/
+          retention-days: 14
