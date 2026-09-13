@@ -67,7 +67,7 @@ const T = {
   confirmPick: "role=button:/Подтвердить сборку|Yig'ishni tasdiqlash/",
   newArrival: "role=button:/Новый приход|Yangi kelish/",
   saveComplete: "role=button:/Сохранить и завершить|Saqlash va yakunlash/",
-  month: "role=button:/^(Месяц|Oy)$/",
+  month: "role=tab:/^(Месяц|Oy)$/",
 };
 
 const WEB_SCENARIOS = {
@@ -80,11 +80,11 @@ const WEB_SCENARIOS = {
       marks: [["shop", "css=[role=dialog] input >> nth=0"]] },
     { name: "loading-list-create", path: "/orders",
       do: [["click", "css=table tbody tr td:first-child button >> nth=0"], ["click", "css=table tbody tr td:first-child button >> nth=1"], ["wait", 600], ["click", T.bulkList], ["wait", 1200]],
-      marks: [["make", T.makeList]] },
+      marks: [["make", T.makeList]], after: [] },
     { name: "loading-list-preview", path: null, do: [["click", T.makeList], ["wait", 2500]],
       marks: [["print", "text=/^(Печать|Chop etish)$/"], ["done", T.doneNoPrint]], after: [["click", T.doneNoPrint], ["wait", 600]] },
     { name: "loading-lists", path: "/orders", do: [["click", T.lists], ["wait", 1500]],
-      marks: [["pick", T.pick + " >> nth=0"], ["courier", "css=[role=dialog] [role=combobox] >> nth=0"]] },
+      marks: [["pick", T.pick + " >> nth=0"], ["courier", "css=[role=dialog] [role=combobox] >> nth=0"]], after: [] },
     { name: "picking", path: null, do: [["click", T.pick + " >> nth=0"], ["wait", 1500]],
       marks: [["picked", "text=/^(Собрано|Yig'ildi)$/ >> nth=0"], ["confirm", T.confirmPick]] },
     { name: "arrivals", path: "/arrivals", marks: [["new", T.newArrival + " >> nth=0"]] },

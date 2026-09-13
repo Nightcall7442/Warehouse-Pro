@@ -50,18 +50,22 @@ def render_image(kind, lang, role, screen, callouts):
     im = Image.open(src).convert("RGB")
     draw = ImageDraw.Draw(im)
     found = []
-    r = 20 if kind == "web" else 26
-    f = font(22 if kind == "web" else 30)
+    # Координаты выносок — в CSS-пикселях окна (веб 1440, телефон 390);
+    # снимок телефона снят с плотностью 3 — масштабируем.
+    k = im.width / (1440 if kind == "web" else 390)
+    r = int((20 if kind == "web" else 13) * k)
+    f = font(int((22 if kind == "web" else 14) * k))
     for n, (key, _text) in enumerate(callouts, 1):
-        m = marks.get(key)
-        if not m:
+        m0 = marks.get(key)
+        if not m0:
             continue
+        m = {kk: int(round(m0[kk] * k)) for kk in ("x", "y", "w", "h")}
         cx = max(r + 2, min(im.width - r - 2, m["x"] - r - 4))
         cy = max(r + 2, min(im.height - r - 2, m["y"] + min(m["h"], 40) // 2))
         # обводка элемента
-        draw.rounded_rectangle([m["x"] - 3, m["y"] - 3, m["x"] + m["w"] + 3, m["y"] + m["h"] + 3], radius=8, outline=(214, 88, 40), width=3)
+        draw.rounded_rectangle([m["x"] - 3, m["y"] - 3, m["x"] + m["w"] + 3, m["y"] + m["h"] + 3], radius=int(8 * k), outline=(214, 88, 40), width=max(2, int(3 * k)))
         # кружок с номером
-        draw.ellipse([cx - r, cy - r, cx + r, cy + r], fill=(214, 88, 40), outline=(255, 255, 255), width=3)
+        draw.ellipse([cx - r, cy - r, cx + r, cy + r], fill=(214, 88, 40), outline=(255, 255, 255), width=max(2, int(3 * k)))
         tw = draw.textlength(str(n), font=f)
         draw.text((cx - tw / 2, cy - f.size * 0.58), str(n), fill=(255, 255, 255), font=f)
         found.append(n)
@@ -87,6 +91,9 @@ h1,h2,h3 { font-family:"Manrope","Segoe UI",system-ui,sans-serif; letter-spacing
 .cover .sub { font-size:15pt; color:var(--muted); margin:0; }
 .cover .band { border-top:3px solid var(--accent); padding-top:14px; display:flex; justify-content:space-between; color:var(--muted); font-size:9.5pt; }
 .cover .who { margin-top:60px; max-width:70ch; font-size:11.5pt; }
+.cover .roles { margin-top:22px; display:flex; flex-wrap:wrap; gap:8px; }
+.cover .roles span { border:1px solid var(--accent); color:var(--accent); border-radius:999px; padding:4px 12px; font-size:9.5pt; font-weight:600; }
+.cover h1::before { content:""; display:block; width:56px; height:6px; background:var(--accent); border-radius:3px; margin-bottom:18px; }
 .toc { page-break-after:always; }
 .toc h2 { margin-top:0; }
 .toc ol { list-style:none; padding:0; margin:0; }
@@ -147,7 +154,8 @@ def build(lang):
     parts.append(f"""<div class="page"><div class="cover">
       <div>{'<img class="logo" src="' + LOGO_URI + '" alt="Warehouse Pro">' if LOGO_URI else ''}</div>
       <div><h1>{esc(tx(DOC['title']))}</h1><p class="sub">{esc(tx(DOC['subtitle']))}</p>
-        <p class="who">{esc(tx(DOC['chapters'][0]['blocks'][0]['x']))}</p></div>
+        <p class="who">{esc(tx(DOC['chapters'][0]['blocks'][0]['x']))}</p>
+        <div class="roles">{''.join(f"<span>{esc(tx(ch['title']))}</span>" for ch in DOC['chapters'] if ch['id'].startswith('role-'))}</div></div>
       <div class="band"><span>{esc(tx(DOC['edition']))}</span><span>warehouse-pro.uz</span></div>
     </div></div>""")
     # оглавление
