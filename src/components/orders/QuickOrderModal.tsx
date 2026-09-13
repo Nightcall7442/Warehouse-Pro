@@ -8,6 +8,7 @@ import { useInvalidateOrderCaches } from "@/hooks/useOrderCacheSync";
 import { notify } from "@/lib/toast";
 import { useTranslate } from "@/i18n";
 import { useAuth } from "@/hooks/useAuth";
+import { useCurrency } from "@/hooks/useCurrency";
 import { colorMix } from "@/lib/color-mix";
 
 interface CartItem {
@@ -110,6 +111,8 @@ function QtyInput({ value, onChange, label }: {
 
 export function QuickOrderModal({ open, onOpenChange, preselectedShopId, initialItem, onCreated }: Props) {
   const t = useTranslate();
+  // Валюта — из настроек организации, а не слово «сум» в разметке.
+  const { symbol: currency } = useCurrency();
 
   const [step, setStep] = useState(1);
   const [shopId, setShopId] = useState<number | undefined>(preselectedShopId);
@@ -360,6 +363,13 @@ export function QuickOrderModal({ open, onOpenChange, preselectedShopId, initial
                       </span>
                     </span>
                   </span>
+                  {/* Долг виден до выбора: с должником разговор другой, и
+                      узнавать это после оформления — поздно. */}
+                  {Number(s.debt) > 0 && (
+                    <span className="text-xs font-semibold shrink-0 font-data" style={{ color: "var(--color-danger-text)" }}>
+                      {t("долг", "qarz")} {Number(s.debt).toLocaleString("ru")}
+                    </span>
+                  )}
                   {shopId === s.id && <Check size={16} style={{ color: "var(--color-primary)", flexShrink: 0 }} />}
                 </button>
               ))}
@@ -394,23 +404,38 @@ export function QuickOrderModal({ open, onOpenChange, preselectedShopId, initial
                   border: "1px solid var(--color-border, #d8d5cd)", padding: "8px",
                 }}
               >
-                {(productsData ?? []).map((p) => (
+                {/*
+                  Свободный остаток в строке, и «+» глухой при нуле.
+
+                  listAll давно отдаёт available, а окно его не показывало:
+                  оператор клал в корзину то, чего нет, и узнавал об этом
+                  отказом сервера уже после разговора с магазином.
+                */}
+                {(productsData ?? []).map((p) => {
+                  const free = Number(p.available ?? 0);
+                  return (
                   <button
                     type="button"
                     key={p.id}
                     onClick={() => addToCart(p)}
+                    disabled={free <= 0}
                     className="w-full flex items-center justify-between gap-3 text-left row-hover"
-                    style={{ padding: "10px 12px", borderRadius: "12px", background: "transparent", border: "none", cursor: "pointer" }}
+                    style={{ padding: "10px 12px", borderRadius: "12px", background: "transparent", border: "none", cursor: free <= 0 ? "not-allowed" : "pointer", opacity: free <= 0 ? 0.5 : 1 }}
                   >
                     <span className="min-w-0">
                       <span className="block text-sm font-medium truncate" style={{ color: "var(--color-text-primary)" }}>{p.name}</span>
                       <span className="block text-xs" style={{ color: "var(--color-text-tertiary)" }}>
-                        {p.code} · {Number(p.unitPrice).toLocaleString("ru")} сум
+                        {p.code} · {Number(p.unitPrice).toLocaleString("ru")} {currency}
+                        {" · "}
+                        <span style={{ color: free <= 0 ? "var(--color-danger-text)" : undefined }}>
+                          {t("свободно", "bo'sh")} {free}
+                        </span>
                       </span>
                     </span>
                     <Plus size={16} style={{ color: "var(--color-primary)", flexShrink: 0 }} />
                   </button>
-                ))}
+                  );
+                })}
                 {(productsData ?? []).length === 0 && (
                   <p className="text-center text-xs py-8" style={{ color: "var(--color-text-tertiary)" }}>
                     {t("Ничего не найдено", "Hech narsa topilmadi")}
@@ -458,7 +483,7 @@ export function QuickOrderModal({ open, onOpenChange, preselectedShopId, initial
                   style={{ borderTop: "1px solid var(--color-border, #d8d5cd)" }}
                 >
                   <span className="text-xs text-secondary font-medium">{t("Итого", "Jami")}</span>
-                  <span className="text-base font-bold text-primary font-data">{total.toLocaleString("ru")} {t("сум", "so'm")}</span>
+                  <span className="text-base font-bold text-primary font-data">{total.toLocaleString("ru")} {currency}</span>
                 </div>
               </div>
             </div>
@@ -551,7 +576,7 @@ export function QuickOrderModal({ open, onOpenChange, preselectedShopId, initial
             style={{ background: colorMix("var(--color-primary)", 10) }}
           >
             <span className="text-sm text-secondary font-medium">{t("Итого к оплате", "Jami to'lovga")}</span>
-            <span className="text-xl font-bold text-primary font-data">{total.toLocaleString("ru")} {t("сум", "so'm")}</span>
+            <span className="text-xl font-bold text-primary font-data">{total.toLocaleString("ru")} {currency}</span>
           </div>
         </>
       )}

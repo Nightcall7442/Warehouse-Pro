@@ -105,7 +105,7 @@ const StatusBadge = memo(function StatusBadge({ status, lang }: { status: string
 });
 
 // ── Arrival Form ─────────────────────────────────────────────────────────────
-function ArrivalForm({ onSave, onClose, isPending }: { onSave: (d: ArrivalCreateInput) => void; onClose: () => void; isPending: boolean }) {
+function ArrivalForm({ onSave, onClose, isPending }: { onSave: (d: ArrivalCreateInput, complete: boolean) => void; onClose: () => void; isPending: boolean }) {
   const { lang } = useLang();
   const { fmt } = useCurrency();
   const t = (ru: string, uz: string) => lang === "uz" ? uz : ru;
@@ -479,8 +479,22 @@ function ArrivalForm({ onSave, onClose, isPending }: { onSave: (d: ArrivalCreate
           </div>
 
           {/* Actions */}
+          {/*
+            «Сохранить» заводит приход как ожидающий: остаток не трогается,
+            пока его не завершат в списке. Раньше это нигде не было сказано,
+            и оператор искал, куда делся товар. Подпись говорит прямо, а
+            «Сохранить и завершить» делает оба шага сразу — для случая, когда
+            машина уже разгружена.
+          */}
+          <p className="text-xs" style={{ color: "var(--color-text-tertiary)" }}>
+            {t("Остаток на складе изменится после завершения прихода.", "Ombordagi qoldiq kelish yakunlangandan keyin o'zgaradi.")}
+          </p>
           <div className="flex gap-3 pt-2">
-            <button onClick={() => form.arrivalDate && supplierValid && onSave({
+            {([
+              { complete: false, label: t("Сохранить", "Saqlash"), cls: "neo-btn-primary" },
+              { complete: true,  label: t("Сохранить и завершить", "Saqlash va yakunlash"), cls: "neo-btn" },
+            ]).map(b => (
+            <button key={String(b.complete)} onClick={() => form.arrivalDate && supplierValid && onSave({
                 ...form,
                 items: items.filter(i => i.productId > 0 && Number(i.quantity) > 0).map(i => ({
                   productId: i.productId, quantity: i.quantity, costPrice: i.costPrice,
@@ -500,13 +514,14 @@ function ArrivalForm({ onSave, onClose, isPending }: { onSave: (d: ArrivalCreate
                   rateToUzs:       supplyCurrency === "USD" ? supplyRate : undefined,
                   dueDate:         supplyDueDate || undefined,
                 },
-              })}
+              }, b.complete)}
               disabled={isPending || !form.arrivalDate || !supplierValid}
-              className="neo-btn-primary flex-1 h-12 text-sm flex items-center justify-center gap-2"
+              className={`${b.cls} flex-1 h-12 text-sm flex items-center justify-center gap-2`}
               style={{ opacity: isPending || !form.arrivalDate || !supplierValid ? 0.5 : 1 }}>
               {isPending && <Loader2 size={15} className="animate-spin" />}
-              {t("Сохранить", "Saqlash")}
+              {b.label}
             </button>
+            ))}
             {/* «Отмена» — это отказ от набранного, и черновик стирается вместе
                 с ним. Клик мимо окна и перезагрузка черновик не трогают. */}
             <button onClick={() => { if (user) clearArrivalDraft(user.id); onClose(); }} className="neo-btn flex-1 h-12 text-sm">
@@ -1015,7 +1030,13 @@ export default function Arrivals() {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
-      {showForm && <ArrivalForm onSave={(d) => createMutation.mutate(d)} onClose={() => setShowForm(false)} isPending={createMutation.isPending} />}
+      {/* «Сохранить и завершить» — те же два шага, что руками: создать, затем
+          «Завершить» из списка. Ошибка второго шага приходит тем же тостом,
+          приход при этом уже сохранён и ждёт в списке. */}
+      {showForm && <ArrivalForm
+        onSave={(d, complete) => createMutation.mutate(d, complete ? { onSuccess: (r) => updateStatus.mutate({ id: r.id, status: "completed" }) } : undefined)}
+        onClose={() => setShowForm(false)}
+        isPending={createMutation.isPending || updateStatus.isPending} />}
 
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "12px" }}>

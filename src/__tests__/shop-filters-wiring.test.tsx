@@ -49,7 +49,7 @@ function поднять() {
 describe("панель фильтров магазинов", () => {
   it("принимает ввод в поле поиска", () => {
     поднять();
-    const поле = screen.getByPlaceholderText("Поиск магазинов…") as HTMLInputElement;
+    const поле = screen.getByPlaceholderText("Название, владелец, телефон…") as HTMLInputElement;
 
     fireEvent.change(поле, { target: { value: "Хумо" } });
 
@@ -58,7 +58,7 @@ describe("панель фильтров магазинов", () => {
 
   it("набор нескольких букв подряд не теряет предыдущие", () => {
     поднять();
-    const поле = screen.getByPlaceholderText("Поиск магазинов…") as HTMLInputElement;
+    const поле = screen.getByPlaceholderText("Название, владелец, телефон…") as HTMLInputElement;
 
     // Каждая буква — отдельное событие, как при настоящем наборе. Если запись
     // в адрес затирает предыдущую, тут останется одна последняя буква.

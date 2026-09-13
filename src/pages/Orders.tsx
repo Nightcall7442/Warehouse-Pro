@@ -1151,9 +1151,21 @@ function OperatorOrders() {
       onTrimSelection={() => setSelected(prev => new Set(Array.from(prev).slice(0, 50)))}
       onPrintInvoices={() => setShowInvoiceModal(true)}
       onCreateLoadingList={() => setShowLoadingListModal(true)}
-      onChangeStatus={(newStatus) => {
+      onChangeStatus={async (newStatus) => {
         const ids = Array.from(selected);
-        bulkUpdateStatus.mutate({ orderIds: ids, status: newStatus as "new" | "processing" | "shipped" | "pending" | "delivered" | "cancelled" | "returned" });
+        /*
+          Селект менял статус у всей пачки без вопроса, а «Выполнить» рядом —
+          с подтверждением. Один промах по списку — и пятьдесят заказов
+          отменены. Теперь тот же вопрос: сколько заказов и куда.
+        */
+        const label = labelled(ORDER_STATUS_LABEL, newStatus, lang);
+        const ok = await confirm({
+          title: t(`Перевести ${ids.length} заказ(ов) в «${label}»?`, `${ids.length} ta buyurtma «${label}» holatiga o'tkazilsinmi?`),
+          message: t("Статус изменится у всех выбранных заказов.", "Holat barcha tanlangan buyurtmalarda o'zgaradi."),
+          confirmText: t("Перевести", "O'tkazish"),
+          danger: newStatus === "cancelled" || newStatus === "returned",
+        });
+        if (ok) bulkUpdateStatus.mutate({ orderIds: ids, status: newStatus as "new" | "processing" | "shipped" | "pending" | "delivered" | "cancelled" | "returned" });
       }}
       onComplete={async () => {
         const ids = Array.from(selected);

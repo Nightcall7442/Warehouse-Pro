@@ -260,7 +260,9 @@ export function CounterpartyDetail({ supplierId, lang, onClose, onEdit, onPay, o
                           {t("Оплатить", "To'lash")}
                         </button>
                       )}
-                      {r.debt > 0 && onReturn && (
+                      {/* Возврат не зависит от долга: оплаченную поставку
+                          тоже возвращают, сервер зачтёт не больше остатка. */}
+                      {onReturn && (
                         <button
                           data-testid={`cp-return-${r.id}`}
                           onClick={() => onReturn({ id: r.id, supplyNumber: r.supplyNumber, supplierName: r.supplierName, currency: r.currency, debt: r.debt })}

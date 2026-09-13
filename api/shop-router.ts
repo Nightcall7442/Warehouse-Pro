@@ -5,7 +5,7 @@ import { createRouter, operatorQuery, supervisorQuery, managementQuery, can } fr
 import { getDb } from "./queries/connection";
 import { receivablesAging } from "./services/receivables";
 import { shops, users, orders, payments, territories } from "@db/schema";
-import { eq, like, and, sql, desc } from "drizzle-orm";
+import { eq, like, and, or, sql, desc } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { sanitizeString, sanitizeSearch } from "./lib/sanitize";
 import { PaymentService } from "./services/payment";
@@ -172,7 +172,18 @@ export const shopRouter = createRouter({
       const cacheKey = CacheKeys.shopList(tenantId, page, pageSize, input?.search, input?.city, input?.district, input?.agentId, input?.territoryId, input?.onlyDebtors, sortBy, archived);
       return withCache(cacheKey, CacheTTL.shops, async () => {
       const conditions = [eq(shops.tenantId, tenantId)];
-      if (input?.search)   conditions.push(like(shops.name, `%${sanitizeSearch(input.search)}%`));
+      /*
+        Поиск — по названию, владельцу и телефону, а не по одному названию.
+
+        Оператор на звонке знает номер или имя хозяина, а вывеску — не всегда;
+        строка поиска при этом отвечала только на название, и человек листал
+        список руками. Один like на три столбца, условие внутри and — как и
+        остальные фильтры.
+      */
+      if (input?.search) {
+        const term = `%${sanitizeSearch(input.search)}%`;
+        conditions.push(or(like(shops.name, term), like(shops.ownerName, term), like(shops.phone, term))!);
+      }
       if (input?.city)     conditions.push(eq(shops.city, input.city));
       if (input?.district) conditions.push(eq(shops.district, input.district));
       if (input?.agentId)    conditions.push(eq(shops.agentId, input.agentId));
