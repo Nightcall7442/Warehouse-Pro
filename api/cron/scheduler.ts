@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 import { cronRuns } from "@db/schema";
 import { logger } from "../lib/logger";
 import { cronLastSuccessTimestamp } from "../prometheus-metrics";
+import { rootMessage } from "../lib/db-errors";
 
 /* ═══════════════════════════════════════════════════════════════════════════
    Расписание работ — внутри приложения.
@@ -408,7 +409,7 @@ async function runExclusively(job: Job, due?: Date): Promise<void> {
         }
       }
     } catch (e) {
-      const error = e instanceof Error ? e.message : String(e);
+      const error = rootMessage(e);
       logger.error("cron job failed", { job: job.name, error });
       await store.saveFailure(job.name, new Date(), error).catch(() => {});
       // Суперадмину: тихий провал ночной работы иначе замечают через месяцы

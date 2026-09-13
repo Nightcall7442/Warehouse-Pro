@@ -145,6 +145,16 @@ async function connect(creds: DbCredentials): Promise<mysql.Connection> {
       dateStrings: true,
       supportBigNumbers: true,
       bigNumberStrings: true,
+      /*
+        JSON — тоже строкой. Иначе драйвер разбирает столбец в объект, а
+        conn.escape для объекта отдаёт '[object Object]' (для массива —
+        перечисление через запятую, ломающее число колонок). Так каждая
+        ночная копия с 12.09 несла в audit_log.meta мусор, и узнали мы это
+        от репетиции восстановления в первое же воскресенье:
+        «Invalid JSON text … for column 'audit_log.meta'». Копия, которая
+        не разворачивается, — не копия.
+      */
+      jsonStrings: true,
       ...(isRemote(creds.host) ? { ssl: { rejectUnauthorized: false } } : {}),
     });
   } catch (e) {

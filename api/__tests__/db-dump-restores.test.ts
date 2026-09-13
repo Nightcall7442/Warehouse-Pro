@@ -108,8 +108,9 @@ const connection = {
   },
 };
 
+const connectOpts: Record<string, unknown>[] = [];
 vi.mock("mysql2/promise", () => ({
-  default: { createConnection: async () => connection },
+  default: { createConnection: async (opts: Record<string, unknown>) => { connectOpts.push(opts); return connection; } },
 }));
 
 const { startDump, DumpUnavailableError, parseDatabaseUrl } = await import("../services/db-dump");
@@ -229,6 +230,17 @@ describe("копия базы", () => {
   it("испорченная строка подключения — понятный отказ", async () => {
     expect(() => parseDatabaseUrl("не-адрес")).toThrow(DumpUnavailableError);
     expect(() => parseDatabaseUrl("mysql://user@host/")).toThrow(DumpUnavailableError);
+  });
+
+  it("json-столбцы читаются строкой: объект драйвер выписал бы как '[object Object]'", async () => {
+    /*
+      Первая репетиция восстановления в бою (13.09) упала на audit_log.meta:
+      mysql2 разбирает json в объект, а conn.escape(объект) — это
+      '[object Object]', массив же — перечисление через запятую. Строка
+      уходит в копию как есть и восстанавливается в json без потерь.
+    */
+    await dumpToText();
+    expect(connectOpts.at(-1)).toMatchObject({ jsonStrings: true, dateStrings: true, bigNumberStrings: true });
   });
 
   it("имя файла несёт время снятия", async () => {

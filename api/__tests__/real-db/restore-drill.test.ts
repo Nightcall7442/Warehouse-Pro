@@ -18,7 +18,14 @@ describe.skipIf(!hasRealDb)("репетиция восстановления", (
     process.env.DATABASE_URL = TEST_DATABASE_URL;
     db = await connectRealDb();
     await truncateAll();
-    await seed("10.000");
+    const { tenantId } = await seed("10.000");
+    /*
+      Строка с json-объектом и массивом внутри, с кавычками и кириллицей.
+      В засеве json-столбцы пусты, и копия с '[object Object]' вместо объекта
+      проходила репетицию на стенде — а в бою упала в первое же воскресенье.
+    */
+    const meta = JSON.stringify({ n: 1, list: [1, 2], s: "а'б\"в", nested: { ok: true } });
+    await db.execute(sql`INSERT INTO audit_log (tenant_id, action, meta) VALUES (${tenantId}, 'drill.json', ${meta})`);
   }, 120_000);
   afterAll(async () => { await closeRealDb(); });
 
@@ -36,12 +43,15 @@ describe.skipIf(!hasRealDb)("репетиция восстановления", (
     const counts = {
       tenants: await countOf("tenants"), users: await countOf("users"), products: await countOf("products"),
       shops: await countOf("shops"), warehouse_stock: await countOf("warehouse_stock"),
+      audit_log: await countOf("audit_log"),
     };
+    expect(counts.audit_log).toBeGreaterThan(0);
     expect(counts.products).toBeGreaterThan(0);
 
     const r = await restoreAndVerify(TEST_DATABASE_URL, text, counts);
     expect(r.restored.products).toBe(counts.products);
     expect(r.restored.warehouse_stock).toBe(counts.warehouse_stock);
+    expect(r.restored.audit_log).toBe(counts.audit_log);
 
     // Черновая база стёрта; боевая (тестовая) не тронута.
     const scratch = scratchDatabaseName(parseDatabaseUrl(TEST_DATABASE_URL).database);
