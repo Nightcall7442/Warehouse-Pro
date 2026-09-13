@@ -130,9 +130,15 @@ export default function AgentKpi() {
     { agentId: selectedAgentId!, period },
     { enabled: isSupervisor && selectedAgentId !== null },
   );
-  const { data: selectedSalary } = trpc.kpi.salary.useQuery(
-    { period },
-    { enabled: isSupervisor && selectedAgentId !== null },
+  /*
+    Зарплата выбранного агента — его, а не того, кто смотрит. Здесь стоял
+    запрос `salary` без agentId: под именем агента показывался оклад
+    руководителя. Оператору чужую зарплату не показываем — как в ведомости.
+  */
+  const canSeeSalary = user?.role === "ceo" || user?.role === "supervisor";
+  const { data: selectedSalary } = trpc.kpi.salaryOf.useQuery(
+    { agentId: selectedAgentId!, period },
+    { enabled: isSupervisor && canSeeSalary && selectedAgentId !== null },
   );
 
   const allKpi = useMemo(() => agentList ?? [], [agentList]);
@@ -229,7 +235,7 @@ export default function AgentKpi() {
           <SupervisorView kpi={allKpi} period={period} selectedKpi={selectedKpi ?? null} selectedSalary={selectedSalary} detailLoading={detailLoading} onSelect={setSelectedAgentId} selectedAgentId={selectedAgentId} fmt={fmt} t={t} lang={lang} />
       </>
       ) : myKpi ? (
-        <AgentView kpi={myKpi} salary={mySalary} fmt={fmt} t={t} lang={lang} />
+        <AgentView kpi={myKpi} salary={mySalary} self fmt={fmt} t={t} lang={lang} />
       ) : null}
     </div>
   );
@@ -237,7 +243,8 @@ export default function AgentKpi() {
 
 // ── Agent View ────────────────────────────────────────────────────────────────
 
-function AgentView({ kpi, salary, fmt, t, lang }: { kpi: KpiData; salary?: SalaryData; fmt: (v: number) => string; t: (r: string, u: string) => string; lang: Lang }) {
+/** `self` — экран смотрит сам агент: только тогда уместны его выплаты и место в команде (запросы «про меня»). */
+function AgentView({ kpi, salary, self = false, fmt, t, lang }: { kpi: KpiData; salary?: SalaryData; self?: boolean; fmt: (v: number) => string; t: (r: string, u: string) => string; lang: Lang }) {
   const grade = GRADES[kpi.kpiGrade] ?? GRADES.F;
   return (
     <>
@@ -336,7 +343,7 @@ function AgentView({ kpi, salary, fmt, t, lang }: { kpi: KpiData; salary?: Salar
         и последнее в другой. Карточка и ручка под ней были написаны целиком и
         не показывались нигде.
       */}
-      <TeamStanding />
+      {self && <TeamStanding />}
 
       {/* Salary */}
       {salary && <SalarySection salary={salary} fmt={fmt} t={t} />}
@@ -350,7 +357,7 @@ function AgentView({ kpi, salary, fmt, t, lang }: { kpi: KpiData; salary?: Salar
         записи выплаты, а подтверждают здесь, рядом с расчётом, из которого
         сумма сложилась.
       */}
-      <MyPayouts t={t} />
+      {self && <MyPayouts t={t} />}
 
       {/* Visits + GPS + Reports */}
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">

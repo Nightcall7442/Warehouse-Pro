@@ -1,4 +1,4 @@
-import { notifications, warehouseStock, products, orders, dailyPlans, shops } from "@db/schema";
+import { notifications, warehouseStock, products, orders, dailyPlans, shops, stockBatches } from "@db/schema";
 import { eq, and, desc, lt, sql } from "drizzle-orm";
 import { affectedRows } from "../lib/db-rows";
 import { cache, withCache, CacheKeys, CacheTTL } from "../lib/cache";
@@ -308,7 +308,7 @@ export const NotificationService = {
     const today = new Date().toISOString().split("T")[0];
     const alerts: Array<{ type: string; title: string; message: string; severity: "info" | "warning" | "danger" }> = [];
 
-    const [lowStock, pendingOrders, todayPlans, highDebt] = await Promise.all([
+    const [lowStock, pendingOrders, todayPlans, highDebt, expiring] = await Promise.all([
       db.select({
         productName: products.name,
         available: warehouseStock.available,
@@ -338,7 +338,40 @@ export const NotificationService = {
         .where(and(eq(shops.tenantId, tenantId), sql`${shops.debt} > ${DEBT_NOTIFICATION_THRESHOLD}`))
         .orderBy(desc(sql`CAST(${shops.debt} AS DECIMAL(15,2))`))
         .limit(3),
+
+      /*
+        Что сгорает. Сервер это уже считал (warehouseReports.expiringSummary),
+        но директор узнавал о просрочке, только дойдя до двенадцатого пункта
+        меню и прокрутив. Один из его пяти ежедневных вопросов — без ответа
+        на первом экране. Стоимость — по цене партии; где её нет, считаем ноль
+        и говорим только число.
+      */
+      db.select({
+        expired: sql<number>`COUNT(CASE WHEN ${stockBatches.expiresAt} < ${today} THEN 1 END)`,
+        expiredValue: sql<string>`COALESCE(SUM(CASE WHEN ${stockBatches.expiresAt} < ${today} THEN ${stockBatches.quantity} * COALESCE(${stockBatches.costPrice}, 0) ELSE 0 END), 0)`,
+        urgent: sql<number>`COUNT(CASE WHEN ${stockBatches.expiresAt} >= ${today} AND DATEDIFF(${stockBatches.expiresAt}, ${today}) <= 7 THEN 1 END)`,
+      })
+        .from(stockBatches)
+        .where(and(eq(stockBatches.tenantId, tenantId), sql`${stockBatches.quantity} > 0`, sql`${stockBatches.expiresAt} IS NOT NULL`)),
     ]);
+
+    const exp = expiring[0];
+    const expiredN = Number(exp?.expired ?? 0), urgentN = Number(exp?.urgent ?? 0), expiredValue = Number(exp?.expiredValue ?? 0);
+    if (expiredN > 0) {
+      alerts.push({
+        type: "expired_stock",
+        title: `Просрочено партий: ${expiredN}`,
+        message: expiredValue > 0 ? `На ${expiredValue.toLocaleString("ru")} по себестоимости — списать` : "Списать, в отгрузку не уйдут",
+        severity: "danger",
+      });
+    } else if (urgentN > 0) {
+      alerts.push({
+        type: "expiring_stock",
+        title: `Сгорает за неделю: ${urgentN} парт.`,
+        message: "Продать первыми — FEFO уже отдаёт их первыми",
+        severity: "warning",
+      });
+    }
 
     lowStock.forEach(s => {
       alerts.push({

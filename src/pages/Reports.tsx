@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useState } from "react";
+import { useSearchParams } from "react-router";
 import { trpc } from "@/providers/trpc";
 import { useCurrency } from "@/hooks/useCurrency";
 import { useLang } from "@/i18n";
@@ -81,7 +82,12 @@ function totalsOf(rows: { orderCount: number; totalRevenue: string }[] | undefin
 }
 
 export default function Reports() {
-  const [tab, setTab] = useState<TabKey>("overview");
+  // Вкладка из адреса: плитка «Долг» на главной ведёт сразу в «Долги», а не в «Обзор».
+  const [searchParams] = useSearchParams();
+  const [tab, setTab] = useState<TabKey>(() => {
+    const want = searchParams.get("tab");
+    return want === "sales" || want === "agents" || want === "debts" || want === "overview" ? want : "overview";
+  });
   const [days, setDays] = useState(30);
   const { fmt } = useCurrency();
   const { lang } = useLang();

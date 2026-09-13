@@ -256,6 +256,30 @@ export const kpiRouter = createRouter({
       return calculateSalary(db, ctx.user.id, ctx.tenant.id, periodStart, periodEnd, undefined, period === "month");
     }),
 
+  /*
+    Зарплата ВЫБРАННОГО агента — для карточки на экране KPI.
+
+    Карточка запрашивала `salary` без agentId, а та считает строго
+    ctx.user.id: руководитель кликал агента и видел под его именем
+    собственный оклад с нулевой комиссией. Ложный факт под рукой в разговоре
+    о деньгах. Те же роли, что у salaryReport: кто видит ведомость, видит и
+    строку из неё; оператор — нет. Не пишет в commissions (persist = false):
+    это взгляд, а не расчёт месяца.
+  */
+  salaryOf: supervisorQuery
+    .input(z.object({
+      agentId: z.number().int().positive(),
+      period: z.enum(["week", "month", "quarter"]).default("month"),
+    }))
+    .query(async ({ input, ctx }) => {
+      const db = getDb();
+      const [who] = await db.select({ id: users.id }).from(users)
+        .where(and(eq(users.id, input.agentId), eq(users.tenantId, ctx.tenant.id))).limit(1);
+      if (!who) throw new TRPCError({ code: "NOT_FOUND", message: "Сотрудник не найден" });
+      const { periodStart, periodEnd } = getPeriod(input.period);
+      return calculateSalary(db, input.agentId, ctx.tenant.id, periodStart, periodEnd, undefined, false);
+    }),
+
   salaryReport: supervisorQuery
     .input(z.object({
       period: z.enum(["week", "month", "quarter"]).default("month"),
