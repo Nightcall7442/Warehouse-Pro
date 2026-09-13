@@ -1363,6 +1363,8 @@ export type LoadingListData = {
     packLabel?: string | null;
     totalQty: string;
     totalPrice: string;
+    /** Партии по FEFO на момент составления: кладовщик берёт те же, что спишет отгрузка. */
+    batches?: Array<{ batch: string | null; expires: string | null; qty: number }>;
   }>;
   itemsByAgent: Array<{
     productId: number;
@@ -1375,8 +1377,17 @@ export type LoadingListData = {
   }>;
 };
 
+/** «A-12 до 01.10 ×20; б/н ×5» — какие партии брать; пусто, если партий на складе нет. */
+function batchesCell(batches: LoadingListData["items"][number]["batches"]): string {
+  if (!batches || batches.length === 0) return "";
+  const dd = (iso: string) => `${iso.slice(8, 10)}.${iso.slice(5, 7)}`;
+  return batches.map(b => `${escapeHtml(b.batch ?? "б/н")}${b.expires ? ` до ${dd(b.expires)}` : ""} ×${cleanNum(b.qty)}`).join("; ");
+}
+
 function buildLoadingListAggregated(data: LoadingListData, currency: string): string {
   // Штрих-код в строке: кладовщик собирает по сканеру, а не по названию.
+  // Партии — подсказка по FEFO; «Собрано» — пустая клетка под отметку рукой:
+  // подтверждение в системе идёт после, по этим же отметкам.
   const itemRows = data.items.map((item, i) => `
     <tr>
       <td class="center">${i + 1}</td>
@@ -1384,7 +1395,9 @@ function buildLoadingListAggregated(data: LoadingListData, currency: string): st
       <td>${escapeHtml(item.productName)}</td>
       <td class="center">${unitLabel(item.unit)}</td>
       <td class="right bold">${cleanNum(item.totalQty)}${packBreakdown(item)}</td>
+      <td style="font-size:8pt">${batchesCell(item.batches)}</td>
       <td class="right">${cleanNum(Number(item.totalQty) * Number(item.unitWeight))}</td>
+      <td></td>
     </tr>`).join("");
 
   // Aggregate by agent
@@ -1429,9 +1442,11 @@ function buildLoadingListAggregated(data: LoadingListData, currency: string): st
           <th style="width:4%">№</th>
           <th style="width:10%;text-align:left">Код</th>
           <th style="text-align:left">Наименование</th>
-          <th style="width:8%">Ед.</th>
-          <th style="width:12%">Кол-во</th>
-          <th style="width:12%">Вес (кг)</th>
+          <th style="width:6%">Ед.</th>
+          <th style="width:10%">Кол-во</th>
+          <th style="width:18%;text-align:left">Партия (срок)</th>
+          <th style="width:9%">Вес (кг)</th>
+          <th style="width:9%">Собрано</th>
         </tr>
       </thead>
       <tbody>${itemRows}</tbody>

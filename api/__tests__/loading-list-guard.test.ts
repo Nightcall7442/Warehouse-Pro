@@ -92,6 +92,8 @@ function makeDb(requested: number[], tenantId: number) {
             // ответа сразу — цепочка должна уметь и то, и другое.
             return Object.assign(Promise.resolve(rows), {
               groupBy: () => Promise.resolve(rows),
+              // Основной склад ищется с limit(1); стенд склада не знает — партии не планируются.
+              limit: () => Promise.resolve(rows),
             });
           },
         };

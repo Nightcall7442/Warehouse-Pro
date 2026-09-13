@@ -1,5 +1,7 @@
 import { useState } from "react";
-import { ClipboardList, Loader2, Trash2, ChevronRight, PackageCheck, Truck } from "lucide-react";
+import { ClipboardList, Loader2, Trash2, ChevronRight, PackageCheck, Truck, ListChecks, AlertTriangle } from "lucide-react";
+import { DecimalInput } from "@/components/ui/DecimalInput";
+import { unitShort } from "@/lib/units";
 import { PremiumSelect } from "@/components/PremiumSelect";
 import { trpc } from "@/providers/trpc";
 import { notify } from "@/lib/toast";
@@ -7,6 +9,111 @@ import { useLang } from "@/i18n";
 import { useConfirm } from "@/components/ConfirmDialog";
 import { AppModal } from "@/components/ui/AppModal";
 import { labelled, LOADING_LIST_STATUS_LABEL } from "@/lib/entity-labels";
+
+/** «12.00» → «12», «1.50» → «1.5»: кладовщику незачем видеть хвост decimal. */
+const qty = (v: string | number | null | undefined) => String(Number(v ?? 0));
+
+/**
+ * Сборка по строкам.
+ *
+ * Лист был бумагой: SUM по товару и печать. Сколько собрали на самом деле,
+ * никто не записывал — недостача всплывала у магазина как «частичная
+ * доставка». Здесь кладовщик подтверждает каждую строку: по умолчанию —
+ * сколько нужно, меньше — недостача, которая уходит офису сразу. Партии —
+ * подсказка по тому же порядку, что и списание при отгрузке.
+ */
+function PickingPanel({ listId, onClose }: { listId: number; onClose: () => void }) {
+  const { lang } = useLang();
+  const t = (ru: string, uz: string) => (lang === "uz" ? uz : ru);
+  const utils = trpc.useUtils();
+  const { data, isLoading } = trpc.order.loadingListLines.useQuery({ listId });
+  const [picks, setPicks] = useState<Record<number, string>>({});
+
+  const confirmPicking = trpc.order.confirmPicking.useMutation({
+    onSuccess: (r) => {
+      utils.order.listLoadingLists.invalidate();
+      if (r.shortages.length === 0) notify.success(t(`${r.listNumber} собран полностью`, `${r.listNumber} to'liq yig'ildi`));
+      else notify.info(t(`${r.listNumber}: недостача по ${r.shortages.length} поз. — офис уведомлён`, `${r.listNumber}: ${r.shortages.length} ta qatorda kamomad — ofis xabardor`));
+      onClose();
+    },
+    onError: (e) => notify.error(e.message),
+  });
+
+  const lines = data?.lines ?? [];
+  const valueOf = (l: { productId: number; requiredQty: string }) => picks[l.productId] ?? qty(l.requiredQty);
+  const short = lines.filter(l => Number(valueOf(l)) < Number(l.requiredQty)).length;
+  const dd = (iso: string) => `${iso.slice(8, 10)}.${iso.slice(5, 7)}`;
+  const batchesText = (b: Array<{ batch: string | null; expires: string | null; qty: number }> | null) =>
+    b && b.length > 0
+      ? b.map(x => `${x.batch ?? t("б/н", "raqamsiz")}${x.expires ? ` ${t("до", "gacha")} ${dd(x.expires)}` : ""} ×${qty(x.qty)}`).join("; ")
+      : "—";
+
+  const submit = () => confirmPicking.mutate({
+    listId,
+    lines: lines.map(l => ({ productId: l.productId, pickedQty: Number(valueOf(l)).toFixed(2) })),
+  });
+
+  return (
+    <div style={{ width: "100%", borderTop: "1px solid var(--color-border)", paddingTop: "10px", marginTop: "4px" }}>
+      {isLoading ? (
+        <div style={{ display: "flex", alignItems: "center", gap: "8px", color: "var(--color-text-tertiary)", fontSize: "12.5px" }}>
+          <Loader2 size={13} style={{ animation: "spin 1s linear infinite" }} /> {t("Загрузка…", "Yuklanmoqda…")}
+        </div>
+      ) : (
+        <div style={{ overflowX: "auto" }}>
+          <table style={{ width: "100%", fontSize: "12.5px", borderCollapse: "collapse" }}>
+            <thead>
+              <tr style={{ color: "var(--color-text-tertiary)", fontSize: "11px", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                <th style={{ textAlign: "left", padding: "4px 6px" }}>{t("Товар", "Tovar")}</th>
+                <th style={{ textAlign: "right", padding: "4px 6px" }}>{t("Нужно", "Kerak")}</th>
+                <th style={{ textAlign: "left", padding: "4px 6px" }}>{t("Партии", "Partiyalar")}</th>
+                <th style={{ textAlign: "right", padding: "4px 6px" }}>{t("Собрано", "Yig'ildi")}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {lines.map(l => {
+                const isShort = Number(valueOf(l)) < Number(l.requiredQty);
+                return (
+                  <tr key={l.productId} style={{ borderTop: "1px solid var(--color-border)" }}>
+                    <td style={{ padding: "6px", color: "var(--color-text-primary)" }}>
+                      {l.productName}
+                      {l.productCode ? <span style={{ color: "var(--color-text-tertiary)", marginLeft: "6px" }}>{l.productCode}</span> : null}
+                    </td>
+                    <td style={{ padding: "6px", textAlign: "right", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>
+                      {qty(l.requiredQty)} {unitShort(l.unit, lang)}
+                    </td>
+                    <td style={{ padding: "6px", color: "var(--color-text-tertiary)", fontSize: "11.5px" }}>{batchesText(l.batches)}</td>
+                    <td style={{ padding: "6px", textAlign: "right" }}>
+                      <DecimalInput
+                        value={valueOf(l)}
+                        onValueChange={v => setPicks(p => ({ ...p, [l.productId]: v }))}
+                        aria-label={t(`Собрано: ${l.productName}`, `Yig'ildi: ${l.productName}`)}
+                        className="neo-input text-right"
+                        style={{ width: "84px", fontVariantNumeric: "tabular-nums", ...(isShort ? { borderColor: "var(--color-warning)" } : {}) }}
+                      />
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+      <div style={{ display: "flex", alignItems: "center", gap: "10px", marginTop: "10px", flexWrap: "wrap" }}>
+        <span style={{ fontSize: "12px", color: short > 0 ? "var(--color-warning-text)" : "var(--color-text-tertiary)", display: "flex", alignItems: "center", gap: "5px" }}>
+          {short > 0 ? <><AlertTriangle size={13} /> {t(`Недостача: ${short} поз.`, `Kamomad: ${short} ta qator`)}</> : t("Всё по списку", "Hammasi ro'yxat bo'yicha")}
+        </span>
+        <div style={{ marginLeft: "auto", display: "flex", gap: "8px" }}>
+          <button className="neo-btn" onClick={onClose} style={{ fontSize: "12px", padding: "8px 12px" }}>{t("Отмена", "Bekor")}</button>
+          <button className="neo-btn-primary" disabled={isLoading || lines.length === 0 || confirmPicking.isPending} onClick={submit} style={{ fontSize: "12px", padding: "8px 14px" }}>
+            {confirmPicking.isPending ? <Loader2 size={13} style={{ animation: "spin 1s linear infinite" }} /> : <ListChecks size={13} />}
+            {t("Подтвердить сборку", "Yig'ishni tasdiqlash")}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 /**
  * Погрузочные листы: посмотреть, продвинуть, удалить ошибочный.
@@ -36,6 +143,8 @@ export function LoadingListsModal({ open, onOpenChange }: { open: boolean; onOpe
   const utils = trpc.useUtils();
   const { confirm, dialog } = useConfirm();
   const [busy, setBusy] = useState<number | null>(null);
+  /** Лист, у которого раскрыта сборка по строкам. */
+  const [picking, setPicking] = useState<number | null>(null);
 
   const { data, isLoading } = trpc.order.listLoadingLists.useQuery({ page: 1, pageSize: 50 }, { enabled: open });
 
@@ -159,6 +268,12 @@ export function LoadingListsModal({ open, onOpenChange }: { open: boolean; onOpe
                       {" · "}
                       {labelled(LOADING_LIST_STATUS_LABEL, l.status, lang)}
                       {l.agentName ? ` · ${l.agentName}` : ""}
+                      {/* Недостача видна в списке, а не только внутри строк. */}
+                      {Number(l.shortLines) > 0 && (
+                        <span style={{ color: "var(--color-warning-text)", marginLeft: "6px" }}>
+                          · {t(`недостача: ${l.shortLines} поз.`, `kamomad: ${l.shortLines} ta`)}
+                        </span>
+                      )}
                     </p>
                     {/*
                       Кто везёт — на виду, а не в карточке каждого заказа.
@@ -198,7 +313,18 @@ export function LoadingListsModal({ open, onOpenChange }: { open: boolean; onOpe
                   </div>
 
                   <div style={{ display: "flex", alignItems: "center", gap: "8px", flexShrink: 0 }}>
-                    {next && (
+                    {/* «Готов» — только через сборку по строкам: кнопка статуса здесь уступает место сборке. */}
+                    {l.status === "preparing" ? (
+                      <button
+                        className="neo-btn"
+                        disabled={working}
+                        onClick={() => setPicking(picking === l.id ? null : l.id)}
+                        style={{ fontSize: "12px", padding: "8px 12px" }}
+                      >
+                        <ListChecks size={13} />
+                        {t("Собрать", "Yig'ish")}
+                      </button>
+                    ) : next && (
                       <button
                         className="neo-btn"
                         disabled={working || advance.isPending}
@@ -229,6 +355,9 @@ export function LoadingListsModal({ open, onOpenChange }: { open: boolean; onOpe
                       </button>
                     )}
                   </div>
+                  {picking === l.id && l.status === "preparing" && (
+                    <PickingPanel listId={l.id} onClose={() => setPicking(null)} />
+                  )}
                 </div>
               );
             })}

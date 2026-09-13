@@ -697,6 +697,20 @@ export const orderRouter = createRouter({
       return LoadingListService.createLoadingList(ctx.db, ctx.tenant.id, ctx.user.id, input);
     }),
 
+  loadingListLines: operatorQuery
+    .input(z.object({ listId: z.number().int().positive() }))
+    .query(({ input, ctx }) => LoadingListService.pickingLines(ctx.db, ctx.tenant.id, input.listId)),
+
+  confirmPicking: operatorQuery
+    .input(z.object({
+      listId: z.number().int().positive(),
+      lines: z.array(z.object({
+        productId: z.number().int().positive(),
+        pickedQty: z.string().regex(/^\d+(\.\d{1,2})?$/, "Количество — число с двумя знаками после точки"),
+      })).max(500),
+    }))
+    .mutation(({ input, ctx }) => LoadingListService.confirmPicking(ctx.db, ctx.tenant.id, ctx.user.id, input.listId, input.lines)),
+
   listLoadingLists: operatorQuery
     .input(z.object({
       page: z.number().int().min(1).default(1),
