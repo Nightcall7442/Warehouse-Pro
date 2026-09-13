@@ -38,10 +38,15 @@ export const userRouter = createRouter({
                     avatar: users.avatar, role: users.role, status: users.status,
                     createdAt: users.createdAt, lastSignInAt: users.lastSignInAt })
           .from(users).where(where).limit(pageSize).offset(offset).orderBy(desc(users.createdAt)),
-        db.select({ count: sql<number>`count(*)` }).from(users).where(where),
+        // Активные считаются тем же запросом, что и всего: плитки на экране
+        // считали их по странице в 25 строк и на второй странице врали.
+        db.select({
+          count: sql<number>`count(*)`,
+          active: sql<number>`count(CASE WHEN ${users.status} = 'active' THEN 1 END)`,
+        }).from(users).where(where),
       ]);
 
-      return { data, total: Number(countResult[0]?.count ?? 0), page, pageSize };
+      return { data, total: Number(countResult[0]?.count ?? 0), active: Number(countResult[0]?.active ?? 0), page, pageSize };
     }),
 
   /*

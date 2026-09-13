@@ -445,6 +445,12 @@ export interface AgentListEntry {
   kpiGrade: "A" | "B" | "C" | "D" | "F";
   suspiciousVisits: number;
   fraudRate: number;
+  /**
+   * Сколько точек GPS за период. Список не разбирает визиты, как карточка:
+   * suspiciousVisits здесь — лишь «отметил визиты, а следов нет». Экран
+   * показывает именно это число, а не «фрод N (100%)».
+   */
+  gpsPings: number;
 }
 
 const KPI_WEIGHTS = {
@@ -1301,6 +1307,7 @@ export async function getAgentList(
       kpiGrade: getGrade(kpiScore),
       suspiciousVisits,
       fraudRate,
+      gpsPings,
     };
   });
 }

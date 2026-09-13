@@ -99,6 +99,8 @@ export interface GeoDay {
   minutesInShops: number;
   minutesOnRoad: number | null;
   steps: VisitStep[];
+  /** Сколько точек за день телефон пометил как подменённые. */
+  mockedPings: number;
   /** Сколько визитов с замечаниями. */
   problems: number;
 }
@@ -158,6 +160,7 @@ export async function buildGeoDay(
       accuracy: agentLocations.accuracy,
       recordedAt: agentLocations.recordedAt,
       createdAt: agentLocations.createdAt,
+      mocked: agentLocations.mocked,
     }).from(agentLocations)
       .where(and(
         eq(agentLocations.tenantId, tenantId),
@@ -210,6 +213,9 @@ export async function buildGeoDay(
   })));
 
   const reportByPlan = new Map(reports.map(r => [r.planId, r.createdAt]));
+  // Хоть одна подменённая точка за день — след не доказательство, а
+  // подделка; чистить его по точности и скорости бессмысленно.
+  const mockedPings = rawPings.filter(p => p.mocked).length;
 
   const steps: VisitStep[] = [];
   let minutesInShops = 0;
@@ -245,16 +251,11 @@ export async function buildGeoDay(
     const minutes = arrived && left ? minutesBetween(arrived, left) : null;
     if (minutes != null) minutesInShops += minutes;
 
-    const visited = plan.status === "visited";
-    if (visited && closestM != null && arrived == null) {
-      flags.push(`Отмечен как посещённый, но ближе ${GEOFENCE_RADIUS} м к магазину агент за день не подходил (минимум ${closestM} м)`);
-    }
-    if (visited && minutes != null && minutes < MIN_VISIT_DURATION) {
-      flags.push(`В точке пробыл ${minutes} мин — меньше ${MIN_VISIT_DURATION}`);
-    }
-    if (visited && track.length === 0) {
-      flags.push("За день нет ни одной точки GPS — подтвердить визит нечем");
-    }
+    flags.push(...visitFlags({
+      visited: plan.status === "visited",
+      closestM, arrived: arrived != null, minutes,
+      trackLength: track.length, mockedPings,
+    }));
 
     steps.push({
       planId: plan.id,
@@ -296,6 +297,37 @@ export async function buildGeoDay(
     minutesInShops,
     minutesOnRoad: onRoad,
     steps,
+    mockedPings,
     problems: steps.filter(s => s.flags.length > 0).length,
   };
+}
+
+/**
+ * Чем визит не сходится. Вынесено из цикла, чтобы проверяться без базы.
+ */
+export function visitFlags(v: {
+  visited: boolean;
+  closestM: number | null;
+  arrived: boolean;
+  minutes: number | null;
+  trackLength: number;
+  mockedPings: number;
+}): string[] {
+  const flags: string[] = [];
+  if (!v.visited) return flags;
+  if (v.closestM != null && !v.arrived) {
+    flags.push(`Отмечен как посещённый, но ближе ${GEOFENCE_RADIUS} м к магазину агент за день не подходил (минимум ${v.closestM} м)`);
+  }
+  if (v.minutes != null && v.minutes < MIN_VISIT_DURATION) {
+    flags.push(`В точке пробыл ${v.minutes} мин — меньше ${MIN_VISIT_DURATION}`);
+  }
+  if (v.trackLength === 0) {
+    flags.push("За день нет ни одной точки GPS — подтвердить визит нечем");
+  }
+  // Подмена бьёт по всему дню: с фиктивной геолокацией «был в зоне» ничего
+  // не доказывает, поэтому строка стоит у каждого отмеченного визита.
+  if (v.mockedPings > 0) {
+    flags.push("Координаты подменены — на телефоне включена фиктивная геолокация");
+  }
+  return flags;
 }

@@ -1,8 +1,8 @@
 import { z } from "zod";
 import { createRouter, fieldSalesQuery, supervisorQuery } from "./middleware";
 import { orders, warehouseStock, users, shops, agentLocations, dailyPlans, orderItems } from "@db/schema";
-import { eq, and, sql, desc, isNull , inArray } from "drizzle-orm";
-import { REVENUE_ORDER_STATUSES, deliveredQty } from "./lib/order-status";
+import { eq, and, or, sql, desc, isNull, inArray } from "drizzle-orm";
+import { REVENUE_ORDER_STATUSES, OPEN_ORDER_STATUSES, deliveredQty } from "./lib/order-status";
 import { subDays } from "date-fns";
 import { cache, CacheKeys, CacheTTL } from "./lib/cache";
 import { onDay, onDate, sinceDay } from "./lib/date-range";
@@ -29,6 +29,10 @@ type DashboardKpis = {
   totalStock:   number;
   customerDebt: number;
   grossMargin:  number;
+  /** Довезено сегодня — по времени доставки, а не оформления. */
+  deliveredToday: number;
+  /** Ещё в пути или у курьера: вместе с довезёнными — «из скольких». */
+  deliveryPending: number;
 };
 
 export const dashboardRouter = createRouter({
@@ -57,7 +61,7 @@ export const dashboardRouter = createRouter({
     const revenueOn = (day: string) => db.select({ total: sql<string>`COALESCE(SUM(${orders.total}), 0)` }).from(orders)
       .where(and(eq(orders.tenantId, tenantId), onDay(orders.createdAt, day), inArray(orders.status, REVENUE_ORDER_STATUSES), isNull(orders.deletedAt)));
 
-    const [todaysOrders, todaysRevenue, yesterdaysOrders, yesterdaysRevenue, activeAgents, totalStock, customerDebt, revenueResult, costResult] = await Promise.all([
+    const [todaysOrders, todaysRevenue, yesterdaysOrders, yesterdaysRevenue, activeAgents, totalStock, customerDebt, revenueResult, costResult, deliveredToday, deliveryPending] = await Promise.all([
       ordersOn(today),
       revenueOn(today),
       ordersOn(yesterday),
@@ -91,6 +95,22 @@ export const dashboardRouter = createRouter({
         // каждую строку order_items — на сотнях тысяч строк это удваивало
         // работу запроса, ничего не добавляя к результату.
         .where(and(eq(orders.tenantId, tenantId), isNull(orders.deletedAt), sinceDay(orders.createdAt, marginFrom))),
+      /*
+        «Довезено сегодня N из M». Главная знала только «заказов за сегодня»
+        — сколько оформили; сколько из них доехало до магазина, директор
+        узнавал по звонку. Время доставки — deliveredAt; у строк, доставленных
+        до того, как оно стало писаться, берём последнее изменение.
+      */
+      db.select({ count: sql<number>`count(*)` }).from(orders)
+        .where(and(
+          eq(orders.tenantId, tenantId), eq(orders.status, "delivered"), isNull(orders.deletedAt),
+          or(onDay(orders.deliveredAt, today), and(isNull(orders.deliveredAt), onDay(orders.updatedAt, today))),
+        )),
+      db.select({ count: sql<number>`count(*)` }).from(orders)
+        .where(and(
+          eq(orders.tenantId, tenantId), isNull(orders.deletedAt),
+          inArray(orders.deliveryStatus, ["assigned", "out_for_delivery"]),
+        )),
     ]);
 
     /*
@@ -119,6 +139,8 @@ export const dashboardRouter = createRouter({
       totalStock:   Number(totalStock[0]?.total ?? 0),
       customerDebt: Number(customerDebt[0]?.total ?? 0),
       grossMargin:  Math.round(grossMargin * 10) / 10,
+      deliveredToday:  Number(deliveredToday[0]?.count ?? 0),
+      deliveryPending: Number(deliveryPending[0]?.count ?? 0),
     };
 
     cache.set(cacheKey, result, CacheTTL.kpis);
@@ -145,9 +167,16 @@ export const dashboardRouter = createRouter({
         .groupBy(sql`DATE(${orders.createdAt})`).orderBy(sql`DATE(${orders.createdAt})`);
     }),
 
+  /*
+    Только открытые заказы. Донат «Статусы заказов» считал по всей истории
+    организации: через год «доставлено» съедало круг целиком, и три заказа,
+    которые ждут офиса сегодня, в нём не читались вовсе.
+  */
   statusBreakdown: supervisorQuery.query(async ({ ctx }) => {
     return ctx.db.select({ status: orders.status, count: sql<number>`count(*)` })
-      .from(orders).where(and(eq(orders.tenantId, ctx.tenant.id), isNull(orders.deletedAt))).groupBy(orders.status);
+      .from(orders)
+      .where(and(eq(orders.tenantId, ctx.tenant.id), isNull(orders.deletedAt), inArray(orders.status, OPEN_ORDER_STATUSES)))
+      .groupBy(orders.status);
   }),
 
   activity: supervisorQuery.query(async ({ ctx }) => {

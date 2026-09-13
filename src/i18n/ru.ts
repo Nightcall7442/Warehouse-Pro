@@ -19,7 +19,7 @@ export const ru = {
     myShops:     "Магазины",
     newOrder:    "Новый заказ",
     plans:       "План визитов",
-    tracking:    "Слежение",
+    tracking:    "Карта",
     logout:      "Выйти",
     reports:     "Отчёты",
     pnl:         "P&L",

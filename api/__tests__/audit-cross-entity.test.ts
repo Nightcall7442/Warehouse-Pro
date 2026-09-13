@@ -533,14 +533,17 @@ describe("agent.getLocations: окно по времени", () => {
   it("не поднимает точки старше суток", async () => {
     const now = Date.now();
     data.agentLocations.push(
-      { id: 1, tenantId: 1, agentId: 10, lat: "41.30", lng: "69.20", accuracy: null, batteryLevel: null, recordedAt: null, createdAt: new Date(now - 3 * 24 * 60 * 60 * 1000) },
-      { id: 2, tenantId: 1, agentId: 11, lat: "41.31", lng: "69.21", accuracy: null, batteryLevel: null, recordedAt: null, createdAt: new Date(now - 60 * 1000) },
+      { id: 1, tenantId: 1, agentId: 10, lat: "41.30", lng: "69.20", accuracy: null, batteryLevel: null, recordedAt: null, mocked: false, createdAt: new Date(now - 3 * 24 * 60 * 60 * 1000) },
+      { id: 2, tenantId: 1, agentId: 11, lat: "41.31", lng: "69.21", accuracy: null, batteryLevel: null, recordedAt: null, mocked: true, createdAt: new Date(now - 60 * 1000) },
     );
 
     const { agentRouter } = await import("../agent-router");
     const points = await agentRouter.createCaller(ctx("supervisor", 1)).getLocations();
 
     expect(points.map((p: any) => p.agentId)).toEqual([11]);
+    // Подмена координат доезжает до карты: флаг писался с первого дня, а
+    // читался нигде.
+    expect(points[0].mocked).toBe(true);
   });
 });
 

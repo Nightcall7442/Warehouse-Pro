@@ -162,7 +162,9 @@ function InviteForm({ onDone, lang }: { onDone: () => void; lang: "ru" | "uz" })
           </label>
           <PremiumSelect value={d.role}
             onChange={v => setD(p => ({ ...p, role: v }))}
-            options={Object.entries(ROLE_LABELS).filter(([k]) => k !== "ceo").map(([k, v]) => ({ value: k, label: lang === "uz" ? v.uz : v.ru }))}
+            // Сервер (tenant.inviteUser) отвергает superadmin; ceo второго не
+            // бывает. Прежде оба стояли в списке, и приглашение падало отказом.
+            options={Object.entries(ROLE_LABELS).filter(([k]) => k !== "ceo" && k !== "superadmin").map(([k, v]) => ({ value: k, label: lang === "uz" ? v.uz : v.ru }))}
             width="100%" />
         </div>
       </div>
@@ -317,14 +319,13 @@ export default function Users() {
   };
 
   /* ── Derived stats ─────────────────────────────────────────────────────── */
-  const stats = useMemo(() => {
-    const list = data?.data ?? [];
-    return {
-      total: data?.total ?? 0,
-      active: list.filter((u) => u.status === "active").length,
-      inactive: list.filter((u) => u.status !== "active").length,
-    };
-  }, [data]);
+  // По всему отбору, с сервера: по странице в 25 строк «активных» было
+  // столько, сколько поместилось на экран.
+  const stats = useMemo(() => ({
+    total: data?.total ?? 0,
+    active: data?.active ?? 0,
+    inactive: (data?.total ?? 0) - (data?.active ?? 0),
+  }), [data]);
 
   if (isLoadingError) return <QueryErrorFallback onRetry={refetch} />;
 

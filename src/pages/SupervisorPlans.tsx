@@ -591,21 +591,29 @@ export default function SupervisorPlans() {
                               />
                             </a>
                           )}
+                          {/*
+                            Две кнопки были значками в десять пикселей без
+                            подписи: галочка и часы. Что делают часы — «отложить»,
+                            «пропустить», «время визита»? — не читалось. Теперь
+                            подпись словом, а значок — при ней.
+                          */}
                           {plan.status === "planned" && (
                             <div className="flex gap-1">
                               <button
                                 onClick={() => updatePlan.mutate({ planId: plan.id, status: "visited" })}
                                 disabled={updatePlan.isPending}
+                                title={t("Отметить магазин посещённым", "Do'konni tashrif buyurilgan deb belgilash")}
                                 className="neo-btn-primary tap px-3 text-xs flex items-center justify-center gap-1"
                               >
-                                <CheckCircle2 size={10} />
+                                <CheckCircle2 size={14} /> {t("Посещён", "Tashrif")}
                               </button>
                               <button
                                 onClick={() => updatePlan.mutate({ planId: plan.id, status: "skipped" })}
                                 disabled={updatePlan.isPending}
+                                title={t("Отметить визит пропущенным", "Tashrifni o'tkazib yuborilgan deb belgilash")}
                                 className="neo-btn tap px-3 text-xs flex items-center justify-center gap-1"
                               >
-                                <Clock size={10} />
+                                <Clock size={14} /> {t("Пропущен", "O'tkazildi")}
                               </button>
                             </div>
                           )}

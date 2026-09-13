@@ -25,6 +25,7 @@ const agent = (over: Partial<TrackedAgent> & { id: number }): TrackedAgent => ({
   lng: null,
   batteryLevel: null,
   accuracy: null,
+  mocked: false,
   ...over,
 });
 
@@ -91,7 +92,20 @@ describe("панель агентов", () => {
   it("агентов нет вовсе — отправляет заводить сотрудников", () => {
     renderRail({ rows: [], silentCount: 0 });
     expect(screen.getByText(/Агентов пока нет/)).toBeTruthy();
-    expect(screen.getByText(/«Пользователи»/)).toBeTruthy();
+    // Кто заводит и где — иначе супервайзер ищет кнопку у себя.
+    expect(screen.getByText(/заводит руководитель в разделе «Пользователи»/)).toBeTruthy();
+  });
+
+  it("подменённые координаты названы красным словом, а не спрятаны в точку", () => {
+    const rows = [
+      agent({ id: 1, name: "Бек", state: "online", at: new Date(), lat: 41.3, lng: 69.2, mocked: true }),
+      agent({ id: 2, name: "Али", state: "online", at: new Date(), lat: 41.3, lng: 69.2 }),
+    ];
+    renderRail({ rows, silentCount: 0 });
+    const badges = screen.getAllByText(/подмена координат/);
+    expect(badges, "бейдж — только у того, чей телефон сообщил о подмене").toHaveLength(1);
+    expect(badges[0].closest("button")?.textContent).toContain("Бек");
+    expect((badges[0] as HTMLElement).style.color).toBe("var(--color-danger-text)");
   });
 
   it("отбор без совпадений предлагает вернуться ко всем", () => {

@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { ChevronDown, ChevronUp, Navigation } from "lucide-react";
+import { ChevronDown, ChevronUp, Navigation, ShieldAlert } from "lucide-react";
 import { revealRows } from "@/lib/tracking-motion";
 import { cssVar } from "@/lib/css-var";
 import { readableInk } from "@/lib/contrast";
@@ -172,8 +172,8 @@ function EmptyRail({ filtered, onReset, t }: {
         {t("Агентов пока нет", "Hozircha agent yo'q")}
       </p>
       <p className="text-xs mt-1.5 leading-relaxed" style={{ color: "var(--color-text-tertiary)" }}>
-        {t("Сотрудники с ролью «Агент» заводятся в разделе «Пользователи».",
-           "«Agent» rolidagi xodimlar «Foydalanuvchilar» bo'limida qo'shiladi.")}
+        {t("Сотрудников с ролью «Агент» заводит руководитель в разделе «Пользователи».",
+           "«Agent» rolidagi xodimlarni rahbar «Foydalanuvchilar» bo'limida qo'shadi.")}
       </p>
     </div>
   );
@@ -254,6 +254,20 @@ function AgentRow({ agent, day, selected, onSelect, lang, t }: {
           </span>
         </span>
         <span className="flex flex-col items-end gap-0.5 flex-shrink-0">
+          {/*
+            Подмена координат — красным и словами. Флаг mocked писался в базу с
+            первого дня и нигде не читался: агент с приложением-подделкой
+            выглядел на карте как честно едущий.
+          */}
+          {agent.mocked && (
+            <span
+              className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold"
+              title={t("Телефон сообщил, что координаты подменены приложением", "Telefon koordinatalar ilova tomonidan almashtirilganini xabar qildi")}
+              style={{ background: "var(--color-danger-subtle)", color: "var(--color-danger-text)" }}
+            >
+              <ShieldAlert size={11} /> {t("подмена координат", "koordinata almashtirilgan")}
+            </span>
+          )}
           {agent.batteryLevel != null && <Battery level={agent.batteryLevel} t={t} />}
           {agent.accuracy != null && Number.isFinite(agent.accuracy) && (
             <span className="text-[10px] font-data" style={{ color: "var(--color-text-tertiary)" }}>
