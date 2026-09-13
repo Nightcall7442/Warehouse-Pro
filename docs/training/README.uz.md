@@ -39,8 +39,6 @@ Operator «Buyurtmalar»da ishlaydi: agentlarning buyurtmalarini qabul qilib tek
 
 2. Qo'ng'iroq bo'yicha yangi buyurtma: do'kon (nomi, egasi, telefoni bo'yicha qidiruv; yonida qarz), tovarlar («bo'sh N» ko'rinadi), to'lov usuli — tayyor.
 
-   ![Ofis operatori va ombor — 2](img/web/uz/operator/order-new.webp)
-
 3. Yuklash varaqasi: buyurtmalarni belgilang → «Yuklash varaqalari» → «Varaqa tuzish» → chop etish. Varaqa yopilguncha o'z buyurtmalarini ushlab turadi; ularni ikkinchi marta yig'ib bo'lmaydi.
 
 4. Qatorlar bo'yicha yig'ish: varaqalar ro'yxatida «tayyorlanmoqda» varaqada — «Yig'ish» tugmasi. Qatorlar: kerak / partiyalar (FEFO bo'yicha — jo'natishda hisobdan chiqariladigan o'shalar) / yig'ildi. Kerakdan kam — kamomad: u ro'yxatda ko'rinadi va ofisga bildirishnoma bo'lib boradi. So'ng — butun varaqaga bitta tanlov bilan kuryer.
@@ -117,8 +115,6 @@ Kuniga 30–60 tashrif. Bosh sahifa — tashriflar va qarzlar; peshtaxta oldida 
    ![Savdo agenti (telefon) — 2](img/mobile/uz/agent/shops.webp)
 
 3. Yangi buyurtma — uch qadam: do'kon → tovarlar (qidiruv, skaner, «− n +», qoldiq ko'rinadi) → to'lov va va'da qilingan muddat → Tasdiqlash.
-
-   ![Savdo agenti (telefon) — 3](img/mobile/uz/agent/order-new.webp)
 
 4. Aloqasiz: do'konlar ro'yxati va katalog telefondagi nusxadan olinadi (sanasi bilan), buyurtma navbatga tushadi va o'zi jo'natiladi. «Buyurtmalar»da kechiktirilganlar «jo'natish kutilmoqda» kartalari bilan ko'rinadi.
 

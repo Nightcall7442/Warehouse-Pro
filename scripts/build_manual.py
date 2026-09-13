@@ -55,10 +55,11 @@ def render_image(kind, lang, role, screen, callouts):
     k = im.width / (1440 if kind == "web" else 390)
     r = int((20 if kind == "web" else 13) * k)
     f = font(int((22 if kind == "web" else 14) * k))
-    for n, (key, _text) in enumerate(callouts, 1):
+    for key, _text in callouts:
         m0 = marks.get(key)
         if not m0:
             continue
+        n = len(found) + 1   # нумеруем только то, что нашлось на снимке
         m = {kk: int(round(m0[kk] * k)) for kk in ("x", "y", "w", "h")}
         cx = max(r + 2, min(im.width - r - 2, m["x"] - r - 4))
         cy = max(r + 2, min(im.height - r - 2, m["y"] + min(m["h"], 40) // 2))
@@ -68,7 +69,7 @@ def render_image(kind, lang, role, screen, callouts):
         draw.ellipse([cx - r, cy - r, cx + r, cy + r], fill=(214, 88, 40), outline=(255, 255, 255), width=max(2, int(3 * k)))
         tw = draw.textlength(str(n), font=f)
         draw.text((cx - tw / 2, cy - f.size * 0.58), str(n), fill=(255, 255, 255), font=f)
-        found.append(n)
+        found.append((n, key))
     maxw = 1400 if kind == "web" else 640
     if im.width > maxw:
         im = im.resize((maxw, round(im.height * maxw / im.width)), Image.LANCZOS)
@@ -189,7 +190,8 @@ def build(lang):
                 if not rel:
                     continue
                 fig_no += 1
-                legend = "".join(f"<li><span class='n'>{n}</span><span>{esc(tx(txt))}</span></li>" for n, (key, txt) in enumerate(b.get("callouts", []), 1))
+                texts = {key: txt for key, txt in b.get("callouts", [])}
+                legend = "".join(f"<li><span class='n'>{n}</span><span>{esc(tx(texts[key]))}</span></li>" for n, key in found)
                 cap = f"<figcaption>{esc(L['fig'])} {fig_no}. {esc(tx(b['cap']))}</figcaption>" + (f"<ul class='legend'>{legend}</ul>" if legend else "")
                 if kind == "mobile":
                     out.append(f"<figure class='mobile'><img src='{rel}' alt='{esc(tx(b['cap']))}'><div>{cap}</div></figure>")
