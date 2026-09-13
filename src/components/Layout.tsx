@@ -68,8 +68,10 @@ const PAGE_META: Record<string, { title: PageTitle; parent?: PageTitle; parentPa
   "/agent/plans":       { title: { ru: "Визиты",        uz: "Tashriflar" } },
   "/agent/debts":       { title: { ru: "Мои долги",     uz: "Mening qarzlarim" }, parent: { ru: "Мой день", uz: "Mening kunim" }, parentPath: "/agent" },
   "/deliveries":        { title: { ru: "Доставки",      uz: "Yetkazishlar" } },
-  "/supervisor":        { title: { ru: "Слежение",      uz: "Kuzatuv" } },
-  "/supervisor/plans":  { title: { ru: "Планы",         uz: "Rejalar" }, parent: { ru: "Слежение", uz: "Kuzatuv" }, parentPath: "/supervisor" },
+  // «Карта» — как в нижней панели и в боковом меню: один экран назывался
+  // тремя словами («Слежение», «Карта», «Слежение за агентами»).
+  "/supervisor":        { title: { ru: "Карта",         uz: "Xarita" } },
+  "/supervisor/plans":  { title: { ru: "Планы",         uz: "Rejalar" }, parent: { ru: "Карта", uz: "Xarita" }, parentPath: "/supervisor" },
   "/barcode":           { title: { ru: "Сканер",        uz: "Skaner" } },
   "/offline-orders":    { title: { ru: "Офлайн",        uz: "Oflayn" } },
 };

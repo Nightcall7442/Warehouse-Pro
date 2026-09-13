@@ -1,5 +1,5 @@
 import { auditLog } from "@db/schema";
-import { eq, and, desc, sql, gte, lte } from "drizzle-orm";
+import { eq, and, desc, sql, gte, lte, like } from "drizzle-orm";
 import { logger } from "../lib/logger";
 import { getClientIp } from "../lib/rate-limit";
 
@@ -14,6 +14,20 @@ export interface AuditRecord {
   targetId?: number;
   meta?: Record<string, unknown>;
   ip?: string;
+}
+
+/**
+ * Отбор по действию.
+ *
+ * Точное имя («order.cancelled») — точное совпадение. Слово без точки
+ * («payment», «stock») — группа: кнопки отбора на экране передавали «user»,
+ * а сравнение было точным, и все они отдавали пустой журнал. Подстрока, а
+ * не префикс: «payment» должно ловить и order.payment_recorded.
+ */
+export function actionCondition(action: string) {
+  return action.includes(".")
+    ? eq(auditLog.action, action)
+    : like(auditLog.action, `%${action.replace(/[%_]/g, "")}%`);
 }
 
 /**
@@ -90,7 +104,7 @@ export async function getAuditLog(
   const conditions = [eq(auditLog.tenantId, tenantId)];
 
   if (opts?.action) {
-    conditions.push(eq(auditLog.action, opts.action));
+    conditions.push(actionCondition(opts.action));
   }
   if (opts?.actorId) {
     conditions.push(eq(auditLog.actorId, opts.actorId));

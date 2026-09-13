@@ -632,9 +632,9 @@ describe("dashboard.kpis: маржа считается по окну, а не �
   beforeEach(() => {
     data.orders = [
       // Древний заказ с нулевой маржой — раньше он тянул процент вниз вечно.
-      { id: 1, tenantId: 1, status: "delivered", total: "10000000", deletedAt: null, createdAt: day(-400), agentId: 2, shopId: 1 },
+      { id: 1, tenantId: 1, status: "delivered", total: "10000000", deletedAt: null, createdAt: day(-400), deliveredAt: day(-400), updatedAt: day(-400), deliveryStatus: "delivered", agentId: 2, shopId: 1 },
       // Свежий заказ: выручка 1 000 000, себестоимость 600 000 → маржа 40 %.
-      { id: 2, tenantId: 1, status: "delivered", total: "1000000", deletedAt: null, createdAt: day(-1), agentId: 2, shopId: 1 },
+      { id: 2, tenantId: 1, status: "delivered", total: "1000000", deletedAt: null, createdAt: day(-1), deliveredAt: day(-1), updatedAt: day(-1), deliveryStatus: "delivered", agentId: 2, shopId: 1 },
     ];
     data.orderItems = [
       { id: 1, orderId: 1, productId: 1, quantity: "100", deliveredQuantity: null, costPrice: "100000" },

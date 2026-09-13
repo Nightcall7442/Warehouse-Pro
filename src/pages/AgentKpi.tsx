@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import { useCan } from "@/hooks/useCan";
 import { trpc } from "@/providers/trpc";
 import { useLang, type Lang } from "@/i18n";
@@ -38,6 +38,7 @@ interface AgentListEntry {
   totalPlans: number; visitedPlans: number;
   kpiScore: number; kpiGrade: string;
   suspiciousVisits: number; fraudRate: number;
+  gpsPings: number;
 }
 
 interface SalaryData {
@@ -51,6 +52,16 @@ interface SalaryData {
   totalSalary: number;
   breakdown: { base: number; commission: number; fraudDeduction: number; delivery: number };
 }
+
+/**
+ * Отметил визиты, а следов GPS за период нет.
+ *
+ * Список агентов визиты не разбирает — это делает карточка (расстояние до
+ * точки, время в зоне, дубли фото). В списке есть только счёт точек, и
+ * называть его отсутствие «фродом» нельзя: телефон мог лежать без GPS, а
+ * человек — честно объехать маршрут. Показываем ровно то, что знаем.
+ */
+const noGps = (a: { gpsPings: number; visitedPlans: number }) => a.gpsPings === 0 && a.visitedPlans > 0;
 
 const PERIODS = [
   { value: "week" as const, ru: "Неделя", uz: "Hafta" },
@@ -151,7 +162,7 @@ export default function AgentKpi() {
     const rows = (allKpi ?? []).map((a, i) => ({
       "#": i + 1, "Агент": a.agentName, "Балл": a.kpiScore, "Грейд": a.kpiGrade,
       "Заказы": a.orderCount, "Выручка": a.revenue,
-      "Визиты": `${a.visitedPlans}/${a.totalPlans}`, "Фрод %": a.fraudRate,
+      "Визиты": `${a.visitedPlans}/${a.totalPlans}`, "Без GPS": noGps(a) ? "да" : "нет",
     }));
     await exportToExcel(rows, `kpi-agents-${period}`, "KPI Агентов", `KPI ${period}`);
   }, [allKpi, isSupervisor, period]);
@@ -254,8 +265,8 @@ function AgentView({ kpi, salary, self = false, fmt, t, lang }: { kpi: KpiData; 
         <KpiHero label={t("План", "Reja")} value={`${kpi.visitCompletionRate}%`} sub={`${kpi.visitedPlans}/${kpi.totalPlans}`} color="var(--color-primary-text)" progress={kpi.visitCompletionRate / 100} icon={<Target size={20} color="var(--color-primary-text)" />} />
         <KpiHero label={t("Заказы", "Buyurtma")} value={String(kpi.orderCount)} sub={fmt(kpi.revenue)} color="var(--color-success-text)" progress={Math.min(1, kpi.orderCount / 50)} icon={<ShoppingCart size={20} color="var(--color-success-text)" />} />
         <KpiHero label={t("Средний чек", "O'rtacha")} value={fmt(kpi.avgOrderValue)} color="var(--color-warning-text)" progress={Math.min(1, kpi.avgOrderValue / 100000)} icon={<DollarSign size={20} color="var(--color-warning-text)" />} />
-        <KpiHero label={t("Возвраты", "Qaytarish")} value={`${kpi.returnRate}%`} sub={`${kpi.returnCount} шт`} color={kpi.returnRate > 10 ? "var(--color-danger-text)" : "var(--color-success-text)"} progress={1 - kpi.returnRate / 100} icon={<AlertTriangle size={20} color={kpi.returnRate > 10 ? "var(--color-danger-text)" : "var(--color-success-text)"} />} />
-        <KpiHero label={t("Магазины", "Do'kon")} value={String(kpi.assignedShops)} sub={fmt(kpi.totalDebt) + " долг"} color="#7a6db5" progress={Math.min(1, kpi.assignedShops / 20)} icon={<Package size={20} color="#7a6db5" />} />
+        <KpiHero label={t("Возвраты", "Qaytarish")} value={`${kpi.returnRate}%`} sub={`${kpi.returnCount} ${t("шт", "dona")}`} color={kpi.returnRate > 10 ? "var(--color-danger-text)" : "var(--color-success-text)"} progress={1 - kpi.returnRate / 100} icon={<AlertTriangle size={20} color={kpi.returnRate > 10 ? "var(--color-danger-text)" : "var(--color-success-text)"} />} />
+        <KpiHero label={t("Магазины", "Do'kon")} value={String(kpi.assignedShops)} sub={`${fmt(kpi.totalDebt)} ${t("долг", "qarz")}`} color="#7a6db5" progress={Math.min(1, kpi.assignedShops / 20)} icon={<Package size={20} color="#7a6db5" />} />
       </div>
 
       {/* Score Breakdown + KPI Radar */}
@@ -330,7 +341,7 @@ function AgentView({ kpi, salary, self = false, fmt, t, lang }: { kpi: KpiData; 
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
             <StatCard label={t("Подозр. визитов", "Shubhali tashrif")} value={String(kpi.suspiciousVisits)} />
             <StatCard label={t("Уровень фрода", "Daraja")} value={`${kpi.fraudRate}%`} />
-            <StatCard label={t("Ср. время визита", "O'rtacha vaqt")} value={`${kpi.avgVisitDuration} мин`} />
+            <StatCard label={t("Ср. время визита", "O'rtacha vaqt")} value={`${kpi.avgVisitDuration} ${t("мин", "daq")}`} />
           </div>
         </div>
       )}
@@ -508,7 +519,17 @@ function SupervisorView({ kpi, period, selectedKpi, selectedSalary, detailLoadin
   const totalOrders = filteredKpi.reduce((s, k) => s + k.orderCount, 0);
   const totalVisits = filteredKpi.reduce((s, k) => s + k.visitedPlans, 0);
   const avgScore = filteredKpi.length > 0 ? Math.round(filteredKpi.reduce((s, k) => s + k.kpiScore, 0) / filteredKpi.length) : 0;
-  const suspiciousTotal = filteredKpi.reduce((s, k) => s + k.suspiciousVisits, 0);
+  const noGpsCount = filteredKpi.filter(noGps).length;
+
+  /*
+    Разбор выбранного агента — под таблицей, и на телефоне его не видно:
+    строку нажали, а экран не сдвинулся. Подъезжаем к разбору, как только он
+    загрузился.
+  */
+  const detailRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (selectedKpi && selectedAgentId !== null) detailRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [selectedKpi, selectedAgentId]);
 
   const courierRows = couriers ?? [];
   const courierTotals = (() => {
@@ -569,16 +590,14 @@ function SupervisorView({ kpi, period, selectedKpi, selectedSalary, detailLoadin
         <KpiHero label={t("Выручка", "Tushum")} value={fmt(totalRevenue)} color="var(--color-success-text)" progress={Math.min(1, totalRevenue / 10_000_000)} icon={<DollarSign size={20} color="var(--color-success-text)" />} />
         <KpiHero label={t("Заказы", "Buyurtma")} value={String(totalOrders)} color="var(--color-primary-text)" progress={Math.min(1, totalOrders / 500)} icon={<ShoppingCart size={20} color="var(--color-primary-text)" />} />
         <KpiHero label={t("Визиты", "Tashrif")} value={String(totalVisits)} color="var(--color-warning-text)" progress={Math.min(1, totalVisits / 200)} icon={<MapPin size={20} color="var(--color-warning-text)" />} />
-        <KpiHero label={t("Фрод", "Frod")} value={String(suspiciousTotal)} color="var(--color-danger-text)" progress={Math.min(1, suspiciousTotal / 20)} icon={<AlertTriangle size={20} color="var(--color-danger-text)" />} />
+        {/*
+          Здесь стояла плитка «Фрод» с суммой визитов без GPS и красная плашка
+          «Подозрительная активность». Настоящий анти-фрод в списке не
+          считается — только в карточке агента; список знает лишь, у кого нет
+          следов. Так и пишем.
+        */}
+        <KpiHero label={t("Без GPS", "GPS yo'q")} value={String(noGpsCount)} sub={noGpsCount > 0 ? t("агентов без следов", "izsiz agentlar") : undefined} color={noGpsCount > 0 ? "var(--color-warning-text)" : "var(--color-text-tertiary)"} progress={filteredKpi.length > 0 ? noGpsCount / filteredKpi.length : 0} icon={<MapPin size={20} color={noGpsCount > 0 ? "var(--color-warning-text)" : "var(--color-text-tertiary)"} />} />
       </div>
-      )}
-
-      {tab === "agents" && suspiciousTotal > 0 && (
-        <div className="neo-card p-4" style={{ borderLeft: "4px solid #d45050" }}>
-          <span className="text-sm font-semibold" style={{ color: "var(--color-danger-text)" }}>
-            ⚠ {t("Подозрительная активность", "Shubhali faoliyat")}: {suspiciousTotal} {t("визитов", "tashrif")}
-          </span>
-        </div>
       )}
 
       {/* Agent Table */}
@@ -666,7 +685,7 @@ function SupervisorView({ kpi, period, selectedKpi, selectedSalary, detailLoadin
                   { h: t("Заказы", "Buyurtma"), right: true },
                   { h: t("Выручка", "Tushum"), right: true },
                   { h: t("Визиты", "Tashrif"), right: true },
-                  { h: t("Фрод", "Frod"), right: true },
+                  { h: "GPS", right: true },
                 ].map((c, i) => (
                   <th key={i} className={`px-3 py-2.5 text-[10px] font-semibold uppercase tracking-wider ${c.right ? "text-right" : "text-left"}`}
                     style={{ color: COLORS.textTertiary }}>{c.h}</th>
@@ -724,13 +743,12 @@ function SupervisorView({ kpi, period, selectedKpi, selectedSalary, detailLoadin
                       {a.totalPlans > 0 ? `${a.visitedPlans}/${a.totalPlans}` : "—"}
                     </td>
                     <td className="px-3 py-2.5 text-right">
-                      {a.suspiciousVisits > 0 ? (
-                        <span className="px-2 py-0.5 rounded text-xs font-bold" style={{ background: "var(--color-danger-subtle)", color: "var(--color-danger-text)" }}>{a.suspiciousVisits} ({a.fraudRate}%)</span>
+                      {/* Красное «N (100%)» здесь было приговором за выключенный
+                          GPS. Серая подпись говорит ровно то, что известно. */}
+                      {noGps(a) ? (
+                        <span className="text-xs" style={{ color: COLORS.textTertiary }}>{t("нет GPS", "GPS yo'q")}</span>
                       ) : (
-                        // Галочка в столбце «Фрод» читается как флажок, а не как
-                        // ответ: непонятно, отмечен агент или проверен. Слово
-                        // отвечает прямо.
-                        <span className="text-xs" style={{ color: COLORS.textTertiary }}>{t("нет", "yo'q")}</span>
+                        <span className="text-xs" style={{ color: COLORS.textTertiary }}>{a.gpsPings > 0 ? t("есть", "bor") : "—"}</span>
                       )}
                     </td>
                   </tr>
@@ -747,7 +765,11 @@ function SupervisorView({ kpi, period, selectedKpi, selectedSalary, detailLoadin
           <div className="w-6 h-6 rounded-full border-2 border-[var(--color-border)] border-t-[var(--color-primary)] animate-spin" />
         </div>
       )}
-      {tab === "agents" && selectedKpi && <AgentView kpi={selectedKpi} salary={selectedSalary} fmt={fmt} t={t} lang={lang} />}
+      {tab === "agents" && selectedKpi && (
+        <div ref={detailRef} className="space-y-5" style={{ scrollMarginTop: "72px" }}>
+          <AgentView kpi={selectedKpi} salary={selectedSalary} fmt={fmt} t={t} lang={lang} />
+        </div>
+      )}
 
       {tab === "couriers" && selectedCourierId !== null && (
         courierDetailLoading ? (

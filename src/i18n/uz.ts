@@ -18,7 +18,7 @@ export const uz = {
     myShops:     "Do'konlar",
     newOrder:    "Yangi buyurtma",
     plans:       "Tashrif rejasi",
-    tracking:    "Kuzatuv",
+    tracking:    "Xarita",
     logout:      "Chiqish",
     reports:     "Hisobotlar",
     pnl:         "P&L",
