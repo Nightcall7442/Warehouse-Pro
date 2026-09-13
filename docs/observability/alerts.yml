@@ -105,6 +105,20 @@ groups:
             выдержка 26 часов. Проверить: журнал работы backup в Loki, переменные
             S3_* и BACKUP_S3_* в Railway, кнопку копии в мониторинге суперадмина.
 
+      - alert: РаботаПоРасписаниюНеУдаётся
+        expr: time() - cron_last_success_timestamp_seconds{job!~"backup|restore-drill|telegram-outbox|low-stock-alerts"} > 26 * 3600
+        for: 1h
+        labels:
+          severity: warning
+        annotations:
+          summary: "Ежедневная работа {{ $labels.job }} не удавалась больше суток"
+          description: >-
+            Планировщик догоняет пропущенное сам (раз в час после назначенного
+            времени), так что сутки без удачи — это не перезапуск, а работа,
+            которая падает раз за разом. Смотреть журнал «cron job failed» в Loki
+            и колонку last_error в таблице cron_runs. У копии базы и репетиции
+            восстановления свои правила ниже.
+
       - alert: РепетицияВосстановленияУстарела
         expr: absent(backup_restore_drill_last_success_timestamp_seconds) or (time() - backup_restore_drill_last_success_timestamp_seconds > 8 * 86400)
         for: 8d

@@ -67,7 +67,8 @@ export async function runBackup(): Promise<{ success: boolean; message: string }
 
   // Sanity-check table counts alongside the dump — if the dump silently
   // produced far fewer rows than the live tables have, something's wrong.
-  const tables = ["tenants", "users", "products", "orders", "order_items", "shops", "warehouse_stock", "payments"];
+  // audit_log — здесь ради json-столбца meta: именно на нём копия однажды не развернулась.
+  const tables = ["tenants", "users", "products", "orders", "order_items", "shops", "warehouse_stock", "payments", "audit_log"];
   const counts: Record<string, number> = {};
   try {
     const db = getDb();

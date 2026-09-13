@@ -9,6 +9,19 @@
  * Формы ошибок ниже списаны с настоящего вывода CI, а не придуманы.
  */
 import { describe, it, expect } from "vitest";
+import { rootMessage } from "../lib/db-errors";
+
+describe("причина вместо обёртки", () => {
+  it("у ошибки drizzle показывает cause, обёртку — хвостом", () => {
+    const inner = Object.assign(new Error("Unknown column 'return_photos' in 'field list'"), { code: "ER_BAD_FIELD_ERROR" });
+    const outer = new Error("Failed query: SELECT id, tenant_id, `return_photos` AS value FROM `returns` LIMIT ?\nparams: 64", { cause: inner });
+    expect(rootMessage(outer)).toMatch(/^Unknown column 'return_photos'.* ← Failed query/);
+  });
+  it("обычная ошибка — как есть, строка — как есть", () => {
+    expect(rootMessage(new Error("SlowDown"))).toBe("SlowDown");
+    expect(rootMessage("текстом")).toBe("текстом");
+  });
+});
 import { isDuplicateEntry, isDuplicateOf } from "../lib/db-errors";
 
 /** Как ошибку отдаёт сам mysql2 — без обёртки. */

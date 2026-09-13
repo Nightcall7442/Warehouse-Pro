@@ -105,6 +105,16 @@ export const backupLastSuccessTimestamp = new client.Gauge({
   help: "Unix time of the last successful database backup upload",
   registers: [register],
 });
+/*
+  То же по каждой работе расписания. Значение приходит из cron_runs при старте,
+  поэтому после перезапуска метрика не пропадает — в отличие от двух соседних.
+*/
+export const cronLastSuccessTimestamp = new client.Gauge({
+  name: "cron_last_success_timestamp_seconds",
+  help: "Unix time of the last successful run of each scheduled job",
+  labelNames: ["job"],
+  registers: [register],
+});
 export const restoreDrillLastSuccessTimestamp = new client.Gauge({
   name: "backup_restore_drill_last_success_timestamp_seconds",
   help: "Unix time of the last successful restore drill (latest backup restored into a scratch database and verified)",

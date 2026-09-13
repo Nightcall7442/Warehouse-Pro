@@ -57,6 +57,23 @@ function chainOf(err: unknown, limit = 5): DriverError[] {
   return chain;
 }
 
+/**
+ * Причина, а не обёртка.
+ *
+ * У ошибки drizzle свой текст — «Failed query: <весь SQL> params: …», — а то,
+ * что случилось на самом деле («Unknown column …»), лежит в cause. В Telegram
+ * уходят триста знаков, и SQL съедал их целиком: ночная работа падала, а
+ * почему — не видел никто.
+ */
+export function rootMessage(err: unknown): string {
+  const chain = chainOf(err);
+  const deepest = chain[chain.length - 1];
+  const inner = deepest?.sqlMessage ?? deepest?.message;
+  if (!inner) return err instanceof Error ? err.message : String(err);
+  const outer = chain[0]?.message;
+  return !outer || outer === inner ? inner : `${inner} ← ${outer.slice(0, 200)}`;
+}
+
 /** Нарушен какой-то уникальный индекс — на любом уровне вложенности. */
 export function isDuplicateEntry(err: unknown): boolean {
   return chainOf(err).some(e => e.code === "ER_DUP_ENTRY" || e.errno === 1062);

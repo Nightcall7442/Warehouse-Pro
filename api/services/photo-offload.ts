@@ -1,4 +1,4 @@
-import { sql } from "drizzle-orm";
+import { sql, type SQL } from "drizzle-orm";
 import { getDb } from "../queries/connection";
 import { logger } from "../lib/logger";
 import { isDataImage, uploadBase64ToS3 } from "../lib/photo-upload";
@@ -20,18 +20,25 @@ import { firstRow, rowsOf } from "../lib/db-rows";
 */
 
 /** Колонки с одиночным фото: таблица, колонка, папка в хранилище. */
-const SINGLE: Array<{ table: string; column: string; folder: string }> = [
+export const SINGLE: Array<{ table: string; column: string; folder: string }> = [
   { table: "products",    column: "photo_url", folder: "products" },
   { table: "shops",       column: "photo_url", folder: "shops" },
   { table: "daily_plans", column: "photo_url", folder: "visits" },
   { table: "users",       column: "avatar",    folder: "avatars" },
 ];
 
-/** Колонки со списком фото (json). */
-const LISTS: Array<{ table: string; column: string; folder: string }> = [
+/** Колонки со списком фото (json). `tenant` — откуда брать арендатора, если своей колонки нет. */
+export const LISTS: Array<{ table: string; column: string; folder: string; tenant?: SQL }> = [
   { table: "visit_reports",     column: "photos",        folder: "visits" },
   { table: "order_adjustments", column: "photos",        folder: "orders" },
-  { table: "returns",           column: "return_photos", folder: "returns" },
+  /*
+    Фото возврата лежат на строке заказа, а не в таблице возвратов. Стояло
+    `returns.return_photos` — колонки нет, работа падала на первом же запросе
+    к ней каждую ночь, а сообщение обёртки drizzle несло полный SQL без
+    причины. У строки заказа нет tenant_id — берём через заказ.
+  */
+  { table: "order_items",       column: "return_photos", folder: "returns",
+    tenant: sql`(SELECT tenant_id FROM orders WHERE orders.id = order_items.order_id)` },
 ];
 
 export const OFFLOAD_BATCH = 200;
@@ -63,10 +70,10 @@ export async function runPhotoOffload(db = getDb(), batch = OFFLOAD_BATCH): Prom
     }
   }
 
-  for (const { table, column, folder } of LISTS) {
+  for (const { table, column, folder, tenant } of LISTS) {
     if (budget <= 0) break;
     const rows = rowsOf<{ id: number; tenant_id: number; value: unknown }>(await db.execute(sql`
-      SELECT id, tenant_id, ${sql.identifier(column)} AS value FROM ${sql.identifier(table)}
+      SELECT id, ${tenant ? sql`${tenant} AS tenant_id` : sql.raw("tenant_id")}, ${sql.identifier(column)} AS value FROM ${sql.identifier(table)}
       WHERE CAST(${sql.identifier(column)} AS CHAR) LIKE '%data:image/%' LIMIT ${budget}
     `));
     for (const r of rows) {

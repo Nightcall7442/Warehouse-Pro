@@ -20,7 +20,8 @@ import { restoreDrillLastSuccessTimestamp } from "../prometheus-metrics";
   когда она появится (Q3 — зеркало R2/B2 уже есть).
 */
 
-const TABLES_TO_CHECK = ["tenants", "users", "products", "orders", "order_items", "shops", "warehouse_stock", "payments"];
+// Тот же список, что в cron/backup.ts (число строк пишется в метаданные копии).
+const TABLES_TO_CHECK = ["tenants", "users", "products", "orders", "order_items", "shops", "warehouse_stock", "payments", "audit_log"];
 
 /**
  * Разбить текст копии на выражения. Тела триггеров и процедур обёрнуты в

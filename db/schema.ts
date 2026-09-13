@@ -2147,3 +2147,21 @@ export const rolePermissions = mysqlTable("role_permissions", {
 
 export type RolePermission       = typeof rolePermissions.$inferSelect;
 export type InsertRolePermission = typeof rolePermissions.$inferInsert;
+
+// ============================================
+// CRON_RUNS — когда работа по расписанию удавалась в последний раз
+// ============================================
+/*
+  Одна строка на работу, без арендатора: расписание — платформенное.
+
+  Отметка нужна планировщику, чтобы догонять пропущенное: ежедневная работа,
+  чей час прошёл, а удачи после него нет, выполняется при первой возможности,
+  а не «завтра в ту же минуту». Память процесса для этого не годится —
+  перезапуск и есть главный способ пропустить работу (см. api/cron/scheduler.ts).
+*/
+export const cronRuns = mysqlTable("cron_runs", {
+  job:           varchar("job", { length: 64 }).primaryKey(),
+  lastSuccessAt: timestamp("last_success_at"),
+  lastErrorAt:   timestamp("last_error_at"),
+  lastError:     text("last_error"),
+});
