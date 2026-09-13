@@ -595,7 +595,12 @@ export type OrderViewer = { userId: number; userRole: string } | typeof SYSTEM_V
 /** Сужение выборки для зрителя: у системы и начальства — никакого. */
 export function viewerScope(viewer: OrderViewer) {
   if (viewer === SYSTEM_VIEW) return [];
-  return canSeeAnyOrder(viewer.userRole) ? [] : [eq(orders.agentId, viewer.userId)];
+  if (canSeeAnyOrder(viewer.userRole)) return [];
+  // Курьер видит заказы, которые везёт он. Экран «Оформить подробно» на
+  // телефоне читает заказ через order.getById, а курьера в этой ручке не было:
+  // частичная оплата и возврат у двери отвечали «сбой связи» — всегда.
+  if (viewer.userRole === "courier") return [eq(orders.courierId, viewer.userId)];
+  return [eq(orders.agentId, viewer.userId)];
 }
 
 export function ownerScope(actor: Actor) {

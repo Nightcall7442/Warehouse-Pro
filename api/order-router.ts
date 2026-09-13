@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { createRouter, operatorQuery, fieldSalesQuery, can } from "./middleware";
+import { createRouter, operatorQuery, fieldSalesQuery, orderReaderQuery, can } from "./middleware";
 import { OrderService, assertOrderVisible, assertItemsEditableBy } from "./services/order";
 
 /** Кто делает правку — для журнала действий службы заказа. */
@@ -260,7 +260,8 @@ export const orderRouter = createRouter({
       });
     }),
 
-  getById: fieldSalesQuery
+  // Курьер — тоже: телефон читает заказ перед «Оформить подробно» (см. orderReaderQuery).
+  getById: orderReaderQuery
     .input(z.object({ id: z.number().int().positive() }))
     .query(async ({ input, ctx }) => {
       return OrderService.getById(ctx.db, ctx.tenant.id, input.id, {
