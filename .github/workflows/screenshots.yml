@@ -8,6 +8,11 @@
 name: Screenshots
 
 on:
+  # workflow_dispatch виден GitHub только с основной ветки; пока файл не в
+  # main, запуск — пушем в ветку docs/training (значения по умолчанию ниже).
+  push:
+    branches: [docs/training]
+    paths: [".github/workflows/screenshots.yml", "scripts/screenshots.mjs", "docs/training/**"]
   workflow_dispatch:
     inputs:
       mobile_ref:
@@ -43,10 +48,10 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: actions/checkout@v7
-        if: ${{ inputs.mobile_ref != '' }}
+        if: ${{ (inputs.mobile_ref || 'master') != '' }}
         with:
           repository: Nightcall7442/Warehouse-Pro-Mobile
-          ref: ${{ inputs.mobile_ref }}
+          ref: ${{ inputs.mobile_ref || 'master' }}
           path: mobile
       - uses: actions/setup-node@v7
         with:
@@ -72,7 +77,7 @@ jobs:
       # Мобилка в веб: Expo web. Не поднялась — снимки веба всё равно будут.
       - name: Мобилка в веб
         id: mobile
-        if: ${{ inputs.mobile_ref != '' }}
+        if: ${{ (inputs.mobile_ref || 'master') != '' }}
         continue-on-error: true
         working-directory: mobile
         env:
@@ -89,7 +94,7 @@ jobs:
         env:
           WEB_URL: http://127.0.0.1:3100
           MOBILE_URL: ${{ steps.mobile.outputs.url }}
-          LANGS: ${{ inputs.langs }}
+          LANGS: ${{ inputs.langs || 'ru,uz' }}
           OUT: screenshots
         run: node scripts/screenshots.mjs
 
