@@ -59,7 +59,7 @@ function loc(page, spec) {
 const T = {
   newOrder: "role=button:/Новый заказ|Yangi buyurtma/",
   lists: "role=button:/Погрузочные листы|Yuklash varaqalari/",
-  pending: "text=/^(Ожидает|Kutmoqda)$/",
+  pending: "text=/^(Ожидает|Kutishda)$/",
   bulkList: "role=button:/Загруз|Yuklash varaqi/",
   makeList: "role=button:/Сформировать лист|Varaqa tuzish/",
   doneNoPrint: "role=button:/Готово, без печати|Tayyor, chop etmasdan/",
