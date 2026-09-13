@@ -17,7 +17,7 @@ on:
     inputs:
       mobile_ref:
         description: "Ветка мобилки (Warehouse-Pro-Mobile) для снимков; пусто — без мобилки"
-        default: "master"
+        default: "i18n/uz"
         required: false
       langs:
         description: "Языки через запятую"
@@ -48,10 +48,10 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: actions/checkout@v7
-        if: ${{ (inputs.mobile_ref || 'master') != '' }}
+        if: ${{ (inputs.mobile_ref || 'i18n/uz') != '' }}
         with:
           repository: Nightcall7442/Warehouse-Pro-Mobile
-          ref: ${{ inputs.mobile_ref || 'master' }}
+          ref: ${{ inputs.mobile_ref || 'i18n/uz' }}
           path: mobile
       - uses: actions/setup-node@v7
         with:
@@ -77,7 +77,7 @@ jobs:
       # Мобилка в веб: Expo web. Не поднялась — снимки веба всё равно будут.
       - name: Мобилка в веб
         id: mobile
-        if: ${{ (inputs.mobile_ref || 'master') != '' }}
+        if: ${{ (inputs.mobile_ref || 'i18n/uz') != '' }}
         continue-on-error: true
         working-directory: mobile
         env:
