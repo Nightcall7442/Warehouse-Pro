@@ -29,10 +29,11 @@ describe.skipIf(!hasRealDb)("сборка листа по строкам", () =>
     });
     operatorId = Number(op.insertId);
     // Партии первого товара: B сгорает раньше A; X просрочена и в подсказку не попадает.
+    // Просроченной — одна штука: заказ на 4 при остатке 10 проверяет годное (10 − 1 ≥ 4).
     await db.execute(sql`INSERT INTO stock_batches (tenant_id, warehouse_id, product_id, batch_key, batch_number, expires_at, quantity) VALUES
       (${s.tenantId}, ${s.warehouseId}, ${s.productId}, 'A|2026-12-01', 'A', '2026-12-01', 3.00),
       (${s.tenantId}, ${s.warehouseId}, ${s.productId}, 'B|2026-10-01', 'B', '2026-10-01', 2.00),
-      (${s.tenantId}, ${s.warehouseId}, ${s.productId}, 'X|2020-01-01', 'X', '2020-01-01', 9.00)`);
+      (${s.tenantId}, ${s.warehouseId}, ${s.productId}, 'X|2020-01-01', 'X', '2020-01-01', 1.00)`);
     const r = await OrderService.create(db, s.tenantId, s.agentId, {
       shopId: s.shopId, paymentMethod: "cash",
       items: [{ productId: s.productId, quantity: "4" }, { productId: s.secondProductId, quantity: "2" }],
@@ -50,7 +51,7 @@ describe.skipIf(!hasRealDb)("сборка листа по строкам", () =>
     const first = lines.find(l => Number(l.productId) === s.productId)!;
     expect(Number(first.requiredQty)).toBe(4);
     expect(first.pickedQty).toBeNull();
-    // 4 нужно: 2 из B (сгорает раньше), 2 из A; X (просрочена, 9 шт) — мимо.
+    // 4 нужно: 2 из B (сгорает раньше), 2 из A; X (просрочена) — мимо.
     expect(first.batches).toEqual([
       { batch: "B", expires: "2026-10-01", qty: 2 },
       { batch: "A", expires: "2026-12-01", qty: 2 },
