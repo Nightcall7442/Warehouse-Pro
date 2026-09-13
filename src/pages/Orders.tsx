@@ -753,7 +753,7 @@ function OperatorOrders() {
       <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
         {([
           { key: "", n: stats?.total ?? 0, ru: "Всего", uz: "Jami", icon: <ShoppingCart size={13} />, tone: undefined },
-          { key: "pending", n: stats?.pendingCount ?? 0, ru: "Ожидает", uz: "Kutmoqda", icon: <Clock size={13} />, tone: (stats?.pendingCount ?? 0) > 0 ? "warning" : undefined },
+          { key: "pending", n: stats?.pendingCount ?? 0, ru: "Ожидает", uz: "Kutishda", icon: <Clock size={13} />, tone: (stats?.pendingCount ?? 0) > 0 ? "warning" : undefined },
           { key: "new", n: stats?.newCount ?? 0, ru: "Новые", uz: "Yangi", icon: <Clock size={13} />, tone: undefined },
           { key: "processing", n: stats?.processingCount ?? 0, ru: "В обработке", uz: "Jarayonda", icon: <RefreshCw size={13} />, tone: undefined },
           { key: "shipped", n: stats?.shippedCount ?? 0, ru: "Отгружены", uz: "Yuklandi", icon: <Truck size={13} />, tone: undefined },
