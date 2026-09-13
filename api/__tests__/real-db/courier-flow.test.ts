@@ -103,7 +103,8 @@ describe.skipIf(!hasRealDb)("курьер: назначить → выехал �
     */
     const orders = (await import("../../order-router")).orderRouter;
     const asCourierOrders = orders.createCaller(ctxFor(db, s.tenantId, s.courierId, "courier"));
-    await expect(asCourierOrders.getById({ id: orderId })).rejects.toThrow();  // ещё не назначен
+    // Ещё не назначен — заказа «нет» (null), как и для агента с чужим заказом.
+    await expect(asCourierOrders.getById({ id: orderId })).resolves.toBeNull();
     await (await asOperator()).assignCourier({ orderId, courierId: s.courierId });
     const mine = await asCourierOrders.getById({ id: orderId });
     expect(mine).toMatchObject({ id: orderId, courierId: s.courierId });
