@@ -81,7 +81,7 @@ export function ShopFilters({ lang, search, setSearch, viewMode, setViewMode, ar
 
       <div style={{ position: "relative", flex: 1, minWidth: "200px" }}>
         <Search size={16} style={{ position: "absolute", left: "12px", top: "50%", transform: "translateY(-50%)", color: COLORS.textSecondary }} />
-        <input className="neo-input" style={{ paddingLeft: "40px", width: "100%" }} placeholder={t("Поиск магазинов…", "Do'kon qidirish…")} value={search} onChange={e => { setSearch(e.target.value); setPage(1); }} />
+        <input className="neo-input" style={{ paddingLeft: "40px", width: "100%" }} placeholder={t("Название, владелец, телефон…", "Nomi, egasi, telefon…")} value={search} onChange={e => { setSearch(e.target.value); setPage(1); }} />
       </div>
       {viewMode === "list" && agents.length > 0 && (
         <PremiumSelect value={agentFilter ?? ""} onChange={v => { setAgentFilter(v || undefined); setPage(1); }}

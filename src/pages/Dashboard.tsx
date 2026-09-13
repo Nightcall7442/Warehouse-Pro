@@ -226,6 +226,10 @@ export default function Dashboard() {
           <CardDots />
           <p className="kpi-hero-label">{t("ЗАКАЗЫ · СЕГОДНЯ", "BUYURTMALAR · BUGUN")}</p>
           <p className="kpi-hero-value" style={{ fontSize: "28px", marginTop: "8px" }}>{kpis.todayOrders}</p>
+          {/* Оформили — одно, довезли — другое; второе директор раньше узнавал по звонку. */}
+          <p style={{ fontSize: "12px", marginTop: "4px", color: kpis.deliveryPending > 0 ? "var(--color-warning-text)" : "var(--color-text-tertiary)" }}>
+            {t("Довезено сегодня", "Bugun yetkazildi")} {kpis.deliveredToday} {t("из", "/")} {kpis.deliveredToday + kpis.deliveryPending}
+          </p>
           {ordersDelta !== 0 && (
             <div style={{ display: "flex", alignItems: "center", gap: "4px", marginTop: "8px" }}>
               {ordersDelta > 0 ? <TrendingUp size={14} color="var(--color-success-text)" /> : <TrendingDown size={14} color="var(--color-danger-text)" />}
@@ -346,8 +350,12 @@ export default function Dashboard() {
           <div style={{ marginBottom: "16px" }}>
             <h2 style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px", fontWeight: 700, color: "var(--color-text-primary, #2b2a28)", margin: 0, display: "flex", alignItems: "center", gap: "8px" }}>
               <PieChart size={16} color="var(--color-primary-text)" />
-              {t("Статусы заказов", "Buyurtmalar holati")}
+              {t("Заказы в работе", "Ishdagi buyurtmalar")}
             </h2>
+            {/* Без периода круг читался как «за всё время» — и был им. */}
+            <p style={{ fontSize: "12px", color: "var(--color-text-tertiary)", margin: "4px 0 0" }}>
+              {t("Открытые сейчас — без доставленных и отменённых", "Hozir ochiq — yetkazilgan va bekor qilinganlarsiz")}
+            </p>
           </div>
           <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
             {/* Donut chart */}
@@ -376,7 +384,7 @@ export default function Dashboard() {
               {/* Center label */}
               <div style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%, -50%)", textAlign: "center", pointerEvents: "none" }}>
                 <span style={{ fontSize: "28px", fontWeight: 700, color: "var(--color-text-primary, #2b2a28)", lineHeight: 1 }}>{statusTotal}</span>
-                <span style={{ fontSize: "11px", color: "var(--color-text-tertiary, #6b6760)", display: "block", marginTop: "2px" }}>{t("заказов", "buyurtma")}</span>
+                <span style={{ fontSize: "11px", color: "var(--color-text-tertiary, #6b6760)", display: "block", marginTop: "2px" }}>{t("в работе", "ishda")}</span>
               </div>
             </div>
             {/* Legend */}

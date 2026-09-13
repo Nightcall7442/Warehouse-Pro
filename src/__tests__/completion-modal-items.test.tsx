@@ -43,13 +43,13 @@ const ITEMS = [
   { id: 2625, productName: "TOSHKENT suv", quantity: 2, unitPrice: "59500.00", subtotal: "119000.00", deliveredQuantity: null, returnReason: null },
 ];
 
-function open(onSave: (d: unknown) => void) {
+function open(onSave: (d: unknown) => void, mode: "partial_payment" | "combined" = "partial_payment") {
   return render(
     <LangProvider>
       <CompletionFlowModal
         open
         onClose={() => {}}
-        mode="partial_payment"
+        mode={mode}
         orderNumber="№1165"
         orderTotal="379000.00"
         items={ITEMS}
@@ -88,5 +88,39 @@ describe("окно завершения заказа", () => {
     fireEvent.change(screen.getByLabelText(/Сумма оплаты|To'lov summasi/), { target: { value: "300000" } });
     fireEvent.click(screen.getByRole("button", { name: /Сохранить|Saqlash|Завершить|Tugatish/ }));
     expect((onSave.mock.calls[0][0] as { paidAmount?: string }).paidAmount).toBe("300000");
+  });
+
+  /*
+    «Полностью» и «Ничего» у поля суммы.
+
+    Сумму набирали руками при каждом завершении, а она почти всегда одна из
+    двух. «Полностью» — итог за вычетом вернувшегося товара: с полным итогом
+    при частичном возврате поле уходило бы за проверку «не больше суммы».
+  */
+  it("«Ничего» ставит 0, «Полностью» — итог заказа", () => {
+    const onSave = vi.fn();
+    open(onSave);
+    const поле = screen.getByLabelText(/Сумма оплаты|To'lov summasi/) as HTMLInputElement;
+
+    fireEvent.click(screen.getByRole("button", { name: /^Ничего$|^Hech narsa$/ }));
+    expect(поле.value).toBe("0");
+
+    fireEvent.click(screen.getByRole("button", { name: /^Полностью$|^To'liq$/ }));
+    expect(поле.value).toBe("379000");
+
+    fireEvent.click(screen.getByRole("button", { name: /Завершить|Tugatish/ }));
+    expect((onSave.mock.calls[0][0] as { paidAmount?: string; debtAmount?: string }).paidAmount).toBe("379000");
+    expect((onSave.mock.calls[0][0] as { debtAmount?: string }).debtAmount).toBe("0");
+  });
+
+  it("«Полностью» вычитает вернувшийся товар", () => {
+    const onSave = vi.fn();
+    open(onSave, "combined");
+    // Первая позиция вернулась целиком: 2 × 130 000.
+    fireEvent.click(screen.getAllByRole("button", { name: /^Оставил$|^Oldi$/ })[0]);
+    fireEvent.click(screen.getByRole("button", { name: /^Полностью$|^To'liq$/ }));
+
+    const поле = screen.getByLabelText(/Сумма оплаты|To'lov summasi/) as HTMLInputElement;
+    expect(поле.value, "в поле ушёл итог с возвращённым товаром").toBe("119000");
   });
 });

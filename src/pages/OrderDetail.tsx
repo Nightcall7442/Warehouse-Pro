@@ -91,9 +91,16 @@ export default function OrderDetail() {
 
   const { company: seller, footerNote } = useSellerCompany();
 
+  /*
+    Курьера назначают, пока заказ открыт, — как в панели списка и на сервере.
+
+    Здесь стояло «новый или в обработке», и после сборки в погрузочный лист
+    (статус «отгружен») блок пропадал из карточки — ровно тогда, когда заказ
+    и отдают курьеру. Из панели списка тот же заказ назначался.
+  */
   const { data: couriers } = trpc.user.list.useQuery(
     { role: "courier" },
-    { enabled: isOperatorOrCeo && !!order && (order.status === "new" || order.status === "processing") }
+    { enabled: isOperatorOrCeo && !!order && OPEN_STATUSES.includes(order.status) }
   );
 
   /*
@@ -785,7 +792,7 @@ export default function OrderDetail() {
       {!order.deletedAt && <OrderComments orderId={order.id} />}
 
       {/* ── Courier Assignment ── */}
-      {isOperatorOrCeo && (order.status === "new" || order.status === "processing") && (
+      {isOperatorOrCeo && OPEN_STATUSES.includes(order.status) && (
         <div className="neo-card p-4">
           <p className="font-label text-secondary text-xs tracking-wider mb-3 flex items-center gap-2">
             <Truck size={14}/> {lang === "uz" ? "KURYERNI TAYINLASH" : "НАЗНАЧИТЬ КУРЬЕРА"}

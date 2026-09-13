@@ -69,6 +69,8 @@ export interface LocationPoint {
   createdAt?: Date | string | null;
   batteryLevel?: number | null;
   accuracy?: string | number | null;
+  /** Телефон пометил координаты как подменённые (Android). */
+  mocked?: boolean | null;
 }
 
 export interface TrackedAgent {
@@ -82,6 +84,8 @@ export interface TrackedAgent {
   lng: number | null;
   batteryLevel: number | null;
   accuracy: number | null;
+  /** Последняя точка подменена: метке на карте верить нельзя. */
+  mocked: boolean;
 }
 
 export interface Roster {
@@ -158,6 +162,7 @@ export function buildRoster(
       lng: coord(p?.lng),
       batteryLevel: p?.batteryLevel ?? null,
       accuracy: p?.accuracy == null ? null : Number(p.accuracy),
+      mocked: p?.mocked === true,
     });
   }
 

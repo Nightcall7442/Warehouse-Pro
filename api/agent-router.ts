@@ -468,6 +468,10 @@ export const agentRouter = createRouter({
       // точек, пролежавших в буфере без связи, это разные вещи: карта должна
       // показывать, когда агент там был, а не когда телефон дозвонился.
       at: sql<Date>`COALESCE(${agentLocations.recordedAt}, ${agentLocations.createdAt})`,
+      // Телефон пометил координаты как подменённые. Писалось с первого дня,
+      // а читалось нигде: супервайзер видел метку «на связи» там, куда
+      // человека поставило приложение-подделка.
+      mocked: agentLocations.mocked,
       agentName: users.name,
     })
       .from(agentLocations)

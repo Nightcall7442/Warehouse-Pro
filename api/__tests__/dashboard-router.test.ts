@@ -47,9 +47,9 @@ let productsTable: any[] = [];
 
 function resetTables() {
   ordersTable = [
-    { id: 1, tenantId: 1, status: "delivered", total: "50000", shopId: 1, agentId: 20, orderNumber: "ORD-001", deletedAt: null, createdAt: new Date() },
-    { id: 2, tenantId: 1, status: "pending", total: "30000", shopId: 2, agentId: 20, orderNumber: "ORD-002", deletedAt: null, createdAt: new Date() },
-    { id: 3, tenantId: 2, status: "delivered", total: "10000", shopId: 3, agentId: 30, orderNumber: "ORD-003", deletedAt: null, createdAt: new Date() },
+    { id: 1, tenantId: 1, status: "delivered", deliveryStatus: "delivered", total: "50000", shopId: 1, agentId: 20, orderNumber: "ORD-001", deletedAt: null, createdAt: new Date() },
+    { id: 2, tenantId: 1, status: "pending", deliveryStatus: "assigned", total: "30000", shopId: 2, agentId: 20, orderNumber: "ORD-002", deletedAt: null, createdAt: new Date() },
+    { id: 3, tenantId: 2, status: "delivered", deliveryStatus: "delivered", total: "10000", shopId: 3, agentId: 30, orderNumber: "ORD-003", deletedAt: null, createdAt: new Date() },
   ];
   warehouseStockTable = [
     { id: 10, tenantId: 1, productId: 1, currentStock: "200", reserved: "10", available: "190" },
@@ -85,6 +85,7 @@ const colToField = new Map<unknown, string>();
 function reg(table: object, name: string) { colToField.set((table as Record<string, unknown>)[name], name); }
 reg(orders, "id"); reg(orders, "tenantId"); reg(orders, "status"); reg(orders, "total");
 reg(orders, "shopId"); reg(orders, "agentId"); reg(orders, "orderNumber"); reg(orders, "deletedAt"); reg(orders, "createdAt");
+reg(orders, "deliveryStatus");
 reg(warehouseStock, "id"); reg(warehouseStock, "tenantId"); reg(warehouseStock, "productId"); reg(warehouseStock, "currentStock");
 reg(users, "id"); reg(users, "tenantId"); reg(users, "role"); reg(users, "status"); reg(users, "name");
 reg(shops, "id"); reg(shops, "tenantId"); reg(shops, "name"); reg(shops, "debt"); reg(shops, "agentId");
@@ -303,6 +304,15 @@ describe("dashboard.kpis", () => {
     const result = await caller.kpis();
     expect(result.activeAgents).toBe(2);
   });
+
+  it("«довезено сегодня N из M»: довезённые — по статусу, «из» — плюс те, что в пути", async () => {
+    const { dashboardRouter } = await import("../dashboard-router");
+    const caller = dashboardRouter.createCaller(buildCtx());
+    const result = await caller.kpis();
+    // Один доставлен, один назначен курьеру; чужой организации нет.
+    expect(result.deliveredToday).toBe(1);
+    expect(result.deliveryPending).toBe(1);
+  });
 });
 
 describe("dashboard.trends", () => {
@@ -322,11 +332,12 @@ describe("dashboard.trends", () => {
 });
 
 describe("dashboard.statusBreakdown", () => {
-  it("returns status counts", async () => {
+  it("считает только открытые заказы", async () => {
     const { dashboardRouter } = await import("../dashboard-router");
     const caller = dashboardRouter.createCaller(buildCtx());
     const result = await caller.statusBreakdown();
-    expect(Array.isArray(result)).toBe(true);
+    // Доставленный — история, а не работа; в круге ему не место.
+    expect(result.map(r => r.status)).toEqual(["pending"]);
   });
 });
 

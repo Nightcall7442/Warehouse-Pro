@@ -155,6 +155,16 @@ export function CompletionFlowModal({
 
   const totalReturned = itemStates.reduce((s, it) => s + it.returnedQty, 0);
   const totalKept = itemStates.reduce((s, it) => s + (it.orderedQty - it.returnedQty), 0);
+  /*
+    Сколько магазин должен за то, что оставил: итог минус вернувшийся товар.
+
+    Сумму оплаты набирали руками при каждом завершении, а чаще всего она одна
+    из двух: всё или ничего. Кнопки ставят эти два числа; «всё» — за вычетом
+    возвратов, иначе при частичном возврате в поле уходил бы итог целиком,
+    и проверка ниже отказывала.
+  */
+  const returnedValue = itemStates.reduce((s, it) => s + it.returnedQty * it.unitPrice, 0);
+  const dueAmount = Math.max(0, total - returnedValue);
 
   function toggleReturned(idx: number) {
     setItemStates(prev => prev.map((it, i) => {
@@ -370,14 +380,24 @@ export function CompletionFlowModal({
 
           <div className="mb-3">
             <label htmlFor="paid-amount" className={modalFieldLabel}>{t("Сумма оплаты", "To'lov summasi")}</label>
-            <Input
-              id="paid-amount"
-              type="number" min={0} max={total}
-              value={paidAmount}
-              onChange={e => { setPaidAmount(e.target.value); setError(null); }}
-              placeholder="0"
-              className="h-10 text-base font-bold font-data"
-            />
+            <div className="flex items-center gap-2">
+              <Input
+                id="paid-amount"
+                type="number" min={0} max={total}
+                value={paidAmount}
+                onChange={e => { setPaidAmount(e.target.value); setError(null); }}
+                placeholder="0"
+                className="h-10 text-base font-bold font-data"
+              />
+              <button type="button" className="neo-btn neo-btn-sm shrink-0"
+                onClick={() => { setPaidAmount(String(dueAmount)); setError(null); }}>
+                {t("Полностью", "To'liq")}
+              </button>
+              <button type="button" className="neo-btn neo-btn-sm shrink-0"
+                onClick={() => { setPaidAmount("0"); setError(null); }}>
+                {t("Ничего", "Hech narsa")}
+              </button>
+            </div>
           </div>
 
           {paidAmount && Number(paidAmount) > 0 && Number(paidAmount) < total && (
