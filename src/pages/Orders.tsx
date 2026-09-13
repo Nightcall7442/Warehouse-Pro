@@ -42,7 +42,7 @@ import { CompletionFlowModal } from "@/components/orders/CompletionFlowModal";
 import { BulkCompletionModal } from "@/components/orders/BulkCompletionModal";
 import type { BulkEntry } from "@/components/orders/BulkCompletionModal";
 import type { CompletionData, CompletionMode } from "@/components/orders/CompletionFlowModal";
-import { KpiCard, StatusBadge } from "@/components/orders/theme";
+import { StatusBadge } from "@/components/orders/theme";
 import { F, COLORS, SHADOW, OPEN_STATUSES, PAYMENT, STATUS } from "@/components/orders/theme-tokens";
 import { colorMix } from "@/lib/color-mix";
 
@@ -740,64 +740,51 @@ function OperatorOrders() {
         </button>
       </div>
 
-      {/* ─── KPI Cards (server-side aggregation) ─── */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "12px" }}>
-        <KpiCard
-          label={t("ВСЕГО", "JAMI")}
-          value={(stats?.total ?? 0).toLocaleString()}
-          delta={null}
-          icon={<ShoppingCart size={20} color="#fff" />}
-          gradient="var(--color-primary)"
-          delay={0}
-        />
-        <KpiCard
-          label={t("НОВЫЕ", "YANGI")}
-          value={(stats?.newCount ?? 0).toLocaleString()}
-          delta={null}
-          icon={<Clock size={20} color="#fff" />}
-          gradient="linear-gradient(135deg, #60a5fa, #3b82f6)"
-          delay={0.05}
-        />
-        <KpiCard
-          label={t("В ОБРАБОТКЕ", "JARAYONDA")}
-          value={(stats?.processingCount ?? 0).toLocaleString()}
-          delta={null}
-          icon={<RefreshCw size={20} color="#fff" />}
-          gradient="linear-gradient(135deg, #e07b39, #e07b39)"
-          delay={0.1}
-        />
-        <KpiCard
-          label={t("ОТГРУЖЕНЫ", "YUKLANDI")}
-          value={(stats?.shippedCount ?? 0).toLocaleString()}
-          delta={null}
-          icon={<Truck size={20} color="#fff" />}
-          gradient="linear-gradient(135deg, #9b59b6, #8e44ad)"
-          delay={0.15}
-        />
-        <KpiCard
-          label={t("ДОСТАВЛЕНЫ", "YETKAZILDI")}
-          value={(stats?.deliveredCount ?? 0).toLocaleString()}
-          delta={null}
-          icon={<CheckCircle2 size={20} color="#fff" />}
-          gradient="linear-gradient(135deg, #10B981, #059669)"
-          delay={0.2}
-        />
-        <KpiCard
-          label={t("ОТМЕНЕНЫ", "BEKOR")}
-          value={(stats?.cancelledCount ?? 0).toLocaleString()}
-          delta={null}
-          icon={<XCircle size={20} color="#fff" />}
-          gradient="linear-gradient(135deg, var(--color-danger), var(--color-danger))"
-          delay={0.25}
-        />
-        <KpiCard
-          label={t("ВЫРУЧКА", "TUSHUM")}
-          value={fmt(stats?.totalRevenue ?? 0)}
-          delta={null}
-          icon={<DollarSign size={20} color="#fff" />}
-          gradient="linear-gradient(135deg, #16a34a, #22c47a)"
-          delay={0.3}
-        />
+      {/*
+        Сводка — одной строкой, а не семью плитками.
+
+        Оператор открывает этот экран сто раз в день ради строк таблицы, а
+        плитки занимали первый экран (на 1366px — два ряда), и таблица
+        начиналась за прокруткой. Числа остались, но стали фильтрами: клик по
+        «Новые» показывает новые. «Ожидает» — заказы, которые ждут решения
+        офиса; раньше их не было ни в плитках, ни в чипах, и оператор о них не
+        знал, пока агент не звонил.
+      */}
+      <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
+        {([
+          { key: "", n: stats?.total ?? 0, ru: "Всего", uz: "Jami", icon: <ShoppingCart size={13} />, tone: undefined },
+          { key: "pending", n: stats?.pendingCount ?? 0, ru: "Ожидает", uz: "Kutmoqda", icon: <Clock size={13} />, tone: (stats?.pendingCount ?? 0) > 0 ? "warning" : undefined },
+          { key: "new", n: stats?.newCount ?? 0, ru: "Новые", uz: "Yangi", icon: <Clock size={13} />, tone: undefined },
+          { key: "processing", n: stats?.processingCount ?? 0, ru: "В обработке", uz: "Jarayonda", icon: <RefreshCw size={13} />, tone: undefined },
+          { key: "shipped", n: stats?.shippedCount ?? 0, ru: "Отгружены", uz: "Yuklandi", icon: <Truck size={13} />, tone: undefined },
+          { key: "delivered", n: stats?.deliveredCount ?? 0, ru: "Доставлены", uz: "Yetkazildi", icon: <CheckCircle2 size={13} />, tone: undefined },
+          { key: "cancelled", n: stats?.cancelledCount ?? 0, ru: "Отменены", uz: "Bekor", icon: <XCircle size={13} />, tone: undefined },
+        ] as const).map(s => {
+          const active = status === s.key;
+          const warn = s.tone === "warning";
+          return (
+            <button
+              key={s.key || "all"}
+              type="button"
+              onClick={() => setStatus(active ? "" : s.key)}
+              className="neo-btn"
+              aria-pressed={active}
+              style={{
+                fontSize: "12px", padding: "6px 10px", gap: "6px",
+                color: active ? COLORS.onPrimary : warn ? "var(--color-warning-text)" : COLORS.textSecondary,
+                background: active ? "var(--color-primary)" : warn ? "var(--color-warning-subtle)" : undefined,
+              }}
+            >
+              {s.icon}
+              <span className="font-data" style={{ fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>{s.n.toLocaleString()}</span>
+              <span>{t(s.ru, s.uz)}</span>
+            </button>
+          );
+        })}
+        <span style={{ marginLeft: "auto", fontSize: "12px", color: COLORS.textSecondary, display: "flex", alignItems: "center", gap: "6px" }}>
+          <DollarSign size={13} />
+          <span className="font-data" style={{ fontWeight: 700 }}>{fmt(stats?.totalRevenue ?? 0)}</span>
+        </span>
       </div>
 
       {/* ─── View Mode Toggle + Filter Chips ─── */}
