@@ -1,6 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { AppModal, modalSectionLabel } from "@/components/ui/AppModal";
-import { Printer, Loader2 } from "lucide-react";
+import { Printer, Loader2, ClipboardList } from "lucide-react";
 import { trpc } from "@/providers/trpc";
 import { notify } from "@/lib/toast";
 import { printLoadingList, type LoadingListData } from "@/lib/documents";
@@ -49,45 +49,52 @@ export function LoadingListModal({ open, onOpenChange, orderIds, onDone }: Props
     }
   };
 
-  // Запрос уходит сразу при открытии окна, с настройками по умолчанию.
-  //
-  // Сброс прошлого результата и сам запрос выполняются внутри асинхронной
-  // функции, а не в теле эффекта: синхронный setState в эффекте заставляет
-  // React сделать лишний проход отрисовки сразу после открытия. Порядок
-  // действий тот же, что и раньше.
-  useEffect(() => {
-    if (!open || orderIds.length === 0) return;
-    void (async () => {
-      setResult(null);
-      await handleGenerate();
-    })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, orderIds.join(",")]);
+  /*
+    Лист создаётся по кнопке, а не при открытии окна.
+
+    Запрос уходил сразу при открытии: оператор выделял заказы, нажимал
+    «Загруз. лист», смотрел — и передумывал, а лист уже был записан и держал
+    заказы. Следующая попытка собрать их отвечала «закройте прежний лист».
+    Ровно так у арендатора одиннадцать заказов застряли в ZL-20260908-JPXE.
+    Теперь до «Сформировать» в базе ничего нет, и «Отмена» — просто отмена.
+  */
+  const close = () => { setResult(null); onOpenChange(false); };
 
   const handlePrint = () => {
     if (!result) return;
     printLoadingList({ ...result, companyName: seller.name || undefined }, listFormat, currency);
     onDone();
-    onOpenChange(false);
+    close();
   };
 
   return (
     <AppModal
       open={open}
-      onClose={() => onOpenChange(false)}
+      onClose={close}
       title={t("Загрузочный лист", "Yuklash varaqi")}
       subtitle={`${t("Выбрано заказов", "Tanlangan buyurtmalar")}: ${orderIds.length}`}
       maxWidth={760}
-      footer={
+      footer={result ? (
         <>
-          <button type="button" onClick={handlePrint} disabled={!result} className="neo-btn-primary flex-1 h-12 text-sm">
+          <button type="button" onClick={handlePrint} className="neo-btn-primary flex-1 h-12 text-sm">
             <Printer size={16} />{t("Печать", "Chop etish")}
           </button>
-          <button type="button" onClick={() => onOpenChange(false)} className="neo-btn flex-1 h-12 text-sm">
+          {/* Лист уже записан: закрыть без печати — не «отмена», он в «Погрузочных листах». */}
+          <button type="button" onClick={() => { onDone(); close(); }} className="neo-btn flex-1 h-12 text-sm">
+            {t("Готово, без печати", "Tayyor, chop etmasdan")}
+          </button>
+        </>
+      ) : (
+        <>
+          <button type="button" onClick={handleGenerate} disabled={loading || orderIds.length === 0} className="neo-btn-primary flex-1 h-12 text-sm">
+            {loading ? <Loader2 size={16} className="animate-spin" /> : <ClipboardList size={16} />}
+            {t("Сформировать лист", "Varaqa tuzish")}
+          </button>
+          <button type="button" onClick={close} disabled={loading} className="neo-btn flex-1 h-12 text-sm">
             {t("Отмена", "Bekor qilish")}
           </button>
         </>
-      }
+      )}
     >
       <div>
         <p className={modalSectionLabel}>{t("Формат", "Format")}</p>
@@ -118,7 +125,12 @@ export function LoadingListModal({ open, onOpenChange, orderIds, onDone }: Props
             <Loader2 size={15} className="animate-spin" />
             {t("Формируется…", "Tayyorlanmoqda…")}
           </div>
-        ) : result && (
+        ) : !result ? (
+          <p className="text-sm py-6" style={{ color: "var(--color-text-tertiary)" }}>
+            {t("Лист ещё не создан: нажмите «Сформировать лист». Пока не нажали — заказы свободны.",
+               "Varaqa hali tuzilmagan: «Varaqa tuzish» tugmasini bosing. Bosmaguningizcha buyurtmalar bo'sh.")}
+          </p>
+        ) : (
           <div className="neo-card-sm" style={{ padding: "16px" }}>
             <div className="grid grid-cols-3 gap-3 mb-4">
               {[

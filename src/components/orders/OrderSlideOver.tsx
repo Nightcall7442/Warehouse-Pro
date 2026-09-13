@@ -492,6 +492,24 @@ export function OrderSlideOver({ open, onOpenChange, orderId, currency = "сум
           </SheetTitle>
         </SheetHeader>
 
+        {/*
+          Заказ ждёт офиса (скидка выше порога у полевого сотрудника). В таблице
+          это серая плашка без причины, и оператор должен был догадаться
+          перевести заказ в «новый» селектом. Причина и два действия — здесь.
+        */}
+        {order && order.status === "pending" && isOperatorOrCeo && !order.deletedAt && (
+          <div className="mx-5 mb-3 px-4 py-3 rounded-xl" style={{ background: "var(--color-warning-subtle)", border: "1px solid var(--color-warning)" }}>
+            <p style={{ fontSize: "12.5px", fontWeight: 600, color: "var(--color-warning-text)" }}>
+              {t("Ждёт подтверждения офиса", "Ofis tasdig'ini kutmoqda")}
+              {order.holdReason ? `: ${order.holdReason}` : ""}
+            </p>
+            <div style={{ display: "flex", gap: "8px", marginTop: "8px", flexWrap: "wrap" }}>
+              <PillButton tone="success" onClick={() => void handleStatusChange("new")}>{t("Подтвердить", "Tasdiqlash")}</PillButton>
+              <PillButton tone="ghost" onClick={() => void handleStatusChange("cancelled")}>{t("Отклонить", "Rad etish")}</PillButton>
+            </div>
+          </div>
+        )}
+
         {order && (
           <Tabs defaultValue="details" className="flex-1 flex flex-col overflow-hidden">
             <TabsList className="mx-5">

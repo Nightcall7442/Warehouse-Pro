@@ -22,6 +22,9 @@ const MARGIN_WINDOW_DAYS = 90;
 type DashboardKpis = {
   todayOrders:  number;
   todayRevenue: number;
+  /** Вчерашние — ради стрелки под плиткой: сравнение дня с днём, а не недели с обрывком. */
+  yesterdayOrders:  number;
+  yesterdayRevenue: number;
   activeAgents: number;
   totalStock:   number;
   customerDebt: number;
@@ -48,11 +51,17 @@ export const dashboardRouter = createRouter({
     // на сотые доли и не реагирует на то, что происходит в бизнесе сейчас.
     const marginFrom = subDays(new Date(), MARGIN_WINDOW_DAYS).toISOString().split("T")[0];
 
-    const [todaysOrders, todaysRevenue, activeAgents, totalStock, customerDebt, revenueResult, costResult] = await Promise.all([
-      db.select({ count: sql<number>`count(*)` }).from(orders)
-        .where(and(eq(orders.tenantId, tenantId), onDay(orders.createdAt, today), isNull(orders.deletedAt))),
-      db.select({ total: sql<string>`COALESCE(SUM(${orders.total}), 0)` }).from(orders)
-        .where(and(eq(orders.tenantId, tenantId), onDay(orders.createdAt, today), inArray(orders.status, REVENUE_ORDER_STATUSES), isNull(orders.deletedAt))),
+    const yesterday = subDays(new Date(), 1).toISOString().split("T")[0];
+    const ordersOn  = (day: string) => db.select({ count: sql<number>`count(*)` }).from(orders)
+      .where(and(eq(orders.tenantId, tenantId), onDay(orders.createdAt, day), isNull(orders.deletedAt)));
+    const revenueOn = (day: string) => db.select({ total: sql<string>`COALESCE(SUM(${orders.total}), 0)` }).from(orders)
+      .where(and(eq(orders.tenantId, tenantId), onDay(orders.createdAt, day), inArray(orders.status, REVENUE_ORDER_STATUSES), isNull(orders.deletedAt)));
+
+    const [todaysOrders, todaysRevenue, yesterdaysOrders, yesterdaysRevenue, activeAgents, totalStock, customerDebt, revenueResult, costResult] = await Promise.all([
+      ordersOn(today),
+      revenueOn(today),
+      ordersOn(yesterday),
+      revenueOn(yesterday),
       db.select({ count: sql<number>`count(*)` }).from(users)
         .where(and(eq(users.tenantId, tenantId), eq(users.role, "agent"), eq(users.status, "active"))),
       db.select({ total: sql<string>`COALESCE(SUM(${warehouseStock.currentStock}), 0)` }).from(warehouseStock)
@@ -104,6 +113,8 @@ export const dashboardRouter = createRouter({
     const result: DashboardKpis = {
       todayOrders:  Number(todaysOrders[0]?.count ?? 0),
       todayRevenue: Number(todaysRevenue[0]?.total ?? 0),
+      yesterdayOrders:  Number(yesterdaysOrders[0]?.count ?? 0),
+      yesterdayRevenue: Number(yesterdaysRevenue[0]?.total ?? 0),
       activeAgents: Number(activeAgents[0]?.count ?? 0),
       totalStock:   Number(totalStock[0]?.total ?? 0),
       customerDebt: Number(customerDebt[0]?.total ?? 0),
@@ -119,8 +130,10 @@ export const dashboardRouter = createRouter({
     .query(async ({ input, ctx }) => {
       const db        = ctx.db;
       const tenantId  = ctx.tenant.id;
-      const days      = input.range === "7d" ? 7 : 30;
-      const startDate = subDays(new Date(), days).toISOString().split("T")[0];
+      // «Месяц» — с первого числа: пилюля рядом с «30д» обязана отличаться от неё.
+      const startDate = input.range === "month"
+        ? new Date().toISOString().slice(0, 8) + "01"
+        : subDays(new Date(), input.range === "7d" ? 7 : 30).toISOString().split("T")[0];
 
       return db.select({
         date:       sql<string>`DATE(${orders.createdAt})`,

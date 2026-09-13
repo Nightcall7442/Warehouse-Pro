@@ -135,10 +135,18 @@ export default function Dashboard() {
   const chartData = useMemo(() => trends?.map(tr => ({ date: format(new Date(tr.date), "dd/MM"), orders: tr.orderCount, revenue: Number(tr.revenue) })) ?? [], [trends]);
   const revenueTrend = useMemo(() => (trends ?? []).slice(-7).map(tr => Number(tr.revenue)), [trends]);
   const ordersTrend = useMemo(() => (trends ?? []).slice(-7).map(tr => tr.orderCount), [trends]);
-  const prev7 = useMemo(() => (trends ?? []).slice(-14, -7), [trends]);
-  const calcDelta = useCallback((curr: number[], prev: number[]): number => { const sumPrev = prev.reduce((a, b) => a + b, 0); const sumCurr = curr.reduce((a, b) => a + b, 0); if (sumPrev === 0) return sumCurr > 0 ? 100 : 0; return Math.round(((sumCurr - sumPrev) / sumPrev) * 1000) / 10; }, []);
-  const revenueDelta = useMemo(() => calcDelta(revenueTrend, prev7.map(tr => Number(tr.revenue))), [calcDelta, revenueTrend, prev7]);
-  const ordersDelta = useMemo(() => calcDelta(ordersTrend, prev7.map(tr => tr.orderCount)), [calcDelta, ordersTrend, prev7]);
+  /*
+    Стрелка под плиткой — сегодня против вчера.
+
+    Считалась «последние 7 дней против предыдущих 7» по ответу trends, который
+    при стартовом диапазоне отдаёт не больше восьми дней: предыдущей недели в
+    нём не было, и стрелка почти всегда показывала «+100 %». Директор каждое
+    утро видел рост, которого нет. Плитка показывает день — сравнивать надо
+    день с днём; пока вчера пусто, стрелки нет.
+  */
+  const calcDelta = useCallback((curr: number, prev: number): number => (prev === 0 ? 0 : Math.round(((curr - prev) / prev) * 1000) / 10), []);
+  const revenueDelta = useMemo(() => (kpis ? calcDelta(kpis.todayRevenue, kpis.yesterdayRevenue) : 0), [calcDelta, kpis]);
+  const ordersDelta = useMemo(() => (kpis ? calcDelta(kpis.todayOrders, kpis.yesterdayOrders) : 0), [calcDelta, kpis]);
   const statusTotal = useMemo(() => statusData?.reduce((s: number, d) => s + Number(d.count), 0) ?? 1, [statusData]);
   const greeting = getGreeting(t);
 
@@ -197,12 +205,13 @@ export default function Dashboard() {
         {/* Revenue */}
         <div className="kpi-hero" style={{ cursor: "pointer" }} onClick={() => navigate("/reports")}>
           <CardDots />
-          <p className="kpi-hero-label">{t("ВЫРУЧКА", "TUSHUM")}</p>
+          <p className="kpi-hero-label">{t("ВЫРУЧКА · СЕГОДНЯ", "TUSHUM · BUGUN")}</p>
           <p className="kpi-hero-value" style={{ fontSize: "28px", marginTop: "8px" }}>{fmt(kpis.todayRevenue, true)}</p>
           {revenueDelta !== 0 && (
             <div style={{ display: "flex", alignItems: "center", gap: "4px", marginTop: "8px" }}>
               {revenueDelta > 0 ? <TrendingUp size={14} color="var(--color-success-text)" /> : <TrendingDown size="14" color="var(--color-danger-text)" />}
               <span style={{ fontSize: "12px", fontWeight: 600, color: revenueDelta > 0 ? "var(--color-success-text)" : "var(--color-danger-text)" }}>{Math.abs(revenueDelta).toFixed(1)}%</span>
+              <span style={{ fontSize: "11px", color: "var(--color-text-tertiary)" }}>{t("к вчера", "kechaga nisbatan")}</span>
             </div>
           )}
           {miniBarRevenue.length > 0 && (
@@ -215,12 +224,13 @@ export default function Dashboard() {
         {/* Orders */}
         <div className="kpi-hero" style={{ cursor: "pointer" }} onClick={() => navigate("/orders")}>
           <CardDots />
-          <p className="kpi-hero-label">{t("ЗАКАЗЫ", "BUYURTMALAR")}</p>
+          <p className="kpi-hero-label">{t("ЗАКАЗЫ · СЕГОДНЯ", "BUYURTMALAR · BUGUN")}</p>
           <p className="kpi-hero-value" style={{ fontSize: "28px", marginTop: "8px" }}>{kpis.todayOrders}</p>
           {ordersDelta !== 0 && (
             <div style={{ display: "flex", alignItems: "center", gap: "4px", marginTop: "8px" }}>
               {ordersDelta > 0 ? <TrendingUp size={14} color="var(--color-success-text)" /> : <TrendingDown size={14} color="var(--color-danger-text)" />}
               <span style={{ fontSize: "12px", fontWeight: 600, color: ordersDelta > 0 ? "var(--color-success-text)" : "var(--color-danger-text)" }}>{Math.abs(ordersDelta).toFixed(1)}%</span>
+              <span style={{ fontSize: "11px", color: "var(--color-text-tertiary)" }}>{t("к вчера", "kechaga nisbatan")}</span>
             </div>
           )}
           {miniBarOrders.length > 0 && (
@@ -232,11 +242,11 @@ export default function Dashboard() {
 
         {/* Debt */}
         <CircularKpiCard
-          label={t("ДОЛГ КЛИЕНТОВ", "MIJZOZLAR QARZI")}
+          label={t("ДОЛГ КЛИЕНТОВ", "MIJOZLAR QARZI")}
           value={fmt(kpis.customerDebt ?? 0, true)}
           icon={<Activity size={18} color="var(--color-warning-text)" />}
           delay={0.1}
-          onClick={() => navigate("/reports")}
+          onClick={() => navigate("/reports?tab=debts")}
         />
 
         {/* Gross Margin */}
@@ -252,10 +262,15 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Smart Alerts */}
+      {/* Smart Alerts — каждая карточка ведёт туда, где на неё отвечают */}
       {alerts && alerts.length > 0 && (
         <div style={{ display: "flex", gap: "12px", overflowX: "auto", paddingBottom: "4px" }}>
           {alerts.slice(0, 4).map((alert, i) => {
+            const target: Record<string, string> = {
+              low_stock: "/warehouse", pending_orders: "/orders?status=new", plan_summary: "/supervisor/plans",
+              high_debt: "/reports?tab=debts", expired_stock: "/warehouse-reports", expiring_stock: "/warehouse-reports",
+            };
+            const link = target[alert.type];
             const colors: Record<string, { bg: string; icon: string }> = {
               info: { bg: "var(--color-info-subtle)", icon: "var(--color-info, #5a8fad)" },
               warning: { bg: "var(--color-warning-subtle)", icon: "var(--color-warning)" },
@@ -263,7 +278,15 @@ export default function Dashboard() {
             };
             const c = colors[alert.severity] || colors.info;
             return (
-              <div key={i} className="neo-card-sm" style={{ flex: "0 0 auto", minWidth: "240px", padding: "14px 16px", display: "flex", alignItems: "center", gap: "12px", borderLeft: `3px solid ${c.icon}` }}>
+              <div
+                key={i}
+                className="neo-card-sm"
+                role={link ? "link" : undefined}
+                tabIndex={link ? 0 : undefined}
+                onClick={link ? () => navigate(link) : undefined}
+                onKeyDown={link ? (e) => { if (e.key === "Enter") navigate(link); } : undefined}
+                style={{ flex: "0 0 auto", minWidth: "240px", padding: "14px 16px", display: "flex", alignItems: "center", gap: "12px", borderLeft: `3px solid ${c.icon}`, cursor: link ? "pointer" : "default" }}
+              >
                 <div className="neo-btn-icon" style={{ width: "36px", height: "36px", color: c.icon }}>
                   {alert.severity === "danger" ? <AlertCircle size={16} /> : alert.severity === "warning" ? <TrendingDown size={16} /> : <TrendingUp size={16} />}
                 </div>
