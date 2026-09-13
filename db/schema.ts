@@ -1844,6 +1844,29 @@ export const loadingListOrders = mysqlTable("loading_list_orders", {
   orderIdx: index("idx_llo_order").on(t.orderId),
 }));
 
+/*
+  Строки листа: что собрать, что собрано, из каких партий.
+
+  Лист был бумагой — SUM по товару и печать. Сколько на самом деле собрали,
+  никто не записывал: недостача всплывала у магазина как «частичная доставка»,
+  а какую партию брать, кладовщик решал сам, хотя при отгрузке за него уже
+  решает FEFO. Здесь — та же сумма, но с местом для «собрано» и подсказкой
+  партий по тому же порядку, что и списание. picked_qty NULL — сборка ещё не
+  подтверждена. Без tenant_id: строка принадлежит листу, лист — организации.
+*/
+export const loadingListItems = mysqlTable("loading_list_items", {
+  id:          serial("id").primaryKey(),
+  listId:      bigint("list_id", { mode: "number", unsigned: true }).notNull().references(() => loadingLists.id, { onDelete: "cascade" }),
+  productId:   bigint("product_id", { mode: "number", unsigned: true }).notNull().references(() => products.id, { onDelete: "restrict" }),
+  requiredQty: decimal("required_qty", { precision: 12, scale: 2 }).notNull(),
+  pickedQty:   decimal("picked_qty", { precision: 12, scale: 2 }),
+  /** Партии по FEFO на момент составления: [{ batch, expires, qty }]. Подсказка, не списание. */
+  batches:     json("batches").$type<Array<{ batch: string | null; expires: string | null; qty: number }>>(),
+}, (t) => ({
+  uniqueLine: unique("uq_lli_list_product").on(t.listId, t.productId),
+}));
+
+export type LoadingListItem        = typeof loadingListItems.$inferSelect;
 export type LoadingListOrder       = typeof loadingListOrders.$inferSelect;
 export type InsertLoadingListOrder = typeof loadingListOrders.$inferInsert;
 
