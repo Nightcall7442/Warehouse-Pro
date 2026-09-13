@@ -57,17 +57,17 @@ function loc(page, spec) {
    Каждый: { name, path?, do?: [[act, spec, value?]…], marks?: [[key, spec]…] }
    act: click | fill | key | wait                                            */
 const T = {
-  newOrder: "text=/^(Новый заказ|Yangi buyurtma)$/",
-  lists: "text=/^(Погрузочные листы|Yuklash varaqalari)$/",
+  newOrder: "role=button:/Новый заказ|Yangi buyurtma/",
+  lists: "role=button:/Погрузочные листы|Yuklash varaqalari/",
   pending: "text=/^(Ожидает|Kutmoqda)$/",
-  bulkList: "text=/^(Загруз\\. лист|Yuklash varaqi)$/",
-  makeList: "text=/^(Сформировать лист|Varaqa tuzish)$/",
-  doneNoPrint: "text=/^(Готово, без печати|Tayyor, chop etmasdan)$/",
-  pick: "text=/^(Собрать|Yig'ish)$/",
-  confirmPick: "text=/^(Подтвердить сборку|Yig'ishni tasdiqlash)$/",
-  newArrival: "text=/^(Новый приход|Yangi kelish)$/",
-  saveComplete: "text=/^(Сохранить и завершить|Saqlash va yakunlash)$/",
-  month: "text=/^(Месяц|Oy)$/",
+  bulkList: "role=button:/Загруз|Yuklash varaqi/",
+  makeList: "role=button:/Сформировать лист|Varaqa tuzish/",
+  doneNoPrint: "role=button:/Готово, без печати|Tayyor, chop etmasdan/",
+  pick: "role=button:/^(Собрать|Yig'ish)$/",
+  confirmPick: "role=button:/Подтвердить сборку|Yig'ishni tasdiqlash/",
+  newArrival: "role=button:/Новый приход|Yangi kelish/",
+  saveComplete: "role=button:/Сохранить и завершить|Saqlash va yakunlash/",
+  month: "role=button:/^(Месяц|Oy)$/",
 };
 
 const WEB_SCENARIOS = {
@@ -79,7 +79,7 @@ const WEB_SCENARIOS = {
     { name: "quick-order", path: "/orders", do: [["click", T.newOrder], ["wait", 1200]],
       marks: [["shop", "css=[role=dialog] input >> nth=0"]] },
     { name: "loading-list-create", path: "/orders",
-      do: [["click", "css=table tbody tr input[type=checkbox] >> nth=0"], ["click", "css=table tbody tr input[type=checkbox] >> nth=1"], ["wait", 500], ["click", T.bulkList], ["wait", 1200]],
+      do: [["click", "css=table tbody tr td:first-child button >> nth=0"], ["click", "css=table tbody tr td:first-child button >> nth=1"], ["wait", 600], ["click", T.bulkList], ["wait", 1200]],
       marks: [["make", T.makeList]] },
     { name: "loading-list-preview", path: null, do: [["click", T.makeList], ["wait", 2500]],
       marks: [["print", "text=/^(Печать|Chop etish)$/"], ["done", T.doneNoPrint]], after: [["click", T.doneNoPrint], ["wait", 600]] },
@@ -163,7 +163,7 @@ const MOBILE_SCENARIOS = {
   merchandiser: [
     { name: "home", path: "/" },
     { name: "plan", path: "/plan", marks: [["done", M.done + " >> nth=0"]] },
-    { name: "visit-report", path: "/plan", do: [["click", M.done + " >> nth=0"], ["wait", 2500]] },
+    { name: "visit-report", path: "/merchandiser/visit?planId=1&shopId=1&shopName=Demo", do: [["wait", 2500]] },
     { name: "shops", path: "/shops" },
     { name: "profile", path: "/profile" },
   ],
