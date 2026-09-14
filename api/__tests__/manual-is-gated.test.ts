@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, beforeAll, afterAll } from "vitest";
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { Errors } from "@contracts/errors";
@@ -122,5 +122,45 @@ describe("выдача и отзыв", () => {
     expect(audits.map(a => a.action)).toEqual(["tenant.manual_granted", "tenant.manual_granted", "tenant.manual_revoked"]);
     expect(vi.mocked(invalidateAuthTenant)).toHaveBeenCalledWith(5);
     expect(await setManualAccessFor(999, true, { id: 1, name: "x" })).toBeNull();
+  });
+});
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Service worker не должен перехватывать /manual/.
+
+   Дверь на сервере была правильной с первого дня, а в бою всё равно 404:
+   у арендатора стоит PWA, и её service worker на любой переход, кроме /api/,
+   отдаёт index.html приложения — React Router рисует «Страница не найдена».
+   Стенд этого не ловил: в свежем браузере service worker ещё не установлен.
+
+   Проверяются НАСТОЯЩИЕ регулярки из vite.config.ts, а не строка в тексте:
+   строку можно переписать так, что она есть, а переход всё равно перехвачен.
+   ═══════════════════════════════════════════════════════════════════════════ */
+describe("service worker и /manual/", () => {
+  const denylist = (): RegExp[] => {
+    // Только блочные комментарии: строчные тут резать нельзя — в /^\/api\//
+    // стоит «\//», и правило «// до конца строки» съедало бы второй элемент
+    // списка. Поймано первым же прогоном стража.
+    const src = readFileSync(path.resolve(process.cwd(), "vite.config.ts"), "utf8")
+      .replace(/\/\*[\s\S]*?\*\//g, " ");
+    const m = src.match(/navigateFallbackDenylist:\s*\[([^\]]*)\]/);
+    expect(m, "в vite.config.ts нет navigateFallbackDenylist").not.toBeNull();
+    return [...m![1].matchAll(/\/((?:\\.|[^/\\])+)\/([gimsuy]*)/g)].map(x => new RegExp(x[1], x[2]));
+  };
+
+  const caught = (p: string) => denylist().some(re => re.test(p));
+
+  it("руководство и всё внутри него идёт мимо service worker", () => {
+    for (const p of ["/manual", "/manual/", "/manual/index.html", "/manual/reader.js", "/manual/img/web-ru-ceo-dashboard.webp"]) {
+      expect(caught(p), `${p} перехватит service worker — арендатор увидит 404 приложения`).toBe(true);
+    }
+  });
+
+  it("а само приложение — по-прежнему через него", () => {
+    // Иначе PWA перестанет открываться офлайн: /orders/new и план на день
+    // стоят в ярлыках манифеста, и без оболочки они мертвы без сети.
+    for (const p of ["/", "/orders/new", "/agent/plans", "/manualnyj-vvod", "/settings"]) {
+      expect(caught(p), `${p} выпал из PWA`).toBe(false);
+    }
   });
 });
