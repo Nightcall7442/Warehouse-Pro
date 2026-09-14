@@ -59,12 +59,25 @@ const trpcStub = vi.hoisted(() => {
       unlinkGroup: { useMutation: mutation },
     },
     onec: {
-      health: { useQuery: query({ healthy: false }) },
-      status: { useQuery: query({ errors: 0, lastProductSync: null }) },
+      // Рабочее место 1С: подключение, списки из 1С, сопоставление, журнал.
+      presets: { useQuery: query({ bp_uz: { ru: "Бухгалтерия", uz: "Buxgalteriya" } }) },
+      wizard: {
+        getConfig: { useQuery: query(null) },
+        testConnection: { useMutation: () => ({ ...mutation(), data: undefined }) },
+        saveConfig: { useMutation: mutation },
+        lists: { useQuery: query({ organizations: [], warehouses: [], priceTypes: [] }) },
+        checkStructure: { useMutation: () => ({ ...mutation(), data: undefined }) },
+        issueWebhookSecret: { useMutation: mutation },
+      },
+      counterparties: {
+        unmapped: { useQuery: query({ unmapped: [], mappedCount: 0, total: 0 }) },
+        sync: { useMutation: mutation }, search: { useQuery: query([]) },
+        map: { useMutation: mutation }, create: { useMutation: mutation },
+      },
+      journal: { list: { useQuery: query({ rows: [], counts: {} }) }, retry: { useMutation: mutation } },
+      status: { useQuery: query({ configured: false, errors: 0, lastProductSync: null, queue: {} }) },
       syncProducts: { useMutation: mutation },
-      testSavedConnection: { useMutation: () => ({ ...mutation(), data: undefined }) },
-      // Секрет вебхука и счётчики обмена.
-      issueWebhookSecret: { useMutation: mutation },
+      runQueue: { useMutation: mutation },
       metrics: { useQuery: query({}) },
     },
     // logoutAll — выход на всех устройствах, кнопка в разделе «Профиль».
@@ -83,7 +96,7 @@ const trpcStub = vi.hoisted(() => {
         rules: { invalidate: vi.fn() },
         groupStatus: { invalidate: vi.fn() },
       },
-      onec: { health: { invalidate: vi.fn() }, status: { invalidate: vi.fn() } },
+      onec: { status: { invalidate: vi.fn() }, wizard: { getConfig: { invalidate: vi.fn() }, lists: { invalidate: vi.fn() } }, counterparties: { unmapped: { invalidate: vi.fn() } }, journal: { list: { invalidate: vi.fn() } } },
       auth: { me: { invalidate: vi.fn() } },
     }),
   };

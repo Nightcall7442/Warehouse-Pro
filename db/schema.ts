@@ -1782,6 +1782,22 @@ export const onecConfig = mysqlTable("onec_config", {
    * быть источником доверия.
    */
   webhookSecretHash: varchar("webhook_secret_hash", { length: 64 }),
+  /*
+    Настоящий обмен — по стандартному OData 1С (см. api/lib/onec-bridge.ts).
+    Конфигурация клиента задаёт имена объектов (пресет + переопределения) и
+    три ключа, без которых документ в 1С не создать: организация, склад и
+    тип цен, из которых берутся цены номенклатуры. Ключи — Ref_Key (GUID).
+  */
+  preset:          varchar("preset", { length: 20 }).default("bp_uz").notNull(),
+  nameOverrides:   json("name_overrides").$type<Record<string, unknown>>(),
+  organizationKey: varchar("organization_key", { length: 36 }),
+  warehouseKey:    varchar("warehouse_key", { length: 36 }),
+  priceTypeKey:    varchar("price_type_key", { length: 36 }),
+  /** Обмен по расписанию включён (крон onec-sync); руками можно и без него. */
+  enabled:         boolean("enabled").default(false).notNull(),
+  syncCounterparties: boolean("sync_counterparties").default(true).notNull(),
+  syncPayments:    boolean("sync_payments").default(false).notNull(),
+  lastSyncAt:      timestamp("last_sync_at"),
   createdAt:     timestamp("created_at").defaultNow().notNull(),
   updatedAt:     timestamp("updated_at").defaultNow().notNull().$onUpdate(() => new Date()),
 }, (t) => ({
@@ -2188,3 +2204,31 @@ export const cronRuns = mysqlTable("cron_runs", {
   lastErrorAt:   timestamp("last_error_at"),
   lastError:     text("last_error"),
 });
+
+/*
+  Журнал обмена с 1С: одна строка на одну попытку выгрузить или загрузить
+  сущность. Раньше обмен оставлял после себя только «последняя ошибка» в
+  sync_status — какой заказ не ушёл и почему, узнать было негде. Строка живёт
+  до удачи: крон берёт pending/failed с наступившим next_at, увеличивает
+  attempts и пишет ошибку словами из ответа 1С. Внешний ключ документа —
+  здесь же, чтобы повтор до-проводил, а не создавал второй.
+*/
+export const onecJournal = mysqlTable("onec_journal", {
+  id:          serial("id").primaryKey(),
+  tenantId:    bigint("tenant_id", { mode: "number", unsigned: true }).notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  entityType:  varchar("entity_type", { length: 30 }).notNull(),   // order | payment | product | counterparty
+  entityId:    bigint("entity_id", { mode: "number", unsigned: true }).notNull(),
+  direction:   varchar("direction", { length: 10 }).notNull(),     // to1c | from1c
+  status:      varchar("status", { length: 12 }).default("pending").notNull(), // pending | done | failed | skipped
+  attempts:    int("attempts").default(0).notNull(),
+  nextAt:      timestamp("next_at"),
+  externalId:  varchar("external_id", { length: 100 }),
+  lastError:   text("last_error"),
+  createdAt:   timestamp("created_at").defaultNow().notNull(),
+  updatedAt:   timestamp("updated_at").defaultNow().notNull().$onUpdate(() => new Date()),
+}, (t) => ({
+  uniqueEntity: unique("uq_onec_journal_entity").on(t.tenantId, t.entityType, t.entityId, t.direction),
+  dueIdx: index("idx_onec_journal_due").on(t.status, t.nextAt),
+}));
+
+export type OnecJournalRow = typeof onecJournal.$inferSelect;

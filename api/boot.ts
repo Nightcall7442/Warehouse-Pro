@@ -559,18 +559,6 @@ app.use("*", async (c, next) => {
   }
 });
 
-// ── Health check for 1C connection ──────────────────────────────────────────
-app.get("/health/1c", async (c) => {
-  try {
-    const { getBridge } = await import("./lib/onec-bridge");
-    const bridge = getBridge();
-    const healthy = await bridge.healthCheck();
-    return c.json({ healthy, service: "1c-bridge", timestamp: new Date().toISOString() }, healthy ? 200 : 503);
-  } catch (e) {
-    return c.json({ healthy: false, error: (e as Error).message }, 503);
-  }
-});
-
 // ── Health check with version info ───────────────────────────────────────────
 app.get("/health", async (c) => {
   const dbHealthy = await checkDatabaseHealth();

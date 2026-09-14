@@ -25,17 +25,21 @@
  */
 import { describe, it, expect, beforeEach, vi } from "vitest";
 
-const bridge = {
-  odataQuery: vi.fn().mockResolvedValue([]),
-  createDocument: vi.fn().mockResolvedValue({ id: "doc-НОВЫЙ" }),
-  postDocument: vi.fn().mockResolvedValue(undefined),
-  healthCheck: vi.fn().mockResolvedValue(true),
-};
+const { bridge } = vi.hoisted(() => ({
+  bridge: {
+    names: null as unknown,
+    query: vi.fn().mockResolvedValue([{ Ref_Key: "договор-1" }]),
+    create: vi.fn().mockResolvedValue({ Ref_Key: "doc-НОВЫЙ" }),
+    post: vi.fn().mockResolvedValue(undefined),
+  },
+}));
 
-vi.mock("../lib/onec-bridge", () => ({
-  getBridge: () => bridge,
+vi.mock("../lib/onec-bridge", async (orig) => ({
+  ...(await orig<typeof import("../lib/onec-bridge")>()),
   getBridgeForTenant: () => Promise.resolve(bridge),
 }));
+import { PRESETS } from "../lib/onec-presets";
+bridge.names = PRESETS.bp_uz;
 vi.mock("../lib/logger", () => ({
   logger: { info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() },
 }));
@@ -43,11 +47,12 @@ vi.mock("../lib/metrics", () => ({ record1CSync: vi.fn() }));
 vi.mock("../services/onec-status", () => ({ updateSyncStatus: vi.fn().mockResolvedValue(undefined) }));
 
 /**
- * Заказ и его позиции читаются обычным построителем; подменяется он целиком.
+ * Заказ, настройки и позиции читаются обычным построителем; подменяется он целиком.
  *
- * Строк здесь ровно столько, сколько нужно службе: сам заказ и одна позиция.
- * Порядок вызовов select у службы известен и не меняется — сначала заказ,
- * потом позиции, — поэтому очередь ответов задаётся списком.
+ * Строк здесь ровно столько, сколько нужно службе: сам заказ, настройки
+ * подключения (организация и склад) и одна позиция. Порядок вызовов select у
+ * службы известен и не меняется — заказ, настройки, позиции, — поэтому
+ * очередь ответов задаётся списком.
  */
 const selectQueue: unknown[][] = [];
 vi.mock("../queries/connection", () => ({
@@ -84,18 +89,20 @@ const REOPENED = new Date("2026-03-01T11:00:00Z");
 function queueOrder(createdAt: Date) {
   selectQueue.length = 0;
   selectQueue.push([{
-    id: 7, status: "new", total: "500.00", orderNumber: "№7",
-    shopId: 3, createdAt,
+    id: 7, status: "new", total: "500.00", subtotal: "500.00", discount: "0.00", orderNumber: "№7",
+    shopId: 3, createdAt, deliveredAt: null,
   }]);
+  selectQueue.push([{ organizationKey: "org-1", warehouseKey: "wh-1" }]);
   selectQueue.push([{
-    productId: 11, quantity: "5", unitPrice: "100.00", unit: "pcs", unitWeight: "1.0",
+    productId: 11, quantity: "5", deliveredQuantity: null, unitPrice: "100.00",
   }]);
 }
 
 beforeEach(() => {
   vi.clearAllMocks();
-  bridge.createDocument.mockResolvedValue({ id: "doc-НОВЫЙ" });
-  bridge.postDocument.mockResolvedValue(undefined);
+  bridge.create.mockResolvedValue({ Ref_Key: "doc-НОВЫЙ" });
+  bridge.post.mockResolvedValue(undefined);
+  bridge.query.mockResolvedValue([{ Ref_Key: "договор-1" }]);
   // Магазин и товар сопоставлены — иначе выгрузка откажет раньше и не по делу.
   mapper.getExternalId.mockResolvedValue("ext-сопоставлено");
 });
@@ -109,8 +116,8 @@ describe("выгрузка заказа в 1С", () => {
     const { oneCSync } = await import("../services/onec-sync");
     await oneCSync.syncOrderTo1C(1, 7);
 
-    expect(bridge.createDocument, "завёлся второй документ на тот же заказ").not.toHaveBeenCalled();
-    expect(bridge.postDocument).toHaveBeenCalledWith("Document_РеализацияТоваровИУслуг", "doc-ПЕРВЫЙ");
+    expect(bridge.create, "завёлся второй документ на тот же заказ").not.toHaveBeenCalled();
+    expect(bridge.post).toHaveBeenCalledWith("Document_РеализацияТоваровУслуг", "doc-ПЕРВЫЙ");
   });
 
   it("после возврата в работу отказывает вместо тихой перевыгрузки", async () => {
@@ -121,8 +128,8 @@ describe("выгрузка заказа в 1С", () => {
     const { oneCSync } = await import("../services/onec-sync");
     await expect(oneCSync.syncOrderTo1C(1, 7)).rejects.toThrow(/возвращали в работу/);
 
-    expect(bridge.postDocument, "старый документ всё-таки перепровели").not.toHaveBeenCalled();
-    expect(bridge.createDocument).not.toHaveBeenCalled();
+    expect(bridge.post, "старый документ всё-таки перепровели").not.toHaveBeenCalled();
+    expect(bridge.create).not.toHaveBeenCalled();
   });
 
   it("отказ называет заказ и говорит, что делать", async () => {
@@ -145,8 +152,8 @@ describe("выгрузка заказа в 1С", () => {
 
     // Связь забыта, документ создан заново и проведён именно новый.
     expect(mapper.forget).toHaveBeenCalledWith(expect.anything(), 1, "order", 7);
-    expect(bridge.createDocument).toHaveBeenCalled();
-    expect(bridge.postDocument).toHaveBeenCalledWith("Document_РеализацияТоваровИУслуг", "doc-НОВЫЙ");
+    expect(bridge.create).toHaveBeenCalled();
+    expect(bridge.post).toHaveBeenCalledWith("Document_РеализацияТоваровУслуг", "doc-НОВЫЙ");
   });
 
   it("заказ без связи выгружается как раньше", async () => {
@@ -157,7 +164,7 @@ describe("выгрузка заказа в 1С", () => {
     const { oneCSync } = await import("../services/onec-sync");
     await oneCSync.syncOrderTo1C(1, 7);
 
-    expect(bridge.createDocument).toHaveBeenCalled();
+    expect(bridge.create).toHaveBeenCalled();
     expect(mapper.forget).not.toHaveBeenCalled();
   });
 
@@ -171,6 +178,6 @@ describe("выгрузка заказа в 1С", () => {
     const { oneCSync } = await import("../services/onec-sync");
     await oneCSync.syncOrderTo1C(1, 7);
 
-    expect(bridge.postDocument).toHaveBeenCalledWith("Document_РеализацияТоваровИУслуг", "doc-ПЕРВЫЙ");
+    expect(bridge.post).toHaveBeenCalledWith("Document_РеализацияТоваровУслуг", "doc-ПЕРВЫЙ");
   });
 });
