@@ -77,8 +77,10 @@ function countColours(): { total: number; byFile: Array<[string, number]> } {
  *
  * 1062 — замер 14.09.2026, после перевода журнала аудита на токены. Опускается, когда
  * экран переводят на токены; расти не должен.
+ * 1007 — 14.09.2026, лендинг: нарисованная карта (CityMap) удалена, цвета сцены
+ * и оправ телефона объявлены токенами в landing-tokens.ts.
  */
-const BASELINE = 1022;
+const BASELINE = 1007;
 
 describe("цвет числом", () => {
   const { total, byFile } = countColours();

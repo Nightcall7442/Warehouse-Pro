@@ -11,6 +11,7 @@
  * Дальше кадры обрезаются и оправляются руками (public/landing/).
  *
  * Запуск: node scripts/landing-shots-collect.mjs [screenshots] [docs/landing/shots]
+ * Пересъёмка после смены засева — тем же прогоном: db/seed.ts стоит в триггерах.
  * Нужен cwebp (пакет webp).
  */
 import { readFileSync, mkdirSync, writeFileSync, existsSync } from "node:fs";

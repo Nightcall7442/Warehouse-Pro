@@ -89,8 +89,8 @@ export default function ProductWindow() {
             </span>
           </div>
 
-          <div className="rounded-xl overflow-hidden" style={{ border: `1px solid ${LX.ruleOnInk}`, boxShadow: "0 40px 80px -40px rgba(0,0,0,0.8)" }}>
-            <div className="flex items-center gap-4 px-4 py-3" style={{ background: "rgba(240,238,232,0.06)" }}>
+          <div className="rounded-xl overflow-hidden" style={{ border: `1px solid ${LX.ruleOnInk}`, boxShadow: `0 40px 80px -40px ${LX.black80}` }}>
+            <div className="flex items-center gap-4 px-4 py-3" style={{ background: LX.paperOnInk06 }}>
               <div className="hidden sm:flex gap-1.5" aria-hidden="true">
                 {[0, 1, 2].map(i => <span key={i} className="w-2.5 h-2.5 rounded-full" style={{ background: LX.faintOnInk }} />)}
               </div>
@@ -132,7 +132,7 @@ export default function ProductWindow() {
               aria-labelledby={`wp-tab-${tab}`}
               tabIndex={0}
               className="relative outline-none overflow-hidden"
-              style={{ aspectRatio: WEB_ASPECT, background: "#f4f5f7" }}
+              style={{ aspectRatio: WEB_ASPECT, background: LX.appCanvas }}
             >
               <div ref={panel} className="absolute inset-0">
                 {tab < 3 ? (
@@ -153,7 +153,7 @@ export default function ProductWindow() {
                   */
                   <div
                     className="absolute inset-0 flex items-center justify-center gap-5 md:gap-8 px-6"
-                    style={{ perspective: 1400, background: `radial-gradient(ellipse at 50% 70%, rgba(199,147,81,0.16), transparent 62%), ${LX.night}` }}
+                    style={{ perspective: 1400, background: `radial-gradient(ellipse at 50% 70%, ${LX.brassGlow16}, transparent 62%), ${LX.night}` }}
                   >
                     <Phone shot="catalog" alt={tr("Каталог с фото и ценой магазина", "Surat va do'kon narxi bilan katalog")} width={Math.round(pw * 0.86)} className="hidden sm:block" style={{ transform: "rotateY(22deg) translateX(10px) scale(0.92)", transformOrigin: "100% 50%" }} />
                     <Phone shot="home" alt={tr("Главная агента: план визитов и заказы", "Agent bosh sahifasi: tashriflar rejasi va buyurtmalar")} width={pw} style={{ zIndex: 2 }} />

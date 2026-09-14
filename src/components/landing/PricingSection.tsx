@@ -43,7 +43,7 @@ import { PLANS, PLAN_PRICES_UZS, PLAN_ADDS, FEATURES, EXTRA_PRICES_UZS } from "@
 function Btn({ kind, onClick, href, children }: { kind: "brass" | "paper"; onClick?: () => void; href?: string; children: ReactNode }) {
   const style = kind === "brass"
     ? { background: LX.brassOnNight, color: LX.night, border: `1px solid ${LX.brassOnNight}` }
-    : { background: "transparent", color: LX.paperOnInk, border: "1px solid rgba(240,238,232,0.34)" };
+    : { background: "transparent", color: LX.paperOnInk, border: `1px solid ${LX.paperOnInk34}` };
   const cls = "lx-anim inline-flex items-center justify-center w-full h-12 rounded-lg text-[14px] font-semibold cursor-pointer transition-opacity duration-200 hover:opacity-90";
   return href
     ? <a href={href} target="_blank" rel="noopener" className={cls} style={style}>{children}</a>
@@ -169,11 +169,11 @@ export default function PricingSection() {
               className={`relative rounded-2xl flex flex-col transition-transform duration-300 hover:-translate-y-1 ${plan.hl ? "md:-mt-6 md:mb-2" : ""}`}
               style={{
                 padding: plan.hl ? "36px 30px" : "30px 26px",
-                background: plan.hl ? `linear-gradient(180deg, rgba(199,147,81,0.10), rgba(199,147,81,0.02) 40%, transparent), ${LX.ink}` : LX.ink,
+                background: plan.hl ? `linear-gradient(180deg, ${LX.brassGlow10}, ${LX.brassGlow02} 40%, transparent), ${LX.ink}` : LX.ink,
                 border: plan.hl ? `1px solid ${LX.brassOnNight}` : `1px solid ${LX.ruleOnInk}`,
                 boxShadow: plan.hl
-                  ? "0 0 0 6px rgba(199,147,81,0.08), 0 50px 90px -50px rgba(0,0,0,0.9)"
-                  : "0 30px 60px -40px rgba(0,0,0,0.8)",
+                  ? `0 0 0 6px ${LX.brassGlow08}, 0 50px 90px -50px ${LX.black90}`
+                  : `0 30px 60px -40px ${LX.black80}`,
               }}
             >
               {plan.hl && (

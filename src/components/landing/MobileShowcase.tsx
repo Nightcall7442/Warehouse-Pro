@@ -127,7 +127,7 @@ export default function MobileShowcase() {
             ref={stage}
             className="relative rounded-2xl overflow-hidden flex items-center justify-center min-h-[520px] md:min-h-[680px]"
             style={{
-              background: `radial-gradient(ellipse at 50% 85%, rgba(199,147,81,0.28), transparent 55%), radial-gradient(ellipse at 20% 10%, rgba(240,238,232,0.06), transparent 50%), ${LX.night}`,
+              background: `radial-gradient(ellipse at 50% 85%, ${LX.brassGlow28}, transparent 55%), radial-gradient(ellipse at 20% 10%, ${LX.paperOnInk06}, transparent 50%), ${LX.night}`,
               perspective: 1300,
               border: `1px solid ${LX.ruleOnInk}`,
             }}
@@ -138,20 +138,20 @@ export default function MobileShowcase() {
             <div aria-hidden="true" className="absolute inset-0 pointer-events-none" style={{ backgroundImage: `linear-gradient(${LX.ruleOnInk} 1px, transparent 1px), linear-gradient(90deg, ${LX.ruleOnInk} 1px, transparent 1px)`, backgroundSize: "48px 48px", opacity: 0.28 }} />
 
             <div ref={phone} style={{ transform: "rotateX(4deg) rotateY(-14deg)", transformStyle: "preserve-3d", willChange: "transform" }}>
-              <Phone width={pw} shot={f.key} alt={f.label} screenRef={screen} style={{ boxShadow: "0 70px 100px -50px rgba(0,0,0,0.85), inset 0 0 0 1px rgba(255,255,255,0.10)" }} />
+              <Phone width={pw} shot={f.key} alt={f.label} screenRef={screen} style={{ boxShadow: `0 70px 100px -50px ${LX.black85}, inset 0 0 0 1px ${LX.whiteHalo}` }} />
             </div>
 
             {/* Плавающие подсказки — из настоящих данных экрана */}
-            <div data-float className="hidden md:block absolute left-4 top-6 md:left-8 md:top-10 rounded-lg px-3.5 py-2.5 text-[12.5px]" style={{ background: "rgba(38,35,30,0.92)", color: LX.paperOnInk, border: `1px solid ${LX.ruleOnInk}`, backdropFilter: "blur(6px)" }}>
+            <div data-float className="hidden md:block absolute left-4 top-6 md:left-8 md:top-10 rounded-lg px-3.5 py-2.5 text-[12.5px]" style={{ background: LX.inkOverlay, color: LX.paperOnInk, border: `1px solid ${LX.ruleOnInk}`, backdropFilter: "blur(6px)" }}>
               <span className="inline-flex items-center gap-2"><WifiOff size={14} style={{ color: LX.brassOnNight }} />{tr("Нет связи · заказ в очереди", "Aloqa yo'q · buyurtma navbatda")}</span>
             </div>
-            <div data-float className="hidden md:block absolute right-4 top-6 md:right-8 md:top-10 rounded-lg px-3.5 py-2.5 text-[12.5px]" style={{ background: "rgba(38,35,30,0.92)", color: LX.paperOnInk, border: `1px solid ${LX.ruleOnInk}`, backdropFilter: "blur(6px)" }}>
+            <div data-float className="hidden md:block absolute right-4 top-6 md:right-8 md:top-10 rounded-lg px-3.5 py-2.5 text-[12.5px]" style={{ background: LX.inkOverlay, color: LX.paperOnInk, border: `1px solid ${LX.ruleOnInk}`, backdropFilter: "blur(6px)" }}>
               <span className="inline-flex items-center gap-2"><ScanBarcode size={14} style={{ color: LX.brassOnNight }} />{tr("Штрихкод → позиция в заказе", "Shtrix-kod → buyurtmadagi pozitsiya")}</span>
             </div>
-            <div data-float className="hidden md:block absolute left-5 bottom-24 md:left-10 md:bottom-28 rounded-lg px-3.5 py-2.5 text-[12.5px]" style={{ background: "rgba(38,35,30,0.92)", color: LX.paperOnInk, border: `1px solid ${LX.ruleOnInk}`, backdropFilter: "blur(6px)" }}>
+            <div data-float className="hidden md:block absolute left-5 bottom-24 md:left-10 md:bottom-28 rounded-lg px-3.5 py-2.5 text-[12.5px]" style={{ background: LX.inkOverlay, color: LX.paperOnInk, border: `1px solid ${LX.ruleOnInk}`, backdropFilter: "blur(6px)" }}>
               <span className="inline-flex items-center gap-2"><MapPin size={14} style={{ color: LX.brassOnNight }} />{tr("Визит подтверждён по GPS", "Tashrif GPS bo'yicha tasdiqlandi")}</span>
             </div>
-            <div data-float className="hidden md:block absolute right-5 bottom-10 md:right-10 md:bottom-14 rounded-lg px-3.5 py-2.5 text-[12.5px]" style={{ background: "rgba(38,35,30,0.92)", color: LX.paperOnInk, border: `1px solid ${LX.ruleOnInk}`, backdropFilter: "blur(6px)" }}>
+            <div data-float className="hidden md:block absolute right-5 bottom-10 md:right-10 md:bottom-14 rounded-lg px-3.5 py-2.5 text-[12.5px]" style={{ background: LX.inkOverlay, color: LX.paperOnInk, border: `1px solid ${LX.ruleOnInk}`, backdropFilter: "blur(6px)" }}>
               <span className="inline-flex items-center gap-2"><BatteryCharging size={14} style={{ color: LX.brassOnNight }} />{tr("Стоит на месте — батарея цела", "Joyida turibdi — batareya butun")}</span>
             </div>
 

@@ -49,7 +49,7 @@ export function Browser({
         ...style,
       }}
     >
-      <div className="flex items-center gap-3 px-3.5 py-2" style={{ background: dark ? "rgba(240,238,232,0.06)" : LX.verso }}>
+      <div className="flex items-center gap-3 px-3.5 py-2" style={{ background: dark ? LX.paperOnInk06 : LX.verso }}>
         <span className="flex gap-1.5" aria-hidden="true">
           {[0, 1, 2].map(i => (
             <span key={i} className="w-2 h-2 rounded-full" style={{ background: dark ? LX.faintOnInk : LX.ruleStrong }} />
@@ -57,7 +57,7 @@ export function Browser({
         </span>
         <span className="text-[10.5px]" style={{ ...MONO, color: dark ? LX.softOnInk : LX.inkFaint }}>app.warehouse-pro.uz</span>
       </div>
-      <div className="relative" style={{ aspectRatio: WEB_ASPECT, background: dark ? LX.ink : "#f4f5f7" }}>
+      <div className="relative" style={{ aspectRatio: WEB_ASPECT, background: dark ? LX.ink : LX.appCanvas }}>
         {shot && (
           <img
             src={webShot(shot, lang)}
@@ -109,21 +109,21 @@ export function Phone({
         width,
         padding: bezel,
         borderRadius: radius,
-        background: "linear-gradient(155deg, #3d3934 0%, #1f1d1a 45%, #2c2925 100%)",
-        boxShadow: `inset 0 0 0 1px rgba(255,255,255,0.10), inset 0 0 0 ${bezel}px #121110, ${WARM_SHADOW}`,
+        background: LX.deviceBody,
+        boxShadow: `inset 0 0 0 1px ${LX.whiteHalo}, inset 0 0 0 ${bezel}px ${LX.deviceEdge}, ${WARM_SHADOW}`,
         ...style,
       }}
     >
       {/* кнопки: громкость слева, питание справа */}
-      <span aria-hidden="true" className="absolute rounded-l-sm" style={{ left: -2, top: width * 0.27, width: 2, height: width * 0.075, background: "#3a3733" }} />
-      <span aria-hidden="true" className="absolute rounded-l-sm" style={{ left: -2, top: width * 0.37, width: 2, height: width * 0.075, background: "#3a3733" }} />
-      <span aria-hidden="true" className="absolute rounded-r-sm" style={{ right: -2, top: width * 0.32, width: 2, height: width * 0.12, background: "#3a3733" }} />
+      <span aria-hidden="true" className="absolute rounded-l-sm" style={{ left: -2, top: width * 0.27, width: 2, height: width * 0.075, background: LX.deviceButton }} />
+      <span aria-hidden="true" className="absolute rounded-l-sm" style={{ left: -2, top: width * 0.37, width: 2, height: width * 0.075, background: LX.deviceButton }} />
+      <span aria-hidden="true" className="absolute rounded-r-sm" style={{ right: -2, top: width * 0.32, width: 2, height: width * 0.12, background: LX.deviceButton }} />
       {/* остров */}
-      <span aria-hidden="true" className="absolute left-1/2 -translate-x-1/2 z-20" style={{ top: bezel + Math.round(width * 0.028), width: width * 0.27, height: width * 0.072, borderRadius: 999, background: "#0b0a09" }} />
+      <span aria-hidden="true" className="absolute left-1/2 -translate-x-1/2 z-20" style={{ top: bezel + Math.round(width * 0.028), width: width * 0.27, height: width * 0.072, borderRadius: 999, background: LX.deviceIsland }} />
       <div
         ref={screenRef}
         className="relative overflow-hidden"
-        style={{ aspectRatio: MOBILE_ASPECT, borderRadius: radius - bezel, background: "#f3f4f6" }}
+        style={{ aspectRatio: MOBILE_ASPECT, borderRadius: radius - bezel, background: LX.screenBlank }}
       >
         {shot && (
           <img
@@ -139,7 +139,7 @@ export function Phone({
         <div
           aria-hidden="true"
           className="absolute inset-0 pointer-events-none"
-          style={{ background: "linear-gradient(112deg, rgba(255,255,255,0.14) 0%, rgba(255,255,255,0.03) 28%, transparent 44%)" }}
+          style={{ background: LX.glass }}
         />
       </div>
     </div>

@@ -120,7 +120,7 @@ export default function TrackingSection() {
         </div>
 
         {/* Живой экран слежения */}
-        <div ref={root} data-reveal="track" className="rounded-xl p-4 md:p-5" style={{ background: LX.ink, border: `1px solid ${LX.ruleOnInk}`, boxShadow: "0 40px 80px -40px rgba(0,0,0,0.8)" }}>
+        <div ref={root} data-reveal="track" className="rounded-xl p-4 md:p-5" style={{ background: LX.ink, border: `1px solid ${LX.ruleOnInk}`, boxShadow: `0 40px 80px -40px ${LX.black80}` }}>
           <div className="flex items-center justify-between mb-3">
             <span className="text-[11px] uppercase" style={{ ...MONO, color: LX.softOnInk, letterSpacing: "0.08em" }}>
               {tr("Слежение · сегодня", "Nazorat · bugun")}
@@ -143,7 +143,7 @@ export default function TrackingSection() {
                   <path data-route d={a.path} fill="none" stroke={LX.ink} strokeWidth="9" strokeLinecap="round" strokeLinejoin="round" opacity="0.18" />
                   <path data-route d={a.path} fill="none" stroke={LX.brass} strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" strokeDasharray={i === 2 ? "10 10" : undefined} />
                   {a.stops.map(([x, y], k) => (
-                    <circle key={k} data-stop cx={x} cy={y} r="11" fill={k < Math.round(a.stops.length * a.visits / a.of) ? LX.brass : "#fff"} stroke={LX.ink} strokeWidth="3" />
+                    <circle key={k} data-stop cx={x} cy={y} r="11" fill={k < Math.round(a.stops.length * a.visits / a.of) ? LX.brass : LX.white} stroke={LX.ink} strokeWidth="3" />
                   ))}
                   <g data-runner={i} transform={`translate(${a.stops[0][0]} ${a.stops[0][1]})`}>
                     <circle r="22" fill={LX.ink} opacity="0.95" />
@@ -158,13 +158,13 @@ export default function TrackingSection() {
 
           <div className="mt-3 space-y-2">
             {agents.map(a => (
-              <div key={a.name} className="grid grid-cols-[1fr_auto] sm:grid-cols-[minmax(0,1.4fr)_auto_auto_auto] gap-x-4 gap-y-1.5 items-center rounded-lg px-3.5 py-2.5" style={{ background: "rgba(240,238,232,0.04)", border: `1px solid ${LX.ruleOnInk}` }}>
+              <div key={a.name} className="grid grid-cols-[1fr_auto] sm:grid-cols-[minmax(0,1.4fr)_auto_auto_auto] gap-x-4 gap-y-1.5 items-center rounded-lg px-3.5 py-2.5" style={{ background: LX.paperOnInk04, border: `1px solid ${LX.ruleOnInk}` }}>
                 <div className="min-w-0">
                   <div className="flex items-center gap-2 text-[13px] font-semibold truncate" style={{ color: LX.paperOnInk }}>
                     <MapPin size={12} style={{ color: LX.brassOnNight }} />
                     {a.name} <span className="font-normal" style={{ color: LX.softOnInk }}>· {a.area}</span>
                   </div>
-                  <div className="mt-1.5 h-1 rounded-full overflow-hidden" style={{ background: "rgba(240,238,232,0.10)" }}>
+                  <div className="mt-1.5 h-1 rounded-full overflow-hidden" style={{ background: LX.paperOnInk10 }}>
                     <div data-bar className="h-full rounded-full origin-left" style={{ width: `${(a.visits / a.of) * 100}%`, background: LX.brassOnNight }} />
                   </div>
                 </div>

@@ -96,7 +96,7 @@ export default function OrdersSection() {
 
         <div className="mt-12 grid lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] gap-10 lg:gap-14 items-start">
           {/* Живая карточка заказа */}
-          <div data-reveal="order-card" className="rounded-xl p-6" style={{ background: LX.paperRaised, border: `1px solid ${LX.ruleStrong}`, boxShadow: "0 30px 60px -40px rgba(38,35,30,0.4)" }}>
+          <div data-reveal="order-card" className="rounded-xl p-6" style={{ background: LX.paperRaised, border: `1px solid ${LX.ruleStrong}`, boxShadow: `0 30px 60px -40px ${LX.inkShade40}` }}>
             <div className="flex items-baseline justify-between">
               <span className="text-[11px] uppercase" style={{ ...MONO, color: LX.brassText, letterSpacing: "0.08em" }}>{tr("Заказ № 981", "Buyurtma № 981")}</span>
               <span data-tag className="text-[11px] rounded-full px-2.5 py-1" style={{ ...MONO, background: LX.brassSoft, color: LX.brassDeep }}>{tr("принят частично", "qisman qabul")}</span>

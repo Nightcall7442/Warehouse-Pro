@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { useInView } from "./landing-tokens";
+import { LX, useInView } from "./landing-tokens";
 
 /* ═══════════════════════════════════════════════════════════════════════════
    ЗАПУСК ANIME.JS НА ЛЕНДИНГЕ
@@ -47,6 +47,6 @@ export function useAnime<T extends HTMLElement>(
 }
 
 /* ── Тень под бумагу ─────────────────────────────────────────────────────── */
-export const WARM_SHADOW = "0 30px 60px -30px rgba(38,35,30,0.45), 0 12px 24px -16px rgba(168,118,62,0.25)";
-export const NIGHT_SHADOW = "0 40px 80px -40px rgba(0,0,0,0.8), 0 0 0 1px rgba(240,238,232,0.06)";
+export const WARM_SHADOW = `0 30px 60px -30px ${LX.inkShade45}, 0 12px 24px -16px ${LX.brassShade25}`;
+export const NIGHT_SHADOW = `0 40px 80px -40px ${LX.black80}, 0 0 0 1px ${LX.paperOnInk06}`;
 

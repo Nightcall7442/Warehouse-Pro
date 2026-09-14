@@ -98,7 +98,7 @@ export default function SetupSection() {
                 <li key={r} className="flex items-center justify-between gap-3 text-[13.5px]" style={{ color: LX.ink }}>
                   {r}
                   <span data-track className="relative shrink-0 w-11 h-6 rounded-full" style={{ background: LX.good }} aria-hidden="true">
-                    <span data-knob className="absolute top-0.5 left-0.5 w-5 h-5 rounded-full" style={{ background: LX.paperRaised, transform: "translateX(20px)", boxShadow: "0 1px 2px rgba(0,0,0,0.25)" }} />
+                    <span data-knob className="absolute top-0.5 left-0.5 w-5 h-5 rounded-full" style={{ background: LX.paperRaised, transform: "translateX(20px)", boxShadow: `0 1px 2px ${LX.black25}` }} />
                   </span>
                 </li>
               ))}
