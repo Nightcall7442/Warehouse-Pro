@@ -61,7 +61,10 @@ for (const batch of chunks(Array.from({ length: ORDERS }, (_, i) => i), 1000)) {
     const shop = pick(shops);
     const created = new Date(now - rnd(DAYS * 86400000));
     const status = pick(statuses);
-    const items = Array.from({ length: 1 + rnd(4) }, () => { const p = pick(products); return { p, q: 1 + rnd(20) }; });
+    // Товары в заказе без повторов: order_items держит уникальность (заказ, товар).
+    const chosen = new Map();
+    for (let k = 0; k < 1 + rnd(4); k++) { const p = pick(products); if (!chosen.has(p.id)) chosen.set(p.id, { p, q: 1 + rnd(20) }); }
+    const items = [...chosen.values()];
     const subtotal = items.reduce((s, it) => s + Number(it.p.unit_price) * it.q, 0);
     const method = pick(methods);
     rows.push([tenantId, `LT-${orderNo++}`, shop.id, shop.agent_id, status, subtotal.toFixed(2), "0.00", subtotal.toFixed(2), method,
