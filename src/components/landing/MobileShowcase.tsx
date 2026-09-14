@@ -32,10 +32,10 @@ export default function MobileShowcase() {
   const tr = useTranslate();
 
   const features: Feature[] = [
-    { key: "home", label: tr("Главная", "Bosh sahifa"), tag: tr("5 визитов сегодня", "Bugun 5 tashrif"), text: tr("Мой день: план визитов, заказы за сегодня, выручка — всё нужное в одно касание.", "Mening kunim: tashriflar rejasi, bugungi buyurtmalar, tushum — kerakli hamma narsa bir teginishda.") },
+    { key: "home", label: tr("Главная", "Bosh sahifa"), tag: tr("План на день и заказы", "Kunlik reja va buyurtmalar"), text: tr("Мой день: план визитов, заказы за сегодня, выручка — всё нужное в одно касание.", "Mening kunim: tashriflar rejasi, bugungi buyurtmalar, tushum — kerakli hamma narsa bir teginishda.") },
     { key: "catalog", label: tr("Каталог и штрихкод", "Katalog va shtrix-kod"), tag: tr("Цена этого магазина", "Shu do'kon narxi"), text: tr("Товары с фото, ценой этого магазина и остатком. Навёл камеру на штрихкод — позиция в заказе.", "Mahsulotlar surat, shu do'kon narxi va qoldiq bilan. Kamerani shtrix-kodga qaratdi — pozitsiya buyurtmada.") },
     { key: "orders", label: tr("Заказ без связи", "Aloqasiz buyurtma"), tag: tr("В очереди · уйдёт при сети", "Navbatda · tarmoqda ketadi"), text: tr("В подвале магазина заказ сохраняется в телефоне и уходит сам, когда появится сеть. Черновик не теряется.", "Do'kon yerto'lasida buyurtma telefonda saqlanadi va tarmoq paydo bo'lganda o'zi ketadi. Qoralama yo'qolmaydi.") },
-    { key: "deliver", label: tr("Частичная приёмка", "Qisman qabul"), tag: tr("Принято 80 из 100", "100 dan 80 qabul"), text: tr("Курьер отмечает, сколько магазин принял на самом деле, и причину недобора. Остаток — на склад, долг — по факту.", "Kuryer do'kon aslida qancha olganini va kam olish sababini belgilaydi. Qolgani — omborga, qarz — haqiqat bo'yicha.") },
+    { key: "deliver", label: tr("Частичная приёмка", "Qisman qabul"), tag: tr("Принято меньше — долг по факту", "Kam qabul — qarz haqiqat bo'yicha"), text: tr("Курьер отмечает, сколько магазин принял на самом деле, и причину недобора. Остаток — на склад, долг — по факту.", "Kuryer do'kon aslida qancha olganini va kam olish sababini belgilaydi. Qolgani — omborga, qarz — haqiqat bo'yicha.") },
     { key: "plan", label: tr("План визитов", "Tashriflar rejasi"), tag: tr("Отмечен по GPS", "GPS bo'yicha belgilandi"), text: tr("Точки на сегодня в удобном порядке. Был — отметил, координаты подтвердили.", "Bugungi nuqtalar qulay tartibda. Bordi — belgiladi, koordinatalar tasdiqladi.") },
     { key: "debts", label: tr("Долги", "Qarzlar"), tag: tr("Кому ехать первым", "Kimga birinchi borish"), text: tr("К кому ехать собирать и сколько. Частичную оплату агент записывает прямо в точке.", "Kimdan yig'ish kerak va qancha. Qisman to'lovni agent nuqtaning o'zida yozadi.") },
     { key: "salary", label: tr("Зарплата", "Ish haqi"), tag: tr("Получил — подтвердил", "Oldi — tasdiqladi"), text: tr("Оклад, комиссия, обед и дорожные — каждая строка объясняет, откуда взялась.", "Oklad, komissiya, tushlik va yo'l puli — har bir satr qayerdan kelganini tushuntiradi.") },
@@ -44,6 +44,8 @@ export default function MobileShowcase() {
 
   const [active, setActive] = useState(0);
   const [touched, setTouched] = useState(false);
+  // Ширина телефона — от сцены: на узком экране корпус не должен вылезать.
+  const [pw, setPw] = useState(236);
   const { ref: section, seen } = useInView<HTMLElement>(0.2);
   const stage = useRef<HTMLDivElement>(null);
   const phone = useRef<HTMLDivElement>(null);
@@ -51,6 +53,17 @@ export default function MobileShowcase() {
   const anime = useRef<typeof import("animejs") | null>(null);
 
   const pick = (i: number) => { setTouched(true); setActive(i); };
+
+  useEffect(() => {
+    const el = stage.current;
+    if (!el) return;
+    const measure = () => setPw(Math.max(170, Math.min(236, Math.round(el.clientWidth * 0.36))));
+    measure();
+    if (typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   useEffect(() => {
     if (!seen || touched || reducedMotion()) return;
@@ -112,7 +125,7 @@ export default function MobileShowcase() {
           {/* Сцена */}
           <div
             ref={stage}
-            className="relative rounded-2xl overflow-hidden flex items-center justify-center min-h-[560px] md:min-h-[640px]"
+            className="relative rounded-2xl overflow-hidden flex items-center justify-center min-h-[520px] md:min-h-[680px]"
             style={{
               background: `radial-gradient(ellipse at 50% 85%, rgba(199,147,81,0.28), transparent 55%), radial-gradient(ellipse at 20% 10%, rgba(240,238,232,0.06), transparent 50%), ${LX.night}`,
               perspective: 1300,
@@ -125,20 +138,20 @@ export default function MobileShowcase() {
             <div aria-hidden="true" className="absolute inset-0 pointer-events-none" style={{ backgroundImage: `linear-gradient(${LX.ruleOnInk} 1px, transparent 1px), linear-gradient(90deg, ${LX.ruleOnInk} 1px, transparent 1px)`, backgroundSize: "48px 48px", opacity: 0.28 }} />
 
             <div ref={phone} style={{ transform: "rotateX(4deg) rotateY(-14deg)", transformStyle: "preserve-3d", willChange: "transform" }}>
-              <Phone width={272} shot={f.key} alt={f.label} screenRef={screen} style={{ boxShadow: "0 70px 100px -50px rgba(0,0,0,0.85), inset 0 0 0 1px rgba(255,255,255,0.10)" }} />
+              <Phone width={pw} shot={f.key} alt={f.label} screenRef={screen} style={{ boxShadow: "0 70px 100px -50px rgba(0,0,0,0.85), inset 0 0 0 1px rgba(255,255,255,0.10)" }} />
             </div>
 
             {/* Плавающие подсказки — из настоящих данных экрана */}
-            <div data-float className="absolute left-4 top-6 md:left-8 md:top-10 rounded-lg px-3.5 py-2.5 text-[12.5px]" style={{ background: "rgba(38,35,30,0.92)", color: LX.paperOnInk, border: `1px solid ${LX.ruleOnInk}`, backdropFilter: "blur(6px)" }}>
+            <div data-float className="hidden md:block absolute left-4 top-6 md:left-8 md:top-10 rounded-lg px-3.5 py-2.5 text-[12.5px]" style={{ background: "rgba(38,35,30,0.92)", color: LX.paperOnInk, border: `1px solid ${LX.ruleOnInk}`, backdropFilter: "blur(6px)" }}>
               <span className="inline-flex items-center gap-2"><WifiOff size={14} style={{ color: LX.brassOnNight }} />{tr("Нет связи · заказ в очереди", "Aloqa yo'q · buyurtma navbatda")}</span>
             </div>
-            <div data-float className="absolute right-4 top-6 md:right-8 md:top-10 rounded-lg px-3.5 py-2.5 text-[12.5px]" style={{ background: "rgba(38,35,30,0.92)", color: LX.paperOnInk, border: `1px solid ${LX.ruleOnInk}`, backdropFilter: "blur(6px)" }}>
+            <div data-float className="hidden md:block absolute right-4 top-6 md:right-8 md:top-10 rounded-lg px-3.5 py-2.5 text-[12.5px]" style={{ background: "rgba(38,35,30,0.92)", color: LX.paperOnInk, border: `1px solid ${LX.ruleOnInk}`, backdropFilter: "blur(6px)" }}>
               <span className="inline-flex items-center gap-2"><ScanBarcode size={14} style={{ color: LX.brassOnNight }} />{tr("Штрихкод → позиция в заказе", "Shtrix-kod → buyurtmadagi pozitsiya")}</span>
             </div>
-            <div data-float className="absolute left-5 bottom-24 md:left-10 md:bottom-28 rounded-lg px-3.5 py-2.5 text-[12.5px]" style={{ background: "rgba(38,35,30,0.92)", color: LX.paperOnInk, border: `1px solid ${LX.ruleOnInk}`, backdropFilter: "blur(6px)" }}>
+            <div data-float className="hidden md:block absolute left-5 bottom-24 md:left-10 md:bottom-28 rounded-lg px-3.5 py-2.5 text-[12.5px]" style={{ background: "rgba(38,35,30,0.92)", color: LX.paperOnInk, border: `1px solid ${LX.ruleOnInk}`, backdropFilter: "blur(6px)" }}>
               <span className="inline-flex items-center gap-2"><MapPin size={14} style={{ color: LX.brassOnNight }} />{tr("Визит подтверждён по GPS", "Tashrif GPS bo'yicha tasdiqlandi")}</span>
             </div>
-            <div data-float className="absolute right-5 bottom-10 md:right-10 md:bottom-14 rounded-lg px-3.5 py-2.5 text-[12.5px]" style={{ background: "rgba(38,35,30,0.92)", color: LX.paperOnInk, border: `1px solid ${LX.ruleOnInk}`, backdropFilter: "blur(6px)" }}>
+            <div data-float className="hidden md:block absolute right-5 bottom-10 md:right-10 md:bottom-14 rounded-lg px-3.5 py-2.5 text-[12.5px]" style={{ background: "rgba(38,35,30,0.92)", color: LX.paperOnInk, border: `1px solid ${LX.ruleOnInk}`, backdropFilter: "blur(6px)" }}>
               <span className="inline-flex items-center gap-2"><BatteryCharging size={14} style={{ color: LX.brassOnNight }} />{tr("Стоит на месте — батарея цела", "Joyida turibdi — batareya butun")}</span>
             </div>
 

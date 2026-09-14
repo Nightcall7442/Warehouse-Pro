@@ -28,7 +28,7 @@ export const WEB_SHOTS = {
   supervisorKpi: "web-supervisor-kpi",
 } as const;
 
-/** Кадры телефона: 390×664 (iPhone 13 в Expo web, без системных полос), в тройной плотности. */
+/** Кадры телефона: 390×844 (iPhone 13 целиком), в тройной плотности. */
 export const MOBILE_SHOTS = {
   home:        "mobile-agent-home",
   catalog:     "mobile-agent-catalog",
@@ -51,7 +51,7 @@ export type MobileShotKey = keyof typeof MOBILE_SHOTS;
 
 /** Пропорции кадров — задаются раскладке заранее. */
 export const WEB_ASPECT = "1440 / 1000";
-export const MOBILE_ASPECT = "390 / 664";
+export const MOBILE_ASPECT = "390 / 844";
 
 export const webShot = (key: WebShotKey, lang: Lang) => `/landing/${lang}/${WEB_SHOTS[key]}.webp`;
 /** Только карта из кадра «Слежение» — вырезка делается scripts/landing_shots.py. */
