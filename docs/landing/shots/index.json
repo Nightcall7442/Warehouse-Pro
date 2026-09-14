@@ -1,0 +1,266 @@
+{
+  "got": [
+    {
+      "key": "web/ceo/dashboard",
+      "lang": "ru",
+      "file": "ru/web-ceo-dashboard.webp"
+    },
+    {
+      "key": "web/ceo/reports",
+      "lang": "ru",
+      "file": "ru/web-ceo-reports.webp"
+    },
+    {
+      "key": "web/ceo/pnl",
+      "lang": "ru",
+      "file": "ru/web-ceo-pnl.webp"
+    },
+    {
+      "key": "web/ceo/salaries",
+      "lang": "ru",
+      "file": "ru/web-ceo-salaries.webp"
+    },
+    {
+      "key": "web/operator/orders",
+      "lang": "ru",
+      "file": "ru/web-operator-orders.webp"
+    },
+    {
+      "key": "web/operator/quick-order",
+      "lang": "ru",
+      "file": "ru/web-operator-quick-order.webp"
+    },
+    {
+      "key": "web/operator/picking",
+      "lang": "ru",
+      "file": "ru/web-operator-picking.webp"
+    },
+    {
+      "key": "web/operator/warehouse",
+      "lang": "ru",
+      "file": "ru/web-operator-warehouse.webp"
+    },
+    {
+      "key": "web/operator/products",
+      "lang": "ru",
+      "file": "ru/web-operator-products.webp"
+    },
+    {
+      "key": "web/supervisor/map",
+      "lang": "ru",
+      "file": "ru/web-supervisor-map.webp"
+    },
+    {
+      "key": "web/supervisor/plans-month",
+      "lang": "ru",
+      "file": "ru/web-supervisor-plans-month.webp"
+    },
+    {
+      "key": "web/supervisor/kpi",
+      "lang": "ru",
+      "file": "ru/web-supervisor-kpi.webp"
+    },
+    {
+      "key": "web/ceo/dashboard",
+      "lang": "uz",
+      "file": "uz/web-ceo-dashboard.webp"
+    },
+    {
+      "key": "web/ceo/reports",
+      "lang": "uz",
+      "file": "uz/web-ceo-reports.webp"
+    },
+    {
+      "key": "web/ceo/pnl",
+      "lang": "uz",
+      "file": "uz/web-ceo-pnl.webp"
+    },
+    {
+      "key": "web/ceo/salaries",
+      "lang": "uz",
+      "file": "uz/web-ceo-salaries.webp"
+    },
+    {
+      "key": "web/operator/orders",
+      "lang": "uz",
+      "file": "uz/web-operator-orders.webp"
+    },
+    {
+      "key": "web/operator/quick-order",
+      "lang": "uz",
+      "file": "uz/web-operator-quick-order.webp"
+    },
+    {
+      "key": "web/operator/picking",
+      "lang": "uz",
+      "file": "uz/web-operator-picking.webp"
+    },
+    {
+      "key": "web/operator/warehouse",
+      "lang": "uz",
+      "file": "uz/web-operator-warehouse.webp"
+    },
+    {
+      "key": "web/operator/products",
+      "lang": "uz",
+      "file": "uz/web-operator-products.webp"
+    },
+    {
+      "key": "web/supervisor/map",
+      "lang": "uz",
+      "file": "uz/web-supervisor-map.webp"
+    },
+    {
+      "key": "web/supervisor/plans-month",
+      "lang": "uz",
+      "file": "uz/web-supervisor-plans-month.webp"
+    },
+    {
+      "key": "web/supervisor/kpi",
+      "lang": "uz",
+      "file": "uz/web-supervisor-kpi.webp"
+    },
+    {
+      "key": "mobile/agent/home",
+      "lang": "ru",
+      "file": "ru/mobile-agent-home.webp"
+    },
+    {
+      "key": "mobile/agent/shops",
+      "lang": "ru",
+      "file": "ru/mobile-agent-shops.webp"
+    },
+    {
+      "key": "mobile/agent/catalog",
+      "lang": "ru",
+      "file": "ru/mobile-agent-catalog.webp"
+    },
+    {
+      "key": "mobile/agent/order-step2",
+      "lang": "ru",
+      "file": "ru/mobile-agent-order-step2.webp"
+    },
+    {
+      "key": "mobile/agent/orders",
+      "lang": "ru",
+      "file": "ru/mobile-agent-orders.webp"
+    },
+    {
+      "key": "mobile/agent/plan",
+      "lang": "ru",
+      "file": "ru/mobile-agent-plan.webp"
+    },
+    {
+      "key": "mobile/agent/debts",
+      "lang": "ru",
+      "file": "ru/mobile-agent-debts.webp"
+    },
+    {
+      "key": "mobile/agent/gps",
+      "lang": "ru",
+      "file": "ru/mobile-agent-gps.webp"
+    },
+    {
+      "key": "mobile/agent/salary",
+      "lang": "ru",
+      "file": "ru/mobile-agent-salary.webp"
+    },
+    {
+      "key": "mobile/courier/deliveries",
+      "lang": "ru",
+      "file": "ru/mobile-courier-deliveries.webp"
+    },
+    {
+      "key": "mobile/courier/deliver",
+      "lang": "ru",
+      "file": "ru/mobile-courier-deliver.webp"
+    },
+    {
+      "key": "mobile/merchandiser/visit-report",
+      "lang": "ru",
+      "file": "ru/mobile-merchandiser-visit-report.webp"
+    },
+    {
+      "key": "mobile/supervisor/map",
+      "lang": "ru",
+      "file": "ru/mobile-supervisor-map.webp"
+    },
+    {
+      "key": "mobile/supervisor/targets",
+      "lang": "ru",
+      "file": "ru/mobile-supervisor-targets.webp"
+    },
+    {
+      "key": "mobile/agent/home",
+      "lang": "uz",
+      "file": "uz/mobile-agent-home.webp"
+    },
+    {
+      "key": "mobile/agent/shops",
+      "lang": "uz",
+      "file": "uz/mobile-agent-shops.webp"
+    },
+    {
+      "key": "mobile/agent/catalog",
+      "lang": "uz",
+      "file": "uz/mobile-agent-catalog.webp"
+    },
+    {
+      "key": "mobile/agent/order-step2",
+      "lang": "uz",
+      "file": "uz/mobile-agent-order-step2.webp"
+    },
+    {
+      "key": "mobile/agent/orders",
+      "lang": "uz",
+      "file": "uz/mobile-agent-orders.webp"
+    },
+    {
+      "key": "mobile/agent/plan",
+      "lang": "uz",
+      "file": "uz/mobile-agent-plan.webp"
+    },
+    {
+      "key": "mobile/agent/debts",
+      "lang": "uz",
+      "file": "uz/mobile-agent-debts.webp"
+    },
+    {
+      "key": "mobile/agent/gps",
+      "lang": "uz",
+      "file": "uz/mobile-agent-gps.webp"
+    },
+    {
+      "key": "mobile/agent/salary",
+      "lang": "uz",
+      "file": "uz/mobile-agent-salary.webp"
+    },
+    {
+      "key": "mobile/courier/deliveries",
+      "lang": "uz",
+      "file": "uz/mobile-courier-deliveries.webp"
+    },
+    {
+      "key": "mobile/courier/deliver",
+      "lang": "uz",
+      "file": "uz/mobile-courier-deliver.webp"
+    },
+    {
+      "key": "mobile/merchandiser/visit-report",
+      "lang": "uz",
+      "file": "uz/mobile-merchandiser-visit-report.webp"
+    },
+    {
+      "key": "mobile/supervisor/map",
+      "lang": "uz",
+      "file": "uz/mobile-supervisor-map.webp"
+    },
+    {
+      "key": "mobile/supervisor/targets",
+      "lang": "uz",
+      "file": "uz/mobile-supervisor-targets.webp"
+    }
+  ],
+  "missing": [],
+  "failures": []
+}
