@@ -1,0 +1,119 @@
+# Нагрузочный тест — сколько человек одновременно выдерживает один экземпляр.
+#
+# Поднимает MySQL, засевает demo-uz и дорастает его до боевых размеров и
+# больше (scripts/load/seed-bulk.mjs), собирает и запускает приложение как в
+# бою (NODE_ENV=production, dist/boot.js), и гонит k6 (scripts/load/k6.js):
+# агенты, курьеры, директора — ступенями до 150% заданного числа.
+#
+# Оговорка, которую надо помнить, читая цифры: раннер GitHub — 4 vCPU и общая
+# машина, в бою у Railway — до 8 vCPU. Абсолютные миллисекунды здесь хуже
+# боевых; ОТНОСИТЕЛЬНАЯ картина — что упирается первым и на каком числе людей
+# начинает расти p95 — переносится. Запуск руками: Actions → Load test.
+name: Load test
+
+on:
+  # Пуш в ветку chore/load-test — первый запуск, пока workflow_dispatch ещё не
+  # виден с main; дальше — только руками, с параметрами.
+  push:
+    branches: [chore/load-test]
+    paths: [".github/workflows/load-test.yml", "scripts/load/**"]
+  workflow_dispatch:
+    inputs:
+      agents:
+        description: "Одновременных агентов в поле (на полке; пик — ×1.5)"
+        default: "300"
+      directors:
+        description: "Одновременных директоров/супервайзеров (тяжёлые отчёты)"
+        default: "30"
+      couriers:
+        description: "Одновременных курьеров"
+        default: "30"
+      stage_min:
+        description: "Минут на ступень (4 ступени + спуск)"
+        default: "3"
+      orders:
+        description: "Заказов в базе стенда (бой: ~1.4K)"
+        default: "30000"
+
+jobs:
+  load:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    services:
+      mysql:
+        image: mysql:9.4
+        env:
+          MYSQL_ROOT_PASSWORD: test
+          MYSQL_DATABASE: warehouse_load
+        ports: ["3306:3306"]
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -ptest"
+          --health-interval=5s --health-timeout=5s --health-retries=20
+    env:
+      DATABASE_URL: mysql://root:test@127.0.0.1:3306/warehouse_load
+      APP_SECRET: load-test-ephemeral-secret-not-used-anywhere-else
+      APP_URL: http://127.0.0.1:3100
+      ALLOWED_ORIGINS: http://127.0.0.1:3100
+      PORT: "3100"
+      # Стенд: лимиты частоты выключены — сотни виртуальных людей ходят под
+      # пятью учётками засева; иначе тест измерит лимит, а не сервер.
+      RATE_LIMIT_DISABLED: "1"
+      # Пул как в бою по умолчанию (DB_CONNECTION_LIMIT=20): именно его
+      # хватку и хотим увидеть. Для сравнения — второй запуск с 50.
+      DB_CONNECTION_LIMIT: ${{ vars.LOAD_DB_POOL || '20' }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --legacy-peer-deps
+
+      - name: Схема, засев, дорастить до боевых размеров
+        env:
+          LOAD_ORDERS: ${{ inputs.orders || '30000' }}
+        run: |
+          npx drizzle-kit push --force
+          node scripts/e2e-baseline-journal.mjs
+          npm run db:seed
+          node scripts/load/seed-bulk.mjs
+
+      - name: Сборка и запуск как в бою
+        run: |
+          npm run build
+          NODE_ENV=production nohup node dist/boot.js > /tmp/web.log 2>&1 &
+          for i in $(seq 1 60); do curl -sf http://127.0.0.1:3100/health/ready && break; sleep 2; done
+          curl -sf http://127.0.0.1:3100/health/ready || { echo "веб не поднялся"; tail -50 /tmp/web.log; exit 1; }
+
+      - name: k6
+        uses: grafana/setup-k6-action@v1
+      - name: Нагрузка
+        env:
+          BASE_URL: http://127.0.0.1:3100
+          AGENTS: ${{ inputs.agents || '300' }}
+          DIRECTORS: ${{ inputs.directors || '30' }}
+          COURIERS: ${{ inputs.couriers || '30' }}
+          STAGE_MIN: ${{ inputs.stage_min || '3' }}
+        run: k6 run scripts/load/k6.js || true
+
+      - name: Итог в сводку задания
+        if: always()
+        run: |
+          echo "### Стенд: раннер GitHub (4 vCPU), MySQL 9.4 рядом, пул ${DB_CONNECTION_LIMIT:-20}, заказов в базе ${{ inputs.orders || '30000' }}" >> "$GITHUB_STEP_SUMMARY"
+          cat load-summary.md >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || echo "сводки нет — см. журнал" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Метрики сервера (хвост /metrics):" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          curl -s http://127.0.0.1:3100/metrics | grep -E "^(http_requests_active|process_resident_memory_bytes|nodejs_eventloop_lag_p99_seconds|nodejs_active_handles_total)" >> "$GITHUB_STEP_SUMMARY" || true
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          echo "----- web.log: ошибки"; grep -c '"level":"error"' /tmp/web.log || true
+          grep '"level":"error"' /tmp/web.log | head -20 || true
+
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: load-test
+          path: |
+            load-summary.md
+            load-summary.json
+            /tmp/web.log

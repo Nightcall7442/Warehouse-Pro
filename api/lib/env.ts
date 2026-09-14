@@ -89,6 +89,14 @@ export const env = {
 
   // Rate limiting
   rateLimitGlobalMax:   parseInt(optional("RATE_LIMIT_GLOBAL_MAX", "120"), 10),
+  /**
+   * Лимиты частоты выключены целиком — ТОЛЬКО для нагрузочного стенда
+   * (.github/workflows/load-test.yml): сотни виртуальных агентов ходят под
+   * одними и теми же учётками засева, и лимит «на человека» отрубил бы их на
+   * первой секунде. В бою эта переменная не задаётся; при запуске пишется
+   * громкое предупреждение (api/boot.ts).
+   */
+  rateLimitDisabled:    optional("RATE_LIMIT_DISABLED") === "1",
   rateLimitWindowMs:    parseInt(optional("RATE_LIMIT_WINDOW_MS", "60000"), 10),
 
   // Stripe

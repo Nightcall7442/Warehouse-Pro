@@ -918,6 +918,7 @@ if (env.isProduction) {
   const port = parseInt(process.env.PORT ?? "3000", 10);
   const server = serve({ fetch: app.fetch, port }, () => {
     logger.info("server started", { port, version: APP_VERSION });
+    if (env.rateLimitDisabled) logger.warn("RATE_LIMIT_DISABLED=1: лимиты частоты выключены — это допустимо только на нагрузочном стенде");
     // Суперадмину: выкладка встала (или сервер перезапустился — это тоже
     // новость), и какие миграции при этом догнали.
     void import("./telegram-router")
