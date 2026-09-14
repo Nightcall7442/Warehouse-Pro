@@ -79,7 +79,7 @@ async function seed() {
     symbolPosition: "after",
     defaultReorderPoint: "0.00",
     lowStockThreshold: "30.00",
-    companyAddress: "Тошкент вилояти, Чирчиқ ш., Мустақиллик кўчаси, 45-уй",
+    companyAddress: "Хоразм вилояти, Урганч ш., Ал-Хоразмий кўчаси, 12",
     companyPhone: "+998 71 234 56 78",
     companyInn: "305678901",
     companyDirector: "Каримов Акбар Жамшидович",
@@ -100,7 +100,7 @@ async function seed() {
   // ── Warehouses ────────────────────────────────────────────────────────────────
   console.log("Creating warehouses...");
   const warehouseData = [
-    { name: "Основной склад Ташкент", address: "Тошкент ш., Промзона 12", city: "Tashkent", isDefault: true },
+    { name: "Основной склад Ургенч", address: "Урганч ш., Ал-Хоразмий кўчаси, 12", city: "Urgench", isDefault: true },
     { name: "Склад Самарканд", address: "Самарқанд ш., пр. Мирзо Улугбек, 45", city: "Samarkand", isDefault: false },
     { name: "Склад Бухара", address: "Бухоро ш., ул. Истиклол, 18", city: "Bukhara", isDefault: false },
   ];
@@ -181,7 +181,7 @@ async function seed() {
 
   // Agents (5) — different cities
   const agentData = [
-    { name: "Эшмуродов Жасур", email: "agent-tashkent@demo-uz.uz", city: "Tashkent" },
+    { name: "Эшмуродов Жасур", email: "agent-urgench@demo-uz.uz", city: "Urgench" },
     { name: "Тошматов Сардор", email: "agent-samarkand@demo-uz.uz", city: "Samarkand" },
     { name: "Назаров Бехзод", email: "agent-bukhara@demo-uz.uz", city: "Bukhara" },
     { name: "Алиев Фирдавс", email: "agent-nukus@demo-uz.uz", city: "Nukus" },
@@ -264,6 +264,54 @@ async function seed() {
 
   // ── Products (35) ────────────────────────────────────────────────────────────
   console.log("Creating products...");
+  /*
+    Фотографии товаров — Pexels, свободная лицензия (коммерческое использование
+    без указания автора), как и остальные фото лендинга. Без них каталог в
+    приложении показывает заглушку-коробку, и снимки экранов для лендинга
+    выглядели пустыми — «фоток нету», по слову владельца.
+
+    Абсолютные адреса: веб и телефон показывают их напрямую, минуя /api/photos.
+  */
+  const PRODUCT_PHOTOS: Record<string, string> = {
+    "VEG-001": "29479888",
+    "VEG-002": "7543157",
+    "VEG-003": "6157047",
+    "VEG-004": "10487659",
+    "VEG-005": "6316541",
+    "VEG-006": "10899606",
+    "FRU-001": "12955951",
+    "FRU-002": "7288788",
+    "FRU-003": "3987387",
+    "FRU-004": "12932797",
+    "FRU-005": "4074999",
+    "MLK-001": "5946755",
+    "MLK-002": "7144518",
+    "MLK-003": "4198171",
+    "MLK-004": "5946717",
+    "MLK-005": "13079969",
+    "MEA-001": "618775",
+    "MEA-002": "13422467",
+    "MEA-003": "6281506",
+    "MEA-004": "10794112",
+    "BEV-001": "7767754",
+    "BEV-002": "8228301",
+    "BEV-003": "8329281",
+    "BEV-004": "7507583",
+    "BEV-005": "6150569",
+    "GRC-001": "6996209",
+    "GRC-002": "5850339",
+    "GRC-003": "5469035",
+    "GRC-004": "12284682",
+    "GRC-005": "6287376",
+    "SWE-001": "14839145",
+    "SWE-002": "14456366",
+    "SWE-003": "12558753",
+    "SWE-004": "13246534",
+    "BRD-001": "209206",
+    "BRD-002": "13084520",
+  };
+  const pexels = (id: string) => `https://images.pexels.com/photos/${id}/pexels-photo-${id}.jpeg?auto=compress&cs=tinysrgb&w=480&h=480&fit=crop`;
+
   const productDefs: (typeof schema.products.$inferInsert)[] = [
     // ── Овощи
     { tenantId, code: "VEG-001", barcode: "4780123456789", name: "Помидор свежий", category: "Овощи", costPrice: "8500.00", unitPrice: "12000.00", unit: "kg", unitWeight: "1.000", reorderPoint: "50.00" },
@@ -313,7 +361,8 @@ async function seed() {
 
   const productIds: number[] = [];
   for (const p of productDefs) {
-    const [r] = await db.insert(schema.products).values({ ...p, status: "active" });
+    const photoUrl = p.code && PRODUCT_PHOTOS[p.code] ? pexels(PRODUCT_PHOTOS[p.code]) : null;
+    const [r] = await db.insert(schema.products).values({ ...p, photoUrl, status: "active" });
     productIds.push(Number(r.insertId));
   }
   console.log(`✓ ${productIds.length} products created\n`);
@@ -342,17 +391,17 @@ async function seed() {
   // ── Shops (25) ──────────────────────────────────────────────────────────────
   console.log("Creating shops...");
   const shopDefs: (typeof schema.shops.$inferInsert)[] = [
-    // Tashkent (10)
-    { tenantId, name: "Олтин Дала savdo", ownerName: "Эркаев Дилшод", phone: "+998 91 100 00 01", city: "Tashkent", district: "Юнусабад", address: "Беруни кўчаси, 22", agentId: agentIds[0], debt: "0.00", gpsLat: "41.3603", gpsLng: "69.2853", photoUrl: PLACEHOLDER_PHOTO },
-    { tenantId, name: "Бараka Market", ownerName: "Юсупова Дилноза", phone: "+998 91 100 00 02", city: "Tashkent", district: "Шайхонтохур", address: "Амир Темур кўчаси, 5", agentId: agentIds[0], debt: "850000.00", gpsLat: "41.3111", gpsLng: "69.2797", photoUrl: PLACEHOLDER_PHOTO },
-    { tenantId, name: "Файз Продукт", ownerName: "Рашидов Алишер", phone: "+998 91 100 00 03", city: "Tashkent", district: "Мирзо Улугбек", address: "Навои кўчаси, 41", agentId: agentIds[0], debt: "320000.00", gpsLat: "41.3367", gpsLng: "69.3389", photoUrl: PLACEHOLDER_PHOTO },
-    { tenantId, name: "Гулистон do'koni", ownerName: "Назарова Зулфия", phone: "+998 91 100 00 04", city: "Tashkent", district: "Шайхонтохур", address: "Навои кўчаси, 17", agentId: agentIds[0], debt: "0.00", gpsLat: "41.3046", gpsLng: "69.2781", photoUrl: PLACEHOLDER_PHOTO },
-    { tenantId, name: "Рахмат Савдо", ownerName: "Ибрагимов Рустам", phone: "+998 91 100 00 05", city: "Tashkent", district: "Сергели", address: "Алмазар кўчаси, 8", agentId: agentIds[0], debt: "150000.00", gpsLat: "41.2934", gpsLng: "69.2564", photoUrl: PLACEHOLDER_PHOTO },
-    { tenantId, name: "Чойхона Марказий", ownerName: "Каримова Гулнара", phone: "+998 91 100 00 06", city: "Tashkent", district: "Юнусабад", address: "Мустақиллик кўчаси, 33", agentId: agentIds[0], debt: "0.00", gpsLat: "41.3552", gpsLng: "69.2878", photoUrl: PLACEHOLDER_PHOTO },
-    { tenantId, name: "Dokon Super", ownerName: "Холматов Бекзод", phone: "+998 91 100 00 07", city: "Tashkent", district: "Олмазор", address: "Фарғона Йўли, 112", agentId: agentIds[0], debt: "570000.00", gpsLat: "41.3199", gpsLng: "69.3363", photoUrl: PLACEHOLDER_PHOTO },
-    { tenantId, name: "Умид Мағозин", ownerName: "Тўхтасинова Нилуфар", phone: "+998 91 100 00 08", city: "Tashkent", district: "Бектемир", address: "Бектемир кўчаси, 19", agentId: agentIds[0], debt: "0.00", gpsLat: "41.2803", gpsLng: "69.3198", photoUrl: PLACEHOLDER_PHOTO },
-    { tenantId, name: "Кўпчilik Market", ownerName: "Салимов Акмал", phone: "+998 91 100 00 09", city: "Tashkent", district: "Чиланзар", address: "Чиланзар кўчаси, 45", agentId: agentIds[0], debt: "200000.00", gpsLat: "41.2875", gpsLng: "69.2673", photoUrl: PLACEHOLDER_PHOTO },
-    { tenantId, name: "Навруз Савдо", ownerName: "Дустматова Гулзода", phone: "+998 91 100 00 10", city: "Tashkent", district: "Яшнобод", address: "Яшнобод кўчаси, 7", agentId: agentIds[0], debt: "0.00", gpsLat: "41.3042", gpsLng: "69.3521", photoUrl: PLACEHOLDER_PHOTO },
+    // Urgench (10)
+    { tenantId, name: "Олтин Дала savdo", ownerName: "Эркаев Дилшод", phone: "+998 91 100 00 01", city: "Urgench", district: "Марказ", address: "Ал-Хоразмий кўчаси, 22", agentId: agentIds[0], debt: "0.00", gpsLat: "41.5530", gpsLng: "60.6318", photoUrl: PLACEHOLDER_PHOTO },
+    { tenantId, name: "Бараka Market", ownerName: "Юсупова Дилноза", phone: "+998 91 100 00 02", city: "Urgench", district: "Ёшлик", address: "Хонқа йўли, 5", agentId: agentIds[0], debt: "850000.00", gpsLat: "41.5462", gpsLng: "60.6402", photoUrl: PLACEHOLDER_PHOTO },
+    { tenantId, name: "Файз Продукт", ownerName: "Рашидов Алишер", phone: "+998 91 100 00 03", city: "Urgench", district: "Ал-Беруний", address: "Беруний кўчаси, 41", agentId: agentIds[0], debt: "320000.00", gpsLat: "41.5581", gpsLng: "60.6227", photoUrl: PLACEHOLDER_PHOTO },
+    { tenantId, name: "Гулистон do'koni", ownerName: "Назарова Зулфия", phone: "+998 91 100 00 04", city: "Urgench", district: "Марказ", address: "Тинчлик кўчаси, 17", agentId: agentIds[0], debt: "0.00", gpsLat: "41.5507", gpsLng: "60.6285", photoUrl: PLACEHOLDER_PHOTO },
+    { tenantId, name: "Рахмат Савдо", ownerName: "Ибрагимов Рустам", phone: "+998 91 100 00 05", city: "Urgench", district: "Гуллан", address: "Гуллан кўчаси, 8", agentId: agentIds[0], debt: "150000.00", gpsLat: "41.5398", gpsLng: "60.6176", photoUrl: PLACEHOLDER_PHOTO },
+    { tenantId, name: "Чойхона Марказий", ownerName: "Каримова Гулнара", phone: "+998 91 100 00 06", city: "Urgench", district: "Ёшлик", address: "Мустақиллик кўчаси, 33", agentId: agentIds[0], debt: "0.00", gpsLat: "41.5551", gpsLng: "60.6431", photoUrl: PLACEHOLDER_PHOTO },
+    { tenantId, name: "Dokon Super", ownerName: "Холматов Бекзод", phone: "+998 91 100 00 07", city: "Urgench", district: "Янгиарик", address: "Урганч–Хива йўли, 112", agentId: agentIds[0], debt: "570000.00", gpsLat: "41.5312", gpsLng: "60.6089", photoUrl: PLACEHOLDER_PHOTO },
+    { tenantId, name: "Умид Мағозин", ownerName: "Тўхтасинова Нилуфар", phone: "+998 91 100 00 08", city: "Urgench", district: "Бешмерган", address: "Бешмерган кўчаси, 19", agentId: agentIds[0], debt: "0.00", gpsLat: "41.5624", gpsLng: "60.6489", photoUrl: PLACEHOLDER_PHOTO },
+    { tenantId, name: "Кўпчilik Market", ownerName: "Салимов Акмал", phone: "+998 91 100 00 09", city: "Urgench", district: "Ал-Беруний", address: "Абу Райхон кўчаси, 45", agentId: agentIds[0], debt: "200000.00", gpsLat: "41.5487", gpsLng: "60.6151", photoUrl: PLACEHOLDER_PHOTO },
+    { tenantId, name: "Навруз Савдо", ownerName: "Дустматова Гулзода", phone: "+998 91 100 00 10", city: "Urgench", district: "Гуллан", address: "Ибн Сино кўчаси, 7", agentId: agentIds[0], debt: "0.00", gpsLat: "41.5442", gpsLng: "60.6537", photoUrl: PLACEHOLDER_PHOTO },
 
     // Samarkand (8)
     { tenantId, name: "Регистан Маркет", ownerName: "Шарипов Мирзокирим", phone: "+998 91 200 00 01", city: "Samarkand", district: "Марказий", address: "Регистон кўчаси, 3", agentId: agentIds[1], debt: "0.00", gpsLat: "39.6542", gpsLng: "66.9756", photoUrl: PLACEHOLDER_PHOTO },
@@ -395,7 +444,13 @@ async function seed() {
     const shopId = shopIds[shopIdx];
     const agentId = allAgents[i % allAgents.length];
     const status = statuses[i % 4];
-    const daysBack = Math.floor(i / 3);
+    /*
+      Первые тридцать заказов — плотно, по три в день за последние десять
+      дней: главная и «сегодня» должны быть живыми. Остальные пятьдесят
+      расходятся на полгода назад — иначе месячные графики (P&L, отчёты)
+      состоят из двух точек и одной косой линии между ними.
+    */
+    const daysBack = i < 30 ? Math.floor(i / 3) : 10 + Math.floor((i - 30) * 3.4);
     const createdAt = daysAgo(daysBack, i % 10);
 
     const numItems = 1 + Math.floor(Math.random() * 4);
@@ -420,6 +475,9 @@ async function seed() {
         productId: productIds[prodIdx],
         quantity: String(qty),
         unitPrice: productDefs[prodIdx].unitPrice!,
+        // Себестоимость — снимок на момент заказа: по ней P&L считает маржу.
+        // Без неё отчёт показывал «себестоимость 0» и валовую прибыль 100 %.
+        costPrice: productDefs[prodIdx].costPrice!,
         subtotal: String(itemSubtotal),
       });
     }
@@ -584,12 +642,49 @@ async function seed() {
   }
   console.log(`✓ ${planCount} daily plans created\n`);
 
+  // ── Условия оплаты труда ─────────────────────────────────────────────────────
+  // Оклад, ставка комиссии, обед и дорожные лежат в строке commissions за месяц
+  // (kpi.setSalary). Без них ведомость зарплат показывает «оклад не задан» и
+  // нули — на снимке для лендинга это выглядело как пустая программа.
+  console.log("Creating pay terms...");
+  const payPeople: Array<{ userId: number; baseSalary: string; commissionRate: string; deliveryRate: string; courierPayMode: "per_delivery" | "percent"; meal: string; travel: string }> = [
+    ...agentIds.map(id => ({ userId: id, baseSalary: "2500000.00", commissionRate: "3.50", deliveryRate: "0.00", courierPayMode: "per_delivery" as const, meal: "20000.00", travel: "10000.00" })),
+    { userId: courier1Id, baseSalary: "2000000.00", commissionRate: "0.00", deliveryRate: "15000.00", courierPayMode: "per_delivery", meal: "20000.00", travel: "0.00" },
+    { userId: courier2Id, baseSalary: "2000000.00", commissionRate: "0.00", deliveryRate: "2.00", courierPayMode: "percent", meal: "20000.00", travel: "0.00" },
+    { userId: supervisorId, baseSalary: "3500000.00", commissionRate: "1.00", deliveryRate: "0.00", courierPayMode: "per_delivery", meal: "25000.00", travel: "15000.00" },
+  ];
+  let payCount = 0;
+  for (const back of [1, 0]) {
+    const now = new Date();
+    const first = new Date(now.getFullYear(), now.getMonth() - back, 1);
+    const last = new Date(now.getFullYear(), now.getMonth() - back + 1, 0);
+    for (const person of payPeople) {
+      await db.insert(schema.commissions).values({
+        tenantId,
+        userId: person.userId,
+        commissionRate: person.commissionRate,
+        deliveryRate: person.deliveryRate,
+        courierPayMode: person.courierPayMode,
+        baseSalary: person.baseSalary,
+        mealAllowance: person.meal,
+        travelAllowance: person.travel,
+        periodType: "monthly",
+        periodStart: first,
+        periodEnd: last,
+        status: back ? "paid" : "pending",
+      });
+      payCount++;
+    }
+  }
+  console.log(`✓ ${payCount} pay terms created\n`);
+
   // ── Agent Locations (30) ────────────────────────────────────────────────────
   console.log("Creating agent locations...");
   for (let i = 0; i < 30; i++) {
     const agentId = allAgents[i % allAgents.length];
-    const baseLat = [41.31, 39.65, 39.77, 42.46, 38.86][i % 5];
-    const baseLng = [69.28, 66.97, 64.42, 59.60, 65.78][i % 5];
+    // Порядок — как у agentData: Ургенч, Самарканд, Бухара, Нукус, Карши.
+    const baseLat = [41.55, 39.65, 39.77, 42.46, 38.86][i % 5];
+    const baseLng = [60.63, 66.97, 64.42, 59.60, 65.78][i % 5];
     await db.insert(schema.agentLocations).values({
       tenantId,
       agentId,
@@ -630,7 +725,7 @@ async function seed() {
 ║    ceo@demo-uz.uz                 → CEO / Admin                ║
 ║    operator1@demo-uz.uz           → Operator                   ║
 ║    operator2@demo-uz.uz           → Operator                   ║
-║    agent-tashkent@demo-uz.uz      → Agent (Tashkent)           ║
+║    agent-urgench@demo-uz.uz       → Agent (Urgench)            ║
 ║    agent-samarkand@demo-uz.uz     → Agent (Samarkand)          ║
 ║    agent-bukhara@demo-uz.uz       → Agent (Bukhara)            ║
 ║    agent-nukus@demo-uz.uz         → Agent (Nukus)              ║
@@ -642,7 +737,7 @@ async function seed() {
 ║    courier2@demo-uz.uz            → Courier                    ║
 ║                                                                  ║
 ║  DATA SUMMARY:                                                   ║
-║    ${shopIds.length} shops (Tashkent/Samarkand/Bukhara)                     ║
+║    ${shopIds.length} shops (Urgench/Samarkand/Bukhara)                     ║
 ║    ${productIds.length} products (food, beverages, dairy, meat, bakery)     ║
 ║    ${orderCount} orders (30-day spread, 4 statuses)                     ║
 ║    ${planCount} daily plans (7-day coverage, 5 agents)                    ║

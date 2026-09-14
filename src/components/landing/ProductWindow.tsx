@@ -1,355 +1,174 @@
-import { useMemo, useState } from "react";
-import { colorMix } from "@/lib/color-mix";
-import { APP, appCard } from "./app-skin";
-import { useTranslate } from "@/i18n";
-import { WifiOff, Check } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { useTranslate, useLang } from "@/i18n";
 import { LX, MONO } from "./landing-tokens";
-import CityMap from "./CityMap";
+import { webShot, WEB_ASPECT } from "./shots";
+import { Phone } from "./landing-frames";
+import { reducedMotion } from "./landing-anime";
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   ОКНО ПРОДУКТА — чернильная зона №1 (из двух на страницу).
+   02 / ОКНО ПРОДУКТА — НАСТОЯЩИЕ ЭКРАНЫ
 
-   Полноширинная чернильная полоса, в которую вплавлено окно приложения:
-   не тёмная рамка, плавающая на беже, а единый блок. Вкладки листаются
-   ТОЛЬКО вручную — автокарусель уводила таблицу из-под глаз читающего, а
-   пауза по hover не существует на планшете.
+   Раньше здесь были четыре нарисованные вкладки с выдуманными цифрами и
+   фальшивой картой. Владелец зачеркнул все четыре: покупатель должен видеть
+   ту программу, которую купит, а не её портрет.
 
-   Внутри — узнаваемая фактура: районы Ташкента, суммы в сумах табличными
-   цифрами, отметка «Выгружено в 1С», офлайн-очередь в мобильном. Директор
-   верит скриншоту, в котором узнаёт свой день, а не «Store #12, $1,240».
+   Теперь вкладки показывают снимки настоящего приложения на засеве
+   (scripts/screenshots.mjs): «Обзор» — главная директора, «Заказы» — экран
+   оператора, «Карта» — слежение супервайзера, «Мобильное» — два телефона.
+   Кадр держит пропорцию заранее, чтобы раскладка не прыгала при загрузке.
+
+   Переключение — anime.js: уходящий кадр гаснет и чуть сдвигается, новый
+   въезжает. Пока человек не тронул вкладки, они листаются сами раз в пять
+   секунд; первое касание останавливает автопролистывание навсегда — экран,
+   который меняется под рукой, раздражает сильнее, чем статичный.
    ═══════════════════════════════════════════════════════════════════════════ */
 
-function Kpi({ label, value, sub, subColor }: { label: string; value: string; sub?: string; subColor?: string }) {
-  return (
-    <div style={appCard(16)}>
-      <div className="text-[9.5px] uppercase mb-2" style={{ ...APP.label, color: APP.textTertiary }}>
-        {label}
-      </div>
-      <div className="text-[19px] font-bold" style={{ ...APP.num, color: APP.textPrimary }}>
-        {value}
-      </div>
-      {sub && (
-        <div className="text-[10.5px] mt-1" style={{ ...APP.num, color: subColor ?? APP.textTertiary }}>
-          {sub}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function OverviewTab() {
-  const tr = useTranslate();
-  const bars = [34, 52, 41, 68, 57, 84, 73];
-  return (
-    <div className="grid gap-3">
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-        <Kpi label={tr("Выручка сегодня", "Bugungi tushum")} value="48 250 000" sub={tr("сум · +18%", "so'm · +18%")} subColor={APP.success} />
-        <Kpi label={tr("Заказов", "Buyurtmalar")} value="142" sub={tr("31 в доставке", "31 tasi yo'lda")} />
-        <Kpi label={tr("Долги магазинов", "Do'kon qarzlari")} value="12 400 000" sub={tr("сум · 9 точек", "so'm · 9 nuqta")} subColor={APP.danger} />
-      </div>
-      <div style={appCard(16)}>
-        <div className="flex items-center justify-between mb-3">
-          <span className="text-[9.5px] uppercase" style={{ ...APP.label, color: APP.textTertiary }}>
-            {tr("Продажи, 7 дней", "Sotuvlar, 7 kun")}
-          </span>
-          <span className="inline-flex items-center gap-1.5 text-[10.5px]" style={{ ...APP.num, color: APP.success }}>
-            <Check size={11} strokeWidth={3} />
-            {tr("Выгружено в 1С", "1C ga yuklandi")}
-          </span>
-        </div>
-        <div className="flex items-end gap-3 h-24" style={{ borderBottom: `1.5px solid ${colorMix(APP.textTertiary, 22)}` }}>
-          {bars.map((h, i) => (
-            <div
-              key={i}
-              className="flex-1 rounded-t-[4px]"
-              style={{
-                height: `${h}%`,
-                background: APP.primary,
-                opacity: 0.3 + (i / (bars.length - 1)) * 0.7,
-              }}
-            />
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function OrdersTab() {
-  const tr = useTranslate();
-  const rows = useMemo(
-    () => [
-      { n: "W-2451", shop: "Baraka Market", area: tr("Чиланзар", "Chilonzor"), sum: "2 450 000", s: tr("Доставлен", "Yetkazildi"), tone: APP.success },
-      { n: "W-2452", shop: "Diyor Savdo", area: tr("Сергели", "Sergeli"), sum: "1 180 000", s: tr("В пути", "Yo'lda"), tone: "#d4973a" },
-      { n: "W-2453", shop: "Olmazor Trade", area: tr("Олмазор", "Olmazor"), sum: "3 640 000", s: tr("Новый", "Yangi"), tone: APP.textTertiary },
-      { n: "W-2454", shop: "Mega Do'kon", area: tr("Юнусабад", "Yunusobod"), sum: "940 000", s: tr("Част. возврат", "Qisman qaytdi"), tone: APP.danger },
-    ],
-    [tr],
-  );
-  return (
-    <div style={{ ...appCard(0), borderRadius: 18 }}>
-      {/*
-        Четыре колонки только с sm. На 360px фиксированные 64+92+74 плюс
-        отступы съедали всю ширину, и колонке «Магазин» оставалось 0 —
-        название превращалось в многоточие, а таблица вылезала за карточку.
-        Ниже sm строка складывается в две: слева магазин, справа сумма.
-      */}
-      <div
-        className="hidden sm:grid grid-cols-[64px_1fr_96px_88px] md:grid-cols-[76px_1fr_120px_110px] gap-3 px-4 py-2.5 text-[9.5px] uppercase"
-        style={{ ...MONO, color: APP.textTertiary, letterSpacing: "0.08em", borderBottom: `1px solid ${APP.border}` }}
-      >
-        <span>№</span>
-        <span>{tr("Магазин", "Do'kon")}</span>
-        <span className="text-right">{tr("Сумма", "Summa")}</span>
-        <span>{tr("Статус", "Holat")}</span>
-      </div>
-      {rows.map(r => (
-        <div
-          key={r.n}
-          className="grid grid-cols-[1fr_auto] sm:grid-cols-[64px_1fr_96px_88px] md:grid-cols-[76px_1fr_120px_110px] gap-x-3 gap-y-1 px-4 py-3 items-center"
-          style={{ borderBottom: `1px solid ${APP.border}` }}
-        >
-          <span className="hidden sm:block text-[11px]" style={{ ...APP.num, color: APP.textTertiary }}>{r.n}</span>
-          <span className="min-w-0">
-            <span className="block text-[12.5px] font-medium truncate" style={{ color: APP.textPrimary }}>{r.shop}</span>
-            <span className="block text-[10.5px] truncate" style={{ ...APP.num, color: APP.textTertiary }}>
-              <span className="sm:hidden">{r.n} · </span>{r.area}
-            </span>
-          </span>
-          <span className="text-[12px] text-right whitespace-nowrap" style={{ ...APP.num, color: APP.textPrimary }}>
-            <span className="block sm:hidden text-[10.5px]" style={{ color: r.tone }}>{r.s}</span>
-            {r.sum}
-          </span>
-          <span className="hidden sm:block text-[10.5px] truncate" style={{ ...MONO, color: r.tone }}>{r.s}</span>
-        </div>
-      ))}
-      <div className="px-4 py-2.5 text-[10.5px]" style={{ ...APP.num, color: APP.textTertiary }}>
-        {tr("142 заказа сегодня · показаны последние", "Bugun 142 buyurtma · oxirgilari ko'rsatilgan")}
-      </div>
-    </div>
-  );
-}
-
-function MapTab() {
-  const tr = useTranslate();
-
-  /** Карточка поверх карты. Тень сильнее, чем у карточек в панели: она должна
-      подниматься над подложкой, а не лежать на ней. */
-  const floating: React.CSSProperties = {
-    background: APP.surface,
-    borderRadius: 14,
-    border: "1px solid rgba(255,255,255,0.7)",
-    boxShadow: "0 10px 24px rgba(60,54,46,0.18), 0 2px 6px rgba(60,54,46,0.10)",
-    padding: "10px 13px",
-  };
-  const cap: React.CSSProperties = {
-    ...APP.label,
-    fontSize: 9,
-    textTransform: "uppercase",
-    color: APP.textTertiary,
-    display: "block",
-    marginBottom: 3,
-  };
-
-  return (
-    <div className="relative overflow-hidden h-[280px]" style={{ ...appCard(0), borderRadius: 18 }}>
-      <CityMap
-        pins={[
-          { x: 22, y: 30, tone: APP.success },
-          { x: 40, y: 42, tone: APP.success },
-          { x: 56, y: 27, tone: APP.primary, pulse: true },
-          { x: 70, y: 56, tone: APP.success },
-          { x: 36, y: 68, tone: APP.danger },
-          { x: 85, y: 38, tone: APP.success },
-        ]}
-        route={[
-          [22, 30],
-          [40, 42],
-          [56, 27],
-          [70, 56],
-          [85, 38],
-        ]}
-      />
-
-      {/* Кто в поле и сколько прошёл */}
-      <div className="absolute top-3 left-3 max-w-[62%]" style={floating}>
-        <span style={cap}>{tr("Агент в поле", "Dalada agent")}</span>
-        <span className="block text-[13px] font-semibold" style={{ ...APP.num, color: APP.textPrimary }}>
-          {tr("Санжар · Юнусабад", "Sanjar · Yunusobod")}
-        </span>
-        <span className="block text-[11.5px] mt-0.5" style={{ ...APP.num, color: APP.success }}>
-          {tr("14 из 18 точек · 12 мин назад", "18 dan 14 nuqta · 12 daqiqa oldin")}
-        </span>
-      </div>
-
-      {/* То, ради чего на карту и смотрят: точка, где были, но заказа нет */}
-      <div className="absolute bottom-3 right-3 max-w-[64%]" style={floating}>
-        <span style={cap}>{tr("Визит без заказа", "Buyurtmasiz tashrif")}</span>
-        <span className="block text-[13px] font-semibold" style={{ ...APP.num, color: APP.textPrimary }}>
-          {tr("Mega Do'kon · Чиланзар", "Mega Do'kon · Chilonzor")}
-        </span>
-        <span className="block text-[11.5px] mt-0.5" style={{ ...APP.num, color: APP.danger }}>
-          {tr("Был в точке, заказ не оформлен", "Nuqtada bo'ldi, buyurtma yo'q")}
-        </span>
-      </div>
-
-      {/* Честная подпись: это демо-данные, а не чей-то настоящий день. */}
-      <span
-        className="absolute top-3 right-3 text-[9.5px] px-2 py-1 rounded-full"
-        style={{
-          ...APP.label,
-          background: "rgba(255,255,255,0.86)",
-          color: APP.textTertiary,
-          border: `1px solid ${APP.border}`,
-        }}
-      >
-        {tr("демо-данные", "demo ma'lumot")}
-      </span>
-    </div>
-  );
-}
-
-function MobileTab() {
-  const tr = useTranslate();
-  const orders = [
-    { n: "W-2455", shop: "Sardor Market", sum: "1 320 000" },
-    { n: "W-2456", shop: "Do'stlik Savdo", sum: "760 000" },
-    { n: "W-2457", shop: "Chinor Market", sum: "2 080 000" },
-  ];
-  return (
-    <div className="grid md:grid-cols-[220px_1fr] gap-5 items-center">
-      <div className="mx-auto w-[200px] rounded-[1.4rem] p-2" style={{ background: APP.surface, border: `1px solid ${APP.border}`, boxShadow: APP.raisedSm }}>
-        <div className="rounded-[1.05rem] overflow-hidden" style={{ background: APP.surfaceLight }}>
-          <div
-            className="px-3 py-2 flex items-center gap-2"
-            style={{ background: "rgba(176,90,68,0.12)", borderBottom: `1px solid ${APP.border}` }}
-          >
-            <WifiOff size={11} style={{ color: APP.danger, flexShrink: 0 }} />
-            <span className="text-[9px] whitespace-nowrap" style={{ ...APP.num, color: APP.textPrimary }}>
-              {tr("Оффлайн · 3 в очереди", "Oflayn · navbatda 3")}
-            </span>
-          </div>
-          <div className="p-2.5 space-y-2">
-            {orders.map(o => (
-              <div key={o.n} className="rounded-md px-2.5 py-2" style={{ border: `1px solid ${APP.border}` }}>
-                <div className="flex justify-between text-[9px]" style={{ ...APP.num, color: APP.textTertiary }}>
-                  <span>{o.n}</span>
-                  <span>{o.sum}</span>
-                </div>
-                <div className="text-[10.5px] font-medium mt-0.5" style={{ color: APP.textPrimary }}>{o.shop}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-      <div className="space-y-3 px-1">
-        {[
-          tr("Связи нет — агент продолжает принимать заказы", "Aloqa yo'q — agent buyurtma qabul qilaveradi"),
-          tr("Появилась сеть — очередь уходит на сервер сама", "Tarmoq paydo bo'ldi — navbat o'zi serverga ketadi"),
-          tr("Фото полки, GPS-отметка визита, долги магазина — всё в телефоне", "Peshtaxta surati, GPS belgisi, do'kon qarzlari — hammasi telefonda"),
-        ].map(s => (
-          <div key={s} className="flex items-start gap-3">
-            <Check size={14} strokeWidth={3} className="mt-0.5 shrink-0" style={{ color: APP.success }} />
-            <span className="text-[13.5px] leading-relaxed" style={{ color: APP.textSecondary }}>{s}</span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
+const AUTO_MS = 5000;
 
 export default function ProductWindow() {
   const tr = useTranslate();
+  const { lang } = useLang();
   const [tab, setTab] = useState(0);
+  const [touched, setTouched] = useState(false);
+  const panel = useRef<HTMLDivElement>(null);
+  const prevTab = useRef(0);
+  // Телефоны в пикселях — от ширины окна, чтобы на узком экране не вылезали.
+  const [pw, setPw] = useState(220);
+  useEffect(() => {
+    const el = panel.current;
+    if (!el) return;
+    const measure = () => setPw(Math.max(96, Math.min(250, Math.round(el.clientWidth * 0.22))));
+    measure();
+    if (typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
   const tabs = [
-    tr("Обзор", "Umumiy"),
-    tr("Заказы", "Buyurtmalar"),
-    tr("Карта", "Xarita"),
-    tr("Мобильное", "Mobil"),
+    { label: tr("Обзор", "Umumiy"), alt: tr("Главная директора: выручка, заказы, долги, динамика продаж", "Direktor bosh sahifasi: tushum, buyurtmalar, qarzlar, savdo dinamikasi") },
+    { label: tr("Заказы", "Buyurtmalar"), alt: tr("Заказы оператора: список, фильтры, пакетные действия", "Operator buyurtmalari: ro'yxat, filtrlar, ommaviy amallar") },
+    { label: tr("Карта", "Xarita"), alt: tr("Слежение супервайзера: агенты на карте, след маршрута", "Supervayzer nazorati: xaritadagi agentlar, yo'nalish izi") },
+    { label: tr("Мобильное", "Mobil"), alt: tr("Приложение агента: главная и новый заказ", "Agent ilovasi: bosh sahifa va yangi buyurtma") },
   ];
+
+  const pick = (i: number) => { setTouched(true); setTab(i); };
+
+  // Автопролистывание — до первого касания.
+  useEffect(() => {
+    if (touched || reducedMotion()) return;
+    const id = window.setInterval(() => setTab(t => (t + 1) % tabs.length), AUTO_MS);
+    return () => window.clearInterval(id);
+  }, [touched, tabs.length]);
+
+  // Въезд нового кадра. Уходящий кадр уже размонтирован Реактом — анимируем
+  // только появление: сдвиг 18px и прозрачность, 380 мс.
+  useEffect(() => {
+    const el = panel.current;
+    if (!el || prevTab.current === tab) return;
+    prevTab.current = tab;
+    if (reducedMotion()) return;
+    let alive = true;
+    import("animejs").then(({ animate }) => {
+      if (!alive || !panel.current) return;
+      animate(panel.current, { x: [18, 0], opacity: [0.35, 1], duration: 380, ease: "outCubic" });
+    });
+    return () => { alive = false; };
+  }, [tab]);
+
   return (
     <section id="product" className="lx-ink scroll-mt-16" style={{ background: LX.night }}>
       <div className="max-w-[1240px] mx-auto px-6 pb-16 md:pb-24">
-      <div className="rounded-lg p-6 md:p-8" style={{ background: LX.ink }}>
-        <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-10">
-          <h2
-            className="font-bold"
-            style={{ fontSize: "clamp(1.6rem, 2.8vw, 2.2rem)", letterSpacing: "-0.025em", color: LX.paperOnInk }}
-          >
-            {tr("Один экран вместо пяти тетрадей", "Beshta daftar o'rniga bitta ekran")}
-          </h2>
-          <span className="text-[11px] uppercase" style={{ ...MONO, color: LX.softOnInk, letterSpacing: "0.08em" }}>
-            {tr("Интерфейс без прикрас", "Interfeys bo'yoqsiz")}
-          </span>
-        </div>
-
-        {/* Окно приложения, вплавленное в чернильную полосу */}
-        <div className="rounded-xl overflow-hidden" style={{ border: `1px solid ${LX.ruleOnInk}` }}>
-          <div className="flex items-center gap-4 px-4 py-3" style={{ background: "rgba(240,238,232,0.06)" }}>
-            <div className="hidden sm:flex gap-1.5" aria-hidden="true">
-              {[0, 1, 2].map(i => (
-                <span key={i} className="w-2.5 h-2.5 rounded-full" style={{ background: LX.faintOnInk }} />
-              ))}
-            </div>
-            <span className="hidden md:block text-[11px]" style={{ ...MONO, color: LX.softOnInk }}>
-              app.warehouse-pro.uz
+        <div className="rounded-lg p-6 md:p-8" style={{ background: LX.ink }}>
+          <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-10">
+            <h2 className="font-bold" style={{ fontSize: "clamp(1.6rem, 2.8vw, 2.2rem)", letterSpacing: "-0.025em", color: LX.paperOnInk }}>
+              {tr("Один экран вместо пяти тетрадей", "Beshta daftar o'rniga bitta ekran")}
+            </h2>
+            <span className="text-[11px] uppercase" style={{ ...MONO, color: LX.softOnInk, letterSpacing: "0.08em" }}>
+              {tr("Настоящие экраны программы", "Dasturning haqiqiy ekranlari")}
             </span>
-            {/*
-              Полный паттерн вкладок, а не половина его: объявив
-              role="tablist", мы обещаем скринридеру навигацию стрелками и
-              связь вкладки с панелью. Без aria-controls, role="tabpanel" и
-              обработчика стрелок это обещание не выполнялось — стрелки
-              молча не работали, а смена содержимого не озвучивалась.
-            */}
+          </div>
+
+          <div className="rounded-xl overflow-hidden" style={{ border: `1px solid ${LX.ruleOnInk}`, boxShadow: `0 40px 80px -40px ${LX.black80}` }}>
+            <div className="flex items-center gap-4 px-4 py-3" style={{ background: LX.paperOnInk06 }}>
+              <div className="hidden sm:flex gap-1.5" aria-hidden="true">
+                {[0, 1, 2].map(i => <span key={i} className="w-2.5 h-2.5 rounded-full" style={{ background: LX.faintOnInk }} />)}
+              </div>
+              <span className="hidden md:block text-[11px]" style={{ ...MONO, color: LX.softOnInk }}>app.warehouse-pro.uz</span>
+              <div
+                role="tablist"
+                aria-label={tr("Разделы приложения", "Ilova bo'limlari")}
+                className="flex gap-1 ml-auto overflow-x-auto"
+                onKeyDown={e => {
+                  const d = e.key === "ArrowRight" ? 1 : e.key === "ArrowLeft" ? -1 : 0;
+                  if (!d) return;
+                  e.preventDefault();
+                  const next = (tab + d + tabs.length) % tabs.length;
+                  pick(next);
+                  (e.currentTarget.children[next] as HTMLElement | undefined)?.focus();
+                }}
+              >
+                {tabs.map((t, i) => (
+                  <button
+                    key={t.label}
+                    role="tab"
+                    id={`wp-tab-${i}`}
+                    aria-selected={tab === i}
+                    aria-controls="wp-panel"
+                    tabIndex={tab === i ? 0 : -1}
+                    onClick={() => pick(i)}
+                    className="lx-anim px-3.5 h-10 md:h-8 rounded-md text-[12px] font-medium whitespace-nowrap cursor-pointer transition-colors duration-200"
+                    style={tab === i ? { background: LX.paper, color: LX.ink } : { color: LX.softOnInk }}
+                  >
+                    {t.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
             <div
-              role="tablist"
-              aria-label={tr("Разделы приложения", "Ilova bo'limlari")}
-              className="flex gap-1 ml-auto overflow-x-auto"
-              onKeyDown={e => {
-                const d = e.key === "ArrowRight" ? 1 : e.key === "ArrowLeft" ? -1 : 0;
-                if (!d) return;
-                e.preventDefault();
-                const next = (tab + d + tabs.length) % tabs.length;
-                setTab(next);
-                (e.currentTarget.children[next] as HTMLElement | undefined)?.focus();
-              }}
+              role="tabpanel"
+              id="wp-panel"
+              aria-labelledby={`wp-tab-${tab}`}
+              tabIndex={0}
+              className="relative outline-none overflow-hidden"
+              style={{ aspectRatio: WEB_ASPECT, background: LX.appCanvas }}
             >
-              {tabs.map((t, i) => (
-                <button
-                  key={t}
-                  role="tab"
-                  id={`wp-tab-${i}`}
-                  aria-selected={tab === i}
-                  aria-controls={`wp-panel-${i}`}
-                  tabIndex={tab === i ? 0 : -1}
-                  onClick={() => setTab(i)}
-                  className="lx-anim px-3.5 h-10 md:h-8 rounded-md text-[12px] font-medium whitespace-nowrap cursor-pointer transition-colors duration-200"
-                  style={
-                    tab === i
-                      ? { background: LX.paper, color: APP.textPrimary }
-                      : { color: LX.softOnInk }
-                  }
-                >
-                  {t}
-                </button>
-              ))}
+              <div ref={panel} className="absolute inset-0">
+                {tab < 3 ? (
+                  <img
+                    key={tab}
+                    src={webShot((["dashboard", "orders", "map"] as const)[tab], lang)}
+                    alt={tabs[tab].alt}
+                    loading="lazy"
+                    decoding="async"
+                    className="absolute inset-0 w-full h-full"
+                    style={{ objectFit: "cover", objectPosition: "top left" }}
+                  />
+                ) : (
+                  /*
+                    Три телефона дугой: средний ближе и крупнее, боковые
+                    повёрнуты к центру. Целиком, без обреза снизу — обрезанный
+                    телефон читается как ошибка вёрстки, а не как приём.
+                  */
+                  <div
+                    className="absolute inset-0 flex items-center justify-center gap-5 md:gap-8 px-6"
+                    style={{ perspective: 1400, background: `radial-gradient(ellipse at 50% 70%, ${LX.brassGlow16}, transparent 62%), ${LX.night}` }}
+                  >
+                    <Phone shot="catalog" alt={tr("Каталог с фото и ценой магазина", "Surat va do'kon narxi bilan katalog")} width={Math.round(pw * 0.86)} className="hidden sm:block" style={{ transform: "rotateY(22deg) translateX(10px) scale(0.92)", transformOrigin: "100% 50%" }} />
+                    <Phone shot="home" alt={tr("Главная агента: план визитов и заказы", "Agent bosh sahifasi: tashriflar rejasi va buyurtmalar")} width={pw} style={{ zIndex: 2 }} />
+                    <Phone shot="deliveries" alt={tr("Доставки курьера на сегодня", "Kuryerning bugungi yetkazishlari")} width={Math.round(pw * 0.86)} className="hidden md:block" style={{ transform: "rotateY(-22deg) translateX(-10px) scale(0.92)", transformOrigin: "0% 50%" }} />
+                  </div>
+                )}
+              </div>
+              <div aria-hidden="true" className="absolute inset-x-0 bottom-0 h-14 pointer-events-none" style={{ background: `linear-gradient(to bottom, transparent, ${LX.ink})` }} />
             </div>
           </div>
-          <div
-            role="tabpanel"
-            id={`wp-panel-${tab}`}
-            aria-labelledby={`wp-tab-${tab}`}
-            tabIndex={0}
-            className="p-4 md:p-6 outline-none"
-            style={{ background: APP.canvas }}
-          >
-            {tab === 0 && <OverviewTab />}
-            {tab === 1 && <OrdersTab />}
-            {tab === 2 && <MapTab />}
-            {tab === 3 && <MobileTab />}
-          </div>
+
+          <p className="mt-4 text-[11.5px]" style={{ ...MONO, color: LX.softOnInk }}>
+            {tr("Снимки сделаны с работающей программы на демо-данных · Ургенч, Хорезм", "Suratlar ishlayotgan dasturdan, demo-ma'lumotlarda · Urganch, Xorazm")}
+          </p>
         </div>
-      </div>
       </div>
     </section>
   );

@@ -119,7 +119,7 @@ export default function HeroSection() {
           >
             <span className="block" style={{ color: LX.brassText }}>{tr("Лист 01", "Varaq 01")}</span>
             <span className="block" style={{ color: LX.inkFaint }}>{tr("Реестр WP-2026", "Reyestr WP-2026")}</span>
-            <span className="block" style={{ color: LX.inkFaint }}>{tr("Ташкент", "Toshkent")}</span>
+            <span className="block" style={{ color: LX.inkFaint }}>{tr("Ургенч, Хорезм", "Urganch, Xorazm")}</span>
           </aside>
 
           {/* Тело */}

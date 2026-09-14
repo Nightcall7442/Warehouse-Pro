@@ -31,12 +31,20 @@ const MOBILE = process.env.MOBILE_URL ?? "";
 const OUT = process.env.OUT ?? "screenshots";
 const LANGS = (process.env.LANGS ?? "ru,uz").split(",");
 const PASSWORD = "password123";
+/*
+  Плотность точек веб-снимков. Руководству хватает 1: его выноски рисуются по
+  координатам в CSS-пикселях, и снимок ×2 сдвинул бы их. Лендингу нужно 2 —
+  кадр в оправе окна на экране Retina иначе мылится. Ветки docs/landing-* ставят
+  SHOT_SCALE=2 в .github/workflows/screenshots.yml; руководство эти снимки не
+  берёт.
+*/
+const SHOT_SCALE = Number(process.env.SHOT_SCALE ?? 1);
 
 /** Учётные записи из db/seed.ts — засев, не чьи-то настоящие данные. */
 const ACCOUNTS = {
   ceo: "ceo@demo-uz.uz",
   operator: "operator1@demo-uz.uz",
-  agent: "agent-tashkent@demo-uz.uz",
+  agent: "agent-urgench@demo-uz.uz",
   supervisor: "supervisor@demo-uz.uz",
   merchandiser: "merch1@demo-uz.uz",
   courier: "courier1@demo-uz.uz",
@@ -227,7 +235,7 @@ async function runScenarios(page, base, scenarios, dir, entry, kind, role) {
 async function shootWeb(browser) {
   for (const lang of LANGS) {
     {
-      const ctx = await browser.newContext({ viewport: { width: 1440, height: 1000 }, locale: lang === "uz" ? "uz" : "ru" });
+      const ctx = await browser.newContext({ viewport: { width: 1440, height: 1000 }, deviceScaleFactor: SHOT_SCALE, locale: lang === "uz" ? "uz" : "ru" });
       await ctx.addInitScript(l => { try { localStorage.setItem("lang", l); } catch {} }, lang);
       const page = await ctx.newPage();
       await page.goto(`${WEB}/login`).catch(() => {});
@@ -241,7 +249,7 @@ async function shootWeb(browser) {
     for (const [role, email] of Object.entries(ACCOUNTS)) {
       const scenarios = WEB_SCENARIOS[role];
       if (!scenarios) continue;
-      const ctx = await browser.newContext({ viewport: { width: 1440, height: 1000 }, locale: lang === "uz" ? "uz" : "ru" });
+      const ctx = await browser.newContext({ viewport: { width: 1440, height: 1000 }, deviceScaleFactor: SHOT_SCALE, locale: lang === "uz" ? "uz" : "ru" });
       await ctx.addInitScript(l => { try { localStorage.setItem("lang", l); } catch {} }, lang);
       const page = await ctx.newPage();
       try {
@@ -265,7 +273,15 @@ async function shootWeb(browser) {
 }
 
 async function shootMobile(browser) {
-  const phone = devices["iPhone 13"];
+  /*
+    Профиль «iPhone 13» у Playwright даёт видимую область 390×664 — экран без
+    системных полос. Руководству этого достаточно; лендингу нужен телефон
+    целиком, 390×844, иначе корпус в оправе выходит приземистым, как у старых
+    моделей. Ветки docs/landing-* ставят MOBILE_TALL=1.
+  */
+  const phone = process.env.MOBILE_TALL
+    ? { ...devices["iPhone 13"], viewport: { width: 390, height: 844 } }
+    : devices["iPhone 13"];
   for (const lang of LANGS) {
     for (const [role, scenarios] of Object.entries(MOBILE_SCENARIOS)) {
       const email = ACCOUNTS[role];

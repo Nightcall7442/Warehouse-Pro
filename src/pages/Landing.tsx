@@ -11,7 +11,13 @@ import LandingHeader from "@/components/landing/LandingHeader";
 import TallyField from "@/components/landing/TallyField";
 import { startLandingMotion } from "@/lib/landing-motion";
 import HeroSection from "@/components/landing/HeroSection";
-import PhotoStrip, { CTA_PHOTO } from "@/components/landing/PhotoStrip";
+import { CTA_PHOTO } from "@/components/landing/PhotoStrip";
+import OrdersSection from "@/components/landing/OrdersSection";
+import WarehouseSection from "@/components/landing/WarehouseSection";
+import MoneySection from "@/components/landing/MoneySection";
+import SetupSection from "@/components/landing/SetupSection";
+import MobileShowcase from "@/components/landing/MobileShowcase";
+import ManualSection from "@/components/landing/ManualSection";
 import ProductWindow from "@/components/landing/ProductWindow";
 import LossSection from "@/components/landing/LossSection";
 import FeaturesSection from "@/components/landing/FeaturesSection";
@@ -122,7 +128,7 @@ function FaqSection() {
         <div className="max-w-[880px]">
         <SectionHead
           id="faq"
-          index="07"
+          index="13"
           label="FAQ"
           title={tr("Вопросы, которые задают до покупки", "Sotib olishdan oldin beriladigan savollar")}
         />
@@ -241,7 +247,7 @@ function Footer() {
           <a href="/privacy" style={{ color: "inherit" }}>
             {tr("Политика конфиденциальности", "Maxfiylik siyosati")}
           </a>
-          <span>{tr("Ташкент, Узбекистан", "Toshkent, O'zbekiston")}</span>
+          <span>{tr("Ургенч, Хорезм, Узбекистан", "Urganch, Xorazm, O'zbekiston")}</span>
         </div>
       </div>
     </footer>
@@ -329,7 +335,17 @@ export default function Landing() {
       <ProductWindow />
       <FactsStrip />
       <FeaturesSection />
-      <PhotoStrip />
+      {/*
+        Главы о сильных сторонах — по слову владельца: «лендинг очень мало
+        информации». Порядок повторяет путь товара и денег: заказы → склад →
+        деньги → настройки, потом телефон, потом справка, потом цена.
+      */}
+      <OrdersSection />
+      <WarehouseSection />
+      <MoneySection />
+      <SetupSection />
+      <MobileShowcase />
+      <ManualSection />
       <PricingSection />
       <FaqSection />
       <CtaSection />

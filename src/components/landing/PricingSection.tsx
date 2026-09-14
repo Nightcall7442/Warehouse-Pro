@@ -1,9 +1,10 @@
-import { useMemo } from "react";
+import { useMemo, type ReactNode } from "react";
 import { useNavigate } from "react-router";
 import { useTranslate } from "@/i18n";
 import { Check } from "lucide-react";
-import { SectionHead, Stamp, BtnInk, BtnGhost } from "./landing-shared";
-import { cn, LX, MONO, tgLink } from "./landing-tokens";
+import { SectionHead, Stamp } from "./landing-shared";
+import { useAnime } from "./landing-anime";
+import { LX, MONO, tgLink } from "./landing-tokens";
 import { PLANS, PLAN_PRICES_UZS, PLAN_ADDS, FEATURES, EXTRA_PRICES_UZS } from "@contracts/constants";
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -29,7 +30,26 @@ import { PLANS, PLAN_PRICES_UZS, PLAN_ADDS, FEATURES, EXTRA_PRICES_UZS } from "@
    у Pro — экономический якорь в сум/день и второй оттиск печати.
    Верхний тариф не продаётся self-serve: если задан Telegram — кнопка ведёт
    к менеджеру.
+
+   ── Премиальная подача ─────────────────────────────────────────────────────
+
+   Владелец: «сделать ещё премиальным». Тарифы стали последней ночной
+   полосой перед FAQ: панели цвета чернил, у Pro — латунная кромка (единственный
+   акцент) и приподнятость, цена набирается счётчиком anime.js при появлении,
+   пределы — одной строкой с тонкими разделителями, а не тремя плитками.
+   Числа по-прежнему только из contracts/constants.ts.
    ═══════════════════════════════════════════════════════════════════════════ */
+
+function Btn({ kind, onClick, href, children }: { kind: "brass" | "paper"; onClick?: () => void; href?: string; children: ReactNode }) {
+  const style = kind === "brass"
+    ? { background: LX.brassOnNight, color: LX.night, border: `1px solid ${LX.brassOnNight}` }
+    : { background: "transparent", color: LX.paperOnInk, border: `1px solid ${LX.paperOnInk34}` };
+  const cls = "lx-anim inline-flex items-center justify-center w-full h-12 rounded-lg text-[14px] font-semibold cursor-pointer transition-opacity duration-200 hover:opacity-90";
+  return href
+    ? <a href={href} target="_blank" rel="noopener" className={cls} style={style}>{children}</a>
+    : <button type="button" onClick={onClick} className={cls} style={style}>{children}</button>;
+}
+
 
 export default function PricingSection() {
   const navigate = useNavigate();
@@ -54,6 +74,7 @@ export default function PricingSection() {
       {
         name: "Basic",
         price: PLAN_PRICES_UZS.basic.toLocaleString("ru"),
+        priceNumber: PLAN_PRICES_UZS.basic,
         fit: tr("Команда до 5 человек, один склад", "5 kishigacha jamoa, bitta ombor"),
         anchor: tr("≈ 10 000 сум в день", "kuniga ≈ 10 000 so'm"),
         limits: [
@@ -70,6 +91,7 @@ export default function PricingSection() {
       {
         name: "Pro",
         price: PLAN_PRICES_UZS.pro.toLocaleString("ru"),
+        priceNumber: PLAN_PRICES_UZS.pro,
         fit: tr("5–20 сотрудников, агенты в поле", "5–20 xodim, daladagi agentlar"),
         anchor: tr("≈ 20 000 сум в день — меньше одной недостачи", "kuniga ≈ 20 000 so'm — bitta kamomaddan arzon"),
         limits: [
@@ -87,6 +109,7 @@ export default function PricingSection() {
       {
         name: "Exclusive",
         price: PLAN_PRICES_UZS.exclusive.toLocaleString("ru"),
+        priceNumber: PLAN_PRICES_UZS.exclusive,
         /*
           Было «Сеть филиалов, без ограничений». Числа рядом берутся из PLANS и
           после отмены безлимита показывают 50 и 250 — то есть подпись спорила
@@ -113,12 +136,23 @@ export default function PricingSection() {
     [tr],
   );
 
+  const root = useAnime<HTMLDivElement>(({ animate, stagger, utils }, el) => {
+    animate(el.querySelectorAll("[data-plan]"), { y: [24, 0], opacity: [0, 1], duration: 620, delay: stagger(130, { start: 100 }), ease: "outCubic" });
+    el.querySelectorAll<HTMLElement>("[data-price]").forEach((n, i) => {
+      const target = Number(n.dataset.price);
+      const o = { v: 0 };
+      animate(o, { v: target, duration: 1300, delay: 400 + i * 150, ease: "outCubic", modifier: utils.round(0), onUpdate: () => { n.textContent = o.v.toLocaleString("ru"); } });
+    });
+    animate(el.querySelectorAll("[data-feat]"), { x: [-8, 0], opacity: [0, 1], duration: 380, delay: stagger(40, { start: 700 }), ease: "outCubic" });
+  }, 0.2);
+
   return (
-    <section className="py-16 md:py-24" style={{ borderTop: `1px solid ${LX.rule}` }}>
-      <div className="max-w-[1240px] mx-auto px-6">
+    <section className="lx-ink py-16 md:py-24" style={{ background: LX.night }}>
+      <div ref={root} className="max-w-[1240px] mx-auto px-6">
         <SectionHead
           id="pricing"
-          index="06"
+          tone="dark"
+          index="12"
           label={tr("Тарифы", "Tariflar")}
           title={tr("Цена написана на ценнике", "Narx yorlig'ida yozilgan")}
           lead={tr(
@@ -127,19 +161,23 @@ export default function PricingSection() {
           )}
         />
 
-        <div className="mt-12 grid md:grid-cols-3 gap-5 items-stretch">
+        <div className="mt-14 grid md:grid-cols-3 gap-5 items-stretch">
           {plans.map(plan => (
             <div
               key={plan.name}
-              className={cn("relative rounded-xl p-7 flex flex-col")}
+              data-plan
+              className={`relative rounded-2xl flex flex-col transition-transform duration-300 hover:-translate-y-1 ${plan.hl ? "md:-mt-6 md:mb-2" : ""}`}
               style={{
-                background: plan.hl ? LX.paperRaised : LX.paper,
-                border: plan.hl ? `2px solid ${LX.brass}` : `1px solid ${LX.ruleStrong}`,
-                boxShadow: plan.hl ? `0 0 0 4px ${LX.brassSoft}` : undefined,
+                padding: plan.hl ? "36px 30px" : "30px 26px",
+                background: plan.hl ? `linear-gradient(180deg, ${LX.brassGlow10}, ${LX.brassGlow02} 40%, transparent), ${LX.ink}` : LX.ink,
+                border: plan.hl ? `1px solid ${LX.brassOnNight}` : `1px solid ${LX.ruleOnInk}`,
+                boxShadow: plan.hl
+                  ? `0 0 0 6px ${LX.brassGlow08}, 0 50px 90px -50px ${LX.black90}`
+                  : `0 30px 60px -40px ${LX.black80}`,
               }}
             >
               {plan.hl && (
-                <div className="absolute -top-10 -right-5">
+                <div className="absolute -top-12 -right-4" style={{ filter: "brightness(1.45) saturate(1.1)" }}>
                   <Stamp
                     ring={tr("РЕКОМЕНДУЕМ · TAVSIYA ETILADI · РЕКОМЕНДУЕМ · ", "TAVSIYA ETILADI · РЕКОМЕНДУЕМ · TAVSIYA · ")}
                     center="PRO"
@@ -148,85 +186,48 @@ export default function PricingSection() {
                   />
                 </div>
               )}
-              <h3 className="text-[16px] font-bold" style={{ color: LX.ink }}>
-                {plan.name}
-              </h3>
-              <p className="text-[12.5px] mt-1" style={{ color: LX.inkFaint }}>
-                {plan.fit}
-              </p>
-              <div className="mt-5 flex items-baseline gap-2">
-                <span className="text-[32px] font-medium tracking-tight" style={{ ...MONO, color: LX.ink }}>
-                  {plan.price}
-                </span>
-                <span className="text-[12px]" style={{ color: LX.inkFaint }}>
-                  {tr("сум/мес", "so'm/oy")}
-                </span>
-              </div>
-              <p className="text-[12px] mt-1.5" style={{ ...MONO, color: LX.brassText }}>
-                {plan.anchor}
-              </p>
+              <div className="text-[11px] uppercase" style={{ ...MONO, color: LX.brassOnNight, letterSpacing: "0.1em" }}>{plan.name}</div>
+              <p className="text-[13.5px] mt-2" style={{ color: LX.softOnInk }}>{plan.fit}</p>
 
-              {/* Пределы — все три сразу и числом. Предел по товарам раньше не
-                  назывался вовсе, а для оптовика это главный вопрос. */}
-              <div
-                className="mt-5 grid grid-cols-3 gap-2 rounded-lg py-3 px-2"
-                style={{ background: LX.paperRaised, border: `1px solid ${LX.rule}` }}
-              >
-                {plan.limits.map(l => (
-                  <div key={l.label} className="text-center">
-                    <div className="text-[15px] font-semibold leading-none" style={{ ...MONO, color: LX.ink }}>
-                      {l.v}
-                    </div>
-                    <div className="text-[10.5px] mt-1.5 leading-tight" style={{ color: LX.inkFaint }}>
-                      {l.label}
-                    </div>
+              <div className="mt-6 flex items-baseline gap-2">
+                <span className="font-medium tracking-tight" style={{ ...MONO, fontSize: plan.hl ? 40 : 34, lineHeight: 1, color: LX.paperOnInk }}>
+                  <span data-price={plan.priceNumber}>{plan.price}</span>
+                </span>
+                <span className="text-[12px]" style={{ color: LX.softOnInk }}>{tr("сум/мес", "so'm/oy")}</span>
+              </div>
+              <p className="text-[12px] mt-2" style={{ ...MONO, color: LX.brassOnNight }}>{plan.anchor}</p>
+
+              {/* Пределы — одной строкой с тонкими разделителями. */}
+              <div className="mt-6 flex items-stretch rounded-lg overflow-hidden" style={{ border: `1px solid ${LX.ruleOnInk}` }}>
+                {plan.limits.map((l, i) => (
+                  <div key={l.label} className="flex-1 px-2 py-3 text-center" style={{ borderLeft: i ? `1px solid ${LX.ruleOnInk}` : undefined }}>
+                    <div className="text-[15px] font-semibold leading-none" style={{ ...MONO, color: LX.paperOnInk }}>{l.v}</div>
+                    <div className="text-[10.5px] mt-1.5 leading-tight" style={{ color: LX.softOnInk }}>{l.label}</div>
                   </div>
                 ))}
               </div>
-
-              {/*
-                Что делать, когда предела не хватило.
-
-                Раньше числа стояли молча, и человек читал их как «дальше
-                стена»: не хватает пятидесяти товаров — значит либо старший
-                тариф, либо не наш продукт. Надбавка существует именно для
-                этого случая (EXTRA_PRICES_UZS), но узнать о ней можно было
-                только уже став клиентом. Строка одна, мелкая и с ценами —
-                снимает главное возражение оптовика, не перетягивая внимание
-                с самих тарифов.
-
-                У пробного её нет: там предел стоит нарочно, чтобы им не жили.
-              */}
               {plan.extra && (
-                <p className="mt-2.5 text-center text-[11px] leading-snug" style={{ color: LX.inkFaint }}>
-                  {plan.extra}
-                </p>
+                <p className="mt-2.5 text-center text-[11px] leading-snug" style={{ color: LX.softOnInk }}>{plan.extra}</p>
               )}
 
-              <ul className="mt-5 space-y-2.5 flex-1">
-                {plan.features.map(f => (
-                  <li key={f} className="flex items-start gap-2.5 text-[13.5px]" style={{ color: LX.inkSoft }}>
-                    <Check size={14} strokeWidth={3} className="mt-0.5 shrink-0" style={{ color: LX.brassText }} />
+              <ul className="mt-6 space-y-2.5 flex-1">
+                {plan.features.map((f, i) => (
+                  <li key={f} data-feat className="flex items-start gap-2.5 text-[13.5px]" style={{ color: i === 0 && plan.name !== "Basic" ? LX.paperOnInk : LX.softOnInk, fontWeight: i === 0 && plan.name !== "Basic" ? 600 : 400 }}>
+                    <Check size={14} strokeWidth={3} className="mt-0.5 shrink-0" style={{ color: LX.brassOnNight }} />
                     {f}
                   </li>
                 ))}
               </ul>
 
-              <div className="mt-7">
+              <div className="mt-8">
                 {plan.manager && tgSales ? (
-                  <BtnGhost href={tgSales} className="w-full">
-                    {tr("Обсудить с менеджером", "Menejer bilan muhokama qilish")}
-                  </BtnGhost>
+                  <Btn kind="paper" href={tgSales}>{tr("Обсудить с менеджером", "Menejer bilan muhokama qilish")}</Btn>
                 ) : plan.hl ? (
-                  <BtnInk onClick={() => navigate("/register")} className="w-full">
-                    {tr("Начать бесплатно", "Bepul boshlash")}
-                  </BtnInk>
+                  <Btn kind="brass" onClick={() => navigate("/register")}>{tr("Начать бесплатно", "Bepul boshlash")}</Btn>
                 ) : (
-                  <BtnGhost onClick={() => navigate("/register")} className="w-full">
-                    {tr("Начать бесплатно", "Bepul boshlash")}
-                  </BtnGhost>
+                  <Btn kind="paper" onClick={() => navigate("/register")}>{tr("Начать бесплатно", "Bepul boshlash")}</Btn>
                 )}
-                <p className="mt-3 text-center text-[11px]" style={{ ...MONO, color: LX.inkFaint }}>
+                <p className="mt-3 text-center text-[11px]" style={{ ...MONO, color: LX.softOnInk }}>
                   {tr("14 дней бесплатно · карта не нужна", "14 kun bepul · karta kerak emas")}
                 </p>
               </div>
@@ -234,12 +235,14 @@ export default function PricingSection() {
           ))}
         </div>
 
-        <p className="mt-8 text-center text-[13px]" style={{ color: LX.inkSoft }}>
-          {tr(
-            "Оплата: Payme, Click или по счёту для юрлиц — с договором и закрывающими документами.",
-            "To'lov: Payme, Click yoki yuridik shaxslar uchun hisob orqali — shartnoma va yopuvchi hujjatlar bilan.",
-          )}
-        </p>
+        <div className="mt-10 grid md:grid-cols-2 gap-4 text-[13px]" style={{ color: LX.softOnInk }}>
+          <p className="rounded-lg px-4 py-3" style={{ border: `1px solid ${LX.ruleOnInk}` }}>
+            {tr("Предел ничего не удаляет: всё заведённое работает, нельзя лишь добавить сверх — а сверх можно докупить поштучно.", "Chegara hech narsani o'chirmaydi: kiritilgan hamma narsa ishlaydi, faqat ustiga qo'shib bo'lmaydi — ustini esa donalab sotib olish mumkin.")}
+          </p>
+          <p className="rounded-lg px-4 py-3" style={{ border: `1px solid ${LX.ruleOnInk}` }}>
+            {tr("Оплата: Payme, Click или по счёту для юрлиц — с договором и закрывающими документами.", "To'lov: Payme, Click yoki yuridik shaxslar uchun hisob orqali — shartnoma va yopuvchi hujjatlar bilan.")}
+          </p>
+        </div>
       </div>
     </section>
   );

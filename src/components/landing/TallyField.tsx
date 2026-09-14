@@ -1,6 +1,5 @@
 import { useEffect, useRef } from "react";
 import { useTranslate } from "@/i18n";
-import { animate, utils } from "animejs";
 import { LX, MONO } from "./landing-tokens";
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -83,16 +82,18 @@ export default function TallyField() {
     const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
     if (reduced) return;
 
-    // Прячем ИЗ сценария, а не стилями: не выполнится сценарий — поле просто
-    // останется на месте видимым, а не исчезнет с листа.
-    utils.set(marks, { opacity: 0, scaleY: 0.3 });
-
     let breathing: ReturnType<typeof setInterval> | undefined;
     let stopped = false;
 
+    // anime.js — лениво, как и во всех главах ниже: статический импорт клал
+    // библиотеку в первый экран. Прячем метки ИЗ сценария, а не стилями: не
+    // выполнится сценарий — поле просто останется на месте видимым.
     const io = new IntersectionObserver(([e]) => {
       if (!e.isIntersecting) return;
       io.disconnect();
+      import("animejs").then(({ animate, utils }) => {
+      if (stopped) return;
+      utils.set(marks, { opacity: 0, scaleY: 0.3 });
 
       animate(marks, {
         opacity: [0, 1],
@@ -117,6 +118,7 @@ export default function TallyField() {
           animate(el, { fill: next, duration: 900, ease: "inOutQuad" });
         }
       }, 1500);
+      });
     }, { threshold: 0.15 });
 
     io.observe(svg);
