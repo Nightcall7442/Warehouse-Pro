@@ -1,8 +1,7 @@
-import { Zap, Pencil, PackageMinus, Coins, Layers, Truck, Filter, MessageSquare, Printer, RotateCcw, CalendarClock, ClipboardList } from "lucide-react";
 import { useTranslate } from "@/i18n";
 import { LX, MONO } from "./landing-tokens";
 import { SectionHead } from "./landing-shared";
-import { Browser, DemoTag } from "./landing-frames";
+import { Browser, DemoTag, Ledger, Split } from "./landing-frames";
 import { useAnime } from "./landing-anime";
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -24,25 +23,24 @@ export default function OrdersSection() {
   const branches = [tr("Принят частично", "Qisman qabul"), tr("Возврат", "Qaytarish")];
 
   const caps = [
-    { I: Zap, t: tr("Быстрый заказ", "Tez buyurtma"), d: tr("Оператор принимает по телефону в два клика: магазин, позиции, готово", "Operator telefonda ikki bosishda qabul qiladi: do'kon, pozitsiyalar, tayyor") },
-    { I: Pencil, t: tr("Правка до отгрузки", "Jo'natishgacha tahrir"), d: tr("Позиции и количество меняются, пока заказ не уехал", "Pozitsiya va miqdor buyurtma ketguncha o'zgaradi") },
-    { I: PackageMinus, t: tr("Частичная доставка", "Qisman yetkazish"), d: tr("Приняли 80 из 100 — остаток на склад, причина недобора записана", "100 dan 80 qabul — qolgani omborga, kam olish sababi yozildi") },
-    { I: Coins, t: tr("Частичная оплата", "Qisman to'lov"), d: tr("Наличные, карта, перевод или в долг — частями, из офиса и с телефона", "Naqd, karta, o'tkazma yoki qarzga — bo'lib, ofisdan va telefondan") },
-    { I: Layers, t: tr("Пакетные действия", "Ommaviy amallar"), d: tr("Статус, агент, курьер, завершение с оплатой — на десятки заказов сразу", "Holat, agent, kuryer, to'lov bilan yakunlash — o'nlab buyurtmaga birdan") },
-    { I: Truck, t: tr("Погрузочные листы", "Yuklash varaqalari"), d: tr("Рейс из нескольких заказов, курьер назначен, лист напечатан складу", "Bir necha buyurtmadan reys, kuryer tayinlangan, varaqa omborga chop etilgan") },
-    { I: ClipboardList, t: tr("Комплектация", "Komplektatsiya"), d: tr("Что собрать по складу под рейс — по партиям и срокам годности", "Reys uchun ombordan nima yig'ish — partiya va muddat bo'yicha") },
-    { I: Filter, t: tr("Свои фильтры", "O'z filtrlaringiz"), d: tr("Сохранённый набор достаётся одним нажатием", "Saqlangan to'plam bir bosishda ochiladi") },
-    { I: MessageSquare, t: tr("Комментарии", "Izohlar"), d: tr("Переписка по заказу остаётся в самом заказе", "Buyurtma bo'yicha yozishma buyurtmaning o'zida qoladi") },
-    { I: Printer, t: tr("Печать пачкой", "Ommaviy chop etish"), d: tr("Накладные на весь рейс — одним документом", "Butun reys uchun yuk xatlari — bitta hujjat") },
-    { I: RotateCcw, t: tr("Удалить и вернуть", "O'chirish va tiklash"), d: tr("Удалённый заказ восстанавливается; кто и когда — в журнале", "O'chirilgan buyurtma tiklanadi; kim va qachon — jurnalda") },
-    { I: CalendarClock, t: tr("Обещанная дата", "Va'da qilingan sana"), d: tr("Когда магазину обещали — видно всем, кто везёт", "Do'konga qachon va'da berilgan — olib boruvchilarning hammasiga ko'rinadi") },
+    { t: tr("Быстрый заказ", "Tez buyurtma"), d: tr("Оператор принимает по телефону в два клика: магазин, позиции, готово", "Operator telefonda ikki bosishda qabul qiladi: do'kon, pozitsiyalar, tayyor") },
+    { t: tr("Правка до отгрузки", "Jo'natishgacha tahrir"), d: tr("Позиции и количество меняются, пока заказ не уехал", "Pozitsiya va miqdor buyurtma ketguncha o'zgaradi") },
+    { t: tr("Частичная доставка", "Qisman yetkazish"), d: tr("Приняли 80 из 100 — остаток на склад, причина недобора записана", "100 dan 80 qabul — qolgani omborga, kam olish sababi yozildi") },
+    { t: tr("Частичная оплата", "Qisman to'lov"), d: tr("Наличные, карта, перевод или в долг — частями, из офиса и с телефона", "Naqd, karta, o'tkazma yoki qarzga — bo'lib, ofisdan va telefondan") },
+    { t: tr("Пакетные действия", "Ommaviy amallar"), d: tr("Статус, агент, курьер, завершение с оплатой — на десятки заказов сразу", "Holat, agent, kuryer, to'lov bilan yakunlash — o'nlab buyurtmaga birdan") },
+    { t: tr("Погрузочные листы", "Yuklash varaqalari"), d: tr("Рейс из нескольких заказов, курьер назначен, лист напечатан складу", "Bir necha buyurtmadan reys, kuryer tayinlangan, varaqa omborga chop etilgan") },
+    { t: tr("Комплектация", "Komplektatsiya"), d: tr("Что собрать по складу под рейс — по партиям и срокам годности", "Reys uchun ombordan nima yig'ish — partiya va muddat bo'yicha") },
+    { t: tr("Свои фильтры", "O'z filtrlaringiz"), d: tr("Сохранённый набор достаётся одним нажатием", "Saqlangan to'plam bir bosishda ochiladi") },
+    { t: tr("Комментарии", "Izohlar"), d: tr("Переписка по заказу остаётся в самом заказе", "Buyurtma bo'yicha yozishma buyurtmaning o'zida qoladi") },
+    { t: tr("Печать пачкой", "Ommaviy chop etish"), d: tr("Накладные на весь рейс — одним документом", "Butun reys uchun yuk xatlari — bitta hujjat") },
+    { t: tr("Удалить и вернуть", "O'chirish va tiklash"), d: tr("Удалённый заказ восстанавливается; кто и когда — в журнале", "O'chirilgan buyurtma tiklanadi; kim va qachon — jurnalda") },
+    { t: tr("Обещанная дата", "Va'da qilingan sana"), d: tr("Когда магазину обещали — видно всем, кто везёт", "Do'konga qachon va'da berilgan — olib boruvchilarning hammasiga ko'rinadi") },
   ];
 
   const root = useAnime<HTMLDivElement>(({ animate, stagger, createTimeline, utils }, el) => {
     // Лента статусов: шаги выезжают, линии между ними прочерчиваются.
     animate(el.querySelectorAll("[data-step]"), { y: [14, 0], opacity: [0, 1], duration: 520, delay: stagger(140), ease: "outCubic" });
     animate(el.querySelectorAll("[data-link]"), { scaleX: [0, 1], duration: 420, delay: stagger(140, { start: 260 }), ease: "outCubic" });
-    animate(el.querySelectorAll("[data-cap]"), { y: [16, 0], opacity: [0, 1], duration: 480, delay: stagger(50, { start: 300 }), ease: "outCubic" });
 
     // Живая карточка: 100 → принято 80 → остаток 20 → долг пересчитан. По кругу.
     const q = el.querySelector<HTMLElement>("[data-qty]");
@@ -65,7 +63,7 @@ export default function OrdersSection() {
   }, 0.25);
 
   return (
-    <section id="orders" className="py-16 md:py-24 scroll-mt-16" style={{ background: LX.paper, borderTop: `1px solid ${LX.rule}` }}>
+    <section id="orders" className="py-20 md:py-32 scroll-mt-16" style={{ background: LX.paper, borderTop: `1px solid ${LX.rule}` }}>
       <div ref={root} className="max-w-[1240px] mx-auto px-6">
         <SectionHead
           index="06"
@@ -75,7 +73,7 @@ export default function OrdersSection() {
         />
 
         {/* Лента статусов */}
-        <div className="mt-12 overflow-x-auto pb-2 -mx-6 px-6">
+        <div className="mt-14 overflow-x-auto pb-2 -mx-6 px-6">
           <ol className="flex items-center gap-0 min-w-[640px]">
             {steps.map((s, i) => (
               <li key={s} className="flex items-center">
@@ -94,54 +92,44 @@ export default function OrdersSection() {
           </ol>
         </div>
 
-        <div className="mt-12 grid lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] gap-10 lg:gap-14 items-start">
-          {/* Живая карточка заказа */}
-          <div data-reveal="order-card" className="rounded-xl p-6" style={{ background: LX.paperRaised, border: `1px solid ${LX.ruleStrong}`, boxShadow: `0 30px 60px -40px ${LX.inkShade40}` }}>
-            <div className="flex items-baseline justify-between">
-              <span className="text-[11px] uppercase" style={{ ...MONO, color: LX.brassText, letterSpacing: "0.08em" }}>{tr("Заказ № 981", "Buyurtma № 981")}</span>
-              <span data-tag className="text-[11px] rounded-full px-2.5 py-1" style={{ ...MONO, background: LX.brassSoft, color: LX.brassDeep }}>{tr("принят частично", "qisman qabul")}</span>
-            </div>
-            <div className="mt-5 text-[15px] font-semibold" style={{ color: LX.ink }}>{tr("Рахмат Савдо · Ургенч, Гуллан", "Rahmat Savdo · Urganch, Gullan")}</div>
-            <dl className="mt-5 space-y-3 text-[14px]">
-              {[
-                [tr("Отгружено", "Jo'natildi"), <span key="s" style={MONO}>100</span>],
-                [tr("Магазин принял", "Do'kon qabul qildi"), <span key="q" data-qty style={{ ...MONO, fontWeight: 600 }}>100</span>],
-                [tr("Вернулось на склад", "Omborga qaytdi"), <span key="b" data-back style={MONO}>0</span>],
-              ].map(([k, v]) => (
-                <div key={String(k)} className="flex justify-between gap-4" style={{ borderBottom: `1px solid ${LX.rule}`, paddingBottom: 8 }}>
-                  <dt style={{ color: LX.inkSoft }}>{k}</dt>
-                  <dd style={{ color: LX.ink }}>{v}</dd>
-                </div>
-              ))}
-              <div className="flex justify-between gap-4 pt-1">
-                <dt className="font-semibold" style={{ color: LX.ink }}>{tr("Долг магазина", "Do'kon qarzi")}</dt>
-                <dd className="text-[18px] font-bold" style={{ ...MONO, color: LX.ink }}><span data-debt>1 250 000</span> <span className="text-[12px] font-normal" style={{ color: LX.inkFaint }}>{tr("сум", "so'm")}</span></dd>
+        <Split
+          className="mt-14"
+          left={
+            <div data-reveal="order-card" className="rounded-xl p-6 md:p-7" style={{ background: LX.paperRaised, border: `1px solid ${LX.ruleStrong}` }}>
+              <div className="flex items-baseline justify-between">
+                <span className="text-[11px] uppercase" style={{ ...MONO, color: LX.brassText, letterSpacing: "0.08em" }}>{tr("Заказ № 981", "Buyurtma № 981")}</span>
+                <span data-tag className="text-[11px] rounded-full px-2.5 py-1" style={{ ...MONO, background: LX.brassSoft, color: LX.brassDeep }}>{tr("принят частично", "qisman qabul")}</span>
               </div>
-            </dl>
-            <p className="mt-5 text-[13px] leading-relaxed" style={{ color: LX.inkSoft }}>
-              {tr("Курьер отметил 80 из 100 — сумма и долг пересчитались сами. Без этого 250 000 сум остались бы «ничьими».", "Kuryer 100 dan 80 tasini belgiladi — summa va qarz o'zi qayta hisoblandi. Aks holda 250 000 so'm «hech kimniki» bo'lib qolardi.")}
-            </p>
-            <DemoTag>{tr("демо-данные", "demo-ma'lumotlar")}</DemoTag>
-          </div>
-
-          {/* Настоящие экраны оператора */}
-          <div className="relative" data-reveal="order-shots">
-            <Browser shot="orders" alt={tr("Экран заказов оператора", "Operator buyurtmalar ekrani")} />
-            <div className="hidden md:block absolute -bottom-8 -left-8 w-[46%]">
-              <Browser shot="picking" alt={tr("Комплектация заказа по складу", "Buyurtmani ombor bo'yicha yig'ish")} fade={false} style={{ transform: "rotate(-2deg)" }} />
+              <div className="mt-5 text-[17px] font-bold" style={{ color: LX.ink, letterSpacing: "-0.01em" }}>{tr("Рахмат Савдо · Ургенч, Гуллан", "Rahmat Savdo · Urganch, Gullan")}</div>
+              <dl className="mt-5 text-[14.5px]">
+                {[
+                  [tr("Отгружено", "Jo'natildi"), <span key="s" style={MONO}>100</span>],
+                  [tr("Магазин принял", "Do'kon qabul qildi"), <span key="q" data-qty style={{ ...MONO, fontWeight: 600 }}>100</span>],
+                  [tr("Вернулось на склад", "Omborga qaytdi"), <span key="b" data-back style={MONO}>0</span>],
+                ].map(([k, v]) => (
+                  <div key={String(k)} className="flex justify-between gap-4 py-2.5" style={{ borderBottom: `1px solid ${LX.rule}` }}>
+                    <dt style={{ color: LX.inkSoft }}>{k}</dt>
+                    <dd style={{ color: LX.ink }}>{v}</dd>
+                  </div>
+                ))}
+                <div className="flex justify-between items-baseline gap-4 pt-4">
+                  <dt className="font-semibold" style={{ color: LX.ink }}>{tr("Долг магазина", "Do'kon qarzi")}</dt>
+                  <dd className="text-[22px] font-bold" style={{ ...MONO, color: LX.ink, letterSpacing: "-0.01em" }}><span data-debt>1 250 000</span> <span className="text-[12px] font-normal" style={{ color: LX.inkFaint }}>{tr("сум", "so'm")}</span></dd>
+                </div>
+              </dl>
+              <p className="mt-5 text-[13.5px] leading-relaxed" style={{ color: LX.inkSoft }}>
+                {tr("Курьер отметил 80 из 100 — сумма и долг пересчитались сами. Без этого 250 000 сум остались бы «ничьими».", "Kuryer 100 dan 80 tasini belgiladi — summa va qarz o'zi qayta hisoblandi. Aks holda 250 000 so'm «hech kimniki» bo'lib qolardi.")}
+              </p>
+              <DemoTag>{tr("демо-данные", "demo-ma'lumotlar")}</DemoTag>
             </div>
-          </div>
-        </div>
+          }
+          right={<div data-reveal="order-shots"><Browser shot="orders" alt={tr("Экран заказов оператора", "Operator buyurtmalar ekrani")} /></div>}
+        />
 
-        {/* Возможности */}
-        <div className="mt-20 md:mt-24 grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {caps.map(c => (
-            <div key={c.t} data-cap className="rounded-lg p-5" style={{ background: LX.paperRaised, border: `1px solid ${LX.rule}` }}>
-              <c.I size={18} strokeWidth={1.8} style={{ color: LX.brassText }} />
-              <div className="mt-3 text-[14.5px] font-semibold" style={{ color: LX.ink }}>{c.t}</div>
-              <p className="mt-1.5 text-[13px] leading-relaxed" style={{ color: LX.inkSoft }}>{c.d}</p>
-            </div>
-          ))}
+        {/* Возможности — реестром, как в главе 04 */}
+        <div className="mt-20 md:mt-24">
+          <div className="text-[11px] uppercase mb-4" style={{ ...MONO, color: LX.brassText, letterSpacing: "0.08em" }}>{tr("Что умеет заказ", "Buyurtma nimalarni qila oladi")}</div>
+          <Ledger items={caps} />
         </div>
       </div>
     </section>

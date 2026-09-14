@@ -99,7 +99,7 @@ export default function TrackingSection() {
   });
 
   return (
-    <section id="map" className="lx-ink py-16 md:py-24 scroll-mt-16" style={{ background: LX.night }}>
+    <section id="map" className="lx-ink py-20 md:py-32 scroll-mt-16" style={{ background: LX.night }}>
       <div className="max-w-[1240px] mx-auto px-6 grid lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] gap-12 lg:gap-16 items-center">
         <div>
           <SectionHead

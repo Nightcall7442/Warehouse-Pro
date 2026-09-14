@@ -178,15 +178,17 @@ export function ManualLeaf({
    возможностей» в главе 04: номер моно, жирный заголовок, строка описания,
    волосяные линии. Не карточки с иконками: сетка одинаковых коробочек — это
    шаблон любого SaaS-сайта, и именно она читалась «дешевле, чем у других». */
-export function Ledger({ items, start = 1, dark = false, className = "" }: {
+export function Ledger({ items, start = 1, dark = false, columns = 2, className = "" }: {
   items: { t: string; d: string }[];
   start?: number;
   dark?: boolean;
+  /** Одна колонка — когда реестр стоит рядом с окном. */
+  columns?: 1 | 2;
   className?: string;
 }) {
   const rule = dark ? LX.ruleOnInk : LX.rule;
   return (
-    <ol className={`grid md:grid-cols-2 gap-x-14 lg:gap-x-20 ${className}`} style={{ borderTop: `1px solid ${dark ? LX.ruleOnInk : LX.ruleStrong}` }}>
+    <ol className={`grid ${columns === 2 ? "md:grid-cols-2" : ""} gap-x-14 lg:gap-x-20 ${className}`} style={{ borderTop: `1px solid ${dark ? LX.ruleOnInk : LX.ruleStrong}` }}>
       {items.map((it, i) => (
         <li key={it.t} className="grid grid-cols-[36px_minmax(0,1fr)] gap-x-4 py-5" style={{ borderBottom: `1px solid ${rule}` }}>
           <span className="text-[12px] pt-1" style={{ ...MONO, color: dark ? LX.brassOnNight : LX.brassDeep }}>{String(start + i).padStart(2, "0")}</span>

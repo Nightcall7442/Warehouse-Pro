@@ -51,7 +51,7 @@ export default function ManualSection() {
   ];
 
   return (
-    <section id="manual" className="py-16 md:py-24 scroll-mt-16 overflow-hidden" style={{ background: LX.verso, borderTop: `1px solid ${LX.rule}` }}>
+    <section id="manual" className="py-20 md:py-32 scroll-mt-16 overflow-hidden" style={{ background: LX.verso, borderTop: `1px solid ${LX.rule}` }}>
       <div ref={root} className="max-w-[1240px] mx-auto px-6 grid lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] gap-12 lg:gap-16 items-center">
         <div>
           <SectionHead
