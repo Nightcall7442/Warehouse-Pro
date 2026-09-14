@@ -171,6 +171,11 @@
       "file": "ru/mobile-courier-deliveries.webp"
     },
     {
+      "key": "mobile/courier/deliver",
+      "lang": "ru",
+      "file": "ru/mobile-courier-deliver.webp"
+    },
+    {
       "key": "mobile/merchandiser/visit-report",
       "lang": "ru",
       "file": "ru/mobile-merchandiser-visit-report.webp"
@@ -236,6 +241,11 @@
       "file": "uz/mobile-courier-deliveries.webp"
     },
     {
+      "key": "mobile/courier/deliver",
+      "lang": "uz",
+      "file": "uz/mobile-courier-deliver.webp"
+    },
+    {
       "key": "mobile/merchandiser/visit-report",
       "lang": "uz",
       "file": "uz/mobile-merchandiser-visit-report.webp"
@@ -251,38 +261,6 @@
       "file": "uz/mobile-supervisor-targets.webp"
     }
   ],
-  "missing": [
-    {
-      "key": "mobile/courier/deliver",
-      "lang": "ru",
-      "why": "сценарий не снят (см. failures в index.json артефакта)"
-    },
-    {
-      "key": "mobile/courier/deliver",
-      "lang": "uz",
-      "why": "сценарий не снят (см. failures в index.json артефакта)"
-    }
-  ],
-  "failures": [
-    {
-      "where": "screenshots/mobile/ru/courier",
-      "step": "deliver",
-      "error": "TimeoutError: locator.click: Timeout 8000ms exceeded.\nCall log:\n  - waiting for getByText(/^(Оформить подробно|Batafsil rasmiylashtirish)$/).first()\n"
-    },
-    {
-      "where": "screenshots/mobile/ru/courier",
-      "step": "fail-reason",
-      "error": "TimeoutError: locator.click: Timeout 8000ms exceeded.\nCall log:\n  - waiting for getByText(/^(Не доставлено|Yetkazilmadi)$/).first()\n"
-    },
-    {
-      "where": "screenshots/mobile/uz/courier",
-      "step": "deliver",
-      "error": "TimeoutError: locator.click: Timeout 8000ms exceeded.\nCall log:\n  - waiting for getByText(/^(Оформить подробно|Batafsil rasmiylashtirish)$/).first()\n"
-    },
-    {
-      "where": "screenshots/mobile/uz/courier",
-      "step": "fail-reason",
-      "error": "TimeoutError: locator.click: Timeout 8000ms exceeded.\nCall log:\n  - waiting for getByText(/^(Не доставлено|Yetkazilmadi)$/).first()\n"
-    }
-  ]
+  "missing": [],
+  "failures": []
 }
