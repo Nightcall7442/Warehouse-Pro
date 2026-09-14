@@ -62,13 +62,16 @@ describe("onec_config.password", () => {
     // Записи в базу, не схема входа (password: z.string()).
     const writes = (save.match(/password: [^,\n]+/g) ?? []).filter(w => !w.includes("z.string"));
     expect(writes.length, "ожидались две записи пароля (update и insert)").toBe(2);
-    for (const w of writes) expect(w, "запись пароля без seal()").toBe("password: seal(input.password)");
+    for (const w of writes) expect(w, "запись пароля без seal()").toMatch(/^password: seal\(input\.password!?\)/);
   });
 
   it("оба места чтения расшифровывают", () => {
     expect(BRIDGE).toContain("password: open(config.password)");
     expect(BRIDGE).not.toMatch(/password: config\.password,/);
-    const test = ROUTER.slice(ROUTER.indexOf("testSavedConnection"));
-    expect(test).toContain("password: open(config.password)");
+    // Проверка подключения с пустым полем пароля берёт сохранённый — через open().
+    const test = ROUTER.slice(ROUTER.indexOf("testConnection: adminQuery"), ROUTER.indexOf("saveConfig: adminQuery"));
+    expect(test).toContain("password = open(saved.password)");
+    expect(test).not.toMatch(/password = saved\.password/);
   });
+
 });

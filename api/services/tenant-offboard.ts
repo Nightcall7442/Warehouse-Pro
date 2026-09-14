@@ -59,6 +59,7 @@ export const OFFBOARD_ORDER: readonly OffboardStep[] = [
   { table: "loading_list_items",  via: { column: "list_id", parent: "loading_lists" } },
   "notifications",
   "onec_config",
+  "onec_journal",
   "order_adjustments",
   "order_comments",
   { table: "order_items", via: { column: "order_id", parent: "orders" } },

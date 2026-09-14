@@ -53,14 +53,16 @@ vi.mock("../services/onec-mapper", () => ({
   },
 }));
 
-const bridge = {
-  odataQuery: vi.fn(),
-  createDocument: vi.fn(),
-  postDocument: vi.fn(),
-  healthCheck: vi.fn(async () => true),
-};
-vi.mock("../lib/onec-bridge", () => ({
-  getBridge: () => bridge,
+const { bridge } = vi.hoisted(() => ({
+  bridge: {
+    names: null as unknown,
+    query: vi.fn(async () => [{ Ref_Key: "договор-1" }]),
+    create: vi.fn(),
+    post: vi.fn(),
+  },
+}));
+vi.mock("../lib/onec-bridge", async (orig) => ({
+  ...(await orig<typeof import("../lib/onec-bridge")>()),
   getBridgeForTenant: async () => bridge,
 }));
 
@@ -79,7 +81,9 @@ vi.mock("../queries/connection", () => ({
     select: () => ({
       from: (table: unknown) => (table === ordersTable
         ? { where: () => ({ limit: async () => dbState.order }) }
-        : { leftJoin: () => ({ where: async () => dbState.items }) }),
+        : table === onecConfigTable
+          ? { where: () => ({ limit: async () => [{ organizationKey: "org-1", warehouseKey: "wh-1" }] }) }
+          : { leftJoin: () => ({ where: async () => dbState.items }) }),
     }),
   }),
 }));
@@ -117,7 +121,9 @@ vi.mock("@aws-sdk/client-s3", () => ({
   },
 }));
 
-import { orders as ordersTable } from "@db/schema";
+import { orders as ordersTable, onecConfig as onecConfigTable } from "@db/schema";
+import { PRESETS } from "../lib/onec-presets";
+bridge.names = PRESETS.bp_uz;
 import { OneCMapper } from "../services/onec-mapper";
 import { OneCSyncService } from "../services/onec-sync";
 import { runBackup } from "../cron/backup";
@@ -129,8 +135,8 @@ beforeEach(() => {
   putCalls.length = 0;
   dbState.order = [];
   dbState.items = [];
-  bridge.createDocument.mockReset().mockResolvedValue({ id: "doc-new" });
-  bridge.postDocument.mockReset().mockResolvedValue(undefined);
+  bridge.create.mockReset().mockResolvedValue({ Ref_Key: "doc-new" });
+  bridge.post.mockReset().mockResolvedValue(undefined);
   vi.mocked(OneCMapper.getExternalId).mockReset().mockResolvedValue(null);
   vi.mocked(OneCMapper.getMapping).mockReset().mockImplementation(mappingFollowsExternalId);
   vi.mocked(OneCMapper.forget).mockReset().mockResolvedValue(undefined);
@@ -209,12 +215,12 @@ const syncService = new OneCSyncService();
 
 function seedOrder() {
   dbState.order = [{
-    id: 1, status: "new", total: "150000.00", orderNumber: "ORD-001",
-    shopId: 10, createdAt: new Date("2026-08-26T09:00:00Z"),
+    id: 1, status: "new", total: "150000.00", subtotal: "150000.00", discount: "0.00", orderNumber: "ORD-001",
+    shopId: 10, createdAt: new Date("2026-08-26T09:00:00Z"), deliveredAt: null,
   }];
   dbState.items = [
-    { productId: 5, quantity: "3.000", unitPrice: "25000.00", unit: "pcs", unitWeight: "1.000" },
-    { productId: 6, quantity: "2.000", unitPrice: "37500.00", unit: "pcs", unitWeight: "1.000" },
+    { productId: 5, quantity: "3.000", deliveredQuantity: null, unitPrice: "25000.00" },
+    { productId: 6, quantity: "2.000", deliveredQuantity: null, unitPrice: "37500.00" },
   ];
 }
 
@@ -231,9 +237,9 @@ describe("повторная выгрузка заказа в 1С", () => {
 
     // Вторая «Реализация товаров и услуг» на тот же заказ — это двойное
     // списание остатков и двойная выручка в 1С.
-    expect(bridge.createDocument).not.toHaveBeenCalled();
-    expect(bridge.postDocument).toHaveBeenCalledWith(
-      "Document_РеализацияТоваровИУслуг", "doc-already-created",
+    expect(bridge.create).not.toHaveBeenCalled();
+    expect(bridge.post).toHaveBeenCalledWith(
+      "Document_РеализацияТоваровУслуг", "doc-already-created",
     );
   });
 
@@ -244,10 +250,10 @@ describe("повторная выгрузка заказа в 1С", () => {
       if (entityType === "shop") return "shop-uuid";
       return "prod-uuid";
     });
-    bridge.createDocument.mockResolvedValue({ id: "doc-777" });
+    bridge.create.mockResolvedValue({ Ref_Key: "doc-777" });
     // Ровно тот сбой, с которого всё начинается: документ в 1С создан, а ответ
     // на проведение не дошёл.
-    bridge.postDocument.mockRejectedValue(new Error("socket hang up"));
+    bridge.post.mockRejectedValue(new Error("socket hang up"));
 
     await expect(syncService.syncOrderTo1C(1, 1)).rejects.toThrow(/socket hang up/);
 
@@ -285,8 +291,8 @@ describe("позиции заказа без маппинга в 1С", () => {
 
     // Главное: неполной накладной в 1С не появилось вовсе. Раньше туда уходила
     // Реализация на одну позицию и меньшую сумму — и проводилась.
-    expect(bridge.createDocument).not.toHaveBeenCalled();
-    expect(bridge.postDocument).not.toHaveBeenCalled();
+    expect(bridge.create).not.toHaveBeenCalled();
+    expect(bridge.post).not.toHaveBeenCalled();
   });
 
   it("заказ без позиций не превращается в пустой документ", async () => {
@@ -299,7 +305,7 @@ describe("позиции заказа без маппинга в 1С", () => {
     });
 
     await expect(syncService.syncOrderTo1C(1, 1)).rejects.toThrow(/не содержит позиций/);
-    expect(bridge.createDocument).not.toHaveBeenCalled();
+    expect(bridge.create).not.toHaveBeenCalled();
   });
 });
 

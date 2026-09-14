@@ -1,23 +1,43 @@
 import { TRPCError } from "@trpc/server";
 import { checkPlanLimits } from "../lib/plan-limits";
-import { eq, and, inArray } from "drizzle-orm";
+import { eq, and, inArray, isNull, gte } from "drizzle-orm";
 import { isDuplicateOf } from "../lib/db-errors";
-import { normalizeCategory } from "../lib/category";
 import { getDb } from "../queries/connection";
-import { products, orders, orderItems, warehouses } from "@db/schema";
-import { getBridgeForTenant } from "../lib/onec-bridge";
+import { products, orders, orderItems, warehouses, payments, onecConfig, onecJournal } from "@db/schema";
+import { getBridgeForTenant, guid, OneCError, type OneCBridge } from "../lib/onec-bridge";
 import { OneCMapper } from "./onec-mapper";
-import { mapProduct1C, mapOrder1C, mapUnit } from "./onec-transform";
-import type { Product1C } from "./onec-transform";
+import { OnecJournal } from "./onec-journal";
+import { syncCounterparties } from "./onec-counterparties";
+import { mapUnit, to1CDate, sanitizeText } from "./onec-transform";
 import { logger } from "../lib/logger";
 import { updateSyncStatus } from "./onec-status";
 import { record1CSync } from "../lib/metrics";
 import { setStock } from "./stock-ledger";
 
+/*
+  Обмен с 1С по стандартному OData.
+
+  ── Из 1С ───────────────────────────────────────────────────────────────────
+  Номенклатура (без папок и помеченных на удаление) + единицы измерения +
+  цены выбранного типа срезом последних. Товар без цены в этом типе цен
+  цену не теряет: обновляются только название, код и единица.
+
+  ── В 1С ────────────────────────────────────────────────────────────────────
+  Заказ → «Реализация товаров и услуг» по именам пресета: организация, склад
+  и договор берутся из настроек подключения и самой 1С; количество идёт в
+  единице номенклатуры (она и есть единица товара — приехала оттуда же).
+  При частичной доставке в документ попадает довезённое. Оплата → ПКО, если
+  включено. Всё это ходит через журнал (onec-journal): повторы с паузой,
+  причина отказа, кнопка «Повторить».
+*/
+
+const money = (n: number) => Math.round(n * 100) / 100;
+
 export class OneCSyncService {
   async syncProducts(tenantId: number): Promise<{ synced: number; errors: number; blockedByPlan: number }> {
     const db = getDb();
     const bridge = await getBridgeForTenant(tenantId);
+    const n = bridge.names;
     let synced = 0;
     let errors = 0;
     /*
@@ -34,21 +54,25 @@ export class OneCSyncService {
     try {
       await updateSyncStatus(tenantId, "product", "from1c", "processing");
 
-      // Paginate through all products (1C OData default limit is 500)
-      const allItems: Product1C[] = [];
-      const PAGE_SIZE = 500;
-      let skip = 0;
-      while (true) {
-        const page = await bridge.odataQuery<Product1C>("Catalog_Номенклатура", {
-          $top: String(PAGE_SIZE),
-          $skip: String(skip),
-          $select: "Ref_Key,Code,Description,Price,Unit",
+      const [config] = await db.select({ priceTypeKey: onecConfig.priceTypeKey }).from(onecConfig).where(eq(onecConfig.tenantId, tenantId)).limit(1);
+
+      const filter = [`${n.nomenclature.deletion} eq false`, n.nomenclature.folder ? `${n.nomenclature.folder} eq false` : null].filter(Boolean).join(" and ");
+      const items = await bridge.queryAll<Record<string, unknown>>(n.nomenclature.set, {
+        $select: ["Ref_Key", "Code", n.nomenclature.name, n.nomenclature.code, n.nomenclature.unitRef].join(","),
+        $filter: filter,
+      });
+
+      const unitRows = await bridge.queryAll<Record<string, unknown>>(n.units.set, { $select: `Ref_Key,${n.units.name}` });
+      const unitByKey = new Map(unitRows.map(u => [String(u.Ref_Key), String(u[n.units.name] ?? "")]));
+
+      // Цены — срез последних по выбранному типу цен; без типа цен цены не трогаем.
+      const priceByItem = new Map<string, number>();
+      if (config?.priceTypeKey) {
+        const priceRows = await bridge.sliceLast<Record<string, unknown>>(n.prices.set, `${n.prices.type} eq ${guid(config.priceTypeKey)}`, {
+          $select: `${n.prices.item},${n.prices.price}`,
         });
-        allItems.push(...page);
-        if (page.length < PAGE_SIZE) break;
-        skip += PAGE_SIZE;
+        for (const r of priceRows) priceByItem.set(String(r[n.prices.item]), Number(r[n.prices.price]));
       }
-      const items = allItems;
 
       // Batch-load all existing mappings upfront (avoid N+1 SELECT per item)
       const existingMappings = await OneCMapper.getAll(db, tenantId, "product");
@@ -65,20 +89,22 @@ export class OneCSyncService {
         : Math.max(0, planRoom.limit - planRoom.current);
 
       for (const item of items) {
+        const refKey = String(item.Ref_Key);
         try {
-          const mapped = mapProduct1C(item);
-          const internalId = externalToInternal.get(item.Ref_Key) ?? null;
+          const name = sanitizeText(String(item[n.nomenclature.name] ?? "")).trim();
+          // Артикул может быть пуст — тогда стандартный Code, он есть у любого справочника.
+          const code = sanitizeText(String(item[n.nomenclature.code] || item.Code || "")).trim();
+          if (!name || !code) throw new Error(`Номенклатура ${refKey}: пустое название или код`);
+          const unit = mapUnit(unitByKey.get(String(item[n.nomenclature.unitRef] ?? "")) ?? "шт");
+          const price = priceByItem.get(refKey);
+          if (price !== undefined && !Number.isFinite(price)) throw new Error(`Номенклатура ${refKey}: цена не число`);
+          const unitPrice = price === undefined ? undefined : money(price).toFixed(2);
+          const internalId = externalToInternal.get(refKey) ?? null;
 
           if (internalId) {
             await db
               .update(products)
-              .set({
-                name: mapped.name,
-                code: mapped.code,
-                unitPrice: mapped.unitPrice,
-                unit: mapUnit(mapped.unit),
-                category: normalizeCategory(mapped.category),
-              })
+              .set({ name, code, unit, ...(unitPrice !== undefined ? { unitPrice } : {}) })
               .where(eq(products.id, internalId));
           } else if (room <= 0) {
             /*
@@ -107,14 +133,7 @@ export class OneCSyncService {
             const newId = await db.transaction(async (tx) => {
               const [result] = await tx
                 .insert(products)
-                .values({
-                  tenantId,
-                  name: mapped.name,
-                  code: mapped.code,
-                  unitPrice: mapped.unitPrice,
-                  unit: mapUnit(mapped.unit),
-                  category: normalizeCategory(mapped.category),
-                });
+                .values({ tenantId, name, code, unitPrice: unitPrice ?? "0.00", unit });
               const id = Number(result.insertId);
 
               // Get default warehouse for tenant
@@ -127,7 +146,7 @@ export class OneCSyncService {
                 await setStock(tx, { tenantId, warehouseId: defaultWarehouse.id, productId: id, quantity: 0 });
               }
 
-              await OneCMapper.upsert(tx as unknown as typeof db, tenantId, "product", item.Ref_Key, id);
+              await OneCMapper.upsert(tx as unknown as typeof db, tenantId, "product", refKey, id);
               return id;
             }).catch(async (e: unknown) => {
               /*
@@ -144,28 +163,25 @@ export class OneCSyncService {
 
               const [existing] = await db.select({ id: products.id })
                 .from(products)
-                .where(and(eq(products.tenantId, tenantId), eq(products.code, mapped.code)))
+                .where(and(eq(products.tenantId, tenantId), eq(products.code, code)))
                 .limit(1);
               if (!existing) throw e;
 
-              await OneCMapper.upsert(db, tenantId, "product", item.Ref_Key, existing.id);
-              logger.warn(`Товар ${mapped.code} был в базе без связи с 1С — связь восстановлена`, {
-                tenantId, externalId: item.Ref_Key, productId: existing.id,
+              await OneCMapper.upsert(db, tenantId, "product", refKey, existing.id);
+              logger.warn(`Товар ${code} был в базе без связи с 1С — связь восстановлена`, {
+                tenantId, externalId: refKey, productId: existing.id,
               });
               return existing.id;
             });
 
-            externalToInternal.set(item.Ref_Key, newId);
+            externalToInternal.set(refKey, newId);
             room--;
           }
-          touchedExternalIds.add(item.Ref_Key);
+          touchedExternalIds.add(refKey);
           synced++;
         } catch (e) {
           errors++;
-          logger.error(`Failed to sync product ${item.Ref_Key}`, {
-            error: String(e),
-            externalId: item.Ref_Key,
-          });
+          logger.error(`Failed to sync product ${refKey}`, { error: String(e), externalId: refKey });
         }
       }
 
@@ -204,31 +220,62 @@ export class OneCSyncService {
     return { synced, errors, blockedByPlan };
   }
 
+  /** Организация, склад, тип цен — без них документ в 1С не собрать. */
+  private async requireKeys(tenantId: number) {
+    const db = getDb();
+    const [config] = await db.select({
+      organizationKey: onecConfig.organizationKey, warehouseKey: onecConfig.warehouseKey,
+    }).from(onecConfig).where(eq(onecConfig.tenantId, tenantId)).limit(1);
+    if (!config?.organizationKey || !config.warehouseKey) {
+      throw new OneCError("В настройках 1С не выбраны организация и склад");
+    }
+    return { organizationKey: config.organizationKey, warehouseKey: config.warehouseKey };
+  }
+
+  /** Договор контрагента с организацией (Бухгалтерия требует его в реализации); нет — заводим один. */
+  private async contractFor(bridge: OneCBridge, shopKey: string, organizationKey: string): Promise<string | null> {
+    const c = bridge.names.contracts;
+    if (!c) return null;
+    const found = await bridge.query<{ Ref_Key: string }>(c.set, {
+      $select: "Ref_Key", $top: "1",
+      $filter: `${c.owner} eq ${guid(shopKey)} and ${c.organization} eq ${guid(organizationKey)} and DeletionMark eq false`,
+    });
+    if (found[0]) return found[0].Ref_Key;
+    const body: Record<string, unknown> = { [c.name]: "Основной договор", [c.owner]: shopKey, [c.organization]: organizationKey };
+    if (c.kind && c.kindValue) body[c.kind] = c.kindValue;
+    const created = await bridge.create(c.set, body);
+    return created.Ref_Key ?? null;
+  }
+
   /**
    * Выгрузить заказ в 1С.
    *
    * asNewDocument — прямое решение директора выгрузить заказ ЗАНОВО, отдельным
    * документом. Нужно после возврата заказа из архива в работу: прежний
-   * документ описывает первый круг, а тронуть его отсюда нечем — мост умеет
+   * документ описывает первый круг, а тронуть его отсюда нечем — обмен умеет
    * только создать и провести. Разбирается тот документ в самой 1С, руками, и
    * этот признак означает «разобрал».
    */
   async syncOrderTo1C(tenantId: number, orderId: number, opts?: { asNewDocument?: boolean }): Promise<void> {
     const db = getDb();
     const bridge = await getBridgeForTenant(tenantId);
+    const s = bridge.names.sale;
     const startTime = Date.now();
 
     try {
       await updateSyncStatus(tenantId, "order", "to1c", "processing");
 
-      const order = await db.select({ id: orders.id, status: orders.status, total: orders.total, orderNumber: orders.orderNumber, shopId: orders.shopId, createdAt: orders.createdAt }).from(orders).where(and(eq(orders.id, orderId), eq(orders.tenantId, tenantId))).limit(1);
+      const order = await db.select({
+        id: orders.id, status: orders.status, total: orders.total, subtotal: orders.subtotal, discount: orders.discount,
+        orderNumber: orders.orderNumber, shopId: orders.shopId, createdAt: orders.createdAt, deliveredAt: orders.deliveredAt,
+      }).from(orders).where(and(eq(orders.id, orderId), eq(orders.tenantId, tenantId))).limit(1);
       if (!order[0]) throw new Error(`Order ${orderId} not found`);
 
       // Заказ выгружается в 1С ровно один раз.
       //
-      // Раньше каждый вызов начинался с createDocument. Достаточно было
-      // postDocument упереться в таймаут — документ в 1С уже создан, но наружу
-      // летела ошибка и статус "failed", — чтобы директор нажал синхронизацию
+      // Раньше каждый вызов начинался с создания. Достаточно было проведению
+      // упереться в таймаут — документ в 1С уже создан, но наружу летела
+      // ошибка и статус "failed", — чтобы директор нажал синхронизацию
       // повторно и в 1С появилась ВТОРАЯ «Реализация товаров и услуг» на тот же
       // заказ. После проведения обеих дважды списывались остатки и дважды
       // считалась выручка, причём со стороны Warehouse Pro всё выглядело
@@ -290,12 +337,12 @@ export class OneCSyncService {
           documentId,
         });
       } else {
+        const keys = await this.requireKeys(tenantId);
         const items = await db.select({
           productId: orderItems.productId,
           quantity: orderItems.quantity,
+          deliveredQuantity: orderItems.deliveredQuantity,
           unitPrice: orderItems.unitPrice,
-          unit: products.unit,
-          unitWeight: products.unitWeight,
         }).from(orderItems)
           .leftJoin(products, and(eq(orderItems.productId, products.id), eq(products.tenantId, tenantId)))
           .where(and(
@@ -314,7 +361,12 @@ export class OneCSyncService {
           throw new Error(`Заказ ${orderId} не содержит позиций — выгружать в 1С нечего`);
         }
 
-        const mappedItems = [];
+        // Скидка заказа раскладывается по строкам пропорционально: в 1С сумма
+        // документа обязана совпасть с тем, что записано магазину в долг.
+        const subtotal = Number(order[0].subtotal);
+        const factor = subtotal > 0 && Number(order[0].discount) > 0 ? Number(order[0].total) / subtotal : 1;
+
+        const lines: Array<Record<string, unknown>> = [];
         for (const item of items) {
           const productExternalId = await OneCMapper.getExternalId(db, tenantId, "product", item.productId);
           // Несопоставленный товар раньше молча выпадал из накладной: в заказе
@@ -327,32 +379,48 @@ export class OneCSyncService {
           if (!productExternalId) {
             throw new Error(`Товар ${item.productId} не сопоставлен с 1С`);
           }
-          mappedItems.push({
-            productExternalId,
-            quantity: Number(item.quantity),
-            unitPrice: Number(item.unitPrice),
-            unitWeight: Number(item.unitWeight ?? 0),
-            unit: item.unit ?? "pcs",
-          });
+          // Частичная доставка: в учёт идёт довезённое, недовезённое — не продажа.
+          const qty = Number(item.deliveredQuantity ?? item.quantity);
+          if (qty <= 0) continue;
+          const price = money(Number(item.unitPrice) * factor);
+          const sum = money(qty * price);
+          const line: Record<string, unknown> = {
+            LineNumber: lines.length + 1,
+            [s.item.product]: productExternalId,
+            [s.item.qty]: qty,
+            [s.item.price]: price,
+            [s.item.sum]: sum,
+          };
+          if (s.item.vatRate && s.vatRateValue) line[s.item.vatRate] = s.vatRateValue;
+          if (s.item.vatSum && s.vatPercent !== null) line[s.item.vatSum] = money(sum * s.vatPercent / (100 + s.vatPercent));
+          lines.push(line);
+        }
+        if (lines.length === 0) throw new Error(`Заказ ${orderId}: ничего не довезено — выгружать в 1С нечего`);
+
+        const doc: Record<string, unknown> = {
+          [s.fields.date]: to1CDate(order[0].deliveredAt ?? order[0].createdAt),
+          [s.fields.organization]: keys.organizationKey,
+          [s.fields.counterparty]: shopExternalId,
+          [s.fields.warehouse]: keys.warehouseKey,
+          [s.fields.comment]: `Warehouse Pro: заказ ${order[0].orderNumber}`,
+          [s.items]: lines,
+        };
+        if (s.fields.operation && s.operationValue) doc[s.fields.operation] = s.operationValue;
+        if (s.fields.contract) {
+          const contract = await this.contractFor(bridge, shopExternalId, keys.organizationKey);
+          if (contract) doc[s.fields.contract] = contract;
         }
 
-        const doc = mapOrder1C({
-          id: order[0].id,
-          orderNumber: order[0].orderNumber,
-          createdAt: order[0].createdAt,
-          shopExternalId,
-          items: mappedItems,
-        });
-
-        const result = await bridge.createDocument("Document_РеализацияТоваровИУслуг", doc);
-        documentId = result.id;
+        const created = await bridge.create(s.set, doc);
+        if (!created.Ref_Key) throw new OneCError("1С не вернула Ref_Key созданного документа");
+        documentId = created.Ref_Key;
         // Маппинг записывается до проведения, а не после: между созданием и
         // проведением и рвётся связь в том самом сценарии с таймаутом. Если
-        // сохранять id после postDocument, повтор снова начнётся с создания.
+        // сохранять id после проведения, повтор снова начнётся с создания.
         await OneCMapper.upsert(db, tenantId, "order", documentId, orderId);
       }
 
-      await bridge.postDocument("Document_РеализацияТоваровИУслуг", documentId);
+      await bridge.post(s.set, documentId);
 
       logger.info(`Order ${orderId} synced to 1C`, {
         tenantId,
@@ -366,6 +434,142 @@ export class OneCSyncService {
       record1CSync("order", "to1c", Date.now() - startTime, false);
       throw e;
     }
+  }
+
+  /** Оплата магазина → приходный кассовый ордер. Один платёж — один ПКО, повтор до-проводит. */
+  async syncPaymentTo1C(tenantId: number, paymentId: number): Promise<void> {
+    const db = getDb();
+    const bridge = await getBridgeForTenant(tenantId);
+    const c = bridge.names.cashIn;
+    if (!c) throw new OneCError("В этой конфигурации приходный ордер не настроен");
+    const [p] = await db.select({
+      id: payments.id, shopId: payments.shopId, amount: payments.amount, type: payments.type,
+      paidAt: payments.paidAt, createdAt: payments.createdAt, orderId: payments.orderId,
+    }).from(payments).where(and(eq(payments.id, paymentId), eq(payments.tenantId, tenantId))).limit(1);
+    if (!p) throw new Error(`Payment ${paymentId} not found`);
+    if (p.type !== "payment" || Number(p.amount) <= 0) throw new Error(`Payment ${paymentId}: не оплата`);
+
+    let documentId = await OneCMapper.getExternalId(db, tenantId, "payment", paymentId);
+    if (!documentId) {
+      const keys = await this.requireKeys(tenantId);
+      const shopExternalId = await OneCMapper.getExternalId(db, tenantId, "shop", p.shopId);
+      if (!shopExternalId) throw new Error(`Shop ${p.shopId} not mapped to 1C`);
+      const doc: Record<string, unknown> = {
+        [c.fields.date]: to1CDate(p.paidAt ?? p.createdAt),
+        [c.fields.organization]: keys.organizationKey,
+        [c.fields.counterparty]: shopExternalId,
+        [c.fields.sum]: money(Number(p.amount)),
+        [c.fields.comment]: `Warehouse Pro: оплата №${p.id}${p.orderId ? ` по заказу ${p.orderId}` : ""}`,
+      };
+      if (c.fields.operation && c.operationValue) doc[c.fields.operation] = c.operationValue;
+      if (c.fields.contract) {
+        const contract = await this.contractFor(bridge, shopExternalId, keys.organizationKey);
+        if (contract) doc[c.fields.contract] = contract;
+      }
+      const created = await bridge.create(c.set, doc);
+      if (!created.Ref_Key) throw new OneCError("1С не вернула Ref_Key созданного документа");
+      documentId = created.Ref_Key;
+      await OneCMapper.upsert(db, tenantId, "payment", documentId, paymentId);
+    }
+    await bridge.post(c.set, documentId);
+    logger.info(`Payment ${paymentId} synced to 1C`, { tenantId, documentId });
+  }
+
+  /**
+   * Поставить в очередь то, что довезли и чем заплатили с момента подключения.
+   * Старую историю не выгружаем: подключение 1С в сентябре не означает
+   * «перепровести прошлый год» — это решает бухгалтер, руками.
+   */
+  async enqueueDelivered(tenantId: number): Promise<{ orders: number; payments: number }> {
+    const db = getDb();
+    const [config] = await db.select({ createdAt: onecConfig.createdAt, syncPayments: onecConfig.syncPayments })
+      .from(onecConfig).where(eq(onecConfig.tenantId, tenantId)).limit(1);
+    if (!config) return { orders: 0, payments: 0 };
+
+    const newOrders = await db.select({ id: orders.id }).from(orders)
+      .leftJoin(onecJournal, and(eq(onecJournal.tenantId, tenantId), eq(onecJournal.entityType, "order"), eq(onecJournal.entityId, orders.id), eq(onecJournal.direction, "to1c")))
+      .where(and(eq(orders.tenantId, tenantId), eq(orders.status, "delivered"), gte(orders.deliveredAt, config.createdAt), isNull(onecJournal.id)))
+      .limit(500);
+    for (const o of newOrders) await OnecJournal.enqueue(db, tenantId, "order", o.id);
+
+    let paid = 0;
+    if (config.syncPayments) {
+      const newPayments = await db.select({ id: payments.id }).from(payments)
+        .leftJoin(onecJournal, and(eq(onecJournal.tenantId, tenantId), eq(onecJournal.entityType, "payment"), eq(onecJournal.entityId, payments.id), eq(onecJournal.direction, "to1c")))
+        .where(and(eq(payments.tenantId, tenantId), eq(payments.type, "payment"), gte(payments.createdAt, config.createdAt), isNull(onecJournal.id)))
+        .limit(500);
+      for (const p of newPayments) await OnecJournal.enqueue(db, tenantId, "payment", p.id);
+      paid = newPayments.length;
+    }
+    return { orders: newOrders.length, payments: paid };
+  }
+
+  private running = new Set<number>();
+
+  /** Прогнать очередь журнала: что пора — выгрузить, отказ — записать с паузой до следующей попытки. */
+  async processQueue(tenantId: number): Promise<{ processed: number; done: number; failed: number; skipped: number }> {
+    const db = getDb();
+    const out = { processed: 0, done: 0, failed: 0, skipped: 0 };
+    // ponytail: замок в памяти одного процесса; при втором инстансе API — SELECT … FOR UPDATE SKIP LOCKED
+    if (this.running.has(tenantId)) return out;
+    this.running.add(tenantId);
+    try {
+      const due = await OnecJournal.due(db, tenantId);
+      for (const row of due) {
+        out.processed++;
+        try {
+          if (row.entityType === "order") await this.syncOrderTo1C(tenantId, row.entityId);
+          else if (row.entityType === "payment") await this.syncPaymentTo1C(tenantId, row.entityId);
+          else { await OnecJournal.markSkipped(db, row.id, `Тип ${row.entityType} очередью не выгружается`); out.skipped++; continue; }
+          const externalId = await OneCMapper.getExternalId(db, tenantId, row.entityType === "order" ? "order" : "payment", row.entityId);
+          await OnecJournal.markDone(db, row.id, externalId);
+          out.done++;
+        } catch (e) {
+          const message = e instanceof Error ? e.message : String(e);
+          // Второй круг заказа: решает человек, повторы не помогут.
+          if (e instanceof TRPCError && e.code === "BAD_REQUEST") {
+            await OnecJournal.markSkipped(db, row.id, message);
+            out.skipped++;
+          } else {
+            await OnecJournal.markFailed(db, row.id, row.attempts, message);
+            out.failed++;
+          }
+        }
+      }
+    } finally {
+      this.running.delete(tenantId);
+    }
+    return out;
+  }
+
+  /**
+   * Крон: организации с включённым обменом, у которых прошёл интервал.
+   * Порядок — номенклатура, контрагенты, затем очередь: заказ выгружается
+   * только когда его товары и магазин уже сопоставлены.
+   */
+  async runScheduled(now = new Date()): Promise<{ tenants: number }> {
+    const db = getDb();
+    const configs = await db.select({
+      tenantId: onecConfig.tenantId, intervalMinutes: onecConfig.intervalMinutes, lastSyncAt: onecConfig.lastSyncAt,
+      syncProducts: onecConfig.syncProducts, syncOrders: onecConfig.syncOrders, syncCounterparties: onecConfig.syncCounterparties,
+      organizationKey: onecConfig.organizationKey, warehouseKey: onecConfig.warehouseKey,
+    }).from(onecConfig).where(eq(onecConfig.enabled, true));
+    let ran = 0;
+    for (const c of configs) {
+      const interval = (c.intervalMinutes ?? 60) * 60_000;
+      if (c.lastSyncAt && now.getTime() - c.lastSyncAt.getTime() < interval) continue;
+      ran++;
+      const step = async (what: string, fn: () => Promise<unknown>) => {
+        try { await fn(); } catch (e) { logger.error(`1C scheduled ${what} failed`, { tenantId: c.tenantId, error: e instanceof Error ? e.message : String(e) }); }
+      };
+      if (c.syncProducts) await step("products", () => this.syncProducts(c.tenantId));
+      if (c.syncCounterparties) await step("counterparties", () => syncCounterparties(c.tenantId));
+      if (c.syncOrders && c.organizationKey && c.warehouseKey) {
+        await step("queue", async () => { await this.enqueueDelivered(c.tenantId); await this.processQueue(c.tenantId); });
+      }
+      await db.update(onecConfig).set({ lastSyncAt: now }).where(eq(onecConfig.tenantId, c.tenantId));
+    }
+    return { tenants: ran };
   }
 }
 
