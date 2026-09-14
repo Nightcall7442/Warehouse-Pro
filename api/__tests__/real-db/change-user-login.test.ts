@@ -24,6 +24,7 @@ describe.skipIf(!hasRealDb)("смена логина сотруднику из �
   let db: ServiceDb;
   let s: Seeded;
   let ceoId: number;
+  let superId: number;
 
   beforeAll(async () => { db = await connectRealDb(); current = db; }, 180_000);
   afterAll(async () => { await closeRealDb(); });
@@ -33,9 +34,12 @@ describe.skipIf(!hasRealDb)("смена логина сотруднику из �
     const [ceo] = await db.insert(schema.users).values({ tenantId: s.tenantId, name: "Собиржон", email: "sobirjon@velora.uz", passwordHash: "x", role: "ceo", tokenVersion: 3 });
     ceoId = Number(ceo.insertId);
     await db.update(schema.tenants).set({ ownerEmail: "sobirjon@velora.uz" }).where(eq(schema.tenants.id, s.tenantId));
+    // Суперадмин — настоящая строка users: журнал ссылается на actor_id внешним ключом.
+    const [sa] = await db.insert(schema.users).values({ tenantId: s.otherTenantId, name: "Владелец платформы", email: "root@platform.local", passwordHash: "x", role: "superadmin" });
+    superId = Number(sa.insertId);
   });
 
-  const asSuperadmin = async () => (await import("../../tenant-router")).tenantRouter.createCaller(ctxFor(db, "superadmin", 1, 999));
+  const asSuperadmin = async () => (await import("../../tenant-router")).tenantRouter.createCaller(ctxFor(db, "superadmin", s.otherTenantId, superId));
 
   it("меняет почту, гасит сессии, тянет за собой почту владельца, пишет след", async () => {
     const r = await (await asSuperadmin()).changeUserLogin({ tenantId: s.tenantId, userId: ceoId, email: "  Director@Velora.UZ " });
