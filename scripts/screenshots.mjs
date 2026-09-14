@@ -125,7 +125,12 @@ const WEB_SCENARIOS = {
     { name: "plans-month", path: "/supervisor/plans", do: [["click", T.month + " >> nth=0"], ["wait", 2000]] },
     { name: "reports", path: "/reports" },
     { name: "reports-debts", path: "/reports?tab=debts" },
-    { name: "pnl", path: "/pnl" },
+    /*
+      P&L — на «12 мес.»: с умолчанием «30 дней» столбцов ровно два, и график
+      выглядит сломанным (одна косая линия). Руководству это тоже полезнее:
+      динамика по месяцам — то, ради чего экран открывают.
+    */
+    { name: "pnl", path: "/pnl", do: [["click", "role=button:/12 мес\.|12 oy/"], ["wait", 1200]], after: [] },
     { name: "salaries", path: "/salaries", marks: [["payAll", "text=/Выдать всем|Hammaga berish/ >> nth=0"]] },
     { name: "users", path: "/users" },
     { name: "audit-log", path: "/audit-log" },
