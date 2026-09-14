@@ -17,7 +17,7 @@ import {
   LayoutDashboard, Store, Package, ClipboardList, Truck,
   Warehouse, BarChart3, Users, Settings, PlusCircle, MapPin,
   Calendar, LogOut, X, Moon, Sun, WifiOff, Scan, Activity,
-  TrendingUp, CreditCard, ChevronLeft, Bell, Zap, Wallet, LifeBuoy,
+  TrendingUp, CreditCard, ChevronLeft, Bell, Zap, Wallet, LifeBuoy, BookOpen,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { PremiumSelect } from "@/components/PremiumSelect";
@@ -95,6 +95,12 @@ function usePageMeta(): { title: string; parent?: string; parentPath?: string } 
   return { title: "" };
 }
 
+/** Глава руководства для роли: открываем сразу «свой» раздел, а не обложку. */
+const MANUAL_CHAPTER: Record<string, string> = {
+  ceo: "role-ceo", operator: "role-operator", supervisor: "role-supervisor",
+  agent: "role-agent", courier: "role-courier", merchandiser: "role-merch", superadmin: "about",
+};
+
 // ── Desktop sidebar ───────────────────────────────────────────────────────────
 const Sidebar = memo(function Sidebar({ onClose, unreadCount = 0 }: { onClose?: () => void; unreadCount?: number }) {
   const { user, logout } = useAuth();
@@ -121,6 +127,13 @@ const Sidebar = memo(function Sidebar({ onClose, unreadCount = 0 }: { onClose?: 
   */
   const { data: support } = trpc.support.unread.useQuery(undefined, { refetchInterval: 60_000 });
   const supportUnread = support?.count ?? 0;
+  /*
+    «Справка» — руководство дистрибьютора внутри продукта. Выдаётся владельцем
+    платформы организации отдельно (платная книга), поэтому признак идёт с
+    сервера, как и у поддержки. Открывается на главе своей роли и на своём языке.
+  */
+  const { data: manual } = trpc.tenant.manualAccess.useQuery(undefined, { staleTime: 5 * 60_000 });
+  const manualHref = `/manual/#${lang}/${MANUAL_CHAPTER[role] ?? "about"}`;
   const items = useMemo(() => NAV_ITEMS[role] ?? [], [role]);
   const showWarehouseSelector = role === "ceo" || role === "operator";
 
@@ -244,6 +257,15 @@ const Sidebar = memo(function Sidebar({ onClose, unreadCount = 0 }: { onClose?: 
             </span>
             <span className="truncate">{t("nav.notifications")}</span>
           </button>
+
+          {manual?.available && (
+            <a href={manualHref} target="_blank" rel="noopener"
+              className="neo-btn flex-1 min-w-0 flex flex-col items-center justify-center gap-1.5 text-[10.5px]"
+              style={{ padding: "10px 6px", textDecoration: "none" }}>
+              <BookOpen size={15} />
+              <span className="truncate">{t("nav.manual")}</span>
+            </a>
+          )}
 
           {support?.available && (
             <button

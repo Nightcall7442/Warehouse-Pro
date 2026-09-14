@@ -48,8 +48,15 @@ export default function Login() {
 
   useEffect(() => {
     if (!isLoading && user) {
-      const dest = ROLE_ROUTES[user.role] ?? "/";
-      navigate(dest, { replace: true });
+      /*
+        ?next= — куда шли до входа. Так возвращает /manual/: руководство
+        живёт вне SPA и отправляет на вход сюда. Только свой путь: адрес
+        вида //evil.com увёл бы человека наружу сразу после ввода пароля.
+      */
+      const next = new URLSearchParams(window.location.search).get("next") ?? "";
+      const safe = /^\/(?!\/)/.test(next) ? next : null;
+      if (safe?.startsWith("/manual")) window.location.replace(safe); // вне SPA
+      else navigate(safe ?? ROLE_ROUTES[user.role] ?? "/", { replace: true });
     }
   }, [user, isLoading, navigate]);
 

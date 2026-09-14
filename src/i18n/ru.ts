@@ -2,6 +2,7 @@ export const ru = {
   // Navigation
   nav: {
     support:     "Поддержка",
+    manual:      "Справка",
     dashboard:   "Главная",
     kpi:         "KPI",
     shops:       "Магазины",

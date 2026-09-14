@@ -2,7 +2,7 @@ import { z } from "zod";
 import { randomUUID, randomBytes, createHash } from "crypto";
 import { TRPCError } from "@trpc/server";
 import { recordAudit } from "./services/audit-log";
-import { createRouter, publicQuery, adminQuery, superAdminQuery } from "./middleware";
+import { createRouter, publicQuery, adminQuery, authedQuery, superAdminQuery } from "./middleware";
 import { getDb } from "./queries/connection";
 import { tenants, users, settings, orders, products, shops, subscriptions, warehouses, apiKeys } from "@db/schema";
 import { eq, and, ne, sql, count, sum } from "drizzle-orm";
@@ -19,6 +19,7 @@ import { notifyAdmin, tgMessages } from "./telegram-router";
 import { rowsOf } from "./lib/db-rows";
 import { checkTotpStepUp } from "./auth/step-up";
 import { countTenantRows, offboardTenant, TenantNotSuspendedError } from "./services/tenant-offboard";
+import { setManualAccessFor } from "./services/manual-access";
 import { invalidateAuthTenant } from "./auth";
 /**
  * Ограничения на публичную регистрацию.
@@ -304,6 +305,7 @@ export const tenantRouter = createRouter({
         ownerEmail: tenants.ownerEmail, ownerPhone: tenants.ownerPhone,
         maxUsers: tenants.maxUsers, maxProducts: tenants.maxProducts, maxOrdersMonth: tenants.maxOrdersMonth,
         extraUsers: tenants.extraUsers, extraProducts: tenants.extraProducts,
+        manualEnabledAt: tenants.manualEnabledAt,
         createdAt: tenants.createdAt, updatedAt: tenants.updatedAt,
       }).from(tenants).where(eq(tenants.id, input.tenantId)).limit(1);
       if (!tenant) throw new TRPCError({ code: "NOT_FOUND", message: "Tenant not found." });
@@ -582,6 +584,26 @@ export const tenantRouter = createRouter({
       invalidateAuthTenant(input.tenantId);
       return { success: true };
     }),
+
+  /**
+   * Руководство дистрибьютора — выдать или забрать у организации.
+   *
+   * Платная книга, решение владельца платформы по каждой организации; второй
+   * путь — команда /manual в Telegram (api/telegram/bot.ts). Оба зовут
+   * setManualAccessFor, чтобы журнал и сброс кэша сессии были одни на двоих.
+   */
+  setManualAccess: superAdminQuery
+    .input(z.object({ tenantId: z.number().int().positive(), enabled: z.boolean() }))
+    .mutation(async ({ input, ctx }) => {
+      const r = await setManualAccessFor(input.tenantId, input.enabled, { id: ctx.user.id, name: ctx.user.name });
+      if (!r) throw new TRPCError({ code: "NOT_FOUND", message: "Организация не найдена" });
+      return r;
+    }),
+
+  /** Есть ли у моей организации руководство — по нему меню показывает «Справку». */
+  manualAccess: authedQuery.query(({ ctx }) => ({
+    available: ctx.user.role === "superadmin" || Boolean(ctx.tenant.manualEnabledAt),
+  })),
 
   /** Что будет стёрто при уходе организации — по таблицам. */
   offboardPreview: superAdminQuery

@@ -12,6 +12,8 @@ COPY db/ db/
 COPY contracts/ contracts/
 COPY src/ src/
 COPY public/ public/
+# Руководство дистрибьютора: отдаётся сервером за сессией (api/manual.ts), не статикой.
+COPY docs/manual/ docs/manual/
 COPY .env.example .env
 
 # Build-time env vars — Vite inlines these at bundle time.
@@ -64,6 +66,7 @@ RUN find ./dist -name "*.map" -delete
 COPY --from=builder --chown=appuser:appgroup /app/package.json /app/package-lock.json ./
 RUN npm ci --omit=dev --legacy-peer-deps && npm cache clean --force
 COPY --from=builder --chown=appuser:appgroup /app/db ./db
+COPY --from=builder --chown=appuser:appgroup /app/docs/manual ./docs/manual
 COPY --from=builder --chown=appuser:appgroup /app/drizzle.config.ts ./
 USER appuser
 ENV NODE_ENV=production

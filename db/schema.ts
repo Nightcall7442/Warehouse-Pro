@@ -59,6 +59,13 @@ export const tenants = mysqlTable("tenants", {
   */
   extraUsers:    int("extra_users").default(0).notNull(),
   extraProducts: int("extra_products").default(0).notNull(),
+  /*
+    Руководство дистрибьютора (docs/manual) — платное, выдаётся владельцем
+    платформы организации отдельно: суперадмин или командой в Telegram. Пусто —
+    у организации нет ссылки «Справка» и /manual/ отвечает 403. Дата, а не
+    флаг: видно, когда выдали.
+  */
+  manualEnabledAt: timestamp("manual_enabled_at"),
   ownerEmail:    varchar("owner_email", { length: 320 }),
   ownerPhone:    varchar("owner_phone", { length: 30 }),
   /*

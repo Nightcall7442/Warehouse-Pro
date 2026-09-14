@@ -13,8 +13,18 @@
  * Локально: WEB_URL=http://127.0.0.1:3100 node scripts/screenshots.mjs
  */
 import { chromium, devices } from "@playwright/test";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, writeFileSync, readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
+
+/*
+  Выноски руководства сверх тех, что заданы в сценариях ниже: scripts/screenshot-marks.json
+  вида { "web": { "operator": { "orders": [["ключ", "указатель"]] } }, "mobile": {…} }.
+  Авторы руководства добавляют выноски туда, не трогая сценарии.
+*/
+const EXTRA_MARKS = existsSync("scripts/screenshot-marks.json")
+  ? JSON.parse(readFileSync("scripts/screenshot-marks.json", "utf-8"))
+  : {};
+const extraMarks = (kind, role, screen) => EXTRA_MARKS[kind]?.[role]?.[screen] ?? [];
 
 const WEB = process.env.WEB_URL ?? "http://127.0.0.1:3100";
 const MOBILE = process.env.MOBILE_URL ?? "";
@@ -198,12 +208,12 @@ async function marksOf(page, marks = []) {
   return out;
 }
 
-async function runScenarios(page, base, scenarios, dir, entry) {
+async function runScenarios(page, base, scenarios, dir, entry, kind, role) {
   for (const sc of scenarios) {
     try {
       if (sc.path) { await page.goto(`${base}${sc.path}`, { waitUntil: "domcontentloaded" }); await settle(page); }
       for (const step of sc.do ?? []) await act(page, step);
-      const marks = await marksOf(page, sc.marks);
+      const marks = await marksOf(page, [...(sc.marks ?? []), ...extraMarks(kind, role, sc.name)]);
       await page.screenshot({ path: join(dir, `${sc.name}.png`) });
       entry.push({ screen: sc.name, path: sc.path, marks });
       for (const step of sc.after ?? []) await act(page, step).catch(() => {});
@@ -247,7 +257,7 @@ async function shootWeb(browser) {
       }
       const dir = join(OUT, "web", lang, role); mkdirSync(dir, { recursive: true });
       const entry = [];
-      await runScenarios(page, WEB, scenarios, dir, entry);
+      await runScenarios(page, WEB, scenarios, dir, entry, "web", role);
       for (const e of entry) index.web.push({ lang, role, ...e, file: `web/${lang}/${role}/${e.screen}.png` });
       await ctx.close();
     }
@@ -283,7 +293,7 @@ async function shootMobile(browser) {
         await ctx.close();
         continue;
       }
-      await runScenarios(page, MOBILE, scenarios, dir, entry);
+      await runScenarios(page, MOBILE, scenarios, dir, entry, "mobile", role);
       for (const e of entry) index.mobile.push({ lang, role, ...e, file: `mobile/${lang}/${role}/${e.screen}.png` });
       await ctx.close();
     }

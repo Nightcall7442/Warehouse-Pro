@@ -277,6 +277,16 @@ telegramBot.post("/api/webhooks/telegram", async (c) => {
       return c.json({ ok: true });
     }
 
+    /* ── Владелец платформы: выдать руководство организации ─────────────────
+       Чат владельца задан переменной TELEGRAM_ADMIN_CHAT_ID; любой другой чат
+       этой команды не видит — ни ответа, ни списка организаций. */
+    if (text.startsWith("/manual")) {
+      if (env.telegramAdminChatId && chatId === String(env.telegramAdminChatId)) {
+        await sendTelegram(chatId, await manualCommand(text.slice("/manual".length).trim()));
+      }
+      return c.json({ ok: true });
+    }
+
     if (chatType === "group" || chatType === "supergroup") {
       /*
         Больше в группе бот не отвечает ничего.
@@ -348,3 +358,29 @@ telegramBot.post("/api/webhooks/telegram", async (c) => {
     return c.json({ ok: true });
   }
 });
+
+/**
+ * /manual — список организаций и у кого руководство есть;
+ * /manual <slug|id> on|off — выдать или забрать. Журнал и сброс кэша — в
+ * setManualAccessFor, той же двери, что у суперадмина.
+ */
+export async function manualCommand(args: string): Promise<string> {
+  const { setManualAccessFor } = await import("../services/manual-access");
+  const [who, what] = args.split(/\s+/).filter(Boolean);
+  const db = getDb();
+  if (!who) {
+    const rows = await db.select({ id: tenants.id, slug: tenants.slug, name: tenants.name, manualEnabledAt: tenants.manualEnabledAt })
+      .from(tenants).where(ne(tenants.slug, "system")).orderBy(tenants.name);
+    const lines = rows.map(r => `${r.manualEnabledAt ? "✅" : "▫️"} <code>${tgEscape(r.slug)}</code> — ${tgEscape(r.name)}`);
+    return `<b>Руководство по организациям</b>\n${lines.join("\n") || "организаций нет"}\n\nВыдать: <code>/manual slug on</code>, забрать: <code>/manual slug off</code>`;
+  }
+  if (what !== "on" && what !== "off") return "Формат: /manual &lt;slug или id&gt; on|off";
+  const cond = /^\d+$/.test(who) ? eq(tenants.id, Number(who)) : eq(tenants.slug, who);
+  const [t] = await db.select({ id: tenants.id }).from(tenants).where(cond).limit(1);
+  if (!t) return `Организации «${tgEscape(who)}» нет`;
+  const r = await setManualAccessFor(t.id, what === "on", { id: undefined, name: "Владелец (Telegram)" });
+  if (!r) return `Организации «${tgEscape(who)}» нет`;
+  return what === "on"
+    ? `✅ ${tgEscape(r.name)}: руководство выдано — у сотрудников появилась «Справка»`
+    : `▫️ ${tgEscape(r.name)}: руководство отключено`;
+}

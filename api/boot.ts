@@ -19,6 +19,7 @@ import { registerStripeWebhook } from "./webhooks/stripe";
 import onecWebhooks from "./webhooks/onec";
 import alertmanagerWebhook from "./webhooks/alertmanager";
 import { telegramBot } from "./telegram/bot";
+import { manual } from "./manual";
 import publicApi from "./public-api";
 import photos from "./photos";
 import { createSSEResponse } from "./sse-router";
@@ -391,6 +392,9 @@ app.route("/api/v1", publicApi);
 
 // ── Photo delivery (keeps base64 blobs out of list responses) ────────────────
 app.route("/api/photos", photos);
+
+// ── Руководство дистрибьютора — за сессией и разрешением организации ─────────
+app.route("/", manual);
 
 // ── Cron: trial ending reminders ─────────────────────────────────────────────
 app.get("/api/cron/trial-reminders", async (c) => {
