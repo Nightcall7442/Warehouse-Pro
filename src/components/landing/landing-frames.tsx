@@ -173,6 +173,43 @@ export function ManualLeaf({
   );
 }
 
+/* ── Реестр возможностей ─────────────────────────────────────────────────────
+   Линованный список в две колонки — тот же язык, что у «Реестра
+   возможностей» в главе 04: номер моно, жирный заголовок, строка описания,
+   волосяные линии. Не карточки с иконками: сетка одинаковых коробочек — это
+   шаблон любого SaaS-сайта, и именно она читалась «дешевле, чем у других». */
+export function Ledger({ items, start = 1, dark = false, className = "" }: {
+  items: { t: string; d: string }[];
+  start?: number;
+  dark?: boolean;
+  className?: string;
+}) {
+  const rule = dark ? LX.ruleOnInk : LX.rule;
+  return (
+    <ol className={`grid md:grid-cols-2 gap-x-14 lg:gap-x-20 ${className}`} style={{ borderTop: `1px solid ${dark ? LX.ruleOnInk : LX.ruleStrong}` }}>
+      {items.map((it, i) => (
+        <li key={it.t} className="grid grid-cols-[36px_minmax(0,1fr)] gap-x-4 py-5" style={{ borderBottom: `1px solid ${rule}` }}>
+          <span className="text-[12px] pt-1" style={{ ...MONO, color: dark ? LX.brassOnNight : LX.brassDeep }}>{String(start + i).padStart(2, "0")}</span>
+          <div>
+            <div className="text-[16px] font-bold" style={{ color: dark ? LX.paperOnInk : LX.ink, letterSpacing: "-0.01em" }}>{it.t}</div>
+            <p className="mt-1 text-[14px] leading-relaxed" style={{ color: dark ? LX.softOnInk : LX.inkSoft }}>{it.d}</p>
+          </div>
+        </li>
+      ))}
+    </ol>
+  );
+}
+
+/* ── Сетка главы: 5/12 слева, 7/12 справа, выровнено по верху ─────────────── */
+export function Split({ left, right, className = "", flip = false }: { left: ReactNode; right: ReactNode; className?: string; flip?: boolean }) {
+  return (
+    <div className={`grid lg:grid-cols-12 gap-10 lg:gap-x-16 items-start ${className}`}>
+      <div className={`lg:col-span-5 ${flip ? "lg:order-2" : ""}`}>{left}</div>
+      <div className={`lg:col-span-7 ${flip ? "lg:order-1" : ""}`}>{right}</div>
+    </div>
+  );
+}
+
 /* ── Подпись «демо-данные» ───────────────────────────────────────────────── */
 export function DemoTag({ dark = false, children }: { dark?: boolean; children: ReactNode }) {
   return (
