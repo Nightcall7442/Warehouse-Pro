@@ -264,6 +264,54 @@ async function seed() {
 
   // ── Products (35) ────────────────────────────────────────────────────────────
   console.log("Creating products...");
+  /*
+    Фотографии товаров — Pexels, свободная лицензия (коммерческое использование
+    без указания автора), как и остальные фото лендинга. Без них каталог в
+    приложении показывает заглушку-коробку, и снимки экранов для лендинга
+    выглядели пустыми — «фоток нету», по слову владельца.
+
+    Абсолютные адреса: веб и телефон показывают их напрямую, минуя /api/photos.
+  */
+  const PRODUCT_PHOTOS: Record<string, string> = {
+    "VEG-001": "29479888",
+    "VEG-002": "7543157",
+    "VEG-003": "6157047",
+    "VEG-004": "10487659",
+    "VEG-005": "6316541",
+    "VEG-006": "10899606",
+    "FRU-001": "12955951",
+    "FRU-002": "7288788",
+    "FRU-003": "3987387",
+    "FRU-004": "12932797",
+    "FRU-005": "4074999",
+    "MLK-001": "5946755",
+    "MLK-002": "7144518",
+    "MLK-003": "4198171",
+    "MLK-004": "5946717",
+    "MLK-005": "13079969",
+    "MEA-001": "618775",
+    "MEA-002": "13422467",
+    "MEA-003": "6281506",
+    "MEA-004": "10794112",
+    "BEV-001": "7767754",
+    "BEV-002": "8228301",
+    "BEV-003": "8329281",
+    "BEV-004": "7507583",
+    "BEV-005": "6150569",
+    "GRC-001": "6996209",
+    "GRC-002": "5850339",
+    "GRC-003": "5469035",
+    "GRC-004": "12284682",
+    "GRC-005": "6287376",
+    "SWE-001": "14839145",
+    "SWE-002": "14456366",
+    "SWE-003": "12558753",
+    "SWE-004": "13246534",
+    "BRD-001": "209206",
+    "BRD-002": "13084520",
+  };
+  const pexels = (id: string) => `https://images.pexels.com/photos/${id}/pexels-photo-${id}.jpeg?auto=compress&cs=tinysrgb&w=480&h=480&fit=crop`;
+
   const productDefs: (typeof schema.products.$inferInsert)[] = [
     // ── Овощи
     { tenantId, code: "VEG-001", barcode: "4780123456789", name: "Помидор свежий", category: "Овощи", costPrice: "8500.00", unitPrice: "12000.00", unit: "kg", unitWeight: "1.000", reorderPoint: "50.00" },
@@ -313,7 +361,8 @@ async function seed() {
 
   const productIds: number[] = [];
   for (const p of productDefs) {
-    const [r] = await db.insert(schema.products).values({ ...p, status: "active" });
+    const photoUrl = p.code && PRODUCT_PHOTOS[p.code] ? pexels(PRODUCT_PHOTOS[p.code]) : null;
+    const [r] = await db.insert(schema.products).values({ ...p, photoUrl, status: "active" });
     productIds.push(Number(r.insertId));
   }
   console.log(`✓ ${productIds.length} products created\n`);
