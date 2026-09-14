@@ -110,3 +110,5 @@ jobs:
           name: screenshots
           path: screenshots/
           retention-days: 14
+
+# Снимок «Оформить подробно» у курьера требует правки order.getById (PR #19).
