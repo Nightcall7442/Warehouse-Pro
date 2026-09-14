@@ -395,7 +395,13 @@ async function seed() {
     const shopId = shopIds[shopIdx];
     const agentId = allAgents[i % allAgents.length];
     const status = statuses[i % 4];
-    const daysBack = Math.floor(i / 3);
+    /*
+      Первые тридцать заказов — плотно, по три в день за последние десять
+      дней: главная и «сегодня» должны быть живыми. Остальные пятьдесят
+      расходятся на полгода назад — иначе месячные графики (P&L, отчёты)
+      состоят из двух точек и одной косой линии между ними.
+    */
+    const daysBack = i < 30 ? Math.floor(i / 3) : 10 + Math.floor((i - 30) * 3.4);
     const createdAt = daysAgo(daysBack, i % 10);
 
     const numItems = 1 + Math.floor(Math.random() * 4);
@@ -588,8 +594,9 @@ async function seed() {
   console.log("Creating agent locations...");
   for (let i = 0; i < 30; i++) {
     const agentId = allAgents[i % allAgents.length];
-    const baseLat = [41.31, 39.65, 39.77, 42.46, 38.86][i % 5];
-    const baseLng = [69.28, 66.97, 64.42, 59.60, 65.78][i % 5];
+    // Порядок — как у agentData: Ургенч, Самарканд, Бухара, Нукус, Карши.
+    const baseLat = [41.55, 39.65, 39.77, 42.46, 38.86][i % 5];
+    const baseLng = [60.63, 66.97, 64.42, 59.60, 65.78][i % 5];
     await db.insert(schema.agentLocations).values({
       tenantId,
       agentId,
