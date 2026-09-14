@@ -10,7 +10,7 @@ export const uz = {
     warehouse:   "Ombor",
     returns:     "Qaytarishlar",
     warehouseReports: "Ombor hisobotlari",
-    auditLog:    "Audit jurnali",
+    auditLog:    "Harakatlar jurnali",
     arrivals:    "Kirim",
     analytics:   "Tahlil",
     users:       "Foydalanuvchilar",

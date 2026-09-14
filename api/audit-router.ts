@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { createRouter, auditQuery, superAdminQuery } from "./middleware";
-import { getAuditLog, exportAuditCsv, purgeOldAuditLogs } from "./services/audit-log";
+import { getAuditLog, exportAuditCsv, purgeOldAuditLogs, auditActors } from "./services/audit-log";
 import { checkTotpStepUp } from "./auth/step-up";
 import { TRPCError } from "@trpc/server";
 import { recordAudit, auditActor } from "./services/audit-log";
@@ -11,6 +11,8 @@ export const auditRouter = createRouter({
     .input(z.object({
       action:   z.string().optional(),
       actorId:  z.number().optional(),
+      targetType: z.string().max(50).optional(),
+      search:   z.string().max(100).optional(),
       dateFrom: z.string().optional(),
       dateTo:   z.string().optional(),
       limit:    z.number().int().min(1).max(500).default(100),
@@ -20,11 +22,16 @@ export const auditRouter = createRouter({
       return getAuditLog(ctx.db, ctx.tenant.id, input);
     }),
 
+  /** Кто оставлял следы — список для отбора по человеку. */
+  actors: auditQuery.query(async ({ ctx }) => auditActors(ctx.db, ctx.tenant.id)),
+
   /** Export audit log as CSV */
   exportCsv: auditQuery
     .input(z.object({
       action:   z.string().optional(),
       actorId:  z.number().optional(),
+      targetType: z.string().max(50).optional(),
+      search:   z.string().max(100).optional(),
       dateFrom: z.string().optional(),
       dateTo:   z.string().optional(),
     }).optional())

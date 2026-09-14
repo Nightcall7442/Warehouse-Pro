@@ -1,17 +1,38 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { trpc } from "@/providers/trpc";
 import { useLang } from "@/i18n";
 import { format } from "date-fns";
 import { ru as dateRu } from "date-fns/locale";
 import {
-  Shield, Filter, ChevronLeft, ChevronRight,
+  Shield, Filter, ChevronLeft, ChevronRight, Search, BookOpen,
   User, Package, Settings, AlertTriangle, Key,
-  RefreshCw, ArrowUpRight, ArrowDownRight, Minus, Download,
+  RefreshCw, Download,
   ShoppingCart, CreditCard, Store, Building2, Truck, ClipboardList,
   Undo2, Printer, Tag, Database, Wallet, Boxes, Trash2, ClipboardCheck, Link2,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { notify } from "@/lib/toast";
+import { PremiumSelect } from "@/components/PremiumSelect";
+import { type Label, type Lang } from "@/lib/entity-labels";
+import { describeMeta } from "@/lib/audit-text";
+
+/*
+  Журнал действий директора.
+
+  ── Что было ────────────────────────────────────────────────────────────────
+
+  Запись читалась как «Принята оплата · order #1234 · amount: 150000 ·
+  method: cash» — номер строки базы и ключи из кода. Отбор — только по виду
+  действия; ни по человеку, ни по периоду, ни по слову, хотя сервер всё это
+  умел. Директор посмотрел и сказал, что журналом пользоваться нельзя.
+
+  ── Что теперь ──────────────────────────────────────────────────────────────
+
+  Каждая запись — «кто · что сделал — с чем · подробности словами»: имя
+  объекта приходит с сервера (targetLabel), подробности переведены здесь
+  (describeMeta). Сверху: поиск по слову, сотрудник, период (сегодня / 7 /
+  30 дней / всё / свой), ниже — вид действия. Техническое — по клику.
+*/
 
 // ── Premium design tokens ─────────────────────────────────────────────────────
 const F = { display: "'DM Sans', -apple-system, sans-serif", body: "'DM Sans', -apple-system, sans-serif" };
@@ -41,44 +62,6 @@ if (typeof document !== "undefined" && !document.getElementById("auditlog-keyfra
   style.id = "auditlog-keyframes";
   style.textContent = slideUpKeyframe;
   document.head.appendChild(style);
-}
-
-// ── KpiCard ───────────────────────────────────────────────────────────────────
-function KpiCard({ label, value, delta, icon, gradient, delay }: {
-  label: string; value: string; delta?: number | null;
-  icon: React.ReactNode; gradient: string; delay: number;
-}) {
-  const isPositive = delta !== null && delta !== undefined && delta > 0;
-  const isNegative = delta !== null && delta !== undefined && delta < 0;
-  return (
-    <div className="kpi-hero" style={{
-      borderRadius: "24px", padding: "24px",
-      position: "relative", overflow: "hidden",
-      animation: `slideUp ${0.5 + delay}s ease`,
-    }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "16px" }}>
-        <span style={{ fontFamily: F.display, fontSize: "10px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", color: COLORS.textTertiary }}>
-          {label}
-        </span>
-        <div style={{ width: "44px", height: "44px", borderRadius: "12px", background: gradient, display: "flex", alignItems: "center", justifyContent: "center" }}>
-          {icon}
-        </div>
-      </div>
-      <div style={{ fontFamily: F.display, fontSize: "32px", fontWeight: 700, color: COLORS.textPrimary, lineHeight: 1, letterSpacing: "-0.03em" }}>
-        {value}
-      </div>
-      {delta !== null && delta !== undefined && (
-        <div style={{
-          display: "flex", alignItems: "center", gap: "4px", marginTop: "10px",
-          fontSize: "12px", fontWeight: 600, fontFamily: F.body,
-          color: isPositive ? "var(--color-success-text)" : isNegative ? "var(--color-danger-text)" : COLORS.textTertiary,
-        }}>
-          {isPositive ? <ArrowUpRight size={14} /> : isNegative ? <ArrowDownRight size={14} /> : <Minus size={14} />}
-          {Math.abs(delta).toFixed(1)}%
-        </div>
-      )}
-    </div>
-  );
 }
 
 // ── Action config ─────────────────────────────────────────────────────────────
@@ -118,6 +101,8 @@ const ACTION_CONFIG: Record<string, {
   "order.bulk_status_change":        { icon: ClipboardList, gradient: WARNING, label: { ru: "Массовая смена статуса заказов",  uz: "Buyurtmalar holati ommaviy o'zgartirildi" } },
   "order.invoices_printed":          { icon: Printer,       gradient: PRIMARY, label: { ru: "Напечатаны накладные",            uz: "Yuk xatlari chop etildi" } },
   "order.payment_recorded":          { icon: CreditCard,    gradient: SUCCESS, label: { ru: "Принята оплата",                  uz: "To'lov qabul qilindi" } },
+  "order.reopened":                  { icon: Undo2,         gradient: WARNING, label: { ru: "Заказ возвращён в работу",         uz: "Buyurtma ishga qaytarildi" } },
+  "order.revenue_reversed":          { icon: Undo2,         gradient: DANGER,  label: { ru: "Доставка отменена задним числом",  uz: "Yetkazish orqaga qaytarildi" } },
   "payment.reverse":                 { icon: Undo2,         gradient: DANGER,  label: { ru: "Оплата отменена",                 uz: "To'lov bekor qilindi" } },
   "return.status":                   { icon: Undo2,         gradient: WARNING, label: { ru: "Возврат: смена статуса",          uz: "Qaytarish: holat o'zgardi" } },
   // Магазины и цены
@@ -146,6 +131,8 @@ const ACTION_CONFIG: Record<string, {
   "tenant.updated":                  { icon: Building2,     gradient: DANGER,  label: { ru: "Обновлена организация",           uz: "Tashkilot yangilandi" } },
   "tenant.extra_limits":             { icon: Building2,     gradient: WARNING, label: { ru: "Изменены лимиты организации",     uz: "Tashkilot limitlari o'zgartirildi" } },
   "tenant.sandbox.create":           { icon: Building2,     gradient: INFO,    label: { ru: "Создана песочница",               uz: "Sinov muhiti yaratildi" } },
+  "tenant.manual_granted":           { icon: BookOpen,      gradient: SUCCESS, label: { ru: "Выдано руководство",              uz: "Qo'llanma berildi" } },
+  "tenant.manual_revoked":           { icon: BookOpen,      gradient: WARNING, label: { ru: "Руководство отключено",           uz: "Qo'llanma o'chirildi" } },
   "system.backup_downloaded":        { icon: Database,      gradient: DANGER,  label: { ru: "Скачана копия базы",              uz: "Baza nusxasi yuklab olindi" } },
   "audit.purged":                    { icon: AlertTriangle, gradient: DANGER,  label: { ru: "Очищен журнал аудита",            uz: "Audit jurnali tozalandi" } },
 };
@@ -167,96 +154,79 @@ const ACTION_FILTERS = [
 ];
 
 function formatTime(date: Date | string, lang: string): string {
-  const d = new Date(date);
-  return format(d, "dd MMM yyyy HH:mm", { locale: lang === "ru" ? dateRu : undefined });
+  return format(new Date(date), "dd MMM yyyy, HH:mm", { locale: lang === "ru" ? dateRu : undefined });
 }
 
-function timeAgo(date: Date | string, lang: string): string {
-  const diff = Math.floor((Date.now() - new Date(date).getTime()) / 1000);
-  if (diff < 60) return lang === "uz" ? "Hozirgina" : "Только что";
-  if (diff < 3600) return `${Math.floor(diff / 60)} ${lang === "uz" ? "daq" : "мин"}`;
-  if (diff < 86400) return `${Math.floor(diff / 3600)} ${lang === "uz" ? "soat" : "ч"}`;
-  return `${Math.floor(diff / 86400)} ${lang === "uz" ? "kun" : "дн"}`;
+/** Начало периода по кнопке: сегодня / 7 дней / 30 дней — по местному времени. */
+function periodFrom(preset: string): string | undefined {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  if (preset === "today") return d.toISOString();
+  if (preset === "week") { d.setDate(d.getDate() - 6); return d.toISOString(); }
+  if (preset === "month") { d.setDate(d.getDate() - 29); return d.toISOString(); }
+  return undefined;
 }
 
-// ── Meta detail panel ─────────────────────────────────────────────────────────
-function MetaDetail({ meta }: { meta: Record<string, unknown> | null }) {
-  if (!meta || Object.keys(meta).length === 0) return null;
-
-  return (
-    <div style={{
-      marginTop: "12px", padding: "14px 16px", borderRadius: "12px",
-      background: COLORS.surfaceLight, border: `1px solid ${COLORS.border}`,
-    }}>
-      <div style={{ fontSize: "10px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "10px", color: COLORS.textTertiary, fontFamily: F.body }}>
-        Детали
-      </div>
-      <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-        {Object.entries(meta).map(([key, value]) => (
-          <div key={key} style={{ display: "flex", alignItems: "flex-start", gap: "8px", fontSize: "12px" }}>
-            <span style={{ fontFamily: "monospace", fontWeight: 600, minWidth: "80px", color: COLORS.textSecondary, fontSize: "11px" }}>{key}:</span>
-            <span style={{ fontFamily: "monospace", wordBreak: "break-all", color: COLORS.textPrimary, fontSize: "12px" }}>
-              {typeof value === "object" ? JSON.stringify(value) : String(value)}
-            </span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
+const btn = (active: boolean): React.CSSProperties => ({
+  display: "flex", alignItems: "center", gap: "6px", padding: "8px 14px",
+  fontSize: "12px", fontWeight: 600, fontFamily: F.body, borderRadius: "10px",
+  border: "none", cursor: "pointer", transition: "all 0.2s", whiteSpace: "nowrap",
+  background: active ? COLORS.primary : COLORS.surfaceLight,
+  color: active ? "#fff" : COLORS.textSecondary,
+  boxShadow: active ? "0 2px 8px color-mix(in srgb, var(--color-primary) 25%, transparent)" : "none",
+});
 
 // ── Main component ────────────────────────────────────────────────────────────
 export default function AuditLog() {
   const { lang } = useLang();
+  const L: Lang = lang === "uz" ? "uz" : "ru";
   const t = (ru: string, uz: string) => lang === "uz" ? uz : ru;
   const [actionFilter, setActionFilter] = useState("");
+  const [actorId, setActorId] = useState("");
+  const [period, setPeriod] = useState<"all" | "today" | "week" | "month" | "custom">("month");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [search, setSearch] = useState("");
   const [page, setPage] = useState(0);
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const limit = 50;
 
-  const { data, isLoading, refetch, isRefetching } = trpc.audit.list.useQuery({
-    action: actionFilter || undefined,
-    limit,
-    offset: page * limit,
-  });
+  /*
+    Поиск уходит на сервер с задержкой: журнал ищет по подписям, людям и
+    подробностям, и запрос на каждую букву — лишние обращения к базе.
+  */
+  const [debounced, setDebounced] = useState("");
+  useEffect(() => { const h = setTimeout(() => { setDebounced(search.trim()); setPage(0); }, 300); return () => clearTimeout(h); }, [search]);
 
-  const totalPages = data ? Math.ceil(data.total / limit) : 1;
+  const filters = {
+    action: actionFilter || undefined,
+    actorId: actorId ? Number(actorId) : undefined,
+    search: debounced || undefined,
+    dateFrom: period === "custom" ? (dateFrom ? new Date(dateFrom).toISOString() : undefined) : periodFrom(period),
+    dateTo: period === "custom" && dateTo ? new Date(`${dateTo}T23:59:59.999`).toISOString() : undefined,
+  };
+  const { data, isLoading, refetch, isRefetching } = trpc.audit.list.useQuery({ ...filters, limit, offset: page * limit });
+  const { data: actors } = trpc.audit.actors.useQuery();
+  const totalPages = data ? Math.max(1, Math.ceil(data.total / limit)) : 1;
+  const reset = () => setPage(0);
 
   /*
-    Выгрузка аудита.
-
-    Ручка была написана и не вызывалась ниоткуда, а нужна она ровно в том
-    случае, ради которого журнал и ведут: спор о том, кто что сделал. На экране
-    видно полсотни записей за раз, а разбирают такое по бумаге и целиком.
-
-    CSV собирает СЕРВЕР — здесь его только сохраняют. Пересобирать строку на
-    клиенте значило бы завести второй формат того же журнала, и однажды они
-    разошлись бы: экранный и настоящий.
-
-    Ходит она отдельным запросом, а не подпиской: выгрузка тянет до десяти
-    тысяч строк, и держать их в памяти страницы незачем.
+    Выгрузка аудита — с теми же отборами, что на экране: разбирают спор по
+    бумаге и целиком, но за нужный период и по нужному человеку. CSV собирает
+    СЕРВЕР, здесь его только сохраняют.
   */
   const [exporting, setExporting] = useState(false);
   const utils = trpc.useUtils();
-
   const handleExport = async () => {
     setExporting(true);
     try {
-      const res = await utils.audit.exportCsv.fetch({ action: actionFilter || undefined });
-      if (!res.rows) {
-        notify.info(t("Нечего выгружать", "Yuklab olish uchun hech narsa yo'q"));
-        return;
-      }
-      /*
-        BOM в начале файла — не украшение: без него Excel читает кириллицу в
-        UTF-8 как набор знаков вопроса, и файл выглядит испорченным.
-      */
-      const blob = new Blob(["\uFEFF" + res.csv], { type: "text/csv;charset=utf-8" });
+      const res = await utils.audit.exportCsv.fetch(filters);
+      if (!res.rows) { notify.info(t("Нечего выгружать", "Yuklab olish uchun hech narsa yo'q")); return; }
+      // BOM — иначе Excel читает кириллицу в UTF-8 как знаки вопроса.
+      const blob = new Blob(["﻿" + res.csv], { type: "text/csv;charset=utf-8" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
-      a.href = url;
-      a.download = `audit-${new Date().toISOString().slice(0, 10)}.csv`;
-      a.click();
+      a.href = url; a.download = `audit-${new Date().toISOString().slice(0, 10)}.csv`; a.click();
       URL.revokeObjectURL(url);
       notify.success(t(`Выгружено записей: ${res.rows}`, `Yozuvlar yuklandi: ${res.rows}`));
     } catch (e) {
@@ -266,187 +236,154 @@ export default function AuditLog() {
     }
   };
 
+  const PERIODS: Array<{ key: typeof period; label: Label }> = [
+    { key: "today", label: { ru: "Сегодня", uz: "Bugun" } },
+    { key: "week", label: { ru: "7 дней", uz: "7 kun" } },
+    { key: "month", label: { ru: "30 дней", uz: "30 kun" } },
+    { key: "all", label: { ru: "Всё время", uz: "Hamma vaqt" } },
+    { key: "custom", label: { ru: "Период…", uz: "Davr…" } },
+  ];
+  const inputStyle: React.CSSProperties = {
+    padding: "8px 12px", fontSize: "13px", fontFamily: F.body, borderRadius: "10px",
+    border: `1px solid ${COLORS.border}`, background: COLORS.surface, color: COLORS.textPrimary,
+  };
+
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "12px" }}>
         <div>
           <h1 style={{ fontFamily: F.display, fontSize: "24px", fontWeight: 700, color: COLORS.textPrimary, letterSpacing: "-0.025em", margin: 0, display: "flex", alignItems: "center", gap: "10px" }}>
             <Shield size={24} style={{ color: COLORS.primaryText }} />
-            {t("Аудит-лог", "Audit jurnali")}
+            {t("Журнал действий", "Harakatlar jurnali")}
           </h1>
           <p style={{ fontSize: "13px", color: COLORS.textSecondary, margin: "4px 0 0" }}>
-            {t("История чувствительных действий", "Hassas harakatlar tarixi")}
+            {t("Кто, что и когда сделал в вашей организации", "Tashkilotingizda kim, nima va qachon qildi")}
+            {data ? ` · ${t("записей", "yozuvlar")}: ${data.total}` : ""}
           </p>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
-        <button
-          onClick={() => refetch()}
-          disabled={isRefetching}
-          style={{
-            display: "flex", alignItems: "center", gap: "6px", padding: "8px 14px",
-            fontSize: "13px", fontWeight: 500, fontFamily: F.body, borderRadius: "10px",
-            border: `1px solid ${COLORS.border}`, cursor: "pointer",
-            background: COLORS.surface, color: COLORS.textSecondary,
-            opacity: isRefetching ? 0.6 : 1,
-          }}
-        >
-          <RefreshCw size={14} style={{ animation: isRefetching ? "spin 1s linear infinite" : undefined }} />
-          {t("Обновить", "Yangilash")}
-        </button>
-        <button
-          onClick={handleExport}
-          disabled={exporting}
-          style={{
-            display: "flex", alignItems: "center", gap: "6px", padding: "8px 14px",
-            fontSize: "13px", fontWeight: 500, fontFamily: F.body, borderRadius: "10px",
-            border: `1px solid ${COLORS.border}`, cursor: "pointer",
-            background: COLORS.surface, color: COLORS.textSecondary,
-            opacity: exporting ? 0.6 : 1,
-          }}
-        >
-          <Download size={14} />
-          {t("Выгрузить CSV", "CSV yuklab olish")}
-        </button>
+          <button onClick={() => refetch()} disabled={isRefetching} style={{ ...inputStyle, display: "flex", alignItems: "center", gap: "6px", cursor: "pointer", color: COLORS.textSecondary, opacity: isRefetching ? 0.6 : 1 }}>
+            <RefreshCw size={14} style={{ animation: isRefetching ? "spin 1s linear infinite" : undefined }} />
+            {t("Обновить", "Yangilash")}
+          </button>
+          <button onClick={handleExport} disabled={exporting} style={{ ...inputStyle, display: "flex", alignItems: "center", gap: "6px", cursor: "pointer", color: COLORS.textSecondary, opacity: exporting ? 0.6 : 1 }}>
+            <Download size={14} />
+            {t("Выгрузить CSV", "CSV yuklab olish")}
+          </button>
         </div>
       </div>
 
-      {/* Filters */}
+      {/* Отбор: слово, человек, период */}
+      <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+        <div style={{ position: "relative", flex: "1 1 260px", minWidth: "200px" }}>
+          <Search size={15} style={{ position: "absolute", left: "11px", top: "10px", color: COLORS.textTertiary, pointerEvents: "none" }} />
+          <input
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder={t("Магазин, номер заказа, товар, сотрудник…", "Do'kon, buyurtma raqami, tovar, xodim…")}
+            aria-label={t("Поиск по журналу", "Jurnal bo'yicha qidiruv")}
+            style={{ ...inputStyle, width: "100%", paddingLeft: "34px" }}
+          />
+        </div>
+        <PremiumSelect
+          aria-label={t("Сотрудник", "Xodim")}
+          value={actorId}
+          onChange={v => { setActorId(v); reset(); }}
+          width="220px"
+          options={[{ value: "", label: t("Все сотрудники", "Barcha xodimlar") }, ...(actors ?? []).map(a => ({ value: String(a.id), label: a.name }))]}
+        />
+        <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+          {PERIODS.map(p => (
+            <button key={p.key} onClick={() => { setPeriod(p.key); reset(); }} style={btn(period === p.key)}>{p.label[L]}</button>
+          ))}
+        </div>
+        {period === "custom" && (
+          <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
+            <input type="date" value={dateFrom} onChange={e => { setDateFrom(e.target.value); reset(); }} aria-label={t("С даты", "Sanadan")} style={inputStyle} />
+            <span style={{ color: COLORS.textTertiary }}>—</span>
+            <input type="date" value={dateTo} onChange={e => { setDateTo(e.target.value); reset(); }} aria-label={t("По дату", "Sanagacha")} style={inputStyle} />
+          </div>
+        )}
+      </div>
+
+      {/* Отбор по виду действия */}
       <div style={{ display: "flex", alignItems: "center", gap: "8px", overflowX: "auto", paddingBottom: "4px" }}>
         {ACTION_FILTERS.map((f) => {
           const active = (f.key === "all" && !actionFilter) || actionFilter === f.key;
           return (
-            <button
-              key={f.key}
-              onClick={() => { setActionFilter(f.key === "all" ? "" : f.key); setPage(0); }}
-              style={{
-                display: "flex", alignItems: "center", gap: "6px", padding: "8px 14px",
-                fontSize: "12px", fontWeight: 600, fontFamily: F.body, borderRadius: "10px",
-                border: "none", cursor: "pointer", transition: "all 0.2s", whiteSpace: "nowrap" as const,
-                background: active ? COLORS.primary : COLORS.surfaceLight,
-                color: active ? "#fff" : COLORS.textSecondary,
-                boxShadow: active ? "0 2px 8px color-mix(in srgb, var(--color-primary) 25%, transparent)" : "none",
-              }}
-            >
+            <button key={f.key} onClick={() => { setActionFilter(f.key === "all" ? "" : f.key); reset(); }} style={btn(active)}>
               {f.key === "all" && <Filter size={12} />}
-              {t(f.label.ru, f.label.uz)}
+              {f.label[L]}
             </button>
           );
         })}
       </div>
 
-      {/* KPI Stats Row */}
-      {data && (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "16px" }}>
-          <KpiCard
-            label={t("ВСЕГО ЗАПИСЕЙ", "JAMI YOZUVLAR")}
-            value={String(data.total)}
-            icon={<Shield size={20} color="#fff" />}
-            gradient="var(--color-primary)"
-            delay={0}
-          />
-        </div>
-      )}
-
-      {/* Log entries */}
+      {/* Записи */}
       {isLoading ? (
         <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
           {Array.from({ length: 8 }).map((_, i) => (
-            <div key={i} style={{
-              height: "72px", borderRadius: "24px", background: COLORS.surfaceLight,
-              animation: `slideUp ${0.4 + i * 0.05}s ease`,
-            }} />
+            <div key={i} style={{ height: "72px", borderRadius: "24px", background: COLORS.surfaceLight, animation: `slideUp ${0.4 + i * 0.05}s ease` }} />
           ))}
         </div>
       ) : !data?.data || data.data.length === 0 ? (
-        <div style={{
-          textAlign: "center", padding: "80px 0",
-          background: COLORS.surface, borderRadius: "24px", boxShadow: SHADOW,
-        }}>
+        <div style={{ textAlign: "center", padding: "80px 0", background: COLORS.surface, borderRadius: "24px", boxShadow: SHADOW }}>
           <Shield size={40} style={{ margin: "0 auto 14px", opacity: 0.15, color: COLORS.textTertiary }} />
-          <p style={{ fontSize: "14px", color: COLORS.textSecondary, fontFamily: F.body }}>
-            {t("Нет записей", "Yozuvlar yo'q")}
+          <p style={{ fontSize: "14px", color: COLORS.textSecondary, fontFamily: F.body, margin: 0 }}>
+            {debounced || actorId || actionFilter || period !== "all"
+              ? t("По этому отбору записей нет — расширьте период или уберите слово", "Bu tanlov bo'yicha yozuvlar yo'q — davrni kengaytiring yoki so'zni olib tashlang")
+              : t("Записей пока нет", "Yozuvlar hali yo'q")}
           </p>
         </div>
       ) : (
         <div style={{ background: COLORS.surface, borderRadius: "24px", boxShadow: SHADOW, overflow: "hidden" }}>
           {data.data.map((entry, i) => {
             const config = ACTION_CONFIG[entry.action] ?? {
-              icon: Shield, gradient: "linear-gradient(135deg, #6B7280, #9CA3AF)",
+              icon: Shield, gradient: "var(--color-text-tertiary)",
               label: { ru: entry.action, uz: entry.action },
             };
             const Icon = config.icon;
             const isLast = i === data.data.length - 1;
             const isExpanded = expandedId === entry.id;
+            const details = describeMeta(entry.meta as Record<string, unknown> | null, L);
 
             return (
-              <div
-                key={entry.id}
-                style={{
-                  borderBottom: isLast ? "none" : `1px solid ${COLORS.border}`,
-                  animation: `slideUp ${0.4 + i * 0.03}s ease`,
-                }}
-              >
+              <div key={entry.id} style={{ borderBottom: isLast ? "none" : `1px solid ${COLORS.border}`, animation: `slideUp ${0.4 + i * 0.03}s ease` }}>
                 <div
-                  style={{
-                    display: "flex", alignItems: "flex-start", gap: "14px", padding: "16px 20px",
-                    cursor: "pointer", transition: "background 0.15s",
-                  }}
+                  role="button" tabIndex={0}
+                  style={{ display: "flex", alignItems: "flex-start", gap: "14px", padding: "14px 20px", cursor: "pointer", transition: "background 0.15s" }}
                   onClick={() => setExpandedId(isExpanded ? null : entry.id)}
+                  onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setExpandedId(isExpanded ? null : entry.id); } }}
                   onMouseEnter={e => (e.currentTarget.style.background = "color-mix(in srgb, var(--color-primary) 2%, transparent)")}
                   onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
                 >
-                  {/* Gradient icon */}
-                  <div style={{
-                    width: "40px", height: "40px", borderRadius: "12px",
-                    background: config.gradient, display: "flex", alignItems: "center", justifyContent: "center",
-                    flexShrink: 0,
-                  }}>
+                  <div style={{ width: "40px", height: "40px", borderRadius: "12px", background: config.gradient, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                     <Icon size={16} color="#fff" />
                   </div>
 
-                  {/* Content */}
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "8px" }}>
-                      <div>
-                        <p style={{ fontSize: "14px", fontWeight: 600, color: COLORS.textPrimary, fontFamily: F.display, margin: 0 }}>
-                          {t(config.label.ru, config.label.uz)}
-                        </p>
-                        {entry.targetType && entry.targetId && (
-                          <p style={{ fontSize: "12px", color: COLORS.textTertiary, margin: "2px 0 0" }}>
-                            {entry.targetType} #{entry.targetId}
-                          </p>
-                        )}
-                      </div>
-                      <div style={{ textAlign: "right", flexShrink: 0 }}>
-                        <p style={{ fontSize: "11px", color: COLORS.textTertiary, margin: 0 }}>
-                          {entry.createdAt ? timeAgo(entry.createdAt, lang) : ""}
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* Actor + metadata */}
-                    <div style={{ display: "flex", alignItems: "center", gap: "10px", marginTop: "8px", flexWrap: "wrap" }}>
-                      {entry.actorName && (
-                        <span style={{
-                          fontSize: "11px", fontWeight: 600, padding: "3px 8px", borderRadius: "6px",
-                          background: COLORS.surfaceLight, color: COLORS.textSecondary, fontFamily: F.body,
-                        }}>
-                          {entry.actorName}
-                        </span>
-                      )}
-                      {entry.ip && (
-                        <span style={{ fontSize: "10px", fontFamily: "monospace", color: COLORS.textTertiary }}>
-                          {entry.ip}
-                        </span>
-                      )}
-                      <span style={{ fontSize: "10px", color: COLORS.textTertiary, fontFamily: F.body }}>
+                    <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: "12px", flexWrap: "wrap" }}>
+                      <p style={{ fontSize: "14px", fontWeight: 600, color: COLORS.textPrimary, fontFamily: F.display, margin: 0 }}>
+                        {config.label[L]}
+                        {entry.targetLabel && <span style={{ fontWeight: 500, color: COLORS.textSecondary }}> — {entry.targetLabel}</span>}
+                      </p>
+                      <p style={{ fontSize: "12px", color: COLORS.textTertiary, margin: 0, whiteSpace: "nowrap" }}>
                         {entry.createdAt ? formatTime(entry.createdAt, lang) : ""}
-                      </span>
+                      </p>
                     </div>
+                    {/* Кто и что именно: без ключей из кода */}
+                    <p style={{ fontSize: "12.5px", color: COLORS.textSecondary, margin: "4px 0 0", fontFamily: F.body, overflowWrap: "anywhere" }}>
+                      <span style={{ fontWeight: 600 }}>{entry.actorName ?? t("Система", "Tizim")}</span>
+                      {details ? ` · ${details}` : ""}
+                    </p>
 
-                    {/* Expanded meta */}
-                    {isExpanded && <MetaDetail meta={entry.meta as Record<string, unknown> | null} />}
+                    {isExpanded && (
+                      <div style={{ marginTop: "10px", padding: "10px 14px", borderRadius: "12px", background: COLORS.surfaceLight, border: `1px solid ${COLORS.border}`, fontSize: "11.5px", color: COLORS.textTertiary, fontFamily: "monospace", overflowWrap: "anywhere" }}>
+                        <div>{t("Запись", "Yozuv")} #{entry.id} · {entry.action}{entry.targetType ? ` · ${entry.targetType} #${entry.targetId}` : ""}{entry.ip ? ` · IP ${entry.ip}` : ""}</div>
+                        {entry.meta !== null && Object.keys(entry.meta as object).length > 0 ? <div style={{ marginTop: "4px" }}>{JSON.stringify(entry.meta)}</div> : null}
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -455,39 +392,14 @@ export default function AuditLog() {
         </div>
       )}
 
-      {/* Pagination */}
+      {/* Страницы */}
       {data && data.total > limit && (
-        <div style={{
-          display: "flex", alignItems: "center", justifyContent: "center", gap: "12px",
-          background: COLORS.surface, borderRadius: "16px", padding: "16px", boxShadow: SHADOW,
-        }}>
-          <button
-            onClick={() => setPage(p => Math.max(0, p - 1))}
-            disabled={page === 0}
-            style={{
-              display: "flex", alignItems: "center", gap: "4px", padding: "8px 14px",
-              fontSize: "12px", fontWeight: 600, fontFamily: F.body, borderRadius: "10px",
-              border: `1px solid ${COLORS.border}`, cursor: "pointer",
-              background: COLORS.surface, color: COLORS.textSecondary,
-              opacity: page === 0 ? 0.4 : 1,
-            }}
-          >
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "12px", background: COLORS.surface, borderRadius: "16px", padding: "12px", boxShadow: SHADOW }}>
+          <button onClick={() => setPage(p => Math.max(0, p - 1))} disabled={page === 0} style={{ ...inputStyle, display: "flex", alignItems: "center", gap: "4px", cursor: "pointer", color: COLORS.textSecondary, opacity: page === 0 ? 0.4 : 1 }}>
             <ChevronLeft size={14} /> {t("Назад", "Orqaga")}
           </button>
-          <span style={{ fontSize: "12px", fontWeight: 600, color: COLORS.textSecondary, fontFamily: F.display }}>
-            {page + 1} / {totalPages}
-          </span>
-          <button
-            onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))}
-            disabled={page >= totalPages - 1}
-            style={{
-              display: "flex", alignItems: "center", gap: "4px", padding: "8px 14px",
-              fontSize: "12px", fontWeight: 600, fontFamily: F.body, borderRadius: "10px",
-              border: `1px solid ${COLORS.border}`, cursor: "pointer",
-              background: COLORS.surface, color: COLORS.textSecondary,
-              opacity: page >= totalPages - 1 ? 0.4 : 1,
-            }}
-          >
+          <span style={{ fontSize: "12px", fontWeight: 600, color: COLORS.textSecondary, fontFamily: F.display }}>{page + 1} / {totalPages}</span>
+          <button onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))} disabled={page >= totalPages - 1} style={{ ...inputStyle, display: "flex", alignItems: "center", gap: "4px", cursor: "pointer", color: COLORS.textSecondary, opacity: page >= totalPages - 1 ? 0.4 : 1 }}>
             {t("Далее", "Keyingi")} <ChevronRight size={14} />
           </button>
         </div>

@@ -1600,6 +1600,14 @@ export const auditLog = mysqlTable("audit_log", {
   action:     varchar("action", { length: 100 }).notNull(),
   targetType: varchar("target_type", { length: 50 }),
   targetId:   bigint("target_id", { mode: "number", unsigned: true }),
+  /*
+    Как объект зовут люди: «ORD-0123», «Магазин Альфа», «Сахар 1 кг».
+    Директор читал в журнале «order #1234» — номер строки базы, который в
+    программе нигде не показывается. Имя берётся в момент записи (потом
+    магазин переименуют или удалят, а журнал должен помнить, как было) и по
+    нему же ищут: «Альфа» находит всё, что делали с этим магазином.
+  */
+  targetLabel: varchar("target_label", { length: 200 }),
   meta:       json("meta"),
   ip:         varchar("ip", { length: 45 }),
   createdAt:  timestamp("created_at").defaultNow().notNull(),

@@ -55,7 +55,7 @@ const PAGE_META: Record<string, { title: PageTitle; parent?: PageTitle; parentPa
   "/warehouse":         { title: { ru: "Склад",         uz: "Ombor" } },
   "/returns": { title: { ru: "Возвраты", uz: "Qaytarishlar" } },
   "/warehouse-reports": { title: { ru: "Отчёты склада", uz: "Ombor hisobotlari" } },
-  "/audit-log":         { title: { ru: "Аудит-лог",     uz: "Audit jurnali" } },
+  "/audit-log":         { title: { ru: "Журнал действий", uz: "Harakatlar jurnali" } },
   "/arrivals":          { title: { ru: "Приходы",       uz: "Kirim" } },
   "/pnl":               { title: { ru: "P&L",           uz: "P&L" } },
   "/salaries":          { title: { ru: "Зарплаты",      uz: "Ish haqi" } },

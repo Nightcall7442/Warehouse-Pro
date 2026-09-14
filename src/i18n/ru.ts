@@ -11,7 +11,7 @@ export const ru = {
     warehouse:   "Склад",
     returns:     "Возвраты",
     warehouseReports: "Отчёты склада",
-    auditLog:    "Аудит-лог",
+    auditLog:    "Журнал действий",
     arrivals:    "Приходы",
     analytics:   "Аналитика",
     users:       "Пользователи",
