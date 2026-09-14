@@ -256,7 +256,7 @@ const Sidebar = memo(function Sidebar({ onClose, unreadCount = 0 }: { onClose?: 
                 </span>
               )}
             </span>
-            <span className="truncate">{t("nav.notifications")}</span>
+            <span className="truncate max-w-full">{t("nav.notifications")}</span>
           </button>
 
           {manual?.available && (
@@ -264,7 +264,7 @@ const Sidebar = memo(function Sidebar({ onClose, unreadCount = 0 }: { onClose?: 
               className="neo-btn flex-1 min-w-0 flex flex-col items-center justify-center gap-1.5 text-[10.5px]"
               style={{ padding: "10px 6px", textDecoration: "none" }}>
               <BookOpen size={15} />
-              <span className="truncate">{t("nav.manual")}</span>
+              <span className="truncate max-w-full">{t("nav.manual")}</span>
             </a>
           )}
 
@@ -285,7 +285,7 @@ const Sidebar = memo(function Sidebar({ onClose, unreadCount = 0 }: { onClose?: 
                   </span>
                 )}
               </span>
-              <span className="truncate">{t("nav.support")}</span>
+              <span className="truncate max-w-full">{t("nav.support")}</span>
             </button>
           )}
         </div>
