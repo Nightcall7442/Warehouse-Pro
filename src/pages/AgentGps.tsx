@@ -1,44 +1,24 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useCallback } from "react";
 import { trpc } from "@/providers/trpc";
 import { useTranslate } from "@/i18n";
 import { MapPin, Radio, CheckCircle2, AlertCircle, Loader2, RefreshCw, Navigation } from "lucide-react";
 import { format } from "date-fns";
 import { plural } from "@/lib/plural";
+import { PING_MIN, useLastPing } from "@/hooks/useLocationPing";
 
 type GpsState = "idle" | "locating" | "success" | "error";
 
-/**
- * Как часто авто-трекинг шлёт точку.
- *
- * Названо числом здесь и подставляется в подпись на экране — чтобы обещание
- * и поведение не могли разойтись. До этого подпись обещала две минуты, а код
- * слал по КАЖДОМУ изменению положения (watchPosition): идущий агент отправлял
- * точку по нескольку раз в минуту.
- *
- * Пять минут — столько же, сколько шлёт мобильное приложение. Менять эту
- * величину надо в обоих местах сразу, иначе супервайзер получит от телефона и
- * от браузера разную частоту следа.
- */
-const AUTO_TRACK_MS = 5 * 60 * 1000;
-const AUTO_TRACK_MIN = AUTO_TRACK_MS / 60_000;
+/*
+  Экран «GPS» в вебе — кнопка «отправить сейчас» и строка о том, что точка
+  уходит сама раз в десять минут, пока приложение открыто (src/hooks/
+  useLocationPing.ts, включается в Layout для агента и мерчандайзера).
 
-/* ═══════════════════════════════════════════════════════════════════════════
-   Две разные съёмки — и разница между ними это батарея телефона.
-
-   Ручная: человек нажал кнопку и ждёт точность. Включаем спутниковый приёмник
-   и берём свежую точку.
-
-   Автоматическая: точка нужна супервайзеру, чтобы понимать, где агент. Здесь
-   спутники не нужны вовсе — хватает положения по вышкам и Wi-Fi (это десятки
-   метров в городе), а оно берётся почти даром. И если система УЖЕ знает, где
-   телефон, свежее минуты, берём готовое: тогда съёмки не происходит совсем.
-
-   До этого автоматический режим шёл с enableHighAccuracy и maximumAge: 0 —
-   то есть будил приёмник на каждой отправке и запрещал брать готовое. Именно
-   это и сажало батарею.
-   ═══════════════════════════════════════════════════════════════════════════ */
+  Переключателя «Авто-трекинг» здесь больше нет: он обещал слежение, которого
+  браузер дать не может — свёрнутая вкладка заморожена, — и работал только
+  пока агент сидел на этом экране. Решение владельца: в вебе без слежения,
+  просто раз в десять минут; настоящий фоновый след — у мобильного приложения.
+*/
 const MANUAL_FIX: PositionOptions = { enableHighAccuracy: true, timeout: 10_000, maximumAge: 0 };
-const AUTO_FIX: PositionOptions = { enableHighAccuracy: false, timeout: 30_000, maximumAge: 60_000 };
 
 export default function AgentGps() {
   const t = useTranslate();
@@ -46,8 +26,8 @@ export default function AgentGps() {
   const [state,     setState]     = useState<GpsState>("idle");
   const [coords,    setCoords]    = useState<{ lat: number; lng: number; accuracy: number } | null>(null);
   const [error,     setError]     = useState("");
-  const [autoTrack, setAutoTrack] = useState(false);
   const [lastSent,  setLastSent]  = useState<Date | null>(null);
+  const lastPing = useLastPing();
 
   const saveMutation = trpc.agent.saveLocation.useMutation({
     onSuccess: () => setLastSent(new Date()),
@@ -99,75 +79,6 @@ export default function AgentGps() {
       fix,
     );
   }, [saveMutation, t]);
-
-  /* ═══════════════════════════════════════════════════════════════════════
-     Авто-трекинг.
-
-     ── Что было: бесконечный круг ──────────────────────────────────────────
-
-     Здесь стоял watchPosition, а зависимостями эффекта были
-     `[autoTrack, saveMutation, t]`. `saveMutation` — объект от useMutation, и
-     он НОВЫЙ на каждом рендере. Дальше круг замыкался сам:
-
-       слежение отдало точку → mutate → состояние запроса изменилось →
-       перерисовка → новый saveMutation → эффект сняли и поставили заново →
-       новое слежение отдало точку из кэша немедленно → …
-
-     Браузер бил в agent.saveLocation десятками запросов в минуту, упирался в
-     ограничение частоты (двести мутаций за четверть часа), получал отказ, а
-     отказ ставил состояние ошибки — то есть опять перерисовку и опять новый
-     круг. Со стороны это и выглядело как «цикл ошибок».
-
-     ── Как сделано теперь ──────────────────────────────────────────────────
-
-     Эффект зависит ТОЛЬКО от переключателя. Свежая функция отправки живёт в
-     ref: он меняется молча, и эффект от этого не перезапускается.
-
-     И вместо слежения — обычный таймер на ту величину, которая обещана в
-     подписи. watchPosition для «раз в пять минут» не нужен вовсе: он держит
-     приёмник горячим и сажает батарею ради точек, которые никто не просил.
-     ═══════════════════════════════════════════════════════════════════════ */
-  const tickRef = useRef(locate);
-  // Обновляется отдельным эффектом, а не прямо в отрисовке: ref во время
-  // отрисовки трогать нельзя, и правило проверки это ловит.
-  useEffect(() => { tickRef.current = locate; }, [locate]);
-
-  useEffect(() => {
-    if (!autoTrack) return;
-
-    /*
-      Пока вкладка спрятана — не снимаем ничего.
-
-      Браузер в фоне всё равно душит таймеры и замораживает вкладку, так что
-      надёжного следа оттуда не выходит; выходит только расход батареи на
-      попытки. Честнее не притворяться: спрятали — молчим, вернулись —
-      отправляем сразу, чтобы супервайзер увидел свежую точку, а не дыру.
-
-      Настоящий фоновый след даёт мобильное приложение: там этим занимается
-      система, а не вкладка.
-    */
-    let id: ReturnType<typeof setInterval> | null = null;
-
-    const start = () => {
-      if (id !== null) return;
-      // Первую точку — сразу: иначе человек включил трекинг и пять минут не
-      // видит подтверждения, что тот работает.
-      tickRef.current(AUTO_FIX);
-      id = setInterval(() => tickRef.current(AUTO_FIX), AUTO_TRACK_MS);
-    };
-    const stop = () => {
-      if (id !== null) { clearInterval(id); id = null; }
-    };
-
-    const onVisibility = () => (document.hidden ? stop() : start());
-    document.addEventListener("visibilitychange", onVisibility);
-    if (!document.hidden) start();
-
-    return () => {
-      document.removeEventListener("visibilitychange", onVisibility);
-      stop();
-    };
-  }, [autoTrack]);
 
   const mapsUrl = coords
     ? `https://maps.google.com/?q=${coords.lat},${coords.lng}`
@@ -270,53 +181,28 @@ export default function AgentGps() {
           : <><RefreshCw size={18} />{t("Отправить моё местоположение", "Joylashuvimni yuborish")}</>}
       </button>
 
-      {/* Авто-трекинг */}
-      <div className="neo-card p-4 flex items-center justify-between">
+      {/* Точка уходит сама — пока приложение открыто */}
+      <div className="neo-card p-4 flex items-start gap-3">
+        <Radio size={16} className="text-success flex-shrink-0 mt-0.5" />
         <div>
           <p className="font-medium text-primary text-sm">
-            {t("Авто-трекинг", "Avto-kuzatish")}
+            {t(
+              `Пока приложение открыто, точка уходит сама раз в ${PING_MIN} ${plural(PING_MIN, "минуту", "минуты", "минут")}`,
+              `Ilova ochiq bo'lganda nuqta har ${PING_MIN} daqiqada o'zi yuboriladi`,
+            )}
           </p>
           <p className="text-xs mt-0.5" style={{ color: "var(--color-text-tertiary, #6b6760)" }}>
-            {/* Число — из той же константы, что и таймер: разойтись им нечем. */}
-            {t(
-              `Отправлять местоположение каждые ${AUTO_TRACK_MIN} ${plural(AUTO_TRACK_MIN, "минуту", "минуты", "минут")}`,
-              `Har ${AUTO_TRACK_MIN} daqiqada joylashuv yuborish`,
-            )}
+            {lastPing
+              ? `${t("Последняя", "Oxirgisi")}: ${format(lastPing, "HH:mm")}`
+              : t("Ещё не отправлялась — разрешите геолокацию, когда браузер спросит", "Hali yuborilmagan — brauzer so'raganda geolokatsiyaga ruxsat bering")}
+            {" · "}
+            {t("Слежение в фоне даёт только мобильное приложение", "Fonda kuzatishni faqat mobil ilova beradi")}
           </p>
         </div>
-        <button
-          onClick={() => setAutoTrack(v => !v)}
-          aria-label={t("Авто-трекинг", "Avtomatik kuzatuv")}
-          className="w-12 h-6 rounded-full relative transition-colors flex-shrink-0"
-          style={{ background: autoTrack ? "var(--color-primary)" : "var(--color-surface-light, #f6f4f0)", border: autoTrack ? "none" : "1px solid var(--color-border, #d8d5cd)" }}
-        >
-          <span
-            className="absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform"
-            style={{ transform: autoTrack ? "translateX(24px)" : "translateX(2px)" }}
-          />
-        </button>
       </div>
 
-      {/* Статус авто-трекинга */}
-      {autoTrack && (
-        <div
-          className="flex items-center gap-2 px-4 py-3 rounded-xl"
-          style={{ background: "rgba(74,222,128,.10)", border: "1px solid rgba(74,222,128,.25)" }}
-        >
-          <Radio size={14} className="text-success animate-pulse flex-shrink-0" />
-          <p className="text-sm text-success">
-            {t("Авто-трекинг активен", "Avto-kuzatish faol")}
-            {lastSent && (
-              <span className="text-xs ml-1 opacity-70">
-                · {t("последнее обновление", "so'nggi yangilanish")} {format(lastSent, "HH:mm:ss")}
-              </span>
-            )}
-          </p>
-        </div>
-      )}
-
       {/* Подтверждение отправки */}
-      {lastSent && !autoTrack && (
+      {lastSent && (
         <p className="text-xs text-center" style={{ color: "var(--color-text-tertiary, #6b6760)" }}>
           ✓ {t("Местоположение отправлено в", "Joylashuv yuborildi")} {format(lastSent, "HH:mm:ss")}
         </p>

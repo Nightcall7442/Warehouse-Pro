@@ -4,6 +4,7 @@ import { SupportLine } from "@/components/brand/SupportLine";
 import { useAppBrand } from "@/hooks/useAppBrand";
 import { useLocation, useNavigate } from "react-router";
 import { useAuth, hadSession } from "@/hooks/useAuth";
+import { useLocationPing } from "@/hooks/useLocationPing";
 import { useNotifications } from "@/hooks/useNotifications";
 import { NAV_ITEMS, pickActivePath, pageKey } from "@/const";
 import { GlobalSearch } from "@/components/GlobalSearch";
@@ -541,6 +542,10 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     enabled: !!user && user.role !== "superadmin",
     staleTime: 5 * 60 * 1000,
   });
+
+  // Полевые роли из браузера: точка местоположения сама раз в десять минут,
+  // с любого экрана, пока приложение открыто. См. hooks/useLocationPing.ts.
+  useLocationPing(user?.role === "agent" || user?.role === "merchandiser");
 
   /*
     Нет связи — это не «войдите заново».

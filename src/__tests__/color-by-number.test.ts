@@ -78,7 +78,7 @@ function countColours(): { total: number; byFile: Array<[string, number]> } {
  * 1062 — замер 14.09.2026, после перевода журнала аудита на токены. Опускается, когда
  * экран переводят на токены; расти не должен.
  */
-const BASELINE = 1026;
+const BASELINE = 0;
 
 describe("цвет числом", () => {
   const { total, byFile } = countColours();
