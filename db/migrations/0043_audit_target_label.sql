@@ -1,0 +1,1 @@
+ALTER TABLE `audit_log` ADD `target_label` varchar(200);

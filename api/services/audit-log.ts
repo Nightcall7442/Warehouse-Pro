@@ -1,7 +1,8 @@
 import { auditLog } from "@db/schema";
-import { eq, and, desc, sql, gte, lte, like } from "drizzle-orm";
+import { eq, and, or, desc, sql, gte, lte, like } from "drizzle-orm";
 import { logger } from "../lib/logger";
 import { getClientIp } from "../lib/rate-limit";
+import { labelFor, labelsFor } from "./audit-labels";
 
 type Db = ReturnType<typeof import("../queries/connection").getDb>;
 
@@ -12,6 +13,8 @@ export interface AuditRecord {
   action: string;
   targetType?: string;
   targetId?: number;
+  /** Как объект зовут люди; если не передан — берётся из базы по типу и id (см. audit-labels). */
+  targetLabel?: string;
   meta?: Record<string, unknown>;
   ip?: string;
 }
@@ -46,6 +49,8 @@ export function actionCondition(action: string) {
  */
 export async function recordAudit(db: Db, entry: AuditRecord, opts?: { strict?: boolean }): Promise<void> {
   try {
+    const targetLabel = entry.targetLabel
+      ?? (entry.targetType && entry.targetId ? await labelFor(db, entry.tenantId, entry.targetType, entry.targetId) : null);
     await db.insert(auditLog).values({
       tenantId:  entry.tenantId,
       actorId:   entry.actorId ?? null,
@@ -53,6 +58,7 @@ export async function recordAudit(db: Db, entry: AuditRecord, opts?: { strict?: 
       action:    entry.action,
       targetType: entry.targetType ?? null,
       targetId:  entry.targetId ?? null,
+      targetLabel: targetLabel?.slice(0, 200) ?? null,
       meta:      entry.meta ?? null,
       ip:        entry.ip ?? null,
     });
@@ -85,10 +91,25 @@ export function changedFields(before: Record<string, unknown>, after: Record<str
 export interface AuditFilters {
   action?: string;
   actorId?: number;
+  targetType?: string;
+  /** Слово из имени объекта, имени сотрудника или подробностей: «Альфа», «ORD-0123», «наличные». */
+  search?: string;
   dateFrom?: string;
   dateTo?: string;
   limit?: number;
   offset?: number;
+}
+
+/** Слово для LIKE: служебные знаки шаблона гасятся, пробелы по краям — прочь. */
+export function searchCondition(search: string) {
+  const word = `%${search.trim().replace(/[%_\\]/g, "")}%`;
+  return or(
+    like(auditLog.targetLabel, word),
+    like(auditLog.actorName, word),
+    like(auditLog.action, word),
+    // meta — JSON: имя магазина, номер заказа, способ оплаты записаны там у старых строк
+    sql`CAST(${auditLog.meta} AS CHAR) LIKE ${word}`,
+  );
 }
 
 /**
@@ -109,6 +130,12 @@ export async function getAuditLog(
   if (opts?.actorId) {
     conditions.push(eq(auditLog.actorId, opts.actorId));
   }
+  if (opts?.targetType) {
+    conditions.push(eq(auditLog.targetType, opts.targetType));
+  }
+  if (opts?.search?.trim()) {
+    conditions.push(searchCondition(opts.search)!);
+  }
   if (opts?.dateFrom) {
     conditions.push(gte(auditLog.createdAt, new Date(opts.dateFrom)));
   }
@@ -128,24 +155,36 @@ export async function getAuditLog(
       .where(and(...conditions)),
   ]);
 
+  // Строки, записанные до появления подписи, получают её при чтении.
+  const labels = await labelsFor(db, tenantId, data);
   return {
-    data,
+    data: data.map(r => ({ ...r, targetLabel: r.targetLabel ?? (r.targetType && r.targetId ? labels.get(`${r.targetType}:${r.targetId}`) ?? null : null) })),
     total: Number(countResult[0]?.count ?? 0),
     limit,
     offset,
   };
 }
 
+/** Кто оставлял следы в журнале — для отбора по человеку. */
+export async function auditActors(db: Db, tenantId: number): Promise<Array<{ id: number; name: string }>> {
+  const rows = await db.select({ id: auditLog.actorId, name: sql<string>`MAX(${auditLog.actorName})` })
+    .from(auditLog)
+    .where(and(eq(auditLog.tenantId, tenantId), sql`${auditLog.actorId} IS NOT NULL`))
+    .groupBy(auditLog.actorId);
+  return rows.filter(r => r.id != null).map(r => ({ id: Number(r.id), name: r.name || `#${r.id}` }));
+}
+
 /**
  * Export audit log as CSV string.
  */
 export function exportAuditCsv(rows: ReturnType<typeof getAuditLog> extends Promise<infer R> ? (R extends { data: infer D } ? D : never) : never): string {
-  const header = "ID,Дата,Пользователь,Действие,Объект,ID объекта,IP,Мета";
+  const header = "ID,Дата,Пользователь,Действие,Объект,Тип объекта,ID объекта,IP,Мета";
   const lines = rows.map((r) => [
     r.id,
     r.createdAt?.toISOString() ?? "",
     r.actorName ?? `user#${r.actorId}`,
     r.action,
+    r.targetLabel ?? "",
     r.targetType ?? "",
     r.targetId ?? "",
     r.ip ?? "",
