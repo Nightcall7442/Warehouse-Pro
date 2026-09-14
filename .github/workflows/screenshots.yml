@@ -103,6 +103,7 @@ jobs:
           OUT: screenshots
           # Лендингу — ×2 (Retina); руководству — 1, его выноски считаны в CSS-пикселях.
           SHOT_SCALE: ${{ startsWith(github.ref, 'refs/heads/docs/landing') && '2' || '1' }}
+          MOBILE_TALL: ${{ startsWith(github.ref, 'refs/heads/docs/landing') && '1' || '' }}
         run: node scripts/screenshots.mjs
 
       # Чистые кадры для лендинга — в ветку. Только на docs/landing-*: у

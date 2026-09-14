@@ -273,7 +273,15 @@ async function shootWeb(browser) {
 }
 
 async function shootMobile(browser) {
-  const phone = devices["iPhone 13"];
+  /*
+    Профиль «iPhone 13» у Playwright даёт видимую область 390×664 — экран без
+    системных полос. Руководству этого достаточно; лендингу нужен телефон
+    целиком, 390×844, иначе корпус в оправе выходит приземистым, как у старых
+    моделей. Ветки docs/landing-* ставят MOBILE_TALL=1.
+  */
+  const phone = process.env.MOBILE_TALL
+    ? { ...devices["iPhone 13"], viewport: { width: 390, height: 844 } }
+    : devices["iPhone 13"];
   for (const lang of LANGS) {
     for (const [role, scenarios] of Object.entries(MOBILE_SCENARIOS)) {
       const email = ACCOUNTS[role];
