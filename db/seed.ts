@@ -457,7 +457,7 @@ async function seed() {
   for (let d = 0; d < 30; d++) {
     const dow = new Date(Date.now() - d * 86_400_000).getDay();
     if (dow === 0) continue;
-    const n = d === 0 ? 3 : 2 + Math.floor(rnd() * 3);
+    const n = d === 0 ? 5 : 2 + Math.floor(rnd() * 3);
     for (let k = 0; k < n && orderDays.length < 90; k++) orderDays.push(d);
   }
   while (orderDays.length < 160) orderDays.push(31 + Math.floor(rnd() * 150));
@@ -473,7 +473,14 @@ async function seed() {
     const status: "new" | "processing" | "shipped" | "delivered" | "cancelled" | "returned" =
       daysBack >= 2 ? (r < 0.85 ? "delivered" : r < 0.93 ? "cancelled" : "returned")
       : daysBack === 1 ? (r < 0.5 ? "delivered" : r < 0.8 ? "shipped" : "processing")
-      : (r < 0.45 ? "new" : r < 0.8 ? "processing" : "shipped");
+      /*
+        Сегодня — по порядку: отгружен (курьер 1 — в пути), отгружен (курьер 2),
+        в обработке (курьер 1 — назначен), два доставлены — чтобы «выручка
+        сегодня» на главной была не нулём, — дальше новые. У каждого курьера в
+        приложении есть и рейс в пути, и ждущий: экраны доставки снимаются с
+        этих заказов, а «случайно» сегодня могло не выпасть ни одного.
+      */
+      : (["shipped", "shipped", "processing", "delivered", "delivered"] as const)[i] ?? "new";
     const createdAt = daysAgo(daysBack, 8 + Math.floor(rnd() * 10));
 
     const numItems = 1 + Math.floor(rnd() * 5);
