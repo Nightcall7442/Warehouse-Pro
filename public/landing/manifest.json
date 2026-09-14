@@ -1,0 +1,222 @@
+{
+ "ru": {
+  "mobile-agent-catalog": [
+   780,
+   1328
+  ],
+  "mobile-agent-debts": [
+   780,
+   1328
+  ],
+  "mobile-agent-gps": [
+   780,
+   1328
+  ],
+  "mobile-agent-home": [
+   780,
+   1328
+  ],
+  "mobile-agent-order-step2": [
+   780,
+   1328
+  ],
+  "mobile-agent-orders": [
+   780,
+   1328
+  ],
+  "mobile-agent-plan": [
+   780,
+   1328
+  ],
+  "mobile-agent-salary": [
+   780,
+   1328
+  ],
+  "mobile-agent-shops": [
+   780,
+   1328
+  ],
+  "mobile-courier-deliver": [
+   780,
+   1328
+  ],
+  "mobile-courier-deliveries": [
+   780,
+   1328
+  ],
+  "mobile-merchandiser-visit-report": [
+   780,
+   1328
+  ],
+  "mobile-supervisor-map": [
+   780,
+   1328
+  ],
+  "mobile-supervisor-targets": [
+   780,
+   1328
+  ],
+  "web-ceo-dashboard": [
+   1600,
+   1111
+  ],
+  "web-ceo-pnl": [
+   1600,
+   1111
+  ],
+  "web-ceo-reports": [
+   1600,
+   1111
+  ],
+  "web-ceo-salaries": [
+   1600,
+   1111
+  ],
+  "web-operator-orders": [
+   1600,
+   1111
+  ],
+  "web-operator-picking": [
+   1600,
+   1111
+  ],
+  "web-operator-products": [
+   1600,
+   1111
+  ],
+  "web-operator-quick-order": [
+   1600,
+   1111
+  ],
+  "web-operator-warehouse": [
+   1600,
+   1111
+  ],
+  "web-supervisor-kpi": [
+   1600,
+   1111
+  ],
+  "web-supervisor-map": [
+   1600,
+   1111
+  ],
+  "web-supervisor-plans-month": [
+   1600,
+   1111
+  ],
+  "map-crop": [
+   1400,
+   1220
+  ]
+ },
+ "uz": {
+  "mobile-agent-catalog": [
+   780,
+   1328
+  ],
+  "mobile-agent-debts": [
+   780,
+   1328
+  ],
+  "mobile-agent-gps": [
+   780,
+   1328
+  ],
+  "mobile-agent-home": [
+   780,
+   1328
+  ],
+  "mobile-agent-order-step2": [
+   780,
+   1328
+  ],
+  "mobile-agent-orders": [
+   780,
+   1328
+  ],
+  "mobile-agent-plan": [
+   780,
+   1328
+  ],
+  "mobile-agent-salary": [
+   780,
+   1328
+  ],
+  "mobile-agent-shops": [
+   780,
+   1328
+  ],
+  "mobile-courier-deliver": [
+   780,
+   1328
+  ],
+  "mobile-courier-deliveries": [
+   780,
+   1328
+  ],
+  "mobile-merchandiser-visit-report": [
+   780,
+   1328
+  ],
+  "mobile-supervisor-map": [
+   780,
+   1328
+  ],
+  "mobile-supervisor-targets": [
+   780,
+   1328
+  ],
+  "web-ceo-dashboard": [
+   1600,
+   1111
+  ],
+  "web-ceo-pnl": [
+   1600,
+   1111
+  ],
+  "web-ceo-reports": [
+   1600,
+   1111
+  ],
+  "web-ceo-salaries": [
+   1600,
+   1111
+  ],
+  "web-operator-orders": [
+   1600,
+   1111
+  ],
+  "web-operator-picking": [
+   1600,
+   1111
+  ],
+  "web-operator-products": [
+   1600,
+   1111
+  ],
+  "web-operator-quick-order": [
+   1600,
+   1111
+  ],
+  "web-operator-warehouse": [
+   1600,
+   1111
+  ],
+  "web-supervisor-kpi": [
+   1600,
+   1111
+  ],
+  "web-supervisor-map": [
+   1600,
+   1111
+  ],
+  "web-supervisor-plans-month": [
+   1600,
+   1111
+  ],
+  "map-crop": [
+   1400,
+   1220
+  ]
+ }
+}

@@ -1,9 +1,8 @@
 import { useMemo } from "react";
 import { useTranslate } from "@/i18n";
-import { MapPin, Check } from "lucide-react";
+import TrackingSection from "./TrackingSection";
 import { SectionHead } from "./landing-shared";
 import { LX, MONO } from "./landing-tokens";
-import CityMap from "./CityMap";
 
 /* ═══════════════════════════════════════════════════════════════════════════
    Содержательные секции на бумаге.
@@ -232,86 +231,13 @@ function LedgerSection() {
   );
 }
 
-/* ── 05 / GPS-сплит ──────────────────────────────────────────────────────── */
-function GpsSection() {
-  const tr = useTranslate();
-  const agents = [
-    { name: tr("Санжар · Юнусабад", "Sanjar · Yunusobod"), pts: "14/18", tone: LX.good },
-    { name: tr("Бехруз · Мирзо-Улугбек", "Behruz · Mirzo Ulug'bek"), pts: "11/16", tone: LX.good },
-    { name: tr("Отабек · Чиланзар", "Otabek · Chilonzor"), pts: "6/15", tone: LX.warn },
-  ];
-  return (
-    <section className="py-16 md:py-24" style={{ borderTop: `1px solid ${LX.rule}` }}>
-      <div className="max-w-[1240px] mx-auto px-6 grid lg:grid-cols-2 gap-12 lg:gap-16 items-center">
-        <div>
-          <SectionHead
-            id="map"
-            index="05"
-            label={tr("Контроль", "Nazorat")}
-            title={tr("Вы видите поле, не выходя из кабинета", "Dalani kabinetdan chiqmasdan ko'rasiz")}
-          />
-          <ul className="mt-8 space-y-4">
-            {[
-              tr("Живая карта с позициями всех агентов и курьеров", "Barcha agentlar va kuryerlar joylashuvi bilan jonli xarita"),
-              tr("История маршрутов за день, неделю, месяц", "Kun, hafta, oy bo'yicha marshrutlar tarixi"),
-              tr("Отметки визитов: был в точке или проехал мимо", "Tashrif belgilari: nuqtada bo'ldimi yoki o'tib ketdimi"),
-              tr("Визит без заказа — повод для разговора, и он виден", "Buyurtmasiz tashrif — suhbat uchun sabab, va u ko'rinadi"),
-            ].map(item => (
-              <li key={item} className="flex items-start gap-3 text-[14.5px]" style={{ color: LX.inkSoft }}>
-                <Check size={15} strokeWidth={3} className="mt-1 shrink-0" style={{ color: LX.brassText }} />
-                {item}
-              </li>
-            ))}
-          </ul>
-        </div>
-
-        <div className="rounded-xl relative overflow-hidden h-[300px]" style={{ border: `1px solid ${LX.ruleStrong}` }}>
-          <CityMap
-            pins={[
-              { x: 26, y: 24, tone: LX.goodDot },
-              { x: 44, y: 14, tone: LX.goodDot },
-              { x: 58, y: 26, tone: LX.brass, pulse: true },
-              { x: 74, y: 44, tone: LX.goodDot },
-              { x: 40, y: 52, tone: LX.warn },
-              { x: 86, y: 26, tone: LX.goodDot },
-            ]}
-            route={[
-              [26, 24],
-              [44, 14],
-              [58, 26],
-              [74, 44],
-            ]}
-          />
-          <div className="absolute bottom-3 left-3 right-3 space-y-1.5">
-            {agents.map(a => (
-              <div
-                key={a.name}
-                className="rounded-lg px-3.5 py-2 flex items-center justify-between gap-3"
-                style={{ background: LX.paper, border: `1px solid ${LX.rule}` }}
-              >
-                <span className="flex items-center gap-2 text-[11.5px] min-w-0 truncate" style={{ color: LX.ink }}>
-                  <MapPin size={12} className="shrink-0" style={{ color: a.tone }} />
-                  {a.name}
-                </span>
-                <span className="text-[11px] shrink-0" style={{ ...MONO, color: LX.inkFaint }}>
-                  {a.pts} {tr("точек", "nuqta")}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    </section>
-  );
-}
-
 /* ── 06 / Роли ───────────────────────────────────────────────────────────── */
 export default function FeaturesSection() {
   return (
     <>
       <DaySection />
       <LedgerSection />
-      <GpsSection />
+      <TrackingSection />
     </>
   );
 }
