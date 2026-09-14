@@ -250,13 +250,17 @@ a { color:var(--accent); }
 .top .brand img { height:22px; }
 .top .brand span { color:var(--muted); font-weight:600; }
 .menu-btn { display:none; border:1px solid var(--line); background:var(--paper); border-radius:8px; padding:6px 10px; cursor:pointer; white-space:nowrap; }
-.chips { display:flex; gap:6px; overflow-x:auto; scrollbar-width:none; margin-left:8px; align-items:center; }
-.chips::-webkit-scrollbar { display:none; }
+/* Полоса прокрутки тонкая, но ЕСТЬ: скрытая превращала уехавшую за край фишку в обрезанную. */
+.chips { display:flex; gap:6px; overflow-x:auto; scrollbar-width:thin; margin-left:8px; align-items:center; }
 .chips .lbl { color:var(--muted); font-size:13px; white-space:nowrap; }
 .chips button { border:1px solid var(--line); background:var(--paper); color:var(--ink); border-radius:999px; padding:4px 11px; font-size:13px; cursor:pointer; white-space:nowrap; }
 .chips button:hover { border-color:var(--accent); color:var(--accent); }
 .chips button.on { background:var(--accent); border-color:var(--accent); color:#fff; }
-.search { margin-left:auto; position:relative; flex:0 1 300px; min-width:140px; }
+.chips > [data-lang] { display:none; }
+html[data-ui="ru"] .chips > [data-lang="ru"], html[data-ui="uz"] .chips > [data-lang="uz"] { display:contents; }
+.back { display:inline-flex; align-items:center; gap:6px; border:1px solid var(--line); background:var(--paper); border-radius:8px; padding:6px 10px; text-decoration:none; color:var(--ink); white-space:nowrap; flex:none; font-size:14px; }
+.back:hover { border-color:var(--accent); color:var(--accent); }
+.search { margin-left:auto; position:relative; flex:0 3 300px; min-width:140px; }
 .search input { width:100%; border:1px solid var(--line); border-radius:8px; padding:7px 10px 7px 32px; background:var(--ground); font:inherit; font-size:14px; }
 .search input:focus { outline:2px solid var(--accent); outline-offset:1px; background:var(--paper); }
 .search svg { position:absolute; left:10px; top:9px; width:16px; height:16px; color:var(--muted); pointer-events:none; }
@@ -329,6 +333,13 @@ figcaption { font-size:13.5px; color:var(--muted); margin-top:8px; }
 .lightbox .cap { position:absolute; left:0; right:0; bottom:0; padding:12px 20px; color:#fff; font-size:14px; text-align:center; background:linear-gradient(transparent, rgba(0,0,0,.6)); }
 .to-top { position:fixed; right:18px; bottom:18px; border:1px solid var(--line); background:var(--paper); border-radius:999px; padding:8px 14px; cursor:pointer; box-shadow:0 8px 24px -10px rgba(28,27,25,.4); display:none; z-index:20; }
 .to-top.show { display:block; }
+/* На ноутбуке шесть фишек ролей вместе с кнопкой «В программу» в строку не влезали:
+   ряд молча уезжал за край (полоса прокрутки скрыта). Ужимаем, а не прячем. */
+@media (max-width: 1500px) {
+  .top .brand span { display:none; }
+  .chips .lbl { display:none; }
+  .chips button { font-size:12px; padding:3px 9px; }
+}
 @media (max-width: 900px) {
   .shell { grid-template-columns:1fr; }
   .side { position:fixed; left:0; top:var(--top); width:min(320px, 86vw); transform:translateX(-102%); transition:transform .2s; z-index:20; box-shadow:0 20px 60px rgba(0,0,0,.25); }
@@ -341,6 +352,7 @@ figcaption { font-size:13.5px; color:var(--muted); margin-top:8px; }
   .top .brand img { height:18px; }
   .search { min-width:100px; }
   .top .brand span { display:none; }
+  .back span { display:none; }
   .search { flex:1 1 120px; }
   figure.mobile { grid-template-columns:1fr; } figure.mobile img { width:min(260px, 100%); }
 }
@@ -526,9 +538,10 @@ def build_reader():
     page = f"""<!doctype html><html lang='ru' data-ui='ru'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1'>
 <title>{esc(titles['ru']['doc'])}</title>{FONTS}<style>{READER_CSS}</style></head><body>
 <header class='top'>
+  <a class='back' href='/'>&larr; <span data-lang='ru'>В программу</span><span data-lang='uz'>Dasturga</span></a>
   <button class='menu-btn' aria-label='{esc(R['ru']['menu'])}'>☰ {both('sections')}</button>
   <a class='brand' href='#' data-go data-id='{DOC['chapters'][0]['id']}'>{'<img src="' + LOGO_URI + '" alt="Warehouse Pro">' if LOGO_URI else 'Warehouse Pro'}<span data-lang='ru'>· {esc(R['ru']['doc'])}</span><span data-lang='uz'>· {esc(R['uz']['doc'])}</span></a>
-  <nav class='chips'><span class='lbl'>{both('iam')}</span>{''.join(f"<span data-lang='{l}' style='display:contents'>{chips[l]}</span>" for l in LANGS)}</nav>
+  <nav class='chips'><span class='lbl'>{both('iam')}</span>{''.join(f"<span data-lang='{l}'>{chips[l]}</span>" for l in LANGS)}</nav>
   <div class='search'><svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' aria-hidden='true'><circle cx='11' cy='11' r='7'/><path d='m20 20-3.5-3.5'/></svg>
     <input type='search' placeholder='{esc(R['ru']['search'])}' data-ph-ru='{esc(R['ru']['search'])}' data-ph-uz='{esc(R['uz']['search'])}' aria-label='{esc(R['ru']['search'])}'><div class='results'></div></div>
   <div class='lang'><button data-lang='ru'>RU</button><button data-lang='uz'>UZ</button></div>
