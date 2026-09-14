@@ -27,6 +27,10 @@ on:
 jobs:
   shoot:
     runs-on: ubuntu-latest
+    # Ветки docs/landing-*: чистые снимки для лендинга коммитятся в ту же ветку
+    # (артефакт закрытого репозитория без входа не скачать).
+    permissions:
+      contents: write
     services:
       mysql:
         image: mysql:9.4
@@ -59,6 +63,7 @@ jobs:
           cache: npm
       - run: npm ci --legacy-peer-deps
       - run: npx playwright install --with-deps chromium
+      - run: sudo apt-get install -y -q webp
 
       # Тот же путь, что у сквозных проверок: схема push-ем, журнал отмечен, засев.
       - name: Схема и засев
@@ -96,7 +101,21 @@ jobs:
           MOBILE_URL: ${{ steps.mobile.outputs.url }}
           LANGS: ${{ inputs.langs || 'ru,uz' }}
           OUT: screenshots
+          # Лендингу — ×2 (Retina); руководству — 1, его выноски считаны в CSS-пикселях.
+          SHOT_SCALE: ${{ startsWith(github.ref, 'refs/heads/docs/landing') && '2' || '1' }}
         run: node scripts/screenshots.mjs
+
+      # Чистые кадры для лендинга — в ветку. Только на docs/landing-*: у
+      # руководства свой путь через артефакт и выноски.
+      - name: Снимки для лендинга — в ветку
+        if: startsWith(github.ref, 'refs/heads/docs/landing')
+        run: |
+          node scripts/landing-shots-collect.mjs screenshots docs/landing/shots
+          git config user.name "screenshots-bot"
+          git config user.email "screenshots-bot@users.noreply.github.com"
+          git add docs/landing/shots
+          git commit -m "Снимки для лендинга — с настоящего приложения (CI)" || { echo "нечего коммитить"; exit 0; }
+          git push
 
       - name: Журнал сервера при провалах
         if: always()

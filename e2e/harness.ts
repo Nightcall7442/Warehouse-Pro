@@ -20,7 +20,7 @@ import { expect } from "@playwright/test";
 export const SEED = {
   ceo: { email: "ceo@demo-uz.uz", password: "password123", home: "/" },
   operator: { email: "operator1@demo-uz.uz", password: "password123", home: "/" },
-  agent: { email: "agent-tashkent@demo-uz.uz", password: "password123", home: "/agent" },
+  agent: { email: "agent-urgench@demo-uz.uz", password: "password123", home: "/agent" },
   supervisor: { email: "supervisor@demo-uz.uz", password: "password123", home: "/supervisor" },
 } as const;
 

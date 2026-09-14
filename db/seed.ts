@@ -79,7 +79,7 @@ async function seed() {
     symbolPosition: "after",
     defaultReorderPoint: "0.00",
     lowStockThreshold: "30.00",
-    companyAddress: "Тошкент вилояти, Чирчиқ ш., Мустақиллик кўчаси, 45-уй",
+    companyAddress: "Хоразм вилояти, Урганч ш., Ал-Хоразмий кўчаси, 12",
     companyPhone: "+998 71 234 56 78",
     companyInn: "305678901",
     companyDirector: "Каримов Акбар Жамшидович",
@@ -100,7 +100,7 @@ async function seed() {
   // ── Warehouses ────────────────────────────────────────────────────────────────
   console.log("Creating warehouses...");
   const warehouseData = [
-    { name: "Основной склад Ташкент", address: "Тошкент ш., Промзона 12", city: "Tashkent", isDefault: true },
+    { name: "Основной склад Ургенч", address: "Урганч ш., Ал-Хоразмий кўчаси, 12", city: "Urgench", isDefault: true },
     { name: "Склад Самарканд", address: "Самарқанд ш., пр. Мирзо Улугбек, 45", city: "Samarkand", isDefault: false },
     { name: "Склад Бухара", address: "Бухоро ш., ул. Истиклол, 18", city: "Bukhara", isDefault: false },
   ];
@@ -181,7 +181,7 @@ async function seed() {
 
   // Agents (5) — different cities
   const agentData = [
-    { name: "Эшмуродов Жасур", email: "agent-tashkent@demo-uz.uz", city: "Tashkent" },
+    { name: "Эшмуродов Жасур", email: "agent-urgench@demo-uz.uz", city: "Urgench" },
     { name: "Тошматов Сардор", email: "agent-samarkand@demo-uz.uz", city: "Samarkand" },
     { name: "Назаров Бехзод", email: "agent-bukhara@demo-uz.uz", city: "Bukhara" },
     { name: "Алиев Фирдавс", email: "agent-nukus@demo-uz.uz", city: "Nukus" },
@@ -342,17 +342,17 @@ async function seed() {
   // ── Shops (25) ──────────────────────────────────────────────────────────────
   console.log("Creating shops...");
   const shopDefs: (typeof schema.shops.$inferInsert)[] = [
-    // Tashkent (10)
-    { tenantId, name: "Олтин Дала savdo", ownerName: "Эркаев Дилшод", phone: "+998 91 100 00 01", city: "Tashkent", district: "Юнусабад", address: "Беруни кўчаси, 22", agentId: agentIds[0], debt: "0.00", gpsLat: "41.3603", gpsLng: "69.2853", photoUrl: PLACEHOLDER_PHOTO },
-    { tenantId, name: "Бараka Market", ownerName: "Юсупова Дилноза", phone: "+998 91 100 00 02", city: "Tashkent", district: "Шайхонтохур", address: "Амир Темур кўчаси, 5", agentId: agentIds[0], debt: "850000.00", gpsLat: "41.3111", gpsLng: "69.2797", photoUrl: PLACEHOLDER_PHOTO },
-    { tenantId, name: "Файз Продукт", ownerName: "Рашидов Алишер", phone: "+998 91 100 00 03", city: "Tashkent", district: "Мирзо Улугбек", address: "Навои кўчаси, 41", agentId: agentIds[0], debt: "320000.00", gpsLat: "41.3367", gpsLng: "69.3389", photoUrl: PLACEHOLDER_PHOTO },
-    { tenantId, name: "Гулистон do'koni", ownerName: "Назарова Зулфия", phone: "+998 91 100 00 04", city: "Tashkent", district: "Шайхонтохур", address: "Навои кўчаси, 17", agentId: agentIds[0], debt: "0.00", gpsLat: "41.3046", gpsLng: "69.2781", photoUrl: PLACEHOLDER_PHOTO },
-    { tenantId, name: "Рахмат Савдо", ownerName: "Ибрагимов Рустам", phone: "+998 91 100 00 05", city: "Tashkent", district: "Сергели", address: "Алмазар кўчаси, 8", agentId: agentIds[0], debt: "150000.00", gpsLat: "41.2934", gpsLng: "69.2564", photoUrl: PLACEHOLDER_PHOTO },
-    { tenantId, name: "Чойхона Марказий", ownerName: "Каримова Гулнара", phone: "+998 91 100 00 06", city: "Tashkent", district: "Юнусабад", address: "Мустақиллик кўчаси, 33", agentId: agentIds[0], debt: "0.00", gpsLat: "41.3552", gpsLng: "69.2878", photoUrl: PLACEHOLDER_PHOTO },
-    { tenantId, name: "Dokon Super", ownerName: "Холматов Бекзод", phone: "+998 91 100 00 07", city: "Tashkent", district: "Олмазор", address: "Фарғона Йўли, 112", agentId: agentIds[0], debt: "570000.00", gpsLat: "41.3199", gpsLng: "69.3363", photoUrl: PLACEHOLDER_PHOTO },
-    { tenantId, name: "Умид Мағозин", ownerName: "Тўхтасинова Нилуфар", phone: "+998 91 100 00 08", city: "Tashkent", district: "Бектемир", address: "Бектемир кўчаси, 19", agentId: agentIds[0], debt: "0.00", gpsLat: "41.2803", gpsLng: "69.3198", photoUrl: PLACEHOLDER_PHOTO },
-    { tenantId, name: "Кўпчilik Market", ownerName: "Салимов Акмал", phone: "+998 91 100 00 09", city: "Tashkent", district: "Чиланзар", address: "Чиланзар кўчаси, 45", agentId: agentIds[0], debt: "200000.00", gpsLat: "41.2875", gpsLng: "69.2673", photoUrl: PLACEHOLDER_PHOTO },
-    { tenantId, name: "Навруз Савдо", ownerName: "Дустматова Гулзода", phone: "+998 91 100 00 10", city: "Tashkent", district: "Яшнобод", address: "Яшнобод кўчаси, 7", agentId: agentIds[0], debt: "0.00", gpsLat: "41.3042", gpsLng: "69.3521", photoUrl: PLACEHOLDER_PHOTO },
+    // Urgench (10)
+    { tenantId, name: "Олтин Дала savdo", ownerName: "Эркаев Дилшод", phone: "+998 91 100 00 01", city: "Urgench", district: "Марказ", address: "Ал-Хоразмий кўчаси, 22", agentId: agentIds[0], debt: "0.00", gpsLat: "41.5530", gpsLng: "60.6318", photoUrl: PLACEHOLDER_PHOTO },
+    { tenantId, name: "Бараka Market", ownerName: "Юсупова Дилноза", phone: "+998 91 100 00 02", city: "Urgench", district: "Ёшлик", address: "Хонқа йўли, 5", agentId: agentIds[0], debt: "850000.00", gpsLat: "41.5462", gpsLng: "60.6402", photoUrl: PLACEHOLDER_PHOTO },
+    { tenantId, name: "Файз Продукт", ownerName: "Рашидов Алишер", phone: "+998 91 100 00 03", city: "Urgench", district: "Ал-Беруний", address: "Беруний кўчаси, 41", agentId: agentIds[0], debt: "320000.00", gpsLat: "41.5581", gpsLng: "60.6227", photoUrl: PLACEHOLDER_PHOTO },
+    { tenantId, name: "Гулистон do'koni", ownerName: "Назарова Зулфия", phone: "+998 91 100 00 04", city: "Urgench", district: "Марказ", address: "Тинчлик кўчаси, 17", agentId: agentIds[0], debt: "0.00", gpsLat: "41.5507", gpsLng: "60.6285", photoUrl: PLACEHOLDER_PHOTO },
+    { tenantId, name: "Рахмат Савдо", ownerName: "Ибрагимов Рустам", phone: "+998 91 100 00 05", city: "Urgench", district: "Гуллан", address: "Гуллан кўчаси, 8", agentId: agentIds[0], debt: "150000.00", gpsLat: "41.5398", gpsLng: "60.6176", photoUrl: PLACEHOLDER_PHOTO },
+    { tenantId, name: "Чойхона Марказий", ownerName: "Каримова Гулнара", phone: "+998 91 100 00 06", city: "Urgench", district: "Ёшлик", address: "Мустақиллик кўчаси, 33", agentId: agentIds[0], debt: "0.00", gpsLat: "41.5551", gpsLng: "60.6431", photoUrl: PLACEHOLDER_PHOTO },
+    { tenantId, name: "Dokon Super", ownerName: "Холматов Бекзод", phone: "+998 91 100 00 07", city: "Urgench", district: "Янгиарик", address: "Урганч–Хива йўли, 112", agentId: agentIds[0], debt: "570000.00", gpsLat: "41.5312", gpsLng: "60.6089", photoUrl: PLACEHOLDER_PHOTO },
+    { tenantId, name: "Умид Мағозин", ownerName: "Тўхтасинова Нилуфар", phone: "+998 91 100 00 08", city: "Urgench", district: "Бешмерган", address: "Бешмерган кўчаси, 19", agentId: agentIds[0], debt: "0.00", gpsLat: "41.5624", gpsLng: "60.6489", photoUrl: PLACEHOLDER_PHOTO },
+    { tenantId, name: "Кўпчilik Market", ownerName: "Салимов Акмал", phone: "+998 91 100 00 09", city: "Urgench", district: "Ал-Беруний", address: "Абу Райхон кўчаси, 45", agentId: agentIds[0], debt: "200000.00", gpsLat: "41.5487", gpsLng: "60.6151", photoUrl: PLACEHOLDER_PHOTO },
+    { tenantId, name: "Навруз Савдо", ownerName: "Дустматова Гулзода", phone: "+998 91 100 00 10", city: "Urgench", district: "Гуллан", address: "Ибн Сино кўчаси, 7", agentId: agentIds[0], debt: "0.00", gpsLat: "41.5442", gpsLng: "60.6537", photoUrl: PLACEHOLDER_PHOTO },
 
     // Samarkand (8)
     { tenantId, name: "Регистан Маркет", ownerName: "Шарипов Мирзокирим", phone: "+998 91 200 00 01", city: "Samarkand", district: "Марказий", address: "Регистон кўчаси, 3", agentId: agentIds[1], debt: "0.00", gpsLat: "39.6542", gpsLng: "66.9756", photoUrl: PLACEHOLDER_PHOTO },
@@ -630,7 +630,7 @@ async function seed() {
 ║    ceo@demo-uz.uz                 → CEO / Admin                ║
 ║    operator1@demo-uz.uz           → Operator                   ║
 ║    operator2@demo-uz.uz           → Operator                   ║
-║    agent-tashkent@demo-uz.uz      → Agent (Tashkent)           ║
+║    agent-urgench@demo-uz.uz       → Agent (Urgench)            ║
 ║    agent-samarkand@demo-uz.uz     → Agent (Samarkand)          ║
 ║    agent-bukhara@demo-uz.uz       → Agent (Bukhara)            ║
 ║    agent-nukus@demo-uz.uz         → Agent (Nukus)              ║
@@ -642,7 +642,7 @@ async function seed() {
 ║    courier2@demo-uz.uz            → Courier                    ║
 ║                                                                  ║
 ║  DATA SUMMARY:                                                   ║
-║    ${shopIds.length} shops (Tashkent/Samarkand/Bukhara)                     ║
+║    ${shopIds.length} shops (Urgench/Samarkand/Bukhara)                     ║
 ║    ${productIds.length} products (food, beverages, dairy, meat, bakery)     ║
 ║    ${orderCount} orders (30-day spread, 4 statuses)                     ║
 ║    ${planCount} daily plans (7-day coverage, 5 agents)                    ║
