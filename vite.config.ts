@@ -84,7 +84,18 @@ export default defineConfig({
       },
       workbox: {
         navigateFallback:         "/index.html",
-        navigateFallbackDenylist: [/^\/api\//],
+        /*
+          Что живёт ВНЕ оболочки SPA, service worker трогать не должен.
+
+          /manual/ отдаёт сервер — с проверкой сессии и разрешения
+          организации. Пока в списке был только /api/, установленный
+          service worker перехватывал переход на /manual/, подсовывал
+          index.html приложения, и React Router честно рисовал свой 404:
+          «Страница не найдена». В свежем браузере всё работало — поэтому
+          на стенде не ловилось, а у арендатора с установленной PWA ловилось
+          всегда. Проверяется в api/__tests__/manual-is-gated.test.ts.
+        */
+        navigateFallbackDenylist: [/^\/api\//, /^\/manual(\/|$)/],
         globPatterns:             ["**/*.{js,css,html,json,png,svg,ico}"],
         cleanupOutdatedCaches:    true,
         clientsClaim:             true,
