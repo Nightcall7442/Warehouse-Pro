@@ -1,7 +1,7 @@
 import { useTranslate } from "@/i18n";
 import { LX, MONO } from "./landing-tokens";
 import { SectionHead } from "./landing-shared";
-import { Browser, DemoTag, Ledger, Split } from "./landing-frames";
+import { Browser, DemoTag, Ledger, Split, Sheet } from "./landing-frames";
 import { useAnime } from "./landing-anime";
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -95,12 +95,11 @@ export default function OrdersSection() {
         <Split
           className="mt-14"
           left={
-            <div data-reveal="order-card" className="rounded-xl p-6 md:p-7" style={{ background: LX.paperRaised, border: `1px solid ${LX.ruleStrong}` }}>
-              <div className="flex items-baseline justify-between">
-                <span className="text-[11px] uppercase" style={{ ...MONO, color: LX.brassText, letterSpacing: "0.08em" }}>{tr("Заказ № 981", "Buyurtma № 981")}</span>
-                <span data-tag className="text-[11px] rounded-full px-2.5 py-1" style={{ ...MONO, background: LX.brassSoft, color: LX.brassDeep }}>{tr("принят частично", "qisman qabul")}</span>
-              </div>
-              <div className="mt-5 text-[17px] font-bold" style={{ color: LX.ink, letterSpacing: "-0.01em" }}>{tr("Рахмат Савдо · Ургенч, Гуллан", "Rahmat Savdo · Urganch, Gullan")}</div>
+            <Sheet
+              title={tr("Заказ № 981", "Buyurtma № 981")}
+              aside={<span data-tag className="text-[11px] rounded-full px-2.5 py-1" style={{ ...MONO, background: LX.brassSoft, color: LX.brassDeep }}>{tr("принят частично", "qisman qabul")}</span>}
+            >
+              <div data-reveal="order-card" className="text-[17px] font-bold" style={{ color: LX.ink, letterSpacing: "-0.01em" }}>{tr("Рахмат Савдо · Ургенч, Гуллан", "Rahmat Savdo · Urganch, Gullan")}</div>
               <dl className="mt-5 text-[14.5px]">
                 {[
                   [tr("Отгружено", "Jo'natildi"), <span key="s" style={MONO}>100</span>],
@@ -121,9 +120,9 @@ export default function OrdersSection() {
                 {tr("Курьер отметил 80 из 100 — сумма и долг пересчитались сами. Без этого 250 000 сум остались бы «ничьими».", "Kuryer 100 dan 80 tasini belgiladi — summa va qarz o'zi qayta hisoblandi. Aks holda 250 000 so'm «hech kimniki» bo'lib qolardi.")}
               </p>
               <DemoTag>{tr("демо-данные", "demo-ma'lumotlar")}</DemoTag>
-            </div>
+            </Sheet>
           }
-          right={<div data-reveal="order-shots"><Browser shot="orders" alt={tr("Экран заказов оператора", "Operator buyurtmalar ekrani")} /></div>}
+          right={<div data-reveal="order-shots"><Browser shot="orders" content alt={tr("Экран заказов оператора: таблица, фильтры, статусы", "Operator buyurtmalar ekrani: jadval, filtrlar, holatlar")} /></div>}
         />
 
         {/* Возможности — реестром, как в главе 04 */}

@@ -125,7 +125,7 @@ export default function TrackingSection() {
         </div>
 
         {/* Живой экран слежения */}
-        <div ref={root} data-reveal="track" className="rounded-xl p-4 md:p-5" style={{ background: LX.ink, border: `1px solid ${LX.ruleOnInk}`, boxShadow: `0 40px 80px -40px ${LX.black80}` }}>
+        <div ref={root} data-reveal="track" className="p-4 md:p-6" style={{ borderRadius: 18, background: LX.ink, border: `1px solid ${LX.ruleOnInk}`, boxShadow: `0 40px 80px -40px ${LX.black80}` }}>
           <div className="flex items-center justify-between mb-3">
             <span className="text-[11px] uppercase" style={{ ...MONO, color: LX.softOnInk, letterSpacing: "0.08em" }}>
               {tr("Слежение · сегодня", "Nazorat · bugun")}
@@ -140,7 +140,7 @@ export default function TrackingSection() {
             Настоящая карта из экрана «Слежение» (вырезка scripts/landing_shots.py),
             поверх — маршруты трёх агентов, бегущие точки и зажигающиеся визиты.
           */}
-          <div className="relative rounded-lg overflow-hidden" style={{ aspectRatio: MAP_CROP_ASPECT, border: `1px solid ${LX.ruleOnInk}` }}>
+          <div className="relative overflow-hidden" style={{ borderRadius: 12, aspectRatio: MAP_CROP_ASPECT, border: `1px solid ${LX.ruleOnInk}` }}>
             <img src={mapCrop(lang)} alt={tr("Карта слежения: агенты и курьеры на карте", "Nazorat xaritasi: xaritadagi agentlar va kuryerlar")} loading="lazy" decoding="async" className="absolute inset-0 w-full h-full" style={{ objectFit: "cover" }} />
             <svg viewBox="0 0 1400 1220" preserveAspectRatio="xMidYMid slice" className="absolute inset-0 w-full h-full" aria-hidden="true">
               {agents.map((a, i) => (
@@ -161,25 +161,25 @@ export default function TrackingSection() {
             <div aria-hidden="true" className="absolute inset-x-0 bottom-0 h-16 pointer-events-none" style={{ background: `linear-gradient(to bottom, transparent, ${LX.ink})` }} />
           </div>
 
-          <div className="mt-3 space-y-2">
+          <div className="mt-4" style={{ borderTop: `1px solid ${LX.ruleOnInk}` }}>
             {agents.map(a => (
-              <div key={a.name} className="grid grid-cols-[1fr_auto] sm:grid-cols-[minmax(0,1.4fr)_auto_auto_auto] gap-x-4 gap-y-1.5 items-center rounded-lg px-3.5 py-2.5" style={{ background: LX.paperOnInk04, border: `1px solid ${LX.ruleOnInk}` }}>
+              <div key={a.name} className="grid grid-cols-[1fr_auto] sm:grid-cols-[minmax(0,1.4fr)_auto_auto_auto] gap-x-6 gap-y-1.5 items-center py-3" style={{ borderBottom: `1px solid ${LX.ruleOnInk}` }}>
                 <div className="min-w-0">
-                  <div className="flex items-center gap-2 text-[13px] font-semibold truncate" style={{ color: LX.paperOnInk }}>
+                  <div className="flex items-center gap-2 text-[13.5px] font-semibold truncate" style={{ color: LX.paperOnInk }}>
                     <MapPin size={12} style={{ color: LX.brassOnNight }} />
                     {a.name} <span className="font-normal" style={{ color: LX.softOnInk }}>· {a.area}</span>
                   </div>
-                  <div className="mt-1.5 h-1 rounded-full overflow-hidden" style={{ background: LX.paperOnInk10 }}>
+                  <div className="mt-2 h-[3px] rounded-full overflow-hidden" style={{ background: LX.paperOnInk10 }}>
                     <div data-bar className="h-full rounded-full origin-left" style={{ width: `${(a.visits / a.of) * 100}%`, background: LX.brassOnNight }} />
                   </div>
                 </div>
-                <span className="text-[11.5px] inline-flex items-center gap-1.5 whitespace-nowrap" style={{ ...MONO, color: LX.softOnInk }}>
+                <span className="text-[12px] inline-flex items-center gap-1.5 whitespace-nowrap" style={{ ...MONO, color: LX.softOnInk }}>
                   <Route size={12} /><span data-km={a.km}>{a.km.toFixed(1).replace(".", ",")}</span> {tr("км", "km")}
                 </span>
-                <span className="text-[11.5px] whitespace-nowrap" style={{ ...MONO, color: LX.softOnInk }}>
+                <span className="text-[12px] whitespace-nowrap" style={{ ...MONO, color: LX.softOnInk }}>
                   {a.visits}/{a.of} {tr("точек", "nuqta")}
                 </span>
-                <span className="text-[11.5px] inline-flex items-center gap-3 whitespace-nowrap">
+                <span className="text-[12px] inline-flex items-center gap-3 whitespace-nowrap">
                   <Battery level={a.battery} hint={tr("зарядить", "quvvatlash")} />
                   <span className="inline-flex items-center gap-1" style={{ ...MONO, color: LX.softOnInk }}><Clock3 size={11} />{a.last}</span>
                 </span>

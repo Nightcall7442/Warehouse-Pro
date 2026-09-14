@@ -104,6 +104,54 @@
    1600,
    1111
   ],
+  "web-ceo-dashboard-content": [
+   1600,
+   1363
+  ],
+  "web-ceo-pnl-content": [
+   1600,
+   1363
+  ],
+  "web-ceo-reports-content": [
+   1600,
+   1363
+  ],
+  "web-ceo-salaries-content": [
+   1600,
+   1363
+  ],
+  "web-operator-orders-content": [
+   1600,
+   1363
+  ],
+  "web-operator-picking-content": [
+   1600,
+   1363
+  ],
+  "web-operator-products-content": [
+   1600,
+   1363
+  ],
+  "web-operator-quick-order-content": [
+   1600,
+   1363
+  ],
+  "web-operator-warehouse-content": [
+   1600,
+   1363
+  ],
+  "web-supervisor-kpi-content": [
+   1600,
+   1363
+  ],
+  "web-supervisor-map-content": [
+   1600,
+   1363
+  ],
+  "web-supervisor-plans-month-content": [
+   1600,
+   1363
+  ],
   "map-crop": [
    1400,
    1220
@@ -213,6 +261,54 @@
   "web-supervisor-plans-month": [
    1600,
    1111
+  ],
+  "web-ceo-dashboard-content": [
+   1600,
+   1363
+  ],
+  "web-ceo-pnl-content": [
+   1600,
+   1363
+  ],
+  "web-ceo-reports-content": [
+   1600,
+   1363
+  ],
+  "web-ceo-salaries-content": [
+   1600,
+   1363
+  ],
+  "web-operator-orders-content": [
+   1600,
+   1363
+  ],
+  "web-operator-picking-content": [
+   1600,
+   1363
+  ],
+  "web-operator-products-content": [
+   1600,
+   1363
+  ],
+  "web-operator-quick-order-content": [
+   1600,
+   1363
+  ],
+  "web-operator-warehouse-content": [
+   1600,
+   1363
+  ],
+  "web-supervisor-kpi-content": [
+   1600,
+   1363
+  ],
+  "web-supervisor-map-content": [
+   1600,
+   1363
+  ],
+  "web-supervisor-plans-month-content": [
+   1600,
+   1363
   ],
   "map-crop": [
    1400,

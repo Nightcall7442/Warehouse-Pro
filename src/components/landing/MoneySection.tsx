@@ -1,8 +1,7 @@
-import type { ReactNode } from "react";
 import { useTranslate } from "@/i18n";
 import { LX, MONO } from "./landing-tokens";
 import { SectionHead } from "./landing-shared";
-import { Browser, DemoTag, Ledger, Split } from "./landing-frames";
+import { Browser, DemoTag, Ledger, Split, Sheet } from "./landing-frames";
 import { useAnime } from "./landing-anime";
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -15,15 +14,6 @@ import { useAnime } from "./landing-anime";
    (pnl, agentEfficiency, agentProductSales), kpi-router (salary, payouts,
    confirmPayout), commission-router (ставка по товару), agent.gamification.
    ═══════════════════════════════════════════════════════════════════════════ */
-
-function Card({ title, children }: { title: string; children: ReactNode }) {
-  return (
-    <div className="rounded-xl p-6 md:p-7" style={{ background: LX.paperRaised, border: `1px solid ${LX.ruleStrong}` }}>
-      <div className="text-[11px] uppercase mb-4" style={{ ...MONO, color: LX.brassText, letterSpacing: "0.08em" }}>{title}</div>
-      {children}
-    </div>
-  );
-}
 
 export default function MoneySection() {
   const tr = useTranslate();
@@ -98,7 +88,7 @@ export default function MoneySection() {
         <Split
           className="mt-14"
           left={
-            <Card title={tr("Полный контроль над долгами", "Qarzlar ustidan to'liq nazorat")}>
+            <Sheet title={tr("Полный контроль над долгами", "Qarzlar ustidan to'liq nazorat")}>
               <div className="space-y-3">
                 {aging.map(a => (
                   <div key={a.k}>
@@ -122,7 +112,7 @@ export default function MoneySection() {
                 ))}
               </ul>
               <DemoTag>{tr("демо-данные", "demo-ma'lumotlar")}</DemoTag>
-            </Card>
+            </Sheet>
           }
           right={<div>{label(tr("Долги", "Qarzlar"))}<Ledger items={debtCaps} /></div>}
         />
@@ -131,14 +121,14 @@ export default function MoneySection() {
         <Split
           className="mt-20 md:mt-24"
           left={<div>{label(tr("P&L и отчётность", "P&L va hisobot"))}<Ledger items={pnlCaps} start={7} columns={1} /></div>}
-          right={<Browser shot="pnl" alt={tr("Прибыль и убытки: выручка, себестоимость, прибыль, динамика по месяцам", "Foyda va zarar: tushum, tannarx, foyda, oylar dinamikasi")} />}
+          right={<Browser shot="pnl" content alt={tr("Прибыль и убытки: выручка, себестоимость, прибыль, динамика по месяцам", "Foyda va zarar: tushum, tannarx, foyda, oylar dinamikasi")} />}
         />
 
         {/* C. Зарплата: формула слева, окно справа, реестр под ними */}
         <Split
           className="mt-20 md:mt-24"
           left={
-            <Card title={tr("Зарплата агента · сентябрь", "Agent ish haqi · sentyabr")}>
+            <Sheet title={tr("Зарплата агента · сентябрь", "Agent ish haqi · sentyabr")}>
               <dl className="text-[14px]">
                 {salary.map(s => (
                   <div key={s.k} data-pay className="flex justify-between gap-4 py-2.5" style={{ borderBottom: `1px solid ${LX.rule}` }}>
@@ -153,9 +143,9 @@ export default function MoneySection() {
               </dl>
               <p className="mt-5 text-[13.5px] leading-relaxed" style={{ color: LX.inkSoft }}>{tr("Выдали — сотрудник подтверждает получение с телефона. Остаток виден обоим.", "Berdingiz — xodim olganini telefondan tasdiqlaydi. Qoldiq ikkalasiga ko'rinadi.")}</p>
               <DemoTag>{tr("демо-данные", "demo-ma'lumotlar")}</DemoTag>
-            </Card>
+            </Sheet>
           }
-          right={<Browser shot="salaries" alt={tr("Ведомость зарплат: оклад, комиссия, доставки, обед, выплаты", "Ish haqi vedomosti: oklad, komissiya, yetkazish, tushlik, to'lovlar")} />}
+          right={<Browser shot="salaries" content alt={tr("Ведомость зарплат: оклад, комиссия, доставки, обед, выплаты", "Ish haqi vedomosti: oklad, komissiya, yetkazish, tushlik, to'lovlar")} />}
         />
         <div className="mt-10">
           {label(tr("Зарплата и KPI", "Ish haqi va KPI"))}

@@ -1,7 +1,7 @@
 import { useTranslate } from "@/i18n";
 import { LX, MONO } from "./landing-tokens";
 import { SectionHead } from "./landing-shared";
-import { Browser, Ledger, Split } from "./landing-frames";
+import { Browser, Ledger, Split, Sheet } from "./landing-frames";
 import { useAnime } from "./landing-anime";
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -71,12 +71,8 @@ export default function WarehouseSection() {
         <Split
           className="mt-14"
           left={
-            <div data-reveal="fefo" className="rounded-xl p-6 md:p-7" style={{ background: LX.paperRaised, border: `1px solid ${LX.ruleStrong}` }}>
-              <div className="flex items-baseline justify-between">
-                <span className="text-[11px] uppercase" style={{ ...MONO, color: LX.brassText, letterSpacing: "0.08em" }}>{tr("Вода «Орол» 1,5 л · партии", "«Orol» suvi 1,5 l · partiyalar")}</span>
-                <span className="text-[11px]" style={{ ...MONO, color: LX.inkFaint }}>FEFO</span>
-              </div>
-              <div className="mt-5 space-y-2 relative">
+            <Sheet title={tr("Вода «Орол» 1,5 л · партии", "«Orol» suvi 1,5 l · partiyalar")} aside={<span className="text-[11px]" style={{ ...MONO, color: LX.inkFaint }}>FEFO</span>}>
+              <div data-reveal="fefo" className="space-y-2 relative">
                 {BATCHES.map(b => (
                   <div key={b.id} data-batch className="flex items-center justify-between gap-3 rounded-lg px-3.5 h-11 text-[13.5px]" style={{ background: LX.paperRaised, border: `1px solid ${LX.rule}` }}>
                     <span style={{ ...MONO, color: LX.ink }}>{b.id}</span>
@@ -98,9 +94,9 @@ export default function WarehouseSection() {
                   <p className="mt-1 leading-relaxed" style={{ color: LX.inkSoft }}>{tr("Позже. Отдельный документ, сумма заказа не трогается.", "Keyinroq. Alohida hujjat, buyurtma summasi tegilmaydi.")}</p>
                 </div>
               </div>
-            </div>
+            </Sheet>
           }
-          right={<div data-reveal="wh-shot"><Browser shot="warehouse" alt={tr("Экран склада: остатки, резерв, доступно, движения", "Ombor ekrani: qoldiq, zaxira, bo'sh, harakatlar")} /></div>}
+          right={<div data-reveal="wh-shot"><Browser shot="warehouse" content alt={tr("Экран склада: остатки, резерв, доступно, движения", "Ombor ekrani: qoldiq, zaxira, bo'sh, harakatlar")} /></div>}
         />
 
         <div className="mt-20 md:mt-24">

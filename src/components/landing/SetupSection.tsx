@@ -139,7 +139,7 @@ export default function SetupSection() {
               </div>
             </div>
           }
-          right={<Browser shot="products" alt={tr("Товары: каталог, категории, штрихкоды, импорт из Excel", "Mahsulotlar: katalog, kategoriyalar, shtrix-kodlar, Excel dan import")} />}
+          right={<Browser shot="products" content alt={tr("Товары: каталог, категории, штрихкоды, импорт из Excel", "Mahsulotlar: katalog, kategoriyalar, shtrix-kodlar, Excel dan import")} />}
         />
 
         <div className="mt-20 md:mt-24">

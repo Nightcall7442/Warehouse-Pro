@@ -3,10 +3,14 @@ import { useLang } from "@/i18n";
 import { LX, MONO } from "./landing-tokens";
 import { WARM_SHADOW, NIGHT_SHADOW } from "./landing-anime";
 import {
-  webShot, mobileShot, manualPage,
-  WEB_ASPECT, MOBILE_ASPECT,
+  webShot, webContent, mobileShot, manualPage,
+  WEB_ASPECT, WEB_CONTENT_ASPECT, MOBILE_ASPECT,
   type WebShotKey, type MobileShotKey, type ManualPageKey,
 } from "./shots";
+
+/* Один набор скруглений на все оправы и листы — разнобой радиусов и есть
+   первое, по чему страница читается собранной из кусков. */
+export const R = { sheet: 14, window: 18 } as const;
 
 /* ═══════════════════════════════════════════════════════════════════════════
    ОПРАВЫ ДЛЯ НАСТОЯЩИХ ЭКРАНОВ И ЗАПУСК ANIME.JS
@@ -22,9 +26,13 @@ import {
    это правило страницы (landing-motion.test.ts), и оно действует и здесь.
    ═══════════════════════════════════════════════════════════════════════════ */
 
-/* ── Окно браузера ───────────────────────────────────────────────────────── */
+/* ── Окно браузера ───────────────────────────────────────────────────────────
+   content — кадр без бокового меню приложения: в главах о заказах, складе и
+   деньгах кадр должен быть о своём содержании, крупно, а не о меню,
+   одинаковом на каждом снимке. Хром окна — тонкая полоса с тремя точками и
+   адресом; тень длинная и мягкая, как у листа на столе.                      */
 export function Browser({
-  shot, alt, children, tone = "paper", fade = true, className = "", style,
+  shot, alt, children, tone = "paper", fade = true, content = false, className = "", style,
 }: {
   shot?: WebShotKey;
   alt?: string;
@@ -33,6 +41,8 @@ export function Browser({
   tone?: "paper" | "dark";
   /** Затухание нижнего края к фону — кадр не обрывается линией. */
   fade?: boolean;
+  /** Кадр без бокового меню приложения. */
+  content?: boolean;
   className?: string;
   style?: CSSProperties;
 }) {
@@ -41,26 +51,27 @@ export function Browser({
   const bg = dark ? LX.night : LX.paper;
   return (
     <div
-      className={`rounded-xl overflow-hidden ${className}`}
+      className={`overflow-hidden ${className}`}
       style={{
+        borderRadius: R.window,
         border: `1px solid ${dark ? LX.ruleOnInk : LX.ruleStrong}`,
         boxShadow: dark ? NIGHT_SHADOW : WARM_SHADOW,
         background: dark ? LX.ink : LX.paperRaised,
         ...style,
       }}
     >
-      <div className="flex items-center gap-3 px-3.5 py-2" style={{ background: dark ? LX.paperOnInk06 : LX.verso }}>
+      <div className="flex items-center gap-3 px-4 h-9" style={{ background: dark ? LX.paperOnInk06 : LX.verso, borderBottom: `1px solid ${dark ? LX.ruleOnInk : LX.rule}` }}>
         <span className="flex gap-1.5" aria-hidden="true">
           {[0, 1, 2].map(i => (
             <span key={i} className="w-2 h-2 rounded-full" style={{ background: dark ? LX.faintOnInk : LX.ruleStrong }} />
           ))}
         </span>
-        <span className="text-[10.5px]" style={{ ...MONO, color: dark ? LX.softOnInk : LX.inkFaint }}>app.warehouse-pro.uz</span>
+        <span className="text-[10.5px]" style={{ ...MONO, color: dark ? LX.softOnInk : LX.inkFaint, letterSpacing: "0.02em" }}>app.warehouse-pro.uz</span>
       </div>
-      <div className="relative" style={{ aspectRatio: WEB_ASPECT, background: dark ? LX.ink : LX.appCanvas }}>
+      <div className="relative" style={{ aspectRatio: content ? WEB_CONTENT_ASPECT : WEB_ASPECT, background: dark ? LX.ink : LX.appCanvas }}>
         {shot && (
           <img
-            src={webShot(shot, lang)}
+            src={content ? webContent(shot, lang) : webShot(shot, lang)}
             alt={alt ?? ""}
             loading="lazy"
             decoding="async"
@@ -72,11 +83,35 @@ export function Browser({
         {fade && (
           <div
             aria-hidden="true"
-            className="absolute inset-x-0 bottom-0 h-16 pointer-events-none"
+            className="absolute inset-x-0 bottom-0 h-20 pointer-events-none"
             style={{ background: `linear-gradient(to bottom, transparent, ${bg})` }}
           />
         )}
       </div>
+    </div>
+  );
+}
+
+/* ── Лист: карточка с волосяной рамкой, без тени ─────────────────────────────
+   Правило страницы — линовка, а не тени. Лист один на всю страницу: радиус,
+   рамка и поля не меняются от главы к главе.                                  */
+export function Sheet({ title, aside, children, className = "", style }: {
+  title?: string;
+  /** Правый верхний угол: пометка моно. */
+  aside?: ReactNode;
+  children: ReactNode;
+  className?: string;
+  style?: CSSProperties;
+}) {
+  return (
+    <div className={`p-6 md:p-7 ${className}`} style={{ borderRadius: R.sheet, background: LX.paperRaised, border: `1px solid ${LX.ruleStrong}`, ...style }}>
+      {(title || aside) && (
+        <div className="flex items-baseline justify-between gap-4 mb-5">
+          {title && <span className="text-[11px] uppercase" style={{ ...MONO, color: LX.brassText, letterSpacing: "0.08em" }}>{title}</span>}
+          {aside}
+        </div>
+      )}
+      {children}
     </div>
   );
 }
@@ -190,11 +225,11 @@ export function Ledger({ items, start = 1, dark = false, columns = 2, className 
   return (
     <ol className={`grid ${columns === 2 ? "md:grid-cols-2" : ""} gap-x-14 lg:gap-x-20 ${className}`} style={{ borderTop: `1px solid ${dark ? LX.ruleOnInk : LX.ruleStrong}` }}>
       {items.map((it, i) => (
-        <li key={it.t} className="grid grid-cols-[36px_minmax(0,1fr)] gap-x-4 py-5" style={{ borderBottom: `1px solid ${rule}` }}>
-          <span className="text-[12px] pt-1" style={{ ...MONO, color: dark ? LX.brassOnNight : LX.brassDeep }}>{String(start + i).padStart(2, "0")}</span>
+        <li key={it.t} className="grid grid-cols-[40px_minmax(0,1fr)] gap-x-4 py-6" style={{ borderBottom: `1px solid ${rule}` }}>
+          <span className="text-[12px] pt-1.5" style={{ ...MONO, color: dark ? LX.brassOnNight : LX.brassDeep }}>{String(start + i).padStart(2, "0")}</span>
           <div>
-            <div className="text-[16px] font-bold" style={{ color: dark ? LX.paperOnInk : LX.ink, letterSpacing: "-0.01em" }}>{it.t}</div>
-            <p className="mt-1 text-[14px] leading-relaxed" style={{ color: dark ? LX.softOnInk : LX.inkSoft }}>{it.d}</p>
+            <div className="text-[17px] font-bold" style={{ color: dark ? LX.paperOnInk : LX.ink, letterSpacing: "-0.015em", lineHeight: 1.25 }}>{it.t}</div>
+            <p className="mt-1.5 text-[14.5px] leading-relaxed max-w-[48ch]" style={{ color: dark ? LX.softOnInk : LX.inkSoft }}>{it.d}</p>
           </div>
         </li>
       ))}
