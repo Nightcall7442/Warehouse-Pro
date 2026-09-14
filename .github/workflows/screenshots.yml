@@ -12,7 +12,7 @@ on:
   # руками — workflow_dispatch с любой ветки (файл уже в main).
   push:
     branches: ["docs/**"]
-    paths: [".github/workflows/screenshots.yml", "scripts/screenshots.mjs", "scripts/screenshot-marks.json", "docs/training/**"]
+    paths: [".github/workflows/screenshots.yml", "scripts/screenshots.mjs", "scripts/screenshot-marks.json", "scripts/landing-shots-collect.mjs", "db/seed.ts", "docs/training/**"]
   workflow_dispatch:
     inputs:
       mobile_ref:
@@ -111,12 +111,18 @@ jobs:
       - name: Снимки для лендинга — в ветку
         if: startsWith(github.ref, 'refs/heads/docs/landing')
         run: |
-          node scripts/landing-shots-collect.mjs screenshots docs/landing/shots
+          # Кадры — во временную папку; ветка тем временем могла уехать вперёд
+          # (правки лендинга, соседний прогон), поэтому коммитим поверх свежего
+          # origin, а не поверх того, что было при старте.
+          node scripts/landing-shots-collect.mjs screenshots /tmp/landing-shots
           git config user.name "screenshots-bot"
           git config user.email "screenshots-bot@users.noreply.github.com"
+          git fetch origin "${GITHUB_REF_NAME}"
+          git reset --hard "origin/${GITHUB_REF_NAME}"
+          rm -rf docs/landing/shots && mkdir -p docs/landing && cp -r /tmp/landing-shots docs/landing/shots
           git add docs/landing/shots
           git commit -m "Снимки для лендинга — с настоящего приложения (CI)" || { echo "нечего коммитить"; exit 0; }
-          git push
+          git push origin "HEAD:${GITHUB_REF_NAME}"
 
       - name: Журнал сервера при провалах
         if: always()
