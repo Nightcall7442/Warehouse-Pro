@@ -90,7 +90,11 @@ const T = {
 
 const WEB_SCENARIOS = {
   operator: [
-    { name: "orders", path: "/orders",
+    /*
+      Заказы — за месяц: с фильтром «сегодня» в таблице три строки и пустой
+      экран под ними. Руководство и лендинг показывают таблицу, а не пустоту.
+    */
+    { name: "orders", path: "/orders", do: [["click", "text=/^(Этот месяц|Bu oy)$/"], ["wait", 1200]], after: [],
       marks: [["summary", T.pending], ["search", "ph=/Поиск заказов|Buyurtma/"], ["lists", T.lists], ["new", T.newOrder], ["status", "css=table tbody tr [role=combobox] >> nth=0"], ["complete", "text=/^(Выполнен|Bajarildi)$/ >> nth=0"]] },
     { name: "order-panel", path: "/orders", do: [["click", "css=table tbody tr td >> nth=1"], ["wait", 1500]],
       marks: [["status", "css=[role=dialog] [role=combobox] >> nth=0"], ["tabs", "text=/^(Детали|Tafsilotlar)$/"], ["sum", "text=/Сумма заказа|Buyurtma summasi/"]] },

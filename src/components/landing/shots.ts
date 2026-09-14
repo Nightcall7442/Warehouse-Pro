@@ -54,6 +54,9 @@ export const WEB_ASPECT = "1440 / 1000";
 export const MOBILE_ASPECT = "390 / 844";
 
 export const webShot = (key: WebShotKey, lang: Lang) => `/landing/${lang}/${WEB_SHOTS[key]}.webp`;
+/** Тот же кадр без бокового меню — для глав, где кадр должен быть о своём содержании. */
+export const webContent = (key: WebShotKey, lang: Lang) => `/landing/${lang}/${WEB_SHOTS[key]}-content.webp`;
+export const WEB_CONTENT_ASPECT = "1174 / 1000";
 /** Только карта из кадра «Слежение» — вырезка делается scripts/landing_shots.py. */
 export const mapCrop = (lang: Lang) => `/landing/${lang}/map-crop.webp`;
 export const MAP_CROP_ASPECT = "868 / 755";
