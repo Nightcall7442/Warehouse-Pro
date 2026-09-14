@@ -1,6 +1,12 @@
 export const uz = {
   nav: {
-    support:     "Qo'llab-quvvatlash",
+    /*
+      Три кнопки внизу бокового меню стоят в ряд по ~70 px каждая.
+      «Qo'llab-quvvatlash» и «Bildirishnomalar» в такую ширину не входят —
+      текст вылезал за кнопку с обеих сторон. Здесь короткие формы; обе
+      подписи используются только в этом ряду.
+    */
+    support:     "Yordam",
     manual:      "Qo'llanma",
     dashboard:   "Bosh sahifa",
     kpi:         "KPI",
@@ -28,7 +34,7 @@ export const uz = {
     gps:         "GPS",
     superAdmin:  "Super Admin",
     monitoring:  "Monitoring",
-    notifications: "Bildirishnomalar",
+    notifications: "Xabarlar",
     deliveries:  "Yetkazishlar",
     barcode:     "Skaner",
     myOrders:    "Mening buyurtmalarim",
