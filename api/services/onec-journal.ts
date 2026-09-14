@@ -27,12 +27,16 @@ export const OnecJournal = {
 
   /** Что пора делать: pending/failed с наступившим временем и не исчерпанными попытками. */
   async due(db: Db, tenantId: number, limit = 50) {
+    // TIMESTAMP без долей секунды: MySQL ОКРУГЛЯЕТ 12:00:00.7 до 12:00:01, и
+    // строка, поставленная в очередь «сейчас», секунду считается будущей.
+    // Секунда допуска — иначе «Выгрузить очередь сейчас» через раз молчит.
+    const now = new Date(Date.now() + 1000);
     return db.select().from(onecJournal)
       .where(and(
         eq(onecJournal.tenantId, tenantId),
         inArray(onecJournal.status, ["pending", "failed"]),
         sql`${onecJournal.attempts} < ${MAX_ATTEMPTS}`,
-        or(isNull(onecJournal.nextAt), lte(onecJournal.nextAt, new Date())),
+        or(isNull(onecJournal.nextAt), lte(onecJournal.nextAt, now)),
       ))
       .orderBy(asc(onecJournal.nextAt), asc(onecJournal.id))
       .limit(limit);
