@@ -8,11 +8,11 @@
 name: Screenshots
 
 on:
-  # workflow_dispatch виден GitHub только с основной ветки; пока файл не в
-  # main, запуск — пушем в ветку docs/training (значения по умолчанию ниже).
+  # Пуш в любую ветку docs/* с правкой сценариев или выносок — новые снимки;
+  # руками — workflow_dispatch с любой ветки (файл уже в main).
   push:
-    branches: [docs/training]
-    paths: [".github/workflows/screenshots.yml", "scripts/screenshots.mjs", "docs/training/**"]
+    branches: ["docs/**"]
+    paths: [".github/workflows/screenshots.yml", "scripts/screenshots.mjs", "scripts/screenshot-marks.json", "docs/training/**"]
   workflow_dispatch:
     inputs:
       mobile_ref:

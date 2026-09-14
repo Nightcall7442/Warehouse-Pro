@@ -1,0 +1,29 @@
+import { describe, it, expect } from "vitest";
+import { safeNextPath } from "@/lib/safe-next";
+
+/**
+ * После входа человек возвращается туда, откуда его отправили на вход
+ * (/manual/), — и только туда, где он и был: на наш сайт. Открытый редирект
+ * после ввода пароля — классика фишинга.
+ */
+const ORIGIN = "https://www.warehouse-pro.uz";
+
+describe("?next= после входа", () => {
+  it("свой путь с якорем и параметрами возвращается как есть", () => {
+    expect(safeNextPath("/manual/", ORIGIN)).toBe("/manual/");
+    // Кодированный слэш остаётся частью НАШЕГО пути — браузер не читает его как разделитель адреса.
+    expect(safeNextPath("/%5Cevil.com", ORIGIN)).toBe("/%5Cevil.com");
+    expect(safeNextPath("/manual/#ru/role-agent", ORIGIN)).toBe("/manual/#ru/role-agent");
+    expect(safeNextPath("/orders?tab=pending", ORIGIN)).toBe("/orders?tab=pending");
+  });
+
+  it("чужой адрес во всех известных обличьях — нет", () => {
+    for (const bad of [
+      "https://evil.com/", "//evil.com", "/\\evil.com", "/\\\\evil.com", "//evil.com/manual/",
+      "javascript:alert(1)", "/\u0000/evil", "evil.com", "", " /manual/",
+      "https://www.warehouse-pro.uz.evil.com/manual/",
+    ]) {
+      expect(safeNextPath(bad, ORIGIN), bad).toBeNull();
+    }
+  });
+});

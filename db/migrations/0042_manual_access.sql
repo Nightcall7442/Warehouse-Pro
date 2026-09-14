@@ -1,0 +1,1 @@
+ALTER TABLE `tenants` ADD `manual_enabled_at` timestamp;

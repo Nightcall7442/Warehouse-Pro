@@ -59,6 +59,13 @@ export const tenants = mysqlTable("tenants", {
   */
   extraUsers:    int("extra_users").default(0).notNull(),
   extraProducts: int("extra_products").default(0).notNull(),
+  /*
+    Руководство дистрибьютора (docs/manual) — платное, выдаётся владельцем
+    платформы организации отдельно: суперадмин или командой в Telegram. Пусто —
+    у организации нет ссылки «Справка» и /manual/ отвечает 403. Дата, а не
+    флаг: видно, когда выдали.
+  */
+  manualEnabledAt: timestamp("manual_enabled_at"),
   ownerEmail:    varchar("owner_email", { length: 320 }),
   ownerPhone:    varchar("owner_phone", { length: 30 }),
   /*
@@ -1593,6 +1600,14 @@ export const auditLog = mysqlTable("audit_log", {
   action:     varchar("action", { length: 100 }).notNull(),
   targetType: varchar("target_type", { length: 50 }),
   targetId:   bigint("target_id", { mode: "number", unsigned: true }),
+  /*
+    Как объект зовут люди: «ORD-0123», «Магазин Альфа», «Сахар 1 кг».
+    Директор читал в журнале «order #1234» — номер строки базы, который в
+    программе нигде не показывается. Имя берётся в момент записи (потом
+    магазин переименуют или удалят, а журнал должен помнить, как было) и по
+    нему же ищут: «Альфа» находит всё, что делали с этим магазином.
+  */
+  targetLabel: varchar("target_label", { length: 200 }),
   meta:       json("meta"),
   ip:         varchar("ip", { length: 45 }),
   createdAt:  timestamp("created_at").defaultNow().notNull(),

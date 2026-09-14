@@ -2,6 +2,7 @@ export const ru = {
   // Navigation
   nav: {
     support:     "Поддержка",
+    manual:      "Справка",
     dashboard:   "Главная",
     kpi:         "KPI",
     shops:       "Магазины",
@@ -10,7 +11,7 @@ export const ru = {
     warehouse:   "Склад",
     returns:     "Возвраты",
     warehouseReports: "Отчёты склада",
-    auditLog:    "Аудит-лог",
+    auditLog:    "Журнал действий",
     arrivals:    "Приходы",
     analytics:   "Аналитика",
     users:       "Пользователи",

@@ -4,7 +4,7 @@ import { format } from "date-fns";
 import { trpc } from "@/providers/trpc";
 import { notify } from "@/lib/toast";
 import { useConfirm } from "@/components/ConfirmDialog";
-import { ArrowLeft, Users, ShoppingCart, Package, Store, Shield, Lock, BarChart3, Zap, Calendar, Power, Plus, ShieldCheck, Eraser, Trash2 } from "lucide-react";
+import { ArrowLeft, Users, ShoppingCart, Package, Store, Shield, Lock, BarChart3, Zap, Calendar, Power, Plus, ShieldCheck, Eraser, Trash2, BookOpen } from "lucide-react";
 import { PremiumSelect } from "@/components/PremiumSelect";
 import { labelled, ROLE_LABEL } from "@/lib/entity-labels";
 import { EXTRA_PRICES_UZS } from "@contracts/constants";
@@ -33,6 +33,10 @@ export function TenantDetail({ tenantId, onBack }: TenantDetailProps) {
 
   const invalidate = () => { refetch(); utils.tenant.list.invalidate(); utils.tenant.platformStats.invalidate(); };
   const updatePlan = trpc.tenant.updatePlan.useMutation({ onSuccess: () => { invalidate(); notify.success("Тариф обновлён"); setShowPlan(false); }, onError: (e) => notify.error(e.message) });
+  const setManual = trpc.tenant.setManualAccess.useMutation({
+    onSuccess: (r) => { invalidate(); notify.success(r.manualEnabledAt ? "Руководство выдано" : "Руководство отключено"); },
+    onError: (e) => notify.error(e.message),
+  });
   const setStatus = trpc.tenant.setStatus.useMutation({ onSuccess: () => { invalidate(); notify.success("Статус обновлён"); }, onError: (e) => notify.error(e.message) });
   /*
     Докупленное сверх тарифа.
@@ -234,6 +238,11 @@ export function TenantDetail({ tenantId, onBack }: TenantDetailProps) {
               <Plus size={13} /> Сверх тарифа
             </BtnSecondary>
           )}
+          {/* Руководство дистрибьютора — платная книга, выдаётся по решению владельца. */}
+          <BtnSecondary onClick={() => setManual.mutate({ tenantId, enabled: !tenant.manualEnabledAt })} disabled={setManual.isPending}
+            style={{ padding: "6px 14px", fontSize: "12px", color: tenant.manualEnabledAt ? COLORS.success : undefined }}>
+            <BookOpen size={13} /> {tenant.manualEnabledAt ? `Руководство выдано ${format(new Date(tenant.manualEnabledAt), "dd.MM.yyyy")}` : "Выдать руководство"}
+          </BtnSecondary>
           <BtnSecondary onClick={async () => {
             const next = tenant.status === "active" ? "suspended" : "active";
             const ok = await confirm({ title: next === "suspended" ? `Приостановить "${tenant.name}"?` : `Активировать "${tenant.name}"?`, message: next === "suspended" ? "Все пользователи потеряют доступ." : "Пользователи снова смогут войти.", confirmText: next === "suspended" ? "Приостановить" : "Активировать", danger: next === "suspended" });

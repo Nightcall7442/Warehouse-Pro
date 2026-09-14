@@ -1,6 +1,7 @@
 export const uz = {
   nav: {
     support:     "Qo'llab-quvvatlash",
+    manual:      "Qo'llanma",
     dashboard:   "Bosh sahifa",
     kpi:         "KPI",
     shops:       "Do'konlar",
@@ -9,7 +10,7 @@ export const uz = {
     warehouse:   "Ombor",
     returns:     "Qaytarishlar",
     warehouseReports: "Ombor hisobotlari",
-    auditLog:    "Audit jurnali",
+    auditLog:    "Harakatlar jurnali",
     arrivals:    "Kirim",
     analytics:   "Tahlil",
     users:       "Foydalanuvchilar",
