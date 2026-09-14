@@ -20,7 +20,7 @@ import { rowsOf } from "./lib/db-rows";
 import { checkTotpStepUp } from "./auth/step-up";
 import { countTenantRows, offboardTenant, TenantNotSuspendedError } from "./services/tenant-offboard";
 import { setManualAccessFor } from "./services/manual-access";
-import { invalidateAuthTenant } from "./auth";
+import { invalidateAuthTenant, invalidateAuthUser } from "./auth";
 /**
  * Ограничения на публичную регистрацию.
  *
@@ -700,6 +700,49 @@ export const tenantRouter = createRouter({
         .set({ passwordHash, updatedAt: new Date() })
         .where(and(eq(users.id, input.userId), eq(users.tenantId, input.tenantId)));
       return { success: true };
+    }),
+
+  /**
+   * Сменить логин (почту входа) сотруднику организации — по просьбе клиента.
+   *
+   * Сам директор может сделать это в «Сотрудниках» → «Передать доступ», но
+   * туда ещё надо войти: клиент, потерявший доступ к старой почте, пишет
+   * владельцу платформы. Почта уникальна внутри организации; в другой
+   * организации тот же адрес допустим — вход спросит, куда. Сессии по старому
+   * логину гасятся сразу (tokenVersion), пароль не меняется. Если сменили
+   * почту владельца — она же в карточке организации (tenants.ownerEmail).
+   */
+  changeUserLogin: superAdminQuery
+    .input(z.object({
+      tenantId: z.number().int().positive(),
+      userId:   z.number().int().positive(),
+      email:    z.string().trim().toLowerCase().email().max(320),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const db = getDb();
+      const [target] = await db.select({ id: users.id, name: users.name, email: users.email, role: users.role })
+        .from(users).where(and(eq(users.id, input.userId), eq(users.tenantId, input.tenantId))).limit(1);
+      if (!target) throw new TRPCError({ code: "NOT_FOUND", message: "Сотрудник не найден в этой организации" });
+      if (target.email === input.email) return { email: input.email, unchanged: true };
+      const [taken] = await db.select({ id: users.id })
+        .from(users).where(and(eq(users.tenantId, input.tenantId), eq(users.email, input.email))).limit(1);
+      if (taken) throw new TRPCError({ code: "CONFLICT", message: "Такая почта уже есть у другого сотрудника этой организации" });
+
+      await db.update(users)
+        .set({ email: input.email, tokenVersion: sql`COALESCE(${users.tokenVersion}, 0) + 1`, updatedAt: new Date() })
+        .where(and(eq(users.id, input.userId), eq(users.tenantId, input.tenantId)));
+      invalidateAuthUser(input.userId);
+      const [tenant] = await db.select({ ownerEmail: tenants.ownerEmail }).from(tenants).where(eq(tenants.id, input.tenantId)).limit(1);
+      if (tenant?.ownerEmail && tenant.ownerEmail.toLowerCase() === target.email.toLowerCase()) {
+        await db.update(tenants).set({ ownerEmail: input.email, updatedAt: new Date() }).where(eq(tenants.id, input.tenantId));
+        invalidateAuthTenant(input.tenantId);
+      }
+      await recordAudit(db, {
+        tenantId: input.tenantId, actorId: ctx.user.id, actorName: ctx.user.name,
+        action: "user.login_changed", targetType: "user", targetId: input.userId,
+        meta: { userName: target.name, oldEmail: target.email, newEmail: input.email, by: "superadmin" },
+      });
+      return { email: input.email, unchanged: false };
     }),
 
   /** Общая сводка платформы */

@@ -4,7 +4,7 @@ import { format } from "date-fns";
 import { trpc } from "@/providers/trpc";
 import { notify } from "@/lib/toast";
 import { useConfirm } from "@/components/ConfirmDialog";
-import { ArrowLeft, Users, ShoppingCart, Package, Store, Shield, Lock, BarChart3, Zap, Calendar, Power, Plus, ShieldCheck, Eraser, Trash2, BookOpen } from "lucide-react";
+import { ArrowLeft, Users, ShoppingCart, Package, Store, Shield, Lock, BarChart3, Zap, Calendar, Power, Plus, ShieldCheck, Eraser, Trash2, BookOpen, AtSign } from "lucide-react";
 import { PremiumSelect } from "@/components/PremiumSelect";
 import { labelled, ROLE_LABEL } from "@/lib/entity-labels";
 import { EXTRA_PRICES_UZS } from "@contracts/constants";
@@ -24,6 +24,8 @@ export function TenantDetail({ tenantId, onBack }: TenantDetailProps) {
   const utils = trpc.useUtils();
   const { confirm, dialog } = useConfirm();
   const [resetPwd, setResetPwd] = useState<{ userId: number; name: string } | null>(null);
+  const [loginEdit, setLoginEdit] = useState<{ userId: number; name: string; email: string } | null>(null);
+  const [newLogin, setNewLogin] = useState("");
   const [newPwd, setNewPwd] = useState("");
   const [extDays, setExtDays] = useState(14);
   const [showExt, setShowExt] = useState(false);
@@ -79,6 +81,10 @@ export function TenantDetail({ tenantId, onBack }: TenantDetailProps) {
   });
 
   const extendTrial = trpc.tenant.extendTrial.useMutation({ onSuccess: (r) => { invalidate(); notify.success(`Trial продлён до ${format(new Date(r.trialEndsAt), "dd.MM.yyyy")}`); setShowExt(false); }, onError: (e) => notify.error(e.message) });
+  const changeLogin = trpc.tenant.changeUserLogin.useMutation({
+    onSuccess: (r) => { notify.success(r.unchanged ? "Логин не изменился" : `Новый логин: ${r.email}`); setLoginEdit(null); setNewLogin(""); invalidate(); },
+    onError: (e) => notify.error(e.message),
+  });
   const resetPassword = trpc.tenant.resetOwnerPassword.useMutation({ onSuccess: () => { notify.success("Пароль сброшен"); setResetPwd(null); setNewPwd(""); }, onError: (e) => notify.error(e.message) });
 
   /*
@@ -121,6 +127,25 @@ export function TenantDetail({ tenantId, onBack }: TenantDetailProps) {
     <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
     <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
       <div key="confirm-dialog">{dialog}</div>
+      <div key="change-login-modal">
+        {loginEdit && (
+          <Modal
+            onClose={() => { setLoginEdit(null); setNewLogin(""); }}
+            title="Сменить логин"
+            subtitle={`${loginEdit.name} · сейчас ${loginEdit.email}`}
+            maxWidth={420}
+            footer={
+              <>
+                <BtnSecondary onClick={() => { setLoginEdit(null); setNewLogin(""); }} style={{ flex: 1 }}>Отмена</BtnSecondary>
+                <BtnPrimary onClick={() => changeLogin.mutate({ tenantId, userId: loginEdit.userId, email: newLogin.trim() })} disabled={!/^\S+@\S+\.\S+$/.test(newLogin.trim()) || changeLogin.isPending} style={{ flex: 1 }}>{changeLogin.isPending ? "…" : "Сменить"}</BtnPrimary>
+              </>
+            }
+          >
+            <Input label="Новая почта для входа" type="email" placeholder="name@company.uz" value={newLogin} onChange={e => setNewLogin(e.target.value)} />
+            <p style={{ fontSize: "12px", color: COLORS.textSecondary, marginTop: "8px" }}>Пароль остаётся прежним. Человек будет разлогинен и войдёт заново с новой почтой.</p>
+          </Modal>
+        )}
+      </div>
       <div key="reset-password-modal">
         {resetPwd && (
           <Modal
@@ -364,6 +389,7 @@ export function TenantDetail({ tenantId, onBack }: TenantDetailProps) {
               <div style={{ display: "flex", alignItems: "center", gap: "8px", flexShrink: 0 }}>
                 <span style={{ fontSize: "10px", color: COLORS.textTertiary, padding: "2px 8px", borderRadius: "6px", background: COLORS.surfaceLight }}>{labelled(ROLE_LABEL, u.role)}</span>
                 <StatusBadge status={u.status} />
+                <button onClick={() => { setLoginEdit({ userId: u.id, name: u.name, email: u.email }); setNewLogin(""); }} style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: "28px", height: "28px", borderRadius: "8px", background: "transparent", border: "none", cursor: "pointer", color: COLORS.textSecondary, transition: "background 0.15s" }} onMouseEnter={e => (e.currentTarget.style.background = COLORS.border)} onMouseLeave={e => (e.currentTarget.style.background = "transparent")} title="Сменить логин (почту входа)"><AtSign size={12} /></button>
                 <button onClick={() => setResetPwd({ userId: u.id, name: u.name })} style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: "28px", height: "28px", borderRadius: "8px", background: "transparent", border: "none", cursor: "pointer", color: COLORS.warning, transition: "background 0.15s" }} onMouseEnter={e => (e.currentTarget.style.background = COLORS.border)} onMouseLeave={e => (e.currentTarget.style.background = "transparent")} title="Сбросить пароль"><Lock size={12} /></button>
               </div>
             </div>

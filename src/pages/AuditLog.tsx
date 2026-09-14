@@ -89,6 +89,7 @@ const ACTION_CONFIG: Record<string, {
   "user.deactivated":                { icon: User,          gradient: DANGER,  label: { ru: "Пользователь деактивирован",      uz: "Foydalanuvchi o'chirildi" } },
   "user.password_reset_by_admin":    { icon: Key,           gradient: WARNING, label: { ru: "Сброс пароля",                    uz: "Parol tiklandi" } },
   "user.credentials_transferred":    { icon: Key,           gradient: WARNING, label: { ru: "Доступ передан другому",          uz: "Kirish boshqa odamga o'tkazildi" } },
+  "user.login_changed":              { icon: Key,           gradient: WARNING, label: { ru: "Сменён логин входа",              uz: "Kirish logini o'zgartirildi" } },
   "user.totp_enable":                { icon: Shield,        gradient: SUCCESS, label: { ru: "Включён код-подтверждение",       uz: "Tasdiqlash kodi yoqildi" } },
   "user.totp_disable":               { icon: Shield,        gradient: WARNING, label: { ru: "Отключён код-подтверждение",      uz: "Tasdiqlash kodi o'chirildi" } },
   "access.operator":                 { icon: Shield,        gradient: PRIMARY, label: { ru: "Права оператора изменены",        uz: "Operator huquqlari o'zgartirildi" } },
