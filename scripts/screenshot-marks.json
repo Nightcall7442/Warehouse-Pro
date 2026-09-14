@@ -1,0 +1,1184 @@
+{
+ "web": {
+  "ceo": {
+   "settings": [
+    [
+     "stCompany",
+     "role=button:/^(Компания|Kompaniya)$/"
+    ],
+    [
+     "stWarehouses",
+     "role=button:/^(Склады|Omborxonalar)$/"
+    ],
+    [
+     "stAccess",
+     "role=button:/^(Права оператора|Operator huquqlari)$/"
+    ],
+    [
+     "stTelegram",
+     "role=button:/^Telegram$/"
+    ],
+    [
+     "stTotp",
+     "text=/^(Вход с кодом из приложения|Ilova kodi bilan kirish)$/"
+    ],
+    [
+     "company",
+     "role=button:/^(Компания|Kompaniya)$/"
+    ],
+    [
+     "access",
+     "role=button:/^(Права оператора|Operator huquqlari)$/"
+    ],
+    [
+     "telegram",
+     "role=button:/^Telegram$/"
+    ],
+    [
+     "onec",
+     "role=button:/^1[СC]$/"
+    ],
+    [
+     "twoFactor",
+     "text=/Вход с кодом из приложения|Ilova kodi bilan kirish/"
+    ]
+   ],
+   "users": [
+    [
+     "usCreate",
+     "role=button:/^(Создать|Yaratish)$/"
+    ],
+    [
+     "usRole",
+     "text=/^(РОЛЬ|LAVOZIM)$/"
+    ],
+    [
+     "usReset",
+     "role=button:/^(Сбросить пароль|Parolni tiklash)$/ >> nth=0"
+    ],
+    [
+     "usZone",
+     "role=button:/^(Рабочая зона|Ish zonasi)$/ >> nth=0"
+    ],
+    [
+     "create",
+     "role=button:/^(Создать|Yaratish)$/"
+    ],
+    [
+     "excel",
+     "role=button:/^Excel$/"
+    ],
+    [
+     "search",
+     "ph=/Поиск пользователей|Foydalanuvchi qidirish/"
+    ],
+    [
+     "roleFilter",
+     "text=/^(Все роли|Barcha lavozimlar)$/"
+    ],
+    [
+     "resetPw",
+     "role=button:/Сбросить пароль|Parolni tiklash/ >> nth=0"
+    ],
+    [
+     "deactivate",
+     "role=button:/^(Деактивировать|O'chirish)$/ >> nth=0"
+    ],
+    [
+     "workZone",
+     "role=button:/Рабочая зона|Ish zonasi/ >> nth=0"
+    ]
+   ],
+   "dashboard": [
+    [
+     "alerts",
+     "css=.neo-card-sm[role=link] >> nth=0"
+    ],
+    [
+     "orders",
+     "text=/ЗАКАЗЫ · СЕГОДНЯ|BUYURTMALAR · BUGUN/"
+    ],
+    [
+     "margin",
+     "text=/ВАЛОВАЯ ПРИБЫЛЬ|SOF FOYDA/"
+    ],
+    [
+     "range",
+     "role=button:/^7д$/"
+    ],
+    [
+     "inWork",
+     "text=/Заказы в работе|Ishdagi buyurtmalar/"
+    ]
+   ],
+   "reports": [
+    [
+     "rpPeriod",
+     "role=button:/^(30 дней|30 kun)$/"
+    ],
+    [
+     "rpDebtsTab",
+     "role=tab:/^(Долги|Qarzlar)$/"
+    ],
+    [
+     "rpStuck",
+     "text=/^(ЗАВИСЛО В ДОЛГАХ|QARZDA QOLGAN)$/"
+    ],
+    [
+     "rpSummary",
+     "role=button:/^(Сводка|Yig'ma)$/"
+    ],
+    [
+     "rpTopDebt",
+     "text=/^(Больше всех должны|Eng ko'p qarzdorlar)$/"
+    ],
+    [
+     "period",
+     "role=button:/^(30 дней|30 kun)$/"
+    ],
+    [
+     "summary",
+     "role=button:/^(Сводка|Yig'ma)$/"
+    ],
+    [
+     "print",
+     "role=button:/^(Печать|Chop etish)$/ >> nth=0"
+    ],
+    [
+     "debtsTab",
+     "role=tab:/^(Долги|Qarzlar)$/"
+    ],
+    [
+     "exports",
+     "role=button:/Все выгрузки|Barcha yuklamalar/"
+    ],
+    [
+     "planToday",
+     "text=/^(План сегодня|Bugungi reja)$/"
+    ],
+    [
+     "topDebtors",
+     "text=/Больше всех должны|Eng ko'p qarzdorlar/"
+    ]
+   ],
+   "reports-debts": [
+    [
+     "dbTotal",
+     "text=/^(Должны нам|Bizga qarzdor)$/"
+    ],
+    [
+     "dbFresh",
+     "text=/^(до 7 дней|7 kungacha)$/"
+    ],
+    [
+     "dbOld",
+     "text=/^(больше 60|60 kundan ko'p)$/"
+    ],
+    [
+     "oweUs",
+     "text=/^(Должны нам|Bizga qarzdor)$/"
+    ],
+    [
+     "buckets",
+     "text=/^(до 7 дней|7 kungacha)$/"
+    ],
+    [
+     "unattributed",
+     "text=/Не привязано к заказу|Buyurtmaga bog'lanmagan/"
+    ],
+    [
+     "age",
+     "text=/^(Возраст|Yosh)$/"
+    ],
+    [
+     "excel",
+     "role=button:/^Excel$/ >> nth=0"
+    ],
+    [
+     "total",
+     "text=/^(Должны нам|Bizga qarzdor)$/"
+    ],
+    [
+     "old",
+     "text=/^(больше 60|60 kundan ko'p)$/"
+    ],
+    [
+     "unlinked",
+     "text=/Не привязано к заказу|Buyurtmaga bog'lanmagan/"
+    ]
+   ],
+   "pnl": [
+    [
+     "plPeriod",
+     "role=button:/^(30 дней|30 kun)$/"
+    ],
+    [
+     "plResult",
+     "text=/^(ЗАРАБОТАЛИ ЗА ПЕРИОД|ПОТЕРЯЛИ ЗА ПЕРИОД|DAVR UCHUN FOYDA|DAVR UCHUN ZARAR)$/"
+    ],
+    [
+     "plGross",
+     "text=/^(ВАЛОВАЯ МАРЖА|YALPI MARJA)$/"
+    ],
+    [
+     "plNet",
+     "text=/^(ЧИСТАЯ МАРЖА|TOZA MARJA)$/"
+    ],
+    [
+     "plCost",
+     "text=/^(СЕБЕСТОИМОСТЬ|TANNARX)$/"
+    ],
+    [
+     "plExcel",
+     "role=button:/^Excel$/"
+    ],
+    [
+     "periods",
+     "role=button:/^(30 дней|30 kun)$/"
+    ],
+    [
+     "custom",
+     "role=button:/^(Период|Davr)$/"
+    ],
+    [
+     "earned",
+     "text=/ЗАРАБОТАЛИ ЗА ПЕРИОД|ПОТЕРЯЛИ ЗА ПЕРИОД|DAVR UCHUN FOYDA|DAVR UCHUN ZARAR/"
+    ],
+    [
+     "grossMargin",
+     "text=/^(ВАЛОВАЯ МАРЖА|YALPI MARJA)$/"
+    ],
+    [
+     "cogs",
+     "text=/^(СЕБЕСТОИМОСТЬ|TANNARX)$/"
+    ],
+    [
+     "expenses",
+     "text=/^(РАСХОДЫ|XARAJATLAR)$/"
+    ],
+    [
+     "monthly",
+     "text=/Динамика по месяцам|Oylar bo'yicha dinamika/"
+    ],
+    [
+     "excel",
+     "role=button:/^Excel$/"
+    ],
+    [
+     "pdf",
+     "role=button:/^PDF$/"
+    ],
+    [
+     "net",
+     "text=/ЗАРАБОТАЛИ ЗА ПЕРИОД|ПОТЕРЯЛИ ЗА ПЕРИОД|DAVR UCHUN FOYDA|DAVR UCHUN ZARAR/"
+    ],
+    [
+     "range",
+     "role=button:/^(Период|Davr)$/"
+    ]
+   ],
+   "salaries": [
+    [
+     "slRate",
+     "role=button:/^(Оклад|Maosh)$/ >> nth=0"
+    ],
+    [
+     "slSheet",
+     "role=button:/^(Ведомость|Vedomost)$/"
+    ],
+    [
+     "period",
+     "role=button:/^(Месяц|Oy)$/"
+    ],
+    [
+     "sheet",
+     "role=button:/^(Ведомость|Vedomost)$/"
+    ],
+    [
+     "fund",
+     "text=/^(ФОНД ОПЛАТЫ|ISH HAQI FONDI)$/"
+    ],
+    [
+     "composition",
+     "text=/^(СОСТАВ НАЧИСЛЕНИЯ|HISOBLASH TARKIBI)$/"
+    ],
+    [
+     "tabs",
+     "role=tab:/^(Выплаты|To'lovlar)/"
+    ],
+    [
+     "onlyDue",
+     "role=button:/Только с остатком|Faqat qoldiqli/"
+    ],
+    [
+     "pay",
+     "role=button:/^(Выплатить|To'lash)$/ >> nth=0"
+    ],
+    [
+     "salaryBtn",
+     "role=button:/^(Оклад|Maosh)$/ >> nth=0"
+    ],
+    [
+     "terms",
+     "css=[data-testid^=\"salary-edit-\"] >> nth=0"
+    ],
+    [
+     "payouts",
+     "testid=salaries-tab-payouts"
+    ]
+   ],
+   "audit-log": [
+    [
+     "auPayments",
+     "role=button:/^(Оплаты|To'lovlar)$/"
+    ],
+    [
+     "auOrg",
+     "role=button:/^(Организация|Tashkilot)$/"
+    ],
+    [
+     "auCsv",
+     "role=button:/^(Выгрузить CSV|CSV yuklab olish)$/"
+    ],
+    [
+     "filters",
+     "role=button:/^(Оплаты|To'lovlar)$/"
+    ],
+    [
+     "refresh",
+     "role=button:/^(Обновить|Yangilash)$/"
+    ],
+    [
+     "csv",
+     "role=button:/Выгрузить CSV|CSV yuklab olish/"
+    ],
+    [
+     "payments",
+     "role=button:/^(Оплаты|To'lovlar)$/"
+    ]
+   ],
+   "kpi-agent": [
+    [
+     "score",
+     "text=/^(Общий балл|Umumiy ball)$/"
+    ],
+    [
+     "breakdown",
+     "text=/^(Детализация балла|Ball tafsilotlari)$/"
+    ],
+    [
+     "fraud",
+     "text=/Подозрительная активность|Shubhali faoliyat/"
+    ],
+    [
+     "salary",
+     "text=/^(Зарплата|Oylik)$/ >> nth=0"
+    ],
+    [
+     "calc",
+     "text=/^(Детализация расчёта|Hisoblash tafsilotlari)$/"
+    ]
+   ],
+   "billing": [
+    [
+     "plan",
+     "text=/Активна ещё|Пробный период, осталось|Yana .* kun faol|Sinov muddati/"
+    ],
+    [
+     "usage",
+     "text=/Использование в этом месяце|Shu oydagi foydalanish/"
+    ],
+    [
+     "extras",
+     "text=/Докупить сверх тарифа|Tarifdan ortiq sotib olish/"
+    ],
+    [
+     "request",
+     "role=button:/Отправить заявку|Ariza yuborish/"
+    ],
+    [
+     "choose",
+     "text=/^(Выберите тариф|Tarifni tanlang)$/"
+    ]
+   ],
+   "kpi": [
+    [
+     "settings",
+     "role=button:/Настройка ЗП|Oylik sozlash/"
+    ],
+    [
+     "couriers",
+     "role=tab:/^(Курьеры|Kuryerlar)$/"
+    ]
+   ]
+  },
+  "operator": {
+   "products": [
+    [
+     "pImport",
+     "role=button:/^(Импорт|Import)$/"
+    ],
+    [
+     "pAdd",
+     "role=button:/^(Добавить|Qo'shish)$/"
+    ],
+    [
+     "pLow",
+     "text=/^(НИЗКИЙ ОСТАТОК|KAM QOLDIQ)$/"
+    ],
+    [
+     "pSearch",
+     "ph=/Поиск товаров|Mahsulot qidirish/"
+    ],
+    [
+     "add",
+     "role=button:/^(Добавить|Qo'shish)$/"
+    ],
+    [
+     "import",
+     "role=button:/^(Импорт|Import)$/"
+    ],
+    [
+     "search",
+     "ph=/Поиск товаров|Mahsulot qidirish/"
+    ],
+    [
+     "categories",
+     "role=button:/^(Категории|Kategoriyalar)$/"
+    ],
+    [
+     "low",
+     "text=/^(НИЗКИЙ ОСТАТОК|KAM QOLDIQ)$/"
+    ]
+   ],
+   "arrival-form": [
+    [
+     "arSupplier",
+     "text=/^(Без поставщика|Yetkazib beruvchisiz)$/"
+    ],
+    [
+     "arScan",
+     "testid=arrival-scan"
+    ],
+    [
+     "arProduct",
+     "text=/^(Выберите товар…|Mahsulot tanlang…)$/"
+    ],
+    [
+     "arQty",
+     "text=/^(Кол-во|Miqdor)$/ >> nth=0"
+    ],
+    [
+     "arBatch",
+     "ph=/^(необязательно|ixtiyoriy)$/ >> nth=0"
+    ],
+    [
+     "arExpiry",
+     "text=/^(Годен до|Muddati)$/ >> nth=0"
+    ],
+    [
+     "arAdd",
+     "role=button:/^(Добавить товар|Mahsulot qo'shish)$/"
+    ],
+    [
+     "truck",
+     "ph=/Номер машины|Mashina raqami/"
+    ],
+    [
+     "supplier",
+     "text=/Без поставщика|Yetkazib beruvchisiz/"
+    ],
+    [
+     "barcode",
+     "ph=/Штрих-код|Shtrix-kod/"
+    ],
+    [
+     "product",
+     "text=/Выберите товар|Mahsulot tanlang/"
+    ],
+    [
+     "expected",
+     "ph=/по накладной|hujjat bo'yicha/"
+    ],
+    [
+     "batch",
+     "text=/^(Партия|Partiya)$/"
+    ],
+    [
+     "addRow",
+     "role=button:/Добавить товар|Mahsulot qo'shish/"
+    ]
+   ],
+   "warehouse": [
+    [
+     "whAvail",
+     "text=/^(ДОСТУПНО|MAVJUD)$/"
+    ],
+    [
+     "whReserve",
+     "text=/^(РЕЗЕРВ|ZAHIRA)$/"
+    ],
+    [
+     "whThreshold",
+     "text=/^(ПОРОГ|CHEGARA)$/ >> nth=0"
+    ],
+    [
+     "whAdjust",
+     "role=button:/^(Скорректировать|Tuzatish)$/ >> nth=0"
+    ],
+    [
+     "whCounts",
+     "role=button:/^(Инвентаризация|Inventarizatsiya)/"
+    ],
+    [
+     "available",
+     "text=/^(ДОСТУПНО|MAVJUD)$/"
+    ],
+    [
+     "reserve",
+     "text=/^(РЕЗЕРВ|ZAHIRA)$/"
+    ],
+    [
+     "low",
+     "text=/^(Показать|Ko'rish)/"
+    ],
+    [
+     "adjust",
+     "text=/^(Скорректировать|Tuzatish)$/ >> nth=0"
+    ],
+    [
+     "transfers",
+     "text=/^(Перемещения|Ko'chirishlar)/"
+    ],
+    [
+     "inventory",
+     "text=/^(Инвентаризация|Inventarizatsiya)$/"
+    ],
+    [
+     "wh",
+     "role=combobox:/^(Склад|Ombor)$/"
+    ],
+    [
+     "total",
+     "text=/^(ВСЕГО|JAMI)$/"
+    ],
+    [
+     "counts",
+     "role=button:/^(Инвентаризация|Inventarizatsiya)$/"
+    ]
+   ],
+   "shops": [
+    [
+     "shImport",
+     "role=button:/^(Импорт|Import)$/"
+    ],
+    [
+     "shAdd",
+     "role=button:/^(Добавить|Qo'shish)$/"
+    ],
+    [
+     "shTerr",
+     "role=button:/^(Территории|Territoriyalar)$/ >> nth=0"
+    ],
+    [
+     "shDebt",
+     "text=/^(ОБЩИЙ ДОЛГ|UMUMIY QARZ)$/"
+    ],
+    [
+     "shOnlyDebt",
+     "role=button:/Только с долгом|Faqat qarzdorlar/"
+    ],
+    [
+     "add",
+     "role=button:/^(Добавить|Qo'shish)$/"
+    ],
+    [
+     "all",
+     "text=/^(Все магазины|Barcha do'konlar)$/ >> nth=0"
+    ],
+    [
+     "debtOnly",
+     "role=button:/Только с долгом|Faqat qarzdorlar/"
+    ]
+   ],
+   "orders": [
+    [
+     "archive",
+     "text=/^(Архив|Arxiv)$/"
+    ],
+    [
+     "check",
+     "css=table tbody tr td:first-child button >> nth=0"
+    ],
+    [
+     "work",
+     "role=button:/^(В работу|Jarayonga)$/ >> nth=0"
+    ]
+   ],
+   "order-panel": [
+    [
+     "adjustments",
+     "text=/^(Корректировки|Tuzatmalar)$/"
+    ],
+    [
+     "payments",
+     "text=/^(Оплаты|To'lovlar)$/"
+    ],
+    [
+     "courier",
+     "text=/^(КУРЬЕР|KURYER)$/"
+    ],
+    [
+     "debt",
+     "text=/Задолженность магазина|Do'kon qarzi/"
+    ]
+   ],
+   "quick-order": [
+    [
+     "products",
+     "ph=/Поиск товаров|Tovar qidirish/"
+    ],
+    [
+     "cart",
+     "text=/^(Корзина|Savat) \\(/"
+    ],
+    [
+     "next",
+     "role=button:/^(Далее|Keyingi)$/"
+    ]
+   ],
+   "loading-list-create": [
+    [
+     "bulk",
+     "text=/^(Загруз\\. лист|Yuklash varaqi)$/"
+    ],
+    [
+     "format",
+     "text=/^(Сводный|Yig'ma)$/"
+    ]
+   ],
+   "loading-lists": [
+    [
+     "status",
+     "text=/Готовится|Tayyorlanmoqda/ >> nth=0"
+    ],
+    [
+     "delete",
+     "css=[role=dialog] [aria-label=\"Удалить лист\"], [role=dialog] [aria-label=\"Varaqani o'chirish\"]"
+    ]
+   ],
+   "picking": [
+    [
+     "need",
+     "text=/^(Нужно|Kerak)$/"
+    ],
+    [
+     "short",
+     "text=/Всё по списку|Hammasi ro'yxat bo'yicha|Недостача|Kamomad/"
+    ]
+   ],
+   "arrivals": [
+    [
+     "counterparties",
+     "text=/Контрагенты и долги|Kontragentlar va qarzlar/"
+    ],
+    [
+     "supplierDebt",
+     "text=/ДОЛГ ПОСТАВЩИКАМ|YETKAZUVCHILARGA QARZ/"
+    ],
+    [
+     "unload",
+     "role=button:/^(Разгрузка|Tushirish)$/ >> nth=0"
+    ],
+    [
+     "finish",
+     "role=button:/^(Завершить|Yakunlash)$/ >> nth=0"
+    ]
+   ],
+   "returns": [
+    [
+     "filter",
+     "text=/на рассмотрении|ko'rib chiqilmoqda/"
+    ],
+    [
+     "excel",
+     "role=button:/Excel/"
+    ],
+    [
+     "status",
+     "text=/^(на рассмотрении|ko'rib chiqilmoqda)$/ >> nth=0"
+    ]
+   ],
+   "warehouse-reports": [
+    [
+     "period",
+     "css=[aria-label=\"Период\"], [aria-label=\"Davr\"]"
+    ],
+    [
+     "excel",
+     "role=button:/Excel/ >> nth=0"
+    ],
+    [
+     "expiry",
+     "text=/^(Сроки годности|Yaroqlilik muddati)$/"
+    ],
+    [
+     "expired",
+     "text=/^(Просрочено|Muddati o'tgan)$/"
+    ],
+    [
+     "urgent",
+     "text=/Горит: до 7 дней|Yonmoqda: 7 kungacha/"
+    ],
+    [
+     "soon",
+     "text=/^(Скоро|Tez orada)$/"
+    ]
+   ],
+   "barcode": [
+    [
+     "camera",
+     "text=/СКАНИРОВАТЬ КАМЕРОЙ|KAMERANI SKANERLASH/"
+    ],
+    [
+     "search",
+     "ph=/Поиск по коду|Kod bo'yicha qidirish/"
+    ]
+   ]
+  },
+  "supervisor": {
+   "map": [
+    [
+     "states",
+     "text=/На связи|Aloqada/ >> nth=0"
+    ],
+    [
+     "lastSignal",
+     "text=/Последний сигнал|Oxirgi signal|За сутки ни одного|Sutka davomida signal/"
+    ],
+    [
+     "refresh",
+     "role=button:/^(Обновить|Yangilash)$/"
+    ],
+    [
+     "showAll",
+     "role=button:/Показать всех|Hammasini ko'rsatish/"
+    ],
+    [
+     "shops",
+     "role=button:/^(Магазины|Do'konlar)$/ >> nth=1"
+    ],
+    [
+     "agent",
+     "text=/Был здесь|Shu yerda edi|Не выходил на связь|Sutka davomida aloqaga/ >> nth=0"
+    ]
+   ],
+   "plans": [
+    [
+     "create",
+     "role=button:/Создать план|Reja yaratish/"
+    ],
+    [
+     "dayTab",
+     "role=tab:/^(День|Kun)$/"
+    ],
+    [
+     "agentFilter",
+     "text=/^(Все агенты|Barcha agentlar)$/"
+    ],
+    [
+     "schedule",
+     "text=/Расписание визитов — задать один раз|Tashrif jadvali — bir marta/"
+    ],
+    [
+     "dayReview",
+     "role=button:/Как прошёл день|Kun qanday o'tdi/ >> nth=0"
+    ],
+    [
+     "visited",
+     "role=button:/^(Посещён|Tashrif)$/ >> nth=0"
+    ],
+    [
+     "skipped",
+     "role=button:/^(Пропущен|O'tkazildi)$/ >> nth=0"
+    ]
+   ],
+   "plans-month": [
+    [
+     "employee",
+     "text=/^(Сотрудник|Xodim)$/ >> nth=0"
+    ],
+    [
+     "what",
+     "text=/^(Что ставим|Nima qo'yamiz)$/"
+    ],
+    [
+     "skipPast",
+     "text=/Не заполнять прошедшие дни|O'tgan kunlarni to'ldirmaslik/"
+    ],
+    [
+     "run",
+     "role=button:/Расставить|Joylashtirish/"
+    ],
+    [
+     "grid",
+     "text=/План \\/ факт|Reja \\/ fakt/"
+    ],
+    [
+     "clear",
+     "role=button:/Убрать незакрытые|Yopilmaganlarni olib tashlash/"
+    ]
+   ],
+   "kpi": [
+    [
+     "row",
+     "css=table tbody tr >> nth=0"
+    ],
+    [
+     "period",
+     "role=button:/^(Месяц|Oy)$/"
+    ],
+    [
+     "territory",
+     "text=/^(Территория|Territoriya)$/"
+    ],
+    [
+     "noGps",
+     "text=/^(Без GPS|GPS yo'q)$/"
+    ],
+    [
+     "couriers",
+     "role=tab:/^(Курьеры|Kuryerlar)$/"
+    ],
+    [
+     "excel",
+     "role=button:/^Excel$/"
+    ]
+   ]
+  }
+ },
+ "mobile": {
+  "agent": {
+   "order-step2": [
+    [
+     "osSearch",
+     "ph=/Название или артикул|Nomi yoki artikuli/"
+    ],
+    [
+     "osStock",
+     "text=/^(Только в наличии|Faqat bor bo'lganlar)$/"
+    ],
+    [
+     "osDone",
+     "text=/^(Готово|Tayyor)$/"
+    ],
+    [
+     "search",
+     "ph=/Название или артикул|Nomi yoki artikuli/"
+    ],
+    [
+     "inStock",
+     "text=/^(Только в наличии|Faqat bor bo'lganlar)$/"
+    ],
+    [
+     "cart",
+     "css=[data-testid=picker-summary]"
+    ],
+    [
+     "done",
+     "css=[data-testid=picker-done]"
+    ]
+   ],
+   "home": [
+    [
+     "row",
+     "text=/^(Запланирован|Rejalashtirilgan|Посещён|Tashrif|Пропущен|O'tkazildi)$/ >> nth=0"
+    ],
+    [
+     "tabOrders",
+     "text=/^(Заказы|Buyurtmalar)$/ >> nth=0"
+    ],
+    [
+     "tabProfile",
+     "text=/^(Профиль|Profil)$/ >> nth=0"
+    ]
+   ],
+   "plan": [
+    [
+     "skip",
+     "text=/^(Отложить|Keyinga)$/ >> nth=0"
+    ],
+    [
+     "debts",
+     "text=/^(ДОЛГИ|QARZLAR)$/ >> nth=0"
+    ]
+   ],
+   "shops": [
+    [
+     "search",
+     "ph=/Поиск магазинов|Do'kon qidirish/"
+    ],
+    [
+     "all",
+     "text=/^(Все магазины|Barcha do'konlar)$/ >> nth=0"
+    ]
+   ],
+   "catalog": [
+    [
+     "search",
+     "ph=/Поиск товаров|Mahsulot qidirish/"
+    ],
+    [
+     "stock",
+     "text=/^(В наличии|Bor)$/ >> nth=0"
+    ]
+   ],
+   "order-step1": [
+    [
+     "search",
+     "ph=/Поиск по имени|Nomi, manzili/"
+    ],
+    [
+     "city",
+     "text=/^(Все города|Barcha shaharlar)$/"
+    ],
+    [
+     "shop",
+     "text=/^(Долг|Qarz): / >> nth=0"
+    ],
+    [
+     "next",
+     "text=/^(Продолжить|Davom etish) →$/"
+    ]
+   ],
+   "orders": [
+    [
+     "new",
+     "text=/^(Новый|Yangi)$/ >> nth=0"
+    ],
+    [
+     "order",
+     "text=/^ORD-/ >> nth=0"
+    ]
+   ],
+   "debts": [
+    [
+     "search",
+     "ph=/Магазин или номер заказа|Do'kon yoki buyurtma raqami/"
+    ],
+    [
+     "call",
+     "text=/^\\+998/ >> nth=0"
+    ]
+   ],
+   "gps": [
+    [
+     "share",
+     "text=/^(Поделиться геолокацией|Joylashuvni yuborish)$/"
+    ],
+    [
+     "auto",
+     "text=/^(Авто-слежение|Avto-kuzatuv)$/"
+    ]
+   ],
+   "salary": [
+    [
+     "period",
+     "text=/^(Месяц|Oy)$/ >> nth=0"
+    ],
+    [
+     "total",
+     "text=/^(ИТОГО|JAMI)$/"
+    ],
+    [
+     "accrued",
+     "text=/Начислено за период|Davr uchun hisoblangan/i"
+    ],
+    [
+     "parts",
+     "text=/Из чего сложилось|Nimadan tashkil topgan/i"
+    ],
+    [
+     "paid",
+     "text=/Выдано на руки за месяц|Oy davomida qo'lga berilgan/i"
+    ]
+   ],
+   "profile": [
+    [
+     "quota",
+     "text=/^(План на .+|.+ rejasi|Норма на этот месяц не назначена|Bu oyga norma qo'yilmagan)$/ >> nth=0"
+    ],
+    [
+     "save",
+     "text=/^(Сохранить профиль|Profilni saqlash)$/"
+    ]
+   ],
+   "notifications": [
+    [
+     "filter",
+     "text=/^(Непрочитанные|O'qilmagan)/ >> nth=0"
+    ]
+   ]
+  },
+  "supervisor": {
+   "map": [
+    [
+     "online",
+     "text=/^(НА СВЯЗИ|ALOQADA)$/"
+    ],
+    [
+     "all",
+     "text=/^(Все|Hammasi)$/"
+    ]
+   ],
+   "plans": [
+    [
+     "agentFilter",
+     "text=/^(Все агенты|Barcha agentlar)$/"
+    ]
+   ],
+   "targets": [
+    [
+     "emptyHint",
+     "text=/Создайте нормы в табе|Normani «Rejalar»/"
+    ]
+   ]
+  },
+  "courier": {
+   "home": [
+    [
+     "inTransit",
+     "text=/^(В ПУТИ|YO'LDA)$/ >> nth=0"
+    ],
+    [
+     "progress",
+     "text=/^(ПРОГРЕСС ДНЯ|KUN JARAYONI)$/"
+    ],
+    [
+     "tab",
+     "text=/^(Доставки|Yetkazish)$/ >> nth=1"
+    ]
+   ],
+   "deliveries": [
+    [
+     "map",
+     "text=/^(На карте|Xaritada)$/ >> nth=0"
+    ],
+    [
+     "cash",
+     "text=/^(Сумма наличных|Naqd summa)/ >> nth=0"
+    ]
+   ],
+   "deliver": [
+    [
+     "partial",
+     "text=/^(Частично оплачен|Qisman to'langan)$/"
+    ],
+    [
+     "return",
+     "text=/^(Возврат|Qaytarish)$/"
+    ],
+    [
+     "paySum",
+     "text=/^(Сумма|Summa): / >> nth=0"
+    ]
+   ],
+   "fail-reason": [
+    [
+     "title",
+     "text=/^(Почему не доставлено\\?|Nega yetkazilmadi\\?)$/"
+    ],
+    [
+     "closed",
+     "text=/^(Магазин закрыт|Do'kon yopiq)$/"
+    ],
+    [
+     "other",
+     "text=/^(Другое|Boshqa)$/"
+    ],
+    [
+     "cancel",
+     "text=/^(Отмена|Bekor)$/ >> nth=0"
+    ]
+   ],
+   "profile": [
+    [
+     "save",
+     "text=/^(Сохранить профиль|Profilni saqlash)$/"
+    ],
+    [
+     "pwd",
+     "text=/^(СМЕНА ПАРОЛЯ|PAROLNI O'ZGARTIRISH)$/"
+    ]
+   ]
+  },
+  "merchandiser": {
+   "home": [
+    [
+     "shops",
+     "text=/^(МАГАЗИНЫ|DO'KONLAR)$/"
+    ],
+    [
+     "gps",
+     "text=/^GPS$/"
+    ],
+    [
+     "tabPlan",
+     "text=/^(План|Reja)$/ >> nth=0"
+    ]
+   ],
+   "plan": [
+    [
+     "visits",
+     "text=/^(ВИЗИТЫ НА СЕГОДНЯ|BUGUNGI TASHRIFLAR)$/"
+    ],
+    [
+     "kpi",
+     "text=/^(ПОКАЗАТЕЛИ|KO'RSATKICHLAR)$/"
+    ]
+   ],
+   "visit-report": [
+    [
+     "photos",
+     "text=/^(Фотографии|Rasmlar)$/"
+    ],
+    [
+     "checklist",
+     "text=/^(Чек-лист|Ro'yxat)$/"
+    ],
+    [
+     "price",
+     "ph=/^(Цена|Narx)$/ >> nth=0"
+    ],
+    [
+     "promo",
+     "ph=/^(Акция|Aksiya)$/ >> nth=0"
+    ],
+    [
+     "finish",
+     "text=/^(Завершить визит|Tashrifni yakunlash)$/"
+    ]
+   ],
+   "shops": [
+    [
+     "search",
+     "ph=/Поиск магазинов|Do'kon qidirish/"
+    ],
+    [
+     "all",
+     "text=/^(Все магазины|Barcha do'konlar)$/ >> nth=0"
+    ]
+   ],
+   "profile": [
+    [
+     "quota",
+     "text=/^(План на .+|.+ rejasi|Норма на этот месяц не назначена|Bu oyga norma qo'yilmagan)$/ >> nth=0"
+    ],
+    [
+     "save",
+     "text=/^(Сохранить профиль|Profilni saqlash)$/"
+    ]
+   ]
+  }
+ }
+}
