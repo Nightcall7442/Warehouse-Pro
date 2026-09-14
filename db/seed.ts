@@ -475,6 +475,9 @@ async function seed() {
         productId: productIds[prodIdx],
         quantity: String(qty),
         unitPrice: productDefs[prodIdx].unitPrice!,
+        // Себестоимость — снимок на момент заказа: по ней P&L считает маржу.
+        // Без неё отчёт показывал «себестоимость 0» и валовую прибыль 100 %.
+        costPrice: productDefs[prodIdx].costPrice!,
         subtotal: String(itemSubtotal),
       });
     }
@@ -638,6 +641,42 @@ async function seed() {
     }
   }
   console.log(`✓ ${planCount} daily plans created\n`);
+
+  // ── Условия оплаты труда ─────────────────────────────────────────────────────
+  // Оклад, ставка комиссии, обед и дорожные лежат в строке commissions за месяц
+  // (kpi.setSalary). Без них ведомость зарплат показывает «оклад не задан» и
+  // нули — на снимке для лендинга это выглядело как пустая программа.
+  console.log("Creating pay terms...");
+  const payPeople: Array<{ userId: number; baseSalary: string; commissionRate: string; deliveryRate: string; courierPayMode: "per_delivery" | "percent"; meal: string; travel: string }> = [
+    ...agentIds.map(id => ({ userId: id, baseSalary: "2500000.00", commissionRate: "3.50", deliveryRate: "0.00", courierPayMode: "per_delivery" as const, meal: "20000.00", travel: "10000.00" })),
+    { userId: courier1Id, baseSalary: "2000000.00", commissionRate: "0.00", deliveryRate: "15000.00", courierPayMode: "per_delivery", meal: "20000.00", travel: "0.00" },
+    { userId: courier2Id, baseSalary: "2000000.00", commissionRate: "0.00", deliveryRate: "2.00", courierPayMode: "percent", meal: "20000.00", travel: "0.00" },
+    { userId: supervisorId, baseSalary: "3500000.00", commissionRate: "1.00", deliveryRate: "0.00", courierPayMode: "per_delivery", meal: "25000.00", travel: "15000.00" },
+  ];
+  let payCount = 0;
+  for (const back of [1, 0]) {
+    const now = new Date();
+    const first = new Date(now.getFullYear(), now.getMonth() - back, 1);
+    const last = new Date(now.getFullYear(), now.getMonth() - back + 1, 0);
+    for (const person of payPeople) {
+      await db.insert(schema.commissions).values({
+        tenantId,
+        userId: person.userId,
+        commissionRate: person.commissionRate,
+        deliveryRate: person.deliveryRate,
+        courierPayMode: person.courierPayMode,
+        baseSalary: person.baseSalary,
+        mealAllowance: person.meal,
+        travelAllowance: person.travel,
+        periodType: "monthly",
+        periodStart: first,
+        periodEnd: last,
+        status: back ? "paid" : "pending",
+      });
+      payCount++;
+    }
+  }
+  console.log(`✓ ${payCount} pay terms created\n`);
 
   // ── Agent Locations (30) ────────────────────────────────────────────────────
   console.log("Creating agent locations...");
