@@ -1,4 +1,5 @@
 import { getRedis, isRedisAvailable } from "./redis";
+import { env } from "./env";
 
 type Entry = { timestamps: number[] };
 
@@ -30,6 +31,7 @@ export type RateLimitOptions = {
  */
 export async function checkRateLimit(key: string | null, opts: RateLimitOptions): Promise<boolean> {
   if (key === null) return true;
+  if (env.rateLimitDisabled) return true; // нагрузочный стенд, см. env.ts
   if (isRedisAvailable()) {
     return checkRateLimitRedis(key, opts);
   }
