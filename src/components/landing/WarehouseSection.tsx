@@ -1,4 +1,4 @@
-import { Boxes, PackagePlus, ClipboardCheck, SlidersHorizontal, ArrowLeftRight, Gauge, AlarmClock, ShoppingCart, Warehouse, Undo2, Handshake, BarChart3, Database } from "lucide-react";
+import { Boxes, PackagePlus, ClipboardCheck, SlidersHorizontal, ArrowLeftRight, Gauge, AlarmClock, Warehouse, Undo2, Handshake, BarChart3, Database } from "lucide-react";
 import { useTranslate } from "@/i18n";
 import { LX, MONO } from "./landing-tokens";
 import { SectionHead } from "./landing-shared";
@@ -36,8 +36,7 @@ export default function WarehouseSection() {
     { I: SlidersHorizontal, t: tr("Корректировки", "Tuzatishlar"), d: tr("Каждая — с автором и временем; «просто поправить цифру» нельзя", "Har biri — muallif va vaqt bilan; «shunchaki raqamni to'g'rilash» yo'q") },
     { I: ArrowLeftRight, t: tr("Движения", "Harakatlar"), d: tr("Что пришло, что ушло, по какому документу", "Nima keldi, nima ketdi, qaysi hujjat bo'yicha") },
     { I: Gauge, t: tr("Оценка склада", "Ombor bahosi"), d: tr("Сколько денег лежит на полках прямо сейчас", "Hozir javonlarda qancha pul yotibdi") },
-    { I: AlarmClock, t: tr("Лежалый товар и сроки", "Turib qolgan mahsulot va muddatlar"), d: tr("Что не продавалось месяц и что скоро просрочится", "Bir oy sotilmagan va tez orada muddati o'tadigan") },
-    { I: ShoppingCart, t: tr("Подсказки дозаказа", "Qayta buyurtma maslahatlari"), d: tr("По скорости продаж — что заканчивается раньше, чем приедет", "Savdo tezligiga qarab — nima kelguncha tugab qoladi") },
+    { I: AlarmClock, t: tr("Лежалый товар и дозаказ", "Turib qolgan mahsulot va qayta buyurtma"), d: tr("Что не продавалось месяц, что скоро просрочится и что заканчивается раньше, чем приедет", "Bir oy sotilmagan, tez orada muddati o'tadigan va kelguncha tugab qoladigan") },
     { I: Warehouse, t: tr("Перемещения", "Ko'chirishlar"), d: tr("Между складами: создали, завершили — товар переехал", "Omborlar orasida: yaratdingiz, yakunladingiz — mahsulot ko'chdi") },
     { I: Undo2, t: tr("Возвраты", "Qaytarishlar"), d: tr("Отдельный документ после доставки — со статусами и сводкой", "Yetkazishdan keyin alohida hujjat — holatlar va xulosa bilan") },
     { I: Handshake, t: tr("Контрагенты", "Kontragentlar"), d: tr("Поставки, платежи поставщику, сверка взаиморасчётов", "Yetkazib beruvchi ta'minoti, to'lovlari, o'zaro hisob solishtiruvi") },
