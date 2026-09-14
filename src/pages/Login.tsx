@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router";
+import { safeNextPath } from "@/lib/safe-next";
 import { useAuth } from "@/hooks/useAuth";
 import { Eye, EyeOff, Loader2, Mail, Lock, AlertCircle, Building2 } from "lucide-react";
 import { useLang } from "@/i18n";
@@ -53,9 +54,8 @@ export default function Login() {
         живёт вне SPA и отправляет на вход сюда. Только свой путь: адрес
         вида //evil.com увёл бы человека наружу сразу после ввода пароля.
       */
-      const next = new URLSearchParams(window.location.search).get("next") ?? "";
-      const safe = /^\/(?!\/)/.test(next) ? next : null;
-      if (safe?.startsWith("/manual")) window.location.replace(safe); // вне SPA
+      const safe = safeNextPath(new URLSearchParams(window.location.search).get("next") ?? "", window.location.origin);
+      if (safe?.startsWith("/manual/")) window.location.replace(safe); // вне SPA
       else navigate(safe ?? ROLE_ROUTES[user.role] ?? "/", { replace: true });
     }
   }, [user, isLoading, navigate]);
