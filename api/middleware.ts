@@ -418,6 +418,19 @@ export const agentQuery = fieldSalesQuery;
 export const selfKpiQuery = authedQuery
   .use(requireRole(["ceo", "operator", "agent", "supervisor", "merchandiser", "courier"]));
 
+/*
+  Один заказ по номеру — всем, кто с ним работает, включая курьера.
+
+  Экран «Оформить подробно» на телефоне курьера читает заказ через
+  order.getById, а та стояла под fieldSalesQuery — без курьера. Ответ 403
+  телефон показывал как «сбой связи», и частичная оплата с возвратом у двери
+  не работали никогда. Что именно видит курьер, ограничивает viewerScope в
+  services/order-shared.ts: только заказы, назначенные ему.
+*/
+export const orderReaderQuery = authedQuery
+  .use(requireRole(["ceo", "operator", "agent", "supervisor", "merchandiser", "courier"]))
+  .use(mutationRateLimit("agent", 200));
+
 export const supervisorQuery = authedQuery.use(requireRole(["ceo", "supervisor"])).use(mutationRateLimit("supervisor", 120));
 export const merchQuery      = authedQuery.use(requireRole(["ceo", "supervisor", "merchandiser"]));
 export const courierQuery    = authedQuery.use(requireRole(["ceo", "operator", "courier"])).use(mutationRateLimit("courier", 200));

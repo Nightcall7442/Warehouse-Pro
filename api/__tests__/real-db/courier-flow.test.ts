@@ -95,4 +95,19 @@ describe.skipIf(!hasRealDb)("курьер: назначить → выехал �
     const [[shop]] = await (db as any).execute(sql`SELECT debt FROM shops WHERE id = ${s.shopId}`) as unknown as [Array<{ debt: string }>];
     expect(Number(shop.debt)).toBe(0);
   });
+
+  it("курьер читает свой заказ (экран «Оформить подробно»), чужой — нет", async () => {
+    /*
+      order.getById стояла без курьера: телефон получал 403, показывал «сбой
+      связи», и частичная оплата с возвратом у двери не работали никогда.
+    */
+    const orders = (await import("../../order-router")).orderRouter;
+    const asCourierOrders = orders.createCaller(ctxFor(db, s.tenantId, s.courierId, "courier"));
+    // Ещё не назначен — заказа «нет» (null), как и для агента с чужим заказом.
+    await expect(asCourierOrders.getById({ id: orderId })).resolves.toBeNull();
+    await (await asOperator()).assignCourier({ orderId, courierId: s.courierId });
+    const mine = await asCourierOrders.getById({ id: orderId });
+    expect(mine).toMatchObject({ id: orderId, courierId: s.courierId });
+    expect(Array.isArray((mine as { items: unknown[] }).items)).toBe(true);
+  });
 });
