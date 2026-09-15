@@ -1,4 +1,4 @@
-import { Store } from "lucide-react";
+import { Store, type LucideIcon } from "lucide-react";
 import { shopTile, shopInitials } from "@/lib/shop-avatar";
 
 /**
@@ -9,9 +9,14 @@ import { shopTile, shopInitials } from "@/lib/shop-avatar";
  * Инициалы различают точки между собой, значок лавки остаётся водяным знаком —
  * чтобы плашка читалась как «фото магазина», а не как аватар человека.
  */
-export function ShopAvatar({ id, name, size }: { id: number; name: string; size: number }) {
+export function ShopAvatar({ id, name, size, icon: Icon = Store, initials = shopInitials(name) }: {
+  id: number; name: string; size: number;
+  /** Водяной знак: лавка у магазина, коробка у товара — плашка одна на обоих. */
+  icon?: LucideIcon;
+  /** Инициалы, если считаются иначе (у товара — мимо веса в начале названия). */
+  initials?: string;
+}) {
   const [from, to] = shopTile(id);
-  const initials = shopInitials(name);
 
   return (
     <div
@@ -24,7 +29,7 @@ export function ShopAvatar({ id, name, size }: { id: number; name: string; size:
     >
       {/* Водяной знак: лавка крупно и почти прозрачно, сдвинута в угол —
           читается как фактура, а не как второй значок поверх первого. */}
-      <Store
+      <Icon
         size={Math.round(size * 0.92)}
         color="#fff"
         strokeWidth={1.25}
@@ -46,7 +51,7 @@ export function ShopAvatar({ id, name, size }: { id: number; name: string; size:
             {initials}
           </span>
         )
-        : <Store size={Math.round(size * 0.42)} color="#fff" style={{ position: "relative", opacity: 0.9 }} />}
+        : <Icon size={Math.round(size * 0.42)} color="#fff" style={{ position: "relative", opacity: 0.9 }} />}
     </div>
   );
 }

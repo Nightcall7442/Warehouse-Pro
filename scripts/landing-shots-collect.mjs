@@ -24,7 +24,7 @@ const OUT = process.argv[3] ?? join("docs", "landing", "shots");
 /** Что лендингу нужно. Ключ — kind/role/screen как в index.json. */
 export const WANTED = [
   "web/ceo/dashboard", "web/ceo/pnl", "web/ceo/reports", "web/ceo/salaries",
-  "web/operator/orders", "web/operator/picking", "web/operator/warehouse", "web/operator/quick-order", "web/operator/products",
+  "web/operator/orders", "web/operator/picking", "web/operator/warehouse", "web/operator/quick-order", "web/operator/products", "web/operator/product-detail",
   "web/supervisor/map", "web/supervisor/plans-month", "web/supervisor/kpi",
   "mobile/agent/home", "mobile/agent/catalog", "mobile/agent/order-step2", "mobile/agent/orders", "mobile/agent/shops",
   "mobile/agent/plan", "mobile/agent/debts", "mobile/agent/salary", "mobile/agent/gps",

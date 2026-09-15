@@ -10,8 +10,10 @@ import { compressImage } from "@/lib/compress-image";
 import { useTranslate, useLang } from "@/i18n";
 import { useConfirm } from "@/components/ConfirmDialog";
 import { format } from "date-fns";
-import { ArrowLeft, Package, Edit2, TrendingUp, TrendingDown, ArrowUpDown, Loader2, Camera } from "lucide-react";
+import { ArrowLeft, Package, Edit2, TrendingUp, TrendingDown, ArrowUpDown, Loader2, Camera, Tag, Scale, Boxes, AlertCircle, CheckCircle2 } from "lucide-react";
 import { PhotoOrIcon } from "@/components/PhotoOrIcon";
+import { ShopAvatar } from "@/components/shops/ShopAvatar";
+import { productInitials } from "@/lib/shop-avatar";
 import { useAuth } from "@/hooks/useAuth";
 import { canOperate } from "@/lib/permissions";
 import { exportToExcel, formatMovementsForExport } from "@/lib/excel";
@@ -129,7 +131,7 @@ export default function ProductDetail() {
       {dialog}
       <div className="flex items-center justify-between flex-wrap gap-2">
         <button onClick={()=>navigate(`/products?page=${fromPage}${fromSearch ? `&search=${encodeURIComponent(fromSearch)}` : ""}${fromCategory ? `&category=${encodeURIComponent(fromCategory)}` : ""}`)} className="neo-btn flex items-center gap-2 py-1.5 px-3 text-sm">
-          <ArrowLeft size={18}/><span className="text-sm">{tr("Назад","Orqaga")}</span>
+          <ArrowLeft size={18}/><span className="text-sm">{tr("Товары","Mahsulotlar")}</span>
         </button>
         {canEdit && (
         <div className="flex gap-2">
@@ -145,26 +147,30 @@ export default function ProductDetail() {
           {/* Photo area */}
           <div className="flex-shrink-0">
             <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={handlePhotoUpload} />
+            {/* Та же плашка, что в списке и у магазина: 96 точек, тень вместо
+                обводки, без фото — цвет по номеру и инициалы. */}
             <div
-              className={`w-20 h-20 rounded-xl overflow-hidden flex items-center justify-center relative group border border-border-subtle ${canEdit ? "cursor-pointer" : ""}`}
-              style={{ background: "color-mix(in srgb, var(--color-primary) 8%, transparent)" }}
+              className={`relative group ${canEdit ? "cursor-pointer" : ""}`}
               onClick={canEdit ? () => fileRef.current?.click() : undefined}
               title={canEdit ? tr("Нажмите чтобы загрузить фото","Rasm yuklash uchun bosing") : undefined}
             >
-              {uploadPhoto.isPending ? (
-                <Loader2 size={28} className="text-primary animate-spin" />
-              ) : (
-                <PhotoOrIcon
-                  src={product.photoUrl}
-                  alt={product.name}
-                  className="w-full h-full object-cover"
-                  fallback={<Package size={28} className="text-primary" />}
-                />
-              )}
+              <div className="w-24 h-24 overflow-hidden flex items-center justify-center"
+                style={{ borderRadius: "26px", boxShadow: "var(--shadow-sm)", background: "var(--color-surface-light)" }}>
+                {uploadPhoto.isPending ? (
+                  <Loader2 size={28} className="animate-spin" style={{ color: "var(--color-primary-text)" }} />
+                ) : (
+                  <PhotoOrIcon
+                    src={product.photoUrl}
+                    alt={product.name}
+                    className="w-full h-full object-cover"
+                    fallback={<ShopAvatar id={product.id} name={product.name} size={96} icon={Package} initials={productInitials(product.name)} />}
+                  />
+                )}
+              </div>
               {canEdit && (
-              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1 rounded-xl">
+              <div className="absolute inset-0 bg-black/35 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1" style={{ borderRadius: "26px" }}>
                 <Camera size={18} color="#fff" />
-                <span className="text-white text-[10px] font-medium">{tr("Загрузить","Yuklash")}</span>
+                <span className="text-white text-[9px]">{tr("Фото","Rasm")}</span>
               </div>
               )}
             </div>
@@ -219,62 +225,78 @@ export default function ProductDetail() {
             ) : (
               <>
                 <div className="flex items-start gap-3">
-                  <div>
+                  <div className="min-w-0">
                     <h1 className="font-display text-xl font-bold text-primary tracking-tight">{product.name}</h1>
-                    <p className="font-data text-secondary text-sm">{product.code}</p>
+                    {product.code && <p className="font-data text-secondary text-sm mt-0.5">{product.code}</p>}
                   </div>
-                  <div className="ml-auto text-right">
-                    <span className="font-data text-xl text-primary font-bold">{fmt(product.unitPrice, {decimals:2})}/{unitLabel(product.unit)}</span>
+                  <div className="ml-auto text-right flex-shrink-0">
+                    <span className="font-data text-xl font-bold whitespace-nowrap" style={{ color: "var(--color-primary-text)" }}>{fmt(product.unitPrice, {decimals:2})}</span>
+                    <span className="text-xs text-secondary">/{unitLabel(product.unit)}</span>
                     {Number(product.costPrice) > 0 && (
-                      <p className="text-xs text-secondary mt-0.5">{tr("Себест.","Tannarx")}: {fmt(product.costPrice, {decimals:2})}</p>
+                      <p className="text-xs text-secondary mt-0.5 whitespace-nowrap">{tr("себест.","tannarx")} {fmt(product.costPrice, {decimals:2})}</p>
                     )}
                   </div>
                 </div>
-                <div className="flex items-center gap-2 mt-1 flex-wrap">
-                  {product.category && <span className="text-sm text-secondary">{product.category}</span>}
-                  {Number(product.unitWeight) > 0 && (
-                    <span className="text-xs px-2 py-0.5 rounded-full bg-surface-light text-secondary">
-                      1 {unitLabel(product.unit)} = {formatQty(product.unitWeight)} {tr("кг","kg")}
+                {/* Сведения строчкой со значками, как адрес и телефон у точки —
+                    не плашками: плашка обещает статус, а это справка. */}
+                <div className="flex items-center gap-4 mt-3 flex-wrap text-sm text-secondary">
+                  {product.category && <span className="flex items-center gap-1.5"><Tag size={13} />{product.category}</span>}
+                  {product.barcode && <span className="flex items-center gap-1.5 font-data">{product.barcode}</span>}
+                  {product.packSize != null && Number(product.packSize) > 0 && (
+                    <span className="flex items-center gap-1.5" data-testid="product-pack">
+                      <Boxes size={13} />1 {product.packLabel || tr("упаковка","qadoq")} = {formatQty(product.packSize)} {unitLabel(product.unit)}
                     </span>
                   )}
-                  {product.packSize != null && Number(product.packSize) > 0 && (
-                    <span className="text-xs px-2 py-0.5 rounded-full bg-surface-light text-secondary" data-testid="product-pack">
-                      1 {product.packLabel || tr("упаковка","qadoq")} = {formatQty(product.packSize)} {unitLabel(product.unit)}
+                  {Number(product.unitWeight) > 0 && (
+                    <span className="flex items-center gap-1.5">
+                      <Scale size={13} />1 {unitLabel(product.unit)} = {formatQty(product.unitWeight)} {tr("кг","kg")}
                     </span>
                   )}
                 </div>
-                {product.description && <p className="text-sm text-secondary mt-2">{product.description}</p>}
+                {product.description && <p className="text-sm text-secondary mt-3 leading-relaxed">{product.description}</p>}
               </>
             )}
           </div>
         </div>
 
-        {/* Stock summary */}
-        {stock && (
-          <div className={`mt-4 pt-4 border-t border-border-subtle grid grid-cols-3 gap-4 ${low?"border-danger/30":""}`}>
-            {[
-              {label:tr("Доступно","Mavjud"), value:formatQty(stock.available), danger:low},
-              {label:tr("Резерв","Zaxira"),  value:formatQty(stock.reserved),  danger:false},
-              {label:tr("Всего","Jami"),     value:formatQty(stock.currentStock), danger:false},
-            ].map(s=>(
-              <div key={s.label} className="text-center">
-                <p className={`font-data text-2xl font-bold ${s.danger?"text-danger":"text-primary"}`}>{s.value}</p>
-                <p className="font-label text-secondary text-[10px] tracking-wide">{unitLabel(product.unit).toUpperCase()} {s.label.toUpperCase()}</p>
+      </div>
+
+      {/* Остаток — своим блоком, как «Текущий долг» у магазина: это то, ради
+          чего карточку открывают, и тонуть среди сведений ему незачем. */}
+      {stock && (
+        <div className="neo-card p-5"
+          style={low ? { borderColor: "color-mix(in srgb, var(--color-danger) 35%, transparent)" } : undefined}>
+          <div className="flex items-center justify-between flex-wrap gap-4">
+            <div>
+              <p className="font-label text-[10px] tracking-wider mb-1"
+                style={{ color: low ? "var(--color-danger-text)" : "var(--color-text-tertiary, #6b6760)" }}>
+                {tr("СВОБОДНЫЙ ОСТАТОК","BO'SH QOLDIQ")}
+              </p>
+              <div className="flex items-center gap-2">
+                {low
+                  ? <AlertCircle size={18} className="text-danger" />
+                  : <CheckCircle2 size={18} className="text-success" />}
+                <span className={`font-data text-3xl font-bold ${low ? "text-danger" : "text-primary"}`}>
+                  {formatQty(stock.available)} <span className="text-base font-medium text-secondary">{unitLabel(product.unit)}</span>
+                </span>
               </div>
-            ))}
-            {Number(product.unitWeight) > 0 && (
-              <div className="col-span-3 mt-2 pt-2 border-t border-border-subtle/50 flex items-center justify-between">
-                <span className="text-xs text-secondary">{tr("Общий вес на складе (для сверки)","Ombordagi umumiy vazn (tekshirish uchun)")}</span>
-                <span className="font-data text-sm font-bold text-primary">{formatQty(totalWeightKg)} {tr("кг","kg")}</span>
-              </div>
-            )}
+              {low && (
+                <p className="text-xs text-danger mt-1 font-medium">{tr("Ниже точки дозаказа","Qayta buyurtma nuqtasidan past")} ({formatQty(product.reorderPoint, 0)} {unitLabel(product.unit)})</p>
+              )}
+            </div>
+            <div className="flex gap-6">
+              {[
+                {label:tr("Резерв","Zaxira"), value:`${formatQty(stock.reserved)} ${unitLabel(product.unit)}`},
+                {label:tr("Всего","Jami"),   value:`${formatQty(stock.currentStock)} ${unitLabel(product.unit)}`},
+                ...(Number(product.unitWeight) > 0 ? [{label:tr("Вес на складе","Ombordagi vazn"), value:`${formatQty(totalWeightKg)} ${tr("кг","kg")}`}] : []),
+              ].map(x=>(
+                <div key={x.label} className="text-right">
+                  <p className="font-data text-lg font-bold text-primary whitespace-nowrap">{x.value}</p>
+                  <p className="font-label text-secondary text-[10px] tracking-wide">{x.label.toUpperCase()}</p>
+                </div>
+              ))}
+            </div>
           </div>
-        )}
-
-        {low && (
-          <p className="text-xs text-danger mt-3 font-medium">⚠ {tr("Ниже точки дозаказа","Qayta buyurtma nuqtasidan past")} ({formatQty(product.reorderPoint, 0)} {unitLabel(product.unit)})</p>
-        )}
-
         {/*
           Из чего сложился остаток.
 
@@ -327,7 +349,8 @@ export default function ProductDetail() {
             </div>
           </div>
         )}
-      </div>
+        </div>
+      )}
 
       {/* Movement history */}
       <div className="neo-card">

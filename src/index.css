@@ -410,7 +410,8 @@
      transparent hit area around a 28px visible pill, so the hover feedback
      has to live on the parent (JS mouseenter/leave has nothing to grab onto
      when the styled element isn't the one being hovered). */
-  button:hover > .product-delete-pill { background: rgba(232,80,80,0.2); }
+  /* Корзинка в строке товара: тихая, пока на неё не навели. */
+  .product-delete:hover { color: var(--color-danger-text); background: var(--color-danger-subtle); }
 
 
   /* ══════════════════════════════════════════════════════════════════════

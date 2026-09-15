@@ -66,3 +66,28 @@ export function shopInitials(name: string): string {
   if (words.length === 1) return words[0].slice(0, 2).toUpperCase();
   return (words[0][0] + words[1][0]).toUpperCase();
 }
+
+/**
+ * Инициалы товара — только из слов, начинающихся с буквы.
+ *
+ * У товара название часто открывается числом: «1.35кг Täç «Восстановление»»,
+ * «0,5 л Coca-Cola». Инициалы «1T» ничего не говорят — вес одинаков у половины
+ * полки. Берём первые два слова, которые начинаются с буквы; без них — пусто,
+ * и рисуется коробка.
+ */
+export function productInitials(name: string): string {
+  const words = name
+    // Дефис — последним в классе: посередине он задаёт диапазон, и «\\-«»
+    // молча накрывал всю латиницу — Coca-Cola резалась на буквы.
+    .split(/[\s,./\\«»"'()-]+/)
+    .map(w => w.replace(/[^\p{L}\p{N}]/gu, ""))
+    .filter(w => w && /^\p{L}/u.test(w));
+  // «0,5 л Coca-Cola» — «л» это единица, а не имя; слова из одной буквы
+  // берём только когда других нет.
+  const long = words.filter(w => w.length > 1);
+  const pick = long.length > 0 ? long : words;
+
+  if (pick.length === 0) return "";
+  if (pick.length === 1) return pick[0].slice(0, 2).toUpperCase();
+  return (pick[0][0] + pick[1][0]).toUpperCase();
+}

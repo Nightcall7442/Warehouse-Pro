@@ -1,5 +1,5 @@
 import { Search, Settings2 } from "lucide-react";
-import { COLORS } from "./constants";
+import { COLORS, SHADOW } from "./constants";
 import { CategorySelector } from "./CategorySelector";
 
 export interface ProductFiltersProps {
@@ -15,7 +15,12 @@ export interface ProductFiltersProps {
 export function ProductFilters({ search, onSearchChange, category, onCategoryChange, categories, lang, onManageCategories }: ProductFiltersProps) {
   const t = (ru: string, uz: string) => lang === "uz" ? uz : ru;
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+    // Та же панель, что у фильтров магазинов: поиск и отбор лежат на своей
+    // карточке, а не висят в воздухе между показателями и списком.
+    <div style={{
+      background: COLORS.surface, borderRadius: "16px", padding: "16px 20px",
+      boxShadow: SHADOW, display: "flex", flexDirection: "column", gap: "12px",
+    }}>
       <div style={{ display: "flex", gap: "12px", flexWrap: "wrap", alignItems: "center" }}>
         <div style={{ position: "relative", flex: 1, minWidth: "200px" }}>
           <Search size={16} style={{ position: "absolute", left: "12px", top: "50%", transform: "translateY(-50%)", color: COLORS.textSecondary }} />
