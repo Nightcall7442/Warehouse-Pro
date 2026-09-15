@@ -12,7 +12,10 @@ import path from "node:path";
  *     display:contents инлайном, а инлайновый стиль перебивает общее правило
  *     [data-lang]{display:none};
  *   · из руководства некуда было вернуться в программу — только адресной
- *     строкой.
+ *     строкой;
+ *   · «справка только на русском»: кнопки RU/UZ несли тот же data-lang, что и
+ *     текст, и общее правило прятало кнопку чужого языка — переключиться
+ *     было некуда. У кнопок свой атрибут data-pick, правило их не касается.
  *
  * Проверяются оба файла: собранный docs/manual/index.html (его и отдаёт
  * сервер) и сборщик scripts/build_manual.py (иначе следующая сборка со
@@ -20,6 +23,7 @@ import path from "node:path";
  */
 const read = (p: string) => readFileSync(path.resolve(process.cwd(), p), "utf8");
 const FILES = { "docs/manual/index.html": read("docs/manual/index.html"), "scripts/build_manual.py": read("scripts/build_manual.py") };
+const READER = { "docs/manual/reader.js": read("docs/manual/reader.js"), "scripts/build_manual.py": FILES["scripts/build_manual.py"] };
 
 describe("фишки ролей — на одном языке", () => {
   for (const [name, src] of Object.entries(FILES)) {
@@ -84,4 +88,29 @@ describe("ряд помещается", () => {
       expect(laptop).toMatch(/\.chips button \{ font-size:12px/);
     }
   });
+});
+
+describe("переключатель RU/UZ виден на любом языке", () => {
+  for (const [name, src] of Object.entries(FILES)) {
+    it(`${name}: две кнопки, и ни одна не помечена data-lang`, () => {
+      const toggle = src.match(/<div class='lang'>([\s\S]*?)<\/div>/)?.[1] ?? "";
+      expect(toggle, "переключателя языка нет").not.toBe("");
+      expect(toggle.match(/<button/g) ?? [], "кнопок должно быть две").toHaveLength(2);
+      // data-lang на кнопке = её спрячет [data-lang]{display:none} в чужом языке.
+      expect(toggle, "кнопка языка снова несёт data-lang").not.toMatch(/data-lang=/);
+      expect(toggle).toContain("data-pick='ru'");
+      expect(toggle).toContain("data-pick='uz'");
+    });
+  }
+
+  for (const [name, src] of Object.entries(READER)) {
+    it(`${name}: читалка подсвечивает и переключает по data-pick`, () => {
+      const handlers = src.match(/querySelectorAll\("\.lang button"\)[^\n]*/g) ?? [];
+      expect(handlers.length, "обработчиков кнопок языка должно быть два: подсветка и клик").toBe(2);
+      for (const h of handlers) {
+        expect(h).toContain("dataset.pick");
+        expect(h).not.toContain("dataset.lang");
+      }
+    });
+  }
 });

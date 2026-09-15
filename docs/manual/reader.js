@@ -38,7 +38,7 @@ window.CHAPTERS=[{"id": "about", "group": null}, {"id": "rollout", "group": "grp
       if (a.classList.contains("sub")) a.classList.toggle("hide", a.dataset.id !== state.id);
     });
     document.querySelectorAll(".chips button").forEach(function (b) { b.classList.toggle("on", b.dataset.id === state.id); });
-    document.querySelectorAll(".lang button").forEach(function (b) { b.classList.toggle("on", b.dataset.lang === state.lang); });
+    document.querySelectorAll(".lang button").forEach(function (b) { b.classList.toggle("on", b.dataset.pick === state.lang); });
     var input = document.querySelector(".search input");
     input.placeholder = input.getAttribute("data-ph-" + state.lang); input.setAttribute("aria-label", input.placeholder);
     var grp = CH[i].group ? (TITLES[state.lang][CH[i].group] + " › ") : "";
@@ -77,7 +77,7 @@ window.CHAPTERS=[{"id": "about", "group": null}, {"id": "rollout", "group": "grp
     if (img) { openLightbox(img); return; }
     if (e.target.closest(".lightbox")) closeLightbox();
   });
-  document.querySelectorAll(".lang button").forEach(function (b) { b.addEventListener("click", function () { state.lang = b.dataset.lang; render(null, true); }); });
+  document.querySelectorAll(".lang button").forEach(function (b) { b.addEventListener("click", function () { state.lang = b.dataset.pick; render(null, true); }); });
   document.querySelector(".print-btn").addEventListener("click", function () { window.print(); });
   window.addEventListener("popstate", function () { var p = parseHash(); if (!p) return; if (p.lang) state.lang = p.lang; state.id = p.id; render(p.sub, false); });
 
