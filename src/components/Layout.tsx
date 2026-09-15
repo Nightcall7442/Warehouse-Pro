@@ -12,7 +12,6 @@ import { TrialBanner } from "@/components/TrialBanner";
 import { OfflineQueueBadge } from "@/components/OfflineQueueBadge";
 import { useTheme } from "@/hooks/useTheme";
 import { useLang } from "@/i18n";
-import { useWarehouse } from "@/providers/WarehouseContext";
 import { trpc } from "@/providers/trpc";
 import {
   LayoutDashboard, Store, Package, ClipboardList, Truck,
@@ -21,7 +20,6 @@ import {
   TrendingUp, CreditCard, ChevronLeft, Bell, Zap, Wallet, LifeBuoy, BookOpen,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import { PremiumSelect } from "@/components/PremiumSelect";
 
 const iconMap: Record<string, LucideIcon> = {
   LayoutDashboard, Store, Package, ClipboardList, Truck,
@@ -107,7 +105,6 @@ const Sidebar = memo(function Sidebar({ onClose, unreadCount = 0 }: { onClose?: 
   const { user, logout } = useAuth();
   const { theme, toggle } = useTheme();
   const { lang, setLang, t } = useLang();
-  const { selectedId, setSelectedId, warehouses, isLoading: whLoading } = useWarehouse();
   const location = useLocation();
   const navigate = useNavigate();
   const role     = user?.role ?? "agent";
@@ -136,7 +133,6 @@ const Sidebar = memo(function Sidebar({ onClose, unreadCount = 0 }: { onClose?: 
   const { data: manual } = trpc.tenant.manualAccess.useQuery(undefined, { staleTime: 5 * 60_000 });
   const manualHref = `/manual/#${lang}/${MANUAL_CHAPTER[role] ?? "about"}`;
   const items = useMemo(() => NAV_ITEMS[role] ?? [], [role]);
-  const showWarehouseSelector = role === "ceo" || role === "operator";
 
   return (
     <div className="flex flex-col h-full sidebar-collapse-transition" style={{ background: "var(--color-surface, #efedea)" }}>
@@ -189,27 +185,12 @@ const Sidebar = memo(function Sidebar({ onClose, unreadCount = 0 }: { onClose?: 
         </div>
       </div>
 
-      {/* Warehouse selector */}
-      {showWarehouseSelector && warehouses.length > 0 && (
-        <div className="px-4 pb-2">
-          <label className="block" style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--color-text-tertiary, #6b6760)", marginBottom: "6px" }}>
-            {t("nav.warehouse")}
-          </label>
-          <PremiumSelect
-            value={selectedId != null ? String(selectedId) : ""}
-            onChange={v => setSelectedId(Number(v))}
-            disabled={whLoading}
-            aria-label={t("nav.warehouse")}
-            width="100%"
-            placeholder={t("warehouse.allWarehouses")}
-            options={[
-              { value: "", label: t("warehouse.allWarehouses") },
-              ...warehouses.map(w => ({ value: String(w.id), label: `${w.name}${w.isDefault ? " ★" : ""}` })),
-            ]}
-          />
-        </div>
-      )}
-
+      {/*
+        Селектора склада здесь больше нет. Он стоял в меню как глобальный, а
+        слушала его одна страница — «Склад»; каталог, заказы и отчёты считали
+        основной склад. Владелец (16.09.2026): при одном складе — ничего не
+        показывать, при нескольких — выбор на самой странице склада.
+      */}
       {/* Navigation */}
       <nav className="flex-1 py-2 overflow-y-auto premium-scrollbar">
         {items.map(item => {

@@ -48,11 +48,14 @@ export function StockCounts({ warehouses }: { warehouses: Warehouse[] }) {
   return (
     <div className="space-y-4">
       <div className="neo-card p-5 flex flex-wrap items-end gap-3">
-        <div className="min-w-[220px]">
-          <p className="text-[10px] font-semibold tracking-wider uppercase mb-2" style={{ color: COLORS.textTertiary }}>{t("Склад", "Ombor")}</p>
-          <PremiumSelect value={warehouseId} onChange={setWarehouseId} width="100%"
-            options={warehouses.map(w => ({ value: String(w.id), label: w.name }))} />
-        </div>
+        {/* Выбор склада — только когда есть из чего выбирать. */}
+        {warehouses.length > 1 && (
+          <div className="min-w-[220px]">
+            <p className="text-[10px] font-semibold tracking-wider uppercase mb-2" style={{ color: COLORS.textTertiary }}>{t("Склад", "Ombor")}</p>
+            <PremiumSelect value={warehouseId} onChange={setWarehouseId} width="100%"
+              options={warehouses.map(w => ({ value: String(w.id), label: w.name }))} />
+          </div>
+        )}
         <button className="neo-btn-primary tap flex items-center gap-2" disabled={!warehouseId || create.isPending}
           onClick={() => create.mutate({ warehouseId: Number(warehouseId) })} data-testid="stock-count-new">
           <Plus size={16} /> {t("Новая инвентаризация", "Yangi inventarizatsiya")}

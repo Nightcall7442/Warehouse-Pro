@@ -129,8 +129,12 @@ export const warehouseRouter = createRouter({
     }),
 
   // ── Stock Valuation ─────────────────────────────────────────────────────────
+  // warehouseId — по одному складу; без него — по всем. Экран передаёт склад
+  // явно, когда складов больше одного: сумма «по всем» без подписи — вторая
+  // правда рядом с каталогом, который считает только основной.
   valuation: operatorQuery
-    .query(async ({ ctx }) => {
+    .input(z.object({ warehouseId: z.number().int().positive().optional() }).optional())
+    .query(async ({ input, ctx }) => {
       const db = ctx.db;
       const tenantId = ctx.tenant.id;
 
@@ -141,14 +145,14 @@ export const warehouseRouter = createRouter({
       })
         .from(warehouseStock)
         .leftJoin(products, and(eq(warehouseStock.productId, products.id), eq(products.tenantId, ctx.tenant.id)))
-        .where(eq(warehouseStock.tenantId, tenantId));
+        .where(and(eq(warehouseStock.tenantId, tenantId), ...(input?.warehouseId ? [eq(warehouseStock.warehouseId, input.warehouseId)] : [])));
 
       return summary ?? { totalCostValue: "0", totalRetailValue: "0", totalUnits: "0" };
     }),
 
   // ── Dead Stock — products with stock but no orders in last N days ──────────
   deadStock: operatorQuery
-    .input(z.object({ days: z.number().default(30) }).optional())
+    .input(z.object({ days: z.number().default(30), warehouseId: z.number().int().positive().optional() }).optional())
     .query(async ({ input, ctx }) => {
       const db = ctx.db;
       const tenantId = ctx.tenant.id;
@@ -174,6 +178,7 @@ export const warehouseRouter = createRouter({
         .leftJoin(orders, eq(orderItems.orderId, orders.id))
         .where(and(
           eq(warehouseStock.tenantId, tenantId),
+          ...(input?.warehouseId ? [eq(warehouseStock.warehouseId, input.warehouseId)] : []),
           sql`${warehouseStock.currentStock} > 0`,
           sql`(${orders.tenantId} IS NULL OR ${orders.tenantId} = ${tenantId})`,
         ))
@@ -183,7 +188,9 @@ export const warehouseRouter = createRouter({
     }),
 
   // ── Auto-Replenishment Suggestions ──────────────────────────────────────────
-  reorderSuggestions: operatorQuery.query(async ({ ctx }) => {
+  reorderSuggestions: operatorQuery
+    .input(z.object({ warehouseId: z.number().int().positive().optional() }).optional())
+    .query(async ({ input, ctx }) => {
     const db = ctx.db;
     const tenantId = ctx.tenant.id;
     const days30 = new Date(Date.now() - 30 * 86400000).toISOString();
@@ -204,6 +211,7 @@ export const warehouseRouter = createRouter({
       .leftJoin(products, and(eq(warehouseStock.productId, products.id), eq(products.tenantId, ctx.tenant.id)))
       .where(and(
         eq(warehouseStock.tenantId, tenantId),
+        ...(input?.warehouseId ? [eq(warehouseStock.warehouseId, input.warehouseId)] : []),
         lowStockCondition(),
       ))
       .orderBy(sql`${warehouseStock.available} / NULLIF(${products.reorderPoint}, 0)`);

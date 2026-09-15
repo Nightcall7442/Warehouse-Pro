@@ -22,6 +22,7 @@ import { colorMix } from "@/lib/color-mix";
 
 import { SearchInput } from "@/components/SearchInput";
 import { StockTransfers } from "@/components/warehouse/StockTransfers";
+import { WarehouseCompare } from "@/components/warehouse/WarehouseCompare";
 import { StockCounts } from "@/components/warehouse/StockCounts";
 import { DemandForecast } from "@/components/warehouse/DemandForecast";
 // warehouseMulti.getStock is raw SQL behind db.execute, so tRPC infers its rows
@@ -57,7 +58,12 @@ export default function Warehouse() {
   const isMobile = useIsMobile();
   const t = useTranslate();
   const { confirm, dialog } = useConfirm();
-  const { selectedId: warehouseId } = useWarehouse();
+  /*
+    Склад — с этой страницы, а не из бокового меню (там селектора больше нет).
+    При одном складе выбора не видно вовсе; при нескольких — фишки под
+    заголовком, и они же управляют показателями, списком и правкой остатка.
+  */
+  const { selectedId: warehouseId, setSelectedId, warehouses, multi } = useWarehouse();
 
   // Строка живёт в SearchInput: страница на 700+ строк не должна
   // перерисовываться на каждую набранную букву.
@@ -68,7 +74,7 @@ export default function Warehouse() {
   // `unit` is captured for the adjust dialog, which today renders quantities
   // without a unit label — AdjustModal takes no unit prop yet.
   const [adjusting, setAdjusting] = useState<{ id: number; name: string; stock: number; unit: string; unitWeight: number } | null>(null);
-  const [activeTab, setActiveTab] = useState<"stock" | "deadstock" | "reorder" | "forecast" | "transfers" | "counts">("stock");
+  const [activeTab, setActiveTab] = useState<"stock" | "deadstock" | "reorder" | "forecast" | "transfers" | "compare" | "counts">("stock");
   const [deadStockDays, setDeadStockDays] = useState(30);
   const [showLowStock, setShowLowStock] = useState(false);
 
@@ -79,9 +85,12 @@ export default function Warehouse() {
     // ввод — именно это и выглядело как перезагрузка.
     placeholderData: keepPreviousData,
   });
-  const { data: valuation, isLoading: valLoading } = trpc.warehouse.valuation.useQuery();
-  const { data: reorderSuggestions } = trpc.warehouse.reorderSuggestions.useQuery();
-  const { data: deadStockItems, isLoading: deadStockLoading } = trpc.warehouse.deadStock.useQuery({ days: deadStockDays });
+  // Показатели — по выбранному складу, как и список: иначе «стоимость склада»
+  // складывала все склады, а «остатки» показывали один.
+  const whArg = multi ? { warehouseId: warehouseId ?? undefined } : {};
+  const { data: valuation, isLoading: valLoading } = trpc.warehouse.valuation.useQuery(whArg);
+  const { data: reorderSuggestions } = trpc.warehouse.reorderSuggestions.useQuery(whArg);
+  const { data: deadStockItems, isLoading: deadStockLoading } = trpc.warehouse.deadStock.useQuery({ days: deadStockDays, ...whArg });
   const utils = trpc.useUtils();
 
   /*
@@ -185,8 +194,7 @@ export default function Warehouse() {
     Список складов нужен и самой вкладке (имена вместо номеров в маршруте), и
     счётчику на ней. Оба запроса лёгкие: складов у арендатора единицы.
   */
-  const warehousesQ = trpc.warehouseMulti.list.useQuery();
-  const pendingQ = trpc.warehouseMulti.listTransfers.useQuery({ status: "pending", limit: 100 });
+  const pendingQ = trpc.warehouseMulti.listTransfers.useQuery({ status: "pending", limit: 100 }, { enabled: multi });
   const pendingTransfers = pendingQ.data?.length ?? 0;
 
   const tabs = useMemo(() => [
@@ -204,10 +212,15 @@ export default function Warehouse() {
       взгляд вперёд.
     */
     { key: "forecast" as const, label: t("Прогноз", "Prognoz"), count: 0 },
-    { key: "transfers" as const, label: t("Перемещения", "Ko'chirishlar"), count: pendingTransfers },
+    // Сравнение и перемещения — только когда складов больше одного: одному
+    // складу не с чем сравниваться и некуда перемещать.
+    ...(multi ? [
+      { key: "compare" as const, label: t("Сравнение", "Taqqoslash"), count: 0 },
+      { key: "transfers" as const, label: t("Перемещения", "Ko'chirishlar"), count: pendingTransfers },
+    ] : []),
     // Инвентаризация — документ: снимок, счёт (в т. ч. сканером), применение разом.
     { key: "counts" as const, label: t("Инвентаризация", "Inventarizatsiya"), count: 0 },
-  ], [summary, deadStockItems, reorderSuggestions, pendingTransfers, t]);
+  ], [summary, deadStockItems, reorderSuggestions, pendingTransfers, multi, t]);
 
   if (isLoadingError) return <QueryErrorFallback onRetry={refetch} />;
 
@@ -249,6 +262,23 @@ export default function Warehouse() {
           <p className="text-sm mt-1" style={{ color: "var(--color-text-tertiary, #6b6760)" }}>
             {t("Управление остатками товаров", "Mahsulot zaxiralarini boshqarish")}
           </p>
+          {multi && activeTab !== "compare" && activeTab !== "transfers" && (
+            <div className="flex flex-wrap gap-2 mt-3" role="tablist" aria-label={t("Склад", "Ombor")} data-testid="warehouse-chips">
+              {warehouses.map(w => {
+                const active = w.id === warehouseId;
+                return (
+                  <button key={w.id} type="button" role="tab" aria-selected={active} onClick={() => setSelectedId(w.id)}
+                    className="tap text-xs font-semibold px-3 py-1.5 rounded-full transition-all"
+                    style={{
+                      background: active ? "var(--color-primary)" : "var(--color-surface-light)",
+                      color: active ? "var(--color-on-primary)" : "var(--color-text-secondary)",
+                    }}>
+                    {w.name}{w.isDefault ? " ★" : ""}
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
         {/* flexWrap here, not just on the parent row: with four buttons this
             group is wider than a phone screen on its own, and a nested flex
@@ -525,12 +555,16 @@ export default function Warehouse() {
       */}
       {activeTab === "forecast" && <DemandForecast />}
 
-      {activeTab === "transfers" && (
-        <StockTransfers warehouses={warehousesQ.data ?? []} />
+      {activeTab === "transfers" && multi && (
+        <StockTransfers warehouses={warehouses} canTransfer={canAdjust} />
+      )}
+
+      {activeTab === "compare" && multi && (
+        <WarehouseCompare warehouses={warehouses} />
       )}
 
       {activeTab === "counts" && canAdjust && (
-        <StockCounts warehouses={warehousesQ.data ?? []} />
+        <StockCounts warehouses={warehouses} />
       )}
 
       {activeTab === "deadstock" && (
