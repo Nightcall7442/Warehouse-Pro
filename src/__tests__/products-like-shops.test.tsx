@@ -169,12 +169,18 @@ describe("карточка товара — как карточка магази
     );
   }
 
-  it("«← Товары» вместо безликого «Назад»; плашка 96 с тенью", () => {
+  it("«← Товары» вместо безликого «Назад»; фотография крупно — 288 на большом экране, во всю ширину на телефоне", () => {
     page();
     expect(screen.getByRole("button", { name: /Товары/ })).toBeTruthy();
-    const tile = document.querySelector(".w-24.h-24") as HTMLElement | null;
-    expect(tile, "плашки 96 нет").toBeTruthy();
+    // Владелец: «очень маленький фото товара, сделай очень большой». Плашка
+    // в 96 осталась списку; здесь квадрат во всю ширину своей колонки.
+    const col = document.querySelector(".sm\\:w-72") as HTMLElement | null;
+    expect(col, "колонки фото в 288 нет").toBeTruthy();
+    const tile = col!.querySelector(".aspect-square") as HTMLElement | null;
+    expect(tile, "квадрат фото пропал").toBeTruthy();
+    expect(tile!.className).toContain("w-full");
     expect(tile!.style.boxShadow).toContain("var(--shadow-sm)");
+    expect(read("src/pages/ProductDetail.tsx")).toContain("size={288} icon={Package}");
     expect(screen.getByText("TВ")).toBeTruthy();
   });
 

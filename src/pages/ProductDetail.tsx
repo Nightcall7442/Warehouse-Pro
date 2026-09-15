@@ -143,39 +143,43 @@ export default function ProductDetail() {
 
       {/* Info card */}
       <div className="neo-card p-6">
-        <div className="flex items-start gap-4">
+        <div className="flex flex-col sm:flex-row items-start gap-6">
           {/* Photo area */}
-          <div className="flex-shrink-0">
+          <div className="flex-shrink-0 w-full sm:w-72">
             <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={handlePhotoUpload} />
-            {/* Та же плашка, что в списке и у магазина: 96 точек, тень вместо
-                обводки, без фото — цвет по номеру и инициалы. */}
+            {/* Фотография — крупно: 288 точек на большом экране, во всю ширину
+                карточки на телефоне. Здесь её и разглядывают — по ней оператор
+                сверяет, что завёл тот товар, а не соседний с похожим названием;
+                плашка в 96, как в списке, для этого слишком мала (владелец:
+                «очень маленький, сделай очень большой»). Без фото — та же
+                цветная заглушка по номеру, с инициалами. */}
             <div
               className={`relative group ${canEdit ? "cursor-pointer" : ""}`}
               onClick={canEdit ? () => fileRef.current?.click() : undefined}
               title={canEdit ? tr("Нажмите чтобы загрузить фото","Rasm yuklash uchun bosing") : undefined}
             >
-              <div className="w-24 h-24 overflow-hidden flex items-center justify-center"
-                style={{ borderRadius: "26px", boxShadow: "var(--shadow-sm)", background: "var(--color-surface-light)" }}>
+              <div className="w-full aspect-square overflow-hidden flex items-center justify-center"
+                style={{ borderRadius: "32px", boxShadow: "var(--shadow-sm)", background: "var(--color-surface-light)" }}>
                 {uploadPhoto.isPending ? (
-                  <Loader2 size={28} className="animate-spin" style={{ color: "var(--color-primary-text)" }} />
+                  <Loader2 size={40} className="animate-spin" style={{ color: "var(--color-primary-text)" }} />
                 ) : (
                   <PhotoOrIcon
                     src={product.photoUrl}
                     alt={product.name}
                     className="w-full h-full object-cover"
-                    fallback={<ShopAvatar id={product.id} name={product.name} size={96} icon={Package} initials={productInitials(product.name)} />}
+                    fallback={<ShopAvatar id={product.id} name={product.name} size={288} icon={Package} initials={productInitials(product.name)} />}
                   />
                 )}
               </div>
               {canEdit && (
-              <div className="absolute inset-0 bg-black/35 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1" style={{ borderRadius: "26px" }}>
-                <Camera size={18} color="#fff" />
-                <span className="text-white text-[9px]">{tr("Фото","Rasm")}</span>
+              <div className="absolute inset-0 bg-black/35 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-2" style={{ borderRadius: "32px" }}>
+                <Camera size={32} color="#fff" />
+                <span className="text-white text-sm font-medium">{tr("Заменить фото","Rasmni almashtirish")}</span>
               </div>
               )}
             </div>
           </div>
-          <div className="flex-1">
+          <div className="flex-1 min-w-0 w-full">
             {editing ? (
               <div className="grid grid-cols-2 gap-3">
                 {([["code","Код"],["name","Название"]] as const).map(([k,p])=>(
