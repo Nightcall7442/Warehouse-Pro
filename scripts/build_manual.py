@@ -404,7 +404,7 @@ READER_JS = r"""
       if (a.classList.contains("sub")) a.classList.toggle("hide", a.dataset.id !== state.id);
     });
     document.querySelectorAll(".chips button").forEach(function (b) { b.classList.toggle("on", b.dataset.id === state.id); });
-    document.querySelectorAll(".lang button").forEach(function (b) { b.classList.toggle("on", b.dataset.lang === state.lang); });
+    document.querySelectorAll(".lang button").forEach(function (b) { b.classList.toggle("on", b.dataset.pick === state.lang); });
     var input = document.querySelector(".search input");
     input.placeholder = input.getAttribute("data-ph-" + state.lang); input.setAttribute("aria-label", input.placeholder);
     var grp = CH[i].group ? (TITLES[state.lang][CH[i].group] + " › ") : "";
@@ -443,7 +443,7 @@ READER_JS = r"""
     if (img) { openLightbox(img); return; }
     if (e.target.closest(".lightbox")) closeLightbox();
   });
-  document.querySelectorAll(".lang button").forEach(function (b) { b.addEventListener("click", function () { state.lang = b.dataset.lang; render(null, true); }); });
+  document.querySelectorAll(".lang button").forEach(function (b) { b.addEventListener("click", function () { state.lang = b.dataset.pick; render(null, true); }); });
   document.querySelector(".print-btn").addEventListener("click", function () { window.print(); });
   window.addEventListener("popstate", function () { var p = parseHash(); if (!p) return; if (p.lang) state.lang = p.lang; state.id = p.id; render(p.sub, false); });
 
@@ -544,7 +544,7 @@ def build_reader():
   <nav class='chips'><span class='lbl'>{both('iam')}</span>{''.join(f"<span data-lang='{l}'>{chips[l]}</span>" for l in LANGS)}</nav>
   <div class='search'><svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' aria-hidden='true'><circle cx='11' cy='11' r='7'/><path d='m20 20-3.5-3.5'/></svg>
     <input type='search' placeholder='{esc(R['ru']['search'])}' data-ph-ru='{esc(R['ru']['search'])}' data-ph-uz='{esc(R['uz']['search'])}' aria-label='{esc(R['ru']['search'])}'><div class='results'></div></div>
-  <div class='lang'><button data-lang='ru'>RU</button><button data-lang='uz'>UZ</button></div>
+  <div class='lang'><button data-pick='ru'>RU</button><button data-pick='uz'>UZ</button></div>
   <button class='print-btn'>{both('print')}</button>
 </header>
 <div class='backdrop'></div>
