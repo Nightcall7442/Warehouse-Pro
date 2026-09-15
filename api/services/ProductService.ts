@@ -6,6 +6,7 @@ import {
   warehouses,
 } from "@db/schema";
 import { eq, like, and, sql, desc } from "drizzle-orm";
+import { movementReferenceNumber } from "../lib/movement-reference";
 import { sanitizeString, sanitizeSearch } from "../lib/sanitize";
 import { cache, withCache, CacheKeys, CacheTTL } from "../lib/cache";
 
@@ -148,6 +149,7 @@ export const ProductService = {
         quantity: stockMovements.quantity,
         referenceType: stockMovements.referenceType,
         referenceId: stockMovements.referenceId,
+        referenceNumber: movementReferenceNumber,
         notes: stockMovements.notes,
         createdAt: stockMovements.createdAt,
       })
