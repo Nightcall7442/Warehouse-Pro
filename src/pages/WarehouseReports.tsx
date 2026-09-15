@@ -20,6 +20,7 @@ import { CHART_PALETTE } from "@/lib/chartTheme";
 import { unitShort } from "@/lib/units";
 import { notify } from "@/lib/toast";
 import { ExpiringBatches } from "@/components/warehouse/ExpiringBatches";
+import { useWarehouse } from "@/providers/WarehouseContext";
 
 /*
   Цвета долей берутся из общей палитры, а не собираются здесь.
@@ -162,6 +163,16 @@ export default function WarehouseReports() {
   const { fmt, symbol } = useCurrency();
   const t = (ru: string, uz: string) => lang === "uz" ? uz : ru;
   const [days, setDays] = useState(30);
+  /*
+    Склад для отчётов. При одном складе выбора нет. При нескольких — фишки
+    под заголовком: свой склад или «все вместе» — подписано явно, чтобы сумма
+    по всем складам не читалась как остаток, с которого можно продать.
+    Пусто — все склады.
+  */
+  const { warehouses, multi, selectedId } = useWarehouse();
+  const [reportWarehouse, setReportWarehouse] = useState<number | null | undefined>(undefined);
+  const whId = multi ? (reportWarehouse === undefined ? selectedId : reportWarehouse) : null;
+  const whArg = whId ? { warehouseId: whId } : {};
 
   /*
     Отказ каждого запроса разбирается отдельно.
@@ -177,9 +188,9 @@ export default function WarehouseReports() {
     (переключили период) отказ не должен стирать то, что человек читает, —
     домашнее правило, закреплённое в refetch-error-keeps-data.test.ts.
   */
-  const cat      = trpc.warehouseReports.stockByCategory.useQuery();
-  const trendsQ  = trpc.warehouseReports.movementTrends.useQuery({ days });
-  const topQ     = trpc.warehouseReports.topByValue.useQuery({ limit: 10 });
+  const cat      = trpc.warehouseReports.stockByCategory.useQuery(whArg);
+  const trendsQ  = trpc.warehouseReports.movementTrends.useQuery({ days, ...whArg });
+  const topQ     = trpc.warehouseReports.topByValue.useQuery({ limit: 10, ...whArg });
   const arrivalQ = trpc.warehouseReports.arrivalCosts.useQuery({ days });
   const turnQ    = trpc.warehouseReports.turnover.useQuery({ days });
 
@@ -294,6 +305,20 @@ export default function WarehouseReports() {
           <p className="text-xs mt-0.5" style={{ color: "var(--color-text-secondary, #5e5b54)" }}>
             {t("Аналитика остатков, движения и логистики", "Qoldiq, harakat va logistika tahlili")}
           </p>
+          {multi && (
+            <div className="flex flex-wrap gap-2 mt-3" role="tablist" data-testid="report-warehouse-chips">
+              {[...warehouses.map(w => ({ id: w.id as number | null, label: `${w.name}${w.isDefault ? " ★" : ""}` })), { id: null, label: t("Все склады вместе", "Barcha omborlar birga") }].map(c => {
+                const active = c.id === whId;
+                return (
+                  <button key={String(c.id)} type="button" role="tab" aria-selected={active} onClick={() => setReportWarehouse(c.id)}
+                    className="tap text-xs font-semibold px-3 py-1.5 rounded-full transition-all"
+                    style={{ background: active ? "var(--color-primary)" : "var(--color-surface-light)", color: active ? "var(--color-on-primary)" : "var(--color-text-secondary)" }}>
+                    {c.label}
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
         <div className="flex items-center gap-2">
           <PremiumSelect

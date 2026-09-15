@@ -348,40 +348,100 @@ describe("warehouseMulti.getStock", () => {
   });
 });
 
-describe("warehouseMulti.createTransfer", () => {
-  it("creates a transfer between warehouses", async () => {
+/**
+ * Перемещение — документ в один шаг (решение владельца 16.09.2026).
+ *
+ * Было: по одному товару, «создать» → «принять», между шагами товар нигде,
+ * только директор. Стало: много позиций, товар сразу на складе-получателе,
+ * через дверь остатка, и оператор с правом «warehouse.adjust».
+ */
+describe("warehouseMulti.createTransfer — документ", () => {
+  it("проводит несколько позиций за один шаг: строки completed, приёмная сторона выросла", async () => {
     const { warehouseMultiRouter } = await import("../warehouse-multi-router");
     const caller = warehouseMultiRouter.createCaller(buildCtx());
     const result = await caller.createTransfer({
-      fromWarehouseId: 1, toWarehouseId: 2, productId: 1, quantity: 10,
+      fromWarehouseId: 1, toWarehouseId: 2,
+      items: [{ productId: 1, quantity: 10 }, { productId: 2, quantity: 5 }],
+      notes: "на второй склад",
     });
-    expect(result.id).toBeDefined();
-    expect(stockTransfersTable.length).toBe(1);
+    expect(result.count).toBe(2);
+    expect(result.ids).toHaveLength(2);
+    expect(stockTransfersTable.length).toBe(2);
+    for (const row of stockTransfersTable) {
+      expect(row.status).toBe("completed");
+      expect(row.completedAt).toBeInstanceOf(Date);
+      expect(row.notes).toBe("на второй склад");
+    }
+    // Приёмная сторона заведена дверью (receiveStock): было 30, приехало 10.
+    const dest1 = warehouseStockTable.find(r => r.warehouseId === 2 && r.productId === 1);
+    expect(dest1?.currentStock).toBe("40.00");
+    // Второго товара на складе 2 не было — строка появилась.
+    const dest2 = warehouseStockTable.find(r => r.warehouseId === 2 && r.productId === 2);
+    expect(Number(dest2?.currentStock)).toBe(5);
   });
 
-  it("rejects transfer to same warehouse", async () => {
+  it("отказывает целиком, если хоть одной позиции не хватает — и называет товар", async () => {
     const { warehouseMultiRouter } = await import("../warehouse-multi-router");
     const caller = warehouseMultiRouter.createCaller(buildCtx());
     await expect(caller.createTransfer({
-      fromWarehouseId: 1, toWarehouseId: 1, productId: 1, quantity: 10,
-    })).rejects.toThrow(/тот же склад/i);
+      fromWarehouseId: 1, toWarehouseId: 2,
+      items: [{ productId: 1, quantity: 10 }, { productId: 2, quantity: 500 }],
+    })).rejects.toThrow(/недостаточно.*Cucumber/i);
   });
 
-  it("rejects when insufficient available stock", async () => {
+  it("отказывает на тот же склад и на повтор товара в документе", async () => {
     const { warehouseMultiRouter } = await import("../warehouse-multi-router");
     const caller = warehouseMultiRouter.createCaller(buildCtx());
-    await expect(caller.createTransfer({
-      fromWarehouseId: 1, toWarehouseId: 2, productId: 1, quantity: 200,
-    })).rejects.toThrow(/недостаточно/i);
+    await expect(caller.createTransfer({ fromWarehouseId: 1, toWarehouseId: 1, items: [{ productId: 1, quantity: 1 }] }))
+      .rejects.toThrow(/тот же склад/i);
+    await expect(caller.createTransfer({ fromWarehouseId: 1, toWarehouseId: 2, items: [{ productId: 1, quantity: 1 }, { productId: 1, quantity: 2 }] }))
+      .rejects.toThrow(/повторяется/i);
   });
 
-  it("rejects when source stock row does not exist", async () => {
+  it("отказывает, когда строки остатка на складе-отправителе нет", async () => {
     warehouseStockTable = [];
     const { warehouseMultiRouter } = await import("../warehouse-multi-router");
     const caller = warehouseMultiRouter.createCaller(buildCtx());
-    await expect(caller.createTransfer({
-      fromWarehouseId: 1, toWarehouseId: 2, productId: 1, quantity: 10,
-    })).rejects.toThrow(/недостаточно/i);
+    await expect(caller.createTransfer({ fromWarehouseId: 1, toWarehouseId: 2, items: [{ productId: 1, quantity: 10 }] }))
+      .rejects.toThrow(/недостаточно/i);
+  });
+
+  it("оператору открыто по праву warehouse.adjust, агенту — нет", async () => {
+    const { warehouseMultiRouter } = await import("../warehouse-multi-router");
+    const operator = warehouseMultiRouter.createCaller(buildCtx({
+      user: { id: 30, tenantId: 1, role: "operator" as const, status: "active" as const, name: "Op", email: "op@test.com", passwordHash: "x", avatar: null, phone: null, createdAt: new Date(), updatedAt: new Date(), lastSignInAt: new Date() },
+    }));
+    const r = await operator.createTransfer({ fromWarehouseId: 1, toWarehouseId: 2, items: [{ productId: 1, quantity: 1 }] });
+    expect(r.count).toBe(1);
+    await expect(warehouseMultiRouter.createCaller(agentCtx()).createTransfer({ fromWarehouseId: 1, toWarehouseId: 2, items: [{ productId: 1, quantity: 1 }] }))
+      .rejects.toThrow();
+  });
+
+  it("право закрыто в настройках организации — оператору отказ, директору нет", async () => {
+    const perms = await import("../lib/role-permissions");
+    const spy = vi.spyOn(perms, "capabilitiesOf").mockResolvedValue({ "warehouse.adjust": false } as never);
+    try {
+      const { warehouseMultiRouter } = await import("../warehouse-multi-router");
+      const operator = warehouseMultiRouter.createCaller(buildCtx({
+        user: { id: 30, tenantId: 1, role: "operator" as const, status: "active" as const, name: "Op", email: "op@test.com", passwordHash: "x", avatar: null, phone: null, createdAt: new Date(), updatedAt: new Date(), lastSignInAt: new Date() },
+      }));
+      await expect(operator.createTransfer({ fromWarehouseId: 1, toWarehouseId: 2, items: [{ productId: 1, quantity: 1 }] }))
+        .rejects.toThrow(/закрыто оператору/);
+      const ceo = warehouseMultiRouter.createCaller(buildCtx());
+      await expect(ceo.createTransfer({ fromWarehouseId: 1, toWarehouseId: 2, items: [{ productId: 1, quantity: 1 }] })).resolves.toBeTruthy();
+    } finally { spy.mockRestore(); }
+  });
+});
+
+describe("warehouseMulti.getStock — признак склада", () => {
+  it("каждая строка несёт warehouseId — для сравнения складов колонками", async () => {
+    const { warehouseMultiRouter } = await import("../warehouse-multi-router");
+    const caller = warehouseMultiRouter.createCaller(buildCtx());
+    const spy = vi.spyOn(mockDb, "execute");
+    await caller.getStock({ pageSize: 100 });
+    const texts = spy.mock.calls.map(c => (c[0] as { rawStrings?: string[] })?.rawStrings?.join("?") ?? "");
+    expect(texts.some(t => t.includes("ws.warehouse_id AS warehouseId")), "в выборке остатков нет номера склада").toBe(true);
+    spy.mockRestore();
   });
 });
 

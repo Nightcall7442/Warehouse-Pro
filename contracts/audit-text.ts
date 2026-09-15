@@ -36,6 +36,7 @@ const KEY_LABEL: Record<string, Label> = {
   number: { ru: "Номер", uz: "Raqam" }, code: { ru: "Код", uz: "Kod" }, name: { ru: "Название", uz: "Nomi" },
   shopName: { ru: "Магазин", uz: "Do'kon" }, shop: { ru: "Магазин", uz: "Do'kon" }, productName: { ru: "Товар", uz: "Tovar" },
   warehouseName: { ru: "Склад", uz: "Ombor" }, partner: { ru: "Партнёр", uz: "Hamkor" },
+  fromWarehouse: { ru: "Откуда", uz: "Qayerdan" }, toWarehouse: { ru: "Куда", uz: "Qayerga" },
   orderIds: { ru: "Заказы", uz: "Buyurtmalar" }, orders: { ru: "Заказов", uz: "Buyurtmalar" }, ids: { ru: "Записи", uz: "Yozuvlar" },
   items: { ru: "Позиций", uz: "Pozitsiyalar" }, lines: { ru: "Позиций", uz: "Pozitsiyalar" }, shortages: { ru: "Недостач", uz: "Kamomad" },
   count: { ru: "Количество", uz: "Soni" }, quantity: { ru: "Количество", uz: "Miqdor" }, qty: { ru: "Количество", uz: "Miqdor" },
