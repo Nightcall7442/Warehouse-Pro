@@ -79,6 +79,13 @@ describe("файлы", () => {
     expect(resolveManualFile("/manual/img/web-ru-ceo-dashboard.webp", dir)).toBe(path.join(dir, "img", "web-ru-ceo-dashboard.webp"));
   });
 
+  it("reader.js?v=… отдаётся тем же файлом: версия в адресе — только против кэша", async () => {
+    const r = await get("/manual/reader.js?v=deadbeef");
+    expect(r.status).toBe(200);
+    expect(r.headers.get("content-type")).toBe("text/javascript; charset=utf-8");
+    expect(await r.text()).toContain("window.CHAPTERS=");
+  });
+
   it("наружу папки не выйти — ни «..», ни абсолютным путём, ни кодированным", () => {
     expect(resolveManualFile("/manual/../package.json", dir)).toBeNull();
     expect(resolveManualFile("/manual/img/../../.env", dir)).toBeNull();
