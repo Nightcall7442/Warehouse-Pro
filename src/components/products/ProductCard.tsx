@@ -1,8 +1,9 @@
 import { memo } from "react";
 import { Tag, Scale, Boxes, Trash2, CheckSquare, Square, AlertCircle } from "lucide-react";
 import { ProductPhoto } from "./ProductPhoto";
-import { F, COLORS, unitLabel } from "./constants";
+import { F, COLORS } from "./constants";
 import { formatQty } from "@/lib/format";
+import { unitShort } from "@/lib/units";
 
 export interface ProductCardProps {
   p: Record<string, unknown>;
@@ -35,7 +36,8 @@ export const ProductCard = memo(function ProductCard({ p, onClick, onDelete, sel
   const available = Number(p.available ?? 0);
   const low = available < Number(p.reorderPoint);
   const empty = !(available > 0);
-  const u = unitLabel(p.unit as string, lang);
+  // Короткая единица: «134 шт», а не «134 штук» — в строке она стоит трижды.
+  const u = unitShort(p.unit as string, lang);
   const packSize = Number(p.packSize ?? 0);
 
   return (
