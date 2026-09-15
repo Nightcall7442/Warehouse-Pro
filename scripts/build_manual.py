@@ -10,7 +10,7 @@ docs/manual/img/*.webp с нарисованными цифрами выносо
 
 Запуск: SHOTS=<распакованный артефакт> python scripts/build_manual.py
 """
-import os, sys, json, html, base64
+import os, sys, json, html, base64, hashlib
 from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont
 
@@ -532,7 +532,9 @@ def build_reader():
     js = ("window.CHAPTERS=" + json.dumps(chapters, ensure_ascii=False) + ";window.TITLES=" + json.dumps(titles, ensure_ascii=False)
           + ";window.LBL=" + json.dumps(READER_LBL, ensure_ascii=False) + ";\n" + READER_JS)
     (OUT / "reader.js").write_text(js, encoding="utf-8", newline="\n")
-    js_data = "<script src='reader.js' defer></script>"
+    # Версия в адресе: index.html идёт с no-cache, а reader.js браузер держит час.
+    # Без неё новая разметка встречалась со старым скриптом — пустая страница.
+    js_data = f"<script src='reader.js?v={hashlib.sha1(js.encode('utf-8')).hexdigest()[:8]}' defer></script>"
     R = READER_LBL
     both = lambda key: "".join(f"<span data-lang='{l}'>{esc(R[l][key])}</span>" for l in LANGS)
     page = f"""<!doctype html><html lang='ru' data-ui='ru'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1'>

@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
+import { createHash } from "node:crypto";
 import path from "node:path";
 
 /**
@@ -113,4 +114,26 @@ describe("переключатель RU/UZ виден на любом языке
       }
     });
   }
+});
+
+describe("скрипт читалки с версией в адресе", () => {
+  /*
+   * index.html идёт с no-cache, reader.js — с max-age=3600. Владелец получил
+   * новую разметку со старым скриптом из кэша: пустая страница, «null» в
+   * поиске. Версия = хеш содержимого, так что любая правка скрипта меняет адрес.
+   */
+  it("index.html ссылается на reader.js?v=<sha1 содержимого>", () => {
+    // На Windows checkout даёт CRLF; сборщик и CI считают от LF.
+    const js = READER["docs/manual/reader.js"].replace(/\r\n/g, "\n");
+    const v = createHash("sha1").update(js, "utf8").digest("hex").slice(0, 8);
+    const tag = FILES["docs/manual/index.html"].match(/<script src='reader\.js([^']*)' defer><\/script>/);
+    expect(tag, "тега скрипта нет").not.toBeNull();
+    expect(tag![1], "версия в адресе не совпадает с reader.js — пересоберите руководство").toBe(`?v=${v}`);
+  });
+
+  it("сборщик считает версию от содержимого, а не пишет адрес руками", () => {
+    const py = FILES["scripts/build_manual.py"];
+    expect(py).toContain("hashlib.sha1(js.encode('utf-8')).hexdigest()[:8]");
+    expect(py).not.toContain("<script src='reader.js' defer>");
+  });
 });
