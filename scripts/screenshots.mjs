@@ -130,7 +130,7 @@ const WEB_SCENARIOS = {
     { name: "arrival-detail", path: "/arrivals", do: [["click", "css=table tbody tr >> nth=0"], ["wait", 1800]], marks: [["labels", "testid=arrival-print-labels"]] },
     { name: "arrivals-suppliers", path: "/arrivals", do: [["click", "testid=arrivals-tab-counterparties"], ["wait", 1500]], after: [] },
     { name: "product-form", path: "/products", do: [["click", "testid=product-new"], ["wait", 1200]] },
-    { name: "shop-detail", path: "/shops", do: [["click", "css=[data-testid=shop-row] >> nth=0"], ["wait", 1800]] },
+    { name: "shop-detail", path: "/shops", do: [["click", "text=/^(Все магазины|Barcha do'konlar)$/ >> nth=0"], ["wait", 1200], ["click", "css=[data-testid=shop-row] >> nth=0"], ["wait", 1800]] },
     { name: "shops-import", path: "/shops", do: [["click", "role=button:/Импорт|Import/"], ["wait", 1200]] },
     { name: "territories", path: "/shops", do: [["click", "role=button:/Территории|Territoriyalar/"], ["wait", 1500]] },
     /* Вкладки «Склада»: сравнение и перемещения есть только при нескольких складах — в засеве их три. */
@@ -268,7 +268,7 @@ async function act(page, [what, spec, value]) {
   if (what === "wait") return page.waitForTimeout(Number(spec));
   if (what === "key") return page.keyboard.press(spec);
   const l = loc(page, spec);
-  if (what === "click") return l.click({ timeout: 8_000 });
+  if (what === "click") return l.click({ timeout: 8_000 }).catch(() => l.click({ timeout: 4_000, force: true }));
   if (what === "fill") return l.fill(value, { timeout: 8_000 });
 }
 
@@ -291,6 +291,7 @@ async function runScenarios(page, base, scenarios, dir, entry, kind, role) {
       const marks = await marksOf(page, [...(sc.marks ?? []), ...extraMarks(kind, role, sc.name)]);
       await page.screenshot({ path: join(dir, `${sc.name}.png`) });
       entry.push({ screen: sc.name, path: sc.path, marks });
+      console.log(`  ${dir}/${sc.name} (${marks.length} меток)`);
       for (const step of sc.after ?? []) await act(page, step).catch(() => {});
       if (sc.do?.length && !sc.after) await page.keyboard.press("Escape").catch(() => {});
     } catch (e) {
