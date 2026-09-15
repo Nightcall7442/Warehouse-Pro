@@ -11,8 +11,30 @@
 
 [![CI](https://github.com/Nightcall7442/Warehouse-Pro/actions/workflows/ci.yml/badge.svg)](https://github.com/Nightcall7442/Warehouse-Pro/actions/workflows/ci.yml)
 [![Миграции](https://github.com/Nightcall7442/Warehouse-Pro/actions/workflows/test-migrations.yml/badge.svg)](https://github.com/Nightcall7442/Warehouse-Pro/actions/workflows/test-migrations.yml)
-![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178c6)
-![Node](https://img.shields.io/badge/Node-%E2%89%A522.5-5fa04e)
+[![Снимки](https://github.com/Nightcall7442/Warehouse-Pro/actions/workflows/screenshots.yml/badge.svg)](https://github.com/Nightcall7442/Warehouse-Pro/actions/workflows/screenshots.yml)
+![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178c6?logo=typescript&logoColor=white)
+![Node](https://img.shields.io/badge/Node-%E2%89%A522.5-5fa04e?logo=node.js&logoColor=white)
+
+![React](https://img.shields.io/badge/React-19-20232a?logo=react&logoColor=61dafb)
+![Vite](https://img.shields.io/badge/Vite-7-646cff?logo=vite&logoColor=white)
+![React Router](https://img.shields.io/badge/React_Router-7-ca4245?logo=reactrouter&logoColor=white)
+![Tailwind](https://img.shields.io/badge/Tailwind_CSS-3.4-06b6d4?logo=tailwindcss&logoColor=white)
+![PWA](https://img.shields.io/badge/PWA-offline-5a0fc8?logo=pwa&logoColor=white)
+![Hono](https://img.shields.io/badge/Hono-4-e36002?logo=hono&logoColor=white)
+![tRPC](https://img.shields.io/badge/tRPC-11-2596be?logo=trpc&logoColor=white)
+![Drizzle](https://img.shields.io/badge/Drizzle_ORM-0.45-c5f74f?logo=drizzle&logoColor=black)
+![MySQL](https://img.shields.io/badge/MySQL-8-4479a1?logo=mysql&logoColor=white)
+![Zod](https://img.shields.io/badge/Zod-4-3e67b1?logo=zod&logoColor=white)
+
+![Vitest](https://img.shields.io/badge/Vitest-3500%2B_проверок-6e9f18?logo=vitest&logoColor=white)
+![Playwright](https://img.shields.io/badge/Playwright-e2e-2ead33?logo=playwright&logoColor=white)
+![Docker](https://img.shields.io/badge/Docker-образ-2496ed?logo=docker&logoColor=white)
+![Railway](https://img.shields.io/badge/Railway-выкладка-0b0d0e?logo=railway&logoColor=white)
+![1C](https://img.shields.io/badge/1%D0%A1-OData-e31e24)
+![Telegram](https://img.shields.io/badge/Telegram-бот-26a5e4?logo=telegram&logoColor=white)
+![Stripe](https://img.shields.io/badge/Stripe-подписки-635bff?logo=stripe&logoColor=white)
+![Языки](https://img.shields.io/badge/языки-RU_%C2%B7_UZ-8a6d3b)
+![Лицензия](https://img.shields.io/badge/лицензия-проприетарная-555)
 
 </div>
 
