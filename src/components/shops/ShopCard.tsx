@@ -96,6 +96,7 @@ export const ShopCard = memo(function ShopCard({ s, onClick, selected, onToggleS
     */
     <div
       className="neo-card"
+      data-testid="shop-row"
       style={{
         padding: "18px", display: "flex", alignItems: "center", gap: "16px",
         cursor: "pointer",
