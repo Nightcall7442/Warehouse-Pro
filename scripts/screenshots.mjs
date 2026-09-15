@@ -86,6 +86,8 @@ const T = {
   newArrival: "role=button:/Новый приход|Yangi kelish/",
   saveComplete: "role=button:/Сохранить и завершить|Saqlash va yakunlash/",
   month: "role=tab:/^(Месяц|Oy)$/",
+  openOrder: "css=table tbody tr td >> nth=1",
+  tab: name => `role=button:/^(${name})/`, // вкладки «Склада» — кнопки со счётчиком после подписи
 };
 
 const WEB_SCENARIOS = {
@@ -119,6 +121,27 @@ const WEB_SCENARIOS = {
     { name: "product-detail", path: "/products", do: [["click", "css=[data-testid=product-row] >> nth=0"], ["wait", 1500]] },
     { name: "shops", path: "/shops", marks: [["search", "ph=/Название|Nomi|Поиск|Qidir/"]] },
     { name: "barcode", path: "/barcode" },
+    /* ── вторая волна: вкладки панели заказа, завершение, детали ───────── */
+    { name: "order-history", path: "/orders", do: [["click", T.openOrder], ["wait", 1500], ["click", "role=tab:/^(История|Tarix)$/"], ["wait", 900]] },
+    { name: "order-documents", path: "/orders", do: [["click", T.openOrder], ["wait", 1500], ["click", "role=tab:/^(Документы|Hujjatlar)$/"], ["wait", 900]] },
+    { name: "order-payments", path: "/orders", do: [["click", T.openOrder], ["wait", 1500], ["click", "role=tab:/^(Оплаты|To'lovlar)$/"], ["wait", 900]] },
+    { name: "order-complete", path: "/orders", do: [["click", "text=/^(Этот месяц|Bu oy)$/"], ["wait", 1200], ["click", "text=/^(Выполнен|Bajarildi)$/ >> nth=0"], ["wait", 1200]],
+      marks: [["submit", "role=button:/Завершить заказ|Buyurtmani tugatish/"]] },
+    { name: "arrival-detail", path: "/arrivals", do: [["click", "css=table tbody tr >> nth=0"], ["wait", 1800]], marks: [["labels", "testid=arrival-print-labels"]] },
+    { name: "arrivals-suppliers", path: "/arrivals", do: [["click", "testid=arrivals-tab-counterparties"], ["wait", 1500]], after: [] },
+    { name: "product-form", path: "/products", do: [["click", "testid=product-new"], ["wait", 1200]] },
+    { name: "shop-detail", path: "/shops", do: [["click", "text=/^(Все магазины|Barcha do'konlar)$/ >> nth=0"], ["wait", 1200], ["click", "css=[data-testid=shop-row] >> nth=0"], ["wait", 1800]] },
+    { name: "shops-import", path: "/shops", do: [["click", "role=button:/Импорт|Import/"], ["wait", 1200]] },
+    { name: "territories", path: "/shops", do: [["click", "role=button:/Территории|Territoriyalar/"], ["wait", 1500]] },
+    /* Вкладки «Склада»: сравнение и перемещения есть только при нескольких складах — в засеве их три. */
+    { name: "warehouse-deadstock", path: "/warehouse", do: [["click", T.tab("Мёртвый сток|O'lik stok")], ["wait", 1200]], after: [] },
+    { name: "warehouse-reorder", path: null, do: [["click", T.tab("Дозаказ|Qayta buyurtma")], ["wait", 1200]], after: [] },
+    { name: "warehouse-forecast", path: null, do: [["click", T.tab("Прогноз|Prognoz")], ["wait", 1500]], after: [] },
+    { name: "warehouse-compare", path: null, do: [["click", T.tab("Сравнение|Taqqoslash")], ["wait", 1500]], marks: [["search", "testid=compare-search"], ["table", "testid=compare-table"]], after: [] },
+    { name: "warehouse-transfers", path: null, do: [["click", T.tab("Перемещения|Ko'chirishlar")], ["wait", 1500]], marks: [["new", "testid=transfer-new"], ["history", "testid=transfer-history"]], after: [] },
+    { name: "warehouse-transfer-form", path: null, do: [["click", "testid=transfer-new"], ["wait", 1000]],
+      marks: [["search", "testid=transfer-search"], ["lines", "testid=transfer-lines"], ["submit", "testid=transfer-submit"]], after: [] },
+    { name: "warehouse-counts", path: "/warehouse", do: [["click", T.tab("Инвентаризация|Inventarizatsiya")], ["wait", 1500]], marks: [["new", "testid=stock-count-new"]], after: [] },
   ],
   ceo: [
     { name: "dashboard", path: "/",
@@ -142,16 +165,38 @@ const WEB_SCENARIOS = {
     { name: "settings", path: "/settings" },
     { name: "billing", path: "/billing" },
     { name: "notifications", path: "/notifications" },
+    /* ── вторая волна: отчёты по вкладкам, выплаты, разделы настроек ────── */
+    { name: "reports-sales", path: "/reports?tab=sales" },
+    { name: "reports-agents", path: "/reports?tab=agents" },
+    { name: "salaries-payouts", path: "/salaries", do: [["click", "testid=salaries-tab-payouts"], ["wait", 1200]], after: [] },
+    { name: "users-invite", path: "/users", do: [["click", "role=button:/^(Создать|Yaratish)$/"], ["wait", 1000]] },
+    { name: "settings-company", path: "/settings?section=company" },
+    { name: "settings-branding", path: "/settings?section=branding" },
+    { name: "settings-warehouses", path: "/settings?section=warehouses" },
+    { name: "settings-prices", path: "/settings?section=prices" },
+    { name: "settings-apikeys", path: "/settings?section=apikeys" },
+    { name: "settings-access", path: "/settings?section=access" },
+    { name: "settings-telegram", path: "/settings?section=telegram" },
+    { name: "settings-onec", path: "/settings?section=onec" },
+    { name: "plans-norms", path: "/supervisor/plans", do: [["click", "role=tab:/^(Нормы|Normalar)$/"], ["wait", 1500]], after: [] },
+    { name: "plans-reports", path: "/supervisor/plans", do: [["click", "role=tab:/^(Отчёты|Hisobotlar)$/"], ["wait", 1500]], after: [] },
+    { name: "map-shops", path: "/supervisor", do: [["click", "role=button:/^(Магазины|Do'konlar)$/"], ["wait", 1500]], after: [] },
+    { name: "support", path: "/support" },
   ],
   supervisor: [
     { name: "map", path: "/supervisor" },
     { name: "plans", path: "/supervisor/plans" },
     { name: "plans-month", path: "/supervisor/plans", do: [["click", T.month + " >> nth=0"], ["wait", 2000]] },
     { name: "kpi", path: "/agent/kpi" },
+    { name: "plans-norms", path: "/supervisor/plans", do: [["click", "role=tab:/^(Нормы|Normalar)$/"], ["wait", 1500]], after: [] },
+    { name: "map-shops", path: "/supervisor", do: [["click", "role=button:/^(Магазины|Do'konlar)$/"], ["wait", 1500]], after: [] },
+    { name: "shops", path: "/shops" },
+    { name: "reports", path: "/reports" },
   ],
   agent: [
     { name: "home", path: "/agent" }, { name: "shops", path: "/agent/shops" }, { name: "order-new", path: "/orders/new" },
     { name: "orders", path: "/orders" }, { name: "plans", path: "/agent/plans" }, { name: "debts", path: "/agent/debts" }, { name: "kpi", path: "/agent/kpi" },
+    { name: "catalog", path: "/catalog" },
   ],
   merchandiser: [{ name: "home", path: "/agent" }, { name: "plans", path: "/agent/plans" }],
   courier: [{ name: "deliveries", path: "/deliveries" }],
@@ -178,6 +223,18 @@ const MOBILE_SCENARIOS = {
     { name: "salary", path: "/salary" },
     { name: "profile", path: "/profile", marks: [["lang", "text=/^(ЯЗЫК|TIL)$/"]] },
     { name: "notifications", path: "/notifications" },
+    /* ── вторая волна: страница товара, выбор товаров, итог заказа, карточки ── */
+    { name: "product", path: "/product/1", do: [["wait", 1500]], marks: [["price", "text=/^(ЦЕНА ЗА|.* NARXI)/"], ["stock", "text=/^(ОСТАТОК|QOLDIQ)$/"], ["qty", "testid=qty"], ["toOrder", "text=/^(В заказ|Buyurtmaga) · /"]] },
+    /* Окно выбора открывается само, пока корзина пуста; товар добавляется нажатием на строку, «−»/«+» появляются после. */
+    { name: "order-picker", path: "/order/new?shopId=1&shopName=Demo", do: [["wait", 1800]],
+      marks: [["row", "css=[data-testid^=picker-stock-] >> nth=0"], ["done", "testid=picker-done"]], after: [] },
+    { name: "order-step3", path: null,
+      do: [["click", "css=[data-testid^=picker-stock-] >> nth=0"], ["wait", 400], ["click", "css=[data-testid^=stepper-plus-] >> nth=0"], ["click", "testid=picker-done"], ["wait", 800], ["click", "text=/Продолжить|Davom etish/"], ["wait", 1200]],
+      marks: [["confirm", "text=/Подтвердить заказ|Buyurtmani tasdiqlash/"]], after: [] },
+    { name: "order-detail", path: "/orders", do: [["wait", 1200], ["click", "text=/^ORD-\\d+/ >> nth=0"], ["wait", 1500]], after: [] },
+    { name: "shop-detail", path: "/shop/1", do: [["wait", 1500]] },
+    { name: "shop-new", path: "/shop/new", do: [["wait", 1200]] },
+    { name: "barcode", path: "/barcode", do: [["wait", 1200]] },
   ],
   courier: [
     { name: "home", path: "/" },
@@ -197,6 +254,7 @@ const MOBILE_SCENARIOS = {
   ],
   supervisor: [
     { name: "home", path: "/" }, { name: "map", path: "/tracking" }, { name: "plans", path: "/plans" }, { name: "targets", path: "/targets" }, { name: "shops", path: "/shops" },
+    { name: "debtors", path: "/debtors" },
   ],
 };
 
@@ -211,7 +269,7 @@ async function act(page, [what, spec, value]) {
   if (what === "wait") return page.waitForTimeout(Number(spec));
   if (what === "key") return page.keyboard.press(spec);
   const l = loc(page, spec);
-  if (what === "click") return l.click({ timeout: 8_000 });
+  if (what === "click") return l.click({ timeout: 8_000 }).catch(() => l.click({ timeout: 4_000, force: true }));
   if (what === "fill") return l.fill(value, { timeout: 8_000 });
 }
 
@@ -234,6 +292,7 @@ async function runScenarios(page, base, scenarios, dir, entry, kind, role) {
       const marks = await marksOf(page, [...(sc.marks ?? []), ...extraMarks(kind, role, sc.name)]);
       await page.screenshot({ path: join(dir, `${sc.name}.png`) });
       entry.push({ screen: sc.name, path: sc.path, marks });
+      console.log(`  ${dir}/${sc.name} (${marks.length} меток)`);
       for (const step of sc.after ?? []) await act(page, step).catch(() => {});
       if (sc.do?.length && !sc.after) await page.keyboard.press("Escape").catch(() => {});
     } catch (e) {

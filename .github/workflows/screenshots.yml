@@ -12,17 +12,23 @@ on:
   # руками — workflow_dispatch с любой ветки (файл уже в main).
   push:
     branches: ["docs/**"]
-    paths: [".github/workflows/screenshots.yml", "scripts/screenshots.mjs", "scripts/screenshot-marks.json", "scripts/landing-shots-collect.mjs", "db/seed.ts", "docs/training/**"]
+    paths: [".github/workflows/screenshots.yml", "scripts/screenshots.mjs", "scripts/screenshot-marks.json", "scripts/landing-shots-collect.mjs", "db/seed.ts", "docs/training/**", "scripts/manual_content.py", "scripts/build_manual.py"]
   workflow_dispatch:
     inputs:
       mobile_ref:
         description: "Ветка мобилки (Warehouse-Pro-Mobile) для снимков; пусто — без мобилки"
-        default: "i18n/uz"
+        default: "master"
         required: false
       langs:
         description: "Языки через запятую"
         default: "ru,uz"
         required: false
+
+# Новый пуш в ту же ветку отменяет ещё идущий прогон: съёмка идёт около
+# часа, и два прогона подряд коммитили книгу дважды.
+concurrency:
+  group: screenshots-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   shoot:
@@ -50,12 +56,18 @@ jobs:
       RATE_LIMIT_GLOBAL_MAX: "5000"
       PORT: "3100"
     steps:
+      # Коммит книги от GITHUB_TOKEN приходит в PR как от github-actions[bot],
+      # и проверки на нём ждут «Approve and run». С токеном владельца в секрете
+      # MANUAL_BOT_TOKEN коммит идёт от него, и проверки запускаются сами.
+      # Секрета нет — работает как прежде, с одобрением руками.
       - uses: actions/checkout@v7
+        with:
+          token: ${{ secrets.MANUAL_BOT_TOKEN || github.token }}
       - uses: actions/checkout@v7
-        if: ${{ (inputs.mobile_ref || 'i18n/uz') != '' }}
+        if: ${{ (inputs.mobile_ref || 'master') != '' }}
         with:
           repository: Nightcall7442/Warehouse-Pro-Mobile
-          ref: ${{ inputs.mobile_ref || 'i18n/uz' }}
+          ref: ${{ inputs.mobile_ref || 'master' }}
           path: mobile
       - uses: actions/setup-node@v7
         with:
@@ -82,7 +94,7 @@ jobs:
       # Мобилка в веб: Expo web. Не поднялась — снимки веба всё равно будут.
       - name: Мобилка в веб
         id: mobile
-        if: ${{ (inputs.mobile_ref || 'i18n/uz') != '' }}
+        if: ${{ (inputs.mobile_ref || 'master') != '' }}
         continue-on-error: true
         working-directory: mobile
         env:
@@ -122,6 +134,22 @@ jobs:
           rm -rf docs/landing/shots && mkdir -p docs/landing && cp -r /tmp/landing-shots docs/landing/shots
           git add docs/landing/shots
           git commit -m "Снимки для лендинга — с настоящего приложения (CI)" || { echo "нечего коммитить"; exit 0; }
+          git push origin "HEAD:${GITHUB_REF_NAME}"
+
+      # Руководство — тоже в ветку, на docs/manual-*: артефакт закрытого
+      # репозитория без входа не скачать, а собирать книгу руками с чужого
+      # артефакта — значит держать её всегда на шаг позади снимков.
+      - name: Руководство — в ветку
+        if: startsWith(github.ref, 'refs/heads/docs/manual')
+        run: |
+          pip3 install --quiet pillow
+          git config user.name "screenshots-bot"
+          git config user.email "screenshots-bot@users.noreply.github.com"
+          git fetch origin "${GITHUB_REF_NAME}"
+          git reset --hard "origin/${GITHUB_REF_NAME}"
+          SHOTS=screenshots python3 scripts/build_manual.py
+          git add docs/manual
+          git commit -m "Руководство: пересобрано со свежими снимками (CI)" || { echo "нечего коммитить"; exit 0; }
           git push origin "HEAD:${GITHUB_REF_NAME}"
 
       - name: Журнал сервера при провалах

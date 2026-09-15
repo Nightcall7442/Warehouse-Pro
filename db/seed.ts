@@ -385,6 +385,16 @@ async function seed() {
       reserved: String(reserved),
       available: String(currentStock - reserved),
     });
+    // Второй склад держит каждый третий товар и в разы меньше: на «Сравнении»
+    // видна разница, а «Перемещение» есть чем заполнить. Продают всё равно
+    // только с основного.
+    if (i % 3 === 0 && !isLow) {
+      const second = Math.floor(currentStock / 4) + 5;
+      await db.insert(schema.warehouseStock).values({
+        tenantId, warehouseId: warehouseIds[1], productId: productIds[i],
+        currentStock: String(second), reserved: "0", available: String(second),
+      });
+    }
   }
   console.log("✓ Stock levels created\n");
 
