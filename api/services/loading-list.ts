@@ -117,7 +117,108 @@ export function applyPicks(
    склад соберёт их дважды. Поэтому у листа обязан быть выход — закрытие и
    удаление, — и оба здесь.
    ═══════════════════════════════════════════════════════════════════════════ */
+/**
+ * Заказы листа с магазинами и позиции, свёрнутые по товару и по (товар, агент).
+ *
+ * Одни и те же три выборки нужны дважды: при создании листа и при его
+ * повторной печати. Держать их в двух местах — значит однажды напечатать
+ * лист не с теми колонками, что были при создании.
+ */
+async function collectListData(db: Db, tenantId: number, orderIds: number[]) {
+  const ordersData = await db.select({
+    id: orders.id, orderNumber: orders.orderNumber, status: orders.status,
+    shopId: orders.shopId, agentId: orders.agentId, total: orders.total,
+    paymentMethod: orders.paymentMethod,
+    shopName: shops.name, shopAddress: shops.address, shopCity: shops.city,
+    shopPhone: shops.phone, shopGpsLat: shops.gpsLat, shopGpsLng: shops.gpsLng,
+    shopDebt: shops.debt, agentName: users.name,
+    territoryName: territories.name,
+    courierName: couriers.name,
+  }).from(orders)
+    .leftJoin(shops, and(eq(orders.shopId, shops.id), eq(shops.tenantId, tenantId)))
+    .leftJoin(users, and(eq(orders.agentId, users.id), eq(users.tenantId, tenantId)))
+    .leftJoin(territories, eq(shops.territoryId, territories.id))
+    .leftJoin(couriers, and(eq(orders.courierId, couriers.id), eq(couriers.tenantId, tenantId)))
+    // Удалённые заказы фильтра не имели вовсе. Удаление — штатный способ
+    // исправить ошибку ввода: заказ пропадает из списка и из долга магазина,
+    // а в погрузочный лист попадал по-прежнему, и склад собирал товар,
+    // которого никто не ждёт.
+    .where(and(eq(orders.tenantId, tenantId), inArray(orders.id, orderIds), isNull(orders.deletedAt)));
+
+  const items = await db.select({
+    productId: orderItems.productId,
+    productName: products.name,
+    productCode: products.code,
+    barcode: products.barcode,
+    unit: products.unit,
+    unitWeight: products.unitWeight,
+    packSize: products.packSize,
+    packLabel: products.packLabel,
+    totalQty: sql<string>`SUM(${orderItems.quantity})`,
+    totalPrice: sql<string>`SUM(${orderItems.subtotal})`,
+  }).from(orderItems)
+    .innerJoin(products, and(eq(orderItems.productId, products.id), eq(products.tenantId, tenantId)))
+    .innerJoin(orders, eq(orderItems.orderId, orders.id))
+    .where(and(eq(orders.tenantId, tenantId), inArray(orderItems.orderId, orderIds)))
+    .groupBy(orderItems.productId, products.name, products.code, products.barcode, products.unit, products.unitWeight, products.packSize, products.packLabel);
+
+  // По (товар, агент) — для формата «по маршрутам».
+  const itemsByAgent = await db.select({
+    productId: orderItems.productId,
+    productName: products.name,
+    productCode: products.code,
+    unit: products.unit,
+    agentId: orders.agentId,
+    agentName: users.name,
+    totalQty: sql<string>`SUM(${orderItems.quantity})`,
+  }).from(orderItems)
+    .innerJoin(products, and(eq(orderItems.productId, products.id), eq(products.tenantId, tenantId)))
+    .innerJoin(orders, eq(orderItems.orderId, orders.id))
+    .leftJoin(users, and(eq(orders.agentId, users.id), eq(users.tenantId, tenantId)))
+    .where(and(eq(orders.tenantId, tenantId), inArray(orderItems.orderId, orderIds)))
+    .groupBy(orderItems.productId, products.name, products.code, products.unit, orders.agentId, users.name);
+
+  const totalItems = items.reduce((s, i) => s + Number(i.totalQty), 0);
+  const totalWeight = items.reduce((s, i) => s + Number(i.totalQty) * Number(i.unitWeight ?? 0), 0);
+  return { ordersData, items, itemsByAgent, totalItems, totalWeight };
+}
+
 export const LoadingListService = {
+
+  /**
+   * Лист для повторной печати.
+   *
+   * Лист печатался один раз — из окна создания. Закрыли его «Готово, без
+   * печати», заблокировалось окно, кончилась бумага — и всё: лист есть,
+   * заказы он держит, а бумаги с него не получить. Партии берутся из строк
+   * листа, а не пересчитываются: кладовщик собирает по тем, что были
+   * назначены при создании, и повторная печать не должна их менять.
+   */
+  async getForPrint(db: Db, tenantId: number, listId: number) {
+    const [list] = await db.select({
+      id: loadingLists.id, listNumber: loadingLists.listNumber, createdAt: loadingLists.createdAt,
+    }).from(loadingLists)
+      .where(and(eq(loadingLists.id, listId), eq(loadingLists.tenantId, tenantId)))
+      .limit(1);
+    if (!list) throw new TRPCError({ code: "NOT_FOUND", message: "Погрузочный лист не найден" });
+
+    const links = await db.select({ orderId: loadingListOrders.orderId })
+      .from(loadingListOrders).where(eq(loadingListOrders.listId, listId));
+    const orderIds = links.map(l => Number(l.orderId));
+    if (orderIds.length === 0) throw badRequest("В листе нет заказов — печатать нечего");
+
+    const { ordersData, items, itemsByAgent, totalItems, totalWeight } = await collectListData(db, tenantId, orderIds);
+    const lines = await db.select({ productId: loadingListItems.productId, batches: loadingListItems.batches })
+      .from(loadingListItems).where(eq(loadingListItems.listId, listId));
+    const planned = new Map(lines.map(l => [Number(l.productId), (l.batches ?? []) as PlannedBatch[]]));
+
+    return {
+      listId: list.id, listNumber: list.listNumber, createdAt: list.createdAt,
+      orders: ordersData,
+      items: items.map(i => ({ ...i, batches: planned.get(Number(i.productId)) ?? [] })),
+      itemsByAgent, totalOrders: ordersData.length, totalItems, totalWeight,
+    };
+  },
 
   async createLoadingList(
     db: Db, tenantId: number, createdBy: number,
@@ -130,25 +231,7 @@ export const LoadingListService = {
   ) {
     if (input.orderIds.length === 0) throw new Error("Выберите хотя бы один заказ");
 
-    const ordersData = await db.select({
-      id: orders.id, orderNumber: orders.orderNumber, status: orders.status,
-      shopId: orders.shopId, agentId: orders.agentId, total: orders.total,
-      paymentMethod: orders.paymentMethod,
-      shopName: shops.name, shopAddress: shops.address, shopCity: shops.city,
-      shopPhone: shops.phone, shopGpsLat: shops.gpsLat, shopGpsLng: shops.gpsLng,
-      shopDebt: shops.debt, agentName: users.name,
-      territoryName: territories.name,
-      courierName: couriers.name,
-    }).from(orders)
-      .leftJoin(shops, and(eq(orders.shopId, shops.id), eq(shops.tenantId, tenantId)))
-      .leftJoin(users, and(eq(orders.agentId, users.id), eq(users.tenantId, tenantId)))
-      .leftJoin(territories, eq(shops.territoryId, territories.id))
-      .leftJoin(couriers, and(eq(orders.courierId, couriers.id), eq(couriers.tenantId, tenantId)))
-      // Удалённые заказы фильтра не имели вовсе. Удаление — штатный способ
-      // исправить ошибку ввода: заказ пропадает из списка и из долга магазина,
-      // а в погрузочный лист попадал по-прежнему, и склад собирал товар,
-      // которого никто не ждёт.
-      .where(and(eq(orders.tenantId, tenantId), inArray(orders.id, input.orderIds), isNull(orders.deletedAt)));
+    const { ordersData, items, itemsByAgent, totalItems, totalWeight } = await collectListData(db, tenantId, input.orderIds);
 
     if (ordersData.length === 0) throw new Error("Заказы не найдены");
 
@@ -233,43 +316,6 @@ export const LoadingListService = {
       );
     }
 
-    // Fetch items aggregated
-    const items = await db.select({
-      productId: orderItems.productId,
-      productName: products.name,
-      productCode: products.code,
-      barcode: products.barcode,
-      unit: products.unit,
-      unitWeight: products.unitWeight,
-      packSize: products.packSize,
-      packLabel: products.packLabel,
-      totalQty: sql<string>`SUM(${orderItems.quantity})`,
-      totalPrice: sql<string>`SUM(${orderItems.subtotal})`,
-    }).from(orderItems)
-      .innerJoin(products, and(eq(orderItems.productId, products.id), eq(products.tenantId, tenantId)))
-      .innerJoin(orders, eq(orderItems.orderId, orders.id))
-      .where(and(eq(orders.tenantId, tenantId), inArray(orderItems.orderId, input.orderIds)))
-      .groupBy(orderItems.productId, products.name, products.code, products.barcode, products.unit, products.unitWeight, products.packSize, products.packLabel);
-
-    // Fetch items grouped by (product, agent) for the route/agent-matrix format
-    const itemsByAgent = await db.select({
-      productId: orderItems.productId,
-      productName: products.name,
-      productCode: products.code,
-      unit: products.unit,
-      agentId: orders.agentId,
-      agentName: users.name,
-      totalQty: sql<string>`SUM(${orderItems.quantity})`,
-    }).from(orderItems)
-      .innerJoin(products, and(eq(orderItems.productId, products.id), eq(products.tenantId, tenantId)))
-      .innerJoin(orders, eq(orderItems.orderId, orders.id))
-      .leftJoin(users, and(eq(orders.agentId, users.id), eq(users.tenantId, tenantId)))
-      .where(and(eq(orders.tenantId, tenantId), inArray(orderItems.orderId, input.orderIds)))
-      .groupBy(orderItems.productId, products.name, products.code, products.unit, orders.agentId, users.name);
-
-    const totalItems = items.reduce((s, i) => s + Number(i.totalQty), 0);
-    const totalWeight = items.reduce((s, i) => s + Number(i.totalQty) * Number(i.unitWeight ?? 0), 0);
-
     // Склад листа: указанный, иначе основной — продают только с него.
     let warehouseId = input.warehouseId ?? null;
     if (!warehouseId) {
@@ -321,7 +367,7 @@ export const LoadingListService = {
     } catch { /* non-blocking */ }
 
     return {
-      listId, listNumber, orders: ordersData,
+      listId, listNumber, createdAt: new Date(), orders: ordersData,
       items: items.map(i => ({ ...i, batches: planned.get(Number(i.productId)) ?? [] })),
       itemsByAgent, totalOrders: ordersData.length, totalItems, totalWeight,
     };

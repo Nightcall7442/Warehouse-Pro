@@ -702,6 +702,11 @@ export const orderRouter = createRouter({
     .input(z.object({ listId: z.number().int().positive() }))
     .query(({ input, ctx }) => LoadingListService.pickingLines(ctx.db, ctx.tenant.id, input.listId)),
 
+  /** Лист для повторной печати — из «Погрузочных листов», а не только из окна создания. */
+  loadingListPrintData: operatorQuery
+    .input(z.object({ listId: z.number().int().positive() }))
+    .query(({ input, ctx }) => LoadingListService.getForPrint(ctx.db, ctx.tenant.id, input.listId)),
+
   confirmPicking: operatorQuery
     .input(z.object({
       listId: z.number().int().positive(),
