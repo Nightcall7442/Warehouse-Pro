@@ -58,3 +58,35 @@ describe("exportAuditCsv", () => {
     expect(quoteCount % 2).toBe(0);
   });
 });
+
+/**
+ * Бумага — по-русски и словами (memory: бумага остаётся русской).
+ * Было: «order.create» в колонке «Действие» и {"agentId":112,…} в «Мета» —
+ * по такой выгрузке спор не разберёшь. Те же словари, что на экране.
+ */
+describe("exportAuditCsv — словами", () => {
+  it("действие подписано, подробности переведены, код действия — последней колонкой", () => {
+    const csv = exportAuditCsv([row({
+      action: "order.create", targetLabel: "№22 · Ogiljon Sharq",
+      meta: { agentId: 112, actorRole: "agent", discountPct: 0, orderNumber: "№22", paymentMethod: "cash" },
+    })]);
+    const [header, line] = csv.split("\n");
+    expect(header).toBe("ID,Дата,Сотрудник,Действие,Объект,Подробности,IP,Код действия");
+    expect(line).toContain('"Создан заказ"');
+    expect(line).toContain('"Роль: Агент · Оплата: Наличные"');
+    expect(line).toContain('"order.create"');
+    expect(line).not.toContain("agentId");
+    expect(line).not.toContain("{");
+  });
+
+  it("дата — днём и временем, а не ISO с буквой T; без сотрудника — «Система»", () => {
+    const csv = exportAuditCsv([row({ actorName: null, actorId: null, createdAt: new Date(2026, 7, 6, 14, 5) })]);
+    expect(csv).toContain('"06.08.2026 14:05"');
+    expect(csv).toContain('"Система"');
+    expect(csv).not.toContain("T09:00");
+  });
+
+  it("неизвестное действие не теряется — печатается кодом", () => {
+    expect(exportAuditCsv([row({ action: "something.new" })])).toContain('"something.new"');
+  });
+});

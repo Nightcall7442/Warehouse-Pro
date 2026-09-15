@@ -14,7 +14,7 @@ import type { LucideIcon } from "lucide-react";
 import { notify } from "@/lib/toast";
 import { PremiumSelect } from "@/components/PremiumSelect";
 import { type Label, type Lang } from "@/lib/entity-labels";
-import { describeMeta } from "@/lib/audit-text";
+import { describeMeta, AUDIT_ACTION_LABEL } from "@/lib/audit-text";
 
 /*
   Журнал действий директора.
@@ -79,63 +79,67 @@ const WARNING = "var(--color-warning)";
 const SUCCESS = "var(--color-success)";
 const INFO    = "var(--color-info)";
 
-const ACTION_CONFIG: Record<string, {
-  icon: LucideIcon;
-  gradient: string;
-  label: { ru: string; uz: string };
-}> = {
+/* Подписи действий живут в contracts/audit-text.ts (AUDIT_ACTION_LABEL): те же
+   слова идут в CSV с сервера. Здесь — только значок и цвет. */
+const ACTION_CONFIG: Record<string, { icon: LucideIcon; gradient: string }> = {
   // Люди и доступ
-  "user.updated":                    { icon: User,          gradient: PRIMARY, label: { ru: "Обновлён пользователь",           uz: "Foydalanuvchi yangilandi" } },
-  "user.deactivated":                { icon: User,          gradient: DANGER,  label: { ru: "Пользователь деактивирован",      uz: "Foydalanuvchi o'chirildi" } },
-  "user.password_reset_by_admin":    { icon: Key,           gradient: WARNING, label: { ru: "Сброс пароля",                    uz: "Parol tiklandi" } },
-  "user.credentials_transferred":    { icon: Key,           gradient: WARNING, label: { ru: "Доступ передан другому",          uz: "Kirish boshqa odamga o'tkazildi" } },
-  "user.login_changed":              { icon: Key,           gradient: WARNING, label: { ru: "Сменён логин входа",              uz: "Kirish logini o'zgartirildi" } },
-  "user.totp_enable":                { icon: Shield,        gradient: SUCCESS, label: { ru: "Включён код-подтверждение",       uz: "Tasdiqlash kodi yoqildi" } },
-  "user.totp_disable":               { icon: Shield,        gradient: WARNING, label: { ru: "Отключён код-подтверждение",      uz: "Tasdiqlash kodi o'chirildi" } },
-  "access.operator":                 { icon: Shield,        gradient: PRIMARY, label: { ru: "Права оператора изменены",        uz: "Operator huquqlari o'zgartirildi" } },
-  "api_key.created":                 { icon: Link2,         gradient: PRIMARY, label: { ru: "Создан ключ API",                 uz: "API kaliti yaratildi" } },
-  "api_key.revoked":                 { icon: Link2,         gradient: DANGER,  label: { ru: "Отозван ключ API",                uz: "API kaliti bekor qilindi" } },
-  "api_key.status":                  { icon: Link2,         gradient: WARNING, label: { ru: "Ключ API включён/выключен",       uz: "API kaliti yoqildi/o'chirildi" } },
+  "user.updated":                    { icon: User, gradient: PRIMARY },
+  "user.deactivated":                { icon: User, gradient: DANGER },
+  "user.password_reset_by_admin":    { icon: Key, gradient: WARNING },
+  "user.credentials_transferred":    { icon: Key, gradient: WARNING },
+  "user.login_changed":              { icon: Key, gradient: WARNING },
+  "user.totp_enable":                { icon: Shield, gradient: SUCCESS },
+  "user.totp_disable":               { icon: Shield, gradient: WARNING },
+  "access.operator":                 { icon: Shield, gradient: PRIMARY },
+  "api_key.created":                 { icon: Link2, gradient: PRIMARY },
+  "api_key.revoked":                 { icon: Link2, gradient: DANGER },
+  "api_key.status":                  { icon: Link2, gradient: WARNING },
   // Заказы и оплаты
-  "order.create":                    { icon: ShoppingCart,  gradient: PRIMARY, label: { ru: "Создан заказ",                    uz: "Buyurtma yaratildi" } },
-  "order.cancelled":                 { icon: ShoppingCart,  gradient: DANGER,  label: { ru: "Заказ отменён",                   uz: "Buyurtma bekor qilindi" } },
-  "order.bulk_status_change":        { icon: ClipboardList, gradient: WARNING, label: { ru: "Массовая смена статуса заказов",  uz: "Buyurtmalar holati ommaviy o'zgartirildi" } },
-  "order.invoices_printed":          { icon: Printer,       gradient: PRIMARY, label: { ru: "Напечатаны накладные",            uz: "Yuk xatlari chop etildi" } },
-  "order.payment_recorded":          { icon: CreditCard,    gradient: SUCCESS, label: { ru: "Принята оплата",                  uz: "To'lov qabul qilindi" } },
-  "order.reopened":                  { icon: Undo2,         gradient: WARNING, label: { ru: "Заказ возвращён в работу",         uz: "Buyurtma ishga qaytarildi" } },
-  "order.revenue_reversed":          { icon: Undo2,         gradient: DANGER,  label: { ru: "Доставка отменена задним числом",  uz: "Yetkazish orqaga qaytarildi" } },
-  "payment.reverse":                 { icon: Undo2,         gradient: DANGER,  label: { ru: "Оплата отменена",                 uz: "To'lov bekor qilindi" } },
-  "return.status":                   { icon: Undo2,         gradient: WARNING, label: { ru: "Возврат: смена статуса",          uz: "Qaytarish: holat o'zgardi" } },
+  "order.create":                    { icon: ShoppingCart, gradient: PRIMARY },
+  "order.cancelled":                 { icon: ShoppingCart, gradient: DANGER },
+  "order.bulk_status_change":        { icon: ClipboardList, gradient: WARNING },
+  "order.invoices_printed":          { icon: Printer, gradient: PRIMARY },
+  "order.payment_recorded":          { icon: CreditCard, gradient: SUCCESS },
+  "order.reopened":                  { icon: Undo2, gradient: WARNING },
+  // Четыре действия писались в журнал (traceOrderChange), но подписи не имели
+  // и показывались кодом — «order.update_items».
+  "order.update":                    { icon: ShoppingCart, gradient: PRIMARY },
+  "order.update_items":              { icon: ShoppingCart, gradient: PRIMARY },
+  "order.delete":                    { icon: ShoppingCart, gradient: DANGER },
+  "order.restore":                   { icon: Undo2, gradient: SUCCESS },
+  "order.revenue_reversed":          { icon: Undo2, gradient: DANGER },
+  "payment.reverse":                 { icon: Undo2, gradient: DANGER },
+  "return.status":                   { icon: Undo2, gradient: WARNING },
   // Магазины и цены
-  "shop.credit_limit_changed":       { icon: Store,         gradient: WARNING, label: { ru: "Изменён кредитный лимит магазина", uz: "Do'kon kredit limiti o'zgartirildi" } },
-  "product.updated":                 { icon: Tag,           gradient: PRIMARY, label: { ru: "Обновлён товар",                  uz: "Tovar yangilandi" } },
-  "product.deleted":                 { icon: Trash2,        gradient: DANGER,  label: { ru: "Удалён товар",                    uz: "Tovar o'chirildi" } },
-  "price_list.item_set":             { icon: Tag,           gradient: PRIMARY, label: { ru: "Цена в прайс-листе",              uz: "Narxlar ro'yxatida narx" } },
-  "price_list.deleted":              { icon: Trash2,        gradient: DANGER,  label: { ru: "Удалён прайс-лист",               uz: "Narxlar ro'yxati o'chirildi" } },
+  "shop.credit_limit_changed":       { icon: Store, gradient: WARNING },
+  "product.updated":                 { icon: Tag, gradient: PRIMARY },
+  "product.deleted":                 { icon: Trash2, gradient: DANGER },
+  "price_list.item_set":             { icon: Tag, gradient: PRIMARY },
+  "price_list.deleted":              { icon: Trash2, gradient: DANGER },
   // Склад
-  "stock.adjusted":                  { icon: Package,       gradient: WARNING, label: { ru: "Корректировка склада",            uz: "Ombor tahrirlandi" } },
-  "stock.transfer_completed":        { icon: Boxes,         gradient: PRIMARY, label: { ru: "Перемещение между складами",      uz: "Omborlar orasida ko'chirish" } },
-  "stock_count.create":              { icon: ClipboardCheck, gradient: PRIMARY, label: { ru: "Начата инвентаризация",          uz: "Inventarizatsiya boshlandi" } },
-  "stock_count.apply":               { icon: ClipboardCheck, gradient: SUCCESS, label: { ru: "Инвентаризация проведена",       uz: "Inventarizatsiya o'tkazildi" } },
-  "stock_count.cancel":              { icon: ClipboardCheck, gradient: DANGER,  label: { ru: "Инвентаризация отменена",        uz: "Inventarizatsiya bekor qilindi" } },
-  "arrival.completed":               { icon: Truck,         gradient: SUCCESS, label: { ru: "Приход оприходован",              uz: "Kirim qabul qilindi" } },
-  "supplier.return_goods":           { icon: Truck,         gradient: WARNING, label: { ru: "Возврат поставщику",              uz: "Yetkazib beruvchiga qaytarish" } },
-  "loading_list.created":            { icon: ClipboardList, gradient: PRIMARY, label: { ru: "Создан лист загрузки",            uz: "Yuklash varag'i yaratildi" } },
-  "loading_list.picked":             { icon: ClipboardList, gradient: SUCCESS, label: { ru: "Лист загрузки собран",            uz: "Yuklash varag'i yig'ildi" } },
+  "stock.adjusted":                  { icon: Package, gradient: WARNING },
+  "stock.transfer_completed":        { icon: Boxes, gradient: PRIMARY },
+  "stock_count.create":              { icon: ClipboardCheck, gradient: PRIMARY },
+  "stock_count.apply":               { icon: ClipboardCheck, gradient: SUCCESS },
+  "stock_count.cancel":              { icon: ClipboardCheck, gradient: DANGER },
+  "arrival.completed":               { icon: Truck, gradient: SUCCESS },
+  "supplier.return_goods":           { icon: Truck, gradient: WARNING },
+  "loading_list.created":            { icon: ClipboardList, gradient: PRIMARY },
+  "loading_list.picked":             { icon: ClipboardList, gradient: SUCCESS },
   // Зарплата
-  "salary.rate_set":                 { icon: Wallet,        gradient: PRIMARY, label: { ru: "Установлена ставка зарплаты",     uz: "Ish haqi stavkasi belgilandi" } },
-  "salary.fraud_deduction":          { icon: Wallet,        gradient: DANGER,  label: { ru: "Удержание из зарплаты",           uz: "Ish haqidan ushlab qolish" } },
+  "salary.rate_set":                 { icon: Wallet, gradient: PRIMARY },
+  "salary.fraud_deduction":          { icon: Wallet, gradient: DANGER },
   // Организация и система
-  "settings.updated":                { icon: Settings,      gradient: PRIMARY, label: { ru: "Изменены настройки",              uz: "Sozlamalar o'zgartirildi" } },
-  "onec.config_saved":               { icon: Settings,      gradient: INFO,    label: { ru: "Сохранены настройки 1C",          uz: "1C sozlamalari saqlandi" } },
-  "integration.onec_secret_rotated": { icon: Settings,      gradient: INFO,    label: { ru: "Ротация ключа 1C",                uz: "1C kalit almashtirildi" } },
-  "tenant.updated":                  { icon: Building2,     gradient: DANGER,  label: { ru: "Обновлена организация",           uz: "Tashkilot yangilandi" } },
-  "tenant.extra_limits":             { icon: Building2,     gradient: WARNING, label: { ru: "Изменены лимиты организации",     uz: "Tashkilot limitlari o'zgartirildi" } },
-  "tenant.sandbox.create":           { icon: Building2,     gradient: INFO,    label: { ru: "Создана песочница",               uz: "Sinov muhiti yaratildi" } },
-  "tenant.manual_granted":           { icon: BookOpen,      gradient: SUCCESS, label: { ru: "Выдано руководство",              uz: "Qo'llanma berildi" } },
-  "tenant.manual_revoked":           { icon: BookOpen,      gradient: WARNING, label: { ru: "Руководство отключено",           uz: "Qo'llanma o'chirildi" } },
-  "system.backup_downloaded":        { icon: Database,      gradient: DANGER,  label: { ru: "Скачана копия базы",              uz: "Baza nusxasi yuklab olindi" } },
-  "audit.purged":                    { icon: AlertTriangle, gradient: DANGER,  label: { ru: "Очищен журнал аудита",            uz: "Audit jurnali tozalandi" } },
+  "settings.updated":                { icon: Settings, gradient: PRIMARY },
+  "onec.config_saved":               { icon: Settings, gradient: INFO },
+  "integration.onec_secret_rotated": { icon: Settings, gradient: INFO },
+  "tenant.updated":                  { icon: Building2, gradient: DANGER },
+  "tenant.extra_limits":             { icon: Building2, gradient: WARNING },
+  "tenant.sandbox.create":           { icon: Building2, gradient: INFO },
+  "tenant.manual_granted":           { icon: BookOpen, gradient: SUCCESS },
+  "tenant.manual_revoked":           { icon: BookOpen, gradient: WARNING },
+  "system.backup_downloaded":        { icon: Database, gradient: DANGER },
+  "audit.purged":                    { icon: AlertTriangle, gradient: DANGER },
 };
 
 /*
@@ -340,14 +344,12 @@ export default function AuditLog() {
       ) : (
         <div style={{ background: COLORS.surface, borderRadius: "24px", boxShadow: SHADOW, overflow: "hidden" }}>
           {data.data.map((entry, i) => {
-            const config = ACTION_CONFIG[entry.action] ?? {
-              icon: Shield, gradient: "var(--color-text-tertiary)",
-              label: { ru: entry.action, uz: entry.action },
-            };
+            const config = ACTION_CONFIG[entry.action] ?? { icon: Shield, gradient: "var(--color-text-tertiary)" };
+            const actionLabel = AUDIT_ACTION_LABEL[entry.action]?.[L] ?? entry.action;
             const Icon = config.icon;
             const isLast = i === data.data.length - 1;
             const isExpanded = expandedId === entry.id;
-            const details = describeMeta(entry.meta as Record<string, unknown> | null, L);
+            const details = describeMeta(entry.meta as Record<string, unknown> | null, L, entry.targetLabel);
 
             return (
               <div key={entry.id} style={{ borderBottom: isLast ? "none" : `1px solid ${COLORS.border}`, animation: `slideUp ${0.4 + i * 0.03}s ease` }}>
@@ -366,7 +368,7 @@ export default function AuditLog() {
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: "12px", flexWrap: "wrap" }}>
                       <p style={{ fontSize: "14px", fontWeight: 600, color: COLORS.textPrimary, fontFamily: F.display, margin: 0 }}>
-                        {config.label[L]}
+                        {actionLabel}
                         {entry.targetLabel && <span style={{ fontWeight: 500, color: COLORS.textSecondary }}> — {entry.targetLabel}</span>}
                       </p>
                       <p style={{ fontSize: "12px", color: COLORS.textTertiary, margin: 0, whiteSpace: "nowrap" }}>

@@ -1,4 +1,5 @@
 import { auditLog } from "@db/schema";
+import { describeMeta, AUDIT_ACTION_LABEL } from "@contracts/audit-text";
 import { eq, and, or, desc, sql, gte, lte, like } from "drizzle-orm";
 import { logger } from "../lib/logger";
 import { getClientIp } from "../lib/rate-limit";
@@ -177,18 +178,25 @@ export async function auditActors(db: Db, tenantId: number): Promise<Array<{ id:
 /**
  * Export audit log as CSV string.
  */
+/** «06.08.2026 14:00» — как на экране, а не ISO с буквой T. */
+function formatCsvDate(d: Date): string {
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${p(d.getDate())}.${p(d.getMonth() + 1)}.${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
 export function exportAuditCsv(rows: ReturnType<typeof getAuditLog> extends Promise<infer R> ? (R extends { data: infer D } ? D : never) : never): string {
-  const header = "ID,Дата,Пользователь,Действие,Объект,Тип объекта,ID объекта,IP,Мета";
+  // Бумага — по-русски и словами: «Создан заказ», «Оплата: Наличные», а не
+  // «order.create» и JSON. Те же словари, что на экране (contracts/audit-text).
+  const header = "ID,Дата,Сотрудник,Действие,Объект,Подробности,IP,Код действия";
   const lines = rows.map((r) => [
     r.id,
-    r.createdAt?.toISOString() ?? "",
-    r.actorName ?? `user#${r.actorId}`,
-    r.action,
+    r.createdAt ? formatCsvDate(r.createdAt) : "",
+    r.actorName ?? "Система",
+    AUDIT_ACTION_LABEL[r.action]?.ru ?? r.action,
     r.targetLabel ?? "",
-    r.targetType ?? "",
-    r.targetId ?? "",
+    describeMeta(r.meta as Record<string, unknown> | null, "ru", r.targetLabel),
     r.ip ?? "",
-    JSON.stringify(r.meta ?? {}),
+    r.action,
   ].map(csvCell).join(","));
   return [header, ...lines].join("\n");
 }
