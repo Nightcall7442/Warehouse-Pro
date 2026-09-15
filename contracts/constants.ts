@@ -250,7 +250,7 @@ export const OPERATOR_CAPABILITIES = [
   "products.manage",
   /** Прайс-листы и их привязка к магазинам. */
   "prices.manage",
-  /** Ручная правка остатков на складе. */
+  /** Ручная правка остатков и перемещения между складами. */
   "warehouse.adjust",
   /** Поставщики, поставки и оплаты им. */
   "suppliers.manage",

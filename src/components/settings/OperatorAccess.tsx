@@ -50,9 +50,9 @@ const LABELS: Record<OperatorCapability, { ru: string; uz: string; hintRu: strin
     hintUz: "Narx ro'yxatlarini yaratish va do'konlarga biriktirish.",
   },
   "warehouse.adjust": {
-    ru: "Править остатки", uz: "Qoldiqlarni tuzatish",
-    hintRu: "Ручная корректировка количества на складе.",
-    hintUz: "Ombordagi miqdorni qo'lda tuzatish.",
+    ru: "Править остатки и перемещать", uz: "Qoldiqlarni tuzatish va ko'chirish",
+    hintRu: "Ручная корректировка количества на складе и перемещения между складами.",
+    hintUz: "Ombordagi miqdorni qo'lda tuzatish va omborlar orasida ko'chirish.",
   },
   "suppliers.manage": {
     ru: "Вести поставщиков", uz: "Yetkazib beruvchilar",

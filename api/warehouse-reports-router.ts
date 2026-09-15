@@ -21,7 +21,10 @@ export const warehouseReportsRouter = createRouter({
     СУПЕРВАЙЗЕР. То есть оператор открывал свой отчёт и видел два пустых
     блока с отказом, хотя остальные три (operatorQuery) грузились.
   */
-  stockByCategory: managementQuery.query(async ({ ctx }) => {
+  // warehouseId во всех отчётах по остатку — по одному складу; без него — по всем.
+  stockByCategory: managementQuery
+    .input(z.object({ warehouseId: z.number().int().positive().optional() }).optional())
+    .query(async ({ input, ctx }) => {
     const db = getDb();
     const tenantId = ctx.tenant.id;
 
@@ -35,7 +38,7 @@ export const warehouseReportsRouter = createRouter({
     })
       .from(warehouseStock)
       .leftJoin(products, and(eq(warehouseStock.productId, products.id), eq(products.tenantId, ctx.tenant.id)))
-      .where(eq(warehouseStock.tenantId, tenantId))
+      .where(and(eq(warehouseStock.tenantId, tenantId), ...(input?.warehouseId ? [eq(warehouseStock.warehouseId, input.warehouseId)] : [])))
       .groupBy(sql`COALESCE(${products.category}, 'Без категории')`)
       .orderBy(desc(sql`COALESCE(SUM(${warehouseStock.currentStock} * COALESCE(${products.costPrice}, 0)), 0)`));
 
@@ -44,7 +47,7 @@ export const warehouseReportsRouter = createRouter({
 
   /** Stock movement trends — daily in/out for last N days */
   movementTrends: managementQuery
-    .input(z.object({ days: z.number().default(30) }).optional())
+    .input(z.object({ days: z.number().default(30), warehouseId: z.number().int().positive().optional() }).optional())
     .query(async ({ input, ctx }) => {
       const db = getDb();
       const tenantId = ctx.tenant.id;
@@ -61,6 +64,7 @@ export const warehouseReportsRouter = createRouter({
         .from(stockMovements)
         .where(and(
           eq(stockMovements.tenantId, tenantId),
+          ...(input?.warehouseId ? [eq(stockMovements.warehouseId, input.warehouseId)] : []),
           sql`${stockMovements.createdAt} >= ${cutoff}`,
         ))
         .groupBy(sql`DATE(${stockMovements.createdAt})`)
@@ -71,7 +75,7 @@ export const warehouseReportsRouter = createRouter({
 
   /** Top products by inventory value */
   topByValue: operatorQuery
-    .input(z.object({ limit: z.number().int().min(1).max(1000).default(10) }).optional())
+    .input(z.object({ limit: z.number().int().min(1).max(1000).default(10), warehouseId: z.number().int().positive().optional() }).optional())
     .query(async ({ input, ctx }) => {
       const db = getDb();
       const tenantId = ctx.tenant.id;
@@ -92,7 +96,7 @@ export const warehouseReportsRouter = createRouter({
       })
         .from(warehouseStock)
         .leftJoin(products, and(eq(warehouseStock.productId, products.id), eq(products.tenantId, ctx.tenant.id)))
-        .where(and(eq(warehouseStock.tenantId, tenantId), sql`${warehouseStock.currentStock} > 0`))
+        .where(and(eq(warehouseStock.tenantId, tenantId), ...(input?.warehouseId ? [eq(warehouseStock.warehouseId, input.warehouseId)] : []), sql`${warehouseStock.currentStock} > 0`))
         .orderBy(desc(sql`COALESCE(${warehouseStock.currentStock} * COALESCE(${products.costPrice}, 0), 0)`))
         .limit(input?.limit ?? 10);
     }),
