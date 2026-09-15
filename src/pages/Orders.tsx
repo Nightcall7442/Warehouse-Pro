@@ -84,7 +84,7 @@ function OperatorOrders() {
   const [dateTo, setDateTo] = useState(format(new Date(), "yyyy-MM-dd"));
   const isMobile            = useIsMobile();
   const navigate            = useNavigate();
-  const [searchParams]      = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const utils               = trpc.useUtils();
   const invalidateOrderCaches = useInvalidateOrderCaches();
   const { user }            = useAuth();
@@ -140,7 +140,16 @@ function OperatorOrders() {
   // Список уже собранных листов: незакрытый держит свои заказы, и закрыть его
   // до сих пор было нечем — ручки были, экрана не было.
   const [showLoadingLists, setShowLoadingLists] = useState(false);
-  const [showQuickOrder, setShowQuickOrder] = useState(false);
+  // ?new=1 — с кнопки «Новый заказ» на главной: окно открыто сразу.
+  const [showQuickOrder, setShowQuickOrder] = useState(searchParams.get("new") === "1");
+  const setQuickOrderOpen = (open: boolean) => {
+    setShowQuickOrder(open);
+    // Закрыли — параметр уходит из адреса, иначе обновление страницы откроет окно снова.
+    if (!open && searchParams.get("new")) {
+      const next = new URLSearchParams(searchParams); next.delete("new");
+      setSearchParams(next, { replace: true });
+    }
+  };
 
   const switchSection = useCallback((next: "active" | "archive") => {
     setSection(next);
@@ -1251,7 +1260,7 @@ function OperatorOrders() {
     {/* ── Quick Order Modal ── */}
     <QuickOrderModal
       open={showQuickOrder}
-      onOpenChange={setShowQuickOrder}
+      onOpenChange={setQuickOrderOpen}
       onCreated={() => { invalidateOrderCaches(); }}
     />
 
