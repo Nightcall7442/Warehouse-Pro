@@ -24,6 +24,12 @@ on:
         default: "ru,uz"
         required: false
 
+# Новый пуш в ту же ветку отменяет ещё идущий прогон: съёмка идёт около
+# часа, и два прогона подряд коммитили книгу дважды.
+concurrency:
+  group: screenshots-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   shoot:
     runs-on: ubuntu-latest
@@ -50,7 +56,13 @@ jobs:
       RATE_LIMIT_GLOBAL_MAX: "5000"
       PORT: "3100"
     steps:
+      # Коммит книги от GITHUB_TOKEN приходит в PR как от github-actions[bot],
+      # и проверки на нём ждут «Approve and run». С токеном владельца в секрете
+      # MANUAL_BOT_TOKEN коммит идёт от него, и проверки запускаются сами.
+      # Секрета нет — работает как прежде, с одобрением руками.
       - uses: actions/checkout@v7
+        with:
+          token: ${{ secrets.MANUAL_BOT_TOKEN || github.token }}
       - uses: actions/checkout@v7
         if: ${{ (inputs.mobile_ref || 'master') != '' }}
         with:

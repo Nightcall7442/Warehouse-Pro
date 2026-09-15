@@ -225,10 +225,11 @@ const MOBILE_SCENARIOS = {
     { name: "notifications", path: "/notifications" },
     /* ── вторая волна: страница товара, выбор товаров, итог заказа, карточки ── */
     { name: "product", path: "/product/1", do: [["wait", 1500]], marks: [["price", "text=/^(ЦЕНА ЗА|.* NARXI)/"], ["stock", "text=/^(ОСТАТОК|QOLDIQ)$/"], ["qty", "testid=qty"], ["toOrder", "text=/^(В заказ|Buyurtmaga) · /"]] },
-    { name: "order-picker", path: "/order/new?shopId=1&shopName=Demo", do: [["wait", 1500], ["click", "text=/Добавить товар|Mahsulot qo'shish/"], ["wait", 1500]],
-      marks: [["plus", "css=[data-testid^=stepper-plus-] >> nth=0"], ["done", "testid=picker-done"]], after: [] },
+    /* Окно выбора открывается само, пока корзина пуста; товар добавляется нажатием на строку, «−»/«+» появляются после. */
+    { name: "order-picker", path: "/order/new?shopId=1&shopName=Demo", do: [["wait", 1800]],
+      marks: [["row", "css=[data-testid^=picker-stock-] >> nth=0"], ["done", "testid=picker-done"]], after: [] },
     { name: "order-step3", path: null,
-      do: [["click", "css=[data-testid^=stepper-plus-] >> nth=0"], ["click", "css=[data-testid^=stepper-plus-] >> nth=0"], ["click", "testid=picker-done"], ["wait", 800], ["click", "text=/Продолжить|Davom etish/"], ["wait", 1200]],
+      do: [["click", "css=[data-testid^=picker-stock-] >> nth=0"], ["wait", 400], ["click", "css=[data-testid^=stepper-plus-] >> nth=0"], ["click", "testid=picker-done"], ["wait", 800], ["click", "text=/Продолжить|Davom etish/"], ["wait", 1200]],
       marks: [["confirm", "text=/Подтвердить заказ|Buyurtmani tasdiqlash/"]], after: [] },
     { name: "order-detail", path: "/orders", do: [["wait", 1200], ["click", "text=/^ORD-\\d+/ >> nth=0"], ["wait", 1500]], after: [] },
     { name: "shop-detail", path: "/shop/1", do: [["wait", 1500]] },
