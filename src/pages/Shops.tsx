@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useState } from "react";
+import { useScrollTopOnChange } from "@/hooks/useScrollTopOnChange";
 import { useCan } from "@/hooks/useCan";
 import { keepPreviousData } from "@tanstack/react-query";
 import { trpc } from "@/providers/trpc";
@@ -52,6 +53,7 @@ export default function Shops() {
   // Теперь переносить нечего: адрес и есть состояние, а «назад» — обычный
   // шаг по истории. Заодно отфильтрованный список можно послать ссылкой.
   const [page, setPage] = useUrlState("page", 1, urlPage);
+  useScrollTopOnChange(page);
   const [search, setSearch] = useUrlState("search", "", urlString);
   // Поле ввода остаётся мгновенным, а в запрос уходит придержанное
   // значение: иначе каждая буква — это новый ключ запроса, у которого

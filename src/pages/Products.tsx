@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useState } from "react";
+import { useScrollTopOnChange } from "@/hooks/useScrollTopOnChange";
 import { useCan } from "@/hooks/useCan";
 import { keepPreviousData } from "@tanstack/react-query";
 import { useCurrency } from "@/hooks/useCurrency";
@@ -20,6 +21,7 @@ import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 export default function Products() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [page, setPage] = useState(() => Math.max(1, parseInt(searchParams.get("page") || "1", 10) || 1));
+  useScrollTopOnChange(page);
 
   const updatePage = useCallback((p: number | ((prev: number) => number)) => {
     setPage(prev => {

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useScrollTopOnChange } from "@/hooks/useScrollTopOnChange";
 import { trpc } from "@/providers/trpc";
 import { useLang } from "@/i18n";
 import { useCurrency } from "@/hooks/useCurrency";
@@ -76,6 +77,7 @@ export default function Returns() {
 
   const [status, setStatus] = useState<Status | "all">("pending");
   const [page, setPage] = useState(1);
+  useScrollTopOnChange(page);
   const [openId, setOpenId] = useState<number | null>(null);
 
   const STATUS_LABEL: Record<Status, string> = {

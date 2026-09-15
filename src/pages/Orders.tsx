@@ -1,4 +1,5 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
+import { useScrollTopOnChange } from "@/hooks/useScrollTopOnChange";
 import { useCan } from "@/hooks/useCan";
 import { keepPreviousData } from "@tanstack/react-query";
 import { useCurrency } from "@/hooks/useCurrency";
@@ -69,6 +70,9 @@ export default function Orders() {
 
 function OperatorOrders() {
   const [page, setPage]     = useState(1);
+  // «Далее» стоит под таблицей: без этого вторая страница открывалась с того же места, где кончилась первая.
+  const listRef = useRef<HTMLDivElement>(null);
+  useScrollTopOnChange(page, listRef);
   const { fmt, symbol }     = useCurrency();
   const { lang }            = useLang();
   // Строка поиска НЕ хранится на этой странице. Компонент SearchInput держит её
@@ -1030,7 +1034,7 @@ function OperatorOrders() {
         </div>
       ) : viewMode === "kanban" || viewMode === "agents" ? null : (
         /* ─── Desktop Table ─── */
-        <div style={{
+        <div ref={listRef} style={{
           background: COLORS.surface, borderRadius: "24px", overflow: "hidden",
           boxShadow: SHADOW,
         }}>

@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { useScrollTopOnChange } from "@/hooks/useScrollTopOnChange";
 import { keepPreviousData } from "@tanstack/react-query";
 import { createPortal } from "react-dom";
 import { trpc } from "@/providers/trpc";
@@ -252,6 +253,7 @@ function ResetPasswordModal({ userId, userName, onClose, lang }: {
 /* ── Main ──────────────────────────────────────────────────────────────────── */
 export default function Users() {
   const [page, setPage] = useState(1);
+  useScrollTopOnChange(page);
   const [search, setSearch] = useState("");
   // Поле ввода остаётся мгновенным, а в запрос уходит придержанное
   // значение: иначе каждая буква — это новый ключ запроса, у которого
