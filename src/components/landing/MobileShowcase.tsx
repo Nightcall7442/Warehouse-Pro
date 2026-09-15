@@ -112,7 +112,7 @@ export default function MobileShowcase() {
   const f = features[active];
 
   return (
-    <section ref={section} id="mobile" className="py-16 md:py-24 scroll-mt-16" style={{ background: LX.paper, borderTop: `1px solid ${LX.rule}` }}>
+    <section ref={section} id="mobile" className="py-20 md:py-32 scroll-mt-16" style={{ background: LX.paper, borderTop: `1px solid ${LX.rule}` }}>
       <div className="max-w-[1240px] mx-auto px-6">
         <SectionHead
           index="10"
@@ -121,11 +121,11 @@ export default function MobileShowcase() {
           lead={tr("Экраны — настоящие, из приложения. Покрутите телефон, выберите фишку: так это выглядит у ваших людей в поле.", "Ekranlar — haqiqiy, ilovadan. Telefonni aylantiring, chipni tanlang: sizning odamlaringizda dalada shunday ko'rinadi.")}
         />
 
-        <div className="mt-12 grid lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)] gap-8 lg:gap-12 items-stretch">
+        <div className="mt-14 grid lg:grid-cols-12 gap-10 lg:gap-x-16 items-stretch">
           {/* Сцена */}
           <div
             ref={stage}
-            className="relative rounded-2xl overflow-hidden flex items-center justify-center min-h-[520px] md:min-h-[680px]"
+            className="lg:col-span-7 relative rounded-2xl overflow-hidden flex items-center justify-center min-h-[520px] md:min-h-[680px]"
             style={{
               background: `radial-gradient(ellipse at 50% 85%, ${LX.brassGlow28}, transparent 55%), radial-gradient(ellipse at 20% 10%, ${LX.paperOnInk06}, transparent 50%), ${LX.night}`,
               perspective: 1300,
@@ -162,7 +162,7 @@ export default function MobileShowcase() {
           </div>
 
           {/* Фишки списком */}
-          <div className="flex flex-col">
+          <div className="lg:col-span-5 flex flex-col">
             <ol role="tablist" aria-label={tr("Экраны приложения", "Ilova ekranlari")} className="flex-1" style={{ borderTop: `1px solid ${LX.ruleStrong}` }}>
               {features.map((x, i) => {
                 const on = active === i;

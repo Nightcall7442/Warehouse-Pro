@@ -90,7 +90,11 @@ const T = {
 
 const WEB_SCENARIOS = {
   operator: [
-    { name: "orders", path: "/orders",
+    /*
+      Заказы — за месяц: с фильтром «сегодня» в таблице три строки и пустой
+      экран под ними. Руководство и лендинг показывают таблицу, а не пустоту.
+    */
+    { name: "orders", path: "/orders", do: [["click", "text=/^(Этот месяц|Bu oy)$/"], ["wait", 1200]], after: [],
       marks: [["summary", T.pending], ["search", "ph=/Поиск заказов|Buyurtma/"], ["lists", T.lists], ["new", T.newOrder], ["status", "css=table tbody tr [role=combobox] >> nth=0"], ["complete", "text=/^(Выполнен|Bajarildi)$/ >> nth=0"]] },
     { name: "order-panel", path: "/orders", do: [["click", "css=table tbody tr td >> nth=1"], ["wait", 1500]],
       marks: [["status", "css=[role=dialog] [role=combobox] >> nth=0"], ["tabs", "text=/^(Детали|Tafsilotlar)$/"], ["sum", "text=/Сумма заказа|Buyurtma summasi/"]] },
@@ -125,7 +129,12 @@ const WEB_SCENARIOS = {
     { name: "plans-month", path: "/supervisor/plans", do: [["click", T.month + " >> nth=0"], ["wait", 2000]] },
     { name: "reports", path: "/reports" },
     { name: "reports-debts", path: "/reports?tab=debts" },
-    { name: "pnl", path: "/pnl" },
+    /*
+      P&L — на «12 мес.»: с умолчанием «30 дней» столбцов ровно два, и график
+      выглядит сломанным (одна косая линия). Руководству это тоже полезнее:
+      динамика по месяцам — то, ради чего экран открывают.
+    */
+    { name: "pnl", path: "/pnl", do: [["click", "role=button:/12 мес\.|12 oy/"], ["wait", 1200]], after: [] },
     { name: "salaries", path: "/salaries", marks: [["payAll", "text=/Выдать всем|Hammaga berish/ >> nth=0"]] },
     { name: "users", path: "/users" },
     { name: "audit-log", path: "/audit-log" },

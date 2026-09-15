@@ -69,6 +69,27 @@ def crop_map(src: Path, dst: Path) -> str:
     return f"{im.width}×{im.height}, {dst.stat().st_size // 1024} КБ"
 
 
+# ── Веб-кадр без бокового меню: только содержание ───────────────────────────
+# В главах о заказах, складе, деньгах кадр должен быть о своём — таблице,
+# показателях, графике, — а не о меню приложения, одинаковом на каждом кадре.
+# Боковое меню занимает первые 18,5 % ширины (1440 → 266 px); сверху срезаем
+# полосу заголовка страницы, чтобы в оправе сразу шли показатели.
+CONTENT_BOX = (0.185, 0.0, 1.0, 1.0)
+
+
+def crop_content(src: Path, dst: Path) -> str:
+    im = Image.open(src).convert("RGB")
+    w, h = im.size
+    box = (round(w * CONTENT_BOX[0]), round(h * CONTENT_BOX[1]), round(w * CONTENT_BOX[2]), round(h * CONTENT_BOX[3]))
+    im = im.crop(box)
+    if im.width > 1600:
+        im = im.resize((1600, round(im.height * 1600 / im.width)), Image.LANCZOS)
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    im.save(dst, "WEBP", quality=80, method=6)
+    note(dst.parent.name, dst.stem, im)
+    return f"{im.width}×{im.height}, {dst.stat().st_size // 1024} КБ"
+
+
 def main() -> int:
     if not SRC.exists():
         print(f"нет {SRC} — сначала CI на ветке docs/landing-*")
@@ -80,6 +101,8 @@ def main() -> int:
             print(f"{lang_dir.name}/{src.name}: {process(src, dst)}")
             total += 1
     for lang_dir in sorted(p for p in SRC.iterdir() if p.is_dir()):
+        for src in sorted(lang_dir.glob("web-*.webp")):
+            print(f"{lang_dir.name}/{src.stem}-content: {crop_content(src, OUT / lang_dir.name / (src.stem + '-content.webp'))}")
         src = lang_dir / "web-supervisor-map.webp"
         if src.exists():
             print(f"{lang_dir.name}/map-crop: {crop_map(src, OUT / lang_dir.name / 'map-crop.webp')}")

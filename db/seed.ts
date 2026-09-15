@@ -430,30 +430,61 @@ async function seed() {
   }
   console.log(`✓ ${shopIds.length} shops created\n`);
 
-  // ── Orders (80) ─────────────────────────────────────────────────────────────
+  // ── Orders (160) ────────────────────────────────────────────────────────────
+  /*
+    Как у живой компании, а не по кругу i % 4: снимки экранов для лендинга и
+    руководства делаются с этого засева, и «20 новых, 20 в обработке, выручка
+    пилой» читалось как сломанные графики.
+
+      · 90 заказов за последние 30 дней (по 2–4 в будний день, воскресенье —
+        выходной) и 70 — россыпью за полгода до того: недельные и месячные
+        графики получают ритм, а не две точки;
+      · статус — по возрасту: старше трёх дней — доставлен (85 %), отменён или
+        возвращён; последние три дня — вперемешку с отгруженными и в обработке,
+        чтобы в таблице активных заказов было с десяток строк, а не три;
+      · доставка и курьер согласованы со статусом.
+  */
   console.log("Creating orders...");
   const allAgents = agentIds;
-  const statuses: Array<"new" | "processing" | "delivered" | "cancelled"> = ["new", "processing", "delivered", "cancelled"];
   const deliveryStatuses: Array<"not_assigned" | "assigned" | "out_for_delivery" | "delivered" | "failed"> = [
     "not_assigned", "assigned", "out_for_delivery", "delivered", "failed",
   ];
 
-  let orderCount = 0;
-  for (let i = 0; i < 80; i++) {
-    const shopIdx = i % shopIds.length;
-    const shopId = shopIds[shopIdx];
-    const agentId = allAgents[i % allAgents.length];
-    const status = statuses[i % 4];
-    /*
-      Первые тридцать заказов — плотно, по три в день за последние десять
-      дней: главная и «сегодня» должны быть живыми. Остальные пятьдесят
-      расходятся на полгода назад — иначе месячные графики (P&L, отчёты)
-      состоят из двух точек и одной косой линии между ними.
-    */
-    const daysBack = i < 30 ? Math.floor(i / 3) : 10 + Math.floor((i - 30) * 3.4);
-    const createdAt = daysAgo(daysBack, i % 10);
+  /* Детерминированный «случай»: одни и те же снимки при каждом засеве. */
+  let seedState = 20260914;
+  const rnd = () => { seedState = (seedState * 1103515245 + 12345) % 2147483648; return seedState / 2147483648; };
 
-    const numItems = 1 + Math.floor(Math.random() * 4);
+  const orderDays: number[] = [];
+  for (let d = 0; d < 30; d++) {
+    const dow = new Date(Date.now() - d * 86_400_000).getDay();
+    if (dow === 0) continue;
+    const n = d === 0 ? 5 : 2 + Math.floor(rnd() * 3);
+    for (let k = 0; k < n && orderDays.length < 90; k++) orderDays.push(d);
+  }
+  while (orderDays.length < 160) orderDays.push(31 + Math.floor(rnd() * 150));
+  orderDays.sort((a, b) => a - b);
+
+  let orderCount = 0;
+  for (let i = 0; i < orderDays.length; i++) {
+    const daysBack = orderDays[i];
+    const shopIdx = Math.floor(rnd() * shopIds.length);
+    const shopId = shopIds[shopIdx];
+    const agentId = shopDefs[shopIdx].agentId ?? allAgents[i % allAgents.length];
+    const r = rnd();
+    const status: "new" | "processing" | "shipped" | "delivered" | "cancelled" | "returned" =
+      daysBack >= 3 ? (r < 0.85 ? "delivered" : r < 0.93 ? "cancelled" : "returned")
+      : daysBack >= 1 ? (r < 0.45 ? "delivered" : r < 0.75 ? "shipped" : "processing")
+      /*
+        Сегодня — по порядку: отгружен (курьер 1 — в пути), отгружен (курьер 2),
+        в обработке (курьер 1 — назначен), два доставлены — чтобы «выручка
+        сегодня» на главной была не нулём, — дальше новые. У каждого курьера в
+        приложении есть и рейс в пути, и ждущий: экраны доставки снимаются с
+        этих заказов, а «случайно» сегодня могло не выпасть ни одного.
+      */
+      : (["shipped", "shipped", "processing", "delivered", "delivered"] as const)[i] ?? "new";
+    const createdAt = daysAgo(daysBack, 8 + Math.floor(rnd() * 10));
+
+    const numItems = 1 + Math.floor(rnd() * 5);
     let subtotal = 0;
     const orderItemsData: (typeof schema.orderItems.$inferInsert)[] = [];
     const usedProducts = new Set<number>();
@@ -461,12 +492,12 @@ async function seed() {
     for (let j = 0; j < numItems; j++) {
       let prodIdx: number;
       do {
-        prodIdx = Math.floor(Math.random() * productIds.length);
+        prodIdx = Math.floor(rnd() * productIds.length);
       } while (usedProducts.has(prodIdx) && usedProducts.size < productIds.length);
       usedProducts.add(prodIdx);
 
       const price = Number(productDefs[prodIdx].unitPrice!);
-      const qty = Math.floor(Math.random() * 15) + 1;
+      const qty = 2 + Math.floor(rnd() * 18);
       const itemSubtotal = price * qty;
       subtotal += itemSubtotal;
 
@@ -476,19 +507,19 @@ async function seed() {
         quantity: String(qty),
         unitPrice: productDefs[prodIdx].unitPrice!,
         // Себестоимость — снимок на момент заказа: по ней P&L считает маржу.
-        // Без неё отчёт показывал «себестоимость 0» и валовую прибыль 100 %.
         costPrice: productDefs[prodIdx].costPrice!,
         subtotal: String(itemSubtotal),
       });
     }
 
-    const discount = i % 7 === 0 ? (subtotal * 0.05).toFixed(2) : "0.00";
+    const discount = i % 9 === 0 ? (subtotal * 0.05).toFixed(2) : "0.00";
     const total = (subtotal - Number(discount)).toFixed(2);
-    const dStatus = status === "delivered" ? "delivered"
+    const dStatus = status === "delivered" || status === "returned" ? "delivered"
       : status === "cancelled" ? "failed"
-      : status === "processing" ? "out_for_delivery"
-      : deliveryStatuses[i % deliveryStatuses.length];
-    const courierId = dStatus === "delivered" || dStatus === "out_for_delivery"
+      : status === "shipped" ? "out_for_delivery"
+      : status === "processing" ? "assigned"
+      : deliveryStatuses[0];
+    const courierId = dStatus === "delivered" || dStatus === "out_for_delivery" || dStatus === "assigned"
       ? (i % 2 === 0 ? courier1Id : courier2Id)
       : null;
 
@@ -503,10 +534,10 @@ async function seed() {
       total,
       courierId,
       deliveryStatus: dStatus,
-      deliveredAt: status === "delivered" ? new Date(createdAt.getTime() + 3600000 * 2) : null,
+      deliveredAt: dStatus === "delivered" ? new Date(createdAt.getTime() + 3600000 * (2 + Math.floor(rnd() * 6))) : null,
       createdAt,
       updatedAt: createdAt,
-      notes: i % 5 === 0 ? "Срочный заказ" : null,
+      notes: i % 11 === 0 ? "Срочный заказ" : null,
     });
     const orderId = Number(orderR.insertId);
 
@@ -603,28 +634,29 @@ async function seed() {
   }
   console.log("✓ Stock movements created\n");
 
-  // ── Daily Plans (for each agent, last 7 days) ──────────────────────────────
+  // ── Daily Plans (last 30 days) ─────────────────────────────────────────────
+  /*
+    Месяц планов, а не неделя: отчёт «Визиты и заказы» и план на месяц у
+    супервайзера иначе показывают ступеньку из нуля. Сегодня — часть точек
+    уже посещена (утро прошло), остальные ждут; вчера и раньше — посещено
+    ~80 %, пропущено ~10 %, ещё 10 % осталось «запланировано» — как в жизни.
+  */
   console.log("Creating daily plans...");
   let planCount = 0;
   for (const agentId of allAgents) {
-    for (let d = 0; d < 7; d++) {
-      const agentShopCount = 3 + Math.floor(Math.random() * 3);
-      const assignedShops = shopDefs
-        .map((s, idx) => ({ ...s, idx }))
-        .filter(s => s.agentId === agentId)
-        .slice(0, agentShopCount);
-
-      if (assignedShops.length === 0) continue;
-
-      for (const shop of assignedShops) {
-        let status: "planned" | "visited" | "skipped";
-        if (d === 0) {
-          status = "planned";
-        } else if (d === 1) {
-          status = Math.random() > 0.2 ? "visited" : "skipped";
-        } else {
-          status = Math.random() > 0.1 ? "visited" : "skipped";
-        }
+    const own = shopDefs.map((sh, idx) => ({ ...sh, idx })).filter(sh => sh.agentId === agentId);
+    if (own.length === 0) continue;
+    for (let d = 0; d < 30; d++) {
+      const dow = new Date(Date.now() - d * 86_400_000).getDay();
+      if (dow === 0) continue;
+      const take = Math.min(own.length, 3 + Math.floor(rnd() * 3));
+      const offset = Math.floor(rnd() * own.length);
+      for (let k = 0; k < take; k++) {
+        const shop = own[(offset + k) % own.length];
+        const r = rnd();
+        const status: "planned" | "visited" | "skipped" =
+          d === 0 ? (k < Math.ceil(take / 2) ? "visited" : "planned")
+          : r < 0.8 ? "visited" : r < 0.9 ? "skipped" : "planned";
         await db.insert(schema.dailyPlans).values({
           tenantId,
           agentId,
@@ -633,7 +665,7 @@ async function seed() {
           status,
           notes: status === "skipped" ? "Магазин закрыт" : null,
           createdBy: supervisorId,
-          createdAt: daysAgo(d),
+          createdAt: daysAgo(d + 1),
           updatedAt: daysAgo(d),
         });
         planCount++;

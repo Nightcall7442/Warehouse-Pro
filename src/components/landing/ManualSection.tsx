@@ -36,7 +36,7 @@ export default function ManualSection() {
     // инлайновым transform, а anime.js ведёт только вложенный слой — так
     // они не спорят за одно свойство. Листы выезжают из стопки в центре.
     el.querySelectorAll<HTMLElement>("[data-leaf]").forEach((leaf, i) => {
-      animate(leaf, { x: [-(i - 1.5) * 34, 0], y: [28, 0], opacity: [0.5, 1], duration: 900, delay: 200 + i * 120, ease: "outCubic" });
+      animate(leaf, { y: [36, 0], opacity: [0, 1], duration: 900, delay: 200 + i * 140, ease: "outCubic" });
     });
     animate(el.querySelectorAll("[data-fact]"), { x: [-10, 0], opacity: [0, 1], duration: 420, delay: stagger(90, { start: 500 }), ease: "outCubic" });
   }, 0.25);
@@ -51,7 +51,7 @@ export default function ManualSection() {
   ];
 
   return (
-    <section id="manual" className="py-16 md:py-24 scroll-mt-16 overflow-hidden" style={{ background: LX.verso, borderTop: `1px solid ${LX.rule}` }}>
+    <section id="manual" className="py-20 md:py-32 scroll-mt-16 overflow-hidden" style={{ background: LX.verso, borderTop: `1px solid ${LX.rule}` }}>
       <div ref={root} className="max-w-[1240px] mx-auto px-6 grid lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] gap-12 lg:gap-16 items-center">
         <div>
           <SectionHead
@@ -72,13 +72,17 @@ export default function ManualSection() {
           </p>
         </div>
 
-        {/* Страницы веером */}
+        {/* Стол: большая страница веба и две страницы телефона поверх её края.
+            Активная — вперёд и в полный цвет, остальные чуть приглушены. */}
         <div>
-          {/* Веер: четыре страницы в ряд внахлёст, чтобы видно было каждую,
-              а активная выходила вперёд. Все размеры — доли ширины ряда. */}
-          <div className="flex items-end justify-center" style={{ perspective: 1000 }}>
+          <div className="relative" style={{ aspectRatio: "12 / 9" }}>
             {leaves.map((l, i) => {
               const isActive = active === i;
+              const place = l.mobile
+                ? { left: i === 1 ? "58%" : "76%", top: i === 1 ? "22%" : "10%", width: "22%" }
+                : i === 0
+                  ? { left: "0%", top: "0%", width: "70%" }
+                  : { left: "18%", top: "34%", width: "62%" };
               return (
                 <button
                   key={l.key}
@@ -86,14 +90,12 @@ export default function ManualSection() {
                   aria-label={l.title}
                   aria-pressed={isActive}
                   onClick={() => setActive(i)}
-                  className="relative shrink-0 cursor-pointer transition-transform duration-300 focus:outline-none"
+                  className="absolute cursor-pointer transition-all duration-300 focus:outline-none"
                   style={{
-                    width: l.mobile ? "17%" : "44%",
-                    marginLeft: i ? "-5%" : 0,
-                    zIndex: isActive ? 10 : 5 - Math.abs(active - i),
-                    filter: isActive ? "none" : "brightness(0.86)",
-                    transformOrigin: "50% 100%",
-                    transform: `rotate(${(i - 1.5) * 2.4}deg) translateY(${l.mobile ? -6 : 0}px) ${isActive ? "scale(1.05)" : "scale(1)"}`,
+                    ...place,
+                    zIndex: isActive ? 10 : l.mobile ? 6 - i : 2,
+                    filter: isActive ? "none" : "brightness(0.92)",
+                    transform: isActive ? "translateY(-6px)" : "none",
                   }}
                 >
                   <div data-leaf>
