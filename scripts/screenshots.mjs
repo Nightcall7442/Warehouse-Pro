@@ -116,6 +116,7 @@ const WEB_SCENARIOS = {
     { name: "warehouse", path: "/warehouse" },
     { name: "warehouse-reports", path: "/warehouse-reports" },
     { name: "products", path: "/products" },
+    { name: "product-detail", path: "/products", do: [["click", "css=[data-testid=product-row] >> nth=0"], ["wait", 1500]] },
     { name: "shops", path: "/shops", marks: [["search", "ph=/Название|Nomi|Поиск|Qidir/"]] },
     { name: "barcode", path: "/barcode" },
   ],
