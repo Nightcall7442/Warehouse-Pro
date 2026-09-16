@@ -30,6 +30,8 @@ describe.skipIf(!hasRealDb)("касса: сдача, расход, закрыт�
     await (db as any).insert(schema.settings).values({ tenantId: s.tenantId, companyName: "Тест" }).catch(() => {});
     // Курьер записал наличный платёж от магазина: 600 000 «на руках».
     await (db as any).insert(schema.payments).values({ tenantId: s.tenantId, shopId: s.shopId, amount: "600000.00", type: "payment", paymentMethod: "cash", createdBy: s.courierId });
+    // История до кассы: наличные, принятые директором в январе, в сейф не входят.
+    await (db as any).insert(schema.payments).values({ tenantId: s.tenantId, shopId: s.shopId, amount: "8000000.00", type: "payment", paymentMethod: "cash", createdBy: ceoId, createdAt: new Date("2026-01-15T08:00:00Z") });
   });
 
   const ceo = () => ({ id: ceoId, name: "Директор", role: "ceo" });

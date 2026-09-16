@@ -2,7 +2,7 @@ import { z } from "zod";
 import { eq } from "drizzle-orm";
 import { createRouter, adminQuery, authedQuery, operatorQuery, can } from "./middleware";
 import { getDb } from "./queries/connection";
-import { cashCategories, cashDays, settings } from "@db/schema";
+import { cashCategories, cashDays, cashDocuments, settings } from "@db/schema";
 import { CashService, ensureCategories, DEFAULT_CATEGORIES } from "./services/cash";
 import { NonCashService } from "./services/noncash";
 import { badRequest } from "./lib/errors";
@@ -96,14 +96,18 @@ export const cashRouter = createRouter({
     }),
 
   settings: cashierQuery.query(async ({ ctx }) => {
-    const [row] = await getDb().select({ limit: settings.cashLimit, deadline: settings.cashDeadline, bankDays: settings.bankConfirmDays }).from(settings).where(eq(settings.tenantId, ctx.tenant.id)).limit(1);
-    return { limit: Number(row?.limit ?? 5_000_000), deadline: row?.deadline ?? "19:00", bankConfirmDays: Number(row?.bankDays ?? 3) };
+    const [row] = await getDb().select({ limit: settings.cashLimit, deadline: settings.cashDeadline, bankDays: settings.bankConfirmDays, startDay: settings.cashStartDay }).from(settings).where(eq(settings.tenantId, ctx.tenant.id)).limit(1);
+    return { limit: Number(row?.limit ?? 5_000_000), deadline: row?.deadline ?? "19:00", bankConfirmDays: Number(row?.bankDays ?? 3), startDay: row?.startDay ?? "2026-09-16" };
   }),
 
   saveSettings: adminQuery
-    .input(z.object({ limit: z.number().min(0).max(1e12), deadline: z.string().regex(/^\d{2}:\d{2}$/), bankConfirmDays: z.number().int().min(1).max(60) }))
+    .input(z.object({ limit: z.number().min(0).max(1e12), deadline: z.string().regex(/^\d{2}:\d{2}$/), bankConfirmDays: z.number().int().min(1).max(60), startDay: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) }))
     .mutation(async ({ input, ctx }) => {
-      await getDb().update(settings).set({ cashLimit: input.limit.toFixed(2), cashDeadline: input.deadline, bankConfirmDays: input.bankConfirmDays }).where(eq(settings.tenantId, ctx.tenant.id));
+      // Сдвигать начало кассы после первого документа нельзя: проводки и закрытые дни перестали бы сходиться.
+      const [doc] = await getDb().select({ id: cashDocuments.id }).from(cashDocuments).where(eq(cashDocuments.tenantId, ctx.tenant.id)).limit(1);
+      const [cur] = await getDb().select({ startDay: settings.cashStartDay }).from(settings).where(eq(settings.tenantId, ctx.tenant.id)).limit(1);
+      if (doc && cur && cur.startDay !== input.startDay) throw badRequest("Касса уже ведётся — день начала менять нельзя. Стартовый остаток правится «Внесением» или «Выемкой».");
+      await getDb().update(settings).set({ cashLimit: input.limit.toFixed(2), cashDeadline: input.deadline, bankConfirmDays: input.bankConfirmDays, cashStartDay: input.startDay }).where(eq(settings.tenantId, ctx.tenant.id));
       return { ok: true };
     }),
 

@@ -1424,6 +1424,14 @@ export const settings = mysqlTable("settings", {
   cashDeadline:        varchar("cash_deadline", { length: 5 }).default("19:00").notNull(),
   /** Безнал: через сколько дней неподтверждённый банком перевод считается просроченным. */
   bankConfirmDays:     int("bank_confirm_days").default(3).notNull(),
+  /**
+   * Касса ведётся с этого дня. Платежи раньше в проводки не входят: у
+   * организации, работавшей до кассы, вся история наличных иначе легла бы
+   * «в сейф» — 8 млн по системе против пустого ящика, и первое закрытие дня
+   * повесило бы разницу долгом на кассира. Стартовый остаток — «Внесением».
+   * По умолчанию — день, когда касса появилась в продукте.
+   */
+  cashStartDay:        date("cash_start_day", { mode: "string" }).default("2026-09-16").notNull(),
   createdAt:           timestamp("created_at").defaultNow().notNull(),
   updatedAt:           timestamp("updated_at").defaultNow().notNull().$onUpdate(() => new Date()),
 });

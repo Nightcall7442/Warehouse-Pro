@@ -502,21 +502,24 @@ function SettingsTab({ t, fmt, refresh }: { t: T; fmt: Fmt; refresh: () => void 
   const [limit, setLimit] = useState<string | null>(null);
   const [deadline, setDeadline] = useState<string | null>(null);
   const [bankDays, setBankDays] = useState<string | null>(null);
+  const [startDay, setStartDay] = useState<string | null>(null);
   const [newCat, setNewCat] = useState({ code: "", name: "", limit: "" });
   const curLimit = limit ?? String(s.data?.limit ?? "");
   const curDeadline = deadline ?? (s.data?.deadline ?? "19:00");
   const curBankDays = bankDays ?? String(s.data?.bankConfirmDays ?? 3);
+  const curStartDay = startDay ?? (s.data?.startDay ?? "2026-09-16");
   return (
     <div className="space-y-4">
       <div className="neo-card neo-card-static" style={{ borderRadius: "20px", padding: "18px" }}>
         <div className="flex items-center gap-2 mb-3"><Settings2 size={16} /><b style={{ fontFamily: F.display }}>{t("Правила", "Qoidalar")}</b></div>
-        <div className="grid sm:grid-cols-4 gap-3 items-end">
+        <div className="grid sm:grid-cols-5 gap-3 items-end">
+          <label className="text-xs" style={{ color: COLORS.textSecondary }}>{t("Касса ведётся с", "Kassa shu kundan")}<input className="neo-input w-full mt-1 font-data" type="date" value={curStartDay} onChange={e => setStartDay(e.target.value)} data-testid="cash-start-day" /></label>
           <label className="text-xs" style={{ color: COLORS.textSecondary }}>{t("Лимит наличных на руках", "Qo'ldagi naqd limiti")}<DecimalInput className="neo-input w-full mt-1 font-data" value={curLimit} onValueChange={setLimit} data-testid="cash-limit" /></label>
           <label className="text-xs" style={{ color: COLORS.textSecondary }}>{t("Сдать до (часы:минуты)", "Topshirish muddati")}<input className="neo-input w-full mt-1 font-data" value={curDeadline} onChange={e => setDeadline(e.target.value)} placeholder="19:00" /></label>
           <label className="text-xs" style={{ color: COLORS.textSecondary }}>{t("Безнал: срок подтверждения, дн.", "Naqdsiz: tasdiqlash muddati, kun")}<input className="neo-input w-full mt-1 font-data" type="number" min={1} max={60} value={curBankDays} onChange={e => setBankDays(e.target.value)} data-testid="cash-bank-days" /></label>
-          <button className="neo-btn-primary h-11" disabled={save.isPending} onClick={() => save.mutate({ limit: Number(curLimit || 0), deadline: curDeadline, bankConfirmDays: Math.min(60, Math.max(1, Number(curBankDays) || 3)) })}>{t("Сохранить", "Saqlash")}</button>
+          <button className="neo-btn-primary h-11" disabled={save.isPending} onClick={() => save.mutate({ limit: Number(curLimit || 0), deadline: curDeadline, bankConfirmDays: Math.min(60, Math.max(1, Number(curBankDays) || 3)), startDay: curStartDay })}>{t("Сохранить", "Saqlash")}</button>
         </div>
-        <p style={{ fontSize: "12px", color: COLORS.textTertiary, marginTop: 8 }}>{t("Выше лимита — предупреждение в кассе и директору в Telegram; после срока сдачи — напоминание сотруднику. Перевод или карта без подтверждения выпиской дольше срока — просрочен, вечером директору по людям.", "Limitdan yuqori — kassada va direktorga Telegramda ogohlantirish; muddatdan keyin — xodimga eslatma. Ko'chirma bilan tasdiqlanmagan o'tkazma yoki karta muddatdan keyin — muddati o'tgan, kechqurun direktorga odamlar bo'yicha.")}</p>
+        <p style={{ fontSize: "12px", color: COLORS.textTertiary, marginTop: 8 }}>{t("Платежи раньше дня начала в кассу не входят — стартовый остаток сейфа внесите «Внесением»; после первого документа день начала не меняется. Выше лимита — предупреждение в кассе и директору в Telegram; после срока сдачи — напоминание сотруднику. Перевод или карта без подтверждения выпиской дольше срока — просрочен, вечером директору по людям.", "Boshlanish kunidan oldingi to'lovlar kassaga kirmaydi — seyfning boshlang'ich qoldig'ini «Kiritish» bilan kiriting; birinchi hujjatdan keyin boshlanish kuni o'zgarmaydi. Limitdan yuqori — kassada va direktorga Telegramda ogohlantirish; muddatdan keyin — xodimga eslatma. Ko'chirma bilan tasdiqlanmagan o'tkazma yoki karta muddatdan keyin — muddati o'tgan, kechqurun direktorga odamlar bo'yicha.")}</p>
       </div>
 
       <div className="neo-card neo-card-static" style={{ borderRadius: "20px", padding: "18px" }}>
