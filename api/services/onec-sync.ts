@@ -1,9 +1,11 @@
 import { TRPCError } from "@trpc/server";
 import { checkPlanLimits } from "../lib/plan-limits";
-import { eq, and, inArray, isNull, gte } from "drizzle-orm";
+import { eq, and, inArray, isNull, gte, ne } from "drizzle-orm";
 import { isDuplicateOf } from "../lib/db-errors";
 import { getDb } from "../queries/connection";
-import { products, orders, orderItems, warehouses, payments, onecConfig, onecJournal } from "@db/schema";
+import { products, orders, orderItems, warehouses, payments, onecConfig, onecJournal, idMappings } from "@db/schema";
+import { badRequest } from "../lib/errors";
+import { NonCashService, matchReceipts } from "./noncash";
 import { getBridgeForTenant, guid, OneCError, type OneCBridge } from "../lib/onec-bridge";
 import { OneCMapper } from "./onec-mapper";
 import { OnecJournal } from "./onec-journal";
@@ -436,18 +438,23 @@ export class OneCSyncService {
     }
   }
 
-  /** Оплата магазина → приходный кассовый ордер. Один платёж — один ПКО, повтор до-проводит. */
+  /**
+   * Оплата магазина → приходный кассовый ордер. Один платёж — один ПКО,
+   * повтор до-проводит. Только наличные: карта и перевод приходят в 1С из
+   * выписки банка сами, ПКО на них задвоил бы поступление в учёте.
+   */
   async syncPaymentTo1C(tenantId: number, paymentId: number): Promise<void> {
     const db = getDb();
     const bridge = await getBridgeForTenant(tenantId);
     const c = bridge.names.cashIn;
     if (!c) throw new OneCError("В этой конфигурации приходный ордер не настроен");
     const [p] = await db.select({
-      id: payments.id, shopId: payments.shopId, amount: payments.amount, type: payments.type,
+      id: payments.id, shopId: payments.shopId, amount: payments.amount, type: payments.type, paymentMethod: payments.paymentMethod,
       paidAt: payments.paidAt, createdAt: payments.createdAt, orderId: payments.orderId,
     }).from(payments).where(and(eq(payments.id, paymentId), eq(payments.tenantId, tenantId))).limit(1);
     if (!p) throw new Error(`Payment ${paymentId} not found`);
     if (p.type !== "payment" || Number(p.amount) <= 0) throw new Error(`Payment ${paymentId}: не оплата`);
+    if (p.paymentMethod !== "cash") throw badRequest("Безнал приходит в 1С из выписки банка — ПКО не создаётся");
 
     let documentId = await OneCMapper.getExternalId(db, tenantId, "payment", paymentId);
     if (!documentId) {
@@ -494,14 +501,64 @@ export class OneCSyncService {
 
     let paid = 0;
     if (config.syncPayments) {
+      // В очередь — только наличные: безнал в 1С приходит из выписки банка.
       const newPayments = await db.select({ id: payments.id }).from(payments)
         .leftJoin(onecJournal, and(eq(onecJournal.tenantId, tenantId), eq(onecJournal.entityType, "payment"), eq(onecJournal.entityId, payments.id), eq(onecJournal.direction, "to1c")))
-        .where(and(eq(payments.tenantId, tenantId), eq(payments.type, "payment"), gte(payments.createdAt, config.createdAt), isNull(onecJournal.id)))
+        .where(and(eq(payments.tenantId, tenantId), eq(payments.type, "payment"), eq(payments.paymentMethod, "cash"), gte(payments.createdAt, config.createdAt), isNull(onecJournal.id)))
         .limit(500);
       for (const p of newPayments) await OnecJournal.enqueue(db, tenantId, "payment", p.id);
       paid = newPayments.length;
     }
     return { orders: newOrders.length, payments: paid };
+  }
+
+  /**
+   * Безнал ← выписка банка через 1С. Переводы и карты, которые кассир ещё не
+   * подтвердил, ищутся среди проведённых поступлений на счёт: тот же
+   * контрагент, та же сумма, не раньше чем за сутки до записи. Найденное —
+   * «пришло» с номером документа 1С; поступление помечается использованным,
+   * чтобы второй такой же перевод не закрылся тем же документом.
+   */
+  async reconcileBankReceipts(tenantId: number, now = new Date()): Promise<{ matched: number; pending: number; disabled?: true }> {
+    const db = getDb();
+    const bridge = await getBridgeForTenant(tenantId);
+    const b = bridge.names.bankIn;
+    if (!b) return { matched: 0, pending: 0, disabled: true };
+
+    const pending = await db.select({ id: payments.id, shopId: payments.shopId, amount: payments.amount, createdAt: payments.createdAt }).from(payments)
+      .where(and(eq(payments.tenantId, tenantId), eq(payments.type, "payment"), inArray(payments.paymentMethod, ["card", "transfer"]),
+        isNull(payments.reversalOf), isNull(payments.bankConfirmedAt), ne(payments.status, "reversed")));
+    if (!pending.length) return { matched: 0, pending: 0 };
+
+    const shopIds = [...new Set(pending.map(p => Number(p.shopId)))];
+    const links = await db.select({ internalId: idMappings.internalId, externalId: idMappings.externalId }).from(idMappings)
+      .where(and(eq(idMappings.tenantId, tenantId), eq(idMappings.entityType, "shop"), inArray(idMappings.internalId, shopIds)));
+    const extOf = new Map(links.map(l => [Number(l.internalId), l.externalId]));
+    const candidates = pending.filter(p => extOf.has(Number(p.shopId)))
+      .map(p => ({ id: p.id, counterparty: extOf.get(Number(p.shopId))!, amount: Number(p.amount), createdAt: p.createdAt }));
+    if (!candidates.length) return { matched: 0, pending: pending.length };
+
+    const since = new Date(Math.min(...candidates.map(p => p.createdAt.getTime())) - 86_400_000);
+    const rows = await bridge.queryAll<Record<string, unknown>>(b.set, {
+      $filter: [`Posted eq true`, `DeletionMark eq false`, `${b.fields.date} ge datetime'${to1CDate(since)}'`,
+        ...(b.fields.operation && b.operationValue ? [`${b.fields.operation} eq '${b.operationValue}'`] : [])].join(" and "),
+      $select: ["Ref_Key", "Number", b.fields.date, b.fields.counterparty, b.fields.sum].join(","),
+    });
+    const keys = rows.map(r => String(r.Ref_Key));
+    const used = keys.length ? await db.select({ externalId: idMappings.externalId }).from(idMappings)
+      .where(and(eq(idMappings.tenantId, tenantId), eq(idMappings.entityType, "bank_receipt"), inArray(idMappings.externalId, keys))) : [];
+    const usedKeys = new Set(used.map(u => u.externalId));
+    const receipts = rows.filter(r => !usedKeys.has(String(r.Ref_Key))).map(r => ({
+      key: String(r.Ref_Key), number: String(r.Number ?? ""), date: new Date(String(r[b.fields.date]) + (String(r[b.fields.date]).endsWith("Z") ? "" : "Z")),
+      counterparty: String(r[b.fields.counterparty]), sum: Number(r[b.fields.sum]),
+    }));
+
+    const hits = matchReceipts(receipts, candidates);
+    for (const h of hits) await OneCMapper.upsert(db, tenantId, "bank_receipt", h.key, h.paymentId);
+    const matched = await NonCashService.confirmFromBank(db, tenantId,
+      hits.map(h => ({ paymentId: h.paymentId, bankRef: `1С №${h.number}`, receiptDate: h.date })), now);
+    logger.info("1C bank receipts reconciled", { tenantId, matched, pending: pending.length - matched });
+    return { matched, pending: pending.length - matched };
   }
 
   private running = new Set<number>();
@@ -552,7 +609,7 @@ export class OneCSyncService {
     const configs = await db.select({
       tenantId: onecConfig.tenantId, intervalMinutes: onecConfig.intervalMinutes, lastSyncAt: onecConfig.lastSyncAt,
       syncProducts: onecConfig.syncProducts, syncOrders: onecConfig.syncOrders, syncCounterparties: onecConfig.syncCounterparties,
-      organizationKey: onecConfig.organizationKey, warehouseKey: onecConfig.warehouseKey,
+      syncPayments: onecConfig.syncPayments, organizationKey: onecConfig.organizationKey, warehouseKey: onecConfig.warehouseKey,
     }).from(onecConfig).where(eq(onecConfig.enabled, true));
     let ran = 0;
     for (const c of configs) {
@@ -567,6 +624,8 @@ export class OneCSyncService {
       if (c.syncOrders && c.organizationKey && c.warehouseKey) {
         await step("queue", async () => { await this.enqueueDelivered(c.tenantId); await this.processQueue(c.tenantId); });
       }
+      // Безнал сверяется после контрагентов: магазин без связи с 1С искать не по чему.
+      if (c.syncPayments) await step("bank", () => this.reconcileBankReceipts(c.tenantId, now));
       await db.update(onecConfig).set({ lastSyncAt: now }).where(eq(onecConfig.tenantId, c.tenantId));
     }
     return { tenants: ran };

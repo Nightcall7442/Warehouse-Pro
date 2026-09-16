@@ -74,11 +74,19 @@ app.use("/*", async (c, next) => {
 app.post("/payment", async (c) => {
   try {
     const body = c.get("validatedBody");
-    const { tenantId: tenantIdRaw, shopExternalId, amount, reference } = body;
+    const { tenantId: tenantIdRaw, shopExternalId, amount, reference, method: methodRaw } = body;
 
     const tenantId = Number(tenantIdRaw);
     if (!Number.isFinite(tenantId) || typeof shopExternalId !== "string" || amount == null) {
       return c.json({ error: "Missing required fields" }, 400);
+    }
+
+    // Оплата, о которой сообщает 1С, — это запись в учёте: без способа
+    // считаем её поступлением на счёт (выписка банка), не наличными в сейфе.
+    // Безнал из 1С подтверждён самим фактом: сверять его с выпиской нечего.
+    const method = methodRaw == null ? "transfer" : String(methodRaw);
+    if (!["cash", "card", "transfer"].includes(method)) {
+      return c.json({ error: "Invalid method: cash, card or transfer" }, 400);
     }
 
     // #FIX3: Validate amount
@@ -130,8 +138,10 @@ app.post("/payment", async (c) => {
           shopId,
           amount: parsedAmount.toFixed(2),
           type: "payment",
+          paymentMethod: method as "cash" | "card" | "transfer",
           notes: `1C: ${reference ?? "Payment"}`,
           idempotencyKey,
+          ...(method !== "cash" ? { bankConfirmedAt: new Date(), bankRef: `1С ${reference ?? ""}`.trim().slice(0, 64) } : {}),
         });
 
         await recalcShopDebt(tx, tenantId, shopId);
@@ -152,7 +162,7 @@ app.post("/payment", async (c) => {
       throw e;
     }
 
-    logger.info("Payment received from 1C", { tenantId, shopId, amount: parsedAmount });
+    logger.info("Payment received from 1C", { tenantId, shopId, amount: parsedAmount, method });
     return c.json({ success: true });
   } catch (e) {
     logger.error("1C payment webhook error", { error: String(e) });

@@ -55,6 +55,30 @@ export function canConfirm(actor: Actor, createdBy: number | null): boolean {
   return actor.role === "ceo" || createdBy == null || createdBy !== actor.id;
 }
 
+/**
+ * Чистый подбор: поступление на счёт ↔ платёж. Тот же контрагент, та же
+ * сумма до тийина, поступление не раньше чем за сутки до записи платежа.
+ * Одно поступление закрывает один платёж, старшие первыми — два одинаковых
+ * перевода от одного магазина разберутся по порядку, а не оба на первый.
+ *
+ * ponytail: точное совпадение суммы; один перевод за несколько накладных
+ * (сумма нескольких платежей) остаётся кассиру вручную.
+ */
+export function matchReceipts(
+  receipts: Array<{ key: string; number: string; date: Date; counterparty: string; sum: number }>,
+  pending: Array<{ id: number; counterparty: string; amount: number; createdAt: Date }>,
+): Array<{ paymentId: number; key: string; number: string; date: Date }> {
+  const free = [...pending].sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+  const out: Array<{ paymentId: number; key: string; number: string; date: Date }> = [];
+  for (const r of [...receipts].sort((a, b) => a.date.getTime() - b.date.getTime())) {
+    const i = free.findIndex(p => p.counterparty === r.counterparty && Math.abs(p.amount - r.sum) < 0.005 && r.date.getTime() >= p.createdAt.getTime() - DAY_MS);
+    if (i < 0) continue;
+    out.push({ paymentId: free[i].id, key: r.key, number: r.number, date: r.date });
+    free.splice(i, 1);
+  }
+  return out;
+}
+
 async function confirmDays(db: Db, tenantId: number): Promise<number> {
   const [row] = await db.select({ d: settings.bankConfirmDays }).from(settings).where(eq(settings.tenantId, tenantId)).limit(1);
   return Number(row?.d ?? 3);
@@ -86,7 +110,7 @@ export const NonCashService = {
     const out = rows.map(r => ({
       id: r.id, createdAt: r.createdAt, method: r.method as NonCashMethod, amount: Number(r.amount), notes: r.notes,
       shopId: r.shopId, shopName: r.shopName, orderId: r.orderId, orderNumber: r.orderNumber,
-      createdBy: r.createdBy, createdByName: r.createdBy != null ? nameOf.get(Number(r.createdBy)) ?? null : null,
+      createdBy: r.createdBy, createdByName: r.createdBy != null ? nameOf.get(Number(r.createdBy)) ?? null : (r.notes?.startsWith("1C:") ? "1С" : null),
       bankConfirmedAt: r.bankConfirmedAt, bankConfirmedByName: r.bankConfirmedBy != null ? nameOf.get(Number(r.bankConfirmedBy)) ?? null : null,
       bankRef: r.bankRef, state: nonCashStatus(r, now, days),
     }));
@@ -175,6 +199,35 @@ export const NonCashService = {
       });
     }
     return { confirmed: done.length, total };
+  },
+
+  /**
+   * «Пришло» от 1С: выписка уже в учёте, человека за подтверждением нет —
+   * в журнале действий стоит «1С». Уже подтверждённое и сторно пропускаются.
+   */
+  async confirmFromBank(db: Db, tenantId: number, hits: Array<{ paymentId: number; bankRef: string; receiptDate?: Date }>, now = new Date()): Promise<number> {
+    if (!hits.length) return 0;
+    const rows = await db.select({
+      id: payments.id, amount: payments.amount, method: payments.paymentMethod, status: payments.status, bankConfirmedAt: payments.bankConfirmedAt,
+      shopId: payments.shopId, orderId: payments.orderId, createdBy: payments.createdBy, author: users.name,
+    }).from(payments).leftJoin(users, eq(users.id, payments.createdBy))
+      .where(and(nonCashWhere(tenantId), inArray(payments.id, hits.map(h => h.paymentId))));
+    const byId = new Map(rows.map(r => [Number(r.id), r]));
+    const { recordAudit } = await import("./audit-log");
+    let n = 0;
+    for (const h of hits) {
+      const p = byId.get(h.paymentId);
+      if (!p || p.bankConfirmedAt || p.status === "reversed") continue;
+      const bankRef = h.bankRef.slice(0, 64);
+      await db.update(payments).set({ bankConfirmedAt: now, bankConfirmedBy: null, bankRef })
+        .where(and(eq(payments.id, p.id), isNull(payments.bankConfirmedAt)));
+      await recordAudit(db, {
+        tenantId, actorName: "1С", action: "payment.bank_confirm", targetType: "payment", targetId: p.id,
+        meta: { amount: p.amount, method: p.method, shopId: p.shopId, orderId: p.orderId, bankRef, recordedBy: p.author ?? null, receiptDate: h.receiptDate ?? null },
+      });
+      n++;
+    }
+    return n;
   },
 
   /** Свои переводы в пути — сотруднику в кошелёк: что ещё не подтвердили. */

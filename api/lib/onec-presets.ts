@@ -52,6 +52,13 @@ export interface OnecNames {
   };
   /** Приходный кассовый ордер (оплата покупателя) */
   cashIn: { set: string; fields: { organization: string; counterparty: string; sum: string; date: string; operation: string | null; contract: string | null; comment: string }; operationValue: string | null } | null;
+  /**
+   * Поступление на расчётный счёт — только чтение. Безнал в 1С приходит из
+   * выписки банка; мы его не создаём, а ищем: перевод магазина, записанный
+   * агентом, считается пришедшим, когда в 1С есть поступление от того же
+   * контрагента на ту же сумму. null — сверка через 1С выключена.
+   */
+  bankIn: { set: string; fields: { counterparty: string; sum: string; date: string; operation: string | null }; operationValue: string | null } | null;
 }
 
 const BP_UZ: OnecNames = {
@@ -77,6 +84,11 @@ const BP_UZ: OnecNames = {
     fields: { organization: "Организация_Key", counterparty: "Контрагент_Key", sum: "СуммаДокумента", date: "Date", operation: "ВидОперации", contract: "ДоговорКонтрагента_Key", comment: "Комментарий" },
     operationValue: "ОплатаПокупателя",
   },
+  bankIn: {
+    set: "Document_ПоступлениеНаРасчетныйСчет",
+    fields: { counterparty: "Контрагент_Key", sum: "СуммаДокумента", date: "Date", operation: "ВидОперации" },
+    operationValue: "ОплатаПокупателя",
+  },
 };
 
 const UT: OnecNames = {
@@ -100,6 +112,11 @@ const UT: OnecNames = {
   cashIn: {
     set: "Document_ПриходныйКассовыйОрдер",
     fields: { organization: "Организация_Key", counterparty: "Контрагент_Key", sum: "СуммаДокумента", date: "Date", operation: "ХозяйственнаяОперация", contract: null, comment: "Комментарий" },
+    operationValue: "ПоступлениеОплатыОтКлиента",
+  },
+  bankIn: {
+    set: "Document_ПоступлениеБезналичныхДенежныхСредств",
+    fields: { counterparty: "Контрагент_Key", sum: "СуммаДокумента", date: "Date", operation: "ХозяйственнаяОперация" },
     operationValue: "ПоступлениеОплатыОтКлиента",
   },
 };
@@ -158,6 +175,11 @@ export function requiredFields(n: OnecNames): Array<{ set: string; field: string
   if (n.cashIn) {
     add(n.cashIn.set, n.cashIn.fields.counterparty, "ПКО: контрагент");
     add(n.cashIn.set, n.cashIn.fields.sum, "ПКО: сумма");
+  }
+  if (n.bankIn) {
+    add(n.bankIn.set, n.bankIn.fields.counterparty, "поступление на счёт: контрагент");
+    add(n.bankIn.set, n.bankIn.fields.sum, "поступление на счёт: сумма");
+    add(n.bankIn.set, n.bankIn.fields.date, "поступление на счёт: дата");
   }
   return out;
 }

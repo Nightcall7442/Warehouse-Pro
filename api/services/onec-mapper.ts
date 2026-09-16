@@ -3,7 +3,7 @@ import { idMappings } from "@db/schema";
 
 type Db = ReturnType<typeof import("../queries/connection").getDb>;
 
-export type EntityType = "product" | "order" | "shop" | "arrival" | "payment";
+export type EntityType = "product" | "order" | "shop" | "arrival" | "payment" | "bank_receipt";
 
 export const OneCMapper = {
   async getInternalId(db: Db, tenantId: number, entityType: EntityType, externalId: string): Promise<number | null> {

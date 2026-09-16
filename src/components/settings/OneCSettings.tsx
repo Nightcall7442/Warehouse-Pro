@@ -130,7 +130,12 @@ export function OneCSettings() {
     onError: (e) => notify.error(e.message),
   });
   const runQueue = trpc.onec.runQueue.useMutation({
-    onSuccess: (r) => { notify.success(t(`Очередь: выгружено ${r.done}, отказов ${r.failed}, ждут решения ${r.skipped}`, `Navbat: yuklandi ${r.done}, xato ${r.failed}, qaror kutmoqda ${r.skipped}`)); refreshExchange(); },
+    onSuccess: (r) => {
+      notify.success(t(`Очередь: выгружено ${r.done}, отказов ${r.failed}, ждут решения ${r.skipped}`, `Navbat: yuklandi ${r.done}, xato ${r.failed}, qaror kutmoqda ${r.skipped}`));
+      if ("error" in r.bank) notify.error(t(`Сверка безнала: ${r.bank.error}`, `Naqdsiz solishtirish: ${r.bank.error}`));
+      else if (r.bank.matched > 0 || r.bank.pending > 0) notify.success(t(`Безнал: по выписке 1С подтверждено ${r.bank.matched}, ждут ${r.bank.pending}`, `Naqdsiz: 1C ko'chirmasi bo'yicha tasdiqlandi ${r.bank.matched}, kutmoqda ${r.bank.pending}`));
+      refreshExchange();
+    },
     onError: (e) => notify.error(e.message),
   });
   const retry = trpc.onec.journal.retry.useMutation({ onSuccess: refreshExchange, onError: (e) => notify.error(e.message) });
@@ -277,7 +282,7 @@ export function OneCSettings() {
           {toggle("syncProducts", t("Номенклатура из 1С", "1C dan nomenklatura"))}
           {toggle("syncCounterparties", t("Контрагенты из 1С", "1C dan kontragentlar"))}
           {toggle("syncOrders", t("Доставленные заказы → реализация", "Yetkazilgan buyurtmalar → sotuv"))}
-          {toggle("syncPayments", t("Оплаты → приходный ордер", "To'lovlar → kirim orderi"))}
+          {toggle("syncPayments", t("Оплаты: наличные → ПКО, безнал ← поступления на счёт", "To'lovlar: naqd → KKO, naqdsiz ← hisobga tushumlar"))}
         </div>
         <SaveBar onSave={runSave} isPending={save.isPending} disabled={!form.url || !form.username || (!saved && !form.password)}
           label={t("Сохранить", "Saqlash")}
