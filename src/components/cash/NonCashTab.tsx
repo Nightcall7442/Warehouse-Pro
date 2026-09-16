@@ -139,7 +139,7 @@ export function NonCashTab({ t, fmt, userId, isCeo, refresh }: { t: T; fmt: Fmt;
           <div className="flex flex-wrap items-center gap-2" style={{ padding: "6px 10px 10px" }}>
             <input className="neo-input font-data" style={{ maxWidth: 260 }} value={bankRef} onChange={e => setBankRef(e.target.value)} maxLength={64}
               placeholder={t("№ операции или выписки (не обязательно)", "Operatsiya yoki ko'chirma № (ixtiyoriy)")} data-testid="noncash-bankref" />
-            <button className="neo-btn-primary" disabled={selected.size === 0 || confirmM.isPending} onClick={submit} data-testid="noncash-confirm">
+            <button className="neo-btn" disabled={selected.size === 0 || confirmM.isPending} onClick={submit} data-testid="noncash-confirm">
               <Check size={15} /> {t(`Пришло на счёт`, `Hisobga keldi`)}{selected.size > 0 ? ` · ${selected.size} · ${fmt(selectedTotal)}` : ""}
             </button>
             <span style={{ fontSize: "12px", color: COLORS.textTertiary }}>{t("Отметьте платежи, которые нашли в выписке банка", "Bank ko'chirmasida topilgan to'lovlarni belgilang")}</span>

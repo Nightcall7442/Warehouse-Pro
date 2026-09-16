@@ -12,6 +12,7 @@ import { TrialBanner } from "@/components/TrialBanner";
 import { OfflineQueueBadge } from "@/components/OfflineQueueBadge";
 import { useTheme } from "@/hooks/useTheme";
 import { useLang } from "@/i18n";
+import { ROLE_LABEL } from "@contracts/entity-labels";
 import { trpc } from "@/providers/trpc";
 import {
   LayoutDashboard, Store, Package, ClipboardList, Truck,
@@ -171,17 +172,18 @@ const Sidebar = memo(function Sidebar({ onClose, unreadCount = 0 }: { onClose?: 
           <div className="flex items-center gap-3">
             <div
               className="avatar-premium flex-shrink-0"
-              style={{ background: "var(--color-primary-subtle)", color: "var(--color-primary)" }}
+              style={{ background: "var(--color-primary-subtle)", color: "var(--color-primary-text)" }}
             >
               {(user?.name ?? "U")[0].toUpperCase()}
             </div>
             <div className="min-w-0">
               <p style={{ fontSize: "13px", fontWeight: 600, color: "var(--color-text-primary, #2b2a28)", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{user?.name ?? "User"}</p>
-              <span style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--color-primary-text)" }}>{role}</span>
+              {/* Роль — словом на языке интерфейса, а не «CEO» капсом фирменным цветом: это подпись, не событие. */}
+              <span style={{ fontSize: "11px", fontWeight: 500, color: "var(--color-text-secondary)" }}>{ROLE_LABEL[role as keyof typeof ROLE_LABEL]?.[lang] ?? role}</span>
             </div>
           </div>
           {user?.email && (
-            <p style={{ fontSize: "11px", color: "var(--color-text-tertiary, #6b6760)", margin: "8px 0 0", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{user.email}</p>
+            <p style={{ fontSize: "10.5px", color: "var(--color-text-tertiary, #6b6760)", opacity: 0.85, margin: "6px 0 0", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{user.email}</p>
           )}
         </div>
       </div>

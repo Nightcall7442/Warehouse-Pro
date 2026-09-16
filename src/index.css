@@ -1114,20 +1114,28 @@
     background: color-mix(in srgb, var(--color-primary) 6%, transparent);
     box-shadow: var(--shadow-xs);
   }
+  /*
+    Активный пункт — подложка фирменного цвета и его текст, без объёма.
+    Раньше он поднимался тенью как карточка: на одном столбце оказывались три
+    яруса — панель, карточка пользователя и «выпуклый» пункт. Один тон, один
+    ярус: активный читается цветом, а не рельефом.
+  */
   .sidebar-nav-item.active {
     color: var(--color-primary-text);
-    background: var(--color-surface, #efedea);
+    background: var(--color-primary-subtle);
     font-weight: 600;
-    box-shadow: var(--shadow-raised);
+    box-shadow: none;
+  }
+  .sidebar-nav-item.active::before {
+    content: "";
+    position: absolute; left: 0; top: 50%;
+    width: 3px; height: 18px; border-radius: 3px;
+    background: var(--color-primary);
+    transform: translateY(-50%);
   }
   .dark .sidebar-nav-item:hover {
     color: var(--color-text-primary, #2b2a28);
     background: var(--color-primary-subtle);
-  }
-  .dark .sidebar-nav-item.active {
-    color: var(--color-primary-text);
-    background: var(--color-surface);
-    box-shadow: var(--shadow-raised);
   }
 
   /* ══════════════════════════════════════════════════════════════════════
