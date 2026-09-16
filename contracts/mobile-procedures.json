@@ -435,6 +435,26 @@
     "kind": "query"
   },
   {
+    "fn": "getTareOverview",
+    "path": "tare.overview",
+    "kind": "query"
+  },
+  {
+    "fn": "returnTareFromShop",
+    "path": "tare.returnFromShop",
+    "kind": "mutation"
+  },
+  {
+    "fn": "getShopTare",
+    "path": "tare.shop",
+    "kind": "query"
+  },
+  {
+    "fn": "getTareStatus",
+    "path": "tare.status",
+    "kind": "query"
+  },
+  {
     "fn": "getTerritories",
     "path": "territory.list",
     "kind": "query"
