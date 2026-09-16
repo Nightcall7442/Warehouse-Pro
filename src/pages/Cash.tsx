@@ -13,6 +13,7 @@ import { exportToExcel } from "@/lib/export";
 import { notify } from "@/lib/toast";
 import { printCashOrder, printCashBook } from "@/lib/documents";
 import { useSellerCompany } from "@/hooks/useSellerCompany";
+import { NonCashTab } from "@/components/cash/NonCashTab";
 import { F, COLORS, thStyle, tdStyle } from "@/components/users/types";
 import { format, subDays, addDays } from "date-fns";
 import {
@@ -32,7 +33,7 @@ import {
   Ничего не редактируется: ошибка — сторно с причиной, оба документа видны.
 */
 
-type Tab = "holders" | "journal" | "book" | "days" | "settings";
+type Tab = "holders" | "noncash" | "journal" | "book" | "days" | "settings";
 
 const DENOMS = [200000, 100000, 50000, 20000, 10000, 5000, 2000, 1000];
 
@@ -48,7 +49,8 @@ export default function Cash() {
   const [tab, setTab] = useState<Tab>("holders");
 
   const overview = trpc.cash.overview.useQuery(undefined, { refetchInterval: 60_000 });
-  const refresh = () => { utils.cash.overview.invalidate(); utils.cash.journal.invalidate(); utils.cash.days.invalidate(); utils.cash.cashBook.invalidate(); };
+  const nonCash = trpc.cash.nonCashSummary.useQuery(undefined, { refetchInterval: 120_000 });
+  const refresh = () => { utils.cash.overview.invalidate(); utils.cash.journal.invalidate(); utils.cash.days.invalidate(); utils.cash.cashBook.invalidate(); utils.cash.nonCashSummary.invalidate(); utils.cash.nonCash.invalidate(); };
 
   /* ── Окна ─────────────────────────────────────────────────────────────── */
   const [handoverFor, setHandoverFor] = useState<{ id: number; name: string; onHand: number; hasPin: boolean } | null>(null);
@@ -126,16 +128,23 @@ export default function Cash() {
       {o && o.ledgerSum !== 0 && (
         <SectionNotice kind="error" message={t(`Баланс счетов не сходится на ${fmt(o.ledgerSum)} — сообщите в поддержку`, `Hisoblar balansi ${fmt(o.ledgerSum)} ga to'g'ri kelmayapti — qo'llab-quvvatlashga yozing`)} />
       )}
+      {/* Безнал без выписки дольше срока — это не «ждём», это чей-то перевод, которого нет. */}
+      {tab !== "noncash" && (nonCash.data?.overdue.count ?? 0) > 0 && (
+        <button type="button" className="w-full text-left tap" onClick={() => setTab("noncash")} data-testid="noncash-overdue-notice">
+          <SectionNotice kind="error" message={t(`Безнал: ${nonCash.data!.overdue.count} платежей на ${fmt(nonCash.data!.overdue.total)} не подтверждены выпиской дольше ${nonCash.data!.days} дн. — откройте «Безнал»`, `Naqdsiz: ${nonCash.data!.overdue.count} ta to'lov ${fmt(nonCash.data!.overdue.total)} ${nonCash.data!.days} kundan beri ko'chirma bilan tasdiqlanmagan — «Naqdsiz»ni oching`)} />
+        </button>
+      )}
 
       <div role="tablist" className="range-pills">
-        {([["holders", t("На руках", "Qo'lda")], ["journal", t("Журнал", "Jurnal")], ["book", t("Кассовая книга", "Kassa kitobi")], ["days", t("Дни", "Kunlar")], ...(isCeo ? [["settings", t("Настройки", "Sozlamalar")]] : [])] as [Tab, string][]).map(([k, label]) => (
-          <button key={k} role="tab" aria-selected={tab === k} onClick={() => setTab(k)} className={"range-pill tap" + (tab === k ? " active" : "")} data-testid={`cash-tab-${k}`}>{label}</button>
+        {([["holders", t("На руках", "Qo'lda")], ["noncash", t("Безнал", "Naqdsiz")], ["journal", t("Журнал", "Jurnal")], ["book", t("Кассовая книга", "Kassa kitobi")], ["days", t("Дни", "Kunlar")], ...(isCeo ? [["settings", t("Настройки", "Sozlamalar")]] : [])] as [Tab, string][]).map(([k, label]) => (
+          <button key={k} role="tab" aria-selected={tab === k} onClick={() => setTab(k)} className={"range-pill tap" + (tab === k ? " active" : "")} data-testid={`cash-tab-${k}`}>{label}{k === "noncash" && (nonCash.data?.overdue.count ?? 0) > 0 ? ` · ${nonCash.data!.overdue.count}` : ""}</button>
         ))}
       </div>
 
       {tab === "holders" && <Holders o={o} loading={overview.isLoading} t={t} fmt={fmt} isCeo={isCeo}
         onHandover={h => setHandoverFor({ id: h.id, name: h.name, onHand: h.onHand, hasPin: h.hasPin })}
         onWriteOff={h => setWriteOffFor({ id: h.id, name: h.name, debt: h.debt })} />}
+      {tab === "noncash" && <NonCashTab t={t} fmt={fmt} userId={user?.id ?? 0} isCeo={isCeo} refresh={refresh} />}
       {tab === "journal" && <Journal t={t} fmt={fmt} isCeo={isCeo} company={company} refresh={refresh} />}
       {tab === "book" && <CashBookTab t={t} fmt={fmt} company={company} />}
       {tab === "days" && <DaysTab t={t} fmt={fmt} isCeo={isCeo} refresh={refresh} />}
@@ -487,19 +496,22 @@ function SettingsTab({ t, fmt, refresh }: { t: T; fmt: Fmt; refresh: () => void 
   const saveCat = trpc.cash.saveCategory.useMutation({ onSuccess: () => { cats.refetch(); notify.success(t("Статья сохранена", "Modda saqlandi")); }, onError: e => notify.error(e.message) });
   const [limit, setLimit] = useState<string | null>(null);
   const [deadline, setDeadline] = useState<string | null>(null);
+  const [bankDays, setBankDays] = useState<string | null>(null);
   const [newCat, setNewCat] = useState({ code: "", name: "", limit: "" });
   const curLimit = limit ?? String(s.data?.limit ?? "");
   const curDeadline = deadline ?? (s.data?.deadline ?? "19:00");
+  const curBankDays = bankDays ?? String(s.data?.bankConfirmDays ?? 3);
   return (
     <div className="space-y-4">
       <div className="neo-card neo-card-static" style={{ borderRadius: "20px", padding: "18px" }}>
         <div className="flex items-center gap-2 mb-3"><Settings2 size={16} /><b style={{ fontFamily: F.display }}>{t("Правила", "Qoidalar")}</b></div>
-        <div className="grid sm:grid-cols-3 gap-3 items-end">
+        <div className="grid sm:grid-cols-4 gap-3 items-end">
           <label className="text-xs" style={{ color: COLORS.textSecondary }}>{t("Лимит наличных на руках", "Qo'ldagi naqd limiti")}<DecimalInput className="neo-input w-full mt-1 font-data" value={curLimit} onValueChange={setLimit} data-testid="cash-limit" /></label>
           <label className="text-xs" style={{ color: COLORS.textSecondary }}>{t("Сдать до (часы:минуты)", "Topshirish muddati")}<input className="neo-input w-full mt-1 font-data" value={curDeadline} onChange={e => setDeadline(e.target.value)} placeholder="19:00" /></label>
-          <button className="neo-btn-primary h-11" disabled={save.isPending} onClick={() => save.mutate({ limit: Number(curLimit || 0), deadline: curDeadline })}>{t("Сохранить", "Saqlash")}</button>
+          <label className="text-xs" style={{ color: COLORS.textSecondary }}>{t("Безнал: срок подтверждения, дн.", "Naqdsiz: tasdiqlash muddati, kun")}<input className="neo-input w-full mt-1 font-data" type="number" min={1} max={60} value={curBankDays} onChange={e => setBankDays(e.target.value)} data-testid="cash-bank-days" /></label>
+          <button className="neo-btn-primary h-11" disabled={save.isPending} onClick={() => save.mutate({ limit: Number(curLimit || 0), deadline: curDeadline, bankConfirmDays: Math.min(60, Math.max(1, Number(curBankDays) || 3)) })}>{t("Сохранить", "Saqlash")}</button>
         </div>
-        <p style={{ fontSize: "12px", color: COLORS.textTertiary, marginTop: 8 }}>{t("Выше лимита — предупреждение в кассе и директору в Telegram; после срока сдачи — напоминание сотруднику.", "Limitdan yuqori — kassada va direktorga Telegramda ogohlantirish; muddatdan keyin — xodimga eslatma.")}</p>
+        <p style={{ fontSize: "12px", color: COLORS.textTertiary, marginTop: 8 }}>{t("Выше лимита — предупреждение в кассе и директору в Telegram; после срока сдачи — напоминание сотруднику. Перевод или карта без подтверждения выпиской дольше срока — просрочен, вечером директору по людям.", "Limitdan yuqori — kassada va direktorga Telegramda ogohlantirish; muddatdan keyin — xodimga eslatma. Ko'chirma bilan tasdiqlanmagan o'tkazma yoki karta muddatdan keyin — muddati o'tgan, kechqurun direktorga odamlar bo'yicha.")}</p>
       </div>
 
       <div className="neo-card neo-card-static" style={{ borderRadius: "20px", padding: "18px" }}>

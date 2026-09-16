@@ -110,6 +110,7 @@ const ACTION_CONFIG: Record<string, { icon: LucideIcon; gradient: string }> = {
   "order.restore":                   { icon: Undo2, gradient: SUCCESS },
   "order.revenue_reversed":          { icon: Undo2, gradient: DANGER },
   "payment.reverse":                 { icon: Undo2, gradient: DANGER },
+  "payment.bank_confirm":            { icon: Wallet, gradient: SUCCESS },
   // Касса
   "cash.handover":                   { icon: Wallet, gradient: SUCCESS },
   "cash.expense":                    { icon: Wallet, gradient: WARNING },

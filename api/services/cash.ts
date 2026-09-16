@@ -506,7 +506,8 @@ export const CashService = {
   /** Свой кошелёк: курьеру и агенту — на руках, принято сегодня, долг, лимит, последние сдачи. */
   async mine(db: Db, tenantId: number, userId: number, now = new Date()) {
     const dayStart = new Date(Date.parse(`${tashkentDay(now)}T00:00:00Z`) - TASHKENT_MS);
-    const [balances, [cfg], [today], docs] = await Promise.all([
+    const { NonCashService } = await import("./noncash");
+    const [balances, [cfg], [today], docs, nonCashTransit] = await Promise.all([
       ledgerBalances(db, tenantId),
       db.select({ limit: settings.cashLimit, deadline: settings.cashDeadline }).from(settings).where(eq(settings.tenantId, tenantId)).limit(1),
       db.select({ s: sql<number>`coalesce(sum(${payments.amount}), 0)`, n: sql<number>`count(*)` }).from(payments)
@@ -514,6 +515,7 @@ export const CashService = {
       db.select({ id: cashDocuments.id, kind: cashDocuments.kind, number: cashDocuments.number, amount: cashDocuments.amount, expectedAmount: cashDocuments.expectedAmount, discrepancy: cashDocuments.discrepancy, note: cashDocuments.note, createdAt: cashDocuments.createdAt })
         .from(cashDocuments).where(and(eq(cashDocuments.tenantId, tenantId), eq(cashDocuments.fromUserId, userId)))
         .orderBy(desc(cashDocuments.id)).limit(20),
+      NonCashService.mineTransit(db, tenantId, userId),
     ]);
     return {
       onHand: round2(balanceOf(balances, ACCOUNT.employee(userId))),
@@ -521,6 +523,8 @@ export const CashService = {
       todayIn: Number(today?.s ?? 0), todayCount: Number(today?.n ?? 0),
       limit: Number(cfg?.limit ?? 5_000_000), deadline: cfg?.deadline ?? "19:00",
       documents: docs,
+      // Карта и перевод, которые кассир ещё не сверил с выпиской: висят на этом человеке.
+      nonCashTransit,
     };
   },
 

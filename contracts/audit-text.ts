@@ -21,6 +21,7 @@ const KEY_LABEL: Record<string, Label> = {
   // деньги
   amount: { ru: "Сумма", uz: "Summa" }, total: { ru: "Итого", uz: "Jami" }, sum: { ru: "Сумма", uz: "Summa" },
   expected: { ru: "Ожидалось", uz: "Kutilgan" }, discrepancy: { ru: "Расхождение", uz: "Farq" },
+  bankRef: { ru: "Операция банка", uz: "Bank operatsiyasi" }, recordedBy: { ru: "Записал", uz: "Yozgan" },
   system: { ru: "По системе", uz: "Tizim bo'yicha" }, counted: { ru: "Пересчёт", uz: "Sanash" }, stornoOf: { ru: "Сторно документа", uz: "Hujjat stornosi" },
   remaining: { ru: "Остаток долга", uz: "Qarz qoldig'i" }, credited: { ru: "Зачтено", uz: "Hisobga olindi" },
   creditLimit: { ru: "Кредитный лимит", uz: "Kredit limiti" }, price: { ru: "Цена", uz: "Narx" }, was: { ru: "Было", uz: "Bo'lgan" },
@@ -97,6 +98,7 @@ export const AUDIT_ACTION_LABEL: Record<string, Label> = {
   "order.restore": { ru: "Заказ восстановлен", uz: "Buyurtma tiklandi" },
   "order.revenue_reversed": { ru: "Доставка отменена задним числом", uz: "Yetkazish orqaga qaytarildi" },
   "payment.reverse": { ru: "Оплата отменена", uz: "To'lov bekor qilindi" },
+  "payment.bank_confirm": { ru: "Безнал подтверждён выпиской", uz: "Naqdsiz to'lov ko'chirma bilan tasdiqlandi" },
   "return.status": { ru: "Возврат: смена статуса", uz: "Qaytarish: holat o'zgardi" },
   "shop.credit_limit_changed": { ru: "Изменён кредитный лимит магазина", uz: "Do'kon kredit limiti o'zgartirildi" },
   "product.updated": { ru: "Обновлён товар", uz: "Tovar yangilandi" },

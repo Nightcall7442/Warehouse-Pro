@@ -32,6 +32,11 @@ export function MyCashCard() {
         {t("Принято сегодня", "Bugun qabul")}: {fmt(m.todayIn)} · {t("сдать до", "topshirish")} {m.deadline}
         {over && <span style={{ color: "var(--color-danger-text)" }}> · {t("выше лимита", "limitdan yuqori")} {fmt(m.limit)}</span>}
       </div>
+      {m.nonCashTransit.count > 0 && (
+        <div style={{ fontSize: "12px", color: "var(--color-warning-text)", marginTop: "4px" }}>
+          {t("Переводы ждут выписки", "O'tkazmalar ko'chirma kutmoqda")}: <b>{fmt(m.nonCashTransit.total)}</b> ({m.nonCashTransit.count})
+        </div>
+      )}
       {m.debt > 0 && (
         <div style={{ fontSize: "12px", color: "var(--color-danger-text)", marginTop: "4px" }}>
           {t("Долг по кассе (недостачи)", "Kassa bo'yicha qarz (kamomad)")}: <b>{fmt(m.debt)}</b> — {t("удерживается из зарплаты", "oylikdan ushlab qolinadi")}
