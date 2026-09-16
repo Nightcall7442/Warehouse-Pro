@@ -47,7 +47,7 @@ export function ShopSelector({ shopId, onSelect }: ShopSelectorProps) {
     <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
       {/* Header */}
       <div>
-        <h2 style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "20px", fontWeight: 700, color: "var(--color-text-primary, #2b2a28)", margin: "0 0 4px", letterSpacing: "-0.02em" }}>
+        <h2 style={{ fontFamily: "'Manrope', sans-serif", fontSize: "20px", fontWeight: 700, color: "var(--color-text-primary, #2b2a28)", margin: "0 0 4px", letterSpacing: "-0.02em" }}>
           {t("Выберите магазин", "Do'kon tanlang")}
         </h2>
         <p style={{ fontSize: "13px", color: "var(--color-text-tertiary, #6b6760)", margin: 0 }}>
@@ -60,7 +60,7 @@ export function ShopSelector({ shopId, onSelect }: ShopSelectorProps) {
         <div style={{ display: "flex", gap: "8px", overflowX: "auto", paddingBottom: "4px" }}>
           <button onClick={() => setSelectedCity(null)} style={{
             flexShrink: 0, padding: "8px 18px", borderRadius: "24px", fontSize: "13px", fontWeight: 600,
-            fontFamily: "'DM Sans', sans-serif", cursor: "pointer", transition: "all 0.25s ease",
+            fontFamily: "'Manrope', sans-serif", cursor: "pointer", transition: "all 0.25s ease",
             background: !selectedCity ? "var(--color-primary)" : "var(--color-surface-light, #f6f4f0)",
             color: !selectedCity ? "var(--color-on-primary)" : "var(--color-text-secondary)",
             border: "none", boxShadow: !selectedCity ? "0 4px 12px color-mix(in srgb, var(--color-primary) 30%, transparent)" : "none",
@@ -70,7 +70,7 @@ export function ShopSelector({ shopId, onSelect }: ShopSelectorProps) {
           {cities.map(city => (
             <button key={city} onClick={() => setSelectedCity(selectedCity === city ? null : city)} style={{
               flexShrink: 0, padding: "8px 18px", borderRadius: "24px", fontSize: "13px", fontWeight: 600,
-              fontFamily: "'DM Sans', sans-serif", cursor: "pointer", transition: "all 0.25s ease",
+              fontFamily: "'Manrope', sans-serif", cursor: "pointer", transition: "all 0.25s ease",
               background: selectedCity === city ? "var(--color-primary)" : "var(--color-surface-light, #f6f4f0)",
               color: selectedCity === city ? "var(--color-on-primary)" : "var(--color-text-secondary)",
               border: "none", boxShadow: selectedCity === city ? "0 4px 12px color-mix(in srgb, var(--color-primary) 30%, transparent)" : "none",
@@ -88,7 +88,7 @@ export function ShopSelector({ shopId, onSelect }: ShopSelectorProps) {
           style={{
             width: "100%", padding: "12px 14px 12px 42px", borderRadius: "14px",
             background: "var(--color-surface-light, #f6f4f0)", border: "2px solid transparent",
-            fontSize: "14px", fontFamily: "'DM Sans', sans-serif", color: "var(--color-text-primary, #2b2a28)",
+            fontSize: "14px", fontFamily: "'Manrope', sans-serif", color: "var(--color-text-primary, #2b2a28)",
             outline: "none", transition: "all 0.2s ease",
           }}
           placeholder={t("Поиск магазинов…", "Do'kon qidirish…")}
@@ -101,13 +101,13 @@ export function ShopSelector({ shopId, onSelect }: ShopSelectorProps) {
 
       {/* Counter */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <p style={{ fontSize: "12px", color: "var(--color-text-tertiary, #6b6760)", fontFamily: "'DM Sans', sans-serif", margin: 0 }}>
+        <p style={{ fontSize: "12px", color: "var(--color-text-tertiary, #6b6760)", fontFamily: "'Manrope', sans-serif", margin: 0 }}>
           {filtered?.length ?? 0} {t("магазинов", "do'kon")}
         </p>
         {selectedCity && (
           <button onClick={() => setSelectedCity(null)} style={{
             fontSize: "11px", color: "var(--color-primary)", background: "none", border: "none",
-            cursor: "pointer", fontFamily: "'DM Sans', sans-serif", fontWeight: 600, padding: 0,
+            cursor: "pointer", fontFamily: "'Manrope', sans-serif", fontWeight: 600, padding: 0,
           }}>
             {t("Сбросить", "Tozalash")} ×
           </button>
@@ -171,10 +171,10 @@ export function ShopSelector({ shopId, onSelect }: ShopSelectorProps) {
                 <Store size={20} style={{ color: shopId === shop.id ? "#fff" : "var(--color-text-secondary, #5e5b54)" }} />
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <p style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 600, fontSize: "14px", color: "var(--color-text-primary, #2b2a28)", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                <p style={{ fontFamily: "'Manrope', sans-serif", fontWeight: 600, fontSize: "14px", color: "var(--color-text-primary, #2b2a28)", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                   {shop.name}
                 </p>
-                <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "12px", color: "var(--color-text-secondary, #5e5b54)", margin: "3px 0 0" }}>
+                <p style={{ fontFamily: "'Manrope', sans-serif", fontSize: "12px", color: "var(--color-text-secondary, #5e5b54)", margin: "3px 0 0" }}>
                   {shop.ownerName ?? "—"}
                   {shop.district ? ` · ${shop.district}` : ""}
                   {shop.city ? `, ${shop.city}` : ""}

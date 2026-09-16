@@ -18,7 +18,7 @@ import { ORDER_STATUS_LABEL, PAYMENT_METHOD_LABEL, type Label } from "@/lib/enti
 type OrderStatus = Order["status"];
 type PaymentMethod = NonNullable<Order["paymentMethod"]>;
 
-export const F = { display: "'DM Sans', -apple-system, sans-serif", body: "'DM Sans', -apple-system, sans-serif" };
+export const F = { display: "'Manrope', -apple-system, sans-serif", body: "'Manrope', -apple-system, sans-serif" };
 
 export const COLORS = {
   // Reads the themed accent so the dark palette isn't stuck with the light one.

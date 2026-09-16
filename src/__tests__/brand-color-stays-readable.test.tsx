@@ -73,11 +73,14 @@ describe("надпись на заливке арендатора читаетс
       render(<Harness />);
 
       for (const theme of ["light", "dark"] as const) {
+        // Заливка — производная от цвета арендатора под тему, надпись сверяется с ней.
+        const fill = appliedVars(theme)["--color-primary"];
         const ink = appliedVars(theme)["--color-on-primary"];
+        expect(fill, `${theme}: заливка не задана`).toBeTruthy();
         expect(ink, `${theme}: цвет надписи на заливке не задан`).toBeTruthy();
         expect(
-          contrastRatio(color, ink),
-          `${theme}: надпись ${ink} на заливке ${color} — контраст ниже нормы`,
+          contrastRatio(fill, ink),
+          `${theme}: надпись ${ink} на заливке ${fill} — контраст ниже нормы`,
         ).toBeGreaterThanOrEqual(4.5);
       }
     });

@@ -31,7 +31,7 @@ export function QueryErrorFallback({ onRetry, message }: QueryErrorFallbackProps
         style={{
           display: "inline-flex", alignItems: "center", gap: "6px",
           padding: "10px 20px", fontSize: "13px", fontWeight: 600,
-          fontFamily: "'DM Sans', sans-serif", borderRadius: "12px",
+          fontFamily: "'Manrope', sans-serif", borderRadius: "12px",
           border: "none", cursor: "pointer",
           background: "var(--color-primary)", color: "var(--color-on-primary, #ffffff)",
           boxShadow: "0 2px 8px color-mix(in srgb, var(--color-primary) 25%, transparent)",

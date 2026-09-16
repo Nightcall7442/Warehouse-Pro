@@ -72,12 +72,12 @@ module.exports = {
       },
 
       fontFamily: {
-        display: ['"DM Sans"', 'system-ui', 'sans-serif'],
-        body:    ['"DM Sans"', 'system-ui', 'sans-serif'],
-        mono:    ['"DM Sans"', 'sans-serif'],
-        nav:     ['"DM Sans"', 'system-ui', 'sans-serif'],
-        data:    ['"DM Sans"', 'sans-serif'],
-        label:   ['"DM Sans"', 'sans-serif'],
+        display: ['"Manrope"', 'system-ui', 'sans-serif'],
+        body:    ['"Manrope"', 'system-ui', 'sans-serif'],
+        mono:    ['"JetBrains Mono"', 'ui-monospace', 'monospace'],
+        nav:     ['"Manrope"', 'system-ui', 'sans-serif'],
+        data:    ['"Manrope"', 'sans-serif'],
+        label:   ['"Manrope"', 'sans-serif'],
       },
 
       borderRadius: {

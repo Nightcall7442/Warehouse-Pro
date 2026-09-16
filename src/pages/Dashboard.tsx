@@ -184,7 +184,7 @@ export default function Dashboard() {
       <div className="stagger-children" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "12px" }}>
         <div>
           <CardDots />
-          <h1 style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "26px", fontWeight: 700, color: "var(--color-text-primary, #2b2a28)", letterSpacing: "-0.025em", margin: 0 }}>
+          <h1 style={{ fontFamily: "'Manrope', sans-serif", fontSize: "26px", fontWeight: 700, color: "var(--color-text-primary, #2b2a28)", letterSpacing: "-0.025em", margin: 0 }}>
             {t("Главная", "Bosh sahifa")}
           </h1>
           <p style={{ fontSize: "13px", color: "var(--color-text-secondary, #5e5b54)", margin: "4px 0 0" }}>
@@ -315,7 +315,7 @@ export default function Dashboard() {
         <div className="neo-card">
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "20px" }}>
             <div>
-              <h2 style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px", fontWeight: 700, color: "var(--color-text-primary, #2b2a28)", margin: 0 }}>
+              <h2 style={{ fontFamily: "'Manrope', sans-serif", fontSize: "16px", fontWeight: 700, color: "var(--color-text-primary, #2b2a28)", margin: 0 }}>
                 {t("Динамика продаж", "Sotuvlar dinamikasi")}
               </h2>
               <p style={{ fontSize: "12px", color: "var(--color-text-tertiary, #6b6760)", margin: "3px 0 0" }}>
@@ -340,9 +340,9 @@ export default function Dashboard() {
                   <stop offset="100%" stopColor="var(--color-success)" stopOpacity={0} />
                 </linearGradient>
               </defs>
-              <XAxis dataKey="date" tick={{ fill: "var(--color-text-tertiary, #6b6760)", fontSize: 11, fontFamily: "'DM Sans', sans-serif" }} axisLine={false} tickLine={false} dy={8} />
-              <YAxis yAxisId="left" tick={{ fill: "var(--color-text-tertiary, #6b6760)", fontSize: 11, fontFamily: "'DM Sans', sans-serif" }} axisLine={false} tickLine={false} tickFormatter={v => fmt(v, true)} dx={-4} />
-              <YAxis yAxisId="right" orientation="right" tick={{ fill: "var(--color-text-tertiary, #6b6760)", fontSize: 11, fontFamily: "'DM Sans', sans-serif" }} axisLine={false} tickLine={false} dx={4} />
+              <XAxis dataKey="date" tick={{ fill: "var(--color-text-tertiary, #6b6760)", fontSize: 11, fontFamily: "'Manrope', sans-serif" }} axisLine={false} tickLine={false} dy={8} />
+              <YAxis yAxisId="left" tick={{ fill: "var(--color-text-tertiary, #6b6760)", fontSize: 11, fontFamily: "'Manrope', sans-serif" }} axisLine={false} tickLine={false} tickFormatter={v => fmt(v, true)} dx={-4} />
+              <YAxis yAxisId="right" orientation="right" tick={{ fill: "var(--color-text-tertiary, #6b6760)", fontSize: 11, fontFamily: "'Manrope', sans-serif" }} axisLine={false} tickLine={false} dx={4} />
               <Tooltip content={<ChartTooltip fmt={fmt} />} cursor={{ stroke: "var(--color-border, #d8d5cd)", strokeWidth: 1, strokeDasharray: "4 4" }} />
               <Area yAxisId="left" type="monotone" dataKey="revenue" stroke="var(--color-primary)" strokeWidth={2.5} fill="url(#gRevenue)" name={t("Выручка", "Tushum")} dot={false} activeDot={{ r: 5, fill: "var(--color-primary)", stroke: "#fff", strokeWidth: 2 }} />
               <Area yAxisId="right" type="monotone" dataKey="orders" stroke="var(--color-success)" strokeWidth={2.5} fill="url(#gOrders)" name={t("Заказы", "Buyurtmalar")} dot={false} activeDot={{ r: 5, fill: "var(--color-success)", stroke: "#fff", strokeWidth: 2 }} />
@@ -353,7 +353,7 @@ export default function Dashboard() {
         {/* Pie Chart — Status Breakdown */}
         <div className="neo-card" style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
           <div style={{ marginBottom: "16px" }}>
-            <h2 style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px", fontWeight: 700, color: "var(--color-text-primary, #2b2a28)", margin: 0, display: "flex", alignItems: "center", gap: "8px" }}>
+            <h2 style={{ fontFamily: "'Manrope', sans-serif", fontSize: "16px", fontWeight: 700, color: "var(--color-text-primary, #2b2a28)", margin: 0, display: "flex", alignItems: "center", gap: "8px" }}>
               <PieChart size={16} color="var(--color-primary-text)" />
               {t("Заказы в работе", "Ishdagi buyurtmalar")}
             </h2>
@@ -410,7 +410,7 @@ export default function Dashboard() {
       <div className="neo-card">
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "16px" }}>
           <div>
-            <h2 style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px", fontWeight: 700, color: "var(--color-text-primary, #2b2a28)", margin: 0, display: "flex", alignItems: "center", gap: "8px" }}>
+            <h2 style={{ fontFamily: "'Manrope', sans-serif", fontSize: "16px", fontWeight: 700, color: "var(--color-text-primary, #2b2a28)", margin: 0, display: "flex", alignItems: "center", gap: "8px" }}>
               <ClipboardList size={16} color="var(--color-primary-text)" />
               {t("Последние заказы", "So'nggi buyurtmalar")}
             </h2>

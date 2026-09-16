@@ -176,7 +176,7 @@ export function ProductSelector({ items, onChange, cartOpen = false, onCartOpenC
   const renderCart = (inSheet: boolean) => (
     <>
       <div className="flex items-center justify-between mb-4 order-cart-head">
-        <h3 style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", fontWeight: 600, color: "var(--color-text-primary)", margin: 0 }}>
+        <h3 style={{ fontFamily: "'Manrope', sans-serif", fontSize: "15px", fontWeight: 600, color: "var(--color-text-primary)", margin: 0 }}>
           {t("Корзина", "Savat")} ({validItems.length})
         </h3>
         <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
@@ -187,7 +187,7 @@ export function ProductSelector({ items, onChange, cartOpen = false, onCartOpenC
                с соседом полоска. */
             <button onClick={() => onChange([])} style={{
               fontSize: "11px", color: "var(--color-danger-text)", background: "none",
-              border: "none", cursor: "pointer", fontFamily: "'DM Sans', sans-serif", fontWeight: 500,
+              border: "none", cursor: "pointer", fontFamily: "'Manrope', sans-serif", fontWeight: 500,
               minHeight: "36px", padding: "0 8px", borderRadius: "8px",
             }}>
               {t("Очистить", "Tozalash")}
@@ -276,7 +276,7 @@ export function ProductSelector({ items, onChange, cartOpen = false, onCartOpenC
                       min="0"
                       value={item.quantity}
                       onChange={(e) => setQuantityDirect(item.productId, e.target.value)}
-                      style={{ width: "52px", height: "44px", borderRadius: "6px", border: "1px solid var(--color-border)", background: "var(--color-surface)", textAlign: "center", fontSize: "13px", fontWeight: 600, color: "var(--color-text-primary)", fontFamily: "'DM Sans', sans-serif", outline: "none" }}
+                      style={{ width: "52px", height: "44px", borderRadius: "6px", border: "1px solid var(--color-border)", background: "var(--color-surface)", textAlign: "center", fontSize: "13px", fontWeight: 600, color: "var(--color-text-primary)", fontFamily: "'Manrope', sans-serif", outline: "none" }}
                     />
                     <button onClick={() => updateQuantity(item.productId, 1)} style={{
                       width: "44px", height: "44px", borderRadius: "6px", border: "1px solid var(--color-border)",

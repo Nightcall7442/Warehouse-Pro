@@ -152,7 +152,7 @@ export function CategoryAutocomplete({ value, onChange, categories, placeholder 
                 border: "none", cursor: "pointer", transition: "all 0.15s ease",
                 background: value === cat ? "var(--color-primary-subtle)" : "transparent",
                 color: value === cat ? "var(--color-primary-text)" : "var(--color-text-primary, #2b2a28)",
-                fontSize: "13px", fontFamily: "'DM Sans', sans-serif", fontWeight: value === cat ? 600 : 400,
+                fontSize: "13px", fontFamily: "'Manrope', sans-serif", fontWeight: value === cat ? 600 : 400,
                 textAlign: "left",
               }}
               onMouseEnter={e => { if (value !== cat) e.currentTarget.style.background = "var(--color-surface-light, #f6f4f0)"; }}
@@ -170,7 +170,7 @@ export function CategoryAutocomplete({ value, onChange, categories, placeholder 
                 width: "100%", padding: "8px 12px", borderRadius: "8px",
                 border: "none", cursor: "pointer", transition: "all 0.15s ease",
                 background: "transparent", color: "var(--color-primary)",
-                fontSize: "13px", fontFamily: "'DM Sans', sans-serif", fontWeight: 500,
+                fontSize: "13px", fontFamily: "'Manrope', sans-serif", fontWeight: 500,
                 textAlign: "left", borderTop: "1px solid var(--color-border, #d8d5cd)", marginTop: "4px",
               }}
             >

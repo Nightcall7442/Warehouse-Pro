@@ -56,7 +56,7 @@ export function OfflineQueueBadge() {
           ? "var(--color-warning-subtle, rgba(232,168,48,0.12))"
           : "var(--color-danger-subtle, rgba(232,80,80,0.12))",
         color: online ? "var(--color-warning-text)" : "var(--color-danger-text)",
-        fontSize: "12px", fontWeight: 600, fontFamily: "'DM Sans', sans-serif",
+        fontSize: "12px", fontWeight: 600, fontFamily: "'Manrope', sans-serif",
         transition: "all 0.2s",
       }}
     >

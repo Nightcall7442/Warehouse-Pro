@@ -320,7 +320,7 @@ export default function AgentDashboard() {
         {/* Заголовок */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "16px" }}>
           <div>
-            <h2 style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px", fontWeight: 700, color: "var(--color-text-primary, #2b2a28)", margin: 0, display: "flex", alignItems: "center", gap: "8px" }}>
+            <h2 style={{ fontFamily: "'Manrope', sans-serif", fontSize: "16px", fontWeight: 700, color: "var(--color-text-primary, #2b2a28)", margin: 0, display: "flex", alignItems: "center", gap: "8px" }}>
               <ClipboardList size={16} color="var(--color-primary-text)" />
               {t("Сегодняшние визиты", "Bugungi tashriflar")}
             </h2>

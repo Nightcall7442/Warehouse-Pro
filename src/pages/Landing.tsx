@@ -318,7 +318,7 @@ export default function Landing() {
       ref={root}
       id="top"
       className="lx-root min-h-screen overflow-x-clip pb-16 md:pb-0"
-      style={{ background: LX.paper, color: LX.ink, fontFamily: "'DM Sans', system-ui, sans-serif" }}
+      style={{ background: LX.paper, color: LX.ink, fontFamily: "'Manrope', system-ui, sans-serif" }}
     >
       <LandingStyles />
       <LandingHeader />

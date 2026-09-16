@@ -81,7 +81,7 @@ export const SearchInput = memo(function SearchInput({
         className={inputClassName}
         style={inputStyle ?? {
           width: "100%", padding: "10px 12px 10px 36px", fontSize: "13px",
-          fontFamily: "'DM Sans', sans-serif",
+          fontFamily: "'Manrope', sans-serif",
           borderRadius: "10px", border: "1px solid var(--color-border)",
           background: "var(--color-surface-light)", color: "var(--color-text-primary)",
           outline: "none",

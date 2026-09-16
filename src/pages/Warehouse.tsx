@@ -256,7 +256,7 @@ export default function Warehouse() {
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight" style={{ color: "var(--color-text-primary, #2b2a28)", fontFamily: "'DM Sans', sans-serif" }}>
+          <h1 className="text-3xl font-bold tracking-tight" style={{ color: "var(--color-text-primary, #2b2a28)", fontFamily: "'Manrope', sans-serif" }}>
             {t("Склад", "Ombor")}
           </h1>
           <p className="text-sm mt-1" style={{ color: "var(--color-text-tertiary, #6b6760)" }}>
@@ -329,7 +329,7 @@ export default function Warehouse() {
               style={{ animationDelay: `${i * 0.05}s`, cursor: k.onClick ? "pointer" : "default", border: 'none', textAlign: 'left', width: '100%' }}
               onClick={k.onClick}>
               <div className="flex justify-between items-start mb-4">
-                <span className="text-[10px] font-semibold tracking-wider uppercase" style={{ color: "var(--color-text-tertiary, #6b6760)", fontFamily: "'DM Sans', sans-serif" }}>
+                <span className="text-[10px] font-semibold tracking-wider uppercase" style={{ color: "var(--color-text-tertiary, #6b6760)", fontFamily: "'Manrope', sans-serif" }}>
                   {k.label}
                 </span>
                 <div className="kpi-hero-icon" style={{ background: k.gradient }}>
@@ -396,7 +396,7 @@ export default function Warehouse() {
             iconSize={16}
             focusRing
             inputClassName="w-full py-3 pl-10 pr-4 rounded-xl text-sm outline-none transition-all"
-            inputStyle={{ background: "var(--color-surface-light, #f6f4f0)", color: "var(--color-text-primary, #2b2a28)", border: "2px solid transparent", fontFamily: "'DM Sans', sans-serif" }}
+            inputStyle={{ background: "var(--color-surface-light, #f6f4f0)", color: "var(--color-text-primary, #2b2a28)", border: "2px solid transparent", fontFamily: "'Manrope', sans-serif" }}
           />
 
           {/* Table */}
@@ -439,7 +439,7 @@ export default function Warehouse() {
                                 { label: t("Всего", "Jami"), val: item.currentStock, unit: item.unit, danger: false },
                               ].map(col => (
                                 <div key={col.label}>
-                                  <p className="text-lg font-bold" style={{ color: col.danger ? "var(--color-danger-text)" : "var(--color-text-primary, #2b2a28)", fontFamily: "'DM Sans', sans-serif" }}>
+                                  <p className="text-lg font-bold" style={{ color: col.danger ? "var(--color-danger-text)" : "var(--color-text-primary, #2b2a28)", fontFamily: "'Manrope', sans-serif" }}>
                                     {formatQty(col.val)}
                                   </p>
                                   <p className="text-[10px] mt-0.5" style={{ color: "var(--color-text-tertiary, #6b6760)" }}>{col.label}</p>
@@ -467,7 +467,7 @@ export default function Warehouse() {
                       t("ДОСТУПНО","MAVJUD"), t("ВЕС","OG'IRLIK"), t("РЕЗЕРВ","ZAHIRA"), t("ВСЕГО","JAMI"),
                       t("ПОРОГ","CHEGARA"), ""].map(h => (
                       <th key={h} className="text-left px-5 py-3 text-[10px] font-semibold tracking-wider uppercase"
-                        style={{ color: "var(--color-text-tertiary, #6b6760)", fontFamily: "'DM Sans', sans-serif", borderBottom: "1px solid var(--color-border, #d8d5cd)" }}>
+                        style={{ color: "var(--color-text-tertiary, #6b6760)", fontFamily: "'Manrope', sans-serif", borderBottom: "1px solid var(--color-border, #d8d5cd)" }}>
                         {h}
                       </th>
                     ))}
@@ -494,25 +494,25 @@ export default function Warehouse() {
                                 <span className="text-sm font-medium" style={{ color: "var(--color-text-primary, #2b2a28)" }}>{item.productName}</span>
                               </div>
                             </td>
-                            <td className="px-5 py-3.5 text-xs" style={{ color: "var(--color-text-tertiary, #6b6760)", fontFamily: "'DM Sans', sans-serif", borderBottom: "1px solid var(--color-border, #d8d5cd)" }}>
+                            <td className="px-5 py-3.5 text-xs" style={{ color: "var(--color-text-tertiary, #6b6760)", fontFamily: "'Manrope', sans-serif", borderBottom: "1px solid var(--color-border, #d8d5cd)" }}>
                               {item.productCode}
                             </td>
                             <td className="px-5 py-3.5 text-sm" style={{ color: "var(--color-text-secondary, #5e5b54)", borderBottom: "1px solid var(--color-border, #d8d5cd)" }}>
                               {item.category ?? "—"}
                             </td>
-                            <td className="px-5 py-3.5 text-sm font-bold" style={{ color: low ? "var(--color-danger-text)" : "var(--color-text-primary, #2b2a28)", fontFamily: "'DM Sans', sans-serif", borderBottom: "1px solid var(--color-border, #d8d5cd)" }}>
+                            <td className="px-5 py-3.5 text-sm font-bold" style={{ color: low ? "var(--color-danger-text)" : "var(--color-text-primary, #2b2a28)", fontFamily: "'Manrope', sans-serif", borderBottom: "1px solid var(--color-border, #d8d5cd)" }}>
                               {formatQty(item.available)}
                             </td>
-                            <td className="px-5 py-3.5 text-sm" style={{ color: "var(--color-text-secondary, #5e5b54)", fontFamily: "'DM Sans', sans-serif", borderBottom: "1px solid var(--color-border, #d8d5cd)" }}>
+                            <td className="px-5 py-3.5 text-sm" style={{ color: "var(--color-text-secondary, #5e5b54)", fontFamily: "'Manrope', sans-serif", borderBottom: "1px solid var(--color-border, #d8d5cd)" }}>
                               {formatQty(toKg(item.available, item.unitWeight))} кг
                             </td>
-                            <td className="px-5 py-3.5 text-sm" style={{ color: "var(--color-text-secondary, #5e5b54)", fontFamily: "'DM Sans', sans-serif", borderBottom: "1px solid var(--color-border, #d8d5cd)" }}>
+                            <td className="px-5 py-3.5 text-sm" style={{ color: "var(--color-text-secondary, #5e5b54)", fontFamily: "'Manrope', sans-serif", borderBottom: "1px solid var(--color-border, #d8d5cd)" }}>
                               {formatQty(item.reserved)}
                             </td>
-                            <td className="px-5 py-3.5 text-sm" style={{ color: "var(--color-text-primary, #2b2a28)", fontFamily: "'DM Sans', sans-serif", borderBottom: "1px solid var(--color-border, #d8d5cd)" }}>
+                            <td className="px-5 py-3.5 text-sm" style={{ color: "var(--color-text-primary, #2b2a28)", fontFamily: "'Manrope', sans-serif", borderBottom: "1px solid var(--color-border, #d8d5cd)" }}>
                               {formatQty(item.currentStock)}
                             </td>
-                            <td className="px-5 py-3.5 text-sm" style={{ color: "var(--color-text-tertiary, #6b6760)", fontFamily: "'DM Sans', sans-serif", borderBottom: "1px solid var(--color-border, #d8d5cd)" }}>
+                            <td className="px-5 py-3.5 text-sm" style={{ color: "var(--color-text-tertiary, #6b6760)", fontFamily: "'Manrope', sans-serif", borderBottom: "1px solid var(--color-border, #d8d5cd)" }}>
                               {formatQty(item.reorderPoint, 0)}
                             </td>
                             <td className="px-5 py-3.5" style={{ borderBottom: "1px solid var(--color-border, #d8d5cd)" }}>
@@ -627,7 +627,7 @@ export default function Warehouse() {
                       <span className="text-xs" style={{ color: "var(--color-text-tertiary, #6b6760)" }}>
                         {t("Остаток:", "Qoldiq:")} {formatQty(item.currentStock)}
                       </span>
-                      <span className="text-sm font-bold" style={{ color: badgeColor, fontFamily: "'DM Sans', sans-serif" }}>
+                      <span className="text-sm font-bold" style={{ color: badgeColor, fontFamily: "'Manrope', sans-serif" }}>
                         {fmt(Number(item.value ?? 0).toFixed(0))}
                       </span>
                     </div>
@@ -642,7 +642,7 @@ export default function Warehouse() {
                   <tr>
                     {[t("ТОВАР","MAHSULOT"), t("КОД","KOD"), t("КАТЕГОРИЯ","KATEGORIYA"), t("ОСТАТОК","QOLDIQ"), t("СТОИМОСТЬ","QIYMAT"), t("ПОСЛ. ЗАКАЗ","OXIRGI BUYURTMA"), t("ДНЕЙ БЕЗ ПРОДАЖ","SOTISHSIZ KUN")].map(h => (
                       <th key={h} className="text-left px-5 py-3 text-[10px] font-semibold tracking-wider uppercase cursor-pointer select-none"
-                        style={{ color: "var(--color-text-tertiary, #6b6760)", fontFamily: "'DM Sans', sans-serif", borderBottom: "1px solid var(--color-border, #d8d5cd)" }}>
+                        style={{ color: "var(--color-text-tertiary, #6b6760)", fontFamily: "'Manrope', sans-serif", borderBottom: "1px solid var(--color-border, #d8d5cd)" }}>
                         <span className="flex items-center gap-1">{h}</span>
                       </th>
                     ))}
@@ -663,19 +663,19 @@ export default function Warehouse() {
                             {item.productName}
                           </div>
                         </td>
-                        <td className="px-5 py-3.5 text-xs" style={{ color: "var(--color-text-tertiary, #6b6760)", fontFamily: "'DM Sans', sans-serif", borderBottom: "1px solid var(--color-border, #d8d5cd)" }}>
+                        <td className="px-5 py-3.5 text-xs" style={{ color: "var(--color-text-tertiary, #6b6760)", fontFamily: "'Manrope', sans-serif", borderBottom: "1px solid var(--color-border, #d8d5cd)" }}>
                           {item.productCode}
                         </td>
                         <td className="px-5 py-3.5 text-sm" style={{ color: "var(--color-text-secondary, #5e5b54)", borderBottom: "1px solid var(--color-border, #d8d5cd)" }}>
                           {item.category ?? "—"}
                         </td>
-                        <td className="px-5 py-3.5 text-sm font-bold" style={{ color: "var(--color-text-primary, #2b2a28)", fontFamily: "'DM Sans', sans-serif", borderBottom: "1px solid var(--color-border, #d8d5cd)" }}>
+                        <td className="px-5 py-3.5 text-sm font-bold" style={{ color: "var(--color-text-primary, #2b2a28)", fontFamily: "'Manrope', sans-serif", borderBottom: "1px solid var(--color-border, #d8d5cd)" }}>
                           {formatQty(item.currentStock)}
                         </td>
-                        <td className="px-5 py-3.5 text-sm font-bold" style={{ color: badgeColor, fontFamily: "'DM Sans', sans-serif", borderBottom: "1px solid var(--color-border, #d8d5cd)" }}>
+                        <td className="px-5 py-3.5 text-sm font-bold" style={{ color: badgeColor, fontFamily: "'Manrope', sans-serif", borderBottom: "1px solid var(--color-border, #d8d5cd)" }}>
                           {fmt(Number(item.value ?? 0).toFixed(0))}
                         </td>
-                        <td className="px-5 py-3.5 text-xs" style={{ color: "var(--color-text-tertiary, #6b6760)", fontFamily: "'DM Sans', sans-serif", borderBottom: "1px solid var(--color-border, #d8d5cd)" }}>
+                        <td className="px-5 py-3.5 text-xs" style={{ color: "var(--color-text-tertiary, #6b6760)", fontFamily: "'Manrope', sans-serif", borderBottom: "1px solid var(--color-border, #d8d5cd)" }}>
                           {item.lastOrderDate ? format(new Date(item.lastOrderDate), "dd.MM.yyyy") : t("Никогда", "Hech qachon")}
                         </td>
                         <td className="px-5 py-3.5" style={{ borderBottom: "1px solid var(--color-border, #d8d5cd)" }}>
@@ -751,7 +751,7 @@ export default function Warehouse() {
                   <tr>
                     {[t("ТОВАР","MAHSULOT"), t("ОСТАТОК","QOLDIQ"), t("ПОРОГ","CHEGARA"), t("ПРОДАЖИ/ДЕНЬ","SOTISH/KUN"), t("ДНЕЙ ДО КОНЦА","KUN QOLDI"), t("ЗАКАЗАТЬ","BUYURTMA BERISH"), t("СТОИМОСТЬ","NARX")].map(h => (
                       <th key={h} className="text-left px-5 py-3 text-[10px] font-semibold tracking-wider uppercase"
-                        style={{ color: "var(--color-text-tertiary, #6b6760)", fontFamily: "'DM Sans', sans-serif", borderBottom: "1px solid var(--color-border, #d8d5cd)" }}>
+                        style={{ color: "var(--color-text-tertiary, #6b6760)", fontFamily: "'Manrope', sans-serif", borderBottom: "1px solid var(--color-border, #d8d5cd)" }}>
                         {h}
                       </th>
                     ))}
@@ -772,13 +772,13 @@ export default function Warehouse() {
                             {item.productName}
                           </div>
                         </td>
-                        <td className="px-5 py-3.5 text-sm font-bold" style={{ color: badgeColor, fontFamily: "'DM Sans', sans-serif", borderBottom: "1px solid var(--color-border, #d8d5cd)" }}>
+                        <td className="px-5 py-3.5 text-sm font-bold" style={{ color: badgeColor, fontFamily: "'Manrope', sans-serif", borderBottom: "1px solid var(--color-border, #d8d5cd)" }}>
                           {formatQty(item.currentStock)} {unitLabel(item.unit ?? undefined, lang)}
                         </td>
-                        <td className="px-5 py-3.5 text-sm" style={{ color: "var(--color-text-tertiary, #6b6760)", fontFamily: "'DM Sans', sans-serif", borderBottom: "1px solid var(--color-border, #d8d5cd)" }}>
+                        <td className="px-5 py-3.5 text-sm" style={{ color: "var(--color-text-tertiary, #6b6760)", fontFamily: "'Manrope', sans-serif", borderBottom: "1px solid var(--color-border, #d8d5cd)" }}>
                           {formatQty(item.reorderPoint, 0)} {unitLabel(item.unit ?? undefined, lang)}
                         </td>
-                        <td className="px-5 py-3.5 text-sm" style={{ color: "var(--color-text-secondary, #5e5b54)", fontFamily: "'DM Sans', sans-serif", borderBottom: "1px solid var(--color-border, #d8d5cd)" }}>
+                        <td className="px-5 py-3.5 text-sm" style={{ color: "var(--color-text-secondary, #5e5b54)", fontFamily: "'Manrope', sans-serif", borderBottom: "1px solid var(--color-border, #d8d5cd)" }}>
                           {item.avgDailySales}
                         </td>
                         <td className="px-5 py-3.5" style={{ borderBottom: "1px solid var(--color-border, #d8d5cd)" }}>
@@ -787,10 +787,10 @@ export default function Warehouse() {
                             {daysLeft} {t("дн", "kun")}
                           </span>
                         </td>
-                        <td className="px-5 py-3.5 text-sm font-bold" style={{ color: badgeColor, fontFamily: "'DM Sans', sans-serif", borderBottom: "1px solid var(--color-border, #d8d5cd)" }}>
+                        <td className="px-5 py-3.5 text-sm font-bold" style={{ color: badgeColor, fontFamily: "'Manrope', sans-serif", borderBottom: "1px solid var(--color-border, #d8d5cd)" }}>
                           +{item.suggestedQty} {unitLabel(item.unit ?? undefined, lang)}
                         </td>
-                        <td className="px-5 py-3.5 text-sm font-bold" style={{ color: "var(--color-text-primary, #2b2a28)", fontFamily: "'DM Sans', sans-serif", borderBottom: "1px solid var(--color-border, #d8d5cd)" }}>
+                        <td className="px-5 py-3.5 text-sm font-bold" style={{ color: "var(--color-text-primary, #2b2a28)", fontFamily: "'Manrope', sans-serif", borderBottom: "1px solid var(--color-border, #d8d5cd)" }}>
                           {fmt(Number(item.suggestedCost ?? 0).toFixed(0))}
                         </td>
                       </tr>

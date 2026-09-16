@@ -17,8 +17,8 @@ import { cn, LX, MONO, useInView } from "./landing-tokens";
       прежний неоморфизм с двойной тенью на каждом элементе и был причиной
       «дешёвого» вида.
 
-   3. ДВА ШРИФТА, НОЛЬ НОВЫХ ЗАГРУЗОК. DM Sans (уже грузится приложением)
-      несёт заголовки и текст; DM Mono (тоже уже в index.html) — номера
+   3. ДВА ШРИФТА, НОЛЬ НОВЫХ ЗАГРУЗОК. Manrope (уже грузится приложением)
+      несёт заголовки и текст; JetBrains Mono (тоже уже в index.html) — номера
       строк, суммы, подписи, кольцо печати. Эмфаза строится на смене
       семейства и масштаба, не на цвете.
    ═══════════════════════════════════════════════════════════════════════════ */
@@ -170,7 +170,7 @@ export function Stamp({
         <circle cx={c} cy={c} r={c - 27} fill="none" stroke={LX.brass} strokeWidth="1" opacity="0.75" />
         <text
           fill={LX.brass}
-          style={{ fontFamily: "'DM Mono', monospace", fontSize: ringFont }}
+          style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: ringFont }}
           opacity="0.92"
         >
           <textPath href={`#lxs${id}`} textLength={ringLength} lengthAdjust="spacing">
@@ -182,7 +182,7 @@ export function Stamp({
           y={sub ? c + 1 : c + 7}
           textAnchor="middle"
           fill={LX.brass}
-          style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 800, fontSize: size / 7.4, letterSpacing: 0.5 }}
+          style={{ fontFamily: "'Manrope', sans-serif", fontWeight: 800, fontSize: size / 7.4, letterSpacing: 0.5 }}
         >
           {center}
         </text>
@@ -192,7 +192,7 @@ export function Stamp({
             y={c + 17}
             textAnchor="middle"
             fill={LX.brass}
-            style={{ fontFamily: "'DM Mono', monospace", fontSize: 8.5, letterSpacing: 1.6 }}
+            style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 8.5, letterSpacing: 1.6 }}
             opacity="0.9"
           >
             {sub}

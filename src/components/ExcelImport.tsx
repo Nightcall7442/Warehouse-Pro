@@ -147,7 +147,7 @@ export function ExcelImport({ type, onDone, onCancel }: Props) {
     <div style={{ background: "var(--color-surface, #efedea)", borderRadius: "20px", padding: "24px", boxShadow: "0 1px 3px rgba(0,0,0,0.04), 0 4px 16px rgba(0,0,0,0.04)" }}>
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "20px" }}>
-        <h2 style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px", fontWeight: 700, color: "var(--color-text-primary, #2b2a28)" }}>
+        <h2 style={{ fontFamily: "'Manrope', sans-serif", fontSize: "16px", fontWeight: 700, color: "var(--color-text-primary, #2b2a28)" }}>
           {t("Импорт", "Import")} {typeLabel}
         </h2>
         <button onClick={onCancel} style={{ padding: "8px", borderRadius: "8px", background: "none", border: "none", cursor: "pointer", color: "var(--color-text-secondary, #5e5b54)" }}>
@@ -203,7 +203,7 @@ export function ExcelImport({ type, onDone, onCancel }: Props) {
       {/* Preview */}
       {preview.length > 0 && (
         <div style={{ overflowX: "auto", marginTop: "16px" }}>
-          <table style={{ width: "100%", fontSize: "11px", fontFamily: "'DM Sans', sans-serif" }}>
+          <table style={{ width: "100%", fontSize: "11px", fontFamily: "'Manrope', sans-serif" }}>
             <thead>
               <tr style={{ borderBottom: "1px solid var(--color-border, #d8d5cd)" }}>
                 {columns.map(c => (

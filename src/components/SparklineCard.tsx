@@ -51,7 +51,7 @@ export const SparklineCard = memo(function SparklineCard({
       <p style={{
         fontSize: "11px", fontWeight: 600, textTransform: "uppercase",
         letterSpacing: "0.08em", color: "var(--color-text-tertiary, #6b6760)", margin: 0,
-        fontFamily: "'DM Sans', sans-serif",
+        fontFamily: "'Manrope', sans-serif",
       }}>
         {label}
       </p>
@@ -59,7 +59,7 @@ export const SparklineCard = memo(function SparklineCard({
       <p style={{
         fontSize: "28px", fontWeight: 700, color: "var(--color-text-primary, #2b2a28)",
         margin: "8px 0 0", letterSpacing: "-0.03em",
-        fontFamily: "'DM Sans', sans-serif",
+        fontFamily: "'Manrope', sans-serif",
       }}>
         {value}
       </p>

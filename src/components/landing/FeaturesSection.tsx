@@ -131,7 +131,7 @@ function LedgerSection() {
           className={`mt-12 ${cols} gap-x-4 md:gap-x-8 py-3 text-[11px] uppercase`}
           style={{ ...registerA, color: LX.brassDeep, borderTop: `1px solid ${LX.ruleStrong}`, borderBottom: `1px solid ${LX.rule}` }}
         >
-          {/* В DM Mono нет знака №: браузер подставлял чужой глиф. */}
+          {/* В JetBrains Mono нет знака №: браузер подставлял чужой глиф. */}
           <span>#</span>
           <span>{tr("Позиция", "Pozitsiya")}</span>
           <span className="hidden md:block">{tr("Что делает", "Nima qiladi")}</span>

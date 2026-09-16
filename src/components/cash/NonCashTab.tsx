@@ -77,18 +77,18 @@ export function NonCashTab({ t, fmt, userId, isCeo, refresh }: { t: T; fmt: Fmt;
       {dialog}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
         {[
-          { label: t("В ПУТИ", "YO'LDA"), value: fmt(sum?.transit.total ?? 0), icon: Clock, sub: t(`${sum?.transit.count ?? 0} платежей ждут выписки`, `${sum?.transit.count ?? 0} to'lov ko'chirma kutmoqda`) },
-          { label: t("ПРОСРОЧЕНО", "MUDDATI O'TGAN"), value: fmt(sum?.overdue.total ?? 0), icon: AlertTriangle, sub: t(`${sum?.overdue.count ?? 0} дольше ${sum?.days ?? 3} дн.`, `${sum?.overdue.count ?? 0} ta ${sum?.days ?? 3} kundan uzoq`), danger: (sum?.overdue.count ?? 0) > 0 },
-          { label: t("ПОДТВЕРЖДЕНО СЕГОДНЯ", "BUGUN TASDIQLANDI"), value: fmt(sum?.confirmedToday.total ?? 0), icon: Check, sub: t(`${sum?.confirmedToday.count ?? 0} по выписке`, `${sum?.confirmedToday.count ?? 0} ko'chirma bo'yicha`) },
-          { label: t("КАРТА", "KARTA"), value: fmt(q.data?.totals.card ?? 0), icon: CreditCard, sub: t(`за ${days} дн.`, `${days} kun`) },
-          { label: t("ПЕРЕВОД", "O'TKAZMA"), value: fmt(q.data?.totals.transfer ?? 0), icon: Landmark, sub: t(`за ${days} дн.`, `${days} kun`) },
+          { label: t("В пути", "Yo'lda"), n: sum?.transit.total ?? 0, icon: Clock, sub: t(`${sum?.transit.count ?? 0} платежей ждут выписки`, `${sum?.transit.count ?? 0} to'lov ko'chirma kutmoqda`) },
+          { label: t("Просрочено", "Muddati o'tgan"), n: sum?.overdue.total ?? 0, icon: AlertTriangle, sub: t(`${sum?.overdue.count ?? 0} дольше ${sum?.days ?? 3} дн.`, `${sum?.overdue.count ?? 0} ta ${sum?.days ?? 3} kundan uzoq`), danger: (sum?.overdue.count ?? 0) > 0 },
+          { label: t("Подтверждено сегодня", "Bugun tasdiqlandi"), n: sum?.confirmedToday.total ?? 0, icon: Check, sub: t(`${sum?.confirmedToday.count ?? 0} по выписке`, `${sum?.confirmedToday.count ?? 0} ko'chirma bo'yicha`) },
+          { label: t("Карта", "Karta"), n: q.data?.totals.card ?? 0, icon: CreditCard, sub: t(`за ${days} дн.`, `${days} kun`) },
+          { label: t("Перевод", "O'tkazma"), n: q.data?.totals.transfer ?? 0, icon: Landmark, sub: t(`за ${days} дн.`, `${days} kun`) },
         ].map(tile => (
           <div key={tile.label} className="neo-card neo-card-static" style={{ borderRadius: "20px", padding: "16px" }} data-testid={`noncash-tile-${tile.label}`}>
             <div className="flex items-center justify-between">
-              <div style={{ fontFamily: F.display, fontSize: "10px", fontWeight: 600, letterSpacing: "0.08em", color: tile.danger ? "var(--color-danger-text)" : COLORS.textTertiary }}>{tile.label}</div>
+              <div style={{ fontFamily: F.display, fontSize: "10px", fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", color: tile.danger ? "var(--color-danger-text)" : COLORS.textTertiary }}>{tile.label}</div>
               <tile.icon size={16} style={{ color: tile.danger ? "var(--color-danger-text)" : COLORS.textTertiary }} />
             </div>
-            <div className="font-data" style={{ fontFamily: F.display, fontSize: "20px", fontWeight: 700, color: tile.danger ? "var(--color-danger-text)" : COLORS.textPrimary, marginTop: "6px", lineHeight: 1 }}>{tile.value}</div>
+            <div className="font-data" style={{ fontFamily: F.display, fontSize: "20px", fontWeight: 700, color: tile.danger ? "var(--color-danger-text)" : tile.n === 0 ? COLORS.textTertiary : COLORS.textPrimary, marginTop: "6px", lineHeight: 1 }}>{fmt(tile.n)}</div>
             <div style={{ fontSize: "12px", color: COLORS.textSecondary, marginTop: "4px" }}>{tile.sub}</div>
           </div>
         ))}
@@ -139,7 +139,7 @@ export function NonCashTab({ t, fmt, userId, isCeo, refresh }: { t: T; fmt: Fmt;
           <div className="flex flex-wrap items-center gap-2" style={{ padding: "6px 10px 10px" }}>
             <input className="neo-input font-data" style={{ maxWidth: 260 }} value={bankRef} onChange={e => setBankRef(e.target.value)} maxLength={64}
               placeholder={t("№ операции или выписки (не обязательно)", "Operatsiya yoki ko'chirma № (ixtiyoriy)")} data-testid="noncash-bankref" />
-            <button className="neo-btn-primary" disabled={selected.size === 0 || confirmM.isPending} onClick={submit} data-testid="noncash-confirm">
+            <button className="neo-btn" disabled={selected.size === 0 || confirmM.isPending} onClick={submit} data-testid="noncash-confirm">
               <Check size={15} /> {t(`Пришло на счёт`, `Hisobga keldi`)}{selected.size > 0 ? ` · ${selected.size} · ${fmt(selectedTotal)}` : ""}
             </button>
             <span style={{ fontSize: "12px", color: COLORS.textTertiary }}>{t("Отметьте платежи, которые нашли в выписке банка", "Bank ko'chirmasida topilgan to'lovlarni belgilang")}</span>

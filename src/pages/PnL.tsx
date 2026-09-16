@@ -600,7 +600,7 @@ export default function PnL() {
             style={{
               fontSize: "12px",
               color: COLORS.textTertiary,
-              fontFamily: "'DM Sans', -apple-system, sans-serif",
+              fontFamily: "'Manrope', -apple-system, sans-serif",
               paddingBottom: "6px",
             }}
           >

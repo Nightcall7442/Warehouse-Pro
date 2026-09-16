@@ -81,7 +81,7 @@ export function LogoWordmark({ size = 32, className, onDark = false }: WordmarkP
       <LogoMark size={size} onDark={onDark} decorative />
       <span
         style={{
-          fontFamily: "'DM Sans', system-ui, sans-serif",
+          fontFamily: "'Manrope', system-ui, sans-serif",
           fontWeight: 700,
           fontSize: size * 0.5,
           letterSpacing: "-0.02em",

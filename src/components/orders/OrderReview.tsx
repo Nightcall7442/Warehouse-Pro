@@ -223,7 +223,7 @@ export function OrderReview({
                 <span style={{
                   fontSize: "13px", fontWeight: isActive ? 600 : 500,
                   color: isActive ? method.color : "var(--color-text-primary, #2b2a28)",
-                  fontFamily: "'DM Sans', sans-serif",
+                  fontFamily: "'Manrope', sans-serif",
                 }}>
                   {lang === "uz" ? method.uz : method.ru}
                 </span>
