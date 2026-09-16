@@ -71,17 +71,27 @@ export function SequenceCanvas({
       const w = Math.max(1, Math.round(r.width * dpr)), h = Math.max(1, Math.round(r.height * dpr));
       if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; render(last < 0 ? 0 : last); }
     };
-    frames.forEach((src, i) => {
-      const img = new Image();
-      img.decoding = "async";
-      img.onload = () => { if (!alive) return; images[i] = img; if (last >= 0) render(last); else if (i === 0) render(0); };
-      img.src = src;
-    });
+    // Плёнка грузится, когда секция в полутора экранах от читателя, а не при
+    // открытии страницы: у сотни кадров есть вес, у покупателя — 3G.
+    let started = false;
+    const load = () => {
+      if (started) return;
+      started = true;
+      frames.forEach((src, i) => {
+        const img = new Image();
+        img.decoding = "async";
+        img.onload = () => { if (!alive) return; images[i] = img; if (last >= 0) render(last); else if (i === 0) render(0); };
+        img.src = src;
+      });
+    };
+    let io: IntersectionObserver | null = null;
+    if (typeof IntersectionObserver === "undefined") load();
+    else { io = new IntersectionObserver(([e]) => { if (e.isIntersecting) { load(); io?.disconnect(); } }, { rootMargin: "150% 0px 150% 0px" }); io.observe(canvas); }
     resize();
     const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(resize) : null;
     ro?.observe(canvas);
     const off = subscribe(p => { if (p !== last) { last = p; render(p); } });
-    return () => { alive = false; off(); ro?.disconnect(); };
+    return () => { alive = false; off(); ro?.disconnect(); io?.disconnect(); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [framesKey, subscribe, fit, anchor]);
 

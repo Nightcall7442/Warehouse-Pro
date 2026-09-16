@@ -1,10 +1,11 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
 import { render, cleanup } from "@testing-library/react";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { LangProvider } from "@/i18n";
 import { scrubProgress, frameAt, captionOpacity } from "@/components/landing/scroll-scrub";
+import { FILM } from "@/components/landing/film";
 
 /**
  * Плёнка «от заказа до денег» (Apple-style scroll scrub).
@@ -104,5 +105,48 @@ describe("сцена", () => {
     expect(scrub).toContain("value.current += d * SMOOTH;");
     expect(scrub).toContain("if (near) raf = requestAnimationFrame(tick);");
     expect(scrub).toContain("if (!el || reducedMotion() || typeof IntersectionObserver === \"undefined\") return;");
+  });
+});
+
+describe("плёнка из видео (Higgsfield → кадры → прокрутка)", () => {
+  beforeEach(() => {
+    vi.stubGlobal("IntersectionObserver", class { observe() {} unobserve() {} disconnect() {} takeRecords() { return []; } root = null; rootMargin = ""; thresholds = []; });
+    vi.stubGlobal("ResizeObserver", class { observe() {} unobserve() {} disconnect() {} });
+    vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(null);
+    vi.stubGlobal("matchMedia", (q: string) => ({ matches: false, media: q, onchange: null, addListener: vi.fn(), removeListener: vi.fn(), addEventListener: vi.fn(), removeEventListener: vi.fn(), dispatchEvent: vi.fn() }));
+  });
+  afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
+
+  it("манифест film.ts сходится с кадрами на диске: столько же файлов, нумерация без дыр, первый кадр есть", () => {
+    for (const [name, f] of Object.entries(FILM)) {
+      const dir = join(ROOT, "public", "landing", "film", name);
+      expect(existsSync(dir), `нет папки кадров ${name}`).toBe(true);
+      const files = readdirSync(dir).filter(x => /^\d{3}\.webp$/.test(x)).sort();
+      expect(files.length, `кадров ${name} на диске не столько, сколько в film.ts`).toBe(f.count);
+      expect(files[0]).toBe("001.webp");
+      expect(files.at(-1)).toBe(`${String(f.count).padStart(3, "0")}.webp`);
+      expect(f.count).toBeGreaterThanOrEqual(24);
+      expect(f.width / f.height).toBeCloseTo(16 / 9, 1);
+    }
+  });
+  it("сцена: секция в 260vh, кадры из манифеста по порядку, постер — первый кадр, три строки не спрятаны разметкой", async () => {
+    const { default: FilmScroll } = await import("@/components/landing/FilmScroll");
+    const { container } = render(<LangProvider><FilmScroll /></LangProvider>);
+    const section = container.querySelector("#film") as HTMLElement;
+    expect(section.style.height).toBe("260vh");
+    expect(section.querySelector(".sticky")).toBeTruthy();
+    expect(section.querySelector("img")?.getAttribute("src")).toBe("/landing/film/warehouse/001.webp");
+    const lines = Array.from(section.querySelectorAll("[data-film-line]")) as HTMLElement[];
+    expect(lines.length).toBe(3);
+    expect(lines.map(l => l.style.opacity).sort()).toEqual(["0", "0", "1"]);
+    expect(read("src/components/landing/FilmScroll.tsx")).not.toMatch(/opacity:\s*0\b/);
+    expect(read("src/components/landing/FilmScroll.tsx")).toContain("String(i + 1).padStart(3, \"0\")}.webp");
+  });
+  it("плёнка грузится не при открытии страницы, а в полутора экранах от читателя; стоит в ночной полосе между «потерями» и окном продукта", () => {
+    expect(read("src/components/landing/SequenceCanvas.tsx")).toContain('rootMargin: "150% 0px 150% 0px"');
+    const landing = read("src/pages/Landing.tsx");
+    expect(landing.indexOf("<LossSection />")).toBeLessThan(landing.indexOf("<FilmScroll />"));
+    expect(landing.indexOf("<FilmScroll />")).toBeLessThan(landing.indexOf("<ProductWindow />"));
+    expect(read("src/components/landing/FilmScroll.tsx")).not.toContain("<SectionHead");
   });
 });

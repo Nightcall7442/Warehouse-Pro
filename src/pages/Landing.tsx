@@ -14,6 +14,7 @@ import HeroSection from "@/components/landing/HeroSection";
 import { CTA_PHOTO } from "@/components/landing/PhotoStrip";
 import OrdersSection from "@/components/landing/OrdersSection";
 import StoryScroll from "@/components/landing/StoryScroll";
+import FilmScroll from "@/components/landing/FilmScroll";
 import WarehouseSection from "@/components/landing/WarehouseSection";
 import MoneySection from "@/components/landing/MoneySection";
 import SetupSection from "@/components/landing/SetupSection";
@@ -333,6 +334,8 @@ export default function Landing() {
       <HeroSection />
       <TallyField />
       <LossSection />
+      {/* Плёнка без номера: склад на рассвете кадр за кадром по прокрутке — внутри той же ночной полосы. */}
+      <FilmScroll />
       <ProductWindow />
       <FactsStrip />
       <FeaturesSection />
