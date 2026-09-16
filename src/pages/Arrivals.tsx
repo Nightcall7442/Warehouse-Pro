@@ -1,4 +1,5 @@
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
+import { useScrollTopOnChange } from "@/hooks/useScrollTopOnChange";
 import { useAuth } from "@/hooks/useAuth";
 import { saveArrivalDraft, loadArrivalDraft, clearArrivalDraft, arrivalDraftHasWork, type ArrivalDraft } from "./Arrivals.draft";
 import { DecimalInput } from "@/components/ui/DecimalInput";
@@ -951,6 +952,7 @@ function formatDay(day: string): string {
 
 export default function Arrivals() {
   const [page, setPage] = useState(1);
+  useScrollTopOnChange(page);
   const [status, setStatus] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [detailId, setDetailId] = useState<number | null>(null);

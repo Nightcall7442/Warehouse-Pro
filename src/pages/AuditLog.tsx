@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useScrollTopOnChange } from "@/hooks/useScrollTopOnChange";
 import { trpc } from "@/providers/trpc";
 import { useLang } from "@/i18n";
 import { format } from "date-fns";
@@ -193,6 +194,7 @@ export default function AuditLog() {
   const [dateTo, setDateTo] = useState("");
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(0);
+  useScrollTopOnChange(page);
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const limit = 50;
 
