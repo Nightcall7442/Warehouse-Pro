@@ -70,8 +70,8 @@ describe("сцена", () => {
     expect(section.style.height).toBe("320vh");
     expect(section.querySelector(".sticky")).toBeTruthy();
     const imgs = Array.from(section.querySelectorAll("img")).map(i => i.getAttribute("src"));
-    expect(imgs).toEqual(["/landing/ru/web-operator-orders-content.webp", "/landing/ru/mobile-agent-order-step2.webp"]);
-    expect(section.querySelectorAll("canvas").length).toBe(2);
+    expect(imgs).toEqual(["/landing/ru/web-operator-orders-content.webp"]);
+    expect(section.querySelectorAll("canvas").length).toBe(1);
     const steps = Array.from(section.querySelectorAll("[data-story-step]")) as HTMLElement[];
     expect(steps.length).toBe(4);
     // Сценарий выставил состояние из JS: ровно одна подпись видна (в jsdom секция без высоты — прогресс 1, последняя),
@@ -98,7 +98,9 @@ describe("сцена", () => {
     const src = read("src/components/landing/StoryScroll.tsx");
     expect(src).not.toContain("<SectionHead");
     expect(src).toContain("webContent(s.web, lang)");
-    expect(src).toContain("mobileShot(s.phone, lang)");
+    // Один предмет в кадре: телефона рядом с окном нет, окно меряется от высоты экрана.
+    expect(src).not.toContain("<Phone");
+    expect(src).toContain('height: "min(74vh, 640px)"');
     for (const f of ["src/components/landing/StoryScroll.tsx", "src/components/landing/SequenceCanvas.tsx", "src/components/landing/scroll-scrub.ts"]) expect(read(f), f).not.toMatch(/#[0-9a-f]{3,8}\b/i);
     // Сглаживание и остановка цикла вне экрана — то, чем плёнка отличается от «сайт заедает».
     const scrub = read("src/components/landing/scroll-scrub.ts");

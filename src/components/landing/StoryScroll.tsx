@@ -1,9 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useLang, useTranslate } from "@/i18n";
-import { useIsMobile } from "@/hooks/use-mobile";
 import { LX, MONO } from "./landing-tokens";
-import { Browser, Phone } from "./landing-frames";
-import { webContent, mobileShot, type WebShotKey, type MobileShotKey } from "./shots";
+import { Browser } from "./landing-frames";
+import { webContent, type WebShotKey } from "./shots";
 import { reducedMotion } from "./landing-anime";
 import { useScrollScrub, captionOpacity } from "./scroll-scrub";
 import { SequenceCanvas } from "./SequenceCanvas";
@@ -13,9 +12,14 @@ import { SequenceCanvas } from "./SequenceCanvas";
 
    Владелец: «хочу frame-by-frame scroll-эффекты с плавными переходами, как
    у Apple». Сцена прилипает к экрану, а прокрутка сквозь секцию ведёт
-   плёнку: окно программы и телефон проходят четыре кадра пути товара и
-   денег, подписи слева сменяются в такт. Кадры — снимки настоящей
-   программы (конвейер docs/landing-*), не рисунки.
+   плёнку: ОДНО окно программы проходит четыре кадра пути товара и денег,
+   подписи слева сменяются в такт. Кадры — снимки настоящей программы
+   (конвейер docs/landing-*), не рисунки.
+
+   Первая версия ставила рядом окно и телефон внахлёст — владелец назвал
+   это «через жопу»: два предмета спорили за глаз, окно резалось краем
+   экрана. Правило Apple: один предмет в кадре, крупно, целиком. Окно
+   размером от высоты экрана (не от ширины), чтобы никогда не резалось.
 
    Это интерлюдия без номера: главы 06–09 ниже разворачивают те же четыре
    шага подробно, как у Apple обзор перед разделами.
@@ -23,7 +27,7 @@ import { SequenceCanvas } from "./SequenceCanvas";
 
 const LENGTH_VH = 320; // высота секции: три с лишним экрана прокрутки на четыре кадра
 
-type Step = { web: WebShotKey; phone: MobileShotKey; title: string; text: string };
+type Step = { web: WebShotKey; title: string; text: string };
 
 export default function StoryScroll() {
   const tr = useTranslate();
@@ -32,22 +36,20 @@ export default function StoryScroll() {
   const { subscribe } = useScrollScrub(section);
   // «Уменьшить движение»: сцена не прилипает, подписи — списком, кадры стоят.
   const [still] = useState(() => reducedMotion());
-  const mobile = useIsMobile();
 
   const steps: Step[] = [
-    { web: "orders", phone: "orderStep2", title: tr("Заказ принят", "Buyurtma qabul qilindi"), text: tr("Агент набрал его в магазине — оператор видит сразу: позиции, цена этого магазина, долг.", "Agent do'konda terdi — operator darhol ko'radi: pozitsiyalar, shu do'kon narxi, qarz.") },
-    { web: "picking", phone: "deliveries", title: tr("Собран под рейс", "Reys uchun yig'ildi"), text: tr("Комплектация по партиям и срокам годности: складу — список, курьеру — рейс.", "Partiya va muddat bo'yicha komplektatsiya: omborga — ro'yxat, kuryerga — reys.") },
-    { web: "warehouse", phone: "deliver", title: tr("Довезён и принят", "Yetkazildi va qabul qilindi"), text: tr("Курьер отмечает, сколько магазин принял на самом деле; остаток возвращается на склад.", "Kuryer do'kon aslida qancha olganini belgilaydi; qolgani omborga qaytadi.") },
-    { web: "pnl", phone: "debts", title: tr("Деньги сошлись", "Pul to'g'ri keldi"), text: tr("Наличные — на руках у курьера, долг магазина — по факту, директор видит P&L за день.", "Naqd — kuryer qo'lida, do'kon qarzi — haqiqat bo'yicha, direktor kunlik P&L ni ko'radi.") },
+    { web: "orders", title: tr("Заказ принят", "Buyurtma qabul qilindi"), text: tr("Агент набрал его в магазине — оператор видит сразу: позиции, цена этого магазина, долг.", "Agent do'konda terdi — operator darhol ko'radi: pozitsiyalar, shu do'kon narxi, qarz.") },
+    { web: "picking", title: tr("Собран под рейс", "Reys uchun yig'ildi"), text: tr("Комплектация по партиям и срокам годности: складу — список, курьеру — рейс.", "Partiya va muddat bo'yicha komplektatsiya: omborga — ro'yxat, kuryerga — reys.") },
+    { web: "warehouse", title: tr("Довезён и принят", "Yetkazildi va qabul qilindi"), text: tr("Курьер отмечает, сколько магазин принял на самом деле; остаток возвращается на склад.", "Kuryer do'kon aslida qancha olganini belgilaydi; qolgani omborga qaytadi.") },
+    { web: "pnl", title: tr("Деньги сошлись", "Pul to'g'ri keldi"), text: tr("Наличные — на руках у курьера, долг магазина — по факту, директор видит P&L за день.", "Naqd — kuryer qo'lida, do'kon qarzi — haqiqat bo'yicha, direktor kunlik P&L ni ko'radi.") },
   ];
   const webFrames = useMemo(() => steps.map(s => webContent(s.web, lang)), [lang]); // eslint-disable-line react-hooks/exhaustive-deps
-  const phoneFrames = useMemo(() => steps.map(s => mobileShot(s.phone, lang)), [lang]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Подписи, рейка прогресса и параллакс телефона — напрямую в стили, без
+  // Подписи, рейка прогресса и лёгкий наезд на окно — напрямую в стили, без
   // перерисовки React на каждый кадр прокрутки.
   const captions = useRef<Array<HTMLDivElement | null>>([]);
   const rail = useRef<HTMLDivElement>(null);
-  const phone = useRef<HTMLDivElement>(null);
+  const win = useRef<HTMLDivElement>(null);
   useEffect(() => still ? undefined : subscribe(p => {
     captions.current.forEach((el, i) => {
       if (!el) return;
@@ -57,7 +59,7 @@ export default function StoryScroll() {
       el.style.pointerEvents = o > 0.5 ? "auto" : "none";
     });
     if (rail.current) rail.current.style.transform = `scaleX(${p})`;
-    if (phone.current) phone.current.style.transform = `translateY(${Math.round(36 - p * 72)}px)`;
+    if (win.current) win.current.style.transform = `scale(${(1 + p * 0.03).toFixed(4)})`;
   }), [subscribe, still, steps.length]);
 
   const eyebrow = (
@@ -104,18 +106,12 @@ export default function StoryScroll() {
               </div>
             </div>
 
-            {/* ── Сцена: окно программы и телефон ───────────────────────── */}
-            <div className="md:col-span-7 relative">
-              <Browser content fade={false} className="hidden md:block" style={{ marginLeft: 48 }}>
-                <SequenceCanvas frames={webFrames} subscribe={subscribe} alt={tr("Окно программы: заказы, комплектация, склад, P&L", "Dastur oynasi: buyurtmalar, komplektatsiya, ombor, P&L")} fit="cover" anchor="top" className="absolute inset-0" />
-              </Browser>
-              {/* Телефон меньше на узких экранах (масштаб оправы), параллакс — на вложенном слое, чтобы не спорить с масштабом. */}
-              <div className="md:absolute md:-left-2 md:bottom-[-24px] flex justify-center md:block md:scale-[0.78] lg:scale-100 origin-bottom-left">
-                <div ref={phone} style={{ willChange: still ? undefined : "transform" }}>
-                  <Phone width={mobile ? 168 : 196}>
-                    <SequenceCanvas frames={phoneFrames} subscribe={subscribe} alt={tr("Телефон: заказ, рейс, приёмка, долги", "Telefon: buyurtma, reys, qabul, qarzlar")} fit="cover" anchor="top" className="absolute inset-0" />
-                  </Phone>
-                </div>
+            {/* ── Сцена: одно окно программы, целиком, размером от высоты экрана ── */}
+            <div className="md:col-span-7 flex md:justify-end">
+              <div ref={win} className="w-full md:w-auto" style={{ willChange: still ? undefined : "transform", transformOrigin: "50% 50%" }}>
+                <Browser content fade={false} style={still ? undefined : { height: "min(74vh, 640px)", width: "auto", aspectRatio: "1174 / 1036", maxWidth: "100%" }}>
+                  <SequenceCanvas frames={webFrames} subscribe={subscribe} alt={tr("Окно программы: заказы, комплектация, склад, P&L", "Dastur oynasi: buyurtmalar, komplektatsiya, ombor, P&L")} fit="cover" anchor="top" className="absolute inset-0" />
+                </Browser>
               </div>
             </div>
           </div>
