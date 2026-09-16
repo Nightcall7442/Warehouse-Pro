@@ -1007,6 +1007,17 @@ export const payments = mysqlTable("payments", {
     видна как пара. Одно сторно на платёж — уникальный индекс ниже.
   */
   reversalOf: bigint("reversal_of", { mode: "number", unsigned: true }),
+  /*
+    Подтверждение банком. Карта и перевод — обещание денег, а не деньги:
+    сотрудник отметил «перевод», долг магазина закрылся, а пришло ли на счёт —
+    видно только в выписке. Кассир сверяет с выпиской и ставит «пришло»;
+    до этого платёж «в пути», а дольше settings.bankConfirmDays — просрочен и
+    висит на том, кто его записал. Не пришло — сторно, как у любого платежа.
+    Наличных не касается: их путь — сдача в кассу (cash_documents).
+  */
+  bankConfirmedAt: timestamp("bank_confirmed_at"),
+  bankConfirmedBy: bigint("bank_confirmed_by", { mode: "number", unsigned: true }).references(() => users.id, { onDelete: "restrict" }),
+  bankRef: varchar("bank_ref", { length: 64 }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 }, (t) => ({
   tenantIdx: index("idx_payments_tenant").on(t.tenantId),
@@ -1411,6 +1422,8 @@ export const settings = mysqlTable("settings", {
   /** Касса: сколько наличных сотруднику можно держать на руках и до какого часа сдать. */
   cashLimit:           decimal("cash_limit", { precision: 15, scale: 2 }).default("5000000.00").notNull(),
   cashDeadline:        varchar("cash_deadline", { length: 5 }).default("19:00").notNull(),
+  /** Безнал: через сколько дней неподтверждённый банком перевод считается просроченным. */
+  bankConfirmDays:     int("bank_confirm_days").default(3).notNull(),
   createdAt:           timestamp("created_at").defaultNow().notNull(),
   updatedAt:           timestamp("updated_at").defaultNow().notNull().$onUpdate(() => new Date()),
 });

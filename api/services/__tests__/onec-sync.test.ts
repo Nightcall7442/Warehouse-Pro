@@ -332,13 +332,20 @@ describe("реализация в 1С", () => {
 describe("оплата в 1С", () => {
   it("платёж становится приходным кассовым ордером и проводится", async () => {
     mapping("shop", "shop-uuid", 10);
-    tables.payments.push({ id: 3, tenantId: 1, shopId: 10, orderId: 1, amount: "450.50", type: "payment", paidAt: new Date("2026-08-28T12:00:00Z"), createdAt: new Date("2026-08-28T12:00:00Z") });
+    tables.payments.push({ id: 3, tenantId: 1, shopId: 10, orderId: 1, amount: "450.50", type: "payment", paymentMethod: "cash", paidAt: new Date("2026-08-28T12:00:00Z"), createdAt: new Date("2026-08-28T12:00:00Z") });
 
     await syncService.syncPaymentTo1C(1, 3);
 
     const [pko] = onec.rows(N.cashIn!.set);
     expect(pko).toMatchObject({ Организация_Key: "org-1", Контрагент_Key: "shop-uuid", СуммаДокумента: 450.5, ВидОперации: "ОплатаПокупателя", Комментарий: "Warehouse Pro: оплата №3 по заказу 1", Posted: true });
     expect(tables.idMappings).toContainEqual(expect.objectContaining({ entityType: "payment", externalId: pko.Ref_Key, internalId: 3 }));
+  });
+
+  it("перевод и карта — не ПКО: безнал приходит в 1С из выписки, очередь ждёт решения", async () => {
+    mapping("shop", "shop-uuid", 10);
+    tables.payments.push({ id: 5, tenantId: 1, shopId: 10, amount: "100.00", type: "payment", paymentMethod: "transfer", createdAt: new Date() });
+    await expect(syncService.syncPaymentTo1C(1, 5)).rejects.toMatchObject({ code: "BAD_REQUEST", message: expect.stringContaining("из выписки банка") });
+    expect(onec.rows(N.cashIn!.set)).toHaveLength(0);
   });
 
   it("запись долга — не оплата, ПКО не создаётся", async () => {

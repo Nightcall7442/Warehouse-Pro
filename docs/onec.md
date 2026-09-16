@@ -13,10 +13,17 @@ Warehouse Pro обменивается с 1С по **стандартному и
 | 1С → Warehouse Pro | Номенклатура (без папок и помеченных на удаление): название, артикул, единица измерения, цена выбранного *типа цен* | по расписанию и по кнопке |
 | 1С → Warehouse Pro | Контрагенты — для связи с магазинами (по названию и телефону, остальное руками) | по расписанию и по кнопке |
 | Warehouse Pro → 1С | Доставленный заказ → **Реализация товаров и услуг**, проведённая; при частичной доставке — только довезённое | по расписанию, через журнал с повторами |
-| Warehouse Pro → 1С | Оплата магазина → **Приходный кассовый ордер** (если включено) | по расписанию |
+| Warehouse Pro → 1С | Оплата магазина **наличными** → **Приходный кассовый ордер** (если включено) | по расписанию |
+| 1С → Warehouse Pro | **Поступления на расчётный счёт** — только чтение: перевод или карта, записанные агентом, считаются пришедшими, когда в 1С есть проведённое поступление от того же контрагента на ту же сумму (если включены оплаты) | по расписанию и по кнопке «Выгрузить очередь сейчас» |
 
 Выгружаются только заказы, доставленные **после** подключения 1С: прошлые
 периоды бухгалтер разбирает сам.
+
+Безнал в 1С **не создаётся**: он приходит из выписки банка, как всегда.
+Warehouse Pro лишь сверяет свои переводы с этими поступлениями и ставит
+«пришло» с номером документа 1С — в кассе, вкладка «Безнал». Перевод одной
+суммой за несколько накладных автоматически не подбирается: кассир
+подтверждает его вручную.
 
 ## Шаг 1. Публикация базы с OData
 
@@ -46,10 +53,12 @@ OData»). Включите объекты:
 Справочники: `Номенклатура`, `КлассификаторЕдиницИзмерения`, `ТипыЦенНоменклатуры`,
 `Контрагенты`, `ДоговорыКонтрагентов`, `Организации`, `Склады`.
 Регистр сведений: `ЦеныНоменклатуры`.
-Документы: `РеализацияТоваровУслуг`, `ПриходныйКассовыйОрдер` (если нужны оплаты).
+Документы: `РеализацияТоваровУслуг`, `ПриходныйКассовыйОрдер` и
+`ПоступлениеНаРасчетныйСчет` (последние два — если нужны оплаты).
 
 Для Управления торговлей 11 вместо `ТипыЦенНоменклатуры` — `ВидыЦен`, вместо
-`ЦеныНоменклатуры` — `ЦеныНоменклатуры25`; договоры не нужны.
+`ЦеныНоменклатуры` — `ЦеныНоменклатуры25`, вместо `ПоступлениеНаРасчетныйСчет`
+— `ПоступлениеБезналичныхДенежныхСредств`; договоры не нужны.
 
 ## Шаг 3. Пользователь 1С для обмена
 
@@ -60,7 +69,8 @@ OData»). Включите объекты:
 - запись в `Контрагенты` и `ДоговорыКонтрагентов` (создание контрагента по
   карточке магазина и договора «Основной договор» — если их нет);
 - добавление и **проведение** `РеализацияТоваровУслуг` и
-  `ПриходныйКассовыйОрдер`.
+  `ПриходныйКассовыйОрдер`;
+- **чтение** `ПоступлениеНаРасчетныйСчет` — записывать в него обмен не будет.
 
 Проще всего — роль «Полные права» для этого пользователя, если политика
 безопасности допускает; иначе набор ролей «Добавление/изменение… продаж»
@@ -122,9 +132,16 @@ Asosiy preset — **1C:Buxgalteriya 8 O'zbekiston uchun (3.0)**; UT 11 va
 | 1C → Warehouse Pro | Nomenklatura (papkalar va o'chirishga belgilanganlarsiz): nom, artikul, o'lchov birligi, tanlangan *narx turi* bo'yicha narx | jadval bo'yicha va tugma bilan |
 | 1C → Warehouse Pro | Kontragentlar — do'konlar bilan bog'lash uchun (nom va telefon bo'yicha, qolgani qo'lda) | jadval bo'yicha va tugma bilan |
 | Warehouse Pro → 1C | Yetkazilgan buyurtma → o'tkazilgan **Tovar va xizmatlar sotuvi**; qisman yetkazilganda — faqat yetkazilgani | jadval bo'yicha, qayta urinishli jurnal orqali |
-| Warehouse Pro → 1C | Do'kon to'lovi → **Kirim kassa orderi** (yoqilgan bo'lsa) | jadval bo'yicha |
+| Warehouse Pro → 1C | Do'kon **naqd** to'lovi → **Kirim kassa orderi** (yoqilgan bo'lsa) | jadval bo'yicha |
+| 1C → Warehouse Pro | **Hisob-raqamga tushumlar** — faqat o'qish: agent yozgan o'tkazma yoki karta 1C da o'sha kontragentdan o'sha summaga o'tkazilgan tushum bo'lsa «keldi» hisoblanadi (to'lovlar yoqilgan bo'lsa) | jadval bo'yicha va «Navbatni hozir yuklash» tugmasi bilan |
 
 Faqat 1C ulangandan **keyin** yetkazilgan buyurtmalar yuklanadi.
+
+Naqdsiz to'lov 1C da **yaratilmaydi**: u har doimgidek bank ko'chirmasidan
+keladi. Warehouse Pro faqat o'z o'tkazmalarini shu tushumlar bilan
+solishtiradi va 1C hujjat raqami bilan «keldi» qo'yadi — kassa, «Naqdsiz»
+bo'limi. Bir necha nakladnoy uchun bitta summa bilan o'tkazma avtomatik
+topilmaydi: kassir uni qo'lda tasdiqlaydi.
 
 ## 1-qadam. Bazani OData bilan nashr etish
 
@@ -149,15 +166,17 @@ interfeysi tarkibini sozlash» ishlovi). Yoqing:
 Ma'lumotnomalar: `Номенклатура`, `КлассификаторЕдиницИзмерения`,
 `ТипыЦенНоменклатуры`, `Контрагенты`, `ДоговорыКонтрагентов`, `Организации`,
 `Склады`. Ma'lumot registri: `ЦеныНоменклатуры`. Hujjatlar:
-`РеализацияТоваровУслуг`, `ПриходныйКассовыйОрдер` (to'lovlar kerak bo'lsa).
+`РеализацияТоваровУслуг`, `ПриходныйКассовыйОрдер` va
+`ПоступлениеНаРасчетныйСчет` (oxirgi ikkitasi — to'lovlar kerak bo'lsa).
 
 ## 3-qadam. Almashinuv uchun 1C foydalanuvchisi
 
 Alohida foydalanuvchi (masalan `warehousepro`), 1C autentifikatsiyasi bilan.
 Huquqlar: sanab o'tilgan ma'lumotnomalar va narx registrini o'qish;
 `Контрагенты` va `ДоговорыКонтрагентов` ga yozish; `РеализацияТоваровУслуг`
-va `ПриходныйКассовыйОрдер` ni qo'shish va **o'tkazish**. Eng oson —
-«To'liq huquqlar» roli.
+va `ПриходныйКассовыйОрдер` ni qo'shish va **o'tkazish**;
+`ПоступлениеНаРасчетныйСчет` ni **o'qish** (almashinuv unga yozmaydi). Eng
+oson — «To'liq huquqlar» roli.
 
 ## 4-qadam. Warehouse Pro da
 

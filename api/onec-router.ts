@@ -217,7 +217,12 @@ export const onecRouter = createRouter({
     }),
 
   /** Прогнать очередь журнала сейчас, не дожидаясь крона. */
-  runQueue: adminQuery.mutation(async ({ ctx }) => oneCSync.processQueue(ctx.tenant.id)),
+  runQueue: adminQuery.mutation(async ({ ctx }) => {
+    const queue = await oneCSync.processQueue(ctx.tenant.id);
+    // Сверка безнала по поступлениям — тем же нажатием; отказ 1С не роняет ответ по очереди.
+    const bank = await oneCSync.reconcileBankReceipts(ctx.tenant.id).catch(e => ({ matched: 0, pending: 0, error: e instanceof Error ? e.message : String(e) }));
+    return { ...queue, bank };
+  }),
 
   status: adminQuery.query(async ({ ctx }) => {
     const config = await loadConfig(ctx.tenant.id);

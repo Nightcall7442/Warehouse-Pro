@@ -4,6 +4,7 @@ import { settings, tenants, users } from "@db/schema";
 import { logger } from "../lib/logger";
 import { sendTelegram, notifyTenantRole, tgEscape, fmtMoney } from "../lib/telegram";
 import { CashService } from "../services/cash";
+import { NonCashService } from "../services/noncash";
 
 /**
  * Вечер кассы: кто не сдал наличные и не закрыт ли день.
@@ -23,8 +24,9 @@ export async function runCashEvening(): Promise<{ reminded: number; tenants: num
   for (const t of rows) {
     try {
       const o = await CashService.overview(db, t.id);
+      const nc = await NonCashService.summary(db, t.id);
       const withCash = o.holders.filter(h => h.onHand > 0);
-      if (withCash.length === 0 && o.dayClosed) continue;
+      if (withCash.length === 0 && o.dayClosed && nc.overdue.count === 0) continue;
       touched++;
 
       const chats = withCash.length
@@ -47,7 +49,8 @@ export async function runCashEvening(): Promise<{ reminded: number; tenants: num
         `🏦 <b>Касса · вечер</b>\n` +
         (lines.length ? `Не сдали наличные (${withCash.length}):\n${lines.join("\n")}\n` : `Все наличные сданы.\n`) +
         `\nСейф по системе: <b>${tgEscape(fmtMoney(o.office))}</b>` +
-        (o.dayClosed ? "" : `\n⏰ День ещё не закрыт — закройте с пересчётом сейфа.`);
+        (o.dayClosed ? "" : `\n⏰ День ещё не закрыт — закройте с пересчётом сейфа.`) +
+        nonCashLines(nc);
       await notifyTenantRole(t.id, "ceo", text);
     } catch (e) {
       logger.warn("cash evening: организация пропущена", { tenantId: t.id, error: e instanceof Error ? e.message : String(e) });
@@ -55,6 +58,19 @@ export async function runCashEvening(): Promise<{ reminded: number; tenants: num
   }
   logger.info("cash evening sent", { reminded, tenants: touched });
   return { reminded, tenants: touched };
+}
+
+/**
+ * Безнал без подтверждения банком. «В пути» — просто цифра; «просрочено»
+ * (дольше settings.bankConfirmDays) — по людям: перевод, который так и не
+ * пришёл, висит на том, кто его записал.
+ */
+export function nonCashLines(nc: Awaited<ReturnType<typeof NonCashService.summary>>): string {
+  if (nc.transit.count === 0 && nc.overdue.count === 0) return "";
+  const late = nc.byEmployee.filter(e => e.overdueCount > 0).slice(0, 10)
+    .map(e => `• ${tgEscape(e.name)} — ${e.overdueCount} на ${tgEscape(fmtMoney(e.overdueTotal))}`);
+  return `\n\n💳 Безнал в пути: ${nc.transit.count + nc.overdue.count} на <b>${tgEscape(fmtMoney(nc.transit.total + nc.overdue.total))}</b>` +
+    (nc.overdue.count ? `\n🛑 Не подтверждены дольше ${nc.days} дн.: ${nc.overdue.count} на ${tgEscape(fmtMoney(nc.overdue.total))}\n${late.join("\n")}` : "");
 }
 
 /**

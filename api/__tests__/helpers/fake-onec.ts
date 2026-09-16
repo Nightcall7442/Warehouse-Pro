@@ -44,6 +44,10 @@ export class FakeOneC {
       const c = n.cashIn;
       this.define(c.set, ["Ref_Key", "DataVersion", "DeletionMark", "Number", "Posted", c.fields.date, c.fields.organization, c.fields.counterparty, c.fields.sum, c.fields.comment, c.fields.operation, c.fields.contract].filter((x): x is string => Boolean(x)));
     }
+    if (n.bankIn) {
+      const b = n.bankIn;
+      this.define(b.set, ["Ref_Key", "DataVersion", "DeletionMark", "Number", "Posted", b.fields.date, b.fields.counterparty, b.fields.sum, b.fields.operation].filter((x): x is string => Boolean(x)));
+    }
   }
 
   define(set: string, fields: string[]): void {
@@ -98,15 +102,21 @@ export class FakeOneC {
         const needle = sub[1].replace(/''/g, "'").toLowerCase();
         return (r: Row) => String(r[sub[2]] ?? "").toLowerCase().includes(needle);
       }
-      const m = p.match(/^([\p{L}\p{N}_]+)\s+eq\s+(.+)$/u);
+      const m = p.match(/^([\p{L}\p{N}_]+)\s+(eq|ge|le|gt|lt)\s+(.+)$/u);
       if (!m) throw new Error(`FakeOneC: не понимаю условие «${p}»`);
-      const field = m[1];
-      const raw = m[2].trim();
+      const field = m[1], op = m[2];
+      const raw = m[3].trim();
       let value: unknown;
       if (/^guid'/.test(raw)) value = raw.slice(5, -1);
+      else if (/^datetime'/.test(raw)) value = raw.slice(9, -1);
       else if (/^'/.test(raw)) value = raw.slice(1, -1).replace(/''/g, "'");
       else if (raw === "true" || raw === "false") value = raw === "true";
       else value = Number(raw);
+      if (op !== "eq") {
+        // Даты — строки ISO, сравниваются как строки; числа — как числа.
+        const cmp = (a: unknown) => typeof value === "number" ? Number(a) - value : String(a ?? "").localeCompare(String(value));
+        return (r: Row) => ({ ge: cmp(r[field]) >= 0, le: cmp(r[field]) <= 0, gt: cmp(r[field]) > 0, lt: cmp(r[field]) < 0 })[op as "ge" | "le" | "gt" | "lt"];
+      }
       return (r: Row) => r[field] === value || (typeof value === "boolean" && Boolean(r[field]) === value);
     });
     return (row) => preds.every(p => p(row));

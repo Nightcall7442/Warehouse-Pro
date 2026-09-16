@@ -4,6 +4,7 @@ import { createRouter, adminQuery, authedQuery, operatorQuery, can } from "./mid
 import { getDb } from "./queries/connection";
 import { cashCategories, cashDays, settings } from "@db/schema";
 import { CashService, ensureCategories, DEFAULT_CATEGORIES } from "./services/cash";
+import { NonCashService } from "./services/noncash";
 import { badRequest } from "./lib/errors";
 import { sanitizeString } from "./lib/sanitize";
 
@@ -95,16 +96,31 @@ export const cashRouter = createRouter({
     }),
 
   settings: cashierQuery.query(async ({ ctx }) => {
-    const [row] = await getDb().select({ limit: settings.cashLimit, deadline: settings.cashDeadline }).from(settings).where(eq(settings.tenantId, ctx.tenant.id)).limit(1);
-    return { limit: Number(row?.limit ?? 5_000_000), deadline: row?.deadline ?? "19:00" };
+    const [row] = await getDb().select({ limit: settings.cashLimit, deadline: settings.cashDeadline, bankDays: settings.bankConfirmDays }).from(settings).where(eq(settings.tenantId, ctx.tenant.id)).limit(1);
+    return { limit: Number(row?.limit ?? 5_000_000), deadline: row?.deadline ?? "19:00", bankConfirmDays: Number(row?.bankDays ?? 3) };
   }),
 
   saveSettings: adminQuery
-    .input(z.object({ limit: z.number().min(0).max(1e12), deadline: z.string().regex(/^\d{2}:\d{2}$/) }))
+    .input(z.object({ limit: z.number().min(0).max(1e12), deadline: z.string().regex(/^\d{2}:\d{2}$/), bankConfirmDays: z.number().int().min(1).max(60) }))
     .mutation(async ({ input, ctx }) => {
-      await getDb().update(settings).set({ cashLimit: input.limit.toFixed(2), cashDeadline: input.deadline }).where(eq(settings.tenantId, ctx.tenant.id));
+      await getDb().update(settings).set({ cashLimit: input.limit.toFixed(2), cashDeadline: input.deadline, bankConfirmDays: input.bankConfirmDays }).where(eq(settings.tenantId, ctx.tenant.id));
       return { ok: true };
     }),
+
+  /* ── Безнал: карта и перевод под выпиской ─────────────────────────────── */
+  nonCash: cashierQuery
+    .input(z.object({
+      from: z.string(), to: z.string(),
+      method: z.enum(["card", "transfer"]).optional(),
+      status: z.enum(["transit", "overdue", "confirmed", "reversed"]).optional(),
+    }))
+    .query(({ input, ctx }) => NonCashService.list(getDb(), ctx.tenant.id, { from: new Date(input.from), to: new Date(input.to), method: input.method, status: input.status })),
+
+  nonCashSummary: cashierQuery.query(({ ctx }) => NonCashService.summary(getDb(), ctx.tenant.id)),
+
+  bankConfirm: cashierQuery
+    .input(z.object({ ids: z.array(z.number().int().positive()).min(1).max(200), bankRef: z.string().max(64).optional() }))
+    .mutation(({ input, ctx }) => NonCashService.confirm(getDb(), ctx.tenant.id, actorOf(ctx), { ids: input.ids, bankRef: input.bankRef ? sanitizeString(input.bankRef) : null })),
 
   /** Проверка цепочки документов — кнопка «Проверить целостность» у директора. */
   verify: adminQuery.query(({ ctx }) => CashService.verify(getDb(), ctx.tenant.id)),

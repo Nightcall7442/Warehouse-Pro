@@ -16,7 +16,10 @@ vi.mock("../../queries/connection", () => ({ getDb: () => current, getPool: () =
 const { fake } = vi.hoisted(() => ({ fake: { current: null as null | { fetch: (u: string, i?: RequestInit) => Promise<Response> } } }));
 vi.mock("../../lib/safe-fetch", () => ({ safeFetch: (u: string, i?: RequestInit) => fake.current!.fetch(u, i) }));
 
+import { createHash } from "node:crypto";
 import { oneCSync } from "../../services/onec-sync";
+import onecWebhook from "../../webhooks/onec";
+import { to1CDate } from "../../services/onec-transform";
 import { syncCounterparties, createCounterpartyFor, unmappedShops } from "../../services/onec-counterparties";
 import { OnecJournal } from "../../services/onec-journal";
 import { clearBridgeCache } from "../../lib/onec-bridge";
@@ -132,6 +135,60 @@ describe.skipIf(!hasRealDb)("обмен с 1С на настоящей базе"
     const [pko] = onec.rows(N.cashIn!.set);
     expect(pko).toMatchObject({ Контрагент_Key: cp.Ref_Key, СуммаДокумента: 300, ВидОперации: "ОплатаПокупателя", Posted: true });
     expect(await countOf("onec_journal", `tenant_id = ${s.otherTenantId}`)).toBe(0);
+  });
+
+  it("безнал: ПКО не создаётся, перевод подтверждается поступлением на счёт из 1С — один раз", async () => {
+    const cp = onec.add(N.counterparties.set, { Description: "Магазин Альфа" });
+    await syncCounterparties(s.tenantId);
+    const orderId = await deliveredOrder();
+    const [t1] = await db.insert(schema.payments).values({ tenantId: s.tenantId, shopId: s.shopId, orderId, amount: "300.00", type: "payment", paymentMethod: "transfer", createdBy: s.courierId });
+    const [t2] = await db.insert(schema.payments).values({ tenantId: s.tenantId, shopId: s.shopId, amount: "300.00", type: "payment", paymentMethod: "transfer", createdBy: s.courierId });
+    await db.insert(schema.payments).values({ tenantId: s.tenantId, shopId: s.shopId, amount: "50.00", type: "payment", paymentMethod: "card", createdBy: s.courierId });
+
+    // В очередь на ПКО безнал не идёт; принудительная выгрузка — «ждёт решения», не отказ с повторами.
+    expect(await oneCSync.enqueueDelivered(s.tenantId)).toEqual({ orders: 1, payments: 0 });
+    await OnecJournal.enqueue(db, s.tenantId, "payment", Number(t1.insertId));
+    const q = await oneCSync.processQueue(s.tenantId);
+    expect(q).toMatchObject({ failed: 0, skipped: 1 });
+    expect(onec.rows(N.cashIn!.set)).toHaveLength(0);
+
+    // Одно поступление на 300 от того же контрагента закрывает ОДИН из двух одинаковых переводов — старший.
+    onec.add(N.bankIn!.set, { Number: "000123", Posted: true, Date: to1CDate(new Date()), Контрагент_Key: cp.Ref_Key, СуммаДокумента: 300, ВидОперации: "ОплатаПокупателя" });
+    // Непроведённое и чужого контрагента — не считаются.
+    onec.add(N.bankIn!.set, { Number: "000124", Posted: false, Date: to1CDate(new Date()), Контрагент_Key: cp.Ref_Key, СуммаДокумента: 300, ВидОперации: "ОплатаПокупателя" });
+    onec.add(N.bankIn!.set, { Number: "000125", Posted: true, Date: to1CDate(new Date()), Контрагент_Key: "other", СуммаДокумента: 50, ВидОперации: "ОплатаПокупателя" });
+    expect(await oneCSync.reconcileBankReceipts(s.tenantId)).toEqual({ matched: 1, pending: 2 });
+    const [p1] = await db.select().from(schema.payments).where(eq(schema.payments.id, Number(t1.insertId)));
+    const [p2] = await db.select().from(schema.payments).where(eq(schema.payments.id, Number(t2.insertId)));
+    expect(p1.bankRef).toBe("1С №000123");
+    expect(p1.bankConfirmedAt).not.toBeNull();
+    expect(p1.bankConfirmedBy).toBeNull();
+    expect(p2.bankConfirmedAt).toBeNull();
+    // Повтор: то же поступление второй перевод не закрывает.
+    expect(await oneCSync.reconcileBankReceipts(s.tenantId)).toEqual({ matched: 0, pending: 2 });
+    const audit = await db.select().from(schema.auditLog).where(and(eq(schema.auditLog.tenantId, s.tenantId), eq(schema.auditLog.action, "payment.bank_confirm")));
+    expect(audit).toHaveLength(1);
+    expect(audit[0].actorName).toBe("1С");
+    expect(audit[0].meta).toMatchObject({ bankRef: "1С №000123", method: "transfer" });
+  });
+
+  it("вебхук из 1С: оплата без способа — перевод, подтверждённый учётом; наличные — без подтверждения", async () => {
+    const cp = onec.add(N.counterparties.set, { Description: "Магазин Альфа" });
+    await syncCounterparties(s.tenantId);
+    await db.update(schema.onecConfig).set({ webhookSecretHash: createHash("sha256").update("s3cret").digest("hex") }).where(eq(schema.onecConfig.tenantId, s.tenantId));
+    const post = (body: Record<string, unknown>) => onecWebhook.request("/payment", {
+      method: "POST", headers: { "X-1C-Secret": "s3cret", "Content-Type": "application/json" }, body: JSON.stringify(body),
+    });
+    expect((await post({ shopExternalId: cp.Ref_Key, amount: 120, reference: "ПНРС-7" })).status).toBe(200);
+    expect((await post({ shopExternalId: cp.Ref_Key, amount: 80, reference: "ПКО-9", method: "cash" })).status).toBe(200);
+    expect((await post({ shopExternalId: cp.Ref_Key, amount: 5, reference: "X", method: "gold" })).status).toBe(400);
+    const rows = await db.select().from(schema.payments).where(eq(schema.payments.tenantId, s.tenantId));
+    const transfer = rows.find(r => r.notes === "1C: ПНРС-7")!;
+    const cash = rows.find(r => r.notes === "1C: ПКО-9")!;
+    expect(transfer).toMatchObject({ paymentMethod: "transfer", bankRef: "1С ПНРС-7" });
+    expect(transfer.bankConfirmedAt).not.toBeNull();
+    expect(cash).toMatchObject({ paymentMethod: "cash", bankConfirmedAt: null, bankRef: null });
+    expect(rows).toHaveLength(2);
   });
 
   it("второй круг заказа: очередь не перепроводит старый документ, а ждёт решения человека", async () => {
