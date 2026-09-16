@@ -59,7 +59,7 @@ export const PLANS_WITH_BOT = new Set(["trial", "pro", "exclusive"]);
  */
 export const INTENTS_BY_GROUP: Record<ReturnType<typeof menuGroup>, ReadonlySet<Intent>> = {
   manage:  new Set<Intent>(["summary", "orders", "pending", "agents", "debts", "stock", "deliveries", "top", "plans", "staff", "search", "help", "lang", "stop"]),
-  agent:   new Set<Intent>(["summary", "orders", "pending", "debts", "stock", "plans", "search", "help", "lang", "stop"]),
+  agent:   new Set<Intent>(["summary", "orders", "pending", "debts", "stock", "plans", "cash", "search", "help", "lang", "stop"]),
   courier: new Set<Intent>(["deliveries", "cash", "help", "lang", "stop"]),
 };
 

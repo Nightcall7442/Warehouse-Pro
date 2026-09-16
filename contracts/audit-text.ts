@@ -20,6 +20,8 @@ import { movementKind } from "./stock-movement-text";
 const KEY_LABEL: Record<string, Label> = {
   // деньги
   amount: { ru: "Сумма", uz: "Summa" }, total: { ru: "Итого", uz: "Jami" }, sum: { ru: "Сумма", uz: "Summa" },
+  expected: { ru: "Ожидалось", uz: "Kutilgan" }, discrepancy: { ru: "Расхождение", uz: "Farq" },
+  system: { ru: "По системе", uz: "Tizim bo'yicha" }, counted: { ru: "Пересчёт", uz: "Sanash" }, stornoOf: { ru: "Сторно документа", uz: "Hujjat stornosi" },
   remaining: { ru: "Остаток долга", uz: "Qarz qoldig'i" }, credited: { ru: "Зачтено", uz: "Hisobga olindi" },
   creditLimit: { ru: "Кредитный лимит", uz: "Kredit limiti" }, price: { ru: "Цена", uz: "Narx" }, was: { ru: "Было", uz: "Bo'lgan" },
   unitPrice: { ru: "Цена", uz: "Narx" }, costPrice: { ru: "Себестоимость", uz: "Tannarx" }, baseSalary: { ru: "Оклад", uz: "Oklad" },
@@ -64,6 +66,14 @@ const KEY_LABEL: Record<string, Label> = {
 
 /** Подписи действий журнала — по-русски и по-узбекски; на экране и в CSV одни слова. */
 export const AUDIT_ACTION_LABEL: Record<string, Label> = {
+  "cash.handover": { ru: "Сдача наличных в кассу", uz: "Naqd pul kassaga topshirildi" },
+  "cash.expense": { ru: "Расход из кассы", uz: "Kassadan xarajat" },
+  "cash.deposit": { ru: "Внесение в кассу", uz: "Kassaga kiritish" },
+  "cash.withdrawal": { ru: "Выемка из кассы", uz: "Kassadan olish" },
+  "cash.write_off": { ru: "Списан долг сотрудника", uz: "Xodim qarzi hisobdan chiqarildi" },
+  "cash.storno": { ru: "Сторно кассового документа", uz: "Kassa hujjati stornosi" },
+  "cash.day_closed": { ru: "Касса: день закрыт", uz: "Kassa: kun yopildi" },
+  "cash.day_reopened": { ru: "Касса: день открыт снова", uz: "Kassa: kun qayta ochildi" },
   "user.updated": { ru: "Обновлён пользователь", uz: "Foydalanuvchi yangilandi" },
   "user.deactivated": { ru: "Пользователь деактивирован", uz: "Foydalanuvchi o'chirildi" },
   "user.password_reset_by_admin": { ru: "Сброс пароля", uz: "Parol tiklandi" },

@@ -120,6 +120,12 @@ export interface SalaryData {
     commission: number;
     /** Утверждённый вычет, со знаком минус; 0 — не утверждали. */
     fraudDeduction: number;
+    /**
+     * Недостача по кассе за период, со знаком минус: сдал меньше, чем принял
+     * (services/cash.ts, счёт receivable.employee). Списанное директором сюда
+     * не попадает. Удерживается автоматически — решение владельца.
+     */
+    cashShortage: number;
     /** Оплата за доставки: ставка × довезённые заказы. */
     delivery: number;
     /** Обед и дорожные за отработанные дни. */
@@ -963,9 +969,13 @@ export async function calculateSalary(
   const workDays = courier?.workDays ?? 0;
   const allowancePay = Number(((mealAllowance + travelAllowance) * workDays).toFixed(2));
 
+  // Недостача по кассе за период — у любой роли, что носит наличные.
+  const { CashService } = await import("./cash");
+  const cashShortage = await CashService.employeeDebtIn(db as never, tenantId, agentId, periodStart, periodEnd).catch(() => 0);
+
   const totalSalary = isCourier
-    ? Math.max(0, baseSalary + deliveryPay + allowancePay)
-    : Math.max(0, baseSalary + commissionAmount - fraudDeduction);
+    ? Math.max(0, baseSalary + deliveryPay + allowancePay - cashShortage)
+    : Math.max(0, baseSalary + commissionAmount - fraudDeduction - cashShortage);
 
   // Подпись периода — тем же ключом, что и строки за период: иначе человек
   // читал бы «2026-08-31 — 2026-09-29» на экране зарплаты за сентябрь.
@@ -1106,6 +1116,7 @@ export async function calculateSalary(
       // применимо. Экран по этим нулям и понимает, что разбивка курьерская.
       commission: isCourier ? 0 : commissionAmount,
       fraudDeduction: isCourier ? 0 : -fraudDeduction,
+      cashShortage: -cashShortage,
       delivery: deliveryPay,
       allowance: allowancePay,
     },

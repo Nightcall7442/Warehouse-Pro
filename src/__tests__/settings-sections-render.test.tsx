@@ -86,6 +86,8 @@ const trpcStub = vi.hoisted(() => {
       updateMe: { useMutation: mutation }, changePassword: { useMutation: mutation }, logoutAll: { useMutation: mutation },
       totpSetup: { useMutation: mutation }, totpEnable: { useMutation: mutation }, totpDisable: { useMutation: mutation },
     },
+    // PIN кассы — в «Профиле» у тех, кто носит наличные.
+    cash: { setPin: { useMutation: mutation } },
     auth: { me: { invalidate: vi.fn() } },
     useUtils: () => ({
       settings: { get: { invalidate: vi.fn() } },

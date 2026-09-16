@@ -15,6 +15,7 @@ export const uz = {
     orders:      "Buyurtmalar",
     warehouse:   "Ombor",
     returns:     "Qaytarishlar",
+    cash:        "Kassa",
     warehouseReports: "Ombor hisobotlari",
     auditLog:    "Harakatlar jurnali",
     arrivals:    "Kirim",

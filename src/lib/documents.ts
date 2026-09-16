@@ -1686,6 +1686,93 @@ function buildLoadingListByRoute(data: LoadingListData, currency: string): strin
   Печатать было неоткуда: окно предлагает только «Сводный» и «По маршруту».
   Формат убран вместе с полутора десятками граф, которые он рисовал.
 */
+/* ── 7. КАССА: ПКО / РКО и кассовая книга ─────────────────────────────── */
+
+/** Сумма прописью — только рубли/сумы целыми, как на ордере. */
+export function amountInWords(n: number): string {
+  const ones = ["", "один", "два", "три", "четыре", "пять", "шесть", "семь", "восемь", "девять", "десять", "одиннадцать", "двенадцать", "тринадцать", "четырнадцать", "пятнадцать", "шестнадцать", "семнадцать", "восемнадцать", "девятнадцать"];
+  const tens = ["", "", "двадцать", "тридцать", "сорок", "пятьдесят", "шестьдесят", "семьдесят", "восемьдесят", "девяносто"];
+  const hundreds = ["", "сто", "двести", "триста", "четыреста", "пятьсот", "шестьсот", "семьсот", "восемьсот", "девятьсот"];
+  const groups: Array<[string, string, string, boolean]> = [["", "", "", false], ["тысяча", "тысячи", "тысяч", true], ["миллион", "миллиона", "миллионов", false], ["миллиард", "миллиарда", "миллиардов", false]];
+  const plural = (v: number, f: [string, string, string]) => { const m = v % 100, d = v % 10; return m > 10 && m < 20 ? f[2] : d === 1 ? f[0] : d >= 2 && d <= 4 ? f[1] : f[2]; };
+  let v = Math.floor(Math.abs(n));
+  if (v === 0) return "ноль";
+  const parts: string[] = [];
+  for (let g = 0; v > 0 && g < groups.length; g++) {
+    const chunk = v % 1000; v = Math.floor(v / 1000);
+    if (chunk === 0) continue;
+    const [one, few, many, fem] = groups[g];
+    const h = Math.floor(chunk / 100), rest = chunk % 100;
+    const words = [hundreds[h]];
+    if (rest < 20) words.push(fem && rest === 1 ? "одна" : fem && rest === 2 ? "две" : ones[rest]);
+    else words.push(tens[Math.floor(rest / 10)], fem && rest % 10 === 1 ? "одна" : fem && rest % 10 === 2 ? "две" : ones[rest % 10]);
+    if (g > 0) words.push(plural(chunk, [one, few, many]));
+    parts.unshift(words.filter(Boolean).join(" "));
+  }
+  return parts.join(" ");
+}
+
+export type CashOrderDoc = {
+  kind: "pko" | "rko"; number: string; date: string; amount: number; company: string; director?: string;
+  from: string; to: string; basis: string; note: string; currency: string;
+};
+
+/** ПКО/РКО — два экземпляра на листе: в кассу и на руки сдавшему. */
+export function printCashOrder(d: CashOrderDoc) {
+  const title = d.kind === "pko" ? "ПРИХОДНЫЙ КАССОВЫЙ ОРДЕР" : "РАСХОДНЫЙ КАССОВЫЙ ОРДЕР";
+  const copy = () => `
+    <div class="title">${title}</div>
+    <div class="subtitle">${escapeHtml(d.number)} от ${escapeHtml(d.date)}</div>
+    <table class="no-border" style="margin-bottom:6px">
+      <tr><td style="width:50%">${metaRow("Организация:", d.company, true)}</td><td>${metaRow("Сумма:", `${d.amount.toLocaleString("ru-RU")} ${d.currency}`, true)}</td></tr>
+    </table>
+    <table>
+      <tr><th style="width:30%">${d.kind === "pko" ? "Принято от" : "Выдать"}</th><td>${escapeHtml(d.kind === "pko" ? d.from : (d.to || d.from))}</td></tr>
+      <tr><th>Основание</th><td>${escapeHtml(d.basis)}</td></tr>
+      <tr><th>Сумма прописью</th><td>${escapeHtml(amountInWords(d.amount))} ${escapeHtml(d.currency)}</td></tr>
+      ${d.note ? `<tr><th>Примечание</th><td>${escapeHtml(d.note)}</td></tr>` : ""}
+    </table>
+    <div class="signature-block">
+      <div class="sig-row">
+        <div class="sig-col"><div class="sig-label">${d.kind === "pko" ? "Сдал" : "Получил"}</div><div class="sig-line"></div><div class="sig-label">___________________________</div></div>
+        <div class="sig-col"><div class="sig-label">Кассир</div><div class="sig-line"></div><div class="sig-label">${escapeHtml(d.kind === "pko" ? d.to : d.from)}</div></div>
+        <div class="sig-col"><div class="sig-label">Руководитель</div><div class="sig-line"></div><div class="sig-label">${escapeHtml(d.director ?? "___________________________")}</div></div>
+      </div>
+    </div>`;
+  openPrintWindow(twoCopies(copy()), `${d.number} от ${d.date}`);
+}
+
+export type CashBookDoc = {
+  company: string; from: string; to: string; opening: number; closing: number; currency: string;
+  days: Array<{ day: string; opening: number; inflow: number; outflow: number; closing: number }>;
+};
+
+/** Кассовая книга: по дням — на начало, приход, расход, на конец. */
+export function printCashBook(d: CashBookDoc) {
+  const rows = d.days.map(r => `
+    <tr>
+      <td class="center">${escapeHtml(r.day)}</td>
+      <td class="right">${r.opening.toLocaleString("ru-RU")}</td>
+      <td class="right">${r.inflow.toLocaleString("ru-RU")}</td>
+      <td class="right">${r.outflow.toLocaleString("ru-RU")}</td>
+      <td class="right bold">${r.closing.toLocaleString("ru-RU")}</td>
+    </tr>`).join("");
+  const html = `
+    <div class="title">КАССОВАЯ КНИГА</div>
+    <div class="subtitle">${escapeHtml(d.company)} · ${escapeHtml(d.from)} — ${escapeHtml(d.to)}</div>
+    <table>
+      <thead><tr><th>Дата</th><th>Остаток на начало</th><th>Приход</th><th>Расход</th><th>Остаток на конец</th></tr></thead>
+      <tbody>${rows}
+        <tr><td class="right bold" colspan="4">Остаток на конец периода, ${escapeHtml(d.currency)}:</td><td class="right bold">${d.closing.toLocaleString("ru-RU")}</td></tr>
+      </tbody>
+    </table>
+    <div class="signature-block"><div class="sig-row">
+      <div class="sig-col"><div class="sig-label">Кассир</div><div class="sig-line"></div></div>
+      <div class="sig-col"><div class="sig-label">Руководитель</div><div class="sig-line"></div></div>
+    </div></div>`;
+  openPrintWindow(html, `Кассовая книга ${d.from} — ${d.to}`);
+}
+
 export function printLoadingList(data: LoadingListData, format: "aggregated" | "byRoute", currency: string) {
   const html = format === "byRoute"
     ? buildLoadingListByRoute(data, currency)
