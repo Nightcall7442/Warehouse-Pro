@@ -270,6 +270,16 @@ export const orderRouter = createRouter({
       });
     }),
 
+  /** Чек по заказу: HTML для печати/PDF и подписанная ссылка для QR. Кто видит заказ — видит и чек. */
+  receipt: orderReaderQuery
+    .input(z.object({ id: z.number().int().positive() }))
+    .query(async ({ input, ctx }) => {
+      const { receiptData, receiptHtml } = await import("./services/receipt");
+      const d = await receiptData(ctx.db, ctx.tenant.id, input.id, { userId: ctx.user.id, userRole: ctx.user.role as string });
+      if (!d) throw new TRPCError({ code: "NOT_FOUND", message: "Заказ не найден" });
+      return { url: d.url, number: d.number, total: d.total, html: await receiptHtml(d) };
+    }),
+
   myOrders: fieldSalesQuery.query(async ({ ctx }) => {
     return OrderService.myOrders(ctx.db, ctx.tenant.id, ctx.user.id);
   }),

@@ -23,6 +23,7 @@ import { useState, useCallback } from "react";
 import { PremiumSelect } from "@/components/PremiumSelect";
 import { exportToExcel } from "@/lib/excel";
 import { printUzWaybill, printTorg12, printInvoice } from "@/lib/documents";
+import { printReceiptHtml } from "@/lib/print";
 import type { OrderDocData, CompanyInfo } from "@/lib/documents";
 import { notify } from "@/lib/toast";
 import { useConfirm } from "@/components/ConfirmDialog";
@@ -88,6 +89,8 @@ export default function OrderDetail() {
   const { data: order, isLoading, isLoadingError, refetch } = trpc.order.getById.useQuery(
     { id: Number(id) }, { enabled: !!id }
   );
+  // Чек — по нажатию, не при открытии: HTML с QR нужен только для печати.
+  const receipt = trpc.order.receipt.useQuery({ id: Number(id) }, { enabled: false });
 
   const { company: seller, footerNote } = useSellerCompany();
 
@@ -381,6 +384,8 @@ export default function OrderDetail() {
                   { label: lang === "uz" ? "Chiqim nakladnaya (O'Z)" : "Расходная накладная (УЗ)", fn: () => { const d = buildDocData(); if(d) printUzWaybill(d); } },
                   { label: lang === "uz" ? "Hisob-faktura" : "Счёт на оплату",                   fn: () => { const d = buildDocData(); if(d) printInvoice(d);  } },
                   { label: lang === "uz" ? "TORg-12 (RF)" : "ТОРГ-12 (РФ)",                     fn: () => { const d = buildDocData(); if(d) printTorg12(d);   } },
+                  // Чек с QR — у доставленного заказа: по QR открывается та же продажа из учёта.
+                  ...(order?.status === "delivered" ? [{ label: lang === "uz" ? "Chek 58 mm (QR)" : "Чек 58 мм (QR)", fn: () => { receipt.refetch().then(r => { if (r.data) printReceiptHtml(r.data.html); }); } }] : []),
                 ].map(item => (
                   <button key={item.label} onClick={() => { item.fn(); setPrintMenu(false); }}
                     className="w-full text-left px-4 py-2 text-sm text-primary hover:bg-surface-light flex items-center gap-2">

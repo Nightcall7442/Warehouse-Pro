@@ -34,6 +34,20 @@ export function openPrintWindowOrExplain(): Window | null {
   return w;
 }
 
+/**
+ * Чек 58 мм: HTML приходит с сервера целиком (services/receipt.ts — один
+ * источник для веба, телефона и страницы по QR), сюда — только окно и печать.
+ */
+export function printReceiptHtml(html: string): void {
+  const w = openPrintWindowOrExplain();
+  if (!w) return;
+  w.document.open();
+  w.document.write(html);
+  w.document.close();
+  w.focus();
+  setTimeout(() => w.print(), 300);
+}
+
 function sanitizeHtml(str: string): string {
   return str
     .replace(/&/g, '&amp;')

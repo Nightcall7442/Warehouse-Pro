@@ -393,6 +393,14 @@ app.route("/api/v1", publicApi);
 // ── Photo delivery (keeps base64 blobs out of list responses) ────────────────
 app.route("/api/photos", photos);
 
+// ── Чек по QR: публичная страница по подписанной метке (services/receipt.ts) ──
+app.get("/r/:token", async (c) => {
+  const { receiptPage } = await import("./services/receipt");
+  const { getDb } = await import("./queries/connection");
+  const r = await receiptPage(getDb(), c.req.param("token"));
+  return c.html(r.html, r.status as 200 | 404);
+});
+
 // ── Руководство дистрибьютора — за сессией и разрешением организации ─────────
 app.route("/", manual);
 
