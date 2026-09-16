@@ -18,7 +18,7 @@ export function Steps({ current, labels }: StepsProps) {
               <div style={{
                 width: "36px", height: "36px", borderRadius: "50%",
                 display: "flex", alignItems: "center", justifyContent: "center",
-                fontSize: "13px", fontWeight: 700, fontFamily: "'DM Sans', sans-serif",
+                fontSize: "13px", fontWeight: 700, fontFamily: "'Manrope', sans-serif",
                 transition: "all 0.3s ease",
                 background: done ? "var(--color-primary)" : active ? "var(--color-primary-subtle)" : "var(--color-surface-light, #f6f4f0)",
                 // Надпись на заливке — не «#fff», а цвет, который к этой
@@ -31,7 +31,7 @@ export function Steps({ current, labels }: StepsProps) {
               </div>
               <span style={{
                 fontSize: "10px", fontWeight: 600, letterSpacing: "0.08em",
-                fontFamily: "'DM Sans', sans-serif", textTransform: "uppercase",
+                fontFamily: "'Manrope', sans-serif", textTransform: "uppercase",
                 color: active ? "var(--color-primary-text)" : done ? "var(--color-primary-text)" : "var(--color-text-tertiary, #6b6760)",
               }}>
                 {label}

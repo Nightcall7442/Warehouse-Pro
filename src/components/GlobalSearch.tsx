@@ -83,7 +83,7 @@ export function GlobalSearch() {
         display: "none", alignItems: "center", gap: "8px",
         padding: "6px 12px", borderRadius: "8px", border: "1px solid var(--color-border, #d8d5cd)",
         background: "transparent", color: "var(--color-text-secondary, #5e5b54)", fontSize: "13px",
-        fontFamily: "'DM Sans', sans-serif", cursor: "pointer",
+        fontFamily: "'Manrope', sans-serif", cursor: "pointer",
       }}
       className="hidden md:flex"
     >
@@ -102,7 +102,7 @@ export function GlobalSearch() {
           <Search size={18} style={{ color: "var(--color-text-tertiary, #6b6760)", flexShrink: 0 }}/>
           <input
             ref={inputRef}
-            style={{ flex: 1, background: "transparent", color: "var(--color-text-primary, #2b2a28)", border: "none", outline: "none", fontSize: "14px", fontFamily: "'DM Sans', sans-serif" }}
+            style={{ flex: 1, background: "transparent", color: "var(--color-text-primary, #2b2a28)", border: "none", outline: "none", fontSize: "14px", fontFamily: "'Manrope', sans-serif" }}
             placeholder={tr("Поиск магазинов, товаров, заказов…","Do'kon, mahsulot, buyurtma qidirish…")}
             value={query}
             onChange={e => setQuery(e.target.value)}

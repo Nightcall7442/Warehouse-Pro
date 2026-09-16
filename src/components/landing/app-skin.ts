@@ -40,14 +40,14 @@ export const APP = {
   raised: "8px 8px 20px rgba(160,152,140,0.38), -8px -8px 20px rgba(255,255,255,0.55)",
   /** Уменьшённая — для мелких карточек внутри демо, чтобы не давила. */
   raisedSm: "4px 4px 10px rgba(160,152,140,0.30), -4px -4px 10px rgba(255,255,255,0.55)",
-  /** Числа в приложении набраны DM Sans, а не моноширинным. */
+  /** Числа в приложении набраны Manrope, а не моноширинным. */
   num: {
-    fontFamily: "'DM Sans', system-ui, sans-serif",
+    fontFamily: "'Manrope', system-ui, sans-serif",
     fontVariantNumeric: "tabular-nums",
   },
   /** Подписи над значениями: те же прописные, но шрифтом продукта. */
   label: {
-    fontFamily: "'DM Sans', system-ui, sans-serif",
+    fontFamily: "'Manrope', system-ui, sans-serif",
     letterSpacing: "0.1em",
   },
 } as const;

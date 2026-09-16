@@ -64,7 +64,7 @@ export function MovementHistory({ productId, productName }: { productId: number;
                         <span className="text-sm font-medium" style={{ color: "var(--color-text-primary, #2b2a28)" }}>
                           {lang === "uz" ? mt.labelUz : mt.labelRu}
                         </span>
-                        <span className="text-xs" style={{ color: "var(--color-text-tertiary, #6b6760)", fontFamily: "'DM Sans', sans-serif" }}>
+                        <span className="text-xs" style={{ color: "var(--color-text-tertiary, #6b6760)", fontFamily: "'Manrope', sans-serif" }}>
                           {m.createdAt ? format(new Date(m.createdAt), "dd.MM.yy HH:mm") : "—"}
                         </span>
                       </div>
@@ -78,7 +78,7 @@ export function MovementHistory({ productId, productName }: { productId: number;
                           через вес единицы, так что экран противоречил сам
                           себе.
                         */}
-                        <span className="text-base font-bold" style={{ color: mt.color, fontFamily: "'DM Sans', sans-serif" }}>
+                        <span className="text-base font-bold" style={{ color: mt.color, fontFamily: "'Manrope', sans-serif" }}>
                           {mt.sign}{formatQty(m.quantity)} {unitShort(m.unit, lang)}
                         </span>
                         {note && <span className="text-xs truncate" style={{ color: "var(--color-text-tertiary, #6b6760)" }}>{note}</span>}

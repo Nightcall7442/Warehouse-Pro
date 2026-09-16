@@ -199,7 +199,7 @@ export function CommandPalette() {
             value={query}
             onChange={e => setQuery(e.target.value)}
             placeholder={t("Поиск товаров, магазинов, заказов, пользователей…", "Mahsulot, do'kon, buyurtma, foydalanuvchi qidirish…")}
-            style={{ flex: 1, border: "none", outline: "none", background: "transparent", fontSize: "15px", fontFamily: "'DM Sans', sans-serif", color: "var(--color-text-primary)" }}
+            style={{ flex: 1, border: "none", outline: "none", background: "transparent", fontSize: "15px", fontFamily: "'Manrope', sans-serif", color: "var(--color-text-primary)" }}
           />
           <kbd style={{ fontSize: "11px", padding: "2px 6px", borderRadius: "4px", background: "var(--color-surface-light)", color: "var(--color-text-tertiary)", border: "1px solid var(--color-border)" }}>
             ESC
@@ -235,7 +235,7 @@ export function CommandPalette() {
                       <div style={{ width: "32px", height: "32px", borderRadius: "8px", display: "flex", alignItems: "center", justifyContent: "center", background: "var(--color-surface-light)", color: "var(--color-text-secondary)", flexShrink: 0 }}>
                         {item.icon}
                       </div>
-                      <span style={{ flex: 1, fontSize: "14px", color: "var(--color-text-primary)", fontFamily: "'DM Sans', sans-serif" }}>
+                      <span style={{ flex: 1, fontSize: "14px", color: "var(--color-text-primary)", fontFamily: "'Manrope', sans-serif" }}>
                         {item.label}
                       </span>
                       {item.path && <ArrowRight size={14} style={{ color: "var(--color-text-tertiary)" }} />}
@@ -267,7 +267,7 @@ export function CommandPalette() {
                       <div style={{ width: "32px", height: "32px", borderRadius: "8px", display: "flex", alignItems: "center", justifyContent: "center", background: "var(--color-surface-light)", color: "var(--color-text-secondary)", flexShrink: 0 }}>
                         {item.icon}
                       </div>
-                      <span style={{ flex: 1, fontSize: "14px", color: "var(--color-text-primary)", fontFamily: "'DM Sans', sans-serif" }}>
+                      <span style={{ flex: 1, fontSize: "14px", color: "var(--color-text-primary)", fontFamily: "'Manrope', sans-serif" }}>
                         {lang === "uz" && item.labelUz ? item.labelUz : item.label}
                       </span>
                       {item.path && <ArrowRight size={14} style={{ color: "var(--color-text-tertiary)" }} />}

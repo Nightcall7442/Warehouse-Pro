@@ -16,5 +16,5 @@
     <polygon points="62,80 78,80 98,24 82,24" fill="url(#wpUpH)"/>
     <circle cx="90" cy="12" r="5.5" fill="#d97706"/>
   </g>
-  <text x="102" y="64" font-family="'DM Sans', 'Inter', system-ui, sans-serif" font-weight="700" font-size="40" letter-spacing="-0.5" fill="#2b2a28">Warehouse <tspan fill="#0d9488">Pro</tspan></text>
+  <text x="102" y="64" font-family="'Manrope', 'Inter', system-ui, sans-serif" font-weight="700" font-size="40" letter-spacing="-0.5" fill="#2b2a28">Warehouse <tspan fill="#0d9488">Pro</tspan></text>
 </svg>

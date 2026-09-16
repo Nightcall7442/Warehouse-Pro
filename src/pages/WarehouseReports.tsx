@@ -36,7 +36,7 @@ import { useWarehouse } from "@/providers/WarehouseContext";
 */
 const COLORS = CHART_PALETTE;
 
-const F = { display: "'DM Sans', -apple-system, sans-serif", body: "'DM Sans', -apple-system, sans-serif" };
+const F = { display: "'Manrope', -apple-system, sans-serif", body: "'Manrope', -apple-system, sans-serif" };
 const THEME = {
   primary: "var(--color-primary)",
   // Accent-coloured *text* (a price, a code, a link). The fill colour above

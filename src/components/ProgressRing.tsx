@@ -75,7 +75,7 @@ export const ProgressRing = memo(function ProgressRing({
       {label != null && (
         <span style={{
           position: "absolute",
-          fontFamily: "'DM Sans', sans-serif",
+          fontFamily: "'Manrope', sans-serif",
           fontWeight: 700,
           fontSize: size > 80 ? "18px" : "14px",
           color: "var(--color-text-primary, #2b2a28)",

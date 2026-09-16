@@ -65,7 +65,11 @@
          in the head) is what iOS Safari was reading for "Add to Home Screen." -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <!-- Manrope и JetBrains Mono: у обоих есть кириллица. DM Sans её не имел, и
+         каждое русское слово набиралось системным шрифтом — Segoe UI рядом с
+         геометрической латиницей. Решение владельца от 07.09.2026 для мобилки,
+         теперь и веб. -->
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
     <!-- Что это за сайт, словами, которые понимает поиск.
          Разметка schema.org сама по себе позиции не поднимает — она отвечает
          на вопрос «что это такое»: программа, деловая, для Узбекистана, на
@@ -114,7 +118,7 @@
          загрузится, React заменит это содержимое настоящим лендингом:
          createRoot очищает контейнер при первой отрисовке. -->
     <div id="root">
-      <div style="max-width:640px;margin:0 auto;padding:64px 24px;font-family:'DM Sans',system-ui,sans-serif;color:#1a1a1a">
+      <div style="max-width:640px;margin:0 auto;padding:64px 24px;font-family:'Manrope',system-ui,sans-serif;color:#1a1a1a">
         <h1 style="font-size:32px;line-height:1.15;letter-spacing:-0.03em;margin:0 0 16px">
           Warehouse Pro — склад, заказы и торговые агенты в одной системе
         </h1>

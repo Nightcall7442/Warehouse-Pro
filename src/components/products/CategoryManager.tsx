@@ -112,7 +112,7 @@ export function CategoryManager({ lang, onClose }: CategoryManagerProps) {
                   />
                 ) : (
                   <span style={{ flex: 1, display: "flex", alignItems: "baseline", gap: "8px", minWidth: 0 }}>
-                    <span style={{ fontSize: "13px", color: COLORS.textPrimary, fontFamily: "'DM Sans', sans-serif", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    <span style={{ fontSize: "13px", color: COLORS.textPrimary, fontFamily: "'Manrope', sans-serif", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                       {cat}
                     </span>
                     <span style={{ fontSize: "11px", color: COLORS.textTertiary, flexShrink: 0, fontVariantNumeric: "tabular-nums" }}>

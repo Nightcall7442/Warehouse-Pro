@@ -70,7 +70,7 @@ export function SectionNotice({ kind, message, onRetry, retryLabel }: SectionNot
         style={{
           margin: 0,
           fontSize: "13px",
-          fontFamily: "'DM Sans', -apple-system, sans-serif",
+          fontFamily: "'Manrope', -apple-system, sans-serif",
           color: isError ? "var(--color-danger-text)" : "var(--color-text-secondary, #5e5b54)",
           maxWidth: "320px",
         }}

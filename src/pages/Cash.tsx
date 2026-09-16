@@ -107,18 +107,19 @@ export default function Cash() {
       {overview.isError ? <QueryErrorFallback message={overview.error.message} onRetry={() => overview.refetch()} /> : (
         <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
           {[
-            { label: t("СЕЙФ", "SEYF"), value: fmt(o?.office ?? 0), icon: Vault, sub: o?.dayClosed ? t("день закрыт", "kun yopiq") : t("на сейчас", "hozir") },
-            { label: t("НА РУКАХ", "QO'LDA"), value: fmt(o?.onHandTotal ?? 0), icon: HandCoins, sub: t("у сотрудников", "xodimlarda"), danger: (o?.holders ?? []).some(h => h.overLimit) },
-            { label: t("ПРИНЯТО СЕГОДНЯ", "BUGUN QABUL"), value: fmt(o?.todayIn ?? 0), icon: ArrowDownToLine, sub: t("наличные у магазинов", "do'konlardan naqd") },
-            { label: t("СДАНО СЕГОДНЯ", "BUGUN TOPSHIRILDI"), value: fmt(o?.todayOut ?? 0), icon: ArrowUpFromLine, sub: t("в сейф", "seyfga") },
-            { label: t("ДОЛГИ СОТРУДНИКОВ", "XODIMLAR QARZI"), value: fmt(o?.employeeDebtTotal ?? 0), icon: AlertTriangle, sub: t("недостачи", "kamomadlar"), danger: (o?.employeeDebtTotal ?? 0) > 0 },
+            { label: t("Сейф", "Seyf"), n: o?.office ?? 0, icon: Vault, sub: o?.dayClosed ? t("день закрыт", "kun yopiq") : t("на сейчас", "hozir") },
+            { label: t("На руках", "Qo'lda"), n: o?.onHandTotal ?? 0, icon: HandCoins, sub: t("у сотрудников", "xodimlarda"), danger: (o?.holders ?? []).some(h => h.overLimit) },
+            { label: t("Принято сегодня", "Bugun qabul"), n: o?.todayIn ?? 0, icon: ArrowDownToLine, sub: t("наличные у магазинов", "do'konlardan naqd") },
+            { label: t("Сдано сегодня", "Bugun topshirildi"), n: o?.todayOut ?? 0, icon: ArrowUpFromLine, sub: t("в сейф", "seyfga") },
+            { label: t("Долги сотрудников", "Xodimlar qarzi"), n: o?.employeeDebtTotal ?? 0, icon: AlertTriangle, sub: t("недостачи", "kamomadlar"), danger: (o?.employeeDebtTotal ?? 0) > 0 },
           ].map(tile => (
             <div key={tile.label} className="neo-card neo-card-static" style={{ borderRadius: "20px", padding: "16px" }}>
               <div className="flex items-center justify-between">
-                <div style={{ fontFamily: F.display, fontSize: "10px", fontWeight: 600, letterSpacing: "0.08em", color: tile.danger ? "var(--color-danger-text)" : COLORS.textTertiary }}>{tile.label}</div>
+                <div style={{ fontFamily: F.display, fontSize: "10px", fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", color: tile.danger ? "var(--color-danger-text)" : COLORS.textTertiary }}>{tile.label}</div>
                 <tile.icon size={16} style={{ color: tile.danger ? "var(--color-danger-text)" : COLORS.textTertiary }} />
               </div>
-              <div className="font-data" style={{ fontFamily: F.display, fontSize: "20px", fontWeight: 700, color: COLORS.textPrimary, marginTop: "6px", lineHeight: 1 }}>{tile.value}</div>
+              {/* Ноль — не показатель: тише, чем настоящая сумма, чтобы глаз шёл к деньгам. */}
+              <div className="font-data" style={{ fontFamily: F.display, fontSize: "20px", fontWeight: 700, color: tile.danger ? "var(--color-danger-text)" : tile.n === 0 ? COLORS.textTertiary : COLORS.textPrimary, marginTop: "6px", lineHeight: 1 }}>{fmt(tile.n)}</div>
               <div style={{ fontSize: "12px", color: COLORS.textSecondary, marginTop: "4px" }}>{tile.sub}</div>
             </div>
           ))}

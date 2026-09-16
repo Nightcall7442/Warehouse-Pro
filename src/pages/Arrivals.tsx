@@ -32,7 +32,7 @@ type ArrivalCreateInput = inferRouterInputs<AppRouter>["arrival"]["create"];
 /** Вкладка живёт в адресе: ссылку на раздел долгов можно переслать. */
 const TAB_CODEC = urlEnum(["arrivals", "counterparties"] as const, "arrivals");
 
-const F = { display: "'DM Sans', -apple-system, sans-serif", body: "'DM Sans', -apple-system, sans-serif" };
+const F = { display: "'Manrope', -apple-system, sans-serif", body: "'Manrope', -apple-system, sans-serif" };
 const COLORS = {
   primary: "var(--color-primary)",
   // Accent-coloured *text* (a price, a code, a link). The fill colour above

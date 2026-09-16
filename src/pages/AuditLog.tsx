@@ -36,7 +36,7 @@ import { describeMeta, AUDIT_ACTION_LABEL } from "@/lib/audit-text";
 */
 
 // ── Premium design tokens ─────────────────────────────────────────────────────
-const F = { display: "'DM Sans', -apple-system, sans-serif", body: "'DM Sans', -apple-system, sans-serif" };
+const F = { display: "'Manrope', -apple-system, sans-serif", body: "'Manrope', -apple-system, sans-serif" };
 const COLORS = {
   primary: "var(--color-primary)",
   // Accent-coloured *text* (a price, a code, a link). The fill colour above

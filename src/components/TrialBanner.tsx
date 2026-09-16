@@ -45,7 +45,7 @@ export function TrialBanner() {
   return (
     <div style={{
       width: "100%", padding: "10px 16px", display: "flex", alignItems: "center", gap: "12px",
-      fontSize: "13px", fontFamily: "'DM Sans', sans-serif",
+      fontSize: "13px", fontFamily: "'Manrope', sans-serif",
       background: urgent ? "var(--color-danger)" : "var(--color-warning-subtle, #fffbeb)",
       color: urgent ? "#fff" : "var(--color-warning, #d4973a)",
       borderBottom: urgent ? "none" : "1px solid rgba(217,119,6,0.2)",
@@ -57,7 +57,7 @@ export function TrialBanner() {
         style={{
           display: "flex", alignItems: "center", gap: "6px", fontSize: "11px", fontWeight: 600,
           padding: "6px 12px", borderRadius: "6px", border: "none", cursor: "pointer",
-          fontFamily: "'DM Sans', sans-serif",
+          fontFamily: "'Manrope', sans-serif",
           background: urgent ? "rgba(255,255,255,0.2)" : "var(--color-warning)",
           color: urgent ? "#fff" : "#fff",
           flexShrink: 0,

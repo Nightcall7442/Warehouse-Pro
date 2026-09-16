@@ -64,5 +64,5 @@ export const CHART_TOOLTIP_STYLE = {
 /** Legend style for cream background */
 export const CHART_LEGEND_STYLE = {
   fontSize: 12,
-  fontFamily: "'DM Sans', sans-serif",
+  fontFamily: "'Manrope', sans-serif",
 };

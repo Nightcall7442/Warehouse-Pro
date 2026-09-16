@@ -1,7 +1,7 @@
 import { PAYMENT_METHOD_LABEL } from "@/lib/entity-labels";
 import type React from "react";
 
-export const F = { display: "'DM Sans', -apple-system, sans-serif", body: "'DM Sans', -apple-system, sans-serif" };
+export const F = { display: "'Manrope', -apple-system, sans-serif", body: "'Manrope', -apple-system, sans-serif" };
 
 export const COLORS = {
   primary: "var(--color-primary)",

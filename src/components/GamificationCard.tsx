@@ -72,7 +72,7 @@ export const GamificationCard = memo(function GamificationCard({ data }: { data:
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "16px" }}>
         {/*
-          Шрифт — из палитры, а не литералом: 'DM Sans' здесь стоял именем, и
+          Шрифт — из палитры, а не литералом: 'Manrope' здесь стоял именем, и
           в наборе он один такой на весь проект. Заголовок карточки, набранный
           не тем шрифтом, читается как кусок чужого продукта.
         */}

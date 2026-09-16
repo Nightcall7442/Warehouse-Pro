@@ -40,7 +40,7 @@ export const MetricCard = memo(function MetricCard({
           </p>
           <p
             style={{
-              fontFamily: "'DM Sans', sans-serif",
+              fontFamily: "'Manrope', sans-serif",
               fontSize: 28,
               fontWeight: 700,
               letterSpacing: "-0.03em",

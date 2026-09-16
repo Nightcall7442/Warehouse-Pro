@@ -50,7 +50,7 @@ export default class ErrorBoundary extends Component<Props, State> {
             <AlertTriangle size={28} color="var(--color-danger-text)" />
           </div>
           <h2 style={{
-            fontFamily: "'DM Sans', sans-serif", fontSize: "18px", fontWeight: 700,
+            fontFamily: "'Manrope', sans-serif", fontSize: "18px", fontWeight: 700,
             color: "var(--color-text-primary, #2b2a28)", margin: "0 0 8px",
           }}>
             {tr("Что-то пошло не так", "Nimadir noto'g'ri ketdi")}
@@ -92,7 +92,7 @@ export default class ErrorBoundary extends Component<Props, State> {
               style={{
                 display: "inline-flex", alignItems: "center", gap: "6px",
                 padding: "10px 20px", fontSize: "13px", fontWeight: 600,
-                fontFamily: "'DM Sans', sans-serif", borderRadius: "12px",
+                fontFamily: "'Manrope', sans-serif", borderRadius: "12px",
                 border: "none", cursor: "pointer",
                 background: "var(--color-primary)", color: "var(--color-on-primary, #ffffff)",
                 boxShadow: "0 2px 8px color-mix(in srgb, var(--color-primary) 25%, transparent)",
@@ -104,7 +104,7 @@ export default class ErrorBoundary extends Component<Props, State> {
               style={{
                 display: "inline-flex", alignItems: "center", gap: "6px",
                 padding: "10px 20px", fontSize: "13px", fontWeight: 600,
-                fontFamily: "'DM Sans', sans-serif", borderRadius: "12px",
+                fontFamily: "'Manrope', sans-serif", borderRadius: "12px",
                 border: "1px solid var(--color-border, #d8d5cd)", cursor: "pointer",
                 background: "var(--color-surface, #efedea)",
                 color: "var(--color-text-secondary, #5e5b54)", textDecoration: "none",

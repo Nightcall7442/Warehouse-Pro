@@ -72,7 +72,7 @@ export const ConfirmDialog = memo(function ConfirmDialog({ title, message, confi
             </div>
           )}
           <div style={{ flex: 1 }}>
-            <h2 style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "16px", fontWeight: 600, color: "var(--color-text-primary, #2b2a28)", margin: 0 }}>{title}</h2>
+            <h2 style={{ fontFamily: "'Manrope', sans-serif", fontSize: "16px", fontWeight: 600, color: "var(--color-text-primary, #2b2a28)", margin: 0 }}>{title}</h2>
             <p style={{ fontSize: "13px", color: "var(--color-text-secondary, #5e5b54)", margin: "4px 0 0", lineHeight: "1.5" }}>{message}</p>
           </div>
           <button onClick={onCancel} style={{ padding: "4px", background: "none", border: "none", cursor: "pointer", color: "var(--color-text-tertiary, #6b6760)" }}>
@@ -80,11 +80,11 @@ export const ConfirmDialog = memo(function ConfirmDialog({ title, message, confi
           </button>
         </div>
         <div style={{ display: "flex", gap: "8px", justifyContent: "flex-end" }}>
-          <button onClick={onCancel} style={{ padding: "8px 16px", borderRadius: "8px", fontSize: "13px", fontWeight: 500, fontFamily: "'DM Sans', sans-serif", color: "var(--color-text-secondary, #5e5b54)", background: "var(--color-surface-light, #f6f4f0)", border: "none", cursor: "pointer" }}>{t("Отмена", "Bekor qilish")}</button>
+          <button onClick={onCancel} style={{ padding: "8px 16px", borderRadius: "8px", fontSize: "13px", fontWeight: 500, fontFamily: "'Manrope', sans-serif", color: "var(--color-text-secondary, #5e5b54)", background: "var(--color-surface-light, #f6f4f0)", border: "none", cursor: "pointer" }}>{t("Отмена", "Bekor qilish")}</button>
           <button onClick={onConfirm}
             style={{
               padding: "8px 16px", borderRadius: "8px", fontSize: "13px", fontWeight: 600,
-              fontFamily: "'DM Sans', sans-serif", border: "none", cursor: "pointer",
+              fontFamily: "'Manrope', sans-serif", border: "none", cursor: "pointer",
               // Цвет текста берётся из палитры, а не зашивается белым.
               //
               // В тёмной теме заливка кнопки — золотая (#c9a227), и белым по

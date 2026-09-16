@@ -53,7 +53,7 @@ export function UserTable({ users, isLoading, page, total, lang, onResetPassword
                 : users.length === 0
                 ? (
                   <tr>
-                    <td colSpan={7} style={{ textAlign: "center", padding: "48px 16px", color: COLORS.textSecondary, fontSize: "14px", fontFamily: "var(--font-body, 'DM Sans', -apple-system, sans-serif)" }}>
+                    <td colSpan={7} style={{ textAlign: "center", padding: "48px 16px", color: COLORS.textSecondary, fontSize: "14px", fontFamily: "var(--font-body, 'Manrope', -apple-system, sans-serif)" }}>
                       {t("Пользователи не найдены", "Foydalanuvchilar topilmadi")}
                     </td>
                   </tr>

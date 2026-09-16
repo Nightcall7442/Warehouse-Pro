@@ -95,7 +95,7 @@ export const LX = {
 } as const;
 
 export const MONO: CSSProperties = {
-  fontFamily: "'DM Mono', ui-monospace, 'Cascadia Mono', monospace",
+  fontFamily: "'JetBrains Mono', ui-monospace, 'Cascadia Mono', monospace",
   fontVariantNumeric: "tabular-nums",
 };
 

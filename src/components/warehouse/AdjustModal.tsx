@@ -37,7 +37,7 @@ export const AdjustModal = memo(function AdjustModal({ productId, productName, c
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-lg font-semibold" style={{ color: "var(--color-text-primary, #2b2a28)", fontFamily: "'DM Sans', sans-serif" }}>
+            <h2 className="text-lg font-semibold" style={{ color: "var(--color-text-primary, #2b2a28)", fontFamily: "'Manrope', sans-serif" }}>
               {t("Движение товара", "Mahsulot harakati")}
             </h2>
             <p className="text-sm mt-0.5" style={{ color: "var(--color-text-tertiary, #6b6760)" }}>{productName}</p>
@@ -54,7 +54,7 @@ export const AdjustModal = memo(function AdjustModal({ productId, productName, c
           <span className="text-xs font-medium" style={{ color: "var(--color-text-tertiary, #6b6760)" }}>
             {t("Текущий остаток", "Joriy qoldiq")}
           </span>
-          <span className="ml-auto text-sm font-bold" style={{ color: "var(--color-text-primary, #2b2a28)", fontFamily: "'DM Sans', sans-serif" }}>
+          <span className="ml-auto text-sm font-bold" style={{ color: "var(--color-text-primary, #2b2a28)", fontFamily: "'Manrope', sans-serif" }}>
             {formatQty(currentStock)}
             {unitWeight > 0 && <span className="text-xs font-normal" style={{ color: "var(--color-text-tertiary, #6b6760)" }}> ({formatQty(toKg(currentStock, unitWeight))} кг)</span>}
           </span>
@@ -62,7 +62,7 @@ export const AdjustModal = memo(function AdjustModal({ productId, productName, c
 
         {/* Type selector */}
         <div>
-          <label className="text-[10px] font-semibold tracking-wider uppercase mb-3 block" style={{ color: "var(--color-text-tertiary, #6b6760)", fontFamily: "'DM Sans', sans-serif" }}>
+          <label className="text-[10px] font-semibold tracking-wider uppercase mb-3 block" style={{ color: "var(--color-text-tertiary, #6b6760)", fontFamily: "'Manrope', sans-serif" }}>
             {t("ТИП ОПЕРАЦИИ", "OPERATSIYA TURI")}
           </label>
           <div className="grid grid-cols-3 gap-2">
@@ -92,12 +92,12 @@ export const AdjustModal = memo(function AdjustModal({ productId, productName, c
 
         {/* Quantity input */}
         <div>
-          <label className="text-[10px] font-semibold tracking-wider uppercase mb-2 block" style={{ color: "var(--color-text-tertiary, #6b6760)", fontFamily: "'DM Sans', sans-serif" }}>
+          <label className="text-[10px] font-semibold tracking-wider uppercase mb-2 block" style={{ color: "var(--color-text-tertiary, #6b6760)", fontFamily: "'Manrope', sans-serif" }}>
             {t("КОЛИЧЕСТВО", "MIQDOR")}
           </label>
           <input type="number" step="0.01" min="0" autoFocus
             className="w-full px-4 py-3 rounded-xl text-xl font-bold outline-none transition-all"
-            style={{ background: "var(--color-surface-light, #f6f4f0)", color: "var(--color-text-primary, #2b2a28)", fontFamily: "'DM Sans', sans-serif", border: "2px solid transparent" }}
+            style={{ background: "var(--color-surface-light, #f6f4f0)", color: "var(--color-text-primary, #2b2a28)", fontFamily: "'Manrope', sans-serif", border: "2px solid transparent" }}
             onFocus={e => e.currentTarget.style.borderColor = currentType.color}
             onBlur={e => e.currentTarget.style.borderColor = "transparent"}
             placeholder="0.00" value={qty} onChange={e => setQty(e.target.value)} />
@@ -106,7 +106,7 @@ export const AdjustModal = memo(function AdjustModal({ productId, productName, c
               <span className="text-xs" style={{ color: "var(--color-text-tertiary, #6b6760)" }}>
                 {t("Новый остаток", "Yangi qoldiq")}
               </span>
-              <span className="text-sm font-bold" style={{ color: newStock >= 0 ? "var(--color-success-text)" : "var(--color-danger-text)", fontFamily: "'DM Sans', sans-serif" }}>
+              <span className="text-sm font-bold" style={{ color: newStock >= 0 ? "var(--color-success-text)" : "var(--color-danger-text)", fontFamily: "'Manrope', sans-serif" }}>
                 {formatQty(newStock)}
                 {unitWeight > 0 && <span className="text-xs font-normal" style={{ color: "var(--color-text-tertiary, #6b6760)" }}> ({formatQty(toKg(newStock, unitWeight))} кг)</span>}
               </span>
@@ -126,7 +126,7 @@ export const AdjustModal = memo(function AdjustModal({ productId, productName, c
 
         {/* Notes */}
         <div>
-          <label className="text-[10px] font-semibold tracking-wider uppercase mb-2 block" style={{ color: "var(--color-text-tertiary, #6b6760)", fontFamily: "'DM Sans', sans-serif" }}>
+          <label className="text-[10px] font-semibold tracking-wider uppercase mb-2 block" style={{ color: "var(--color-text-tertiary, #6b6760)", fontFamily: "'Manrope', sans-serif" }}>
             {t("ПРИМЕЧАНИЕ", "IZOH")}
           </label>
           <input className="w-full px-4 py-3 rounded-xl outline-none transition-all"
