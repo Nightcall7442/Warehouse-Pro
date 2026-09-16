@@ -73,6 +73,14 @@ const JOBS: Job[] = [
     run: async () => (await import("./telegram-digest")).runTelegramDigest(),
   },
   {
+    // Утро: агенту — его визиты и долги к сбору, руководителю — план команды.
+    // Восемь ноль пять: тихие часы кончаются в восемь, и очередь уходит первой.
+    name: "telegram-morning",
+    daily: { hour: 8, minute: 5 },
+    catchUpHours: 2,
+    run: async () => (await import("./telegram-morning")).runTelegramMorning(),
+  },
+  {
     // Долги — утром рабочего дня: по ним звонят, а не читают на ночь.
     name: "debt-reminders",
     daily: { hour: 9, minute: 0 },

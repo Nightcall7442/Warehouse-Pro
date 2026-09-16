@@ -85,8 +85,8 @@ describe("крон: одно уведомление на пересечение"
     expect(bulk).toHaveBeenCalledTimes(1);
     expect(tg).toHaveBeenCalledTimes(1);
     const text = (tg.mock.calls[0] as unknown as [{ text: string }])[0].text;
-    expect(text).toContain("Сахар — 3 kg (порог 10)");
-    expect(text).toContain("Соль — 0 kg (порог 5)");
+    expect(text).toContain("Сахар — <b>3</b> kg (порог 10)");
+    expect(text).toContain("Соль — <b>0</b> kg (порог 5)");
     vi.doUnmock("../services/stock-ledger"); vi.doUnmock("../lib/sse"); vi.doUnmock("../services/NotificationService"); vi.doUnmock("../services/telegram-notify");
   });
 });

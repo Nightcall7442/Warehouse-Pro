@@ -532,7 +532,7 @@ export const LoadingListService = {
     if (list.status !== "preparing") {
       throw badRequest(`Лист ${list.listNumber} уже «${LOADING_LIST_STATUS_LABELS[list.status]}» — сборка подтверждается один раз.`);
     }
-    const rows = await db.select({ productId: loadingListItems.productId, name: products.name, requiredQty: loadingListItems.requiredQty })
+    const rows = await db.select({ productId: loadingListItems.productId, name: products.name, unit: products.unit, requiredQty: loadingListItems.requiredQty })
       .from(loadingListItems)
       .innerJoin(products, eq(loadingListItems.productId, products.id))
       .where(eq(loadingListItems.listId, listId));
@@ -560,8 +560,17 @@ export const LoadingListService = {
     } catch { /* non-blocking */ }
 
     if (shortages.length > 0) {
+      const unitOf = new Map(rows.map(r => [Number(r.productId), r.unit]));
       const office = await db.select({ id: users.id }).from(users)
         .where(and(eq(users.tenantId, tenantId), inArray(users.role, ["ceo", "operator"]), eq(users.status, "active")));
+      // И в Telegram: оператор в телефоне, а не в колокольчике.
+      void (async () => {
+        const [{ notifyEvent }, { tgMessages }] = await Promise.all([import("./telegram-notify"), import("../lib/telegram")]);
+        await notifyEvent({
+          tenantId, event: "picking.short",
+          text: tgMessages.pickingShort(list.listNumber, shortages.map(x => ({ name: x.name, required: x.required, picked: x.picked, unit: unitOf.get(x.productId) ?? "" }))),
+        });
+      })().catch(() => { /* уведомление — не сборка */ });
       const { NotificationService } = await import("./NotificationService");
       await NotificationService.createBulk(db, {
         tenantId, userIds: office.map(u => u.id), type: "stock",

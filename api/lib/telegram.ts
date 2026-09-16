@@ -40,6 +40,35 @@ export function tgEscape(value: unknown): string {
     .replace(/>/g, "&gt;");
 }
 
+/**
+ * Один вызов Bot API на всё приложение: sendMessage, answerCallbackQuery,
+ * editMessageText. Ошибки — словами в журнал: отклонённое сообщение иначе
+ * неотличимо от выключенной интеграции, и так уведомления терялись молча.
+ */
+export async function tgCall(method: string, body: Record<string, unknown>): Promise<boolean> {
+  const token = env.telegramBotToken;
+  if (!token) return false;
+  try {
+    const res = await fetch(`https://api.telegram.org/bot${token}/${method}`, {
+      method:  "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      // Предел обязателен: этот вызов ждёт оформление заказа после commit.
+      // Без него замедлившийся Telegram растягивал подтверждение заказа
+      // агенту до минут — заказ при этом уже записан, но выглядит зависшим.
+      signal: AbortSignal.timeout(TELEGRAM_TIMEOUT_MS),
+    });
+    if (!res.ok) {
+      const detail = await res.text().catch(() => "");
+      console.error(`[telegram] ${method} ${res.status}: ${detail.slice(0, 300)}`);
+    }
+    return res.ok;
+  } catch (e) {
+    console.error(`[telegram] ${method} failed:`, e instanceof Error ? e.message : String(e));
+    return false;
+  }
+}
+
 // ── Core send function ───────────────────────────────────────────────────────
 // Exported for the AI bot cron, which replies to whichever chat messaged it and
 // so can't go through the notify* helpers below.
@@ -53,31 +82,58 @@ export async function sendTelegram(
   */
   extra?: Record<string, unknown>,
 ): Promise<boolean> {
-  const token = env.telegramBotToken;
-  if (!token || !chatId) return false;
-  try {
-    const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-      method:  "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ chat_id: chatId, text, parse_mode: "HTML", ...extra }),
-      // Предел обязателен: этот вызов ждёт оформление заказа после commit.
-      // Без него замедлившийся Telegram растягивал подтверждение заказа
-      // агенту до минут — заказ при этом уже записан, но выглядит зависшим.
-      signal: AbortSignal.timeout(TELEGRAM_TIMEOUT_MS),
-    });
-    if (!res.ok) {
-      // Say why. A rejected message is indistinguishable from a disabled
-      // integration when the only signal is `false`, which is how unescaped
-      // markup managed to drop notifications quietly for so long.
-      const detail = await res.text().catch(() => "");
-      console.error(`[telegram] sendMessage ${res.status}: ${detail.slice(0, 300)}`);
-    }
-    return res.ok;
-  } catch (e) {
-    console.error("[telegram] sendMessage failed:", e instanceof Error ? e.message : String(e));
-    return false;
-  }
+  if (!chatId) return false;
+  return tgCall("sendMessage", { chat_id: chatId, text, parse_mode: "HTML", ...extra });
 }
+
+/** Погасить «часики» на нажатой кнопке; без этого Telegram крутит их полминуты. */
+export async function answerCallback(callbackId: string, text?: string): Promise<boolean> {
+  return tgCall("answerCallbackQuery", { callback_query_id: callbackId, ...(text ? { text } : {}) });
+}
+
+/* ── Кнопки и ссылки ──────────────────────────────────────────────────────── */
+
+/** Кнопки под сообщением: ряды из {text, data} (callback) или {text, url}. */
+export function inlineKeyboard(rows: Array<Array<{ text: string; data?: string; url?: string }>>): Record<string, unknown> {
+  return {
+    reply_markup: {
+      inline_keyboard: rows.map(row => row.map(b => b.url ? { text: b.text, url: b.url } : { text: b.text, callback_data: b.data ?? "" })),
+    },
+  };
+}
+
+/** Адрес страницы приложения — для кнопки «Открыть». */
+export function appLink(path: string): string {
+  return `${env.appUrl.replace(/\/$/, "")}${path}`;
+}
+
+/* ── Числа на бумаге сообщения ────────────────────────────────────────────── */
+
+/** «1 234 567 сум» — тысячи через пробел, без копеек, валюта словом. */
+export function fmtMoney(n: unknown, currency = "сум"): string {
+  const v = Math.round(Number(n ?? 0));
+  return `${v.toLocaleString("ru-RU")} ${currency}`;
+}
+
+/** «12» или «1,5» — без хвоста «.00». */
+export function fmtQty(n: unknown): string {
+  const v = Number(n ?? 0);
+  return Number.isInteger(v) ? String(v) : v.toFixed(2).replace(/\.?0+$/, "").replace(".", ",");
+}
+
+/** Как платит магазин — словом. */
+export const PAY_LABEL: Record<string, string> = { cash: "наличные", card: "карта", transfer: "перечисление", debt: "в долг" };
+
+/** Состояние заказа — значком и словом. */
+export const ORDER_STATE: Record<string, { icon: string; ru: string; uz: string }> = {
+  new:        { icon: "🆕", ru: "новый",        uz: "yangi" },
+  pending:    { icon: "⏳", ru: "ожидает",      uz: "kutmoqda" },
+  processing: { icon: "🔧", ru: "в работе",     uz: "jarayonda" },
+  shipped:    { icon: "🚚", ru: "отгружен",     uz: "jo'natildi" },
+  delivered:  { icon: "✅", ru: "доставлен",    uz: "yetkazildi" },
+  cancelled:  { icon: "❌", ru: "отменён",      uz: "bekor" },
+  returned:   { icon: "↩️", ru: "возврат",      uz: "qaytarildi" },
+};
 
 // ── Notification helpers (used from other routers) ───────────────────────────
 export async function notifyAdmin(message: string) {
@@ -109,14 +165,58 @@ export async function notifyTenantRole(
 // strings, user names — are typed by people, and any of them containing
 // <, > or & would otherwise make Telegram reject the whole notification.
 export const tgMessages = {
-  newOrder: (n: string, shop: string, total: string, cur: string) =>
-    `🛒 <b>Новый заказ</b>\n📋 ${tgEscape(n)}\n🏪 ${tgEscape(shop)}\n💰 ${tgEscape(total)} ${tgEscape(cur)}`,
+  /*
+    ── Событие — карточка ─────────────────────────────────────────────────────
+
+    Заголовок значком и жирным, дальше строки «что — сколько». Каждый шаблон
+    говорит то, по чему человек примет решение: кто выписал, сколько позиций,
+    как платят, а не только номер и сумму. Кнопка «Открыть» ведёт на страницу
+    заказа — из чата в приложение одним нажатием.
+  */
+  newOrder: (o: { number: string; shop: string; total: string; agent?: string | null; items?: number; payment?: string | null; discountPct?: number }) =>
+    `🛒 <b>Новый заказ ${tgEscape(o.number)}</b>\n` +
+    `🏪 ${tgEscape(o.shop)}\n` +
+    `💰 ${tgEscape(o.total)}${o.payment ? ` · ${tgEscape(PAY_LABEL[o.payment] ?? o.payment)}` : ""}` +
+    (o.discountPct ? ` · скидка ${tgEscape(o.discountPct)}%` : "") + "\n" +
+    (o.items ? `📦 Позиций: ${tgEscape(o.items)}\n` : "") +
+    (o.agent ? `👤 ${tgEscape(o.agent)}` : ""),
+
+  /** Заказ ждёт офиса: скидка выше порога или другая причина — его надо подтвердить. */
+  orderPending: (o: { number: string; shop: string; total: string; agent?: string | null; reason?: string | null }) =>
+    `⏳ <b>Заказ ${tgEscape(o.number)} ждёт подтверждения</b>\n` +
+    `🏪 ${tgEscape(o.shop)}\n💰 ${tgEscape(o.total)}\n` +
+    (o.agent ? `👤 ${tgEscape(o.agent)}\n` : "") +
+    (o.reason ? `❗ ${tgEscape(o.reason)}\n` : "") +
+    `\nПодтвердить или отклонить: Заказы → «Ожидает»`,
+
+  /** Курьер отдал товар: агенту магазина — как закрылся его заказ. */
+  orderDelivered: (o: { number: string; shop: string; total: string; result: string; paid?: string | null; debt?: string | null; courier?: string | null }) =>
+    `✅ <b>Заказ ${tgEscape(o.number)} доставлен</b>\n` +
+    `🏪 ${tgEscape(o.shop)}\n💰 ${tgEscape(o.total)} — ${tgEscape(o.result)}\n` +
+    (o.paid ? `💵 Получено: ${tgEscape(o.paid)}\n` : "") +
+    (o.debt ? `🧾 В долг: ${tgEscape(o.debt)}\n` : "") +
+    (o.courier ? `🚚 ${tgEscape(o.courier)}` : ""),
+
+  /** Доставка сорвалась: оператору и агенту — разобраться сегодня. */
+  deliveryFailed: (o: { number: string; shop: string; total: string; reason?: string | null; courier?: string | null }) =>
+    `❌ <b>Заказ ${tgEscape(o.number)} не доставлен</b>\n` +
+    `🏪 ${tgEscape(o.shop)}\n💰 ${tgEscape(o.total)}\n` +
+    (o.reason ? `❗ ${tgEscape(o.reason)}\n` : "") +
+    (o.courier ? `🚚 ${tgEscape(o.courier)}` : ""),
+
+  /** Сборка листа закрылась с недостачей: что не доложили. */
+  pickingShort: (listNumber: string, lines: Array<{ name: string; required: number; picked: number; unit: string }>) =>
+    `📋 <b>Лист ${tgEscape(listNumber)}: недостача при сборке</b>\n` +
+    lines.slice(0, 10).map(l => `• ${tgEscape(l.name)} — ${tgEscape(fmtQty(l.picked))} из ${tgEscape(fmtQty(l.required))} ${tgEscape(l.unit)}`).join("\n") +
+    (lines.length > 10 ? `\n… и ещё ${tgEscape(lines.length - 10)}` : "") +
+    `\n\nКурьер повезёт столько, сколько собрано; магазину скажите заранее.`,
 
   /** Одним сообщением на организацию — списком, а не по товару; единица — своя у каждого. */
   lowStockList: (items: Array<{ name: string; qty: string; unit: string; point: string }>, more = 0) =>
-    `📉 <b>Остаток ниже точки заказа</b>\n` +
-    items.map(i => `• ${tgEscape(i.name)} — ${tgEscape(i.qty)} ${tgEscape(i.unit)} (порог ${tgEscape(i.point)})`).join("\n") +
-    (more > 0 ? `\n… и ещё ${tgEscape(more)}` : ""),
+    `📉 <b>Заканчивается на складе</b>\n` +
+    items.map(i => `• ${tgEscape(i.name)} — <b>${tgEscape(i.qty)}</b> ${tgEscape(i.unit)} (порог ${tgEscape(i.point)})`).join("\n") +
+    (more > 0 ? `\n… и ещё ${tgEscape(more)}` : "") +
+    `\n\nДозаказ: Склад → «Дозаказ»`,
 
   supportMessage: (org: string, who: string, preview: string) =>
     `💬 <b>Вопрос в поддержку</b>\n🏢 ${tgEscape(org)}\n👤 ${tgEscape(who)}\n\n${tgEscape(preview)}`,

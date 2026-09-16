@@ -36,16 +36,19 @@ import { logger } from "../lib/logger";
 
 /** Что видно в личной переписке. */
 export const PRIVATE_COMMANDS = [
-  { command: "help",    description: "Что умеет бот" },
-  { command: "stock",   description: "Остатки: что заканчивается" },
-  { command: "orders",  description: "Последние заказы" },
-  { command: "summary", description: "Сводка за сегодня" },
-  { command: "top",     description: "Что лучше продаётся" },
-  { command: "debts",   description: "Долги магазинов" },
-  { command: "staff",   description: "Кто из сотрудников подключён" },
-  { command: "plans",   description: "Визиты на сегодня" },
-  { command: "lang",    description: "Сменить язык" },
-  { command: "stop",    description: "Отключить уведомления" },
+  { command: "help",       description: "Что умеет бот" },
+  { command: "summary",    description: "Сводка: заказы, деньги, долги, визиты" },
+  { command: "orders",     description: "Последние заказы" },
+  { command: "pending",    description: "Заказы, ждущие подтверждения" },
+  { command: "agents",     description: "Агенты сегодня: продажи, визиты, связь" },
+  { command: "debts",      description: "Долги магазинов" },
+  { command: "stock",      description: "Остатки: что заканчивается" },
+  { command: "deliveries", description: "Доставки сегодня" },
+  { command: "top",        description: "Что лучше продаётся" },
+  { command: "plans",      description: "Визиты на сегодня" },
+  { command: "staff",      description: "Кто из сотрудников подключён" },
+  { command: "lang",       description: "Сменить язык" },
+  { command: "stop",       description: "Отключить уведомления" },
 ] as const;
 
 /** Что видно в групповом чате. */

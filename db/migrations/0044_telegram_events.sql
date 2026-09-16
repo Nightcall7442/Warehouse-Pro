@@ -1,0 +1,1 @@
+ALTER TABLE `telegram_rules` MODIFY COLUMN `event` enum('order.created','order.pending','order.delivered','delivery.failed','stock.low','debt.overdue','delivery.assigned','picking.short','plan.morning') NOT NULL;

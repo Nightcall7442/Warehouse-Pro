@@ -37,6 +37,26 @@ const EVENT_LABEL: Record<string, { ru: string; uz: string; hint: { ru: string; 
     ru: "Назначена доставка", uz: "Yetkazish tayinlandi",
     hint: { ru: "Только назначенному курьеру", uz: "Faqat tayinlangan kuryerga" },
   },
+  "order.pending": {
+    ru: "Заказ ждёт подтверждения", uz: "Buyurtma tasdiqlashni kutmoqda",
+    hint: { ru: "Скидка выше порога или другая причина — надо подтвердить", uz: "Chegirma chegaradan yuqori — tasdiqlash kerak" },
+  },
+  "order.delivered": {
+    ru: "Заказ доставлен", uz: "Buyurtma yetkazildi",
+    hint: { ru: "Агенту — только по его магазинам; офису обычно шум", uz: "Agentga — faqat o'z do'konlari bo'yicha" },
+  },
+  "delivery.failed": {
+    ru: "Доставка не состоялась", uz: "Yetkazish amalga oshmadi",
+    hint: { ru: "Причина от курьера; агенту — только по его магазину", uz: "Kuryer sababi; agentga — faqat o'z do'koni" },
+  },
+  "picking.short": {
+    ru: "Недостача при сборке", uz: "Yig'ishda kamomad",
+    hint: { ru: "Кладовщик собрал меньше, чем в листе", uz: "Omborchi varaqadagidan kam yig'di" },
+  },
+  "plan.morning": {
+    ru: "Утренний план", uz: "Ertalabki reja",
+    hint: { ru: "В 8:05: агенту его визиты, руководителю — план команды", uz: "8:05 da: agentga tashriflari, rahbarga jamoa rejasi" },
+  },
 };
 
 const ROLE_LABEL: Record<string, { ru: string; uz: string }> = {

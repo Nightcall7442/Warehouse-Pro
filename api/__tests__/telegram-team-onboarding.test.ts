@@ -247,8 +247,9 @@ describe("бот объясняет себя", () => {
   });
 
   it("новые ответы названы в помощи", () => {
-    expect(TEXTS).toMatch(/Сотрудники<\/b>/);
-    expect(TEXTS).toMatch(/Планы<\/b>/);
+    // Сотрудники — командой /staff, визиты — кнопкой.
+    expect(TEXTS).toMatch(/\/staff — кто из сотрудников подключён/);
+    expect(TEXTS).toMatch(/Визиты<\/b>/);
   });
 });
 
