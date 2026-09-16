@@ -49,6 +49,8 @@ export const OFFBOARD_ORDER: readonly OffboardStep[] = [
   "cash_categories",
   "cash_days",
   "cash_documents",
+  "tare_movements",
+  "tare_types",
   "api_keys",
   { table: "arrival_items", via: { column: "arrival_id", parent: "arrivals" } },
   "audit_log",

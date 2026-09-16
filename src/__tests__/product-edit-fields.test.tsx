@@ -27,6 +27,8 @@ const trpcStub = vi.hoisted(() => {
   const query = (data: unknown) => () => ({ data, isLoading: false, isError: false, refetch: vi.fn() });
   const mutation = () => ({ mutate: vi.fn(), isPending: false });
   return {
+    // Учёт тары выключен: блок тары в карточке не рисуется.
+    tare: { status: { useQuery: query({ enabled: false, planAllows: true }) }, types: { useQuery: query([]) }, setProductTare: { useMutation: mutation } },
     product: {
       getById: { useQuery: query({
         id: 7, code: "A-100", name: "Печенье", category: "Кондитерские",

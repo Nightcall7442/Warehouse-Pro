@@ -22,6 +22,7 @@ import { CategoryAutocomplete } from "@/components/products/CategoryAutocomplete
 import { QueryErrorFallback } from "@/components/QueryErrorFallback";
 import { formatQty } from "@/lib/format";
 import { UNITS, unitShort } from "@/lib/units";
+import { ProductTare } from "@/components/tare/ProductTare";
 
 
 const TYPE_ICONS: Record<string, React.ReactNode> = {
@@ -256,6 +257,7 @@ export default function ProductDetail() {
                       <Scale size={13} />1 {unitLabel(product.unit)} = {formatQty(product.unitWeight)} {tr("кг","kg")}
                     </span>
                   )}
+                  <ProductTare productId={product.id} tareTypeId={product.tareTypeId ?? null} perUnit={Number(product.tarePerUnit ?? 1)} canEdit={canEdit} />
                 </div>
                 {product.description && <p className="text-sm text-secondary mt-3 leading-relaxed">{product.description}</p>}
               </>

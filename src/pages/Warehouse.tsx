@@ -23,6 +23,7 @@ import { colorMix } from "@/lib/color-mix";
 import { SearchInput } from "@/components/SearchInput";
 import { StockTransfers } from "@/components/warehouse/StockTransfers";
 import { VansTab } from "@/components/warehouse/VansTab";
+import { TareTab } from "@/components/tare/TareTab";
 import { WarehouseCompare } from "@/components/warehouse/WarehouseCompare";
 import { StockCounts } from "@/components/warehouse/StockCounts";
 import { DemandForecast } from "@/components/warehouse/DemandForecast";
@@ -75,7 +76,9 @@ export default function Warehouse() {
   // `unit` is captured for the adjust dialog, which today renders quantities
   // without a unit label — AdjustModal takes no unit prop yet.
   const [adjusting, setAdjusting] = useState<{ id: number; name: string; stock: number; unit: string; unitWeight: number } | null>(null);
-  const [activeTab, setActiveTab] = useState<"stock" | "deadstock" | "reorder" | "forecast" | "transfers" | "compare" | "counts" | "vans">("stock");
+  const [activeTab, setActiveTab] = useState<"stock" | "deadstock" | "reorder" | "forecast" | "transfers" | "compare" | "counts" | "vans" | "tare">("stock");
+  const tareStatus = trpc.tare.status.useQuery();
+  const tareOn = Boolean(tareStatus.data?.enabled);
   // Ван-селлинг: вкладка «Машины» — только когда включён в настройках.
   const vanStatus = trpc.van.status.useQuery();
   const vanOn = Boolean(vanStatus.data?.enabled);
@@ -226,7 +229,9 @@ export default function Warehouse() {
     { key: "counts" as const, label: t("Инвентаризация", "Inventarizatsiya"), count: 0 },
     // Машины — склады на колёсах: загрузка под PIN, возврат, пересчёт.
     ...(vanOn ? [{ key: "vans" as const, label: t("Машины", "Mashinalar"), count: 0 }] : []),
-  ], [summary, deadStockItems, reorderSuggestions, pendingTransfers, multi, vanOn, t]);
+    // Тара — у кого сколько и залог; только когда учёт включён.
+    ...(tareOn ? [{ key: "tare" as const, label: t("Тара", "Idish"), count: 0 }] : []),
+  ], [summary, deadStockItems, reorderSuggestions, pendingTransfers, multi, vanOn, tareOn, t]);
 
   if (isLoadingError) return <QueryErrorFallback onRetry={refetch} />;
 
@@ -566,6 +571,8 @@ export default function Warehouse() {
       )}
 
       {activeTab === "vans" && vanOn && <VansTab />}
+
+      {activeTab === "tare" && tareOn && <TareTab />}
 
       {activeTab === "compare" && multi && (
         <WarehouseCompare warehouses={warehouses} />
