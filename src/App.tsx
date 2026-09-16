@@ -59,6 +59,7 @@ const Monitoring           = lazyWithRecovery(() => import("./pages/Monitoring")
 const Support              = lazyWithRecovery(() => import("./pages/Support"));
 const WarehouseReports     = lazyWithRecovery(() => import("./pages/WarehouseReports"));
 const Returns              = lazyWithRecovery(() => import("./pages/Returns"));
+const Cash                 = lazyWithRecovery(() => import("./pages/Cash"));
 const AuditLog             = lazyWithRecovery(() => import("./pages/AuditLog"));
 const MerchandiserVisit    = lazyWithRecovery(() => import("./pages/MerchandiserVisit"));
 
@@ -242,6 +243,7 @@ export default function App() {
             Роли те же, что у ручки returns.updateStatus (operatorQuery).
           */}
           <Route path="/returns" element={<RoleGuard roles={["ceo","operator"]}><Returns /></RoleGuard>} />
+          <Route path="/cash" element={<RoleGuard roles={["ceo","operator"]}><Cash /></RoleGuard>} />
           <Route path="/audit-log" element={<RoleGuard roles={["ceo","superadmin"]}><AuditLog /></RoleGuard>} />
 
           {/* CEO only */}

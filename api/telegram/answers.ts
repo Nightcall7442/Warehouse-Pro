@@ -338,18 +338,26 @@ export async function answerDeliveries(scope: Scope, now = new Date()): Promise<
   return { text: card(`🚚 ${T.hDeliveries[lang]}`, todayLabel(now), lines, T.wNoDeliveries[lang]), extra: inlineKeyboard([[openButton(lang, "/orders")]]) };
 }
 
-/** Касса курьера: что принял сегодня, по способам. */
+/**
+ * Касса сотрудника — по кассовому учёту (services/cash.ts): на руках,
+ * принято сегодня, долг, лимит и час сдачи. Не «сколько записал платежей»,
+ * а «сколько должен сдать» — это разные числа, и второе здесь.
+ */
 export async function answerCash(scope: Scope, now = new Date()): Promise<Reply> {
-  const { tenantId, lang, courierId, currency } = scope;
-  const from = tashkentDayStart(now);
-  const rows = await getDb().select({ method: payments.paymentMethod, count: sql<number>`count(*)`, total: sql<number>`coalesce(sum(${payments.amount}), 0)` })
-    .from(payments)
-    .where(and(eq(payments.tenantId, tenantId), eq(payments.type, "payment"), gte(payments.createdAt, from), ...(courierId ? [eq(payments.createdBy, courierId)] : [])))
-    .groupBy(payments.paymentMethod);
-  const total = rows.reduce((s, r) => s + Number(r.total), 0);
-  const lines = rows.filter(r => Number(r.total) > 0).map(r => `• ${PAY_LABEL[r.method ?? ""] ?? r.method}: <b>${fmtMoney(r.total, currency)}</b> (${Number(r.count)})`);
-  if (lines.length) lines.push("", `${T.wTotal[lang]}: <b>${fmtMoney(total, currency)}</b>`);
-  return { text: card(`💵 ${T.hCash[lang]}`, todayLabel(now), lines, T.wNoCash[lang]) };
+  const { tenantId, lang, courierId, agentId, currency } = scope;
+  const userId = courierId ?? agentId;
+  if (!userId) return { text: T.notUnderstood[lang] };
+  const { CashService } = await import("../services/cash");
+  const m = await CashService.mine(getDb(), tenantId, userId, now);
+  const lines = [
+    `💵 ${T.wOnHand[lang]}: <b>${fmtMoney(m.onHand, currency)}</b>${m.onHand > m.limit ? ` ⚠️ ${T.wOverLimit[lang]} ${fmtMoney(m.limit, currency)}` : ""}`,
+    `📥 ${T.wTodayIn[lang]}: ${fmtMoney(m.todayIn, currency)} (${m.todayCount})`,
+    ...(m.debt > 0 ? [`🧾 ${T.wMyDebt[lang]}: <b>${fmtMoney(m.debt, currency)}</b>`] : []),
+    `⏰ ${T.wHandoverBy[lang]} ${m.deadline}`,
+  ];
+  const last = m.documents.slice(0, 3).map(d => `• ${d.kind === "pko" ? "ПКО" : "РКО"}-${String(d.number).padStart(4, "0")} · ${ddmm(d.createdAt)} — ${fmtMoney(d.amount, currency)}${d.discrepancy && Number(d.discrepancy) !== 0 ? ` (${Number(d.discrepancy) < 0 ? "−" : "+"}${fmtMoney(Math.abs(Number(d.discrepancy)), currency)})` : ""}`);
+  if (last.length) lines.push("", `<i>${T.wLastHandovers[lang]}</i>`, ...last);
+  return { text: card(`💵 ${T.hCash[lang]}`, todayLabel(now), lines) };
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════

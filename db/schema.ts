@@ -121,6 +121,12 @@ export const users = mysqlTable("users", {
     сводки в телефоне читать по-узбекски. Пусто — ещё не спрашивали.
   */
   telegramLang:     varchar("telegram_lang", { length: 2 }),
+  /**
+   * PIN для подтверждения сдачи наличных в кассу (см. cash_documents).
+   * Хэш, как пароль; сам код знает только сотрудник. Пусто — сдачу
+   * подтверждают подписью на бумажном ПКО.
+   */
+  cashPinHash:      varchar("cash_pin_hash", { length: 255 }),
 }, (t) => ({
   // email уникален внутри тенанта, но может повторяться в разных тенантах
   emailPerTenant: uniqueIndex("uq_user_email_tenant").on(t.email, t.tenantId),
@@ -1402,6 +1408,9 @@ export const settings = mysqlTable("settings", {
   companyBankAccount:  varchar("company_bank_account", { length: 50 }),
   companyMfo:          varchar("company_mfo", { length: 20 }),      // МФО банка
   logoUrl:             text("logo_url"),
+  /** Касса: сколько наличных сотруднику можно держать на руках и до какого часа сдать. */
+  cashLimit:           decimal("cash_limit", { precision: 15, scale: 2 }).default("5000000.00").notNull(),
+  cashDeadline:        varchar("cash_deadline", { length: 5 }).default("19:00").notNull(),
   createdAt:           timestamp("created_at").defaultNow().notNull(),
   updatedAt:           timestamp("updated_at").defaultNow().notNull().$onUpdate(() => new Date()),
 });
@@ -2250,3 +2259,82 @@ export const onecJournal = mysqlTable("onec_journal", {
 }));
 
 export type OnecJournalRow = typeof onecJournal.$inferSelect;
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   КАССА — двойная запись поверх платежей.
+
+   Наличные платежи уже лежат в payments и уже считают выручку и долг. Касса
+   не копирует их: платёж наличными сам по себе — проводка «на руки тому, кто
+   его записал». Здесь только то, чего в платежах нет: сдача в кассу (ПКО),
+   расход (РКО), внесение, выемка, списание долга сотрудника, сторно.
+
+   Каждый документ — две стороны (дебет/кредит), и сумма всех счетов всегда
+   ноль: деньги не исчезают из отчёта, они только переезжают между счетами.
+   Документы не правятся и не удаляются (это держит тест): ошибка —
+   отдельным сторно с причиной. Цепочка hash → prev_hash делает подмену строки
+   в базе заметной.
+   ═══════════════════════════════════════════════════════════════════════════ */
+export const cashDocuments = mysqlTable("cash_documents", {
+  id:             serial("id").primaryKey(),
+  tenantId:       bigint("tenant_id", { mode: "number", unsigned: true }).notNull().references(() => tenants.id, { onDelete: "restrict" }),
+  /** ПКО — деньги пришли в кассу, РКО — ушли. Сторно — документ противоположного вида со ссылкой storno_of. */
+  kind:           mysqlEnum("kind", ["pko", "rko"]).notNull(),
+  /** Сквозной номер в году по виду: ПКО-0001, РКО-0001. */
+  year:           int("year").notNull(),
+  number:         int("number").notNull(),
+  /** Счета: cash.office, cash.employee.<id>, receivable.employee.<id>, expense.<статья>, owner, income.unexplained. */
+  debit:          varchar("debit", { length: 64 }).notNull(),
+  credit:         varchar("credit", { length: 64 }).notNull(),
+  amount:         decimal("amount", { precision: 15, scale: 2 }).notNull(),
+  /** У сдачи: сколько система ожидала и на сколько разошлось. */
+  expectedAmount: decimal("expected_amount", { precision: 15, scale: 2 }),
+  discrepancy:    decimal("discrepancy", { precision: 15, scale: 2 }),
+  fromUserId:     bigint("from_user_id", { mode: "number", unsigned: true }).references(() => users.id, { onDelete: "restrict" }),
+  toUserId:       bigint("to_user_id", { mode: "number", unsigned: true }).references(() => users.id, { onDelete: "restrict" }),
+  category:       varchar("category", { length: 64 }),
+  note:           varchar("note", { length: 500 }),
+  /** Купюры при сдаче: { "100000": 12, "50000": 3 } — считать быстрее, врать труднее. */
+  denominations:  json("denominations").$type<Record<string, number> | null>(),
+  photoUrl:       text("photo_url"),
+  /** Чем подтверждена сдача: PIN сотрудника в телефоне или подпись на бумаге. */
+  pinConfirmedAt: timestamp("pin_confirmed_at"),
+  paperSigned:    boolean("paper_signed").default(false).notNull(),
+  stornoOfId:     bigint("storno_of_id", { mode: "number", unsigned: true }),
+  prevHash:       varchar("prev_hash", { length: 64 }),
+  hash:           varchar("hash", { length: 64 }).notNull(),
+  createdBy:      bigint("created_by", { mode: "number", unsigned: true }).notNull().references(() => users.id, { onDelete: "restrict" }),
+  createdAt:      timestamp("created_at").defaultNow().notNull(),
+}, (t) => ({
+  numberIdx: uniqueIndex("uq_cash_doc_number").on(t.tenantId, t.year, t.kind, t.number),
+  tenantIdx: index("idx_cash_doc_tenant_at").on(t.tenantId, t.createdAt),
+  fromIdx:   index("idx_cash_doc_from").on(t.fromUserId),
+}));
+
+/** Закрытие дня: сейф по системе против пересчёта кассиром. Закрытый день проводок не принимает. */
+export const cashDays = mysqlTable("cash_days", {
+  id:             serial("id").primaryKey(),
+  tenantId:       bigint("tenant_id", { mode: "number", unsigned: true }).notNull().references(() => tenants.id, { onDelete: "restrict" }),
+  day:            date("day", { mode: "string" }).notNull(),
+  systemBalance:  decimal("system_balance", { precision: 15, scale: 2 }).notNull(),
+  countedBalance: decimal("counted_balance", { precision: 15, scale: 2 }).notNull(),
+  discrepancy:    decimal("discrepancy", { precision: 15, scale: 2 }).notNull(),
+  closedBy:       bigint("closed_by", { mode: "number", unsigned: true }).notNull().references(() => users.id, { onDelete: "restrict" }),
+  closedAt:       timestamp("closed_at").defaultNow().notNull(),
+  reopenedBy:     bigint("reopened_by", { mode: "number", unsigned: true }).references(() => users.id, { onDelete: "restrict" }),
+  reopenedAt:     timestamp("reopened_at"),
+}, (t) => ({
+  dayIdx: uniqueIndex("uq_cash_day").on(t.tenantId, t.day),
+}));
+
+/** Статьи расхода арендатора с месячным лимитом; сверх лимита — только директор. */
+export const cashCategories = mysqlTable("cash_categories", {
+  id:           serial("id").primaryKey(),
+  tenantId:     bigint("tenant_id", { mode: "number", unsigned: true }).notNull().references(() => tenants.id, { onDelete: "restrict" }),
+  code:         varchar("code", { length: 64 }).notNull(),
+  name:         varchar("name", { length: 100 }).notNull(),
+  monthlyLimit: decimal("monthly_limit", { precision: 15, scale: 2 }),
+  isActive:     boolean("is_active").default(true).notNull(),
+  createdAt:    timestamp("created_at").defaultNow().notNull(),
+}, (t) => ({
+  codeIdx: uniqueIndex("uq_cash_category").on(t.tenantId, t.code),
+}));

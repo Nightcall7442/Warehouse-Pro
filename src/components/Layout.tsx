@@ -17,14 +17,14 @@ import {
   LayoutDashboard, Store, Package, ClipboardList, Truck,
   Warehouse, BarChart3, Users, Settings, PlusCircle, MapPin,
   Calendar, LogOut, X, Moon, Sun, WifiOff, Scan, Activity,
-  TrendingUp, CreditCard, ChevronLeft, Bell, Zap, Wallet, LifeBuoy, BookOpen,
+  TrendingUp, CreditCard, ChevronLeft, Bell, Zap, Wallet, LifeBuoy, BookOpen, Landmark,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
 const iconMap: Record<string, LucideIcon> = {
   LayoutDashboard, Store, Package, ClipboardList, Truck,
   Warehouse, BarChart3, Users, Settings, PlusCircle, MapPin,
-  Calendar, WifiOff, Scan, Activity, TrendingUp, CreditCard, Zap, Wallet, LifeBuoy,
+  Calendar, WifiOff, Scan, Activity, TrendingUp, CreditCard, Zap, Wallet, LifeBuoy, Landmark,
 };
 
 /*
@@ -53,6 +53,7 @@ const PAGE_META: Record<string, { title: PageTitle; parent?: PageTitle; parentPa
   "/orders/new":        { title: { ru: "Новый заказ",   uz: "Yangi buyurtma" }, parent: { ru: "Заказы", uz: "Buyurtmalar" }, parentPath: "/orders" },
   "/warehouse":         { title: { ru: "Склад",         uz: "Ombor" } },
   "/returns": { title: { ru: "Возвраты", uz: "Qaytarishlar" } },
+  "/cash": { title: { ru: "Касса", uz: "Kassa" } },
   "/warehouse-reports": { title: { ru: "Отчёты склада", uz: "Ombor hisobotlari" } },
   "/audit-log":         { title: { ru: "Журнал действий", uz: "Harakatlar jurnali" } },
   "/arrivals":          { title: { ru: "Приходы",       uz: "Kirim" } },

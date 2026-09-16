@@ -4,6 +4,7 @@ import { useLang, useTranslate } from "@/i18n";
 import { useAuth } from "@/hooks/useAuth";
 import { useCurrency } from "@/hooks/useCurrency";
 import { cssVar } from "@/lib/css-var";
+import { MyCashCard } from "@/components/cash/MyCashCard";
 import { useState, useRef, useEffect, useMemo } from "react";
 import { Truck, MapPin, CheckCircle2, Package, ArrowRight } from "lucide-react";
 import { notify } from "@/lib/toast";
@@ -96,6 +97,9 @@ export default function CourierDeliveries() {
           <p className="text-sm text-secondary">{user?.name}</p>
         </div>
       </div>
+
+      {/* Наличные на руках: курьер принимает деньги у магазинов и сдаёт вечером. */}
+      <MyCashCard />
 
       {/* Stats */}
       <div className="grid grid-cols-2 gap-3">

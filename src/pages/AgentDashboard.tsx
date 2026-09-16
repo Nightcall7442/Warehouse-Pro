@@ -4,6 +4,7 @@ import { useCurrency } from "@/hooks/useCurrency";
 import { useAuth } from "@/hooks/useAuth";
 import { useNavigate } from "react-router";
 import { getGreeting } from "@/lib/utils";
+import { MyCashCard } from "@/components/cash/MyCashCard";
 import { format } from "date-fns";
 import { ru as dateRu } from "date-fns/locale";
 import {
@@ -286,6 +287,9 @@ export default function AgentDashboard() {
           </div>
         </div>
       </div>
+
+      {/* Наличные на руках: агент собирает деньги у магазинов и должен их сдать. */}
+      {user?.role !== "merchandiser" && <MyCashCard />}
 
       {/* ── Быстрые действия ── */}
       <div className="grid grid-cols-2 gap-3">

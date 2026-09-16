@@ -151,6 +151,7 @@ export const T = {
       "💰 <b>Долги</b> — кто из ваших магазинов должен",
       "📈 <b>Мой результат</b> — сколько продали сегодня, за неделю, за месяц",
       "📦 <b>Остатки</b> — что заканчивается на складе",
+      "💵 <b>Касса</b> — наличные на руках и до какого часа сдать",
       "",
       "Название товара — покажу остаток и цену; название магазина — долг и последний заказ.",
       "",
@@ -164,6 +165,7 @@ export const T = {
       "💰 <b>Qarzlar</b> — do'konlaringizdan kim qarz",
       "📈 <b>Mening natijam</b> — bugun, hafta, oy qancha sotdingiz",
       "📦 <b>Qoldiq</b> — omborda nima tugayapti",
+      "💵 <b>Kassa</b> — qo'ldagi naqd pul va qachongacha topshirish",
       "",
       "Mahsulot nomi — qoldiq va narx; do'kon nomi — qarz va oxirgi buyurtma.",
       "",
@@ -175,7 +177,7 @@ export const T = {
       "Ваш помощник на маршруте. Кнопки внизу:",
       "",
       "🚚 <b>Мои доставки</b> — что везти сегодня: адреса, суммы, как платят",
-      "💵 <b>Касса</b> — сколько денег принято сегодня",
+      "💵 <b>Касса</b> — наличные на руках, принято сегодня, до какого часа сдать",
       "",
       "/lang — сменить язык · /stop — отключить уведомления",
     ].join("\n"),
@@ -183,7 +185,7 @@ export const T = {
       "Marshrutdagi yordamchingiz. Pastdagi tugmalar:",
       "",
       "🚚 <b>Mening yetkazishlarim</b> — bugun nima olib borish: manzil, summa, to'lov",
-      "💵 <b>Kassa</b> — bugun qancha pul qabul qilindi",
+      "💵 <b>Kassa</b> — qo'ldagi naqd pul, bugun qabul qilingan, qachongacha topshirish",
       "",
       "/lang — tilni almashtirish · /stop — bildirishnomalarni o'chirish",
     ].join("\n"),
@@ -200,7 +202,7 @@ export const T = {
   hStock:      { ru: "Заканчивается на складе",  uz: "Omborda tugayapti" },
   hDeliveries: { ru: "Доставки сегодня",         uz: "Bugungi yetkazishlar" },
   hMyDeliveries: { ru: "Мои доставки сегодня",   uz: "Bugungi yetkazishlarim" },
-  hCash:       { ru: "Касса за сегодня",         uz: "Bugungi kassa" },
+  hCash:       { ru: "Моя касса",                uz: "Mening kassam" },
   hTop:        { ru: "Топ товаров за 30 дней",   uz: "30 kunlik top mahsulotlar" },
   hPlans:      { ru: "Визиты сегодня",           uz: "Bugungi tashriflar" },
   hMyPlan:     { ru: "Мой план на сегодня",      uz: "Bugungi rejam" },
@@ -255,6 +257,14 @@ export const T = {
   hMorning:     { ru: "Доброе утро", uz: "Xayrli tong" },
   morningTeam:  { ru: "План на сегодня", uz: "Bugungi reja" },
   wDebtsToCollect: { ru: "Долги к сбору у ваших магазинов", uz: "Do'konlaringizdan yig'iladigan qarz" },
+
+  /* ── Касса ───────────────────────────────────────────────────────────── */
+  wOnHand:        { ru: "На руках",             uz: "Qo'lda" },
+  wOverLimit:     { ru: "выше лимита",          uz: "limitdan yuqori" },
+  wTodayIn:       { ru: "Принято сегодня",      uz: "Bugun qabul qilindi" },
+  wMyDebt:        { ru: "Мой долг по кассе",    uz: "Kassa bo'yicha qarzim" },
+  wHandoverBy:    { ru: "Сдать в кассу до",     uz: "Kassaga topshirish muddati" },
+  wLastHandovers: { ru: "Последние сдачи",      uz: "Oxirgi topshirishlar" },
   wDeliveriesPlanned: { ru: "Доставок назначено", uz: "Yetkazish tayinlandi" },
 } satisfies Record<string, Pair>;
 
@@ -278,8 +288,8 @@ export const MENUS: Record<MenuGroup, Record<Lang, string[][]>> = {
     uz: [["📊 Hisobot", "🛒 Buyurtmalar"], ["⏳ Kutmoqda", "👥 Agentlar"], ["💰 Qarzlar", "📦 Qoldiq"], ["🚚 Yetkazish", "🏆 Top"], ["📍 Tashriflar", "❓ Yordam"]],
   },
   agent: {
-    ru: [["📍 Мой план", "🛒 Мои заказы"], ["💰 Долги", "📈 Мой результат"], ["📦 Остатки", "❓ Помощь"]],
-    uz: [["📍 Mening rejam", "🛒 Mening buyurtmalarim"], ["💰 Qarzlar", "📈 Mening natijam"], ["📦 Qoldiq", "❓ Yordam"]],
+    ru: [["📍 Мой план", "🛒 Мои заказы"], ["💰 Долги", "📈 Мой результат"], ["📦 Остатки", "💵 Касса"], ["❓ Помощь"]],
+    uz: [["📍 Mening rejam", "🛒 Mening buyurtmalarim"], ["💰 Qarzlar", "📈 Mening natijam"], ["📦 Qoldiq", "💵 Kassa"], ["❓ Yordam"]],
   },
   courier: {
     ru: [["🚚 Мои доставки", "💵 Касса"], ["❓ Помощь"]],
