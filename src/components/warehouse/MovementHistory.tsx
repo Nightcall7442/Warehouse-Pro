@@ -50,7 +50,7 @@ export function MovementHistory({ productId, productName }: { productId: number;
               {movements.map(m => {
                 const mt = MOVE_TYPE[m.type] ?? MOVE_TYPE.adjustment;
                 const Icon = mt.icon;
-                const doc = movementDocument(m.referenceType, m.referenceId, lang);
+                const doc = movementDocument(m.referenceType, m.referenceNumber, lang);
                 const note = movementNote(m.notes, lang);
                 return (
                   <div key={m.id} className="flex items-start gap-3 py-3 px-4 rounded-xl"

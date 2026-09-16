@@ -437,7 +437,7 @@ export function formatMovementsForExport(movements: Record<string, unknown>[], l
     "Дата":       toDate(m.createdAt)?.toLocaleDateString("ru-RU") ?? "",
     "Вид":        movementKind(m.type as string, lang),
     "Количество": formatQty(m.quantity as number),
-    "Документ":   movementDocument(m.referenceType as string, m.referenceId as number, lang),
+    "Документ":   movementDocument(m.referenceType as string, m.referenceNumber as string | null, lang),
     "Примечание": movementNote(m.notes as string, lang),
   }));
 }

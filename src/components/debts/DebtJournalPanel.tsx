@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useScrollTopOnChange } from "@/hooks/useScrollTopOnChange";
 import { Link } from "react-router";
 import { format } from "date-fns";
 import { ScrollText, FileDown, ChevronLeft, ChevronRight, Search } from "lucide-react";
@@ -71,6 +72,7 @@ export function DebtJournalPanel() {
   const [search, setSearch] = useState("");
   const [kind, setKind] = useState<Kind | "">("");
   const [page, setPage] = useState(1);
+  useScrollTopOnChange(page);
   const debouncedSearch = useDebouncedValue(search, 350);
 
   const { data, isLoading, isLoadingError, error, refetch } = trpc.shop.debtJournal.useQuery({

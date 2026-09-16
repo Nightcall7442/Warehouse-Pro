@@ -39,6 +39,7 @@ let plansTable: Array<Record<string, unknown>> = [];
 let usersTable: Array<Record<string, unknown>> = [];
 let shopsTable: Array<Record<string, unknown>> = [];
 let movementsTable: Array<Record<string, unknown>> = [];
+let ordersTable: Array<{ id: number; orderNumber: string }> = [];
 let productsTable: Array<Record<string, unknown>> = [];
 
 function resetTables() {
@@ -59,6 +60,7 @@ function resetTables() {
     { id: 2, tenantId: 1, name: "Бета", city: "Самарканд", address: "ул. 2" },
     { id: 9, tenantId: 2, name: "Чужой магазин", city: "Бухара", address: "ул. 9" },
   ];
+  ordersTable = [{ id: 7, orderNumber: "ORD-01007" }];
   movementsTable = [
     { id: 1, tenantId: 1, productId: 1, type: "in", quantity: "100.00", referenceType: "arrival", referenceId: 5, notes: null, createdAt: "2026-03-05 10:00:00" },
     { id: 2, tenantId: 1, productId: 1, type: "out", quantity: "20.00", referenceType: "order", referenceId: 7, notes: null, createdAt: "2026-03-06 12:00:00" },
@@ -177,7 +179,19 @@ function makeMockDb() {
                   const parts = ((def as any).strings as string[]).join("");
                   const vals = (def as any).values as unknown[];
                   const prefixVal = vals[3];
-                  if (typeof prefixVal === "string" && prefixVal.startsWith("/api/photos/")) {
+                  if (parts.includes("order_number FROM orders")) {
+                    /*
+                      Номер документа за движением (api/lib/movement-reference.ts):
+                      по типу ссылки — номер из своей таблицы. Стенд знает
+                      только заказы: приход и прочие здесь без номера, как
+                      и в живой базе, где такой строки нет.
+                    */
+                    const type = String(at(row, vals[0]) ?? "");
+                    const id = at(row, vals[1]);
+                    out[alias] = /^order(_delivery|_return|_edit)?$/.test(type)
+                      ? (ordersTable.find(o => String(o.id) === String(id))?.orderNumber ?? null)
+                      : null;
+                  } else if (typeof prefixVal === "string" && prefixVal.startsWith("/api/photos/")) {
                     const photo = at(row, vals[0]);
                     const prefix = prefixVal;
                     const id = at(row, vals[4]);
@@ -327,6 +341,8 @@ describe("reports.getStockMovements", () => {
 
     expect(rows).toHaveLength(1);
     expect(rows[0].referenceId).toBe(7);
+    // Номер — с накладной (ORD-01007), а не сквозной id строки: тот у другого арендатора выглядит чужим заказом.
+    expect(rows[0].referenceNumber).toBe("ORD-01007");
   });
 });
 
