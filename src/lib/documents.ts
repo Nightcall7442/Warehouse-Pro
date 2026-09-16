@@ -219,6 +219,42 @@ const GRID_STYLES = `
   }
 `;
 
+/*
+  Накладная — в двух экземплярах, и у каждого своя судьба.
+
+  Первый остаётся у покупателя: по нему магазин принимает товар и сверяет
+  цены. Второй покупатель подписывает и отдаёт обратно экспедитору — это
+  единственное доказательство, что товар отдан и на какую сумму; по нему
+  потом спорят о долге. Стояло «копия для складчика» и «копия для шофёра» —
+  оба экземпляра оставались у поставщика, а магазину не доставалось ничего,
+  и подписанной бумаги не возвращалось.
+
+  Оба экземпляра — на одном листе, с линией отреза между ними: накладная на
+  семь позиций занимает меньше половины А4, а печатают их по полсотни в день.
+  Если позиций много, второй экземпляр сам уйдёт на следующий лист.
+*/
+export const COPY_LABELS = [
+  "ЭКЗЕМПЛЯР 1 ИЗ 2 — ПОКУПАТЕЛЮ",
+  "ЭКЗЕМПЛЯР 2 ИЗ 2 — ВОЗВРАЩАЕТСЯ ПОСТАВЩИКУ С ПОДПИСЬЮ ПОКУПАТЕЛЯ",
+] as const;
+
+const CUT_LINE = `
+    <div class="cut-line" style="margin:5mm 0;border-top:1px dashed #999;position:relative">
+      <span style="position:absolute;top:-7px;left:0;background:#fff;padding-right:6px;font-size:8pt;color:#999">✂ линия отреза</span>
+    </div>`;
+
+function copyLabel(i: 0 | 1): string {
+  return `<div class="copy-label" style="text-align:center;font-size:10pt;font-weight:bold;margin-bottom:6px;padding:3px;background:#f0f0f0;border:1px solid #999">${COPY_LABELS[i]}</div>`;
+}
+
+/** Документ дважды на одном листе: экземпляр покупателю, отрез, экземпляр поставщику. */
+function twoCopies(body: string): string {
+  return `
+    <div style="page-break-inside:avoid">${copyLabel(0)}${body}</div>
+    ${CUT_LINE}
+    <div style="page-break-inside:avoid">${copyLabel(1)}${body}</div>`;
+}
+
 function openPrintWindow(html: string, title: string, customStyles?: string) {
   /*
     Заблокированное окно объясняется словами, а не печатает экран.
@@ -398,9 +434,8 @@ export function printUzWaybill(data: OrderDocData) {
       <td class="right">${item.total.toLocaleString("ru-RU")}</td>
     </tr>`).join("");
 
-  function buildCopy(label: string) {
+  function buildCopy() {
     return `
-      <div class="copy-label" style="text-align:center;font-size:12pt;font-weight:bold;margin-bottom:6px;padding:4px;background:#f0f0f0;border:1px solid #999">${label}</div>
       <table class="no-border" style="margin-bottom:8px">
         <tr>
           <td style="width:50%">
@@ -481,28 +516,8 @@ export function printUzWaybill(data: OrderDocData) {
     `;
   }
 
-  /*
-    Две копии на одном листе — как и написано в заголовке раздела.
-
-    Между копиями стоял разрыв страницы: на каждый заказ уходило два листа
-    вместо одного. Накладная на семь позиций занимает меньше половины А4, и
-    вторая половина уезжала в мусор. Дистрибьютор печатает их пачками по
-    полсотни в день.
-
-    Разрыва нет — есть линия отреза. Каждая копия целиком помещается на своей
-    половине (page-break-inside), и если позиций окажется много, вторая копия
-    сама перейдёт на следующий лист: это хуже, чем половина листа, но лучше,
-    чем разорванная посередине накладная.
-  */
-  const CUT_LINE = `
-    <div style="margin:6mm 0;border-top:1px dashed #999;position:relative">
-      <span style="position:absolute;top:-7px;left:0;background:#fff;padding-right:6px;font-size:8pt;color:#999">✂ линия отреза</span>
-    </div>`;
-
   const html = `
-    <div style="page-break-inside:avoid">${buildCopy("КОПИЯ ДЛЯ СКЛАДЧИКА")}</div>
-    ${CUT_LINE}
-    <div style="page-break-inside:avoid">${buildCopy("КОПИЯ ДЛЯ ШОФЁРА")}</div>
+    ${twoCopies(buildCopy())}
 
     ${docFooter(data.footerNote, "9pt", "#555")}
   `;
@@ -1255,9 +1270,15 @@ export function printBatchInvoices(orders: BatchOrderData[], opts: BatchPrintOpt
   else if (opts.sortBy === "territory") sorted.sort((a, b) => (a.territoryName ?? "").localeCompare(b.territoryName ?? ""));
   else sorted.sort((a, b) => a.orderNumber.localeCompare(b.orderNumber));
 
-  const pages = sorted.map(o => `<div class="invoice-container">${docType === "ttn" ? buildTTNInvoice(o, company, currency) : buildSingleInvoice(o, opts, company, currency)}</div>`);
-  const separator = opts.pageBreakPerOrder ? '<div style="page-break-before:always"></div>' : '<div style="margin-bottom:10mm"></div>';
-  const html = pages.join(separator);
+  /*
+    Заказ — лист. Два экземпляра одной накладной друг под другом, между ними
+    отрез; следующий заказ — с новой страницы. Сплошная лента тут невозможна:
+    экспедитор режет лист пополам у магазина, и половина от соседнего заказа
+    на том же листе ушла бы не в те руки. Настройка pageBreakPerOrder поэтому
+    больше не читается — разрыв обязателен.
+  */
+  const pages = sorted.map(o => `<div class="invoice-container">${twoCopies(docType === "ttn" ? buildTTNInvoice(o, company, currency) : buildSingleInvoice(o, opts, company, currency))}</div>`);
+  const html = pages.join('<div style="page-break-before:always"></div>');
 
   openPrintWindow(html, `Накладные — ${orders.length} заказ(ов)`, GRID_STYLES);
 }
@@ -1328,6 +1349,8 @@ function packBreakdown(item: { totalQty: string; packSize?: string | null; packL
 export type LoadingListData = {
   listId: number;
   listNumber: string;
+  /** Когда лист составлен; при повторной печати — не сегодняшняя дата. */
+  createdAt?: string | Date | null;
   /** Чья это отгрузка. Лист уходит на склад и водителю без обратного адреса. */
   companyName?: string;
   totalOrders: number;
@@ -1420,6 +1443,27 @@ function buildLoadingListAggregated(data: LoadingListData, currency: string): st
 
   const totalSum = data.orders.reduce((s, o) => s + Number(o.total), 0);
 
+  /*
+    Заказы листа — отдельной таблицей.
+
+    Лист печатал только сводку по товарам: что грузить. Куда везти, кому
+    звонить, сколько взять денег и какой у магазина долг — этого на бумаге не
+    было, хотя данные о заказах в лист приходят. Экспедитор ехал по памяти или
+    с телефоном в руке. Теперь склад собирает по верхней таблице, а водитель
+    едет по нижней: магазин, адрес, телефон, сумма, как платят, долг.
+  */
+  const orderRows = data.orders.map((o, i) => `
+    <tr>
+      <td class="center">${i + 1}</td>
+      <td class="bold">${escapeHtml(o.orderNumber)}</td>
+      <td>${escapeHtml(o.shopName ?? "—")}${o.agentName ? `<div style="font-size:7.5pt;color:#666">${escapeHtml(o.agentName)}</div>` : ""}</td>
+      <td style="font-size:8.5pt">${escapeHtml(joinParts(o.shopCity, o.shopAddress) || "—")}</td>
+      <td style="font-size:8.5pt">${escapeHtml(o.shopPhone ?? "—")}</td>
+      <td class="right bold">${Number(o.total).toLocaleString("ru-RU")}</td>
+      <td class="center">${PAYMENT_LABEL[o.paymentMethod] ?? escapeHtml(o.paymentMethod)}</td>
+      <td class="right">${Number(o.shopDebt) > 0 ? Number(o.shopDebt).toLocaleString("ru-RU") : "—"}</td>
+    </tr>`).join("");
+
   return `
     <div style="text-align:center;margin-bottom:10px">
       ${data.companyName ? `<div style="font-size:10pt;font-weight:600;color:#334155">${escapeHtml(data.companyName)}</div>` : ""}
@@ -1428,7 +1472,7 @@ function buildLoadingListAggregated(data: LoadingListData, currency: string): st
     </div>
     <table class="no-border" style="margin-bottom:12px;font-size:9pt">
       <tr>
-        <td>Дата: <b>${new Date().toLocaleDateString("ru-RU")}</b></td>
+        <td>Дата: <b>${listDate(data)}</b></td>
         <td>Заказов: <b>${data.totalOrders}</b></td>
         <td>Позиций: <b>${data.totalItems}</b></td>
         <td>Общий вес: <b>${cleanNum(data.totalWeight)} кг</b></td>
@@ -1455,11 +1499,46 @@ function buildLoadingListAggregated(data: LoadingListData, currency: string): st
       <b>Торговые агенты:</b>
       ${agentLines}
     </div>
+
+    <h3 style="margin-top:12px;font-size:11pt">ЗАКАЗЫ В ЛИСТЕ — ${data.orders.length}</h3>
+    <table style="font-size:9pt">
+      <thead>
+        <tr>
+          <th style="width:4%">№</th>
+          <th style="width:12%;text-align:left">Заказ</th>
+          <th style="text-align:left">Магазин</th>
+          <th style="text-align:left">Адрес</th>
+          <th style="width:12%">Телефон</th>
+          <th style="width:11%">Сумма, ${escapeHtml(currency)}</th>
+          <th style="width:9%">Оплата</th>
+          <th style="width:10%">Долг магазина</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${orderRows}
+        <tr>
+          <td colspan="5" class="right bold">Итого:</td>
+          <td class="right bold">${totalSum.toLocaleString("ru-RU")}</td>
+          <td></td>
+          <td class="right bold">${data.orders.reduce((s, o) => s + Number(o.shopDebt), 0).toLocaleString("ru-RU")}</td>
+        </tr>
+      </tbody>
+    </table>
+
     <div class="signature-block">
       <div class="sig-col"><div class="sig-label">Проверил кладовщик</div><div class="sig-line"></div></div>
       <div class="sig-col"><div class="sig-label">Отпустил</div><div class="sig-line"></div></div>
+      <div class="sig-col"><div class="sig-label">Принял экспедитор</div><div class="sig-line"></div></div>
       <div class="sig-col"><div class="sig-label">Дата</div><div class="sig-line"></div></div>
     </div>`;
+}
+
+/** Как платит магазин — словом на бумаге, а не кодом из базы. */
+const PAYMENT_LABEL: Record<string, string> = { cash: "Наличные", card: "Карта", transfer: "Перечисление", debt: "В долг" };
+
+function listDate(data: LoadingListData): string {
+  const d = data.createdAt ? new Date(data.createdAt) : new Date();
+  return (Number.isNaN(d.getTime()) ? new Date() : d).toLocaleDateString("ru-RU");
 }
 
 // Route/agent matrix — products × agents, with cash/debt/total money rows per agent
@@ -1537,7 +1616,7 @@ function buildLoadingListByRoute(data: LoadingListData, currency: string): strin
       <div style="font-size:11pt;color:#666">№ ${escapeHtml(data.listNumber)} — По маршрутам</div>
     </div>
     <table class="no-border" style="margin-bottom:10px;font-size:9pt">
-      <tr><td>Дата формирования:</td><td class="bold">${new Date().toLocaleDateString("ru-RU")}</td></tr>
+      <tr><td>Дата формирования:</td><td class="bold">${listDate(data)}</td></tr>
       <tr><td>Торговые представители:</td><td class="bold">${agents.map(a => escapeHtml(a.name)).join(", ")}</td></tr>
       <tr><td>Рабочие зоны:</td><td class="bold">${territories.length ? escapeHtml(territories.join(", ")) : "—"}</td></tr>
       <tr><td>Экспедиторы:</td><td class="bold">${couriers.length ? escapeHtml(couriers.join(", ")) : "—"}</td></tr>

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ClipboardList, Loader2, Trash2, ChevronRight, PackageCheck, Truck, ListChecks, AlertTriangle } from "lucide-react";
+import { ClipboardList, Loader2, Trash2, ChevronRight, PackageCheck, Truck, ListChecks, AlertTriangle, Printer } from "lucide-react";
 import { DecimalInput } from "@/components/ui/DecimalInput";
 import { unitShort } from "@/lib/units";
 import { PremiumSelect } from "@/components/PremiumSelect";
@@ -9,6 +9,8 @@ import { useLang } from "@/i18n";
 import { useConfirm } from "@/components/ConfirmDialog";
 import { AppModal } from "@/components/ui/AppModal";
 import { labelled, LOADING_LIST_STATUS_LABEL } from "@/lib/entity-labels";
+import { printLoadingList, type LoadingListData } from "@/lib/documents";
+import { useSellerCompany } from "@/hooks/useSellerCompany";
 
 /** «12.00» → «12», «1.50» → «1.5»: кладовщику незачем видеть хвост decimal. */
 const qty = (v: string | number | null | undefined) => String(Number(v ?? 0));
@@ -147,6 +149,28 @@ export function LoadingListsModal({ open, onOpenChange }: { open: boolean; onOpe
   const [picking, setPicking] = useState<number | null>(null);
 
   const { data, isLoading } = trpc.order.listLoadingLists.useQuery({ page: 1, pageSize: 50 }, { enabled: open });
+
+  /*
+    Печать из списка.
+
+    Лист печатался один раз — из окна создания. «Готово, без печати»,
+    заблокированное окно, кончившаяся бумага — и лист оставался без бумаги
+    навсегда: заказы держит, а напечатать нечем. Сводный формат — тот, за
+    которым приходят почти всегда; «по маршруту» остаётся в окне создания.
+  */
+  const { company: seller, currency } = useSellerCompany();
+  const [printing, setPrinting] = useState<number | null>(null);
+  const reprint = async (listId: number) => {
+    setPrinting(listId);
+    try {
+      const d = await utils.order.loadingListPrintData.fetch({ listId });
+      printLoadingList({ ...(d as LoadingListData), companyName: seller.name || undefined }, "aggregated", currency);
+    } catch (e) {
+      notify.error(e instanceof Error ? e.message : t("Не удалось подготовить лист", "Varaqani tayyorlab bo'lmadi"));
+    } finally {
+      setPrinting(null);
+    }
+  };
 
   const refresh = () => {
     utils.order.listLoadingLists.invalidate();
@@ -313,6 +337,19 @@ export function LoadingListsModal({ open, onOpenChange }: { open: boolean; onOpe
                   </div>
 
                   <div style={{ display: "flex", alignItems: "center", gap: "8px", flexShrink: 0 }}>
+                    <button
+                      className="neo-btn"
+                      disabled={printing === l.id}
+                      onClick={() => void reprint(l.id)}
+                      aria-label={t("Печать листа", "Varaqani chop etish")}
+                      title={t("Напечатать лист ещё раз", "Varaqani qayta chop etish")}
+                      data-testid={`list-print-${l.id}`}
+                      style={{ fontSize: "12px", padding: "8px 10px" }}
+                    >
+                      {printing === l.id
+                        ? <Loader2 size={13} style={{ animation: "spin 1s linear infinite" }} />
+                        : <Printer size={13} />}
+                    </button>
                     {/* «Готов» — только через сборку по строкам: кнопка статуса здесь уступает место сборке. */}
                     {l.status === "preparing" ? (
                       <button
