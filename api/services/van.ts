@@ -338,6 +338,23 @@ export const VanService = {
     return { id: result.id, orderNumber: result.number, total: result.total, paid: result.paid, idempotent: false as const };
   },
 
+  /**
+   * Магазины для продажи с машины. Водитель — часто курьер, а справочник
+   * магазинов открыт полевым продажам (fieldSalesQuery) без курьера; здесь —
+   * тот же справочник, но только тому, у кого есть машина.
+   */
+  async shops(db: Db, tenantId: number, actor: Actor, search?: string | null) {
+    const mine = await db.select({ id: warehouses.id }).from(warehouses)
+      .where(and(eq(warehouses.tenantId, tenantId), eq(warehouses.kind, "van"), ...(actor.role === "ceo" || actor.role === "operator" ? [] : [eq(warehouses.driverId, actor.id)]))).limit(1);
+    if (!mine.length) throw badRequest("У вас нет машины — директор назначает водителя в Настройках");
+    const q = search?.trim();
+    return db.select({ id: shops.id, name: shops.name, ownerName: shops.ownerName, debt: shops.debt, address: shops.address })
+      .from(shops)
+      .where(and(eq(shops.tenantId, tenantId), eq(shops.status, "active"),
+        ...(q ? [sql`(${shops.name} LIKE ${`%${q.replace(/[%_\\]/g, "")}%`} OR ${shops.ownerName} LIKE ${`%${q.replace(/[%_\\]/g, "")}%`})`] : [])))
+      .orderBy(shops.name).limit(300);
+  },
+
   /** Заказы с машин за срок — для списка и сверки. */
   async sales(db: Db, tenantId: number, input: { vanId?: number; from: Date; to: Date }) {
     return db.select({ id: orders.id, orderNumber: orders.orderNumber, shopName: shops.name, total: orders.total, paymentMethod: orders.paymentMethod, deliveredAt: orders.deliveredAt, vanName: warehouses.name })
