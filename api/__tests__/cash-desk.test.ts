@@ -17,7 +17,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import {
-  balancesOf, ledgerSum, handoverPostings, documentHash, verifyChain, holderAccount, ACCOUNT, tashkentDay,
+  balancesOf, ledgerSum, handoverPostings, documentHash, verifyChain, holderAccount, ACCOUNT, tashkentDay, wholeSecond,
 } from "../services/cash";
 
 const ROOT = join(__dirname, "..", "..");
@@ -104,6 +104,16 @@ describe("цепочка хэшей", () => {
     const rows = chain();
     rows.splice(1, 1);
     expect(verifyChain(rows)).toEqual({ ok: false, brokenAt: 3 });
+  });
+
+  it("доли секунды в хэш не входят: TIMESTAMP в базе их не хранит, а округляет вверх", () => {
+    const d = { ...base, number: 1, amount: "1000.00" };
+    const t = Date.UTC(2026, 8, 16, 10, 0, 0);
+    expect(documentHash(null, { ...d, createdAt: new Date(t + 999) })).toBe(documentHash(null, { ...d, createdAt: new Date(t) }));
+    expect(wholeSecond(new Date(t + 999)).toISOString()).toBe("2026-09-16T10:00:00.000Z");
+    // Пишем в базу то же срезанное время — иначе округление MySQL уведёт строку на секунду вперёд.
+    const svc = read("api/services/cash.ts");
+    expect(svc).toMatch(/const now = wholeSecond\(at\);/);
   });
 
   it("день считается по Ташкенту", () => {

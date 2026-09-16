@@ -105,13 +105,21 @@ export function handoverPostings(userId: number, expected: number, actual: numbe
   return { main, extra, discrepancy };
 }
 
+/**
+ * Колонка created_at — TIMESTAMP без долей секунды, и MySQL округляет доли
+ * ВВЕРХ. Хэш от времени с миллисекундами не сойдётся с тем, что прочитано из
+ * базы: документ считался бы подменённым сразу после записи. Поэтому и хэш,
+ * и запись берут время, срезанное до целой секунды.
+ */
+export const wholeSecond = (d: Date): Date => new Date(Math.floor(d.getTime() / 1000) * 1000);
+
 /** Хэш документа — от предыдущего и от всего, что в нём считается. */
 export function documentHash(prevHash: string | null, d: {
   tenantId: number; kind: string; year: number; number: number; debit: string; credit: string;
   amount: string; fromUserId: number | null; toUserId: number | null; createdBy: number; createdAt: Date;
 }): string {
   const payload = [prevHash ?? "", d.tenantId, d.kind, d.year, d.number, d.debit, d.credit, d.amount,
-    d.fromUserId ?? "", d.toUserId ?? "", d.createdBy, d.createdAt.toISOString()].join("|");
+    d.fromUserId ?? "", d.toUserId ?? "", d.createdBy, wholeSecond(d.createdAt).toISOString()].join("|");
   return createHash("sha256").update(payload).digest("hex");
 }
 
@@ -191,8 +199,9 @@ interface NewDoc {
  * транзакции, последний документ организации берётся под замок — два
  * кассира не получат один номер и не порвут цепочку.
  */
-async function postDocument(tx: Tx, tenantId: number, createdBy: number, d: NewDoc, now: Date): Promise<number> {
+async function postDocument(tx: Tx, tenantId: number, createdBy: number, d: NewDoc, at: Date): Promise<number> {
   if (!(d.posting.amount > 0)) throw badRequest("Сумма документа должна быть больше нуля");
+  const now = wholeSecond(at);
   await assertDayOpen(tx, tenantId, now);
 
   const [last] = await tx.select({ hash: cashDocuments.hash })
