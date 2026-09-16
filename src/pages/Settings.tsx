@@ -11,6 +11,7 @@ import { CompanySettings } from "@/components/settings/CompanySettings";
 import { WarehouseSettings } from "@/components/settings/WarehouseSettings";
 import { VanSettings } from "@/components/settings/VanSettings";
 import { TareSettings } from "@/components/settings/TareSettings";
+import { ControlSettings } from "@/components/settings/ControlSettings";
 import { PriceListSettings } from "@/components/settings/PriceListSettings";
 import { ApiKeySettings } from "@/components/settings/ApiKeySettings";
 import { TelegramSettings } from "@/components/settings/TelegramSettings";
@@ -100,6 +101,13 @@ const SECTIONS: Section[] = [
     descRu: "Бутылки, ящики, кеги: у кого сколько и залог, если не вернут. Тара следует за товаром сама.",
     descUz: "Butilka, yashik, keg: kimda qancha va qaytarmasa — garov. Idish tovar ortidan o'zi yuradi.",
     Comp: TareSettings,
+  },
+  {
+    key: "control", Icon: ShieldCheck, roles: ["ceo"],
+    titleRu: "Контроль", titleUz: "Nazorat",
+    descRu: "Слово магазина по чеку и индекс риска по сотруднику: куда смотреть сначала.",
+    descUz: "Chek bo'yicha do'kon so'zi va xodim bo'yicha xavf indeksi: avval qayerga qarash.",
+    Comp: ControlSettings,
   },
   {
     /*

@@ -17,7 +17,7 @@ import { ru as dateRu } from "date-fns/locale";
 import {
   ArrowLeft, Printer, FileDown, CheckCircle2,
   ChevronDown, Truck, Trash2, Edit3, CreditCard,
-  Phone, Package, User, Clock, AlertTriangle, Store,
+  Phone, Package, User, Clock, AlertTriangle, Store, ShieldCheck, ShieldAlert,
 } from "lucide-react";
 import { useState, useCallback } from "react";
 import { PremiumSelect } from "@/components/PremiumSelect";
@@ -569,6 +569,19 @@ export default function OrderDetail() {
           deliveredAt={order.deliveredAt}
           canEdit={canSetPromise}
         />
+
+        {/* Слово магазина (контроль): по QR из чека магазин подтвердил или оспорил. */}
+        {(order.shopDisputedAt || order.shopConfirmedAt) && (
+          <div className="neo-card neo-card-static flex items-start gap-2" data-testid="shop-word"
+            style={{ borderRadius: "16px", padding: "10px 14px", fontSize: "13px", color: order.shopDisputedAt ? "var(--color-danger-text)" : "var(--color-success-text)" }}>
+            {order.shopDisputedAt ? <ShieldAlert size={16} style={{ flexShrink: 0, marginTop: 1 }} /> : <ShieldCheck size={16} style={{ flexShrink: 0, marginTop: 1 }} />}
+            <div>
+              <b>{order.shopDisputedAt ? (lang === "uz" ? "Do'kon yetkazishni rad etdi" : "Магазин оспорил доставку") : (lang === "uz" ? "Do'kon qabul qilganini tasdiqladi" : "Магазин подтвердил получение")}</b>
+              {" · "}{format(new Date(order.shopDisputedAt ?? order.shopConfirmedAt!), "dd.MM.yyyy HH:mm")}
+              {order.shopDisputedAt && order.shopDisputeNote && <div className="text-primary mt-1">«{order.shopDisputeNote}»</div>}
+            </div>
+          </div>
+        )}
 
         <Separator />
 

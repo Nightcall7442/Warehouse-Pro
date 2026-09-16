@@ -9,7 +9,7 @@ import {
   User, Package, Settings, AlertTriangle, Key,
   RefreshCw, Download,
   ShoppingCart, CreditCard, Store, Building2, Truck, ClipboardList,
-  Undo2, Printer, Tag, Database, Wallet, Boxes, Trash2, ClipboardCheck, Link2,
+  Undo2, Printer, Tag, Database, Wallet, Boxes, Trash2, ClipboardCheck, Link2, ShieldCheck,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { notify } from "@/lib/toast";
@@ -147,6 +147,10 @@ const ACTION_CONFIG: Record<string, { icon: LucideIcon; gradient: string }> = {
   "tare.product_set":                { icon: Boxes, gradient: PRIMARY },
   "tare.returned":                   { icon: Boxes, gradient: SUCCESS },
   "tare.charged":                    { icon: Boxes, gradient: DANGER },
+  "control.enabled":                 { icon: ShieldCheck, gradient: SUCCESS },
+  "control.disabled":                { icon: ShieldCheck, gradient: WARNING },
+  "control.shop_confirmed":          { icon: ShieldCheck, gradient: SUCCESS },
+  "control.shop_disputed":           { icon: ShieldCheck, gradient: DANGER },
   "stock_count.create":              { icon: ClipboardCheck, gradient: PRIMARY },
   "stock_count.apply":               { icon: ClipboardCheck, gradient: SUCCESS },
   "stock_count.cancel":              { icon: ClipboardCheck, gradient: DANGER },

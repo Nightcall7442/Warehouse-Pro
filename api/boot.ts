@@ -397,8 +397,16 @@ app.route("/api/photos", photos);
 app.get("/r/:token", async (c) => {
   const { receiptPage } = await import("./services/receipt");
   const { getDb } = await import("./queries/connection");
-  const r = await receiptPage(getDb(), c.req.param("token"));
+  const r = await receiptPage(getDb(), c.req.param("token"), c.req.query("e")?.slice(0, 200) ?? null);
   return c.html(r.html, r.status as 200 | 404);
+});
+// Слово магазина по чеку: «получил» / «не сходится» — форма с той же страницы (services/control.ts).
+app.post("/r/:token/word", async (c) => {
+  const { receiptWord } = await import("./services/receipt");
+  const { getDb } = await import("./queries/connection");
+  const body = await c.req.parseBody();
+  const r = await receiptWord(getDb(), c.req.param("token"), { action: String(body.action ?? ""), note: typeof body.note === "string" ? body.note : null });
+  return c.redirect(r.redirect, 303);
 });
 
 // ── Руководство дистрибьютора — за сессией и разрешением организации ─────────

@@ -146,6 +146,8 @@ export async function getById(db: Db, tenantId: number, orderId: number, viewer:
     // Почему заказ в «ожидает» — директору видно, что он подтверждает.
     holdReason: orders.holdReason,
     paymentMethod: orders.paymentMethod, invoicePrintedAt: orders.invoicePrintedAt,
+    // Слово магазина (контроль): подтвердил получение или оспорил — с заметкой.
+    shopConfirmedAt: orders.shopConfirmedAt, shopDisputedAt: orders.shopDisputedAt, shopDisputeNote: orders.shopDisputeNote,
   }).from(orders).where(and(eq(orders.id, orderId), eq(orders.tenantId, tenantId), isNull(orders.deletedAt), ...scope)).limit(1);
   if (!order) return null;
 
