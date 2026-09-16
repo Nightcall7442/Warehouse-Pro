@@ -6,7 +6,7 @@ import { compressImage, LOGO_LIMITS, FAVICON_LIMITS } from "@/lib/compress-image
 import { Upload, RotateCcw } from "lucide-react";
 import { QueryErrorFallback } from "@/components/QueryErrorFallback";
 import { colorMix } from "@/lib/color-mix";
-import { readableInk } from "@/lib/contrast";
+import { derivePalette, CARD, PREVIEW, type Theme } from "@/lib/brand-palette";
 import { FieldGroup, Field, FieldRow, SaveBar } from "./ui";
 
 /**
@@ -70,8 +70,9 @@ export function BrandingSettings() {
 
   if (!isLoading && branding && !form) {
     setForm({
-      primaryColor: branding.primaryColor ?? DEFAULTS.primaryColor,
-      secondaryColor: branding.secondaryColor ?? DEFAULTS.secondaryColor,
+      // Пусто — «цвет решает тема»; подставлять стандартный нельзя: он ушёл бы в базу как выбор.
+      primaryColor: branding.primaryColor ?? "",
+      secondaryColor: branding.secondaryColor ?? "",
       appName: branding.appName ?? DEFAULTS.appName,
       logoUrl: branding.logoUrl ?? "",
       faviconUrl: branding.faviconUrl ?? "",
@@ -83,6 +84,12 @@ export function BrandingSettings() {
     });
   }
 
+  /*
+    Вторичный цвет больше не выбирают: он выводится из основного (наведение
+    светлой темы) и уходит в базу только ради старых читателей поля. Пустой
+    основной — пустой вторичный: бренд снят целиком.
+  */
+  const withDerived = (f: typeof DEFAULTS) => ({ ...f, secondaryColor: f.primaryColor ? (derivePalette(f.primaryColor, "light")?.hover ?? "") : "" });
   const saveMutation = trpc.branding.update.useMutation({
     onSuccess: () => {
       utils.branding.get.invalidate();
@@ -118,23 +125,10 @@ export function BrandingSettings() {
   if (isLoading || !form) return <div className="h-48 bg-surface-light animate-pulse rounded-2xl" />;
 
   const p = form.primaryColor;
-  const s = form.secondaryColor;
   const set = (key: keyof typeof DEFAULTS) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setForm(v => v ? { ...v, [key]: e.target.value } : v);
-
-  const COLORS = [
-    { key: "primaryColor" as const,   label: t("Основной", "Asosiy"),    desc: t("Кнопки, ссылки, активные пункты меню", "Tugmalar, havolalar, faol menyu") },
-    { key: "secondaryColor" as const, label: t("Вторичный", "Ikkinchi"), desc: t("Наведение, градиенты, заголовки", "Hover, gradientlar, sarlavhalar") },
-    /*
-      Третьего цвета здесь не стало.
-
-      Он назывался «Акцент — уведомления и бейджи», сохранялся в базу и не
-      применялся НИГДЕ: ни одна переменная темы его не читала. Уведомления и
-      бейджи красятся смысловыми цветами — успех, предупреждение, отказ, — и
-      перекрашивать их под бренд нельзя: зелёное и красное там означают
-      разное, а не оформляют.
-    */
-  ];
+  const brand = p || DEFAULTS.primaryColor;
+  const PAL: Record<Theme, ReturnType<typeof derivePalette>> = { light: derivePalette(brand, "light"), dark: derivePalette(brand, "dark") };
 
   return (
     <div>
@@ -145,10 +139,10 @@ export function BrandingSettings() {
             <button type="button" onClick={() => logoRef.current?.click()}
               aria-label={t("Загрузить логотип", "Logotipni yuklash")}
               className="w-20 h-20 rounded-2xl flex items-center justify-center overflow-hidden"
-              style={{ border: `2px dashed ${colorMix(p, 25)}`, background: colorMix(p, 4) }}>
+              style={{ border: "2px dashed var(--color-primary-muted)", background: "var(--color-primary-subtle)" }}>
               {form.logoUrl
                 ? <img src={form.logoUrl} alt="" className="w-full h-full object-contain p-1" />
-                : <Upload size={20} style={{ color: p }} />}
+                : <Upload size={20} style={{ color: "var(--color-primary-text)" }} />}
             </button>
             <div>
               <button type="button" onClick={() => logoRef.current?.click()} className="neo-btn">
@@ -179,24 +173,17 @@ export function BrandingSettings() {
         </div>
       </FieldGroup>
 
-      {/* ── Цвета ─────────────────────────────────────────────────────────── */}
-      <FieldGroup title={t("Цвета", "Ranglar")}>
+      {/* ── Цвет ──────────────────────────────────────────────────────────── */}
+      <FieldGroup title={t("Фирменный цвет", "Firma rangi")}>
         <div className="flex items-start justify-between gap-4 flex-wrap mb-4 -mt-2">
           <p className="text-sm text-secondary max-w-prose">
-            {t("Этими цветами приложение показывается всем сотрудникам организации и на экране входа.",
-               "Bu ranglar bilan ilova barcha xodimlarga va kirish ekranida ko'rinadi.")}
+            {t("Один цвет — оттенок фирмы. Кнопки, ссылки, активные пункты меню и наведение приложение подбирает само, отдельно под светлую и тёмную тему: тон ваш, светлота — под фон.",
+               "Bitta rang — firma ohangi. Tugmalar, havolalar, faol menyu va hover ranglarini ilova o'zi tanlaydi — yorug' va qorong'i mavzu uchun alohida: ohang sizniki, yorqinlik — fonga mos.")}
           </p>
           {/*
-            Возврат к стандартным СНИМАЕТ цвет, а не вписывает светлый.
-
-            Кнопка ставила #5b6d8a и #4a5c78 — цвета СВЕТЛОЙ темы, — и они
-            уходили в базу как осознанный выбор арендатора. Дальше их
-            применяли к обеим темам сразу, и латунный акцент тёмной темы
-            пропадал у всех, кто хоть раз нажал «вернуть стандартные».
-
-            Пустое значение приложение понимает правильно: правило бренда
-            снимается, и цвет решает таблица стилей — у неё он объявлен и
-            для светлой темы, и для тёмной.
+            Возврат к стандартным СНИМАЕТ цвет, а не вписывает светлый: пустое
+            значение приложение понимает как «цвет решает таблица стилей» — у
+            неё он объявлен и для светлой темы, и для тёмной.
           */}
           <button type="button"
             onClick={() => setForm(f => f ? { ...f, primaryColor: "", secondaryColor: "" } : f)}
@@ -205,59 +192,65 @@ export function BrandingSettings() {
           </button>
         </div>
 
-        <div className="grid gap-5 grid-cols-1 xl:grid-cols-[minmax(320px,1fr)_minmax(260px,340px)]">
-          <div className="space-y-3">
-            {COLORS.map(c => (
-              <div key={c.key} className="flex items-center gap-4 p-3 rounded-xl"
-                style={{ background: "var(--color-surface-light)" }}>
-                {/* Поле выбора цвета не умеет быть пустым — без значения
-                    браузер показывает чёрный. Пустая форма показывает
-                    стандартный цвет, но в базу уходит пустота. */}
-                <input type="color" value={form[c.key] || DEFAULTS[c.key]} onChange={set(c.key)}
-                  aria-label={c.label}
-                  className="w-14 h-14 rounded-xl cursor-pointer flex-shrink-0"
-                  style={{ border: "1px solid var(--color-border)" }} />
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-primary">{c.label}</p>
-                  <p className="text-xs text-tertiary mt-0.5">{c.desc}</p>
-                </div>
-                {/* Один источник значения: раньше hex стоял и здесь, и в
-                    неизменяемом <code> слева — два разных вида одного и того же. */}
-                <input className="neo-input font-data w-28 text-center flex-shrink-0"
-                  aria-label={`${c.label} — HEX`}
-                  value={form[c.key]} onChange={set(c.key)} />
-              </div>
-            ))}
+        <div className="grid gap-5 grid-cols-1 xl:grid-cols-[minmax(280px,360px)_1fr]">
+          <div className="flex items-center gap-4 p-3 rounded-xl self-start" style={{ background: "var(--color-surface-light)" }}>
+            {/* Поле выбора цвета не умеет быть пустым — без значения браузер
+                показывает чёрный. Пустая форма показывает стандартный цвет,
+                но в базу уходит пустота. */}
+            <input type="color" value={brand} onChange={set("primaryColor")}
+              aria-label={t("Фирменный цвет", "Firma rangi")}
+              className="w-14 h-14 rounded-xl cursor-pointer flex-shrink-0"
+              style={{ border: "1px solid var(--color-border)" }} data-testid="brand-color" />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-primary">{t("Оттенок", "Ohang")}</p>
+              <p className="text-xs text-tertiary mt-0.5">{p ? t("Свой цвет", "O'z rangingiz") : t("Стандартный: цвет темы", "Standart: mavzu rangi")}</p>
+            </div>
+            <input className="neo-input font-data w-28 text-center flex-shrink-0"
+              aria-label={t("Фирменный цвет — HEX", "Firma rangi — HEX")}
+              value={form.primaryColor} onChange={set("primaryColor")} placeholder={DEFAULTS.primaryColor} />
           </div>
 
-          {/* Предпросмотр */}
-          <div className="rounded-2xl overflow-hidden self-start"
-            style={{ boxShadow: "var(--shadow-raised)", border: `1px solid ${colorMix(p, 13)}` }}>
-            <div className="px-4 py-3 flex items-center gap-3" style={{ background: `linear-gradient(135deg, ${p}, ${s})` }}>
-              {form.logoUrl
-                ? <img src={form.logoUrl} alt="" className="w-6 h-6 rounded object-contain bg-white/20 p-0.5" />
-                : <div className="w-6 h-6 rounded" style={{ background: colorMix(readableInk(p), 25) }} />}
-              <span className="text-sm font-semibold truncate" style={{ color: readableInk(p) }}>
-                {form.appName || "Warehouse Pro"}
-              </span>
-            </div>
-            <div className="p-4 space-y-3" style={{ background: "var(--color-surface)" }}>
-              <div className="flex gap-2">
-                <div className="flex-1 h-2 rounded-full" style={{ background: colorMix(p, 19) }} />
-                <div className="flex-1 h-2 rounded-full" style={{ background: "var(--color-border)" }} />
-              </div>
-              <div className="flex gap-3">
-                <button type="button" className="flex-1 h-9 rounded-xl text-xs font-semibold"
-                  style={{ background: `linear-gradient(135deg, ${p}, ${s})`, color: readableInk(p), boxShadow: "var(--shadow-sm)" }}>
-                  {t("Создать заказ", "Buyurtma yaratish")}
-                </button>
-                <button type="button" className="flex-1 h-9 rounded-xl text-xs font-semibold"
-                  style={{ border: `1px solid ${colorMix(p, 25)}`, color: p, background: colorMix(p, 4) }}>
-                  {t("Отмена", "Bekor qilish")}
-                </button>
-              </div>
-
-            </div>
+          {/* Предпросмотр: обе темы, настоящими производными цветами — то, что увидят сотрудники. */}
+          <div className="grid gap-3 grid-cols-[repeat(auto-fit,minmax(260px,1fr))]" data-testid="brand-preview">
+            {(["light", "dark"] as Theme[]).map(theme => {
+              const pal = PAL[theme];
+              if (!pal) return null;
+              const { bg, ink, sub } = PREVIEW[theme];
+              return (
+                <div key={theme} className="rounded-2xl overflow-hidden" style={{ background: bg, border: `1px solid ${colorMix(pal.primary, 18)}`, boxShadow: "var(--shadow-raised)" }}>
+                  <div className="px-4 py-2.5 flex items-center justify-between" style={{ background: CARD[theme], borderBottom: `1px solid ${colorMix(ink, 10)}` }}>
+                    <div className="flex items-center gap-2 min-w-0">
+                      {form.logoUrl
+                        ? <img src={form.logoUrl} alt="" className="w-5 h-5 rounded object-contain" />
+                        : <div className="w-5 h-5 rounded" style={{ background: pal.primary }} />}
+                      <span className="text-sm font-semibold truncate" style={{ color: ink }}>{form.appName || "Warehouse Pro"}</span>
+                    </div>
+                    <span style={{ fontSize: "10px", letterSpacing: "0.08em", textTransform: "uppercase", color: sub }}>{theme === "light" ? t("Светлая", "Yorug'") : t("Тёмная", "Qorong'i")}</span>
+                  </div>
+                  <div className="p-4 space-y-3">
+                    <div className="flex items-center gap-2">
+                      <span className="px-2.5 py-1 rounded-lg text-xs font-semibold" style={{ background: pal.subtle, color: pal.text }}>{t("Заказы", "Buyurtmalar")}</span>
+                      <span className="px-2.5 py-1 rounded-lg text-xs" style={{ color: sub }}>{t("Склад", "Ombor")}</span>
+                      <span className="px-2.5 py-1 rounded-lg text-xs" style={{ color: sub }}>{t("Касса", "Kassa")}</span>
+                    </div>
+                    <div className="rounded-xl p-3" style={{ background: CARD[theme] }}>
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-semibold" style={{ color: ink }}>{t("Магазин «Альфа»", "«Alfa» do'koni")}</span>
+                        <span className="text-xs font-semibold" style={{ color: pal.text }}>{t("Директор", "Direktor")}</span>
+                      </div>
+                      <p className="text-xs mt-1" style={{ color: sub }}>{t("Долг 1 250 000 · ", "Qarz 1 250 000 · ")}<span style={{ color: pal.text, textDecoration: "underline" }}>{t("акт сверки", "solishtirish dalolatnomasi")}</span></p>
+                    </div>
+                    <div className="flex gap-2">
+                      <button type="button" className="flex-1 h-9 rounded-xl text-xs font-semibold" style={{ background: pal.primary, color: pal.onPrimary }}>{t("Создать заказ", "Buyurtma yaratish")}</button>
+                      <button type="button" className="flex-1 h-9 rounded-xl text-xs font-semibold" style={{ border: `1px solid ${pal.muted}`, color: pal.text, background: pal.subtle }}>{t("Отмена", "Bekor qilish")}</button>
+                    </div>
+                    <div className="flex gap-1.5" aria-hidden>
+                      {[pal.primary, pal.hover, pal.active, pal.text, pal.muted].map((c, i) => <div key={i} className="h-3 flex-1 rounded-full" style={{ background: c }} title={c} />)}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
       </FieldGroup>
@@ -293,7 +286,7 @@ export function BrandingSettings() {
       </FieldGroup>
 
       <SaveBar
-        onSave={() => saveMutation.mutate(form)}
+        onSave={() => saveMutation.mutate(withDerived(form))}
         isPending={saveMutation.isPending}
         label={t("Сохранить", "Saqlash")}
         hint={t("Изменения увидят все сотрудники организации", "O'zgarishlarni tashkilotning barcha xodimlari ko'radi")}

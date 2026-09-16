@@ -42,6 +42,8 @@ const ALLOWED = [
   path.join("src", "lib", "documents.ts"),
   path.join("src", "lib", "print.ts"),
   path.join("src", "components", "landing", "landing-tokens.ts"),
+  // Цветовая математика бренда: фон карточек обеих тем нужен числом — из него считается контраст.
+  path.join("src", "lib", "brand-palette.ts"),
 ];
 
 /** #abc, #aabbcc, #aabbccdd, rgb(…), rgba(…) — всё, что задаёт цвет числом. */
@@ -80,7 +82,7 @@ function countColours(): { total: number; byFile: Array<[string, number]> } {
  * 1007 — 14.09.2026, лендинг: нарисованная карта (CityMap) удалена, цвета сцены
  * и оправ телефона объявлены токенами в landing-tokens.ts.
  */
-const BASELINE = 1005;
+const BASELINE = 1003;
 
 describe("цвет числом", () => {
   const { total, byFile } = countColours();

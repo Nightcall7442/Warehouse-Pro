@@ -1,14 +1,7 @@
 import { useEffect } from "react";
 import { trpc } from "@/providers/trpc";
 import { rememberBrand } from "@/lib/remembered-brand";
-import { readableInk, readableOn } from "@/lib/contrast";
-
-function hexToRgba(hex: string, alpha: number): string {
-  const r = parseInt(hex.slice(1, 3), 16);
-  const g = parseInt(hex.slice(3, 5), 16);
-  const b = parseInt(hex.slice(5, 7), 16);
-  return `rgba(${r},${g},${b},${alpha})`;
-}
+import { derivePalette, type Theme } from "@/lib/brand-palette";
 
 // Токены shadcn/ui хранят цвет разложенным на тон, насыщенность и светлоту.
 function hexToHsl(hex: string): string {
@@ -28,17 +21,6 @@ function hexToHsl(hex: string): string {
   return `${Math.round(h * 360)} ${Math.round(s * 100)}% ${Math.round(l * 100)}%`;
 }
 
-/*
-  Фон карточки в каждой теме — из index.css (--color-surface).
-
-  Он нужен, чтобы посчитать, каким должен быть АКЦЕНТНЫЙ ТЕКСТ: у него своя
-  переменная, и её значение зависит от того, на чём этот текст лежит. Читать
-  его во время работы нельзя: переменная в этот момент как раз и задаётся, а в
-  другой теме её значение вообще не применено к документу.
-*/
-const LIGHT_CARD = "#efedea";
-const DARK_CARD  = "#221f1c";
-
 const STYLE_ID = "tenant-brand-vars";
 
 /**
@@ -55,27 +37,28 @@ const STYLE_ID = "tenant-brand-vars";
  * Правило в таблице стоит на своём месте в порядке применения: светлая тема
  * берёт :root, тёмная — :root.dark, и оба блока пишутся здесь одним куском.
  */
-function brandCss(primary: string, secondary: string): string {
-  const ink = readableInk(primary);
-
-  const vars = (accentText: string) => [
-    `--color-primary: ${primary};`,
-    `--color-primary-hover: ${secondary};`,
-    `--color-primary-subtle: ${hexToRgba(primary, 0.10)};`,
-    `--color-primary-muted: ${hexToRgba(primary, 0.50)};`,
-    // Надпись НА заливке. Здесь она не переопределялась вовсе: у светлой темы
-    // это белый, и на светло-жёлтой кнопке арендатора надпись пропадала.
-    `--color-on-primary: ${ink};`,
-    `--color-primary-text: ${accentText};`,
-    `--primary: ${hexToHsl(primary)};`,
-    `--primary-foreground: ${hexToHsl(ink)};`,
-    `--ring: ${hexToHsl(primary)};`,
-  ].join(" ");
-
-  return [
-    `:root { ${vars(readableOn(LIGHT_CARD, primary))} }`,
-    `:root.dark { ${vars(readableOn(DARK_CARD, primary))} }`,
-  ].join("\n");
+/*
+  Из одного цвета арендатора — своя палитра на каждую тему (lib/brand-palette):
+  тон его, светлота и насыщенность — под тему. Второй цвет «на наведение»
+  больше не спрашивается: наведение — шаг светлоты того же тона.
+*/
+export function brandCss(primary: string): string {
+  const vars = (theme: Theme) => {
+    const p = derivePalette(primary, theme);
+    if (!p) return "";
+    return [
+      `--color-primary: ${p.primary};`,
+      `--color-primary-hover: ${p.hover};`,
+      `--color-primary-subtle: ${p.subtle};`,
+      `--color-primary-muted: ${p.muted};`,
+      `--color-on-primary: ${p.onPrimary};`,
+      `--color-primary-text: ${p.text};`,
+      `--primary: ${hexToHsl(p.primary)};`,
+      `--primary-foreground: ${hexToHsl(p.onPrimary)};`,
+      `--ring: ${hexToHsl(p.primary)};`,
+    ].join(" ");
+  };
+  return [`:root { ${vars("light")} }`, `:root.dark { ${vars("dark")} }`].join("\n");
 }
 
 /**
@@ -106,7 +89,7 @@ export function useBranding() {
 
     if (primary) {
       const el = existing ?? Object.assign(document.createElement("style"), { id: STYLE_ID });
-      el.textContent = brandCss(primary, branding.secondaryColor ?? primary);
+      el.textContent = brandCss(primary);
       if (!existing) document.head.appendChild(el);
     } else {
       existing?.remove();

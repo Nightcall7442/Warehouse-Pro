@@ -154,22 +154,20 @@ describe("разделы настроек отрисовываются", () => {
     expect(screen.getByLabelText("МФО")).toBeTruthy();
   });
 
-  it("брендинг — два цвета, у каждого одно поле значения", () => {
+  it("брендинг — один цвет, палитра из него, предпросмотр обеих тем", () => {
     /*
-      Цветов два, а был третий — «Акцент». Он сохранялся в базу и не
-      применялся ни к одной переменной темы: арендатор выбирал цвет,
-      жал «Сохранить» и не видел никакой разницы. Настройка, которая
-      ничего не меняет, хуже отсутствующей.
+      Цвет один. Было два («Основной» и «Вторичный» на наведение) и когда-то
+      три: выбранные руками, они спорили друг с другом и с темой. Теперь
+      наведение, текст и подложка считаются из одного оттенка под тему.
     */
     show(<BrandingSettings />);
 
-    for (const label of ["Основной", "Вторичный"]) {
-      expect(screen.getByLabelText(label)).toBeTruthy();
-      expect(screen.getByLabelText(`${label} — HEX`)).toBeTruthy();
-    }
-    expect(screen.queryByLabelText("Акцент"), "цвет, который ничего не красит, вернулся в форму").toBeNull();
-    // Раньше hex выводился в строке дважды — полем и неизменяемым <code>.
-    expect(screen.getAllByDisplayValue("#5b6d8a").length).toBe(2); // выбор цвета + поле
+    expect(screen.getByLabelText("Фирменный цвет")).toBeTruthy();
+    expect(screen.getByLabelText("Фирменный цвет — HEX")).toBeTruthy();
+    for (const gone of ["Основной", "Вторичный", "Акцент"]) expect(screen.queryByLabelText(gone), `${gone}: второй цвет вернулся в форму`).toBeNull();
+    // Свой цвет: один источник значения — выбор цвета и поле HEX показывают одно и то же.
+    expect(screen.getAllByDisplayValue("#5b6d8a").length).toBe(2);
+    expect(screen.getByTestId("brand-preview").querySelectorAll("button").length).toBe(4); // две темы × две кнопки
   });
 
   it("склады — список и кнопки с доступными именами", () => {
