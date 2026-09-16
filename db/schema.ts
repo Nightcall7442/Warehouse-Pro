@@ -378,6 +378,12 @@ export const orders = mysqlTable("orders", {
   invoicePrintedAt: timestamp("invoice_printed_at"),
   deliveryResult: varchar("delivery_result", { length: 30 }), // paid, partial_paid, returned, partial_returned
   deliveryNotes:  text("delivery_notes"),
+  /*
+    Продажа с машины: склад-машина, с которой ушёл товар. Пусто у обычных
+    заказов — их путь (резерв → доставка) идёт через основной склад.
+    Заказ с машины рождается доставленным и в работу не возвращается.
+  */
+  warehouseId: bigint("warehouse_id", { mode: "number", unsigned: true }).references(() => warehouses.id, { onDelete: "set null" }),
   priority:    mysqlEnum("priority", ["low", "normal", "high"]).default("normal").notNull(),
   deletedAt:   timestamp("deleted_at"),
   createdAt:   timestamp("created_at").defaultNow().notNull(),
@@ -544,6 +550,15 @@ export const warehouses = mysqlTable("warehouses", {
   city:        varchar("city", { length: 100 }),
   isDefault:   boolean("is_default").default(false).notNull(),
   status:      varchar("status", { length: 20 }).default("active").notNull(),
+  /*
+    Ван-селлинг: машина — это склад. Товар грузится в неё перемещением
+    (под PIN водителя), продаётся с неё «с колёс» и возвращается на склад
+    тем же перемещением. Что не продано и не вернулось — недостача водителя.
+    Обычный склад: kind = warehouse, водителя и номера нет.
+  */
+  kind:        mysqlEnum("kind", ["warehouse", "van"]).default("warehouse").notNull(),
+  driverId:    bigint("driver_id", { mode: "number", unsigned: true }).references(() => users.id, { onDelete: "set null" }),
+  plate:       varchar("plate", { length: 20 }),
   createdAt:   timestamp("created_at").defaultNow().notNull(),
   updatedAt:   timestamp("updated_at").defaultNow().notNull().$onUpdate(() => new Date()),
 }, (t) => ({
@@ -568,6 +583,9 @@ export const stockTransfers = mysqlTable("stock_transfers", {
   createdBy:     bigint("created_by", { mode: "number", unsigned: true }).references(() => users.id, { onDelete: "restrict" }),
   createdAt:     timestamp("created_at").defaultNow().notNull(),
   completedAt:   timestamp("completed_at"),
+  /** Кто принял товар и когда: загрузка машины подтверждается PIN водителя — это его подпись под количеством. */
+  acceptedBy:    bigint("accepted_by", { mode: "number", unsigned: true }).references(() => users.id, { onDelete: "set null" }),
+  acceptedAt:    timestamp("accepted_at"),
 }, (t) => ({
   tenantIdx:   index("idx_transfers_tenant").on(t.tenantId),
   fromIdx:     index("idx_transfers_from").on(t.fromWarehouseId),
@@ -1432,6 +1450,8 @@ export const settings = mysqlTable("settings", {
    * По умолчанию — день, когда касса появилась в продукте.
    */
   cashStartDay:        date("cash_start_day", { mode: "string" }).default("2026-09-16").notNull(),
+  /** Ван-селлинг включён (тарифы Pro и Exclusive; пробный — всё). */
+  vanSellingEnabled:   boolean("van_selling_enabled").default(false).notNull(),
   createdAt:           timestamp("created_at").defaultNow().notNull(),
   updatedAt:           timestamp("updated_at").defaultNow().notNull().$onUpdate(() => new Date()),
 });

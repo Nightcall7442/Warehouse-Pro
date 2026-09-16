@@ -2,9 +2,10 @@ import { z } from "zod";
 import { createRouter, adminQuery, authedQuery, operatorQuery, can } from "./middleware";
 import { getDb } from "./queries/connection";
 import { warehouses, warehouseStock, stockTransfers, products } from "@db/schema";
-import { eq, and, sql, desc, inArray } from "drizzle-orm";
+import { eq, and, sql, desc } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { applyStockEffect, receiveStock } from "./services/stock-ledger";
+import { transferStock } from "./services/stock-transfer";
 import { recordAudit, auditActor } from "./services/audit-log";
 
 export const warehouseMultiRouter = createRouter({
@@ -179,93 +180,7 @@ export const warehouseMultiRouter = createRouter({
       })).min(1).max(200),
       notes: z.string().max(500).optional(),
     }))
-    .mutation(async ({ input, ctx }) => {
-      const db = getDb();
-
-      if (input.fromWarehouseId === input.toWarehouseId) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: "Нельзя перемещать товар на тот же склад" });
-      }
-      // Одна позиция — одна строка: повтор товара в документе сложил бы его дважды.
-      const seen = new Set<number>();
-      for (const it of input.items) {
-        if (seen.has(it.productId)) throw new TRPCError({ code: "BAD_REQUEST", message: "Товар повторяется в документе" });
-        seen.add(it.productId);
-      }
-
-      // Оба склада — свои. Чужой склад-получатель раньше не проверялся вовсе,
-      // и строка остатка заводилась с номером чужого склада.
-      const ownedWarehouses = await db.select({ id: warehouses.id, name: warehouses.name }).from(warehouses)
-        .where(and(eq(warehouses.tenantId, ctx.tenant.id), inArray(warehouses.id, [input.fromWarehouseId, input.toWarehouseId])));
-      const byId = new Map(ownedWarehouses.map(w => [w.id, w.name]));
-      if (!byId.has(input.fromWarehouseId) || !byId.has(input.toWarehouseId)) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: "Склад не найден" });
-      }
-
-      return db.transaction(async (tx) => {
-        const ids: number[] = [];
-        let total = 0;
-        for (const it of input.items) {
-          // Строка источника — под замком: два одновременных документа не
-          // спишут одно и то же дважды.
-          const [sourceStock] = await tx.select()
-            .from(warehouseStock)
-            .where(and(
-              eq(warehouseStock.tenantId, ctx.tenant.id),
-              eq(warehouseStock.warehouseId, input.fromWarehouseId),
-              eq(warehouseStock.productId, it.productId),
-            ))
-            .for("update")
-            .limit(1);
-          if (!sourceStock || Number(sourceStock.available) < it.quantity) {
-            const [p] = await tx.select({ name: products.name }).from(products)
-              .where(and(eq(products.id, it.productId), eq(products.tenantId, ctx.tenant.id))).limit(1);
-            throw new TRPCError({ code: "BAD_REQUEST", message: `Недостаточно товара на складе отправителе: ${p?.name ?? it.productId}` });
-          }
-
-          const [result] = await tx.insert(stockTransfers).values({
-            tenantId: ctx.tenant.id,
-            fromWarehouseId: input.fromWarehouseId,
-            toWarehouseId: input.toWarehouseId,
-            productId: it.productId,
-            quantity: String(it.quantity),
-            status: "completed",
-            completedAt: new Date(),
-            notes: input.notes,
-            createdBy: ctx.user.id,
-          });
-          const transferId = Number(result.insertId);
-          ids.push(transferId);
-          total += it.quantity;
-
-          /*
-            Одно физическое перемещение — две записи через дверь: ушло с одного
-            склада (с партий по FEFO), пришло на другой.
-            ponytail: партия на приёмной стороне не переносится — товар ложится
-            без срока; переносить партии, когда склады начнут отчитываться по
-            срокам порознь.
-          */
-          await applyStockEffect(tx, {
-            tenantId: ctx.tenant.id, warehouseId: input.fromWarehouseId,
-            items: [{ productId: it.productId, quantity: String(it.quantity) }],
-            shift: { onHand: -1, held: 0 }, reason: "transfer_out", referenceId: transferId,
-            notes: `Перемещение на склад «${byId.get(input.toWarehouseId)}»`,
-          });
-          await receiveStock(tx, {
-            tenantId: ctx.tenant.id, warehouseId: input.toWarehouseId,
-            productId: it.productId, quantity: String(it.quantity),
-            reason: "transfer_in", referenceId: transferId,
-            notes: `Перемещение со склада «${byId.get(input.fromWarehouseId)}»`,
-          });
-        }
-
-        await recordAudit(tx as unknown as typeof db, {
-          ...auditActor(ctx), action: "stock.transfer_completed", targetType: "stock_transfer", targetId: ids[0],
-          meta: { fromWarehouse: byId.get(input.fromWarehouseId), toWarehouse: byId.get(input.toWarehouseId), items: input.items.length, quantity: total, notes: input.notes },
-        }, { strict: true });
-
-        return { ids, count: ids.length };
-      });
-    }),
+    .mutation(({ input, ctx }) => transferStock(getDb(), ctx.tenant.id, { id: ctx.user.id, name: ctx.user.name, role: ctx.user.role }, input)),
 
   /** Complete a stock transfer */
   completeTransfer: adminQuery

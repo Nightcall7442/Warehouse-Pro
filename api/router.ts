@@ -36,6 +36,7 @@ import { salesTargetRouter } from "./sales-target-router";
 import { commissionRouter } from "./commission-router";
 import { returnsRouter } from "./returns-router";
 import { cashRouter } from "./cash-router";
+import { vanRouter } from "./van-router";
 import { priceListRouter } from "./price-list-router";
 import { kpiRouter } from "./kpi-router";
 import { scheduleRouter } from "./schedule-router";
@@ -86,6 +87,7 @@ export const appRouter = createRouter({
   commission:   commissionRouter,
   returns:      returnsRouter,
   cash:         cashRouter,
+  van:          vanRouter,
   priceList:    priceListRouter,
   kpi:          kpiRouter,
   schedule:     scheduleRouter,

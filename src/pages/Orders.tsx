@@ -39,6 +39,7 @@ import { OrderSlideOver } from "@/components/orders/OrderSlideOver";
 import { OrderKanbanBoard } from "@/components/orders/OrderKanbanBoard";
 import { OrderAgentGroups } from "@/components/orders/OrderAgentGroups";
 import { QuickOrderModal } from "@/components/orders/QuickOrderModal";
+import { VanSaleModal } from "@/components/orders/VanSaleModal";
 import { CompletionFlowModal } from "@/components/orders/CompletionFlowModal";
 import { BulkCompletionModal } from "@/components/orders/BulkCompletionModal";
 import type { BulkEntry } from "@/components/orders/BulkCompletionModal";
@@ -146,6 +147,9 @@ function OperatorOrders() {
   const [showLoadingLists, setShowLoadingLists] = useState(false);
   // ?new=1 — с кнопки «Новый заказ» на главной: окно открыто сразу.
   const [showQuickOrder, setShowQuickOrder] = useState(searchParams.get("new") === "1");
+  // Ван-селлинг: «С машины» — только когда включён; окно своё, не мастер заказа.
+  const [showVanSale, setShowVanSale] = useState(false);
+  const vanStatus = trpc.van.status.useQuery();
   const setQuickOrderOpen = (open: boolean) => {
     setShowQuickOrder(open);
     // Закрыли — параметр уходит из адреса, иначе обновление страницы откроет окно снова.
@@ -509,7 +513,9 @@ function OperatorOrders() {
       case "orderNumber":
         return (
           <span className="flex items-center gap-1" style={{ fontFamily: F.display, fontWeight: 600, color: COLORS.primaryText }}>
-            {o.orderNumber} <Eye className="h-3 w-3 opacity-0 group-hover:opacity-50" />
+            {o.orderNumber}
+            {o.warehouseId != null && <Truck size={12} aria-label={t("с машины", "mashinadan")} style={{ color: COLORS.textTertiary }} />}
+            <Eye className="h-3 w-3 opacity-0 group-hover:opacity-50" />
           </span>
         );
       case "createdAt":
@@ -724,6 +730,12 @@ function OperatorOrders() {
             <ClipboardList size={15} />
             <span>{t("Погрузочные листы", "Yuklash varaqalari")}</span>
           </button>
+          {vanStatus.data?.enabled && (
+            <button onClick={() => setShowVanSale(true)} className="neo-btn neo-btn-sm" data-testid="orders-van-sale">
+              <Truck size={15} />
+              <span>{t("С машины", "Mashinadan")}</span>
+            </button>
+          )}
           <button onClick={() => setShowQuickOrder(true)} className="neo-btn-primary neo-btn-sm">
             <Plus size={16} />
             <span>{t("Новый заказ", "Yangi buyurtma")}</span>
@@ -1260,6 +1272,8 @@ function OperatorOrders() {
       orderId={slideOverOrderId}
       currency={symbol}
     />
+
+    {showVanSale && <VanSaleModal open onClose={() => setShowVanSale(false)} />}
 
     {/* ── Quick Order Modal ── */}
     <QuickOrderModal
