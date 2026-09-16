@@ -59,6 +59,9 @@ beforeEach(() => {
     observe() {} unobserve() {} disconnect() {} takeRecords() { return []; }
     root = null; rootMargin = ""; thresholds = [];
   });
+  // Плёнка «от заказа до денег» рисует на холсте; jsdom холста не знает и
+  // ругается в консоль. Под холстом лежит картинка — проверяется разметка.
+  vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(null);
 });
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 
