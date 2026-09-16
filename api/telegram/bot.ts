@@ -6,10 +6,13 @@ import { env } from "../lib/env";
 import { logger } from "../lib/logger";
 import { safeEqual } from "../lib/safe-compare";
 import { checkRateLimit } from "../lib/rate-limit";
-import { sendTelegram, tgEscape } from "../lib/telegram";
+import { sendTelegram, tgEscape, answerCallback } from "../lib/telegram";
 import { readLinkToken, readGroupToken } from "./link-token";
-import { T, MENU, detectIntent, type Lang } from "./texts";
-import { answerStock, answerOrders, answerSummary, answerTop, answerDebts, answerSearch, answerStaff, answerPlans } from "./answers";
+import { T, MENUS, menuGroup, detectIntent, detectPeriod, type Lang, type Period, type Intent } from "./texts";
+import {
+  answerStock, answerOrders, answerPending, answerAgents, answerSummary, answerTop, answerDebts, answerDeliveries,
+  answerCash, answerSearch, answerStaff, answerPlans, currencyOf, type Scope, type Reply,
+} from "./answers";
 
 /* ═══════════════════════════════════════════════════════════════════════════
    Телеграм-бот: приём сообщений.
@@ -39,11 +42,26 @@ import { answerStock, answerOrders, answerSummary, answerTop, answerDebts, answe
 
 export const telegramBot = new Hono();
 
-/** Роли, которым бот отвечает на запросы. */
-const CAN_ASK = new Set(["ceo", "operator", "supervisor"]);
+/**
+ * Тарифы, на которых бот отвечает. Пробный даёт все функции — решение
+ * владельца от 09.09.2026: покупатель пришёл смотреть, и запирать от него бот
+ * значит не показать то, что продаём.
+ */
+export const PLANS_WITH_BOT = new Set(["trial", "pro", "exclusive"]);
 
-/** Тарифы, на которых бот отвечает. */
-const PLANS_WITH_BOT = new Set(["pro", "exclusive"]);
+/**
+ * Что можно спросить каждой группе ролей; остальное уходит в поиск или помощь.
+ *
+ * Было: агенту — отказ «запросы доступны руководителям». Агент — единственный,
+ * у кого телефон в руке весь день, и ему бот был не нужен. Теперь он видит
+ * СВОЁ: план, заказы, долги своих магазинов (scope в answers.ts), а числа
+ * организации — сводку по всем, агентов, доставки — по-прежнему только офис.
+ */
+export const INTENTS_BY_GROUP: Record<ReturnType<typeof menuGroup>, ReadonlySet<Intent>> = {
+  manage:  new Set<Intent>(["summary", "orders", "pending", "agents", "debts", "stock", "deliveries", "top", "plans", "staff", "search", "help", "lang", "stop"]),
+  agent:   new Set<Intent>(["summary", "orders", "pending", "debts", "stock", "plans", "search", "help", "lang", "stop"]),
+  courier: new Set<Intent>(["deliveries", "cash", "help", "lang", "stop"]),
+};
 
 interface Linked {
   id: number;
@@ -55,9 +73,26 @@ interface Linked {
   brand: string;
 }
 
-const keyboard = (lang: Lang) => ({
-  reply_markup: { keyboard: MENU[lang].map(row => row.map(text => ({ text }))), resize_keyboard: true },
+const keyboard = (role: string, lang: Lang) => ({
+  reply_markup: { keyboard: MENUS[menuGroup(role)][lang].map(row => row.map(text => ({ text }))), resize_keyboard: true },
 });
+
+const helpFor = (user: Linked, lang: Lang): string => {
+  const g = menuGroup(user.role);
+  const body = g === "courier" ? T.helpCourier[lang] : g === "agent" ? T.helpAgent[lang] : T.helpManage[lang];
+  return `<b>${tgEscape(user.brand)}</b> · ${tgEscape(user.name)}\n\n${body}`;
+};
+
+/** Кто спрашивает — и что ему видно. */
+async function scopeFor(user: Linked, lang: Lang): Promise<Scope> {
+  const g = menuGroup(user.role);
+  return {
+    tenantId: user.tenantId, lang, currency: await currencyOf(user.tenantId),
+    agentId: g === "agent" ? user.id : undefined,
+    courierId: g === "courier" ? user.id : undefined,
+    agentName: user.name,
+  };
+}
 
 const langButtons = {
   reply_markup: {
@@ -176,19 +211,36 @@ async function linkGroup(
   return T.groupLinked.ru;
 }
 
-/** Ответ на вопрос — уже после всех ворот. */
-async function answer(user: Linked, lang: Lang, text: string): Promise<string> {
-  switch (detectIntent(text)) {
-    case "stock":   return answerStock(user.tenantId, lang);
-    case "orders":  return answerOrders(user.tenantId, lang);
-    case "summary": return answerSummary(user.tenantId, lang);
-    case "top":     return answerTop(user.tenantId, lang);
-    case "debts":   return answerDebts(user.tenantId, lang);
-    case "staff":   return answerStaff(user.tenantId, lang);
-    case "plans":   return answerPlans(user.tenantId, lang);
-    case "help":    return `<b>${tgEscape(user.brand)}</b>\n\n${T.help[lang]}`;
-    default:        return answerSearch(user.tenantId, lang, text);
+/** Ответ на вопрос — уже после всех ворот. Роль решает, что за словом «заказы». */
+async function answer(user: Linked, lang: Lang, text: string): Promise<Reply> {
+  const allowed = INTENTS_BY_GROUP[menuGroup(user.role)];
+  let intent = detectIntent(text);
+  if (!allowed.has(intent)) intent = allowed.has("search") ? "search" : "help";
+  const scope = await scopeFor(user, lang);
+  switch (intent) {
+    case "summary":    return answerSummary(scope, detectPeriod(text));
+    case "orders":     return answerOrders(scope);
+    case "pending":    return answerPending(scope);
+    case "agents":     return answerAgents(scope);
+    case "debts":      return answerDebts(scope);
+    case "stock":      return answerStock(scope);
+    case "deliveries": return answerDeliveries(scope);
+    case "cash":       return answerCash(scope);
+    case "top":        return answerTop(scope);
+    case "plans":      return answerPlans(scope);
+    case "staff":      return answerStaff(scope);
+    case "help":       return { text: helpFor(user, lang) };
+    default:           return answerSearch(scope, text);
   }
+}
+
+/** Нажатие кнопки под сообщением: срок сводки или «Ожидают». */
+async function answerCallbackData(user: Linked, lang: Lang, data: string): Promise<Reply | null> {
+  const scope = await scopeFor(user, lang);
+  const m = /^sum:(today|yesterday|week|month)$/.exec(data);
+  if (m) return answerSummary(scope, m[1] as Period);
+  if (data === "pending") return answerPending(scope);
+  return null;
 }
 
 telegramBot.post("/api/webhooks/telegram", async (c) => {
@@ -213,16 +265,26 @@ telegramBot.post("/api/webhooks/telegram", async (c) => {
       callback_query?: { id: string; data?: string; message?: { chat?: { id?: number | string } } };
     };
 
-    // ── Выбор языка кнопкой ────────────────────────────────────────────────
+    // ── Кнопки под сообщением: язык, срок сводки, «Ожидают» ──────────────
     const cb = update.callback_query;
-    if (cb?.data?.startsWith("lang:")) {
+    if (cb) {
       const chatId = String(cb.message?.chat?.id ?? "");
-      const lang: Lang = cb.data.endsWith("uz") ? "uz" : "ru";
-      if (chatId) {
+      const data = cb.data ?? "";
+      // Погасить «часики» на кнопке сразу, ответ придёт отдельным сообщением.
+      void answerCallback(cb.id);
+      if (!chatId) return c.json({ ok: true });
+      if (data.startsWith("lang:")) {
+        const lang: Lang = data.endsWith("uz") ? "uz" : "ru";
         await getDb().update(users).set({ telegramLang: lang }).where(eq(users.telegramChatId, chatId));
         const user = await findByChat(chatId);
-        await sendTelegram(chatId, `<b>${tgEscape(user?.brand ?? "Warehouse Pro")}</b>\n\n${T.help[lang]}`, keyboard(lang));
+        if (user) await sendTelegram(chatId, helpFor(user, lang), keyboard(user.role, lang));
+        return c.json({ ok: true });
       }
+      const user = await findByChat(chatId);
+      if (!user || !user.lang || !PLANS_WITH_BOT.has(user.plan)) return c.json({ ok: true });
+      if (!(await checkRateLimit(`tg:${chatId}`, { windowMs: 60_000, limit: 20, namespace: "telegram-bot" }))) return c.json({ ok: true });
+      const reply = await answerCallbackData(user, user.lang, data);
+      if (reply) await sendTelegram(chatId, reply.text, reply.extra);
       return c.json({ ok: true });
     }
 
@@ -330,23 +392,21 @@ telegramBot.post("/api/webhooks/telegram", async (c) => {
       return c.json({ ok: true });
     }
 
-    // Привязка удалась — поздороваться и показать меню.
+    // Привязка удалась — поздороваться и показать меню своей роли.
     if (text.startsWith("/start")) {
-      await sendTelegram(chatId, `${T.linked[lang]}\n\n<b>${tgEscape(user.brand)}</b>\n\n${T.help[lang]}`, keyboard(lang));
+      await sendTelegram(chatId, `${T.linked[lang]}\n\n${helpFor(user, lang)}`, keyboard(user.role, lang));
       return c.json({ ok: true });
     }
 
     // ── Ворота ─────────────────────────────────────────────────────────────
-    if (!PLANS_WITH_BOT.has(user.plan)) {
+    // Помощь показывается на любом тарифе: человек должен видеть, что бот умеет.
+    if (!PLANS_WITH_BOT.has(user.plan) && detectIntent(text) !== "help") {
       await sendTelegram(chatId, T.planRequired[lang]);
       return c.json({ ok: true });
     }
-    if (!CAN_ASK.has(user.role)) {
-      await sendTelegram(chatId, T.notAllowed[lang]);
-      return c.json({ ok: true });
-    }
 
-    await sendTelegram(chatId, await answer(user, lang, text), keyboard(lang));
+    const reply = await answer(user, lang, text);
+    await sendTelegram(chatId, reply.text, { ...keyboard(user.role, lang), ...(reply.extra ?? {}) });
     return c.json({ ok: true });
   } catch (err) {
     logger.error("telegram webhook failed", { error: err instanceof Error ? err.message : String(err) });

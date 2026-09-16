@@ -24,9 +24,10 @@ async function namingFor(db: Db, reminders: Reminder[]) {
   const tenantIds = [...new Set(reminders.map(r => r.tenantId))];
 
   const shopRows = shopIds.length === 0 ? [] : await db
-    .select({ id: shops.id, name: shops.name })
+    .select({ id: shops.id, name: shops.name, agentId: shops.agentId })
     .from(shops).where(inArray(shops.id, shopIds));
   const shopName = new Map(shopRows.map(s => [Number(s.id), s.name]));
+  const shopAgent = new Map(shopRows.map(s => [Number(s.id), s.agentId ? Number(s.agentId) : null]));
 
   const settingRows = tenantIds.length === 0 ? [] : await db
     .select({ tenantId: settings.tenantId, symbol: settings.currencySymbol, position: settings.symbolPosition })
@@ -35,6 +36,7 @@ async function namingFor(db: Db, reminders: Reminder[]) {
 
   return {
     shop: (id: number) => shopName.get(Number(id)) ?? `магазин №${id}`,
+    agentOf: (id: number) => shopAgent.get(Number(id)) ?? null,
     money: (tenantId: number, amount: unknown) => {
       const c = currency.get(Number(tenantId));
       const symbol = c?.symbol ?? "сум";
@@ -255,14 +257,18 @@ export async function runDebtReminders() {
       */
       const { notifyEvent } = await import("../services/telegram-notify");
       const { tgEscape: esc } = await import("../lib/telegram");
+      // Агенту — только тому, чей это магазин: раньше уходило ВСЕМ агентам
+      // организации, и чужие долги превращали уведомления в шум.
       await notifyEvent({
         tenantId: reminder.tenantId,
         event: "debt.overdue",
+        agentOnly: overdueNames.agentOf(reminder.shopId) ?? undefined,
         text: [
-          "<b>Просроченный долг</b>",
-          esc(overdueNames.shop(reminder.shopId)),
-          esc(overdueNames.money(reminder.tenantId, reminder.amount)),
-          `просрочен на ${daysOverdue} дн.`,
+          `🧾 <b>Просроченный долг · ${esc(overdueNames.shop(reminder.shopId))}</b>`,
+          `💰 ${esc(overdueNames.money(reminder.tenantId, reminder.amount))}`,
+          `⏰ просрочен на ${daysOverdue} дн.`,
+          "",
+          "Позвонить сегодня; платёж записать в карточке магазина.",
         ].join("\n"),
       });
 

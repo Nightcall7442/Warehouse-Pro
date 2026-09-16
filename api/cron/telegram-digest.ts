@@ -2,7 +2,7 @@ import { eq, inArray, isNotNull, and } from "drizzle-orm";
 import { getDb } from "../queries/connection";
 import { tenants, users } from "@db/schema";
 import { sendTelegram } from "../lib/telegram";
-import { answerSummary } from "../telegram/answers";
+import { answerSummary, currencyOf, type Reply } from "../telegram/answers";
 import { logger } from "../lib/logger";
 import type { Lang } from "../telegram/texts";
 
@@ -28,7 +28,7 @@ import type { Lang } from "../telegram/texts";
  * есть на момент вызова. Так её можно позвать руками и проверить, не дожидаясь
  * вечера.
  */
-const PLANS_WITH_BOT = ["pro", "exclusive"] as const;
+const PLANS_WITH_BOT = ["trial", "pro", "exclusive"] as const;
 const ROLES = ["ceo", "operator", "supervisor"] as const;
 
 export async function runTelegramDigest(): Promise<{ sent: number; tenants: number }> {
@@ -57,19 +57,22 @@ export async function runTelegramDigest(): Promise<{ sent: number; tenants: numb
     пятью руководителями это пять одинаковых наборов запросов к базе за один
     вечер, и разница видна на счётчике соединений.
   */
-  const ready = new Map<string, string>();
+  const ready = new Map<string, Reply>();
+  const currencies = new Map<number, string>();
   let sent = 0;
 
   for (const row of rows) {
     const lang: Lang = row.lang === "uz" ? "uz" : "ru";
     const key = `${row.tenantId}:${lang}`;
 
-    let text = ready.get(key);
-    if (!text) {
-      text = await answerSummary(row.tenantId, lang);
-      ready.set(key, text);
+    let reply = ready.get(key);
+    if (!reply) {
+      let currency = currencies.get(row.tenantId);
+      if (!currency) { currency = await currencyOf(row.tenantId); currencies.set(row.tenantId, currency); }
+      reply = await answerSummary({ tenantId: row.tenantId, lang, currency }, "today");
+      ready.set(key, reply);
     }
-    if (await sendTelegram(row.chatId!, text)) sent++;
+    if (await sendTelegram(row.chatId!, reply.text, reply.extra)) sent++;
   }
 
   logger.info("telegram digest sent", { sent, recipients: rows.length });

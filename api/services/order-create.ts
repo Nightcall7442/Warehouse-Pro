@@ -261,7 +261,11 @@ export async function create(db: Db, tenantId: number, agentId: number, input: {
     в базе. Теперь ответ уходит сразу; уведомления доходят своим чередом,
     отказ — в журнал. Telegram вне рабочих часов и так ложится в outbox.
   */
-  void notifyAboutNewOrder(db, { tenantId, orderId, orderNumber, orderTotal, shopId: input.shopId });
+  void notifyAboutNewOrder(db, {
+    tenantId, orderId, orderNumber, orderTotal, shopId: input.shopId, agentId,
+    items: input.items.length, paymentMethod: input.paymentMethod ?? "cash",
+    discountPct: discountPercent, holdReason: input.holdReason ?? null,
+  });
 
   // total возвращается наружу, чтобы клиент мог сверить его с суммой,
   // которую агент назвал владельцу магазина.
@@ -274,10 +278,16 @@ export async function create(db: Db, tenantId: number, agentId: number, input: {
   return { id: orderId, orderNumber, total: orderTotal, held: Boolean(input.holdReason) };
 }
 
-async function notifyAboutNewOrder(db: Db, o: { tenantId: number; orderId: number; orderNumber: string; orderTotal: number; shopId: number }): Promise<void> {
+async function notifyAboutNewOrder(db: Db, o: {
+  tenantId: number; orderId: number; orderNumber: string; orderTotal: number; shopId: number;
+  agentId: number; items: number; paymentMethod: string; discountPct: number; holdReason: string | null;
+}): Promise<void> {
   const { tenantId, orderId, orderNumber, orderTotal } = o;
   try {
-    const [shop] = await db.select({ name: shops.name }).from(shops).where(eq(shops.id, o.shopId)).limit(1);
+    const [[shop], [agent]] = await Promise.all([
+      db.select({ name: shops.name }).from(shops).where(eq(shops.id, o.shopId)).limit(1),
+      db.select({ name: users.name }).from(users).where(eq(users.id, o.agentId)).limit(1),
+    ]);
     const operators = await db.select({ id: users.id }).from(users)
       .where(and(eq(users.tenantId, tenantId), sql`${users.role} IN ('ceo', 'operator')`, eq(users.status, "active")));
 
@@ -311,12 +321,18 @@ async function notifyAboutNewOrder(db: Db, o: { tenantId: number; orderId: numbe
       Telegram есть у всех, и именно там люди сидят весь день.
     */
     const { notifyEvent } = await import("./telegram-notify");
-    const { tgMessages } = await import("../lib/telegram");
-    await notifyEvent({
-      tenantId,
-      event: "order.created",
-      text: tgMessages.newOrder(orderNumber, shop?.name ?? "Магазин", orderTotal.toLocaleString("ru"), "сум"),
-    });
+    const { tgMessages, fmtMoney, inlineKeyboard, appLink } = await import("../lib/telegram");
+    const open = inlineKeyboard([[{ text: "Открыть заказ", url: appLink(`/orders/${orderId}`) }]]);
+    const card = { number: orderNumber, shop: shop?.name ?? "Магазин", total: fmtMoney(orderTotal), agent: agent?.name, items: o.items, payment: o.paymentMethod, discountPct: Math.round(o.discountPct) };
+    await notifyEvent({ tenantId, event: "order.created", text: tgMessages.newOrder(card), extra: open });
+    /*
+      Заказ ждёт офиса — отдельное событие: его надо ПОДТВЕРДИТЬ, а не
+      просто знать о нём. Без этого заказ со скидкой выше порога висел в
+      «Ожидает», пока оператор не заглянет сам.
+    */
+    if (o.holdReason) {
+      await notifyEvent({ tenantId, event: "order.pending", text: tgMessages.orderPending({ ...card, reason: o.holdReason }), extra: open });
+    }
   } catch (e) {
     logger.warn("Order notification failed", { orderId, error: String(e) });
   }

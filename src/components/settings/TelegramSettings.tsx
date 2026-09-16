@@ -135,11 +135,12 @@ export function TelegramSettings() {
           {t("Вы будете получать", "Quyidagilarni olasiz")}
         </p>
         <ul className="space-y-2.5 text-sm text-secondary">
+          {/* Список — ровно события из правил ниже; обещать то, чего бот не шлёт, нельзя. */}
           {[
-            { Icon: CalendarDays,  text: t("План визитов утром",           "Tashrif rejasi ertalab") },
-            { Icon: ShoppingCart,  text: t("Подтверждение новых заказов",  "Yangi buyurtmalar tasdiqi") },
-            { Icon: Package,       text: t("Изменение статуса заказа",     "Buyurtma holati o'zgarishi") },
-            { Icon: AlertTriangle, text: t("Низкий остаток на складе",     "Omborda kam qoldiq") },
+            { Icon: CalendarDays,  text: t("Утром — план визитов и доставок", "Ertalab — tashrif va yetkazish rejasi") },
+            { Icon: ShoppingCart,  text: t("Новые заказы и заказы, ждущие подтверждения", "Yangi va tasdiqlashni kutayotgan buyurtmalar") },
+            { Icon: Package,       text: t("Доставлен / не доставлен, недостача при сборке", "Yetkazildi / yetkazilmadi, yig'ishda kamomad") },
+            { Icon: AlertTriangle, text: t("Низкий остаток, просроченные долги, вечерняя сводка", "Kam qoldiq, muddati o'tgan qarzlar, kechki hisobot") },
           ].map(({ Icon, text }) => (
             <li key={text} className="flex items-center gap-2.5">
               <Icon size={15} className="flex-shrink-0 text-tertiary" />

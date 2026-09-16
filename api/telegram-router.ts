@@ -68,7 +68,7 @@ export const telegramRouter = createRouter({
 
   setRule: adminQuery
     .input(z.object({
-      event: z.enum(["order.created", "stock.low", "debt.overdue", "delivery.assigned"]),
+      event: z.enum(["order.created", "order.pending", "order.delivered", "delivery.failed", "stock.low", "debt.overdue", "delivery.assigned", "picking.short", "plan.morning"]),
       role:  z.enum(["ceo", "operator", "supervisor", "agent", "merchandiser", "courier"]),
       enabled: z.boolean(),
     }))

@@ -2141,7 +2141,10 @@ export type InsertSupportThread = typeof supportThreads.$inferInsert;
 export const telegramRules = mysqlTable("telegram_rules", {
   id:       serial("id").primaryKey(),
   tenantId: bigint("tenant_id", { mode: "number", unsigned: true }).notNull().references(() => tenants.id, { onDelete: "restrict" }),
-  event:    mysqlEnum("event", ["order.created", "stock.low", "debt.overdue", "delivery.assigned"]).notNull(),
+  event:    mysqlEnum("event", [
+    "order.created", "order.pending", "order.delivered", "delivery.failed",
+    "stock.low", "debt.overdue", "delivery.assigned", "picking.short", "plan.morning",
+  ]).notNull(),
   role:     mysqlEnum("role", ["ceo", "operator", "supervisor", "agent", "merchandiser", "courier"]).notNull(),
   enabled:  boolean("enabled").notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull().$onUpdate(() => new Date()),

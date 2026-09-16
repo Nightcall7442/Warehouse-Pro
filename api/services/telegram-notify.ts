@@ -23,8 +23,16 @@ import { logger } from "../lib/logger";
    только когда директор что-то изменил.
    ═══════════════════════════════════════════════════════════════════════════ */
 
-export type NotifyEvent = "order.created" | "stock.low" | "debt.overdue" | "delivery.assigned";
+export type NotifyEvent =
+  | "order.created" | "order.pending" | "order.delivered" | "delivery.failed"
+  | "stock.low" | "debt.overdue" | "delivery.assigned" | "picking.short" | "plan.morning";
 type Role = "ceo" | "operator" | "supervisor" | "agent" | "merchandiser" | "courier";
+
+/** Все события — для меню правил и стражей. */
+export const NOTIFY_EVENTS = [
+  "order.created", "order.pending", "order.delivered", "delivery.failed",
+  "stock.low", "debt.overdue", "delivery.assigned", "picking.short", "plan.morning",
+] as const satisfies readonly NotifyEvent[];
 
 /**
  * Кому что уходит, если директор ничего не менял.
@@ -34,9 +42,17 @@ type Role = "ceo" | "operator" | "supervisor" | "agent" | "merchandiser" | "cour
  */
 export const DEFAULT_RULES: Record<NotifyEvent, Role[]> = {
   "order.created":      ["ceo", "operator"],
+  // Заказ ждёт подтверждения: его надо подтвердить, а не просто знать о нём.
+  "order.pending":      ["ceo", "operator"],
+  // Закрытый заказ — агенту магазина (agentOnly); офису он был бы шумом.
+  "order.delivered":    ["agent"],
+  "delivery.failed":    ["operator", "agent"],
   "stock.low":          ["ceo", "operator"],
   "debt.overdue":       ["ceo", "agent"],
   "delivery.assigned":  ["courier"],
+  "picking.short":      ["ceo", "operator"],
+  // Утро: агенту его план, руководителям — план команды.
+  "plan.morning":       ["ceo", "supervisor", "agent", "merchandiser"],
 };
 
 /** Ночь по Ташкенту: в это время сообщения копятся, а не будят. */
@@ -91,6 +107,14 @@ interface NotifyInput {
   text: string;
   /** Кому именно, если событие адресное: назначенный курьер, агент магазина. */
   onlyUserId?: number;
+  /**
+   * Среди агентов — только этому (агент магазина); остальные роли по правилам.
+   * Без этого «просроченный долг» уходил ВСЕМ агентам организации, и чужие
+   * долги превращали уведомления в шум, который выключают целиком.
+   */
+  agentOnly?: number;
+  /** Кнопки под сообщением (inlineKeyboard); в группу и в очередь идут тоже. */
+  extra?: Record<string, unknown>;
   now?: Date;
 }
 
@@ -115,7 +139,7 @@ export async function notifyEvent(input: NotifyInput): Promise<{ sent: number; q
   if (roles.length === 0) return { sent: 0, queued: 0 };
 
   const targets = await db
-    .select({ id: users.id, chatId: users.telegramChatId })
+    .select({ id: users.id, role: users.role, chatId: users.telegramChatId })
     .from(users)
     .where(and(
       eq(users.tenantId, input.tenantId),
@@ -124,8 +148,10 @@ export async function notifyEvent(input: NotifyInput): Promise<{ sent: number; q
       isNotNull(users.telegramChatId),
     ));
 
+  const isAgent = (role: string) => role === "agent" || role === "merchandiser";
   const chats = targets
     .filter(u => !input.onlyUserId || u.id === input.onlyUserId)
+    .filter(u => input.agentOnly === undefined || !isAgent(u.role) || u.id === input.agentOnly)
     .map(u => u.chatId!)
     .filter(Boolean);
 
@@ -142,6 +168,8 @@ export async function notifyEvent(input: NotifyInput): Promise<{ sent: number; q
     задача, в общем чате были бы разглашением, а не удобством. За этим следит
     отдельная проверка: слово «личное» в комментарии ничего не гарантирует.
   */
+  // Адресное агенту (agentOnly) — тоже личное для него, но само событие
+  // рабочее: в группу уходит, как и любое событие организации.
   if (!input.onlyUserId) {
     const [group] = await db.select({ chatId: telegramGroups.chatId })
       .from(telegramGroups)
@@ -155,12 +183,14 @@ export async function notifyEvent(input: NotifyInput): Promise<{ sent: number; q
   if (isQuiet(now)) {
     const sendAfter = nextQuietEnd(now);
     await db.insert(telegramOutbox).values(
+      // Кнопки в очередь не ложатся: это ссылки «Открыть», текст важнее, а
+      // колонка под них — миграция ради ночных сообщений.
       chats.map(chatId => ({ tenantId: input.tenantId, chatId, body: input.text.slice(0, 3000), sendAfter })),
     );
     return { sent: 0, queued: chats.length };
   }
 
-  const results = await Promise.all(chats.map(chatId => sendTelegram(chatId, input.text)));
+  const results = await Promise.all(chats.map(chatId => sendTelegram(chatId, input.text, input.extra)));
   return { sent: results.filter(Boolean).length, queued: 0 };
 }
 

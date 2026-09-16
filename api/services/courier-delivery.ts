@@ -1,4 +1,4 @@
-import { orders, users, payments, orderItems, warehouseStock, warehouses, debtReminders, orderAdjustments } from "@db/schema";
+import { orders, users, shops, payments, orderItems, warehouseStock, warehouses, debtReminders, orderAdjustments } from "@db/schema";
 import { ORDER_STATUS_LABELS } from "../lib/order-status";
 import { eq, and, sql, isNull } from "drizzle-orm";
 import { logger } from "../lib/logger";
@@ -655,6 +655,26 @@ export async function completeDelivery(db: Db, tenantId: number, courierId: numb
     });
   }
 
+  /*
+    И в Telegram — агенту магазина: это ЕГО заказ закрылся, и по нему ему
+    отвечать перед магазином. Офису — по правилам событий (умолчание: никому:
+    полсотни закрытых заказов в день — это шум; директор видит их в вечерней
+    сводке). После ответа: Telegram не на пути курьера.
+  */
+  void (async () => {
+    const [{ notifyEvent }, { tgMessages, fmtMoney }] = await Promise.all([import("./telegram-notify"), import("../lib/telegram")]);
+    const [shop] = await db.select({ name: shops.name }).from(shops).where(eq(shops.id, order.shopId)).limit(1);
+    const [courier] = await db.select({ name: users.name }).from(users).where(eq(users.id, courierId)).limit(1);
+    const debt = Math.max(0, orderTotal - paidAmount);
+    await notifyEvent({
+      tenantId, event: "order.delivered", agentOnly: order.agentId ?? undefined,
+      text: tgMessages.orderDelivered({
+        number: order.orderNumber, shop: shop?.name ?? "Магазин", total: fmtMoney(orderTotal), result: resultLabels[input.result] ?? input.result,
+        paid: paidAmount > 0 ? fmtMoney(paidAmount) : null, debt: debt > 0 ? fmtMoney(debt) : null, courier: courier?.name,
+      }),
+    });
+  })().catch(e => logger.warn("order.delivered notify failed", { error: String(e) }));
+
   logger.info("delivery completed", { orderId: input.orderId, courierId, result: input.result, paidAmount });
 
   return { success: true, result: input.result, finalStatus };
@@ -720,6 +740,18 @@ export async function markFailed(db: Db, tenantId: number, courierId: number, in
       data: { type: "order.failed", orderId: input.orderId },
     }).catch(() => {});
   }
+
+  // Telegram: оператору и агенту магазина — разобраться сегодня, а не завтра.
+  void (async () => {
+    const [{ notifyEvent }, { tgMessages, fmtMoney }] = await Promise.all([import("./telegram-notify"), import("../lib/telegram")]);
+    const [full] = await db.select({ shopId: orders.shopId, agentId: orders.agentId, total: orders.total }).from(orders).where(eq(orders.id, input.orderId)).limit(1);
+    const [shop] = full ? await db.select({ name: shops.name }).from(shops).where(eq(shops.id, full.shopId)).limit(1) : [];
+    const [courier] = await db.select({ name: users.name }).from(users).where(eq(users.id, courierId)).limit(1);
+    await notifyEvent({
+      tenantId, event: "delivery.failed", agentOnly: full?.agentId ?? undefined,
+      text: tgMessages.deliveryFailed({ number: order.orderNumber, shop: shop?.name ?? "Магазин", total: fmtMoney(full?.total ?? 0), reason: safeReason || null, courier: courier?.name }),
+    });
+  })().catch(e => logger.warn("delivery.failed notify failed", { error: String(e) }));
 
   logger.info("order delivery failed", { orderId: input.orderId, courierId, reason: input.reason });
 
