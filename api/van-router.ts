@@ -87,6 +87,11 @@ export const vanRouter = createRouter({
       return VanService.sale(getDb(), ctx.tenant.id, actorOf(ctx), input);
     }),
 
+  /** Справочник магазинов для продажи с машины — тому, у кого есть машина. */
+  shops: authedQuery
+    .input(z.object({ search: z.string().max(100).optional() }).optional())
+    .query(({ input, ctx }) => VanService.shops(getDb(), ctx.tenant.id, actorOf(ctx), input?.search ?? null)),
+
   sales: authedQuery
     .input(z.object({ vanId: z.number().int().positive().optional(), from: z.string(), to: z.string() }))
     .query(({ input, ctx }) => VanService.sales(getDb(), ctx.tenant.id, { vanId: input.vanId, from: new Date(input.from), to: new Date(input.to) })),

@@ -110,6 +110,16 @@
     "kind": "query"
   },
   {
+    "fn": "getMyCash",
+    "path": "cash.mine",
+    "kind": "query"
+  },
+  {
+    "fn": "setCashPin",
+    "path": "cash.setPin",
+    "kind": "mutation"
+  },
+  {
     "fn": "getCommissions",
     "path": "commission.list",
     "kind": "query"
@@ -300,6 +310,11 @@
     "kind": "query"
   },
   {
+    "fn": "getOrderReceipt",
+    "path": "order.receipt",
+    "kind": "query"
+  },
+  {
     "fn": "recordDeliveryAndPayment",
     "path": "order.recordDeliveryAndPayment",
     "kind": "mutation"
@@ -448,6 +463,36 @@
     "fn": "updateProfile",
     "path": "user.updateMe",
     "kind": "mutation"
+  },
+  {
+    "fn": "getMyVans",
+    "path": "van.list",
+    "kind": "query"
+  },
+  {
+    "fn": "vanSale",
+    "path": "van.sale",
+    "kind": "mutation"
+  },
+  {
+    "fn": "getVanSales",
+    "path": "van.sales",
+    "kind": "query"
+  },
+  {
+    "fn": "getVanShops",
+    "path": "van.shops",
+    "kind": "query"
+  },
+  {
+    "fn": "getVanStatus",
+    "path": "van.status",
+    "kind": "query"
+  },
+  {
+    "fn": "getVanStock",
+    "path": "van.stock",
+    "kind": "query"
   },
   {
     "fn": "getReorderAlerts",
