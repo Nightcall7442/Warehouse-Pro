@@ -72,6 +72,13 @@ export async function recordStockMovement(
     referenceId: entry.referenceId ?? null,
     notes: entry.notes ?? null,
   });
+
+  // Тара следует за товаром: та же транзакция, та же величина (services/tare.ts).
+  const { followStock } = await import("./tare");
+  await followStock(tx, {
+    tenantId: entry.tenantId, warehouseId: entry.warehouseId, productId: entry.productId,
+    type: entry.type, quantity: magnitude, reason: entry.reason, referenceId: entry.referenceId ?? null,
+  });
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════

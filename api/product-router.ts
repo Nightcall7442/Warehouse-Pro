@@ -262,6 +262,7 @@ export const productRouter = createRouter({
         category: products.category, costPrice: products.costPrice, unitPrice: products.unitPrice,
         unit: products.unit, unitWeight: products.unitWeight, packSize: products.packSize, packLabel: products.packLabel, description: products.description,
         photoUrl: products.photoUrl, reorderPoint: products.reorderPoint, status: products.status,
+        tareTypeId: products.tareTypeId, tarePerUnit: products.tarePerUnit,
         createdAt: products.createdAt,
       }).from(products)
         .where(and(eq(products.id, input.id), eq(products.tenantId, tenantId)))

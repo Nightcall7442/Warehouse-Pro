@@ -109,6 +109,11 @@ function VanMoveModal({ mode, van, t, fmt, onClose, onDone }: { mode: Mode; van:
   // Загрузка ищет по основному складу; возврат и пересчёт — по тому, что в кузове.
   const main = trpc.warehouseMulti.getStock.useQuery({ search, pageSize: 20 }, { enabled: mode === "load" && search.trim().length >= 2 });
   const vanStock = trpc.van.stock.useQuery({ vanId: van.id }, { enabled: mode !== "load" });
+  // Тара на машине — считается вместе с товаром; только при включённом учёте.
+  const tareOn = trpc.tare.status.useQuery();
+  const tareOverview = trpc.tare.overview.useQuery(undefined, { enabled: mode === "count" && tareOn.data?.enabled === true });
+  const vanTare = (tareOverview.data?.warehouses ?? []).find(w => w.id === van.id)?.lines ?? [];
+  const [tareQty, setTareQty] = useState<Record<number, string>>({});
   if (mode !== "load" && vanStock.data && !seeded) {
     setSeeded(true);
     setLines(vanStock.data.map(r => ({ productId: r.productId, name: r.name, unit: r.unit, available: r.onHand, quantity: mode === "count" ? String(r.onHand) : "" })));
@@ -142,7 +147,8 @@ function VanMoveModal({ mode, van, t, fmt, onClose, onDone }: { mode: Mode; van:
       if (!counted.length) return notify.error(t("Введите, сколько насчитали", "Qancha sanaganingizni kiriting"));
       const short = countDiff.filter(l => Number(l.quantity) < l.available);
       if (short.length && !(await confirm({ title: t("Недостача на машине", "Mashinada kamomad"), message: t(`${short.length} позиций меньше, чем по системе. Разница ляжет долгом водителя ${van.driverName ?? ""} по цене продажи. Провести?`, `${short.length} pozitsiya tizimdagidan kam. Farq haydovchi ${van.driverName ?? ""} qarziga sotuv narxida yoziladi. O'tkazilsinmi?`), confirmText: t("Провести", "O'tkazish"), danger: true }))) return;
-      count.mutate({ vanId: van.id, counted, note: note || undefined });
+      const tare = vanTare.map(l => ({ tareTypeId: l.tareTypeId, quantity: Number(tareQty[l.tareTypeId] ?? l.qty) }));
+      count.mutate({ vanId: van.id, counted, tare: tare.length ? tare : undefined, note: note || undefined });
     }
   };
 
@@ -198,6 +204,27 @@ function VanMoveModal({ mode, van, t, fmt, onClose, onDone }: { mode: Mode; van:
             </table>
           </div>
         ) : mode !== "load" && vanStock.isLoading ? <div className="p-4 text-sm" style={{ color: COLORS.textTertiary }}>{t("Загрузка…", "Yuklanmoqda…")}</div> : null}
+
+        {mode === "count" && vanTare.length > 0 && (
+          <div>
+            <span className={modalSectionLabel} style={{ color: COLORS.textTertiary }}>{t("Тара в кузове", "Kuzovdagi idish")}</span>
+            <table style={{ width: "100%", borderCollapse: "collapse" }}>
+              <thead><tr><th style={thStyle}>{t("Тара", "Idish")}</th><th style={{ ...thStyle, textAlign: "right" }}>{t("По системе", "Tizim bo'yicha")}</th><th style={{ ...thStyle, textAlign: "right", width: 120 }}>{t("В кузове", "Kuzovda")}</th><th style={{ ...thStyle, textAlign: "right" }}>{t("Разница", "Farq")}</th></tr></thead>
+              <tbody>{vanTare.map(l => {
+                const v = tareQty[l.tareTypeId] ?? String(l.qty);
+                const diff = v === "" ? 0 : Number(v) - l.qty;
+                return (
+                  <tr key={l.tareTypeId} className="row-hover">
+                    <td style={tdStyle}>{l.name}</td>
+                    <td className="font-data" style={{ ...tdStyle, textAlign: "right", color: COLORS.textSecondary }}>{formatQty(l.qty)}</td>
+                    <td style={{ ...tdStyle, textAlign: "right" }}><input className="neo-input font-data" inputMode="decimal" style={{ width: 100, textAlign: "right" }} value={v} onChange={e => setTareQty({ ...tareQty, [l.tareTypeId]: e.target.value.replace(/[^\d.]/g, "") })} aria-label={l.name} data-testid={`van-tare-${l.tareTypeId}`} /></td>
+                    <td className="font-data" style={{ ...tdStyle, textAlign: "right", fontWeight: 600, color: diff < 0 ? "var(--color-danger-text)" : diff > 0 ? "var(--color-warning-text)" : "var(--color-success-text)" }}>{diff === 0 ? "✓" : (diff > 0 ? "+" : "") + formatQty(diff)}</td>
+                  </tr>
+                );
+              })}</tbody>
+            </table>
+          </div>
+        )}
 
         {mode === "load" && (
           <div className="neo-card neo-card-static" style={{ borderRadius: "16px", padding: "14px" }}>

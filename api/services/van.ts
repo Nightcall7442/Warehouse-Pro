@@ -11,6 +11,7 @@ import { resolvePrices } from "./price-resolver";
 import { recalcShopDebt } from "./shop-debt";
 import { mergeDuplicateItems, nextOrderNumber } from "./order-shared";
 import { CashService, ACCOUNT } from "./cash";
+import { TareService } from "./tare";
 import { isDuplicateEntry } from "../lib/db-errors";
 
 /*
@@ -187,12 +188,13 @@ export const VanService = {
    * на машину (товар нашёлся), долга не рождает. Товар, которого нет в
    * списке пересчёта, считается непосчитанным и не трогается.
    */
-  async count(db: Db, tenantId: number, actor: Actor, input: { vanId: number; counted: Array<{ productId: number; quantity: number }>; note?: string | null; now?: Date }) {
+  async count(db: Db, tenantId: number, actor: Actor, input: { vanId: number; counted: Array<{ productId: number; quantity: number }>; tare?: Array<{ tareTypeId: number; quantity: number }>; note?: string | null; now?: Date }) {
     const now = input.now ?? new Date();
     const van = await vanOf(db, tenantId, input.vanId);
     if (!van.driverId) throw badRequest("У машины нет водителя — недостачу не на кого записать");
     const counted = new Map(input.counted.map(c => [c.productId, c.quantity]));
     const lines: Array<{ productId: number; name: string; system: number; counted: number; diff: number; unitPrice: number }> = [];
+    let tareLines: Awaited<ReturnType<typeof TareService.count>>["lines"] = [];
     let shortage = 0;
     let docId: number | null = null;
     await db.transaction(async (tx) => {
@@ -215,9 +217,15 @@ export const VanService = {
         });
         if (diff < 0) shortage += -diff * Number(r.unitPrice);
       }
+      // Тара на машине — как товар: чего нет в кузове, ложится долгом по залогу.
+      if (input.tare?.length) {
+        const t = await TareService.count(tx, tenantId, actor, { warehouseId: van.id, counted: input.tare });
+        tareLines = t.lines;
+        shortage += t.shortage;
+      }
       shortage = Math.round(shortage * 100) / 100;
       if (shortage > 0) {
-        const short = lines.filter(l => l.diff < 0).map(l => `${l.name} −${-l.diff}`).join(", ");
+        const short = [...lines.filter(l => l.diff < 0).map(l => `${l.name} −${-l.diff}`), ...tareLines.filter(l => l.diff < 0).map(l => `${l.name} (тара) −${-l.diff}`)].join(", ");
         docId = await CashService.chargeEmployee(tx, tenantId, actor, {
           userId: van.driverId!, amount: shortage, credit: ACCOUNT.stockShortage(van.id),
           note: `Недостача на машине «${van.name}»: ${short}${input.note ? ` · ${sanitizeString(input.note)}` : ""}`, now,
@@ -225,8 +233,8 @@ export const VanService = {
       }
     });
     const { recordAudit } = await import("./audit-log");
-    await recordAudit(db, { tenantId, actorId: actor.id, actorName: actor.name, action: "van.counted", targetType: "warehouse", targetId: van.id, targetLabel: van.name, meta: { lines: lines.length, shortage, driverId: van.driverId, docId } });
-    return { lines, shortage, docId };
+    await recordAudit(db, { tenantId, actorId: actor.id, actorName: actor.name, action: "van.counted", targetType: "warehouse", targetId: van.id, targetLabel: van.name, meta: { lines: lines.length, tare: tareLines.length, shortage, driverId: van.driverId, docId } });
+    return { lines, tare: tareLines, shortage, docId };
   },
 
   /**

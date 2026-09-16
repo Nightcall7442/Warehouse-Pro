@@ -20,6 +20,7 @@ import {
 import { PhotoOrIcon } from "@/components/PhotoOrIcon";
 import { ShopAvatar } from "@/components/shops/ShopAvatar";
 import { ShopStatement } from "@/components/shops/ShopStatement";
+import { ShopTare } from "@/components/shops/ShopTare";
 import { PremiumSelect } from "@/components/PremiumSelect";
 import { QueryErrorFallback } from "@/components/QueryErrorFallback";
 import { ShopMoney } from "@/components/shops/ShopMoney";
@@ -440,6 +441,8 @@ export default function ShopDetail() {
         карточка показывала это одним числом без объяснения.
       */}
       <ShopMoney shopId={Number(id)} />
+
+      <ShopTare shopId={Number(id)} shopName={shop.name} />
 
       <ShopStatement shopId={Number(id)} />
 

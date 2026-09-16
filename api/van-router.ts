@@ -68,7 +68,7 @@ export const vanRouter = createRouter({
     }),
 
   count: stockQuery
-    .input(z.object({ vanId: z.number().int().positive(), counted: z.array(z.object({ productId: z.number().int().positive(), quantity: z.number().min(0).max(1e6) })).min(1).max(300), note: z.string().max(300).optional() }))
+    .input(z.object({ vanId: z.number().int().positive(), counted: z.array(z.object({ productId: z.number().int().positive(), quantity: z.number().min(0).max(1e6) })).min(1).max(300), tare: z.array(z.object({ tareTypeId: z.number().int().positive(), quantity: z.number().min(0).max(1e6) })).max(50).optional(), note: z.string().max(300).optional() }))
     .mutation(async ({ input, ctx }) => {
       await assertVanSelling(getDb(), ctx.tenant.id, ctx.tenant.plan);
       return VanService.count(getDb(), ctx.tenant.id, actorOf(ctx), input);
