@@ -182,6 +182,13 @@ describe("права и правила", () => {
     expect(kpi).toContain("cashShortage: -cashShortage");
   });
 
+  it("касса ведётся с дня начала: старые платежи в проводки не входят, день после первого документа не двигается", () => {
+    expect(svc).toContain("const start = await cashStart(db, tenantId);");
+    expect(svc).toMatch(/eq\(payments\.paymentMethod, "cash"\),\s*gte\(payments\.createdAt, start\)/);
+    expect(router).toContain("день начала менять нельзя");
+    expect(read("db/schema.ts")).toContain('cashStartDay:        date("cash_start_day", { mode: "string" }).default("2026-09-16").notNull()');
+  });
+
   it("хэш PIN не уходит наружу с пользователем", () => {
     expect(read("api/auth/index.ts")).toContain('"cashPinHash"');
   });

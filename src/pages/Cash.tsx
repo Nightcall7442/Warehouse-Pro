@@ -14,6 +14,7 @@ import { notify } from "@/lib/toast";
 import { printCashOrder, printCashBook } from "@/lib/documents";
 import { useSellerCompany } from "@/hooks/useSellerCompany";
 import { NonCashTab } from "@/components/cash/NonCashTab";
+import { accountLabel, categoryCode } from "@/lib/cash-labels";
 import { F, COLORS, thStyle, tdStyle } from "@/components/users/types";
 import { format, subDays, addDays } from "date-fns";
 import {
@@ -36,6 +37,7 @@ import {
 type Tab = "holders" | "noncash" | "journal" | "book" | "days" | "settings";
 
 const DENOMS = [200000, 100000, 50000, 20000, 10000, 5000, 2000, 1000];
+
 
 export default function Cash() {
   const { lang } = useLang();
@@ -378,7 +380,10 @@ function Journal({ t, fmt, isCeo, company, refresh }: { t: T; fmt: Fmt; isCeo: b
   const q = trpc.cash.journal.useQuery(range);
   const { confirm, dialog } = useConfirm();
   const storno = trpc.cash.storno.useMutation({ onSuccess: r => { refresh(); q.refetch(); notify.success(t(`Сторно ${r.number} проведено`, `Storno ${r.number} o'tkazildi`)); }, onError: e => notify.error(e.message) });
-  const ACC = (a: string) => a.startsWith("cash.employee.") ? t("на руках", "qo'lda") : a === "cash.office" ? t("сейф", "seyf") : a.startsWith("receivable.employee.") ? t("долг сотрудника", "xodim qarzi") : a.startsWith("expense.") ? t("расход", "xarajat") + " " + a.slice(8) : a === "owner" ? t("директор", "direktor") : a === "income.unexplained" ? t("до выяснения", "aniqlanguncha") : a;
+  const cats = trpc.cash.categories.useQuery();
+  const catName = (code: string) => cats.data?.find(c => c.code === code)?.name ?? code;
+  const ACC = (a: string) => accountLabel(a, t("ru", "uz") as "ru" | "uz", catName);
+  const ACC_RU = (a: string) => accountLabel(a, "ru", catName);
   const rows = q.data ?? [];
   return (
     <div className="neo-card neo-card-static" style={{ borderRadius: "20px", padding: "8px" }}>
@@ -387,7 +392,7 @@ function Journal({ t, fmt, isCeo, company, refresh }: { t: T; fmt: Fmt; isCeo: b
         <div className="range-pills">{[7, 30, 90].map(d => <button key={d} className={"range-pill tap" + (days === d ? " active" : "")} onClick={() => setDays(d)}>{d} {t("дн.", "kun")}</button>)}</div>
         <button className="neo-btn neo-btn-sm" onClick={() => exportToExcel([{
           name: "Касса",
-          data: rows.map(r => ({ number: r.number, date: format(new Date(r.createdAt), "dd.MM.yyyy HH:mm"), debit: r.debit, credit: r.credit, amount: r.amount, expected: r.expectedAmount ?? "", discrepancy: r.discrepancy ?? "", from: r.fromName ?? "", to: r.toName ?? "", category: r.category ?? "", note: r.note ?? "", by: r.createdByName ?? "" })),
+          data: rows.map(r => ({ number: r.number, date: format(new Date(r.createdAt), "dd.MM.yyyy HH:mm"), debit: ACC_RU(r.debit), credit: ACC_RU(r.credit), amount: r.amount, expected: r.expectedAmount ?? "", discrepancy: r.discrepancy ?? "", from: r.fromName ?? "", to: r.toName ?? "", category: r.category ? catName(r.category) : "", note: r.note ?? "", by: r.createdByName ?? "" })),
           columns: [
             { key: "number", header: "Номер", width: 12 }, { key: "date", header: "Дата", width: 16 }, { key: "debit", header: "Дебет", width: 22 }, { key: "credit", header: "Кредит", width: 22 },
             { key: "amount", header: "Сумма", width: 14 }, { key: "expected", header: "Ожидалось", width: 14 }, { key: "discrepancy", header: "Расхождение", width: 14 },
@@ -413,7 +418,7 @@ function Journal({ t, fmt, isCeo, company, refresh }: { t: T; fmt: Fmt; isCeo: b
                   <td style={tdStyle}>{r.fromName ?? ""}{r.fromName && r.toName ? " → " : ""}{r.toName ?? ""}<div style={{ fontSize: "11px", color: COLORS.textTertiary }}>{t("провёл", "o'tkazdi")}: {r.createdByName ?? "—"}{r.pinConfirmedAt ? " · PIN" : r.paperSigned ? ` · ${t("подпись", "imzo")}` : ""}</div></td>
                   <td style={{ ...tdStyle, maxWidth: 260, color: COLORS.textSecondary }}>{r.note ?? ""}</td>
                   <td style={{ ...tdStyle, textAlign: "right", whiteSpace: "nowrap" }}>
-                    <button className="neo-btn neo-btn-xs tap" title={t("Печать", "Chop etish")} onClick={() => printCashOrder({ kind: r.kind, number: r.number, date: format(new Date(r.createdAt), "dd.MM.yyyy"), amount: r.amount, company: company.name, director: company.director, from: r.fromName ?? r.createdByName ?? "", to: r.toName ?? "", basis: `${ACC(r.debit)} ← ${ACC(r.credit)}${r.category ? ` · ${r.category}` : ""}`, note: r.note ?? "", currency: fmt(0).replace(/[\d\s.,]/g, "").trim() })}><Printer size={13} /></button>
+                    <button className="neo-btn neo-btn-xs tap" title={t("Печать", "Chop etish")} onClick={() => printCashOrder({ kind: r.kind, number: r.number, date: format(new Date(r.createdAt), "dd.MM.yyyy"), amount: r.amount, company: company.name, director: company.director, from: r.fromName ?? r.createdByName ?? "", to: r.toName ?? "", basis: `${ACC_RU(r.debit)} ← ${ACC_RU(r.credit)}`, note: r.note ?? "", currency: fmt(0).replace(/[\d\s.,]/g, "").trim() })}><Printer size={13} /></button>
                     {!r.stornoOfId && (isCeo || true) && <button className="neo-btn neo-btn-xs tap" style={{ marginLeft: 4 }} title={t("Сторно", "Storno")} data-testid={`cash-storno-${r.id}`} onClick={async () => {
                       const reason = window.prompt(t("Причина сторно (обязательно):", "Storno sababi (majburiy):"));
                       if (!reason || reason.trim().length < 3) return;
@@ -498,40 +503,45 @@ function SettingsTab({ t, fmt, refresh }: { t: T; fmt: Fmt; refresh: () => void 
   const [limit, setLimit] = useState<string | null>(null);
   const [deadline, setDeadline] = useState<string | null>(null);
   const [bankDays, setBankDays] = useState<string | null>(null);
+  const [startDay, setStartDay] = useState<string | null>(null);
   const [newCat, setNewCat] = useState({ code: "", name: "", limit: "" });
   const curLimit = limit ?? String(s.data?.limit ?? "");
   const curDeadline = deadline ?? (s.data?.deadline ?? "19:00");
   const curBankDays = bankDays ?? String(s.data?.bankConfirmDays ?? 3);
+  const curStartDay = startDay ?? (s.data?.startDay ?? "2026-09-16");
   return (
     <div className="space-y-4">
       <div className="neo-card neo-card-static" style={{ borderRadius: "20px", padding: "18px" }}>
         <div className="flex items-center gap-2 mb-3"><Settings2 size={16} /><b style={{ fontFamily: F.display }}>{t("Правила", "Qoidalar")}</b></div>
-        <div className="grid sm:grid-cols-4 gap-3 items-end">
+        <div className="grid sm:grid-cols-5 gap-3 items-end">
+          <label className="text-xs" style={{ color: COLORS.textSecondary }}>{t("Касса ведётся с", "Kassa shu kundan")}<input className="neo-input w-full mt-1 font-data" type="date" value={curStartDay} onChange={e => setStartDay(e.target.value)} data-testid="cash-start-day" /></label>
           <label className="text-xs" style={{ color: COLORS.textSecondary }}>{t("Лимит наличных на руках", "Qo'ldagi naqd limiti")}<DecimalInput className="neo-input w-full mt-1 font-data" value={curLimit} onValueChange={setLimit} data-testid="cash-limit" /></label>
           <label className="text-xs" style={{ color: COLORS.textSecondary }}>{t("Сдать до (часы:минуты)", "Topshirish muddati")}<input className="neo-input w-full mt-1 font-data" value={curDeadline} onChange={e => setDeadline(e.target.value)} placeholder="19:00" /></label>
           <label className="text-xs" style={{ color: COLORS.textSecondary }}>{t("Безнал: срок подтверждения, дн.", "Naqdsiz: tasdiqlash muddati, kun")}<input className="neo-input w-full mt-1 font-data" type="number" min={1} max={60} value={curBankDays} onChange={e => setBankDays(e.target.value)} data-testid="cash-bank-days" /></label>
-          <button className="neo-btn-primary h-11" disabled={save.isPending} onClick={() => save.mutate({ limit: Number(curLimit || 0), deadline: curDeadline, bankConfirmDays: Math.min(60, Math.max(1, Number(curBankDays) || 3)) })}>{t("Сохранить", "Saqlash")}</button>
+          <button className="neo-btn-primary h-11" disabled={save.isPending} onClick={() => save.mutate({ limit: Number(curLimit || 0), deadline: curDeadline, bankConfirmDays: Math.min(60, Math.max(1, Number(curBankDays) || 3)), startDay: curStartDay })}>{t("Сохранить", "Saqlash")}</button>
         </div>
-        <p style={{ fontSize: "12px", color: COLORS.textTertiary, marginTop: 8 }}>{t("Выше лимита — предупреждение в кассе и директору в Telegram; после срока сдачи — напоминание сотруднику. Перевод или карта без подтверждения выпиской дольше срока — просрочен, вечером директору по людям.", "Limitdan yuqori — kassada va direktorga Telegramda ogohlantirish; muddatdan keyin — xodimga eslatma. Ko'chirma bilan tasdiqlanmagan o'tkazma yoki karta muddatdan keyin — muddati o'tgan, kechqurun direktorga odamlar bo'yicha.")}</p>
+        <p style={{ fontSize: "12px", color: COLORS.textTertiary, marginTop: 8 }}>{t("Платежи раньше дня начала в кассу не входят — стартовый остаток сейфа внесите «Внесением»; после первого документа день начала не меняется. Выше лимита — предупреждение в кассе и директору в Telegram; после срока сдачи — напоминание сотруднику. Перевод или карта без подтверждения выпиской дольше срока — просрочен, вечером директору по людям.", "Boshlanish kunidan oldingi to'lovlar kassaga kirmaydi — seyfning boshlang'ich qoldig'ini «Kiritish» bilan kiriting; birinchi hujjatdan keyin boshlanish kuni o'zgarmaydi. Limitdan yuqori — kassada va direktorga Telegramda ogohlantirish; muddatdan keyin — xodimga eslatma. Ko'chirma bilan tasdiqlanmagan o'tkazma yoki karta muddatdan keyin — muddati o'tgan, kechqurun direktorga odamlar bo'yicha.")}</p>
       </div>
 
       <div className="neo-card neo-card-static" style={{ borderRadius: "20px", padding: "18px" }}>
         <div className="flex items-center gap-2 mb-3"><BookOpen size={16} /><b style={{ fontFamily: F.display }}>{t("Статьи расхода", "Xarajat moddalari")}</b></div>
         <div className="space-y-2">
           {(cats.data ?? []).map(c => (
-            <div key={c.code} className="flex flex-wrap items-center gap-2 text-sm">
-              <code className="font-data" style={{ width: 110, color: COLORS.textTertiary }}>{c.code}</code>
+            <div key={c.code} className="flex flex-wrap items-center gap-2 text-sm" data-testid={`cash-cat-${c.code}`}>
               <span style={{ flex: 1, minWidth: 160, textDecoration: c.isActive ? "none" : "line-through" }}>{c.name}</span>
               <span className="font-data" style={{ color: COLORS.textSecondary }}>{c.monthlyLimit != null ? `${t("лимит", "limit")} ${fmt(c.monthlyLimit)}` : t("без лимита", "limitsiz")}</span>
               {c.code !== "shortage" && <button className="neo-btn neo-btn-xs" onClick={() => saveCat.mutate({ code: c.code, name: c.name, monthlyLimit: c.monthlyLimit, isActive: !c.isActive })}>{c.isActive ? t("выключить", "o'chirish") : t("включить", "yoqish")}</button>}
             </div>
           ))}
         </div>
-        <div className="grid sm:grid-cols-4 gap-2 mt-4 items-end">
-          <label className="text-xs" style={{ color: COLORS.textSecondary }}>{t("Код (латиницей)", "Kod (lotin)")}<input className="neo-input w-full mt-1 font-data" value={newCat.code} onChange={e => setNewCat({ ...newCat, code: e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, "") })} placeholder="repair" /></label>
-          <label className="text-xs" style={{ color: COLORS.textSecondary }}>{t("Название", "Nomi")}<input className="neo-input w-full mt-1" value={newCat.name} onChange={e => setNewCat({ ...newCat, name: e.target.value })} placeholder={t("Ремонт машин", "Mashina ta'miri")} /></label>
+        <div className="grid sm:grid-cols-3 gap-2 mt-4 items-end">
+          <label className="text-xs" style={{ color: COLORS.textSecondary }}>{t("Новая статья", "Yangi modda")}<input className="neo-input w-full mt-1" value={newCat.name} onChange={e => setNewCat({ ...newCat, name: e.target.value })} placeholder={t("Ремонт машин", "Mashina ta'miri")} data-testid="cash-cat-name" /></label>
           <label className="text-xs" style={{ color: COLORS.textSecondary }}>{t("Лимит в месяц", "Oylik limit")}<DecimalInput className="neo-input w-full mt-1 font-data" value={newCat.limit} onValueChange={v => setNewCat({ ...newCat, limit: v })} placeholder={t("пусто — без лимита", "bo'sh — limitsiz")} /></label>
-          <button className="neo-btn h-11" disabled={!newCat.code || !newCat.name || saveCat.isPending} onClick={() => { saveCat.mutate({ code: newCat.code, name: newCat.name, monthlyLimit: newCat.limit ? Number(newCat.limit) : null, isActive: true }); setNewCat({ code: "", name: "", limit: "" }); }}>{t("Добавить", "Qo'shish")}</button>
+          <button className="neo-btn h-11" disabled={!newCat.name.trim() || saveCat.isPending} data-testid="cash-cat-add" onClick={() => {
+            // Код — служебный, из названия; человек его не видит и не придумывает.
+            saveCat.mutate({ code: categoryCode(newCat.name, (cats.data ?? []).map(c => c.code)), name: newCat.name.trim(), monthlyLimit: newCat.limit ? Number(newCat.limit) : null, isActive: true });
+            setNewCat({ code: "", name: "", limit: "" });
+          }}>{t("Добавить", "Qo'shish")}</button>
         </div>
       </div>
 

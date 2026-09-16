@@ -1,0 +1,1 @@
+ALTER TABLE `settings` ADD `cash_start_day` date DEFAULT '2026-09-16' NOT NULL;

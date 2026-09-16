@@ -145,13 +145,21 @@ const yearOf = (at: Date) => new Date(at.getTime() + TASHKENT_MS).getUTCFullYear
 
 /* ── База: проводки из платежей и документов ───────────────────────────── */
 
+/** С какого момента платежи входят в кассу (settings.cashStartDay, Ташкент, полночь). */
+export async function cashStart(db: Db | Tx, tenantId: number): Promise<Date> {
+  const [row] = await db.select({ day: settings.cashStartDay }).from(settings).where(eq(settings.tenantId, tenantId)).limit(1);
+  return new Date(Date.parse(`${row?.day ?? "2026-09-16"}T00:00:00Z`) - TASHKENT_MS);
+}
+
 async function paymentPostings(db: Db | Tx, tenantId: number, until?: Date): Promise<Posting[]> {
+  const start = await cashStart(db, tenantId);
   const rows = await db.select({
     amount: payments.amount, shopId: payments.shopId, createdBy: payments.createdBy, role: users.role,
   }).from(payments)
     .leftJoin(users, eq(users.id, payments.createdBy))
     .where(and(
       eq(payments.tenantId, tenantId), eq(payments.type, "payment"), eq(payments.paymentMethod, "cash"),
+      gte(payments.createdAt, start),
       ...(until ? [lt(payments.createdAt, until)] : []),
     ));
   return rows.map(r => ({
@@ -554,9 +562,10 @@ export const CashService = {
     const opening = balanceOf(await ledgerBalances(db, tenantId, input.from), ACCOUNT.office);
     const docs = await db.select({ debit: cashDocuments.debit, credit: cashDocuments.credit, amount: cashDocuments.amount, createdAt: cashDocuments.createdAt })
       .from(cashDocuments).where(and(eq(cashDocuments.tenantId, tenantId), gte(cashDocuments.createdAt, input.from), lt(cashDocuments.createdAt, input.to)));
+    const start = await cashStart(db, tenantId);
     const pays = await db.select({ amount: payments.amount, createdAt: payments.createdAt, role: users.role })
       .from(payments).leftJoin(users, eq(users.id, payments.createdBy))
-      .where(and(eq(payments.tenantId, tenantId), eq(payments.type, "payment"), eq(payments.paymentMethod, "cash"), gte(payments.createdAt, input.from), lt(payments.createdAt, input.to)));
+      .where(and(eq(payments.tenantId, tenantId), eq(payments.type, "payment"), eq(payments.paymentMethod, "cash"), gte(payments.createdAt, input.from), gte(payments.createdAt, start), lt(payments.createdAt, input.to)));
     const days = new Map<string, { inflow: number; outflow: number }>();
     const bump = (at: Date, inflow: number, outflow: number) => {
       const k = tashkentDay(at); const d = days.get(k) ?? { inflow: 0, outflow: 0 };

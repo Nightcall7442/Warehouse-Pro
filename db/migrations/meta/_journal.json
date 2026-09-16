@@ -330,6 +330,13 @@
       "when": 1789552098435,
       "tag": "0046_noncash_control",
       "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "5",
+      "when": 1789555874476,
+      "tag": "0047_cash_start_day",
+      "breakpoints": true
     }
   ]
 }
