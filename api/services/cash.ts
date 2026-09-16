@@ -60,6 +60,8 @@ export const ACCOUNT = {
   employeeDebt: (id: number) => `receivable.employee.${id}`,
   shop: (id: number) => `receivable.shop.${id}`,
   expense: (category: string) => `expense.${category}`,
+  /** Недостача товара на машине — деньгами по цене продажи; корреспондирует с долгом водителя. */
+  stockShortage: (warehouseId: number) => `stock.shortage.${warehouseId}`,
 } as const;
 
 /** Куда падают наличные, которые записал этот человек. */
@@ -379,6 +381,21 @@ export const CashService = {
     await audit(db, tenantId, actor, "cash.write_off", docId, { userId: input.userId, amount, reason: input.reason, number });
     tellCeo(tenantId, `🧾 <b>Списан долг сотрудника: ${tgEscape(fmtMoney(amount))}</b>\n${tgEscape(number)} · ${tgEscape(actor.name)}\n${tgEscape(input.reason)}`);
     return { docId, number };
+  },
+
+  /**
+   * Долг сотрудника не деньгами: недостача товара на машине (services/van.ts).
+   * Дт долг сотрудника / Кт недостача товара — в кассовых остатках ничего не
+   * движется, но долг виден там же, где недостачи по наличным, и уходит в
+   * удержание из зарплаты той же дорогой. Вызывается внутри чужой транзакции.
+   */
+  async chargeEmployee(tx: Tx, tenantId: number, actor: Actor, input: { userId: number; amount: number; credit: string; note: string; now?: Date }) {
+    const amount = round2(input.amount);
+    if (!(amount > 0)) throw badRequest("Сумма недостачи должна быть больше нуля");
+    return postDocument(tx, tenantId, actor.id, {
+      kind: "rko", posting: { debit: ACCOUNT.employeeDebt(input.userId), credit: input.credit, amount },
+      fromUserId: input.userId, category: "shortage", note: input.note,
+    }, input.now ?? new Date());
   },
 
   /* ── Сторно ───────────────────────────────────────────────────────────── */

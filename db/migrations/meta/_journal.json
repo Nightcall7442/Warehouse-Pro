@@ -337,6 +337,13 @@
       "when": 1789555874476,
       "tag": "0047_cash_start_day",
       "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "5",
+      "when": 1789558981336,
+      "tag": "0048_van_selling",
+      "breakpoints": true
     }
   ]
 }

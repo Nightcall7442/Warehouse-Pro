@@ -9,6 +9,7 @@ const ACCOUNT_LABEL: Array<[test: (a: string) => boolean, ru: string, uz: string
   [a => a.startsWith("receivable.employee."), "долг сотрудника", "xodim qarzi"],
   [a => a === "owner", "директор", "direktor"],
   [a => a === "income.unexplained", "до выяснения", "aniqlanguncha"],
+  [a => a.startsWith("stock.shortage."), "недостача товара", "tovar kamomadi"],
 ];
 export function accountLabel(a: string, lang: "ru" | "uz", catName: (code: string) => string): string {
   if (a.startsWith("expense.")) return `${lang === "uz" ? "xarajat" : "расход"} · ${catName(a.slice(8))}`;

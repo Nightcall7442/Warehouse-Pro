@@ -130,6 +130,15 @@ const ACTION_CONFIG: Record<string, { icon: LucideIcon; gradient: string }> = {
   // Склад
   "stock.adjusted":                  { icon: Package, gradient: WARNING },
   "stock.transfer_completed":        { icon: Boxes, gradient: PRIMARY },
+  // Ван-селлинг
+  "van.enabled":                     { icon: Truck, gradient: SUCCESS },
+  "van.disabled":                    { icon: Truck, gradient: WARNING },
+  "van.created":                     { icon: Truck, gradient: PRIMARY },
+  "van.updated":                     { icon: Truck, gradient: PRIMARY },
+  "van.loaded":                      { icon: Truck, gradient: SUCCESS },
+  "van.unloaded":                    { icon: Truck, gradient: PRIMARY },
+  "van.counted":                     { icon: Truck, gradient: WARNING },
+  "van.sale":                        { icon: Truck, gradient: SUCCESS },
   "stock_count.create":              { icon: ClipboardCheck, gradient: PRIMARY },
   "stock_count.apply":               { icon: ClipboardCheck, gradient: SUCCESS },
   "stock_count.cancel":              { icon: ClipboardCheck, gradient: DANGER },
