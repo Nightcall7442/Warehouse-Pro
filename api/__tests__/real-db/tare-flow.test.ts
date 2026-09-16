@@ -80,7 +80,7 @@ describe.skipIf(!hasRealDb)("тара: штуки и залог, следом з
     expect(await held("warehouse", vanId, keg)).toBe(2);
     expect(await held("shop", s.shopId, keg)).toBe(4);
     expect(await held("shop", s.shopId, box)).toBe(1);
-    const follow = await (db as any).select().from(schema.tareMovements).where(and(eq(schema.tareMovements.reason, "follow"), eq(schema.tareMovements.referenceId, sale.id)));
+    const follow = await (db as any).select().from(schema.tareMovements).where(and(eq(schema.tareMovements.reason, "follow"), eq(schema.tareMovements.note, "order_delivery"), eq(schema.tareMovements.referenceId, sale.id)));
     expect(follow).toHaveLength(4);
     const shopTare = await TareService.shop(db as any, s.tenantId, s.shopId);
     expect([...shopTare].sort((a, b) => a.tareTypeId - b.tareTypeId).map(x => [x.name, x.qty, x.deposit])).toEqual([["Кега 50 л", 4, 200000], ["Ящик", 1, 0]]);
