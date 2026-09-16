@@ -385,7 +385,7 @@ export default function ProductDetail() {
                   <td className={`px-4 py-2 font-data text-sm ${m.type==="in"?"text-success":m.type==="out"?"text-danger":"text-warning"}`}>
                     {m.type==="in"?"+":m.type==="out"?"−":"±"}{formatQty(m.quantity)} {unitLabel(product.unit)}
                   </td>
-                  <td className="px-4 py-2 text-xs text-secondary">{movementDocument(m.referenceType,m.referenceId,lang)}</td>
+                  <td className="px-4 py-2 text-xs text-secondary">{movementDocument(m.referenceType, m.referenceNumber, lang)}</td>
                   <td className="px-4 py-2 text-xs text-secondary">{movementNote(m.notes,lang)}</td>
                 </tr>
               ))}

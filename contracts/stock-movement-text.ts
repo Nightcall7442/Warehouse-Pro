@@ -69,10 +69,16 @@ const UNNUMBERED: Record<string, { ru: string; uz: string }> = {
  * Здесь стояло `${referenceType} #${referenceId}` без единой проверки. У
  * ручной правки номера документа нет — и на экран выходило «#null», слово,
  * которого человек не должен видеть никогда.
+ *
+ * Второй аргумент — номер документа с бумаги (order_number, arrival_number…),
+ * который сервер подставляет выражением movementReferenceNumber, а НЕ
+ * внутренний reference_id. Тот сквозной по всем организациям: «Доставка
+ * заказа №1484» у арендатора, чьи заказы зовутся ORD-01001, читалась как
+ * чужой заказ. Нет номера — документ называется без него.
  */
 export function movementDocument(
   referenceType: string | null | undefined,
-  referenceId: number | string | null | undefined,
+  referenceNumber: number | string | null | undefined,
   lang: Lang = "ru",
 ): string {
   if (!referenceType) return "—";
@@ -85,8 +91,8 @@ export function movementDocument(
 
   // Номера может не быть и у документа: тогда называем документ без него,
   // а не приписываем «null».
-  const hasNumber = referenceId !== null && referenceId !== undefined && String(referenceId) !== "";
-  return hasNumber ? `${name} №${referenceId}` : name;
+  const hasNumber = referenceNumber !== null && referenceNumber !== undefined && String(referenceNumber) !== "";
+  return hasNumber ? `${name} №${referenceNumber}` : name;
 }
 
 /**

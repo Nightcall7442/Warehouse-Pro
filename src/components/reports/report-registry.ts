@@ -610,7 +610,7 @@ export const REPORTS: ReportDef[] = [
         "Количество": num(r.quantity),
         "Документ": movementDocument(
           r.referenceType as string | null | undefined,
-          r.referenceId as number | null | undefined,
+          r.referenceNumber as string | null | undefined,
         ),
         "Примечание": movementNote(r.notes as string | null | undefined),
       })),

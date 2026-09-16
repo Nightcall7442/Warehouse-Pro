@@ -2,6 +2,7 @@ import { z } from "zod";
 import { createRouter, operatorQuery, can } from "./middleware";
 import { warehouseStock, products, stockMovements, settings, orderItems, orders, warehouses } from "@db/schema";
 import { eq, like, and, sql, desc } from "drizzle-orm";
+import { movementReferenceNumber } from "./lib/movement-reference";
 import { StockService } from "./services/stock";
 import { lowStockCondition } from "./services/reorder";
 
@@ -73,6 +74,7 @@ export const warehouseRouter = createRouter({
       return ctx.db.select({
         id: stockMovements.id, type: stockMovements.type, quantity: stockMovements.quantity,
         referenceType: stockMovements.referenceType, referenceId: stockMovements.referenceId,
+        referenceNumber: movementReferenceNumber,
         notes: stockMovements.notes, createdAt: stockMovements.createdAt, productName: products.name,
         // Единица нужна экрану: без неё история движений подписывала любое
         // количество килограммами — и штуки, и ящики, и литры. Соединение с

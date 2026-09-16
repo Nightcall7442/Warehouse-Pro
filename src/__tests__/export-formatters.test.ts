@@ -123,8 +123,12 @@ describe("движения товара в отчёте", () => {
   });
 
   it("документ называется словом и номером", () => {
-    const [row] = formatMovementsForExport([{ referenceType: "order_delivery", referenceId: 1342 }]);
-    expect(row["Документ"]).toBe("Доставка заказа №1342");
+    // Номер — с накладной (referenceNumber), а не внутренний referenceId: тот
+    // сквозной по всем организациям и у арендатора читался как чужой заказ.
+    const [row] = formatMovementsForExport([{ referenceType: "order_delivery", referenceId: 1342, referenceNumber: "ORD-01001" }]);
+    expect(row["Документ"]).toBe("Доставка заказа №ORD-01001");
+    const [bare] = formatMovementsForExport([{ referenceType: "order_delivery", referenceId: 1342 }]);
+    expect(bare["Документ"]).toBe("Доставка заказа");
   });
 
   it("вид движения по-русски, а не «out»", () => {

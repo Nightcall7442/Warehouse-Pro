@@ -4,6 +4,7 @@ import { createRouter, reportsQuery } from "./middleware";
 import { getDb } from "./queries/connection";
 import { orders, users, dailyPlans, agentLocations, subscriptions, shops, products, stockMovements } from "@db/schema";
 import { eq, and, sql, gte, desc , inArray, isNull } from "drizzle-orm";
+import { movementReferenceNumber } from "./lib/movement-reference";
 import { REVENUE_ORDER_STATUSES } from "./lib/order-status";
 import { subDays, format } from "date-fns";
 import { onDate } from "./lib/date-range";
@@ -231,6 +232,7 @@ export const reportsRouter = createRouter({
         productCode: products.code,
         referenceType: stockMovements.referenceType,
         referenceId: stockMovements.referenceId,
+        referenceNumber: movementReferenceNumber,
         notes: stockMovements.notes,
       })
         .from(stockMovements)

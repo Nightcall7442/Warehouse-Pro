@@ -72,6 +72,15 @@ describe.skipIf(!hasRealDb)("курьер: назначить → выехал �
     expect(Number(shop.debt)).toBe(100);
     expect(await countOf("stock_movements", `reference_type = 'order_delivery' AND reference_id = ${orderId}`)).toBeGreaterThanOrEqual(1);
 
+    // В истории движений — номер заказа с накладной, а не сквозной id строки:
+    // «Доставка заказа №1484» у арендатора, чьи заказы зовутся ORD-…, читалась как чужой заказ.
+    const wh = (await import("../../warehouse-router")).warehouseRouter.createCaller(ctxFor(db, s.tenantId, s.agentId, "operator"));
+    const moves = await wh.movements({ productId: s.productId });
+    const delivery = moves.find(m => m.referenceType === "order_delivery" && Number(m.referenceId) === orderId);
+    const [[num]] = await (db as any).execute(sql`SELECT order_number AS n FROM orders WHERE id = ${orderId}`) as unknown as [Array<{ n: string }>];
+    expect(delivery?.referenceNumber).toBe(num.n);
+    expect(delivery?.referenceNumber).not.toBe(String(orderId));
+
     // очередь телефона повторила запрос после обрыва — ничего не списывается второй раз
     const again = await courier.completeDelivery({
       orderId, result: "partial_returned", paymentMethod: "cash", paidAmount: "200",

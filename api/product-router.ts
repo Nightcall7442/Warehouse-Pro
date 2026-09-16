@@ -6,6 +6,7 @@ import { createRouter, operatorQuery, fieldSalesQuery, can } from "./middleware"
 import { getDb } from "./queries/connection";
 import { products, warehouseStock, stockMovements, warehouses } from "@db/schema";
 import { eq, like, and, or, sql, desc } from "drizzle-orm";
+import { movementReferenceNumber } from "./lib/movement-reference";
 import { sanitizeString, sanitizeSearch } from "./lib/sanitize";
 import { decimalOrDefault } from "./lib/zod-decimal";
 import { cache, withCache, CacheKeys, CacheTTL } from "./lib/cache";
@@ -287,6 +288,7 @@ export const productRouter = createRouter({
         db.select({
           id: stockMovements.id, type: stockMovements.type, quantity: stockMovements.quantity,
           referenceType: stockMovements.referenceType, referenceId: stockMovements.referenceId,
+          referenceNumber: movementReferenceNumber,
           notes: stockMovements.notes, createdAt: stockMovements.createdAt,
         }).from(stockMovements)
           .where(and(eq(stockMovements.productId, product.id), eq(stockMovements.tenantId, tenantId)))
