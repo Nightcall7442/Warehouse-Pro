@@ -1463,6 +1463,8 @@ export const settings = mysqlTable("settings", {
   vanSellingEnabled:   boolean("van_selling_enabled").default(false).notNull(),
   /** Возвратная тара включена (тарифы Pro и Exclusive; пробный — всё). */
   tareEnabled:         boolean("tare_enabled").default(false).notNull(),
+  /** Себестоимость при приходе: last — последняя закупка (как было), average — средняя по остатку (services/cost-method.ts). */
+  costMethod:          mysqlEnum("cost_method", ["last", "average"]).default("last").notNull(),
   createdAt:           timestamp("created_at").defaultNow().notNull(),
   updatedAt:           timestamp("updated_at").defaultNow().notNull().$onUpdate(() => new Date()),
 });

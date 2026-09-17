@@ -128,6 +128,7 @@ export const AUDIT_ACTION_LABEL: Record<string, Label> = {
   "stock_count.apply": { ru: "Инвентаризация проведена", uz: "Inventarizatsiya o'tkazildi" },
   "stock_count.cancel": { ru: "Инвентаризация отменена", uz: "Inventarizatsiya bekor qilindi" },
   "arrival.completed": { ru: "Приход оприходован", uz: "Kirim qabul qilindi" },
+  "product.cost_averaged": { ru: "Себестоимость усреднена по приходу", uz: "Tannarx kirim bo'yicha o'rtacha hisoblandi" },
   "supplier.return_goods": { ru: "Возврат поставщику", uz: "Yetkazib beruvchiga qaytarish" },
   "loading_list.created": { ru: "Создан лист загрузки", uz: "Yuklash varag'i yaratildi" },
   "loading_list.picked": { ru: "Лист загрузки собран", uz: "Yuklash varag'i yig'ildi" },
