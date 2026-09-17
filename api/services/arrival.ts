@@ -1,6 +1,7 @@
 import { receiveStock } from "./stock-ledger";
+import { nextCostPrice, type CostMethod } from "./cost-method";
 import { TRPCError } from "@trpc/server";
-import { arrivals, arrivalItems, products, warehouses, suppliers, supplies, supplierPayments } from "@db/schema";
+import { arrivals, arrivalItems, products, warehouses, suppliers, supplies, supplierPayments, settings, warehouseStock } from "@db/schema";
 import { eq, and, sql } from "drizzle-orm";
 import { sanitizeString } from "../lib/sanitize";
 import { sseBus } from "../lib/sse";
@@ -286,9 +287,22 @@ export async function updateArrival(db: Db, tenantId: number, input: UpdateArriv
         warehouseId = warehouse.id;
       }
 
+      // Правило себестоимости — одно на организацию (services/cost-method.ts).
+      const [cfg] = await tx.select({ costMethod: settings.costMethod }).from(settings).where(eq(settings.tenantId, tenantId)).limit(1);
+      const costMethod: CostMethod = cfg?.costMethod ?? "last";
+
       // Batch update: for each product, update stock in one query
       for (const item of items) {
         const qty = Number(item.quantity);
+        // Остаток по всем складам ДО приёмки и текущая себестоимость — для средней.
+        let onHandBefore = 0, oldCost = 0;
+        if (costMethod === "average" && Number(item.costPrice ?? 0) > 0) {
+          const [[stockRow], [prod]] = await Promise.all([
+            tx.select({ s: sql<string>`coalesce(sum(${warehouseStock.currentStock}), 0)` }).from(warehouseStock).where(and(eq(warehouseStock.tenantId, tenantId), eq(warehouseStock.productId, item.productId))),
+            tx.select({ c: products.costPrice }).from(products).where(and(eq(products.id, item.productId), eq(products.tenantId, tenantId))).limit(1),
+          ]);
+          onHandBefore = Number(stockRow?.s ?? 0); oldCost = Number(prod?.c ?? 0);
+        }
 
         /*
           Один вызов вместо «найти строку под блокировкой, а дальше UPDATE
@@ -348,10 +362,18 @@ export async function updateArrival(db: Db, tenantId: number, input: UpdateArriv
         const newPrice = Number(item.sellingPrice ?? 0);
         if (newCost > 0 || newPrice > 0) {
           const pricePatch: { costPrice?: string; unitPrice?: string; updatedAt: Date } = { updatedAt: new Date() };
-          if (newCost > 0) pricePatch.costPrice = newCost.toFixed(2);
+          // «Средняя по остатку» усредняет закупку с тем, что уже лежит; «последняя» пишет как есть.
+          const cost = nextCostPrice(costMethod, onHandBefore, oldCost, qty, newCost);
+          if (newCost > 0) pricePatch.costPrice = cost.toFixed(2);
           if (newPrice > 0) pricePatch.unitPrice = newPrice.toFixed(2);
           await tx.update(products).set(pricePatch)
             .where(and(eq(products.id, item.productId), eq(products.tenantId, tenantId)));
+          if (newCost > 0 && costMethod === "average" && Math.abs(cost - newCost) >= 0.01) {
+            await recordAudit(tx as unknown as Db, {
+              tenantId, actorId: actor?.id, actorName: actor?.name, action: "product.cost_averaged", targetType: "product", targetId: item.productId,
+              meta: { arrival: arrivalNumber, onHand: onHandBefore, oldCost, qty, newCost, cost },
+            });
+          }
         }
       }
 

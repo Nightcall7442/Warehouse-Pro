@@ -351,6 +351,13 @@
       "when": 1789571620461,
       "tag": "0049_tare",
       "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "5",
+      "when": 1789655861789,
+      "tag": "0050_cost_method",
+      "breakpoints": true
     }
   ]
 }

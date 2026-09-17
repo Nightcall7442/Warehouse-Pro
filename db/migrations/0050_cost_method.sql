@@ -1,0 +1,1 @@
+ALTER TABLE `settings` ADD `cost_method` enum('last','average') DEFAULT 'last' NOT NULL;

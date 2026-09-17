@@ -10,6 +10,13 @@ export function WarehouseSettings() {
   const utils = trpc.useUtils();
 
   const { data: warehouses, isLoading } = trpc.warehouseMulti.list.useQuery();
+  // Себестоимость при приходе — правило на организацию (api/services/cost-method.ts).
+  const cfg = trpc.settings.get.useQuery();
+  const saveCost = trpc.settings.update.useMutation({
+    onSuccess: () => { utils.settings.get.invalidate(); notify.success(t("Правило себестоимости сохранено", "Tannarx qoidasi saqlandi")); },
+    onError: (e) => notify.error(e.message),
+  });
+  const costMethod = cfg.data?.costMethod ?? "last";
   const [showForm, setShowForm] = useState(false);
   const [editId, setEditId] = useState<number | null>(null);
   const [form, setForm] = useState({ name: "", address: "", city: "" });
@@ -67,6 +74,24 @@ export function WarehouseSettings() {
 
   return (
     <div className="space-y-4">
+      {/* Себестоимость при приходе: последняя закупка или средняя по остатку */}
+      <div className="p-4 rounded-xl" style={{ background: "var(--color-surface-light)" }} data-testid="cost-method">
+        <div className="font-semibold text-primary text-sm">{t("Себестоимость при приходе", "Kirimda tannarx")}</div>
+        <p className="text-xs text-tertiary mt-1 mb-3">{t("Что писать в карточку товара, когда приход пришёл по другой цене.", "Kirim boshqa narxda kelganda tovar kartochkasiga nima yozish.")}</p>
+        <div className="space-y-2 text-sm">
+          {([
+            ["last", t("Последняя закупка", "Oxirgi xarid"), t("Пришло по 60 000 — в карточке 60 000. Как было всегда.", "60 000 dan keldi — kartochkada 60 000. Avvalgidek.")],
+            ["average", t("Средняя по остатку", "Qoldiq bo'yicha o'rtacha"), t("100 шт. по 55 000 на складе и 10 шт. по 60 000 в приходе → 55 455. Считается по количеству, а не «пополам».", "Omborda 100 dona 55 000 dan va kirimda 10 dona 60 000 dan → 55 455. Miqdor bo'yicha, «yarmiga» emas.")],
+          ] as const).map(([value, label, hint]) => (
+            <label key={value} className="flex items-start gap-3 cursor-pointer">
+              <input type="radio" name="costMethod" value={value} checked={costMethod === value} disabled={saveCost.isPending} data-testid={`cost-method-${value}`}
+                onChange={() => saveCost.mutate({ costMethod: value })} style={{ marginTop: 3, accentColor: "var(--color-primary)" }} />
+              <span><span className="text-primary font-medium">{label}</span><span className="block text-xs text-tertiary">{hint}</span></span>
+            </label>
+          ))}
+        </div>
+      </div>
+
       {/* Warehouse list */}
       {warehouses && warehouses.length > 0 && (
         <div className="space-y-2">

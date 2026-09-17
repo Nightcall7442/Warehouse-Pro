@@ -21,6 +21,7 @@ export const settingsRouter = createRouter({
       companyDirector: settings.companyDirector, companyBank: settings.companyBank,
       companyBankAccount: settings.companyBankAccount, companyMfo: settings.companyMfo,
       logoUrl: settings.logoUrl, createdAt: settings.createdAt, updatedAt: settings.updatedAt,
+      costMethod: settings.costMethod,
       }).from(settings).where(eq(settings.tenantId, ctx.tenant.id)).limit(1);
       return row ?? null;
     });
@@ -72,6 +73,8 @@ export const settingsRouter = createRouter({
       companyBank:         z.string().nullable().optional(),
       companyBankAccount:  z.string().nullable().optional(),
       companyMfo:          z.string().nullable().optional(),
+      // Себестоимость при приходе — последняя закупка или средняя по остатку.
+      costMethod:          z.enum(["last", "average"]).optional(),
       /*
         Предел — не пожелание, а ёмкость столбца: logo_url объявлен как TEXT,
         это 65 535 байт. Строка длиннее не записывалась, и MySQL отклонял ВЕСЬ
