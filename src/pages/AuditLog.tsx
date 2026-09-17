@@ -155,6 +155,7 @@ const ACTION_CONFIG: Record<string, { icon: LucideIcon; gradient: string }> = {
   "stock_count.apply":               { icon: ClipboardCheck, gradient: SUCCESS },
   "stock_count.cancel":              { icon: ClipboardCheck, gradient: DANGER },
   "arrival.completed":               { icon: Truck, gradient: SUCCESS },
+  "product.cost_averaged":           { icon: Package, gradient: PRIMARY },
   "supplier.return_goods":           { icon: Truck, gradient: WARNING },
   "loading_list.created":            { icon: ClipboardList, gradient: PRIMARY },
   "loading_list.picked":             { icon: ClipboardList, gradient: SUCCESS },

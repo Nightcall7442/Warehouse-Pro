@@ -1,8 +1,8 @@
 {
   "version": "5",
   "dialect": "mysql",
-  "id": "6ab8028f-0bfd-4bb4-9a26-b387ca18167d",
-  "prevId": "6298de61-72fc-4864-bbe4-3589df44f66a",
+  "id": "f012138e-99f4-49b3-95c6-4b9a78265c9c",
+  "prevId": "6ab8028f-0bfd-4bb4-9a26-b387ca18167d",
   "tables": {
     "agent_locations": {
       "name": "agent_locations",
@@ -4040,6 +4040,27 @@
           "notNull": false,
           "autoincrement": false
         },
+        "shop_confirmed_at": {
+          "name": "shop_confirmed_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "shop_disputed_at": {
+          "name": "shop_disputed_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "shop_dispute_note": {
+          "name": "shop_dispute_note",
+          "type": "varchar(300)",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
         "warehouse_id": {
           "name": "warehouse_id",
           "type": "bigint unsigned",
@@ -6299,6 +6320,14 @@
           "notNull": true,
           "autoincrement": false,
           "default": "'last'"
+        },
+        "control_enabled": {
+          "name": "control_enabled",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": false
         },
         "created_at": {
           "name": "created_at",

@@ -13,7 +13,7 @@
  *   · маршрут POST /r/:token/word смонтирован и ведёт обратно (303);
  *   · права: обзор, споры, тумблер — директор; обзор и споры — под assertControl;
  *   · карточка заказа несёт слово магазина; журнал действий знает control.*;
- *     меню, маршрут и раздел настроек на месте; миграция 0050 без хвоста.
+ *     меню, маршрут и раздел настроек на месте; миграция 0051 без хвоста.
  */
 import { describe, it, expect, vi } from "vitest";
 import { readFileSync } from "node:fs";
@@ -151,8 +151,8 @@ describe("права, экраны и хозяйство", () => {
     expect(read("src/pages/Control.tsx")).toContain("const on = status.data?.enabled === true;");
     expect(read("src/components/settings/ControlSettings.tsx")).toContain("disabled={!planAllows || setEnabled.isPending}");
   });
-  it("миграция 0050: три поля заказа, тумблер, без хвостового маркера", () => {
-    const sql = readFileSync(join(ROOT, "db/migrations/0050_control.sql"), "utf8");
+  it("миграция 0051: три поля заказа, тумблер, без хвостового маркера", () => {
+    const sql = readFileSync(join(ROOT, "db/migrations/0051_control.sql"), "utf8");
     expect(sql).toContain("ALTER TABLE `orders` ADD `shop_confirmed_at` timestamp;");
     expect(sql).toContain("ALTER TABLE `orders` ADD `shop_disputed_at` timestamp;");
     expect(sql).toContain("ALTER TABLE `orders` ADD `shop_dispute_note` varchar(300);");
