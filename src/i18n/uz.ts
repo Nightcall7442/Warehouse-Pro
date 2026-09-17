@@ -18,6 +18,7 @@ export const uz = {
     cash:        "Kassa",
     warehouseReports: "Ombor hisobotlari",
     auditLog:    "Harakatlar jurnali",
+    control:     "Nazorat",
     arrivals:    "Kirim",
     analytics:   "Tahlil",
     users:       "Foydalanuvchilar",

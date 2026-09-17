@@ -388,6 +388,15 @@ export const orders = mysqlTable("orders", {
   deliveryResult: varchar("delivery_result", { length: 30 }), // paid, partial_paid, returned, partial_returned
   deliveryNotes:  text("delivery_notes"),
   /*
+    Контроль: слово магазина. По ссылке из чека (QR) магазин сам говорит
+    «получил» или «не сходится» — с заметкой. Это слово второй стороны, не
+    сотрудника: подтверждённая доставка спорить не о чем, спорная — сигнал
+    директору сразу и балл риска сотруднику.
+  */
+  shopConfirmedAt:  timestamp("shop_confirmed_at"),
+  shopDisputedAt:   timestamp("shop_disputed_at"),
+  shopDisputeNote:  varchar("shop_dispute_note", { length: 300 }),
+  /*
     Продажа с машины: склад-машина, с которой ушёл товар. Пусто у обычных
     заказов — их путь (резерв → доставка) идёт через основной склад.
     Заказ с машины рождается доставленным и в работу не возвращается.
@@ -1465,6 +1474,8 @@ export const settings = mysqlTable("settings", {
   tareEnabled:         boolean("tare_enabled").default(false).notNull(),
   /** Себестоимость при приходе: last — последняя закупка (как было), average — средняя по остатку (services/cost-method.ts). */
   costMethod:          mysqlEnum("cost_method", ["last", "average"]).default("last").notNull(),
+  /** Контроль: подтверждение доставки магазином и индекс риска по сотруднику. Pro/Exclusive. */
+  controlEnabled:      boolean("control_enabled").default(false).notNull(),
   createdAt:           timestamp("created_at").defaultNow().notNull(),
   updatedAt:           timestamp("updated_at").defaultNow().notNull().$onUpdate(() => new Date()),
 });

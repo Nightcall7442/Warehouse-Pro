@@ -18,14 +18,14 @@ import {
   LayoutDashboard, Store, Package, ClipboardList, Truck,
   Warehouse, BarChart3, Users, Settings, PlusCircle, MapPin,
   Calendar, LogOut, X, Moon, Sun, WifiOff, Scan, Activity,
-  TrendingUp, CreditCard, ChevronLeft, Bell, Zap, Wallet, LifeBuoy, BookOpen, Landmark,
+  TrendingUp, CreditCard, ChevronLeft, Bell, Zap, Wallet, LifeBuoy, BookOpen, Landmark, Shield, ShieldCheck,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
 const iconMap: Record<string, LucideIcon> = {
   LayoutDashboard, Store, Package, ClipboardList, Truck,
   Warehouse, BarChart3, Users, Settings, PlusCircle, MapPin,
-  Calendar, WifiOff, Scan, Activity, TrendingUp, CreditCard, Zap, Wallet, LifeBuoy, Landmark,
+  Calendar, WifiOff, Scan, Activity, TrendingUp, CreditCard, Zap, Wallet, LifeBuoy, Landmark, Shield, ShieldCheck,
 };
 
 /*
@@ -57,6 +57,7 @@ const PAGE_META: Record<string, { title: PageTitle; parent?: PageTitle; parentPa
   "/cash": { title: { ru: "Касса", uz: "Kassa" } },
   "/warehouse-reports": { title: { ru: "Отчёты склада", uz: "Ombor hisobotlari" } },
   "/audit-log":         { title: { ru: "Журнал действий", uz: "Harakatlar jurnali" } },
+  "/control":           { title: { ru: "Контроль", uz: "Nazorat" } },
   "/arrivals":          { title: { ru: "Приходы",       uz: "Kirim" } },
   "/pnl":               { title: { ru: "P&L",           uz: "P&L" } },
   "/salaries":          { title: { ru: "Зарплаты",      uz: "Ish haqi" } },
