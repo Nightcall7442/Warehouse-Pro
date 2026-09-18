@@ -280,6 +280,12 @@ export const priceLists = mysqlTable("price_lists", {
   type:        mysqlEnum("type", ["shop", "tier", "volume"]).default("shop").notNull(),
   isActive:    boolean("is_active").default(true).notNull(),
   priority:    int("priority").default(0).notNull(), // higher = overrides lower
+  /*
+    Правило «к карточке»: −7.00 — скидка 7 % от цены карточки, 5.00 — наценка.
+    Товар без своей строки в списке получает цену по правилу; строки — исключения
+    поверх него (services/price-resolver.ts). Пусто — только строки.
+  */
+  markupPct:   decimal("markup_pct", { precision: 6, scale: 2 }),
   createdAt:   timestamp("created_at").defaultNow().notNull(),
   updatedAt:   timestamp("updated_at").defaultNow().notNull().$onUpdate(() => new Date()),
 }, (t) => ({
@@ -381,6 +387,12 @@ export const orders = mysqlTable("orders", {
   shopConfirmedAt:  timestamp("shop_confirmed_at"),
   shopDisputedAt:   timestamp("shop_disputed_at"),
   shopDisputeNote:  varchar("shop_dispute_note", { length: 300 }),
+  /*
+    Прайс-лист заказа: выбран при оформлении (по умолчанию — список магазина).
+    Пусто — цены по спискам магазина, а без них — по карточке. Строки заказа
+    помнят свой список сами (order_items.price_list_id).
+  */
+  priceListId:      bigint("price_list_id", { mode: "number", unsigned: true }).references(() => priceLists.id, { onDelete: "set null" }),
   /*
     Расчёт по заказу (services/order-close.ts). Доставка — не конец: заказ
     закрыт, когда офис принял по нему деньги — наличные из рук курьера,

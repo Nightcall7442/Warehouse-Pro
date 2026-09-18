@@ -80,6 +80,7 @@ export function NewOrderItemsStep() {
       onChange={w.setItems}
       cartOpen={w.cartOpen}
       onCartOpenChange={w.setCartOpen}
+      shopId={w.shopId || undefined}
     />
   );
 }

@@ -18,7 +18,7 @@ import { ru as dateRu } from "date-fns/locale";
 import {
   ArrowLeft, Printer, FileDown, CheckCircle2,
   ChevronDown, Truck, Trash2, Edit3, CreditCard,
-  Phone, Package, User, Clock, AlertTriangle, Store, ShieldCheck, ShieldAlert, X,
+  Phone, Package, User, Clock, AlertTriangle, Store, ShieldCheck, ShieldAlert, X, Tag,
 } from "lucide-react";
 import { useState, useCallback } from "react";
 import { PremiumSelect } from "@/components/PremiumSelect";
@@ -474,7 +474,7 @@ export default function OrderDetail() {
           {/* ── Слева: кому, что, сколько ── */}
           <div className="space-y-4 min-w-0">
             <div className="neo-card p-6 space-y-5">
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
                 <Fact icon={<Store size={12}/>} label={lang === "uz" ? "Xaridor" : "Покупатель"}>
                   <p className="font-medium">{order.shop?.name ?? "—"}</p>
                   {order.shop?.phone && <p className="text-xs text-secondary flex items-center gap-1 mt-0.5"><Phone size={10}/> {order.shop.phone}</p>}
@@ -482,6 +482,7 @@ export default function OrderDetail() {
                 </Fact>
                 <Fact icon={<User size={12}/>} label={lang === "uz" ? "Agent" : "Агент"}>{order.agent?.name ?? "—"}</Fact>
                 <Fact icon={<Truck size={12}/>} label={lang === "uz" ? "Kuryer" : "Курьер"}>{order.courier?.name ?? "—"}</Fact>
+                <Fact icon={<Tag size={12}/>} label={lang === "uz" ? "Narxlar ro'yxati" : "Прайс-лист"}>{order.priceListName ?? (lang === "uz" ? "Tovar kartasi" : "По карточке")}</Fact>
                 <Fact icon={<CreditCard size={12}/>} label={lang === "uz" ? "Yetkazib berish" : "Доставка"}>
                   {lang === "uz" ? deliveryLabel[1] : deliveryLabel[0]}
                   {order.deliveredAt && <span className="text-xs text-secondary"> · {format(new Date(order.deliveredAt), "dd.MM HH:mm")}</span>}
@@ -543,6 +544,8 @@ export default function OrderDetail() {
                   {canEditItems && (
                     <OrderItemsEditor
                       orderId={order.id}
+                      shopId={order.shopId}
+                      priceListId={order.priceListId ?? null}
                       items={(order.items ?? []).map(i => ({ id: i.id, productId: i.productId, productName: i.productName, quantity: i.quantity, unitPrice: i.unitPrice, unit: i.unit }))}
                       onSaved={() => refetch()}
                     />

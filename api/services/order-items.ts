@@ -105,7 +105,7 @@ export async function updateItems(
   const totals: { before?: string; after?: string } = {};
   await db.transaction(async (tx) => {
     const [order] = await tx.select({
-      id: orders.id, status: orders.status, shopId: orders.shopId,
+      id: orders.id, status: orders.status, shopId: orders.shopId, priceListId: orders.priceListId,
       subtotal: orders.subtotal, total: orders.total, discount: orders.discount,
       paymentMethod: orders.paymentMethod, deletedAt: orders.deletedAt,
     }).from(orders).where(and(eq(orders.id, orderId), eq(orders.tenantId, tenantId), isNull(orders.deletedAt)))
@@ -162,7 +162,7 @@ export async function updateItems(
       // Новая строка без цены от оператора берёт цену магазина (прайс-лист),
       // иначе карточки — а не ноль, как было.
       const newLines = data.items.filter(i => i.itemId === undefined).map(i => ({ productId: i.productId as number, quantity: i.quantity }));
-      const resolved = await resolvePrices(tx, tenantId, order.shopId, newLines, fallback);
+      const resolved = await resolvePrices(tx, tenantId, { shopId: order.shopId, priceListId: order.priceListId }, newLines, fallback);
       for (const p of found) {
         const r = resolved.get(Number(p.id));
         productPrices.set(Number(p.id), { costPrice: p.costPrice, unitPrice: r?.price ?? p.unitPrice, priceListId: r?.priceListId ?? null });

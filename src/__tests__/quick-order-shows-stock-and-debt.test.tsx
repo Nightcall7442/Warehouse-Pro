@@ -28,6 +28,7 @@ const trpcStub = vi.hoisted(() => ({
     { id: 2, code: "A-2", barcode: null, name: "Сок", unitPrice: "8000.00", available: "0" },
   ] }) } },
   order: { create: { useMutation: () => ({ mutate: vi.fn(), isPending: false }) } },
+  priceList: { forShop: { useQuery: () => ({ data: { current: null, lists: [] } }) } },
 }));
 vi.mock("@/providers/trpc", () => ({ trpc: trpcStub }));
 vi.mock("@/hooks/useOrderCacheSync", () => ({ useInvalidateOrderCaches: () => () => {} }));

@@ -120,6 +120,15 @@ export function QuickOrderModal({ open, onOpenChange, preselectedShopId, initial
   const [notes, setNotes] = useState("");
   const [discount, setDiscount] = useState("0");
   const [paymentMethod, setPaymentMethod] = useState<"cash" | "card" | "transfer" | "debt">("cash");
+  /*
+    Прайс-лист заказа. undefined — не трогали: берётся список магазина;
+    null — «по карточке товара»; число — выбранный список. Цены в каталоге и
+    в корзине — те, что посчитает сервер по этому списку (product.listAll с
+    shopId/priceListId): раньше окно показывало карточку, а заказ уходил по
+    списку магазина, и агент называл магазину одну сумму, а накладная
+    печатала другую.
+  */
+  const [priceListId, setPriceListId] = useState<number | null | undefined>(undefined);
   const [productSearch, setProductSearch] = useState("");
   const [shopSearch, setShopSearch] = useState("");
   const invalidateOrderCaches = useInvalidateOrderCaches();
@@ -147,7 +156,14 @@ export function QuickOrderModal({ open, onOpenChange, preselectedShopId, initial
     () => (isFieldAgent ? myShops ?? [] : allShops?.data ?? []),
     [isFieldAgent, myShops, allShops],
   );
-  const { data: productsData } = trpc.product.listAll.useQuery({ search: productSearch || undefined });
+  const priceLists = trpc.priceList.forShop.useQuery({ shopId: shopId ?? 0 }, { enabled: open && !!shopId });
+  const effectivePriceListId = priceListId === undefined ? (priceLists.data?.current?.id ?? null) : priceListId;
+  const { data: productsData } = trpc.product.listAll.useQuery({ search: productSearch || undefined, shopId, priceListId: effectivePriceListId });
+  // Корзина переценивается вслед за списком на отрисовке: цены — из того же
+  // ответа, что и каталог; в заказ уходят только товар и количество.
+  const { data: pricedAll } = trpc.product.listAll.useQuery({ shopId, priceListId: effectivePriceListId }, { enabled: open && !!shopId && cart.length > 0 });
+  const priceOf = useMemo(() => new Map((pricedAll ?? []).map(p => [p.id, Number(p.unitPrice)])), [pricedAll]);
+  const pricedCart = useMemo(() => cart.map(c => priceOf.has(c.productId) ? { ...c, unitPrice: priceOf.get(c.productId)! } : c), [cart, priceOf]);
 
 
   const filteredShops = useMemo(() => {
@@ -210,7 +226,7 @@ export function QuickOrderModal({ open, onOpenChange, preselectedShopId, initial
     onOpenChange(false);
   };
 
-  const subtotal = useMemo(() => cart.reduce((s, i) => s + i.unitPrice * i.quantity, 0), [cart]);
+  const subtotal = useMemo(() => pricedCart.reduce((s, i) => s + i.unitPrice * i.quantity, 0), [pricedCart]);
   // Поле скидки стоит вне <form>, поэтому min и max на нём браузер не
   // применяет: набрать «500» можно, и «Итого к оплате» показывало
   // отрицательную сумму. Сервер такой заказ отклонит, но человек к тому
@@ -262,6 +278,7 @@ export function QuickOrderModal({ open, onOpenChange, preselectedShopId, initial
       notes: notes || undefined,
       discount,
       paymentMethod,
+      priceListId: effectivePriceListId,
     });
   };
 
@@ -446,13 +463,29 @@ export function QuickOrderModal({ open, onOpenChange, preselectedShopId, initial
 
             {/* Cart */}
             <div>
+              {/* Прайс-лист заказа — над корзиной: видно, по каким ценам она посчитана. */}
+              <p className={modalSectionLabel}>{t("Прайс-лист", "Narxlar ro'yxati")}</p>
+              <div style={{ marginBottom: "12px" }} data-testid="quick-order-price-list">
+                <PremiumSelect
+                  value={effectivePriceListId == null ? "" : String(effectivePriceListId)}
+                  onChange={v => setPriceListId(v ? Number(v) : null)}
+                  options={[
+                    { value: "", label: t("По карточке товара", "Tovar kartasi bo'yicha") },
+                    ...(priceLists.data?.lists ?? []).map(l => ({ value: String(l.id), label: l.markupPct != null ? `${l.name} (${Number(l.markupPct) > 0 ? "+" : ""}${Number(l.markupPct)}%)` : l.name })),
+                  ]}
+                  width="100%"
+                />
+                {priceLists.data?.current && effectivePriceListId === priceLists.data.current.id && (
+                  <div className="text-[10px] mt-1" style={{ color: "var(--color-text-tertiary)" }}>{t("Список магазина", "Do'kon ro'yxati")}</div>
+                )}
+              </div>
               <p className={modalSectionLabel}>{t("Корзина", "Savat")} ({cart.length})</p>
               <div
                 className="flex flex-col"
                 style={{ borderRadius: "16px", border: "1px solid var(--color-border, #d8d5cd)", minHeight: 200 }}
               >
                 <div className="overflow-y-auto grow" style={{ maxHeight: 240, padding: "8px" }}>
-                  {cart.map(item => (
+                  {pricedCart.map(item => (
                     <div key={item.productId} className="flex items-center gap-2" style={{ padding: "8px 6px" }}>
                       <div className="flex-1 min-w-0">
                         <div className="text-xs font-medium truncate" style={{ color: "var(--color-text-primary)" }}>{item.name}</div>
@@ -516,7 +549,7 @@ export function QuickOrderModal({ open, onOpenChange, preselectedShopId, initial
                   </tr>
                 </thead>
                 <tbody>
-                  {cart.map(i => (
+                  {pricedCart.map(i => (
                     <tr key={i.productId} style={{ borderTop: "1px solid var(--color-border, #d8d5cd)" }}>
                       <td className="px-3 py-2.5" style={{ color: "var(--color-text-primary)" }}>{i.name}</td>
                       <td className="px-3 py-2.5 text-right tabular-nums" style={{ color: "var(--color-text-secondary)" }}>{i.quantity}</td>

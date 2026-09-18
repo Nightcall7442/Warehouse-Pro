@@ -1,6 +1,6 @@
 import { eq, and, or, desc, sql, isNull, isNotNull, inArray } from "drizzle-orm";
 import { alias } from "drizzle-orm/mysql-core";
-import { orders, orderItems, shops, users, products, payments, orderAdjustments, territories } from "@db/schema";
+import { orders, orderItems, shops, users, products, payments, orderAdjustments, territories, priceLists } from "@db/schema";
 import { OPEN_ORDER_STATUSES, CLOSED_ORDER_STATUSES } from "../lib/order-status";
 import type { Db, OrderViewer } from "./order-shared";
 import { couriers, viewerScope } from "./order-shared";
@@ -150,7 +150,9 @@ export async function getById(db: Db, tenantId: number, orderId: number, viewer:
     // Слово магазина (контроль): подтвердил получение или оспорил — с заметкой.
     shopConfirmedAt: orders.shopConfirmedAt, shopDisputedAt: orders.shopDisputedAt, shopDisputeNote: orders.shopDisputeNote,
     closedAt: orders.closedAt,
-  }).from(orders).where(and(eq(orders.id, orderId), eq(orders.tenantId, tenantId), isNull(orders.deletedAt), ...scope)).limit(1);
+    priceListId: orders.priceListId, priceListName: priceLists.name,
+  }).from(orders).leftJoin(priceLists, eq(priceLists.id, orders.priceListId))
+    .where(and(eq(orders.id, orderId), eq(orders.tenantId, tenantId), isNull(orders.deletedAt), ...scope)).limit(1);
   if (!order) return null;
 
   const [items, [shop], [agent], [courier]] = await Promise.all([

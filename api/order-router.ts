@@ -306,6 +306,8 @@ export const orderRouter = createRouter({
       notes:          z.string().max(500).optional(),
       discount:       discountPercent.default("0.00"),
       paymentMethod:  z.enum(["cash", "card", "transfer", "debt"]).default("cash"),
+      // Прайс-лист заказа: спрашивается при оформлении; пусто — списки магазина.
+      priceListId:    z.number().int().positive().nullable().optional(),
       /*
         Когда обещали привезти. Ставит АГЕНТ, стоя в магазине, — он это и
         говорит вслух. Не назвал — пусто, и это законно: «не обещали» и
