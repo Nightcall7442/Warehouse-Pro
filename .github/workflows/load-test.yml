@@ -15,7 +15,7 @@ on:
   # Пуш в ветку chore/load-test — первый запуск, пока workflow_dispatch ещё не
   # виден с main; дальше — только руками, с параметрами.
   push:
-    branches: ["chore/load-test", "chore/load-test/**"]
+    branches: ["chore/load-test", "chore/load-test-*"]
     paths: [".github/workflows/load-test.yml", "scripts/load/**"]
   workflow_dispatch:
     inputs:
