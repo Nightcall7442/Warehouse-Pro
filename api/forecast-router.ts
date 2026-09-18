@@ -29,7 +29,9 @@ export const forecastRouter = createRouter({
     }))
     .query(async ({ input, ctx }) => {
       const tenantId = ctx.tenant.id;
-      const cacheKey = `forecast:${tenantId}:${input.productId}:${input.horizon}:${input.method}`;
+      // lookbackDays — в ключе: разный период истории даёт разный прогноз, а
+      // без него второй запрос две минуты получал ответ первого.
+      const cacheKey = `forecast:${tenantId}:${input.productId}:${input.horizon}:${input.method}:${input.lookbackDays}`;
       return withCache(cacheKey, CacheTTL.kpis, async () => {
       const demand = await getProductDemand(tenantId, input.productId, input.lookbackDays);
       if (demand.length < 7) {
