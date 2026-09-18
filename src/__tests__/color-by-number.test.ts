@@ -82,7 +82,7 @@ function countColours(): { total: number; byFile: Array<[string, number]> } {
  * 1007 — 14.09.2026, лендинг: нарисованная карта (CityMap) удалена, цвета сцены
  * и оправ телефона объявлены токенами в landing-tokens.ts.
  */
-const BASELINE = 1001;
+const BASELINE = 982;
 
 describe("цвет числом", () => {
   const { total, byFile } = countColours();

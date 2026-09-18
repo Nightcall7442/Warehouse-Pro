@@ -40,7 +40,7 @@ import { colorMix } from "@/lib/color-mix";
  * немного.
  */
 const PRINT_RULES = `
-  @page { margin: 10mm; }
+  @page { margin: 8mm; }
   thead { display: table-header-group; }
   tfoot { display: table-footer-group; }
   tr { break-inside: avoid; page-break-inside: avoid; }
@@ -84,22 +84,30 @@ const BASE_STYLES = `
     padding: 15mm 15mm 10mm;
   }
   table { width: 100%; border-collapse: collapse; }
-  th, td { border: 1px solid #000; padding: 3px 5px; font-size: 10pt; vertical-align: top; }
+  th, td { border: 1px solid #000; padding: 2px 4px; font-size: 9.5pt; vertical-align: top; }
   th { background: #f5f5f5; font-weight: bold; text-align: center; }
   .no-border td, .no-border th { border: none; }
   .center { text-align: center; }
   .right  { text-align: right; }
   .bold   { font-weight: bold; }
-  .title  { font-size: 14pt; font-weight: bold; text-align: center; margin: 8px 0; }
-  .subtitle { font-size: 11pt; text-align: center; margin-bottom: 10px; }
-  .meta   { margin: 8px 0; font-size: 10pt; }
-  .meta-row { display: flex; justify-content: space-between; margin-bottom: 3px; }
-  .meta-label { min-width: 180px; }
-  .meta-value { flex: 1; border-bottom: 1px solid #000; padding-bottom: 1px; }
-  .signature-block { margin-top: 20px; }
-  .sig-row { display: flex; gap: 40px; margin-top: 16px; }
+  .title  { font-size: 13pt; font-weight: bold; text-align: center; margin: 4px 0 2px; }
+  .subtitle { font-size: 10.5pt; text-align: center; margin-bottom: 6px; }
+  /*
+    Реквизиты и подписи — плотно: два экземпляра накладной обязаны
+    помещаться на одном листе А4 (владелец, 18.09.2026: второй экземпляр
+    уезжал на второй лист, а половина первого оставалась пустой). Копия с
+    шестью строками реквизитов, двумя товарами и подписями — 128 мм при
+    прежних отступах, две копии — 266 из 277 печатных: любая перенесённая
+    строка адреса выталкивала вторую копию. Теперь копия — около 105 мм.
+  */
+  .meta   { margin: 4px 0; font-size: 9pt; }
+  .meta-row { display: flex; justify-content: space-between; margin-bottom: 1px; }
+  .meta-label { min-width: 90px; }
+  .meta-value { flex: 1; border-bottom: 1px solid #000; padding-bottom: 0; }
+  .signature-block { margin-top: 10px; }
+  .sig-row { display: flex; gap: 30px; margin-top: 8px; }
   .sig-col { flex: 1; }
-  .sig-line { border-bottom: 1px solid #000; margin-bottom: 3px; min-height: 20px; }
+  .sig-line { border-bottom: 1px solid #000; margin-bottom: 2px; min-height: 16px; }
   .sig-label { font-size: 9pt; color: #333; }
   .totals-table { margin-top: 4px; }
   .totals-table td { border: none; padding: 2px 5px; }
@@ -239,12 +247,12 @@ export const COPY_LABELS = [
 ] as const;
 
 const CUT_LINE = `
-    <div class="cut-line" style="margin:5mm 0;border-top:1px dashed #999;position:relative">
+    <div class="cut-line" style="margin:4mm 0;border-top:1px dashed #999;position:relative">
       <span style="position:absolute;top:-7px;left:0;background:#fff;padding-right:6px;font-size:8pt;color:#999">✂ линия отреза</span>
     </div>`;
 
 function copyLabel(i: 0 | 1): string {
-  return `<div class="copy-label" style="text-align:center;font-size:10pt;font-weight:bold;margin-bottom:6px;padding:3px;background:#f0f0f0;border:1px solid #999">${COPY_LABELS[i]}</div>`;
+  return `<div class="copy-label" style="text-align:center;font-size:9pt;font-weight:bold;margin-bottom:4px;padding:2px;background:#f0f0f0;border:1px solid #999">${COPY_LABELS[i]}</div>`;
 }
 
 /** Документ дважды на одном листе: экземпляр покупателю, отрез, экземпляр поставщику. */
@@ -436,7 +444,7 @@ export function printUzWaybill(data: OrderDocData) {
 
   function buildCopy() {
     return `
-      <table class="no-border" style="margin-bottom:8px">
+      <table class="no-border" style="margin-bottom:4px">
         <tr>
           <td style="width:50%">
             <div class="meta">
@@ -466,10 +474,10 @@ export function printUzWaybill(data: OrderDocData) {
           <tr>
             <th style="width:4%">№</th>
             <th>Наименование товара</th>
-            <th style="width:8%">Ед.изм.</th>
-            <th style="width:10%">Кол-во</th>
-            <th style="width:14%">Цена (${escapeHtml(data.currency)})</th>
-            <th style="width:16%">Сумма (${escapeHtml(data.currency)})</th>
+            <th style="width:7%">Ед.</th>
+            <th style="width:8%">Кол-во</th>
+            <th style="width:12%">Цена (${escapeHtml(data.currency)})</th>
+            <th style="width:15%">Сумма (${escapeHtml(data.currency)})</th>
           </tr>
         </thead>
         <tbody>
@@ -1686,93 +1694,6 @@ function buildLoadingListByRoute(data: LoadingListData, currency: string): strin
   Печатать было неоткуда: окно предлагает только «Сводный» и «По маршруту».
   Формат убран вместе с полутора десятками граф, которые он рисовал.
 */
-/* ── 7. КАССА: ПКО / РКО и кассовая книга ─────────────────────────────── */
-
-/** Сумма прописью — только рубли/сумы целыми, как на ордере. */
-export function amountInWords(n: number): string {
-  const ones = ["", "один", "два", "три", "четыре", "пять", "шесть", "семь", "восемь", "девять", "десять", "одиннадцать", "двенадцать", "тринадцать", "четырнадцать", "пятнадцать", "шестнадцать", "семнадцать", "восемнадцать", "девятнадцать"];
-  const tens = ["", "", "двадцать", "тридцать", "сорок", "пятьдесят", "шестьдесят", "семьдесят", "восемьдесят", "девяносто"];
-  const hundreds = ["", "сто", "двести", "триста", "четыреста", "пятьсот", "шестьсот", "семьсот", "восемьсот", "девятьсот"];
-  const groups: Array<[string, string, string, boolean]> = [["", "", "", false], ["тысяча", "тысячи", "тысяч", true], ["миллион", "миллиона", "миллионов", false], ["миллиард", "миллиарда", "миллиардов", false]];
-  const plural = (v: number, f: [string, string, string]) => { const m = v % 100, d = v % 10; return m > 10 && m < 20 ? f[2] : d === 1 ? f[0] : d >= 2 && d <= 4 ? f[1] : f[2]; };
-  let v = Math.floor(Math.abs(n));
-  if (v === 0) return "ноль";
-  const parts: string[] = [];
-  for (let g = 0; v > 0 && g < groups.length; g++) {
-    const chunk = v % 1000; v = Math.floor(v / 1000);
-    if (chunk === 0) continue;
-    const [one, few, many, fem] = groups[g];
-    const h = Math.floor(chunk / 100), rest = chunk % 100;
-    const words = [hundreds[h]];
-    if (rest < 20) words.push(fem && rest === 1 ? "одна" : fem && rest === 2 ? "две" : ones[rest]);
-    else words.push(tens[Math.floor(rest / 10)], fem && rest % 10 === 1 ? "одна" : fem && rest % 10 === 2 ? "две" : ones[rest % 10]);
-    if (g > 0) words.push(plural(chunk, [one, few, many]));
-    parts.unshift(words.filter(Boolean).join(" "));
-  }
-  return parts.join(" ");
-}
-
-export type CashOrderDoc = {
-  kind: "pko" | "rko"; number: string; date: string; amount: number; company: string; director?: string;
-  from: string; to: string; basis: string; note: string; currency: string;
-};
-
-/** ПКО/РКО — два экземпляра на листе: в кассу и на руки сдавшему. */
-export function printCashOrder(d: CashOrderDoc) {
-  const title = d.kind === "pko" ? "ПРИХОДНЫЙ КАССОВЫЙ ОРДЕР" : "РАСХОДНЫЙ КАССОВЫЙ ОРДЕР";
-  const copy = () => `
-    <div class="title">${title}</div>
-    <div class="subtitle">${escapeHtml(d.number)} от ${escapeHtml(d.date)}</div>
-    <table class="no-border" style="margin-bottom:6px">
-      <tr><td style="width:50%">${metaRow("Организация:", d.company, true)}</td><td>${metaRow("Сумма:", `${d.amount.toLocaleString("ru-RU")} ${d.currency}`, true)}</td></tr>
-    </table>
-    <table>
-      <tr><th style="width:30%">${d.kind === "pko" ? "Принято от" : "Выдать"}</th><td>${escapeHtml(d.kind === "pko" ? d.from : (d.to || d.from))}</td></tr>
-      <tr><th>Основание</th><td>${escapeHtml(d.basis)}</td></tr>
-      <tr><th>Сумма прописью</th><td>${escapeHtml(amountInWords(d.amount))} ${escapeHtml(d.currency)}</td></tr>
-      ${d.note ? `<tr><th>Примечание</th><td>${escapeHtml(d.note)}</td></tr>` : ""}
-    </table>
-    <div class="signature-block">
-      <div class="sig-row">
-        <div class="sig-col"><div class="sig-label">${d.kind === "pko" ? "Сдал" : "Получил"}</div><div class="sig-line"></div><div class="sig-label">___________________________</div></div>
-        <div class="sig-col"><div class="sig-label">Кассир</div><div class="sig-line"></div><div class="sig-label">${escapeHtml(d.kind === "pko" ? d.to : d.from)}</div></div>
-        <div class="sig-col"><div class="sig-label">Руководитель</div><div class="sig-line"></div><div class="sig-label">${escapeHtml(d.director ?? "___________________________")}</div></div>
-      </div>
-    </div>`;
-  openPrintWindow(twoCopies(copy()), `${d.number} от ${d.date}`);
-}
-
-export type CashBookDoc = {
-  company: string; from: string; to: string; opening: number; closing: number; currency: string;
-  days: Array<{ day: string; opening: number; inflow: number; outflow: number; closing: number }>;
-};
-
-/** Кассовая книга: по дням — на начало, приход, расход, на конец. */
-export function printCashBook(d: CashBookDoc) {
-  const rows = d.days.map(r => `
-    <tr>
-      <td class="center">${escapeHtml(r.day)}</td>
-      <td class="right">${r.opening.toLocaleString("ru-RU")}</td>
-      <td class="right">${r.inflow.toLocaleString("ru-RU")}</td>
-      <td class="right">${r.outflow.toLocaleString("ru-RU")}</td>
-      <td class="right bold">${r.closing.toLocaleString("ru-RU")}</td>
-    </tr>`).join("");
-  const html = `
-    <div class="title">КАССОВАЯ КНИГА</div>
-    <div class="subtitle">${escapeHtml(d.company)} · ${escapeHtml(d.from)} — ${escapeHtml(d.to)}</div>
-    <table>
-      <thead><tr><th>Дата</th><th>Остаток на начало</th><th>Приход</th><th>Расход</th><th>Остаток на конец</th></tr></thead>
-      <tbody>${rows}
-        <tr><td class="right bold" colspan="4">Остаток на конец периода, ${escapeHtml(d.currency)}:</td><td class="right bold">${d.closing.toLocaleString("ru-RU")}</td></tr>
-      </tbody>
-    </table>
-    <div class="signature-block"><div class="sig-row">
-      <div class="sig-col"><div class="sig-label">Кассир</div><div class="sig-line"></div></div>
-      <div class="sig-col"><div class="sig-label">Руководитель</div><div class="sig-line"></div></div>
-    </div></div>`;
-  openPrintWindow(html, `Кассовая книга ${d.from} — ${d.to}`);
-}
-
 export function printLoadingList(data: LoadingListData, format: "aggregated" | "byRoute", currency: string) {
   const html = format === "byRoute"
     ? buildLoadingListByRoute(data, currency)

@@ -2146,3 +2146,11 @@ select:autofill {
 
 .row-hover { transition: background 0.15s ease; }
 .row-hover:hover { background: color-mix(in srgb, var(--color-primary) 4%, transparent); }
+
+/* Свёртываемый раздел «Расписание визитов»: стрелка поворачивается, подпись
+   меняется — раздел читается как то, что открывают и закрывают. */
+.schedule-panel .schedule-panel-chevron { transition: transform 0.15s; }
+.schedule-panel[open] .schedule-panel-chevron { transform: rotate(180deg); }
+.schedule-panel .schedule-panel-open-label { display: none; }
+.schedule-panel[open] .schedule-panel-open-label { display: inline; }
+.schedule-panel[open] .schedule-panel-closed-label { display: none; }
