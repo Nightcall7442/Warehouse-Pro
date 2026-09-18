@@ -384,14 +384,28 @@ describe("agent.updatePlanStatus", () => {
     expect(plansTable.find((p) => p.id === 1)!.status).toBe("skipped");
   });
 
-  it("agent cannot update other agent's plan", async () => {
+  it("чужой план — отказ вслух, а не «успех» с нулём строк", async () => {
     const { agentRouter } = await import("../agent-router");
     const caller = agentRouter.createCaller(makeCtx(1, 10, "agent"));
-    // Plan 3 belongs to agent 11, agent 10 should not be able to update it
-    await caller.updatePlanStatus({ planId: 3, status: "visited" });
-    // The mock updates all rows matching the conditions, so it would update
-    // but with the agentId check in the real code, agent 10 can't update plan 3
+    // План 3 у агента 11. Раньше — success при нуле изменённых строк: мобилка
+    // считала отметку доставленной и удаляла её из очереди, визит терялся молча.
+    await expect(caller.updatePlanStatus({ planId: 3, status: "visited" })).rejects.toThrow(/не найден|другому/);
     expect(plansTable.find((p) => p.id === 3)!.status).toBe("planned");
+  });
+
+  it("несуществующий план — тоже отказ", async () => {
+    const { agentRouter } = await import("../agent-router");
+    const caller = agentRouter.createCaller(makeCtx(1, 10, "agent"));
+    await expect(caller.updatePlanStatus({ planId: 999, status: "visited" })).rejects.toThrow(/не найден/);
+  });
+
+  it("повторное «пропущен» на пропущенном плане — по-прежнему успех", async () => {
+    // Число изменённых строк тут не годится: MySQL считает изменённые, а не
+    // найденные, и повтор дал бы ноль при живом и своём плане.
+    const { agentRouter } = await import("../agent-router");
+    const caller = agentRouter.createCaller(makeCtx(1, 10, "agent"));
+    await caller.updatePlanStatus({ planId: 1, status: "skipped" });
+    await expect(caller.updatePlanStatus({ planId: 1, status: "skipped" })).resolves.toEqual({ success: true });
   });
 });
 
@@ -413,12 +427,12 @@ describe("agent.saveVisitPhoto", () => {
     expect(plansTable.find((p) => p.id === 1)!.notes).toBe("Good visit");
   });
 
-  it("agent cannot save photo for other agent's plan", async () => {
+  it("чужой план — отказ вслух, снимок не привязывается", async () => {
     const { agentRouter } = await import("../agent-router");
     const caller = agentRouter.createCaller(makeCtx(1, 10, "agent"));
-    // Plan 3 belongs to agent 11
-    await caller.saveVisitPhoto({ planId: 3, photoUrl: "data:image/png;base64,test" });
-    // The agentId check should prevent update
+    // План 3 у агента 11: раньше проверка на подлог пропускалась (план «не
+    // найден» по id без агента), а UPDATE менял ноль строк и отвечал success.
+    await expect(caller.saveVisitPhoto({ planId: 3, photoUrl: "data:image/png;base64,test" })).rejects.toThrow(/не найден|другому/);
     expect(plansTable.find((p) => p.id === 3)!.status).toBe("planned");
   });
 });

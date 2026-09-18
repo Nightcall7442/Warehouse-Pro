@@ -4,7 +4,7 @@ import { TRPCError } from "@trpc/server";
 import { createRouter, fieldSalesQuery, merchVisitQuery, supervisorQuery, authedQuery, reportsQuery } from "./middleware";
 import { getDb } from "./queries/connection";
 import { agentLocations, dailyPlans, shops, users, agentTerritories, territories } from "@db/schema";
-import { eq, and, sql, desc, gte, lte , inArray, isNull } from "drizzle-orm";
+import { eq, and, sql, desc, gte, lte , inArray, isNull, type SQL } from "drizzle-orm";
 import { REVENUE_ORDER_STATUSES } from "./lib/order-status";
 import { sseBus } from "./lib/sse";
 import { sanitizeString, sanitizeSearch } from "./lib/sanitize";
@@ -211,6 +211,17 @@ function resolvePlanAgentFilter(
     });
   }
   return ctx.user.id;
+}
+
+/** План по условиям доступа — или NOT_FOUND. Общая дверь для отметки визита. */
+async function requirePlan(conditions: SQL[]) {
+  const [plan] = await getDb()
+    .select({ id: dailyPlans.id, agentId: dailyPlans.agentId, planDate: dailyPlans.planDate })
+    .from(dailyPlans).where(and(...conditions)).limit(1);
+  if (!plan) {
+    throw new TRPCError({ code: "NOT_FOUND", message: "План не найден или назначен другому сотруднику" });
+  }
+  return plan;
 }
 
 export const agentRouter = createRouter({
@@ -664,6 +675,20 @@ export const agentRouter = createRouter({
       };
     }),
 
+  /*
+    Отметка визита: план должен существовать и быть ваш.
+
+    Оба пути (без фото и с фото) обновляли по условию «id + организация +
+    агент» и отвечали success, не глядя, сколько строк изменилось. Ноль — план
+    чужой, удалён или переназначен — тоже был «успехом». Мобилка, получив его,
+    считала отметку доставленной и удаляла её из очереди: визит терялся молча,
+    KPI посещаемости и антифрод видели прогул. Теперь — NOT_FOUND, и очередь
+    показывает запись красной, а не выбрасывает.
+
+    Число изменённых строк тут не годится: без CLIENT_FOUND_ROWS MySQL считает
+    изменённые, а не найденные, и повторное «пропущен» на пропущенном плане
+    дало бы ноль при живом и своём плане.
+  */
   updatePlanStatus: merchVisitQuery
     .input(z.object({ planId: z.number(), status: z.enum(["planned", "visited", "skipped"]) }))
     .mutation(async ({ input, ctx }) => {
@@ -676,6 +701,7 @@ export const agentRouter = createRouter({
       if (!isPrivileged) {
         conditions.push(eq(dailyPlans.agentId, ctx.user.id));
       }
+      await requirePlan(conditions);
       // Stamped only on the way in to "visited", and cleared if the plan is
       // moved back — a stale timestamp on a plan that is no longer visited
       // would show up in the report as a visit that never happened.
@@ -710,32 +736,28 @@ export const agentRouter = createRouter({
         conditions.push(eq(dailyPlans.agentId, ctx.user.id));
       }
       const db = getDb();
+      const plan = await requirePlan(conditions);
 
       // Run fraud check before saving visit
       if (!isPrivileged) {
-        const [plan] = await db.select({ agentId: dailyPlans.agentId, planDate: dailyPlans.planDate })
-          .from(dailyPlans).where(and(eq(dailyPlans.id, input.planId), eq(dailyPlans.tenantId, ctx.tenant.id)))
-          .limit(1);
-        if (plan) {
-          const dayStart = new Date(new Date(plan.planDate).toISOString().slice(0, 10));
-          const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
-          const gpsPings = await db.select({
-            lat: agentLocations.lat,
-            lng: agentLocations.lng,
-            createdAt: agentLocations.createdAt,
-          }).from(agentLocations)
-            .where(and(
-              eq(agentLocations.tenantId, ctx.tenant.id),
-              eq(agentLocations.agentId, plan.agentId!),
-              gte(agentLocations.createdAt, dayStart),
-              lte(agentLocations.createdAt, dayEnd),
-            ))
-            .orderBy(agentLocations.createdAt);
+        const dayStart = new Date(new Date(plan.planDate).toISOString().slice(0, 10));
+        const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
+        const gpsPings = await db.select({
+          lat: agentLocations.lat,
+          lng: agentLocations.lng,
+          createdAt: agentLocations.createdAt,
+        }).from(agentLocations)
+          .where(and(
+            eq(agentLocations.tenantId, ctx.tenant.id),
+            eq(agentLocations.agentId, plan.agentId!),
+            gte(agentLocations.createdAt, dayStart),
+            lte(agentLocations.createdAt, dayEnd),
+          ))
+          .orderBy(agentLocations.createdAt);
 
-          const check = await verifyVisit(db, input.planId, ctx.tenant.id, gpsPings, input.photoUrl);
-          if (check.fraudScore >= 70) {
-            throw new Error(`Визит заблокирован системой фрод-мониторинга: ${check.reasons.join("; ")}`);
-          }
+        const check = await verifyVisit(db, input.planId, ctx.tenant.id, gpsPings, input.photoUrl);
+        if (check.fraudScore >= 70) {
+          throw new Error(`Визит заблокирован системой фрод-мониторинга: ${check.reasons.join("; ")}`);
         }
       }
 
