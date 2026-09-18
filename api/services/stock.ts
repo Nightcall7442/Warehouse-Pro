@@ -3,6 +3,7 @@ import { eq, and } from "drizzle-orm";
 import { recordAudit } from "./audit-log";
 import { recordStockMovement, receiveStock, applyStockEffect, setStock } from "./stock-ledger";
 import { TRPCError } from "@trpc/server";
+import { invalidateReports } from "../lib/report-cache";
 
 type DrizzleInstance = ReturnType<typeof import("../queries/connection").getDb>;
 
@@ -188,6 +189,7 @@ export const StockService = {
         });
       }
     });
+    await invalidateReports(tenantId, "stock.adjust");
 
     // Тревога «ниже точки заказа» здесь больше не шлётся: раньше она стояла
     // только на ручном списании, а отгрузка по заказу молчала. Теперь один

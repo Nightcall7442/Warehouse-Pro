@@ -6,7 +6,38 @@ import { eq, and, sql, desc , inArray, isNull } from "drizzle-orm";
 import { REVENUE_ORDER_STATUSES, revenueOrderConditions, revenuePeriodConditions, deliveredQty } from "./lib/order-status";
 import { MS_PER_DAY } from "./lib/constants";
 import { returnsInPeriod, totalReturned, groupReturned, type ReturnRow } from "./services/revenue-returns";
+import { reportCached, ReportTTL } from "./lib/report-cache";
 
+/*
+  Кэш отчётов.
+
+  Что было: каждая ручка считала заново при каждом открытии экрана. Тридцать
+  директоров, открывших P&L в 9:00 первого числа, — тридцать одинаковых
+  проходов по order_items за год, по четыре ручки на экран (pnl, cogsByProduct,
+  pnlByPaymentMethod, paymentMethodTrend); «Отчёты» — семь ручек разом.
+
+  Что теперь: ответ живёт в report-cache под ключом «организация + имя ручки +
+  вход». Повтор с тем же входом — без базы; одновременные промахи ждут один
+  пересчёт (склейка внутри reportCached). Сброс report:{tenant}:* зовут
+  сервисы записи — заказы, платежи, возвраты, приходы, выплаты; здесь его нет.
+
+  Почему ключ без userId: reportsQuery и financeQuery не сужают выборку по
+  ctx.user — супервайзер территориями на сервере не ограничен (связи
+  супервайзер → территория в схеме нет), мерчендайзер видит те же строки.
+  Директор, оператор и супервайзер одной организации делят один пересчёт;
+  userId в ключе резал бы попадания ровно в то число раз, с которым боремся.
+
+  TTL — потолок между сбросами, по стоимости пересчёта:
+    minute  — агрегаты только по orders (M): salesByShop, agentPerformance,
+              agentEfficiency;
+    fiveMin — соединение с order_items или веер запросов (L/XL): topProducts,
+              cogsByProduct, pnl, pnlByPaymentMethod, agentProductSales,
+              paymentMethodTrend. Это итоги периода, их читают, а не следят.
+  Числа не округляются и не пересчитываются — в кэше лежит тот же ответ, что
+  ушёл бы клиенту на промахе.
+
+  Не кэшируются shopRevenueTrend и debtReport — см. у самих ручек.
+*/
 export const analyticsRouter = createRouter({
   salesByShop: reportsQuery
     .input(z.object({
@@ -16,7 +47,7 @@ export const analyticsRouter = createRouter({
       territoryId: z.number().int().positive().optional(),
       limit: z.number().int().min(1).max(10000).optional(),
     }).optional())
-    .query(async ({ input, ctx }) => {
+    .query(({ input, ctx }) => reportCached(ctx.tenant.id, "analytics.salesByShop", input ?? {}, ReportTTL.minute, async () => {
       const conditions = revenueOrderConditions(ctx.tenant.id);
       if (input?.dateFrom) conditions.push(sql`${orders.createdAt} >= ${input.dateFrom}`);
       // P1-15 FIX: Include full last day by adding 23:59:59
@@ -36,7 +67,7 @@ export const analyticsRouter = createRouter({
       })
         .from(orders).leftJoin(shops, and(eq(orders.shopId, shops.id), eq(shops.tenantId, ctx.tenant.id)))
         .where(and(...conditions)).groupBy(shops.id).orderBy(desc(sql`SUM(${orders.total})`)).limit(input?.limit ?? 20);
-    }),
+    })),
 
   topProducts: reportsQuery
     .input(z.object({
@@ -48,7 +79,7 @@ export const analyticsRouter = createRouter({
       category: z.string().max(100).optional(),
       limit: z.number().int().min(1).max(10000).optional(),
     }).optional())
-    .query(async ({ input, ctx }) => {
+    .query(({ input, ctx }) => reportCached(ctx.tenant.id, "analytics.topProducts", input ?? {}, ReportTTL.fiveMin, async () => {
       const conditions = revenueOrderConditions(ctx.tenant.id);
       if (input?.dateFrom) conditions.push(sql`${orders.createdAt} >= ${input.dateFrom}`);
       if (input?.dateTo)   conditions.push(sql`${orders.createdAt} <= ${input.dateTo + " 23:59:59"}`);
@@ -71,11 +102,11 @@ export const analyticsRouter = createRouter({
         .leftJoin(products, and(eq(orderItems.productId, products.id), eq(products.tenantId, ctx.tenant.id)))
         .leftJoin(orders, eq(orderItems.orderId, orders.id))
         .where(and(...conditions)).groupBy(products.id).orderBy(desc(sql`SUM(${orderItems.quantity})`)).limit(input?.limit ?? 10);
-    }),
+    })),
 
   agentPerformance: reportsQuery
     .input(z.object({ dateFrom: z.string().optional(), dateTo: z.string().optional() }).optional())
-    .query(async ({ input, ctx }) => {
+    .query(({ input, ctx }) => reportCached(ctx.tenant.id, "analytics.agentPerformance", input ?? {}, ReportTTL.minute, async () => {
       // Выручкой считаются только доставленные заказы — как в соседних
       // salesByShop и agentProductSales. Здесь стоял liveOrderConditions, то
       // есть «любой статус, кроме удалённых»: отменённый заказ на пять
@@ -94,7 +125,7 @@ export const analyticsRouter = createRouter({
       })
         .from(orders).leftJoin(users, and(eq(orders.agentId, users.id), eq(users.tenantId, ctx.tenant.id)))
         .where(and(...conditions)).groupBy(users.id).orderBy(desc(sql`SUM(${orders.total})`));
-    }),
+    })),
 
   // ── COGS + Margins ──────────────────────────────────────────────────────────
   // NOTE: COGS uses current `products.costPrice`, not historical. If product costs
@@ -106,7 +137,7 @@ export const analyticsRouter = createRouter({
       dateTo: z.string().optional(),
       category: z.string().max(100).optional(),
     }).optional())
-    .query(async ({ input, ctx }) => {
+    .query(({ input, ctx }) => reportCached(ctx.tenant.id, "analytics.cogsByProduct", input ?? {}, ReportTTL.fiveMin, async () => {
       const conditions = revenueOrderConditions(ctx.tenant.id);
       if (input?.dateFrom) conditions.push(sql`${orders.createdAt} >= ${input.dateFrom}`);
       if (input?.dateTo)   conditions.push(sql`${orders.createdAt} <= ${input.dateTo + " 23:59:59"}`);
@@ -129,7 +160,7 @@ export const analyticsRouter = createRouter({
         .leftJoin(products, and(eq(orderItems.productId, products.id), eq(products.tenantId, ctx.tenant.id)))
         .leftJoin(orders, eq(orderItems.orderId, orders.id))
         .where(and(...conditions)).groupBy(products.id).orderBy(desc(sql`SUM(${deliveredQty()} * ${orderItems.unitPrice})`)).limit(20);
-    }),
+    })),
 
   /*
     Здесь была analytics.cogsSummary — выручка, себестоимость и скидки за
@@ -143,6 +174,8 @@ export const analyticsRouter = createRouter({
   */
 
   // ── Per-Shop Revenue Trend ──────────────────────────────────────────────────
+  // Без кэша намеренно: карточка одного магазина, запрос S по idx_orders_shop;
+  // ключей было бы по числу магазинов, читает каждый один человек.
   shopRevenueTrend: reportsQuery
     .input(z.object({ shopId: z.number(), days: z.number().default(30) }).optional())
     .query(async ({ input, ctx }) => {
@@ -162,6 +195,8 @@ export const analyticsRouter = createRouter({
   // ── Debt Report ─────────────────────────────────────────────────────────────
   // Debt is a balance as of now, not a flow over a range, so there is no period
   // here on purpose.
+  // Без кэша намеренно: остаток «на сейчас», S по shops(debt > 0); долг меняет
+  // каждый платёж, а ложь на минуту про то, кто сколько должен, дороже запроса.
   debtReport: reportsQuery
     .input(z.object({
       agentId: z.number().int().positive().optional(),
@@ -186,12 +221,15 @@ export const analyticsRouter = createRouter({
     }),
 
   // ── Agent Efficiency ────────────────────────────────────────────────────────
+  // Ключ — {days, territoryId}, а cutoff считается от «сейчас»: за минуту TTL
+  // граница «30 дней назад» уезжает не больше чем на минуту — это и есть
+  // договор о свежести. Визиты (daily_plans) кэш не сбрасывают — держит TTL.
   agentEfficiency: reportsQuery
     .input(z.object({
       days: z.number().default(30),
       territoryId: z.number().int().positive().optional(),
     }).optional())
-    .query(async ({ input, ctx }) => {
+    .query(({ input, ctx }) => reportCached(ctx.tenant.id, "analytics.agentEfficiency", input ?? {}, ReportTTL.minute, async () => {
       const days = input?.days ?? 30;
       const cutoff = new Date(Date.now() - days * MS_PER_DAY).toISOString();
 
@@ -265,7 +303,7 @@ export const analyticsRouter = createRouter({
         // ORDER BY по той же (завышенной) сумме, то есть список фактически
         // сортировался по числу визитов.
         .sort((a, b) => Number(b.revenue) - Number(a.revenue));
-    }),
+    })),
 
   // ── Full P&L Report ─────────────────────────────────────────────────────────
   pnl: financeQuery
@@ -274,7 +312,7 @@ export const analyticsRouter = createRouter({
       to: z.string(),
       compareWithPrev: z.boolean().default(true),
     }))
-    .query(async ({ input, ctx }) => {
+    .query(({ input, ctx }) => reportCached(ctx.tenant.id, "analytics.pnl", input, ReportTTL.fiveMin, async () => {
       const tid = ctx.tenant.id;
       const db = getDb();
       const from = input.from;
@@ -550,7 +588,7 @@ export const analyticsRouter = createRouter({
         period: { from, to },
         prevPeriod: input.compareWithPrev ? { from: prevFrom, to: prevTo } : null,
       };
-    }),
+    })),
 
   // ── P&L by Payment Method ──────────────────────────────────────────────────
   pnlByPaymentMethod: financeQuery
@@ -559,7 +597,7 @@ export const analyticsRouter = createRouter({
       to: z.string(),
       agentId: z.number().int().positive().optional(),
     }))
-    .query(async ({ input, ctx }) => {
+    .query(({ input, ctx }) => reportCached(ctx.tenant.id, "analytics.pnlByPaymentMethod", input, ReportTTL.fiveMin, async () => {
       const db = getDb();
       const tid = ctx.tenant.id;
 
@@ -622,7 +660,7 @@ export const analyticsRouter = createRouter({
           orderCount: Number(r.orderCount),
         };
       });
-    }),
+    })),
 
   // ── Sales by Agent × Product ────────────────────────────────────────────────
   agentProductSales: reportsQuery
@@ -632,7 +670,7 @@ export const analyticsRouter = createRouter({
       agentId: z.number().int().positive().optional(),
       category: z.string().max(100).optional(),
     }).optional())
-    .query(async ({ input, ctx }) => {
+    .query(({ input, ctx }) => reportCached(ctx.tenant.id, "analytics.agentProductSales", input ?? {}, ReportTTL.fiveMin, async () => {
       const conditions = revenueOrderConditions(ctx.tenant.id);
       if (input?.dateFrom) conditions.push(sql`${orders.createdAt} >= ${input.dateFrom}`);
       if (input?.dateTo)   conditions.push(sql`${orders.createdAt} <= ${input.dateTo + " 23:59:59"}`);
@@ -663,12 +701,12 @@ export const analyticsRouter = createRouter({
         .where(and(...conditions))
         .groupBy(orders.agentId, orderItems.productId)
         .orderBy(users.name, desc(sql`SUM(${deliveredQty()} * ${orderItems.unitPrice})`));
-    }),
+    })),
 
   // ── Payment Method Trend ──────────────────────────────────────────────────
   paymentMethodTrend: reportsQuery
     .input(z.object({ from: z.string(), to: z.string() }))
-    .query(async ({ input, ctx }) => {
+    .query(({ input, ctx }) => reportCached(ctx.tenant.id, "analytics.paymentMethodTrend", input, ReportTTL.fiveMin, async () => {
       const db = getDb();
       const tid = ctx.tenant.id;
 
@@ -702,5 +740,5 @@ export const analyticsRouter = createRouter({
       }
 
       return Object.values(pivot).sort((a, b) => a.month.localeCompare(b.month));
-    }),
+    })),
 });

@@ -19,7 +19,9 @@ import {
   ShopHasHistoryError,
 } from "./services/shop-archive";
 import { shopStatement } from "./services/shop-statement";
-import { debtJournal } from "./services/debt-journal";
+import { collectDebtJournal, paginateDebtJournal } from "./services/debt-journal";
+import { reportCached, ReportTTL } from "./lib/report-cache";
+import { dayKey } from "./lib/period";
 import { recordAudit, auditActor, changedFields } from "./services/audit-log";
 
 /**
@@ -75,7 +77,15 @@ export const shopRouter = createRouter({
    * Оператор доступ сохранил: managementQuery шире operatorQuery, а не другой.
    */
   receivablesAging: managementQuery.query(async ({ ctx }) => {
-    return receivablesAging(getDb(), ctx.tenant.id);
+    // Было: две панели директора (DebtorsPanel, ReceivablesPanel) на каждое
+    // открытие гнали проход по всей истории должных заказов с двумя
+    // коррелированными SUM на строку. Теперь: один пересчёт на организацию
+    // в минуту; платёж сбрасывает его через invalidateReports (services
+    // записи), так что должник пропадает из списка сразу, а TTL — страховка.
+    // День в ключе обязателен: корзины считаются от CURDATE(), и без него
+    // в полночь минуту показывалась бы вчерашняя раскладка.
+    return reportCached(ctx.tenant.id, "shop.receivablesAging", { day: dayKey(new Date()) }, ReportTTL.minute,
+      () => receivablesAging(getDb(), ctx.tenant.id));
   }),
 
   // Территории нужны фильтру на самом списке магазинов.
@@ -111,11 +121,13 @@ export const shopRouter = createRouter({
     .input(z.object({ limit: z.number().int().min(1).max(2000).optional() }).optional())
     .query(async ({ input, ctx }) => {
       const limit = input?.limit ?? 500;
-      return withCache(
-        CacheKeys.shopScores(ctx.tenant.id, limit),
-        CacheTTL.shops,
-        () => shopScores(getDb(), ctx.tenant.id, limit),
-      );
+      // Было: withCache под ключом shopscores: на 3 минуты — и этот ключ не
+      // сбрасывал никто (префикс shops: его не ловит), так что после платежа
+      // точка на карте три минуты держала старый цвет. Теперь: общий кэш
+      // отчётов — сброс на запись плюс 5 минут; LTV за всю историю от минуты
+      // не меняется.
+      return reportCached(ctx.tenant.id, "shop.scores", { limit }, ReportTTL.fiveMin,
+        () => shopScores(getDb(), ctx.tenant.id, limit));
     }),
 
   /*
@@ -473,17 +485,25 @@ export const shopRouter = createRouter({
         const d = new Date(v);
         return Number.isNaN(d.getTime()) ? undefined : d;
       };
-      return debtJournal(ctx.tenant.id, {
-        from: parse(input.dateFrom),
-        to: parse(input.dateTo),
-        agentId: input.agentId,
-        territoryId: input.territoryId,
-        shopId: input.shopId,
-        search: input.search,
-        kind: input.kind,
-        page: input.page,
-        pageSize: input.pageSize,
-      });
+      // Было: каждый листок собирал заново до 60 000 строк в памяти Node.
+      // Теперь: под кэшем лежит собранный набор, ключ — фильтры БЕЗ
+      // page/pageSize, страница режется снаружи: сорок страниц и реестр
+      // отчётов (pageSize 500) делят один проход по базе.
+      // ponytail: в кэше весь набор (до 60k строк ≈ 5–10 МБ JSON на ключ);
+      // если Redis начнёт пухнуть — кэшировать только id+date и дочитывать
+      // страницу из базы.
+      const { page, pageSize, ...filters } = input;
+      const collected = await reportCached(ctx.tenant.id, "shop.debtJournal", filters, ReportTTL.minute,
+        () => collectDebtJournal(ctx.tenant.id, {
+          from: parse(filters.dateFrom),
+          to: parse(filters.dateTo),
+          agentId: filters.agentId,
+          territoryId: filters.territoryId,
+          shopId: filters.shopId,
+          search: filters.search,
+          kind: filters.kind,
+        }));
+      return paginateDebtJournal(collected, page, pageSize);
     }),
 
   /*

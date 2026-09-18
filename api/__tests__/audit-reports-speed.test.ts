@@ -75,6 +75,16 @@ vi.mock("../lib/cache", () => {
   };
 });
 
+/*
+  Кэш отчётов — пропуск, а не память: здесь проверяются ЧИСЛА, а не
+  запоминание (его стережёт analytics-report-cache.test.ts). Настоящая память
+  отдала бы второму тесту ответ первого — вход тот же, строки другие.
+*/
+vi.mock("../lib/report-cache", () => ({
+  ReportTTL: { live: 20_000, minute: 60_000, fiveMin: 5 * 60_000 },
+  reportCached: (_t: number, _n: string, _i: unknown, _ttl: number, fn: () => Promise<unknown>) => fn(),
+  invalidateReports: async () => {},
+}));
 let mockDb: any;
 vi.mock("../queries/connection", () => ({ getDb: () => mockDb }));
 

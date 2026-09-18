@@ -10,6 +10,7 @@ import { REVENUE_ORDER_STATUSES } from "./lib/order-status";
 import { returnsInPeriod, returnedByAgent, returnedOf } from "./services/revenue-returns";
 import { cache, CacheKeys } from "./lib/cache";
 import { rateRows } from "./services/commission-base";
+import { invalidateReports } from "./lib/report-cache";
 
 /**
  * Проверить, что сотрудник, которому назначают ставку, из этой организации.
@@ -173,6 +174,7 @@ export const commissionRouter = createRouter({
       }
 
       cache.invalidate(CacheKeys.commissions(ctx.tenant.id));
+      await invalidateReports(ctx.tenant.id, "commission");
       return { success: true };
     }),
 
@@ -348,6 +350,7 @@ export const commissionRouter = createRouter({
       }
 
       cache.invalidate(CacheKeys.commissions(ctx.tenant.id));
+      await invalidateReports(ctx.tenant.id, "commission");
       return { success: true };
     }),
 
@@ -367,6 +370,7 @@ export const commissionRouter = createRouter({
           eq(commissionProductRates.productId, input.productId),
         ));
       cache.invalidate(CacheKeys.commissions(ctx.tenant.id));
+      await invalidateReports(ctx.tenant.id, "commission");
       return { success: true };
     }),
 
@@ -381,6 +385,7 @@ export const commissionRouter = createRouter({
       await db.update(commissions)
         .set({ status: input.status })
         .where(and(eq(commissions.id, input.id), eq(commissions.tenantId, ctx.tenant.id)));
+      await invalidateReports(ctx.tenant.id, "commission.status");
       return { success: true };
     }),
 });

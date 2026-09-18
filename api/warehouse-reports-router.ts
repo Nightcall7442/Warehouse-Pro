@@ -10,6 +10,58 @@ import { eq, and, sql, desc, gt } from "drizzle-orm";
 import { revenueOrderConditions } from "./lib/order-status";
 import { dayKey } from "./lib/period";
 import { onDefaultWarehouse } from "./services/reorder";
+import { reportCached, ReportTTL } from "./lib/report-cache";
+
+/*
+  Кэш отчётов: один пересчёт на организацию, а не по одному на каждого, кто
+  открыл страницу.
+
+  Было: каждая ручка ходила в базу на каждый вызов. Страница «Отчёты по
+  складу» — пять запросов на открытие, и после любой своей мутации клиент
+  перезапрашивает их все (useOrderCacheSync); тридцать человек в одной
+  организации — тридцать агрегатов по всему остатку.
+
+  Теперь: ответ живёт в reportCached под ключом организация + имя + вход.
+  Одновременные промахи склеиваются в один пересчёт, сброс при записи делает
+  core-исполнитель в сервисах записи (дверь остатка, приёмка, заказы) — здесь
+  инвалидации нет и быть не должно.
+
+  Что в ключе. Вход ручки как есть (days/limit/withinDays/warehouseId).
+  Скользящее окно `now - days` в ключ НЕ кладётся: миллисекунды дали бы промах
+  всегда, а сдвиг окна на TTL допустим. День (`dayKey`) кладётся ТОЛЬКО там,
+  где от него зависят границы «просрочено/горит» — иначе первые минуты после
+  полуночи показывали бы вчерашнюю раскладку.
+
+  productBatches нарочно не кэшируется: это точечное чтение из карточки
+  товара, ключей было бы столько, сколько товаров, — вытеснит полезное.
+*/
+
+/**
+ * Продано по товару за окно — ОДНА производная таблица на отчёт.
+ *
+ * Было: turnover и reorderAlerts считали продажи каждый по-своему, причём
+ * reorderAlerts — коррелированным SUM по order_items×orders на КАЖДУЮ строку
+ * склада, дважды (в SELECT и в ORDER BY; ORDER BY выполняется до LIMIT).
+ * При 3000 товарах это 6000 обходов idx_order_items_product на один вызов.
+ *
+ * Теперь: агрегат по товарам считается один раз и приджойнивается; строк в нём
+ * не больше, чем товаров. Условия те же, что были в подзапросе — delivered,
+ * не удалён, свой tenant, created_at >= cutoff, — так что числа не меняются.
+ */
+function soldByProductSince(db: ReturnType<typeof getDb>, tenantId: number, cutoff: Date) {
+  return db.select({
+    productId: orderItems.productId,
+    sold: sql<string>`SUM(${orderItems.quantity})`.as("sold"),
+  })
+    .from(orderItems)
+    .innerJoin(orders, eq(orderItems.orderId, orders.id))
+    .where(and(
+      ...revenueOrderConditions(tenantId),
+      sql`${orders.createdAt} >= ${cutoff}`,
+    ))
+    .groupBy(orderItems.productId)
+    .as("sold_by_product");
+}
 
 export const warehouseReportsRouter = createRouter({
   /** Stock breakdown by product category */
@@ -24,7 +76,7 @@ export const warehouseReportsRouter = createRouter({
   // warehouseId во всех отчётах по остатку — по одному складу; без него — по всем.
   stockByCategory: managementQuery
     .input(z.object({ warehouseId: z.number().int().positive().optional() }).optional())
-    .query(async ({ input, ctx }) => {
+    .query(({ input, ctx }) => reportCached(ctx.tenant.id, "warehouse.stockByCategory", { warehouseId: input?.warehouseId ?? null }, ReportTTL.minute, async () => {
     const db = getDb();
     const tenantId = ctx.tenant.id;
 
@@ -43,12 +95,12 @@ export const warehouseReportsRouter = createRouter({
       .orderBy(desc(sql`COALESCE(SUM(${warehouseStock.currentStock} * COALESCE(${products.costPrice}, 0)), 0)`));
 
     return result;
-  }),
+  })),
 
   /** Stock movement trends — daily in/out for last N days */
   movementTrends: managementQuery
     .input(z.object({ days: z.number().default(30), warehouseId: z.number().int().positive().optional() }).optional())
-    .query(async ({ input, ctx }) => {
+    .query(({ input, ctx }) => reportCached(ctx.tenant.id, "warehouse.movementTrends", { days: input?.days ?? 30, warehouseId: input?.warehouseId ?? null }, ReportTTL.fiveMin, async () => {
       const db = getDb();
       const tenantId = ctx.tenant.id;
       const days = input?.days ?? 30;
@@ -71,12 +123,12 @@ export const warehouseReportsRouter = createRouter({
         .orderBy(sql`DATE(${stockMovements.createdAt})`);
 
       return result;
-    }),
+    })),
 
   /** Top products by inventory value */
   topByValue: operatorQuery
     .input(z.object({ limit: z.number().int().min(1).max(1000).default(10), warehouseId: z.number().int().positive().optional() }).optional())
-    .query(async ({ input, ctx }) => {
+    .query(({ input, ctx }) => reportCached(ctx.tenant.id, "warehouse.topByValue", { limit: input?.limit ?? 10, warehouseId: input?.warehouseId ?? null }, ReportTTL.minute, async () => {
       const db = getDb();
       const tenantId = ctx.tenant.id;
 
@@ -99,12 +151,12 @@ export const warehouseReportsRouter = createRouter({
         .where(and(eq(warehouseStock.tenantId, tenantId), ...(input?.warehouseId ? [eq(warehouseStock.warehouseId, input.warehouseId)] : []), sql`${warehouseStock.currentStock} > 0`))
         .orderBy(desc(sql`COALESCE(${warehouseStock.currentStock} * COALESCE(${products.costPrice}, 0), 0)`))
         .limit(input?.limit ?? 10);
-    }),
+    })),
 
   /** Arrival logistics costs summary */
   arrivalCosts: operatorQuery
     .input(z.object({ days: z.number().default(30) }).optional())
-    .query(async ({ input, ctx }) => {
+    .query(({ input, ctx }) => reportCached(ctx.tenant.id, "warehouse.arrivalCosts", { days: input?.days ?? 30 }, ReportTTL.fiveMin, async () => {
       const db = getDb();
       const tenantId = ctx.tenant.id;
       const days = input?.days ?? 30;
@@ -141,41 +193,22 @@ export const warehouseReportsRouter = createRouter({
         .orderBy(sql`DATE(${arrivals.createdAt})`);
 
       return { summary, daily };
-    }),
+    })),
 
   /** Stock turnover — products sold vs avg inventory over period */
   turnover: operatorQuery
     .input(z.object({ days: z.number().default(30) }).optional())
-    .query(async ({ input, ctx }) => {
+    .query(({ input, ctx }) => reportCached(ctx.tenant.id, "warehouse.turnover", { days: input?.days ?? 30 }, ReportTTL.fiveMin, async () => {
       const db = getDb();
       const tenantId = ctx.tenant.id;
       const days = input?.days ?? 30;
       const cutoff = new Date(Date.now() - days * 86400000);
 
       // Продажи считаются ОДНИМ предварительным агрегатом и приджойниваются
-      // как производная таблица.
-      //
-      // Раньше тот же SUM стоял коррелированным подзапросом дважды — в SELECT
-      // и в ORDER BY, — а ORDER BY выполняется до LIMIT, то есть подзапрос
-      // отрабатывал для КАЖДОЙ строки warehouse_stock, а не для двадцати
-      // возвращаемых. При 3000 товарах на двух складах это 6000 строк × 2
-      // подзапроса, и в каждом — обход idx_order_items_product плюс lookup в
-      // orders по первичному ключу на каждую позицию. На реальной истории
-      // заказов «Отчёты по складу» уходили в таймаут клиента, а сервер
-      // продолжал крутить запрос. Агрегат по товарам считается один раз и
-      // ложится в память целиком: строк в нём не больше, чем товаров.
-      const soldByProduct = db.select({
-        productId: orderItems.productId,
-        sold: sql<string>`SUM(${orderItems.quantity})`.as("sold"),
-      })
-        .from(orderItems)
-        .innerJoin(orders, eq(orderItems.orderId, orders.id))
-        .where(and(
-          ...revenueOrderConditions(tenantId),
-          sql`${orders.createdAt} >= ${cutoff}`,
-        ))
-        .groupBy(orderItems.productId)
-        .as("sold_by_product");
+      // как производная таблица (soldByProductSince). Раньше тот же SUM стоял
+      // коррелированным подзапросом дважды — в SELECT и в ORDER BY, — и на
+      // реальной истории заказов «Отчёты по складу» уходили в таймаут клиента.
+      const soldByProduct = soldByProductSince(db, tenantId, cutoff);
 
       const result = await db.select({
         productId: products.id,
@@ -200,16 +233,21 @@ export const warehouseReportsRouter = createRouter({
         const daysToSell = sold > 0 ? Math.round(stock / (sold / days)) : 999;
         return { ...r, turnoverRate, daysToSell };
       });
-    }),
+    })),
 
   /** Dynamic reorder point — calculates days until stockout based on sales velocity */
   reorderAlerts: supervisorQuery
     .input(z.object({ days: z.number().default(30) }).optional())
-    .query(async ({ input, ctx }) => {
+    .query(({ input, ctx }) => reportCached(ctx.tenant.id, "warehouse.reorderAlerts", { days: input?.days ?? 30 }, ReportTTL.fiveMin, async () => {
       const db = getDb();
       const tenantId = ctx.tenant.id;
       const days = input?.days ?? 30;
       const cutoff = new Date(Date.now() - days * 86400000);
+
+      // Было: коррелированный SUM по order_items×orders на каждую строку
+      // склада, дважды (SELECT и ORDER BY) — тот же дефект, что чинили в
+      // turnover. Теперь один агрегат по товарам (soldByProductSince).
+      const soldByProduct = soldByProductSince(db, tenantId, cutoff);
 
       // Get products with current stock and sales velocity
       const result = await db.select({
@@ -222,12 +260,13 @@ export const warehouseReportsRouter = createRouter({
         // Порог — один, на товаре (services/reorder.ts). Колонка на строке
         // склада никем не писалась и отдавала нули.
         reorderPoint: products.reorderPoint,
-        soldQty: sql<string>`COALESCE((SELECT SUM(${orderItems.quantity}) FROM ${orderItems} INNER JOIN ${orders} o ON ${orderItems.orderId} = o.id WHERE ${orderItems.productId} = ${products.id} AND o.tenant_id = ${tenantId} AND o.deleted_at IS NULL AND o.status = 'delivered' AND o.created_at >= ${cutoff}), 0)`,
+        soldQty: sql<string>`COALESCE(${soldByProduct.sold}, 0)`,
       })
         .from(warehouseStock)
         .innerJoin(products, and(eq(warehouseStock.productId, products.id), eq(products.tenantId, ctx.tenant.id)))
+        .leftJoin(soldByProduct, eq(soldByProduct.productId, warehouseStock.productId))
         .where(and(eq(warehouseStock.tenantId, tenantId), onDefaultWarehouse(tenantId)))
-        .orderBy(sql`COALESCE((SELECT SUM(${orderItems.quantity}) FROM ${orderItems} INNER JOIN ${orders} o ON ${orderItems.orderId} = o.id WHERE ${orderItems.productId} = ${products.id} AND o.tenant_id = ${tenantId} AND o.deleted_at IS NULL AND o.status = 'delivered' AND o.created_at >= ${cutoff}), 0) DESC`)
+        .orderBy(desc(sql`COALESCE(${soldByProduct.sold}, 0)`))
         .limit(50);
 
       return result.map(r => {
@@ -254,7 +293,7 @@ export const warehouseReportsRouter = createRouter({
           alertLevel,
         };
       });
-    }),
+    })),
   /* ══════════════════════════════════════════════════════════════════════════
      ЧТО СГОРАЕТ
 
@@ -281,113 +320,118 @@ export const warehouseReportsRouter = createRouter({
       withinDays: z.number().int().min(1).max(365).default(30),
       warehouseId: z.number().int().positive().optional(),
     }).optional())
-    .query(async ({ input, ctx }) => {
-      const db = getDb();
-      const tenantId = ctx.tenant.id;
+    .query(({ input, ctx }) => {
       const withinDays = input?.withinDays ?? 30;
-
-      /*
-        Граница считается по календарю сервера, а не через toISOString.
-
-        Колонка expires_at — DATE, и сравнивается со строкой «ГГГГ-ММ-ДД».
-        Печать через UTC при восточном смещении даёт вчерашний день, и партия,
-        сгорающая сегодня, попала бы в «просроченные». Тот же случай, что с
-        ключом месяца в api/lib/period.ts.
-      */
+      // День — в ключе: границы «просрочено/горит» считаются от сегодня.
       const today = dayKey(new Date());
-      const horizon = new Date();
-      horizon.setDate(horizon.getDate() + withinDays);
-      const until = dayKey(horizon);
+      return reportCached(ctx.tenant.id, "warehouse.expiring", { withinDays, warehouseId: input?.warehouseId ?? null, day: today }, ReportTTL.fiveMin, async () => {
+        const db = getDb();
+        const tenantId = ctx.tenant.id;
 
-      const conditions = [
-        eq(stockBatches.tenantId, tenantId),
-        // Партия с нулевым остатком уже ушла: показать её сгорающей значит
-        // позвать человека списывать то, чего нет.
-        gt(stockBatches.quantity, "0"),
-        sql`${stockBatches.expiresAt} IS NOT NULL`,
-        sql`${stockBatches.expiresAt} <= ${until}`,
-      ];
-      if (input?.warehouseId) conditions.push(eq(stockBatches.warehouseId, input.warehouseId));
+        /*
+          Граница считается по календарю сервера, а не через toISOString.
 
-      const rows = await db.select({
-        batchId:       stockBatches.id,
-        productId:     stockBatches.productId,
-        productName:   products.name,
-        productCode:   products.code,
-        unit:          products.unit,
-        warehouseId:   stockBatches.warehouseId,
-        warehouseName: warehouses.name,
-        batchNumber:   stockBatches.batchNumber,
-        expiresAt:     stockBatches.expiresAt,
-        quantity:      stockBatches.quantity,
-        // Цена ЗАКУПКИ этой партии (карточка — только у партий без своей):
-        // столько денег сгорает вместе с товаром. Цена продажи здесь ни при
-        // чём — непроданный товар выручки не приносил.
-        costPrice:     sql<string>`COALESCE(${stockBatches.costPrice}, ${products.costPrice})`,
-        daysLeft:      sql`DATEDIFF(${stockBatches.expiresAt}, ${today})`.mapWith(Number),
-      })
-        .from(stockBatches)
-        .innerJoin(products, and(eq(stockBatches.productId, products.id), eq(products.tenantId, tenantId)))
-        .leftJoin(warehouses, and(eq(stockBatches.warehouseId, warehouses.id), eq(warehouses.tenantId, tenantId)))
-        .where(and(...conditions))
-        .orderBy(stockBatches.expiresAt)
-        .limit(500);
+          Колонка expires_at — DATE, и сравнивается со строкой «ГГГГ-ММ-ДД».
+          Печать через UTC при восточном смещении даёт вчерашний день, и партия,
+          сгорающая сегодня, попала бы в «просроченные». Тот же случай, что с
+          ключом месяца в api/lib/period.ts.
+        */
+        const horizon = new Date();
+        horizon.setDate(horizon.getDate() + withinDays);
+        const until = dayKey(horizon);
 
-      return rows.map(r => {
-        const daysLeft = Number(r.daysLeft ?? 0);
-        const quantity = Number(r.quantity ?? 0);
-        return {
-          ...r,
-          quantity,
-          daysLeft,
-          value: Number((quantity * Number(r.costPrice ?? 0)).toFixed(2)),
-          /*
-            Три состояния, а не число дней: по ним принимают РАЗНЫЕ решения.
-            Просроченное — списать, горящее — двигать сегодня, остальное —
-            держать в виду.
-          */
-          state: daysLeft < 0 ? "expired" as const
-               : daysLeft <= 7 ? "urgent" as const
-               : "soon" as const,
-        };
+        const conditions = [
+          eq(stockBatches.tenantId, tenantId),
+          // Партия с нулевым остатком уже ушла: показать её сгорающей значит
+          // позвать человека списывать то, чего нет.
+          gt(stockBatches.quantity, "0"),
+          sql`${stockBatches.expiresAt} IS NOT NULL`,
+          sql`${stockBatches.expiresAt} <= ${until}`,
+        ];
+        if (input?.warehouseId) conditions.push(eq(stockBatches.warehouseId, input.warehouseId));
+
+        const rows = await db.select({
+          batchId:       stockBatches.id,
+          productId:     stockBatches.productId,
+          productName:   products.name,
+          productCode:   products.code,
+          unit:          products.unit,
+          warehouseId:   stockBatches.warehouseId,
+          warehouseName: warehouses.name,
+          batchNumber:   stockBatches.batchNumber,
+          expiresAt:     stockBatches.expiresAt,
+          quantity:      stockBatches.quantity,
+          // Цена ЗАКУПКИ этой партии (карточка — только у партий без своей):
+          // столько денег сгорает вместе с товаром. Цена продажи здесь ни при
+          // чём — непроданный товар выручки не приносил.
+          costPrice:     sql<string>`COALESCE(${stockBatches.costPrice}, ${products.costPrice})`,
+          daysLeft:      sql`DATEDIFF(${stockBatches.expiresAt}, ${today})`.mapWith(Number),
+        })
+          .from(stockBatches)
+          .innerJoin(products, and(eq(stockBatches.productId, products.id), eq(products.tenantId, tenantId)))
+          .leftJoin(warehouses, and(eq(stockBatches.warehouseId, warehouses.id), eq(warehouses.tenantId, tenantId)))
+          .where(and(...conditions))
+          .orderBy(stockBatches.expiresAt)
+          .limit(500);
+
+        return rows.map(r => {
+          const daysLeft = Number(r.daysLeft ?? 0);
+          const quantity = Number(r.quantity ?? 0);
+          return {
+            ...r,
+            quantity,
+            daysLeft,
+            value: Number((quantity * Number(r.costPrice ?? 0)).toFixed(2)),
+            /*
+              Три состояния, а не число дней: по ним принимают РАЗНЫЕ решения.
+              Просроченное — списать, горящее — двигать сегодня, остальное —
+              держать в виду.
+            */
+            state: daysLeft < 0 ? "expired" as const
+                 : daysLeft <= 7 ? "urgent" as const
+                 : "soon" as const,
+          };
+        });
       });
     }),
 
   /** Свод по сгорающему — для плитки, чтобы не тянуть весь список. */
   expiringSummary: operatorQuery
     .input(z.object({ withinDays: z.number().int().min(1).max(365).default(30) }).optional())
-    .query(async ({ input, ctx }) => {
-      const db = getDb();
-      const tenantId = ctx.tenant.id;
+    .query(({ input, ctx }) => {
       const withinDays = input?.withinDays ?? 30;
       const today = dayKey(new Date());
-      const horizon = new Date();
-      horizon.setDate(horizon.getDate() + withinDays);
-      const until = dayKey(horizon);
+      return reportCached(ctx.tenant.id, "warehouse.expiringSummary", { withinDays, day: today }, ReportTTL.fiveMin, async () => {
+        const db = getDb();
+        const tenantId = ctx.tenant.id;
+        const horizon = new Date();
+        horizon.setDate(horizon.getDate() + withinDays);
+        const until = dayKey(horizon);
 
-      const [row] = await db.select({
-        expiredCount: sql`COUNT(CASE WHEN ${stockBatches.expiresAt} < ${today} THEN 1 END)`.mapWith(Number),
-        expiredValue: sql`COALESCE(SUM(CASE WHEN ${stockBatches.expiresAt} < ${today} THEN ${stockBatches.quantity} * COALESCE(${stockBatches.costPrice}, ${products.costPrice}, 0) ELSE 0 END), 0)`.mapWith(Number),
-        urgentCount:  sql`COUNT(CASE WHEN ${stockBatches.expiresAt} >= ${today} AND DATEDIFF(${stockBatches.expiresAt}, ${today}) <= 7 THEN 1 END)`.mapWith(Number),
-        soonCount:    sql`COUNT(CASE WHEN DATEDIFF(${stockBatches.expiresAt}, ${today}) > 7 THEN 1 END)`.mapWith(Number),
-        liveValue:    sql`COALESCE(SUM(CASE WHEN ${stockBatches.expiresAt} >= ${today} THEN ${stockBatches.quantity} * COALESCE(${stockBatches.costPrice}, ${products.costPrice}, 0) ELSE 0 END), 0)`.mapWith(Number),
-      })
-        .from(stockBatches)
-        .innerJoin(products, and(eq(stockBatches.productId, products.id), eq(products.tenantId, tenantId)))
-        .where(and(
-          eq(stockBatches.tenantId, tenantId),
-          gt(stockBatches.quantity, "0"),
-          sql`${stockBatches.expiresAt} IS NOT NULL`,
-          sql`${stockBatches.expiresAt} <= ${until}`,
-        ));
+        const [row] = await db.select({
+          expiredCount: sql`COUNT(CASE WHEN ${stockBatches.expiresAt} < ${today} THEN 1 END)`.mapWith(Number),
+          expiredValue: sql`COALESCE(SUM(CASE WHEN ${stockBatches.expiresAt} < ${today} THEN ${stockBatches.quantity} * COALESCE(${stockBatches.costPrice}, ${products.costPrice}, 0) ELSE 0 END), 0)`.mapWith(Number),
+          urgentCount:  sql`COUNT(CASE WHEN ${stockBatches.expiresAt} >= ${today} AND DATEDIFF(${stockBatches.expiresAt}, ${today}) <= 7 THEN 1 END)`.mapWith(Number),
+          soonCount:    sql`COUNT(CASE WHEN DATEDIFF(${stockBatches.expiresAt}, ${today}) > 7 THEN 1 END)`.mapWith(Number),
+          liveValue:    sql`COALESCE(SUM(CASE WHEN ${stockBatches.expiresAt} >= ${today} THEN ${stockBatches.quantity} * COALESCE(${stockBatches.costPrice}, ${products.costPrice}, 0) ELSE 0 END), 0)`.mapWith(Number),
+        })
+          .from(stockBatches)
+          .innerJoin(products, and(eq(stockBatches.productId, products.id), eq(products.tenantId, tenantId)))
+          .where(and(
+            eq(stockBatches.tenantId, tenantId),
+            gt(stockBatches.quantity, "0"),
+            sql`${stockBatches.expiresAt} IS NOT NULL`,
+            sql`${stockBatches.expiresAt} <= ${until}`,
+          ));
 
-      return {
-        expiredCount: Number(row?.expiredCount ?? 0),
-        expiredValue: Number(row?.expiredValue ?? 0),
-        urgentCount:  Number(row?.urgentCount ?? 0),
-        soonCount:    Number(row?.soonCount ?? 0),
-        liveValue:    Number(row?.liveValue ?? 0),
-      };
+        return {
+          expiredCount: Number(row?.expiredCount ?? 0),
+          expiredValue: Number(row?.expiredValue ?? 0),
+          urgentCount:  Number(row?.urgentCount ?? 0),
+          soonCount:    Number(row?.soonCount ?? 0),
+          liveValue:    Number(row?.liveValue ?? 0),
+        };
+      });
     }),
 
   /*

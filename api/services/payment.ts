@@ -3,6 +3,7 @@ import { eq, and, sql, desc } from "drizzle-orm";
 import { sanitizeString } from "../lib/sanitize";
 import { recalcShopDebt } from "./shop-debt";
 import { isDuplicateEntry } from "../lib/db-errors";
+import { invalidateReports } from "../lib/report-cache";
 
 type DrizzleInstance = ReturnType<typeof import("../queries/connection").getDb>;
 type Tx = Parameters<Parameters<DrizzleInstance["transaction"]>[0]>[0];
@@ -115,6 +116,8 @@ export const PaymentService = {
       }
       throw e;
     }
+    // Долг магазина, старение долга, журнал — после коммита, один раз на платёж.
+    await invalidateReports(tenantId, "payment");
 
     return { success: true };
   },
@@ -164,6 +167,7 @@ export const PaymentService = {
       original = { amount: p.amount, orderId: p.orderId };
       await recalcShopDebt(tx, tenantId, shopId);
     });
+    await invalidateReports(tenantId, "payment.reverse");
 
     const { recordAudit } = await import("./audit-log");
     await recordAudit(db, {

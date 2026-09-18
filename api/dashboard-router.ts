@@ -4,7 +4,7 @@ import { orders, warehouseStock, users, shops, agentLocations, dailyPlans, order
 import { eq, and, or, sql, desc, isNull, inArray } from "drizzle-orm";
 import { REVENUE_ORDER_STATUSES, OPEN_ORDER_STATUSES, deliveredQty } from "./lib/order-status";
 import { subDays } from "date-fns";
-import { cache, CacheKeys, CacheTTL } from "./lib/cache";
+import { reportCached, ReportTTL } from "./lib/report-cache";
 import { onDay, onDate, sinceDay } from "./lib/date-range";
 import { returnsInPeriod, totalReturned } from "./services/revenue-returns";
 
@@ -35,13 +35,36 @@ type DashboardKpis = {
   deliveryPending: number;
 };
 
-export const dashboardRouter = createRouter({
-  kpis: supervisorQuery.query(async ({ ctx }) => {
-    const tenantId = ctx.tenant.id;
-    const cacheKey = CacheKeys.dashboardKpis(tenantId);
-    const cached = cache.get<DashboardKpis>(cacheKey);
-    if (cached) return cached;
+/*
+  Кэш главной страницы.
 
+  Было: кэш только у kpis — `cache.get/set` по ключу `kpis:{tenant}` на две
+  минуты, без склейки одновременных промахов и без чтения Redis на второй
+  реплике; остальные ручки ходили в базу при каждом открытии. Тридцать
+  директоров, открывших главную в 9:00, давали тридцать пересчётов kpis по
+  одиннадцать параллельных запросов — 330 запросов в пул на 20 соединений.
+
+  Теперь: каждая ручка, кроме персональной agentDashboard, обёрнута в
+  reportCached. Ключ — организация + имя ручки + все аргументы, влияющие на
+  ответ; промах считается один раз на ключ, остальные ждут ту же Promise;
+  сброс `report:{tenant}:*` зовут сервисы записи (order-*, courier-delivery,
+  returns, планы) — здесь его дублировать не нужно.
+
+  Область видимости: supervisorQuery не сужает выборку по территориям —
+  связи супервайзер → территория в схеме нет, и супервайзер видит всю
+  организацию, как директор. Поэтому в ключе нет userId. Единственное
+  исключение — revenueTrend: там ветка по роли, и ключ обязан её различать.
+
+  TTL по свежести:
+    minute — плитки и графики, которые меняются от записи заказа и сбрасываются
+             сервисами; минута нужна лишь как потолок между сбросами;
+    live   — то, что живёт на пингах геолокации (supervisorDashboard) или
+             читается как лента «сейчас» (activity): пинги пишутся каждым
+             агентом каждые ~30 с и сброс не зовут — держит только TTL.
+*/
+export const dashboardRouter = createRouter({
+  kpis: supervisorQuery.query(({ ctx }) => reportCached(ctx.tenant.id, "dashboard.kpis", {}, ReportTTL.minute, async (): Promise<DashboardKpis> => {
+    const tenantId = ctx.tenant.id;
     const db       = ctx.db;
     const today    = new Date().toISOString().split("T")[0];
     // Окно валовой маржи. Раньше оба запроса шли по ВСЕЙ истории тенанта:
@@ -143,13 +166,12 @@ export const dashboardRouter = createRouter({
       deliveryPending: Number(deliveryPending[0]?.count ?? 0),
     };
 
-    cache.set(cacheKey, result, CacheTTL.kpis);
     return result;
-  }),
+  })),
 
   trends: supervisorQuery
     .input(z.object({ range: z.enum(["7d", "30d", "month"]) }))
-    .query(async ({ input, ctx }) => {
+    .query(({ input, ctx }) => reportCached(ctx.tenant.id, "dashboard.trends", { range: input.range }, ReportTTL.minute, async () => {
       const db        = ctx.db;
       const tenantId  = ctx.tenant.id;
       // «Месяц» — с первого числа: пилюля рядом с «30д» обязана отличаться от неё.
@@ -165,21 +187,23 @@ export const dashboardRouter = createRouter({
         .from(orders)
         .where(and(eq(orders.tenantId, tenantId), sinceDay(orders.createdAt, startDate), isNull(orders.deletedAt)))
         .groupBy(sql`DATE(${orders.createdAt})`).orderBy(sql`DATE(${orders.createdAt})`);
-    }),
+    })),
 
   /*
     Только открытые заказы. Донат «Статусы заказов» считал по всей истории
     организации: через год «доставлено» съедало круг целиком, и три заказа,
     которые ждут офиса сегодня, в нём не читались вовсе.
   */
-  statusBreakdown: supervisorQuery.query(async ({ ctx }) => {
+  statusBreakdown: supervisorQuery.query(({ ctx }) => reportCached(ctx.tenant.id, "dashboard.statusBreakdown", {}, ReportTTL.minute, async () => {
     return ctx.db.select({ status: orders.status, count: sql<number>`count(*)` })
       .from(orders)
       .where(and(eq(orders.tenantId, ctx.tenant.id), isNull(orders.deletedAt), inArray(orders.status, OPEN_ORDER_STATUSES)))
       .groupBy(orders.status);
-  }),
+  })),
 
-  activity: supervisorQuery.query(async ({ ctx }) => {
+  // Лента «что происходит сейчас»: запрос копеечный (индекс назад, 10 строк),
+  // кэш здесь ради «один пересчёт на организацию», а не ради базы — поэтому live.
+  activity: supervisorQuery.query(({ ctx }) => reportCached(ctx.tenant.id, "dashboard.activity", {}, ReportTTL.live, async () => {
     return ctx.db.select({
       id: orders.id, orderNumber: orders.orderNumber, status: orders.status,
       total: orders.total, createdAt: orders.createdAt, shopName: shops.name, agentName: users.name,
@@ -189,8 +213,12 @@ export const dashboardRouter = createRouter({
       .leftJoin(users, and(eq(orders.agentId, users.id), eq(users.tenantId, ctx.tenant.id)))
       .where(and(eq(orders.tenantId, ctx.tenant.id), isNull(orders.deletedAt)))
       .orderBy(desc(orders.createdAt)).limit(10);
-  }),
+  })),
 
+  // Не кэшируется намеренно: ответ персональный (свои заказы, свои магазины),
+  // ключ обязан был бы включать userId — 30 агентов дали бы 30 ключей, каждый
+  // читается одним человеком с одного телефона. Попаданий не будет, а место в
+  // памяти кэша (500 записей на процесс) — будет съедено. Запросы S по индексу.
   agentDashboard: fieldSalesQuery.query(async ({ ctx }) => {
     const db       = ctx.db;
     const tenantId = ctx.tenant.id;
@@ -218,7 +246,10 @@ export const dashboardRouter = createRouter({
     };
   }),
 
-  supervisorDashboard: supervisorQuery.query(async ({ ctx }) => {
+  // live, не minute: «онлайн агентов» считается по пингам за 10 минут, а пинги
+  // сброс кэша не зовут (иначе сброс `report:{tenant}:*` каждую секунду).
+  // Минута резала бы «онлайн» заметно; 20 секунд — нет.
+  supervisorDashboard: supervisorQuery.query(({ ctx }) => reportCached(ctx.tenant.id, "dashboard.supervisorDashboard", {}, ReportTTL.live, async () => {
     const db       = ctx.db;
     const tenantId = ctx.tenant.id;
     const today    = new Date().toISOString().split("T")[0];
@@ -245,43 +276,50 @@ export const dashboardRouter = createRouter({
       onlineAgents:  Number(onlineAgents[0]?.count ?? 0),
       pendingPlans:  Number(pendingPlans[0]?.count ?? 0),
     };
-  }),
+  })),
 
   /** Revenue trend for sparkline — last N days daily revenue */
   revenueTrend: fieldSalesQuery
     .input(z.object({ days: z.number().default(7) }).optional())
-    .query(async ({ input, ctx }) => {
-      const db = ctx.db;
-      const tenantId = ctx.tenant.id;
+    .query(({ input, ctx }) => {
       const days = input?.days ?? 7;
-      const startDate = subDays(new Date(), days).toISOString().split("T")[0];
+      // Ветка по роли обязана быть в ключе. Привилегированные видят выручку
+      // фирмы, агент — только свою; общий ключ `{days}` отдал бы агенту
+      // фирменную выручку из кэша, заполненного директором минуту назад.
+      // У привилегированных ключ общий (scope: "tenant") — им и нужен один
+      // пересчёт на организацию; у остальных — свой по userId.
+      const companyWide = ["ceo", "operator", "supervisor", "superadmin"].includes(ctx.user.role);
+      const scope = companyWide ? { days, scope: "tenant" as const } : { days, userId: ctx.user.id };
+      return reportCached(ctx.tenant.id, "dashboard.revenueTrend", scope, ReportTTL.minute, async () => {
+        const db = ctx.db;
+        const tenantId = ctx.tenant.id;
+        const startDate = subDays(new Date(), days).toISOString().split("T")[0];
 
-      const rows = await db.select({
-        date: sql<string>`DATE(${orders.createdAt})`,
-        revenue: sql<string>`COALESCE(SUM(CASE WHEN ${orders.status} = 'delivered' THEN ${orders.total} ELSE 0 END), 0)`,
-      })
-        .from(orders)
-        .where(and(
-          eq(orders.tenantId, tenantId),
-          sinceDay(orders.createdAt, startDate),
-          isNull(orders.deletedAt),
-          // This feeds the sparkline on the agent's own home screen, and the
-          // guard admits agents. Unscoped, every agent's phone drew the
-          // company's daily revenue.
-          ...(["ceo", "operator", "supervisor", "superadmin"].includes(ctx.user.role)
-            ? []
-            : [eq(orders.agentId, ctx.user.id)]),
-        ))
-        .groupBy(sql`DATE(${orders.createdAt})`)
-        .orderBy(sql`DATE(${orders.createdAt})`);
+        const rows = await db.select({
+          date: sql<string>`DATE(${orders.createdAt})`,
+          revenue: sql<string>`COALESCE(SUM(CASE WHEN ${orders.status} = 'delivered' THEN ${orders.total} ELSE 0 END), 0)`,
+        })
+          .from(orders)
+          .where(and(
+            eq(orders.tenantId, tenantId),
+            sinceDay(orders.createdAt, startDate),
+            isNull(orders.deletedAt),
+            // This feeds the sparkline on the agent's own home screen, and the
+            // guard admits agents. Unscoped, every agent's phone drew the
+            // company's daily revenue.
+            ...(companyWide ? [] : [eq(orders.agentId, ctx.user.id)]),
+          ))
+          .groupBy(sql`DATE(${orders.createdAt})`)
+          .orderBy(sql`DATE(${orders.createdAt})`);
 
-      // Fill missing days with 0
-      const result: number[] = [];
-      for (let i = 0; i < days; i++) {
-        const d = subDays(new Date(), days - 1 - i).toISOString().split("T")[0];
-        const found = rows.find(r => r.date === d);
-        result.push(Number(found?.revenue ?? 0));
-      }
-      return result;
+        // Fill missing days with 0
+        const result: number[] = [];
+        for (let i = 0; i < days; i++) {
+          const d = subDays(new Date(), days - 1 - i).toISOString().split("T")[0];
+          const found = rows.find(r => r.date === d);
+          result.push(Number(found?.revenue ?? 0));
+        }
+        return result;
+      });
     }),
 });

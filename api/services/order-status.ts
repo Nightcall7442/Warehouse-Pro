@@ -4,6 +4,7 @@ import { orders, orderItems, warehouseStock, shops, users } from "@db/schema";
 import { ORDER_STATUS_LABELS, holdsStock } from "../lib/order-status";
 import { isReopen, reversesRevenue, assertReopenable, clearDeliveryTrace, dateSecondLife } from "./order-reopen";
 import { cache, CacheKeys } from "../lib/cache";
+import { invalidateReports } from "../lib/report-cache";
 import { logger } from "../lib/logger";
 import { affectedRows } from "../lib/db-rows";
 import type { Db, AuditActor } from "./order-shared";
@@ -90,6 +91,7 @@ export async function cancel(db: Db, tenantId: number, orderId: number, opts: { 
   });
 
   cache.invalidate(CacheKeys.dashboardKpis(Number(tenantId)));
+  await invalidateReports(tenantId, "order");
 
   const debtTrace = cancelled.debt;
   if (debtTrace) {
@@ -353,6 +355,7 @@ export async function updateStatus(
   });
 
   cache.invalidate(CacheKeys.dashboardKpis(Number(tenantId)));
+  await invalidateReports(tenantId, "order");
 
   /*
     След в журнале — только для откатов, а не для каждой смены статуса.
@@ -463,6 +466,7 @@ export async function deleteOrder(db: Db, tenantId: number, orderId: number, act
   });
 
   cache.invalidate(CacheKeys.dashboardKpis(Number(tenantId)));
+  await invalidateReports(tenantId, "order");
   await traceOrderChange(db, tenantId, orderId, "order.delete", actor, deletedMeta);
 
   return { success: true };
@@ -547,6 +551,7 @@ export async function restore(db: Db, tenantId: number, orderId: number, actor?:
   });
 
   cache.invalidate(CacheKeys.dashboardKpis(Number(tenantId)));
+  await invalidateReports(tenantId, "order");
   await traceOrderChange(db, tenantId, orderId, "order.restore", actor, {});
 
   return { success: true };
@@ -598,6 +603,8 @@ export async function bulkAssignAgent(db: Db, tenantId: number, orderIds: number
   await db.update(orders)
     .set({ agentId })
     .where(and(eq(orders.tenantId, tenantId), inArray(orders.id, orderIds)));
+  // Переназначение меняет agentId — отчёты по агентам и зарплата считают по нему.
+  await invalidateReports(tenantId, "order.assign");
 
   return { updated: orderIds.length };
 }

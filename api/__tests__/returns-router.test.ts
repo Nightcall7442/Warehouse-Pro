@@ -32,6 +32,16 @@ vi.mock("../lib/sanitize", () => ({
 let mockDb: any;
 vi.mock("../queries/connection", () => ({ getDb: () => mockDb }));
 
+// Кэш отчётов — сквозной: здесь проверяются числа, а не ключи (ключи — в
+// report-cache-orders-debts.test.ts). events фиксирует порядок «commit → сброс».
+const events = vi.hoisted(() => [] as string[]);
+vi.mock("../lib/report-cache", () => ({
+  reportCached: async (_t: number, _n: string, _i: unknown, _ttl: number, fn: () => Promise<unknown>) => fn(),
+  invalidateReports: vi.fn(async (tenantId: number) => { events.push(`invalidate:${tenantId}`); }),
+  ReportTTL: { live: 20_000, minute: 60_000, fiveMin: 300_000 },
+}));
+import { invalidateReports } from "../lib/report-cache";
+
 import { returns, returnItems, orderItems, shops, users, products, orders, warehouseStock, warehouses } from "@db/schema";
 
 // Type aliases, not interfaces: the fake db passes these rows around as
@@ -347,7 +357,11 @@ function makeMockDb() {
     useTable(table);
     return { where: vi.fn(() => Promise.resolve({ affectedRows: 1 })) };
   };
-  db.transaction = (fn: (tx: any) => Promise<any>) => fn(db);
+  db.transaction = async (fn: (tx: any) => Promise<any>) => {
+    const r = await fn(db);
+    events.push("commit");
+    return r;
+  };
   return db;
 }
 
@@ -533,6 +547,20 @@ describe("returnsRouter", () => {
       expect(Number(stockNow().currentStock)).toBe(100);
       expect(returnsTable[0].disposition).toBe("write_off");
       expect(returnsTable[0].status).toBe("completed");
+    });
+
+    /*
+      Проведённый возврат меняет долг магазина, дебиторку и свод возвратов —
+      все они теперь лежат в кэше отчётов. Сброс обязан идти ПОСЛЕ commit:
+      сброс внутри транзакции дал бы читателю положить докоммитные числа в
+      кэш на весь TTL. Убери вызов или внеси его в транзакцию — страж упадёт.
+    */
+    it("approved -> completed: сбрасывает кэш отчётов арендатора после commit", async () => {
+      events.length = 0;
+      const caller = approvedReturn("defect");
+      await caller.updateStatus({ id: 1, status: "completed" });
+      expect(invalidateReports).toHaveBeenCalledWith(1, expect.any(String));
+      expect(events).toEqual(["commit", "invalidate:1"]);
     });
 
     it("approved -> completed: оператор может вернуть брак на склад явно", async () => {

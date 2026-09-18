@@ -8,6 +8,7 @@ import { OPEN_ORDER_STATUSES } from "./lib/order-status";
 import { applyStockEffect, receiveStock } from "./services/stock-ledger";
 import { transferStock } from "./services/stock-transfer";
 import { recordAudit, auditActor } from "./services/audit-log";
+import { invalidateReports } from "./lib/report-cache";
 
 export const warehouseMultiRouter = createRouter({
   /** List all warehouses for current tenant */
@@ -277,6 +278,7 @@ export const warehouseMultiRouter = createRouter({
           meta: { fromWarehouseId: transfer.fromWarehouseId, toWarehouseId: transfer.toWarehouseId, productId: transfer.productId, quantity: transfer.quantity },
         }, { strict: true });
       });
+      await invalidateReports(ctx.tenant.id, "stock.transfer");
 
       return { success: true };
     }),

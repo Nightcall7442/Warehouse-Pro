@@ -7,7 +7,7 @@ import { assertProductsBelongToTenant } from "./lib/tenant-refs";
 import { returns, returnItems, orderItems, shops, users, products, orders, warehouseStock, warehouses } from "@db/schema";
 import { ORDER_STATUS_LABELS, RETURN_STATUS_LABELS } from "./lib/order-status";
 import { eq, and, desc, sql, ne, inArray, notInArray, isNull } from "drizzle-orm";
-import { cache, CacheKeys } from "./lib/cache";
+import { reportCached, invalidateReports, ReportTTL } from "./lib/report-cache";
 import { sanitizeString } from "./lib/sanitize";
 import { recalcShopDebt } from "./services/shop-debt";
 import { productLabel } from "./services/order";
@@ -291,7 +291,8 @@ export const returnsRouter = createRouter({
         return id;
       });
 
-      cache.invalidate(CacheKeys.returns(ctx.tenant.id));
+      // Сброса кэша здесь больше нет: ключ CacheKeys.returns никто не читал
+      // (мёртвый), а новая заявка — pending — ни в один отчёт не входит.
       return { id: returnId, returnNumber };
     }),
 
@@ -455,17 +456,26 @@ export const returnsRouter = createRouter({
       }, { strict: true });
       });
 
-      cache.invalidate(CacheKeys.returns(tenantId));
+      // Было: сбрасывался ключ CacheKeys.returns, который никто не читал.
+      // Теперь: проведённый или отклонённый возврат меняет долг магазина,
+      // дебиторку, журнал долга, свод возвратов и остаток — сброс всех
+      // отчётов арендатора. Строго ПОСЛЕ commit: сброс внутри транзакции дал
+      // бы читателю положить в кэш докоммитные числа на весь TTL.
+      // Записи возврата живут в роутере (сервиса нет), поэтому точка здесь.
+      await invalidateReports(tenantId, "return.status");
       return { success: true };
     }),
 
   // Returns summary by reason
   summary: operatorQuery.query(async ({ ctx }) => {
-    const db = getDb();
     // Тот же ключ месяца, что у зарплат и норм: свод возвратов за «этот месяц»
     // обязан начинаться там же, где месяц у всех остальных экранов.
     const monthStart = monthRange().start;
 
+    // Плитки на «Возвратах»: месяц — в ключе, иначе первого числа пять минут
+    // показывался бы прошлый месяц. Проведение возврата сбрасывает (updateStatus).
+    return reportCached(ctx.tenant.id, "returns.summary", { month: monthStart }, ReportTTL.fiveMin, () => {
+    const db = getDb();
     return db.select({
       reason: returns.reason,
       count: sql<number>`COUNT(*)`,
@@ -481,5 +491,6 @@ export const returnsRouter = createRouter({
         sql`${returns.createdAt} >= ${monthStart}`,
       ))
       .groupBy(returns.reason);
+    });
   }),
 });

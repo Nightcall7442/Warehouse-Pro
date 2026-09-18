@@ -6,6 +6,7 @@ import { products, stockCountItems, stockCounts, warehouseStock, warehouses, use
 import { recordStockMovement, setStock } from "./services/stock-ledger";
 import { recordAudit } from "./services/audit-log";
 import { cache } from "./lib/cache";
+import { invalidateReports } from "./lib/report-cache";
 
 type Db = ReturnType<typeof import("./queries/connection").getDb>;
 
@@ -181,6 +182,7 @@ export const stockCountRouter = createRouter({
       });
       // Остатки живут в кэше списков товаров — после акта они другие.
       cache.invalidatePrefix(`products:${ctx.tenant.id}`);
+      await invalidateReports(ctx.tenant.id, "stock_count.apply");
       await recordAudit(db, { tenantId: ctx.tenant.id, actorId: ctx.user.id, actorName: ctx.user.name, action: "stock_count.apply", targetType: "stock_count", targetId: input.id, meta: result });
       return result;
     }),

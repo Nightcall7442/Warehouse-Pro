@@ -18,6 +18,7 @@ import { TRPCError } from "@trpc/server";
 import { recordAudit, auditActor, changedFields } from "./services/audit-log";
 import { defaultReorderPoint } from "./services/reorder";
 import { resolvePrices } from "./services/price-resolver";
+import { invalidateReports } from "./lib/report-cache";
 
 /**
  * Код товара занят — это ответ оператору, а не внутренний сбой.
@@ -438,6 +439,7 @@ export const productRouter = createRouter({
       cache.invalidatePrefix(`product_cats:${tenantId}`);
       cache.invalidatePrefix(`warehouse:${tenantId}`);
       cache.invalidatePrefix(`warehouse_valuation:${tenantId}`);
+      await invalidateReports(tenantId, "product");
       return { id: productId };
     }),
 
@@ -500,6 +502,7 @@ export const productRouter = createRouter({
       cache.invalidatePrefix(`product_cats:${ctx.tenant.id}`);
       cache.invalidatePrefix(`warehouse:${ctx.tenant.id}`);
       cache.invalidatePrefix(`warehouse_valuation:${ctx.tenant.id}`);
+      await invalidateReports(ctx.tenant.id, "product");
       return { success: true };
     }),
 
@@ -561,6 +564,7 @@ export const productRouter = createRouter({
       cache.invalidatePrefix(`product_cats:${tenantId}`);
       cache.invalidatePrefix(`warehouse:${tenantId}`);
       cache.invalidatePrefix(`warehouse_valuation:${tenantId}`);
+      await invalidateReports(tenantId, "product");
       await recordAudit(db, {
         ...auditActor(ctx), action: "product.deleted", targetType: "product", targetId: input.id,
         meta: { code: existingProduct.code, name: existingProduct.name },
@@ -614,6 +618,7 @@ export const productRouter = createRouter({
       cache.invalidatePrefix(`product_cats:${tenantId}`);
       cache.invalidatePrefix(`warehouse:${tenantId}`);
       cache.invalidatePrefix(`warehouse_valuation:${tenantId}`);
+      await invalidateReports(tenantId, "product");
       return { deleted, softDeleted, total: input.ids.length };
     }),
 
