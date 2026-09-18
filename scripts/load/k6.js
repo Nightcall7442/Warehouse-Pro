@@ -26,7 +26,7 @@ const STAGE = `${__ENV.STAGE_MIN || 3}m`;
 const PASSWORD = "password123";
 
 const ACCOUNTS = {
-  agents: ["agent-tashkent@demo-uz.uz", "agent-samarkand@demo-uz.uz", "agent-bukhara@demo-uz.uz", "agent-nukus@demo-uz.uz", "agent-karshi@demo-uz.uz"],
+  agents: ["agent-urgench@demo-uz.uz", "agent-samarkand@demo-uz.uz", "agent-bukhara@demo-uz.uz", "agent-nukus@demo-uz.uz", "agent-karshi@demo-uz.uz"],
   directors: ["ceo@demo-uz.uz", "supervisor@demo-uz.uz"],
   couriers: ["courier1@demo-uz.uz", "courier2@demo-uz.uz"],
 };
