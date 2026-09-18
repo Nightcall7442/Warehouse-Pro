@@ -22,6 +22,7 @@ import { ShopStatement } from "@/components/shops/ShopStatement";
 import { PremiumSelect } from "@/components/PremiumSelect";
 import { QueryErrorFallback } from "@/components/QueryErrorFallback";
 import { ShopMoney } from "@/components/shops/ShopMoney";
+import { ShopPriceList } from "@/components/shops/ShopPriceList";
 import { useAuth } from "@/hooks/useAuth";
 import { canOperate } from "@/lib/permissions";
 import { AppModal, modalFieldLabel } from "@/components/ui/AppModal";
@@ -440,6 +441,8 @@ export default function ShopDetail() {
         заказов: разговор с магазином начинается с «вы должны столько-то», а
         карточка показывала это одним числом без объяснения.
       */}
+      <ShopPriceList shopId={Number(id)} />
+
       <ShopMoney shopId={Number(id)} />
 
       <ShopStatement shopId={Number(id)} />

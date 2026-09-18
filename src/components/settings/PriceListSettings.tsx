@@ -44,8 +44,8 @@ export function PriceListSettings() {
 
   const [open, setOpen] = useState<Detail>(null);
   const [creating, setCreating] = useState(false);
-  const [form, setForm] = useState<{ name: string; type: ListType; priority: string; description: string }>(
-    { name: "", type: "shop", priority: "0", description: "" },
+  const [form, setForm] = useState<{ name: string; type: ListType; priority: string; description: string; markupPct: string }>(
+    { name: "", type: "shop", priority: "0", description: "", markupPct: "" },
   );
 
   const TYPE_LABEL: Record<ListType, string> = {
@@ -61,7 +61,7 @@ export function PriceListSettings() {
       notify.success(t("Прайс-лист создан", "Narx ro'yxati yaratildi"));
       utils.priceList.list.invalidate();
       setCreating(false);
-      setForm({ name: "", type: "shop", priority: "0", description: "" });
+      setForm({ name: "", type: "shop", priority: "0", description: "", markupPct: "" });
     },
     onError: e => notify.error(e.message),
   });
@@ -142,6 +142,12 @@ export function PriceListSettings() {
               <input className="neo-input w-full" value={form.description}
                 onChange={e => setForm(f => ({ ...f, description: e.target.value }))} />
             </label>
+            {/* Правило «к карточке»: −7 — все товары на 7 % дешевле карточки; строки списка — исключения поверх. */}
+            <label className="space-y-1">
+              <span style={{ fontSize: "12px", color: COLORS.textSecondary }}>{t("К цене карточки, % (−7 — скидка, 5 — наценка; пусто — только строки)", "Karta narxiga, % (−7 — chegirma, 5 — ustama; bo'sh — faqat qatorlar)")}</span>
+              <input className="neo-input w-full font-data" inputMode="decimal" value={form.markupPct} placeholder="−7" data-testid="price-list-markup"
+                onChange={e => setForm(f => ({ ...f, markupPct: e.target.value.replace(/[^0-9.,-]/g, "").replace(",", ".") }))} />
+            </label>
           </FieldRow>
           <div className="flex justify-end gap-2 mt-4">
             <button className="neo-btn" onClick={() => setCreating(false)}>{t("Отмена", "Bekor")}</button>
@@ -153,6 +159,7 @@ export function PriceListSettings() {
                   type: form.type,
                   priority: Number(form.priority) || 0,
                   description: form.description || undefined,
+                  markupPct: form.markupPct.trim() === "" || !Number.isFinite(Number(form.markupPct)) ? null : Number(form.markupPct),
                 });
               }}>
               {t("Создать", "Yaratish")}
@@ -186,6 +193,7 @@ export function PriceListSettings() {
                   </div>
                   <div style={{ fontSize: "12px", color: COLORS.textTertiary }}>
                     {TYPE_LABEL[l.type as ListType] ?? l.type}
+                    {l.markupPct != null && <>{" · "}<b>{Number(l.markupPct) > 0 ? "+" : ""}{Number(l.markupPct)}%</b> {t("к карточке", "kartaga")}</>}
                     {" · "}{t("приоритет", "ustuvorlik")} {l.priority}
                     {" · "}{Number(l.itemCount)} {t("товаров", "mahsulot")}
                     {" · "}{Number(l.shopCount)} {t("магазинов", "do'kon")}

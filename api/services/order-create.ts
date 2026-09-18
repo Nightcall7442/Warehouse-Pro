@@ -10,7 +10,7 @@ import { isDuplicateEntry } from "../lib/db-errors";
 import type { Db } from "./order-shared";
 import { mergeDuplicateItems, resolveOrderWarehouse, nextOrderNumber, isIdempotencyDuplicate } from "./order-shared";
 
-export async function create(db: Db, tenantId: number, agentId: number, input: { shopId: number; warehouseId?: number; items: Array<{ productId: number; quantity: string }>; notes?: string; discount?: string; idempotencyKey?: string; paymentMethod?: "cash" | "card" | "transfer" | "debt"; promisedDeliveryAt?: Date | null; /** Причина, по которой заказ ждёт офиса: создаётся в pending. */ holdReason?: string | null }) {
+export async function create(db: Db, tenantId: number, agentId: number, input: { shopId: number; warehouseId?: number; items: Array<{ productId: number; quantity: string }>; notes?: string; discount?: string; idempotencyKey?: string; paymentMethod?: "cash" | "card" | "transfer" | "debt"; promisedDeliveryAt?: Date | null; /** Причина, по которой заказ ждёт офиса: создаётся в pending. */ holdReason?: string | null; /** Прайс-лист заказа; пусто — списки магазина. */ priceListId?: number | null }) {
   // discount is a percentage (0-100) entered by the user — converted to a
   // money amount below and stored as such (orders.discount stays a money
   // column so revenue/P&L reports that SUM it keep meaning "money discounted").
@@ -79,7 +79,7 @@ export async function create(db: Db, tenantId: number, agentId: number, input: {
 
     // Цена магазина поверх цены карточки: прайс-листы, привязанные к
     // магазину, до этого не участвовали в заказе ни на одном пути.
-    const resolved = await resolvePrices(tx, tenantId, input.shopId, items, priceMap);
+    const resolved = await resolvePrices(tx, tenantId, { shopId: input.shopId, priceListId: input.priceListId ?? null }, items, priceMap);
     for (const [productId, r] of resolved) priceMap.set(productId, r.price);
 
     // Calculate subtotal from server-side prices
@@ -173,7 +173,7 @@ export async function create(db: Db, tenantId: number, agentId: number, input: {
     for (let attempt = 0; ; attempt++) {
       try {
         const [result] = await tx.insert(orders).values({
-          tenantId, orderNumber: number, shopId: input.shopId, agentId,
+          tenantId, orderNumber: number, shopId: input.shopId, agentId, priceListId: input.priceListId ?? null,
           // Заказ с причиной ждёт офиса: резерв держит, в работу не идёт.
           status: input.holdReason ? "pending" : "new",
           holdReason: input.holdReason ?? null,

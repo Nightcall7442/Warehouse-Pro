@@ -37,8 +37,11 @@ import { Loader2, Plus, Trash2 } from "lucide-react";
  * Скидка пересчитывается сервером пропорционально новому размеру заказа, и
  * трогать её здесь незачем — на это есть соседний блок.
  */
-export function OrderItemsEditor({ orderId, items, onSaved }: {
+export function OrderItemsEditor({ orderId, shopId, priceListId, items, onSaved }: {
   orderId: number;
+  /** Цены каталога — магазина по прайс-листу заказа, как посчитает сервер. */
+  shopId?: number;
+  priceListId?: number | null;
   items: OrderLine[];
   onSaved: () => void;
 }) {
@@ -72,7 +75,7 @@ export function OrderItemsEditor({ orderId, items, onSaved }: {
 
   // Каталог тянется только когда его открыли: у организации это пятьсот строк,
   // и грузить их при каждом открытии карточки заказа незачем.
-  const { data: catalog } = trpc.product.list.useQuery({ pageSize: 500 }, { enabled: open });
+  const { data: catalog } = trpc.product.list.useQuery({ pageSize: 500, shopId, priceListId }, { enabled: open });
   const products = useMemo(() => catalog?.data ?? [], [catalog]);
 
   const start = () => {

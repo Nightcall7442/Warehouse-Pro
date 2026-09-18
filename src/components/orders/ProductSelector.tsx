@@ -26,13 +26,15 @@ interface ProductSelectorProps {
    *  NewOrder, потому что кнопка и панель — в разных поддеревьях. */
   cartOpen?: boolean;
   onCartOpenChange?: (open: boolean) => void;
+  /** Магазин заказа: цены каталога — его прайс-листа, как посчитает сервер. */
+  shopId?: number;
 }
 
-export function ProductSelector({ items, onChange, cartOpen = false, onCartOpenChange }: ProductSelectorProps) {
+export function ProductSelector({ items, onChange, cartOpen = false, onCartOpenChange, shopId }: ProductSelectorProps) {
   const { fmt } = useCurrency();
   const { lang } = useLang();
   const t = (ru: string, uz: string) => lang === "uz" ? uz : ru;
-  const { data: products, isLoading, isLoadingError, refetch } = trpc.product.listAll.useQuery(undefined);
+  const { data: products, isLoading, isLoadingError, refetch } = trpc.product.listAll.useQuery(shopId ? { shopId } : undefined);
   const [search, setSearch] = useState("");
   const searchRef = useRef<HTMLInputElement>(null);
   const [scanning, setScanning] = useState(false);

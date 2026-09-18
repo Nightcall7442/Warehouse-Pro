@@ -1,12 +1,45 @@
 import { z } from "zod";
-import { createRouter, operatorQuery, authedQuery, supervisorQuery, can } from "./middleware";
+import { createRouter, operatorQuery, authedQuery, supervisorQuery, fieldSalesQuery, can } from "./middleware";
 import { getDb } from "./queries/connection";
 import { assertProductsBelongToTenant } from "./lib/tenant-refs";
 import { priceLists, priceListItems, priceListAssignments, products, shops } from "@db/schema";
-import { eq, and, desc, sql } from "drizzle-orm";
+import { eq, and, desc, sql, inArray } from "drizzle-orm";
 import { recordAudit, auditActor } from "./services/audit-log";
 
 export const priceListRouter = createRouter({
+  /**
+   * Что нужно форме заказа: список магазина по умолчанию и все активные
+   * списки — выбрать другой. Полевым ролям тоже: агент оформляет заказ.
+   */
+  forShop: fieldSalesQuery
+    .input(z.object({ shopId: z.number().int().positive() }))
+    .query(async ({ input, ctx }) => {
+      const db = getDb();
+      const { shopPriceList } = await import("./services/price-resolver");
+      const [current, all] = await Promise.all([
+        shopPriceList(db, ctx.tenant.id, input.shopId),
+        db.select({ id: priceLists.id, name: priceLists.name, markupPct: priceLists.markupPct }).from(priceLists)
+          .where(and(eq(priceLists.tenantId, ctx.tenant.id), eq(priceLists.isActive, true))).orderBy(desc(priceLists.priority), priceLists.name),
+      ]);
+      return { current, lists: all.map(l => ({ id: Number(l.id), name: l.name, markupPct: l.markupPct })) };
+    }),
+  /** Прайс-лист магазина — один: назначить или снять с карточки магазина. */
+  setForShop: operatorQuery.use(can("prices.manage"))
+    .input(z.object({ shopId: z.number().int().positive(), priceListId: z.number().int().positive().nullable() }))
+    .mutation(async ({ input, ctx }) => {
+      const db = getDb();
+      const [shop] = await db.select({ id: shops.id }).from(shops).where(and(eq(shops.id, input.shopId), eq(shops.tenantId, ctx.tenant.id))).limit(1);
+      if (!shop) throw new Error("Магазин не найден");
+      const own = await db.select({ id: priceLists.id }).from(priceLists).where(eq(priceLists.tenantId, ctx.tenant.id));
+      const ownIds = own.map(l => Number(l.id));
+      if (input.priceListId != null && !ownIds.includes(input.priceListId)) throw new Error("Прайс-лист не найден");
+      await db.transaction(async (tx) => {
+        if (ownIds.length) await tx.delete(priceListAssignments).where(and(eq(priceListAssignments.shopId, input.shopId), inArray(priceListAssignments.priceListId, ownIds)));
+        if (input.priceListId != null) await tx.insert(priceListAssignments).values({ priceListId: input.priceListId, shopId: input.shopId });
+      });
+      await recordAudit(db, { ...auditActor(ctx), action: "price_list.shop_set", targetType: "shop", targetId: input.shopId, meta: { priceListId: input.priceListId } });
+      return { success: true };
+    }),
   // List price lists
   list: supervisorQuery.query(async ({ ctx }) => {
     const db = getDb();
@@ -17,6 +50,7 @@ export const priceListRouter = createRouter({
       type: priceLists.type,
       isActive: priceLists.isActive,
       priority: priceLists.priority,
+      markupPct: priceLists.markupPct,
       itemCount: sql<number>`(SELECT COUNT(*) FROM ${priceListItems} WHERE ${priceListItems.priceListId} = ${priceLists.id})`,
       shopCount: sql<number>`(SELECT COUNT(*) FROM ${priceListAssignments} WHERE ${priceListAssignments.priceListId} = ${priceLists.id})`,
       createdAt: priceLists.createdAt,
@@ -68,6 +102,8 @@ export const priceListRouter = createRouter({
       description: z.string().optional(),
       type: z.enum(["shop", "tier", "volume"]),
       priority: z.number().default(0),
+      // Правило «к карточке», %: −7 — скидка, 5 — наценка; пусто — только строки.
+      markupPct: z.number().min(-99).max(1000).nullable().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
       const db = getDb();
@@ -77,6 +113,7 @@ export const priceListRouter = createRouter({
         description: input.description,
         type: input.type,
         priority: input.priority,
+        markupPct: input.markupPct == null ? null : input.markupPct.toFixed(2),
       });
       return { id: Number(result.insertId) };
     }),
@@ -89,12 +126,13 @@ export const priceListRouter = createRouter({
       description: z.string().optional(),
       isActive: z.boolean().optional(),
       priority: z.number().optional(),
+      markupPct: z.number().min(-99).max(1000).nullable().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
       const db = getDb();
-      const { id, ...data } = input;
+      const { id, markupPct, ...data } = input;
       await db.update(priceLists)
-        .set(data)
+        .set({ ...data, ...(markupPct !== undefined ? { markupPct: markupPct == null ? null : markupPct.toFixed(2) } : {}) })
         .where(and(eq(priceLists.id, id), eq(priceLists.tenantId, ctx.tenant.id)));
       return { success: true };
     }),

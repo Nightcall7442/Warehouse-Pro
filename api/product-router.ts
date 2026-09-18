@@ -17,6 +17,7 @@ import { existingSpelling } from "./lib/category";
 import { TRPCError } from "@trpc/server";
 import { recordAudit, auditActor, changedFields } from "./services/audit-log";
 import { defaultReorderPoint } from "./services/reorder";
+import { resolvePrices } from "./services/price-resolver";
 
 /**
  * Код товара занят — это ответ оператору, а не внутренний сбой.
@@ -86,12 +87,16 @@ function productMatches(raw: string) {
 export const productRouter = createRouter({
   /** All active products for a tenant — no pagination, used by mobile catalog & selectors */
   listAll: fieldSalesQuery
-    .input(z.object({ search: z.string().optional(), category: z.string().optional() }).optional())
+    .input(z.object({
+      search: z.string().optional(), category: z.string().optional(),
+      // Цены магазина / выбранного прайс-листа — как в list.
+      shopId: z.number().int().positive().optional(), priceListId: z.number().int().positive().nullable().optional(),
+    }).optional())
     .query(async ({ input, ctx }) => {
       const db       = getDb();
       const tenantId = ctx.tenant.id;
 
-      const cacheKey = `products:${tenantId}:listAll:${input?.search ?? ""}:${input?.category ?? ""}`;
+      const cacheKey = `products:${tenantId}:listAll:${input?.search ?? ""}:${input?.category ?? ""}` + (input?.shopId ? `:shop${input.shopId}:pl${input.priceListId ?? 0}` : "");
       return withCache(cacheKey, CacheTTL.products, async () => {
       const warehouseId = await getDefaultWarehouseId(db, tenantId);
 
@@ -151,7 +156,10 @@ export const productRouter = createRouter({
         .orderBy(products.name)
         .limit(10000);
 
-      return data;
+      if (!input?.shopId) return data.map(r => ({ ...r, basePrice: r.unitPrice, priceListId: null as number | null }));
+      const priced = await resolvePrices(db, tenantId, { shopId: input.shopId, priceListId: input.priceListId ?? null },
+        data.map(r => ({ productId: Number(r.id), quantity: 1 })), new Map(data.map(r => [Number(r.id), String(r.unitPrice)])));
+      return data.map(r => { const p = priced.get(Number(r.id)); return { ...r, basePrice: r.unitPrice, unitPrice: p?.price ?? r.unitPrice, priceListId: p?.priceListId ?? null }; });
       });
     }),
 
@@ -162,6 +170,13 @@ export const productRouter = createRouter({
       search:     z.string().optional(),
       category:   z.string().optional(),
       includeAll: z.boolean().optional(),
+      /*
+        Цены для магазина: unitPrice — то, что посчитает заказ (прайс-лист
+        заказа, иначе списки магазина, иначе карточка), basePrice — карточка.
+        Без shopId — как раньше, карточка. services/price-resolver.ts.
+      */
+      shopId:      z.number().int().positive().optional(),
+      priceListId: z.number().int().positive().nullable().optional(),
     }).optional())
     .query(async ({ input, ctx }) => {
       const db       = getDb();
@@ -179,7 +194,8 @@ export const productRouter = createRouter({
       const canSeeCost = ctx.user.role === "ceo" || ctx.user.role === "operator";
       const cacheKey = CacheKeys.productList(tenantId, page, pageSize, input?.search, input?.category)
         + (input?.includeAll ? ":all" : "")
-        + (canSeeCost ? ":cost" : ":nocost");
+        + (canSeeCost ? ":cost" : ":nocost")
+        + (input?.shopId ? `:shop${input.shopId}:pl${input.priceListId ?? 0}` : "");
       return withCache(cacheKey, CacheTTL.products, async () => {
       const conditions = [eq(products.tenantId, tenantId)];
       if (!input?.includeAll) conditions.push(eq(products.status, "active"));
@@ -241,11 +257,20 @@ export const productRouter = createRouter({
       // card tests Number(costPrice) > 0, and Number(undefined) is NaN, so it
       // renders nothing. Kept as one shape so callers get one type, with the
       // field simply absent for those who may not have it.
-      const visible = data.map(row => ({
-        ...row,
-        costPrice: canSeeCost ? row.costPrice : undefined,
-      }));
-
+      const priced = input?.shopId
+        ? await resolvePrices(db, tenantId, { shopId: input.shopId, priceListId: input.priceListId ?? null },
+            data.map(r => ({ productId: Number(r.id), quantity: 1 })), new Map(data.map(r => [Number(r.id), String(r.unitPrice)])))
+        : null;
+      const visible = data.map(row => {
+        const r = priced?.get(Number(row.id));
+        return {
+          ...row,
+          costPrice: canSeeCost ? row.costPrice : undefined,
+          basePrice: row.unitPrice,
+          unitPrice: r?.price ?? row.unitPrice,
+          priceListId: r?.priceListId ?? null,
+        };
+      });
       return { data: visible, total: Number(countResult[0]?.count ?? 0), page, pageSize };
       });
     }),

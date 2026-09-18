@@ -393,6 +393,13 @@
       "when": 1789734833007,
       "tag": "0055_payments_received_history",
       "breakpoints": true
+    },
+    {
+      "idx": 56,
+      "version": "5",
+      "when": 1789750557998,
+      "tag": "0056_price_list_rules",
+      "breakpoints": true
     }
   ]
 }

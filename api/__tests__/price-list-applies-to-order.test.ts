@@ -54,7 +54,7 @@ describe("заказ читает прайс-лист", () => {
 
   it("create разрешает цены через resolvePrices после карточных и пишет источник", () => {
     const create = orderMethod("create");
-    expect(create).toContain("resolvePrices(tx, tenantId, input.shopId, items, priceMap)");
+    expect(create).toContain("resolvePrices(tx, tenantId, { shopId: input.shopId, priceListId: input.priceListId ?? null }, items, priceMap)");
     expect(create).toContain("priceListId: resolved.get(item.productId)?.priceListId ?? null");
     // Прайс-лист применяется ДО расчёта subtotal.
     expect(create.indexOf("resolvePrices(")).toBeLessThan(create.indexOf("Calculate subtotal from server-side prices"));
@@ -62,7 +62,7 @@ describe("заказ читает прайс-лист", () => {
 
   it("updateItems: новая строка без цены оператора берёт цену магазина", () => {
     const upd = orderMethod("updateItems");
-    expect(upd).toContain("resolvePrices(tx, tenantId, order.shopId, newLines, fallback)");
+    expect(upd).toContain("resolvePrices(tx, tenantId, { shopId: order.shopId, priceListId: order.priceListId }, newLines, fallback)");
     expect(upd).toContain("Number(line.unitPrice ?? productPrices.get(productId)!.unitPrice)");
     expect(upd).not.toContain("Number(line.unitPrice ?? 0)");
     expect(upd).toContain("priceListId: line.unitPrice === undefined ?");
