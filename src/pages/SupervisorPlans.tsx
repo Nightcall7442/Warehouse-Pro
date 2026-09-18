@@ -10,7 +10,7 @@ import { ru as dateRu } from "date-fns/locale";
 import {
   ChevronLeft, ChevronRight, Plus, X,
   Loader2, CheckCircle2, Calendar, Clock,
-  ImageOff,
+  ImageOff, ChevronDown,
 } from "lucide-react";
 import { PhotoOrIcon } from "@/components/PhotoOrIcon";
 import { PremiumSelect } from "@/components/PremiumSelect";
@@ -435,13 +435,22 @@ export default function SupervisorPlans() {
 
         Всё это было написано и не подключено ни к одной странице.
       */}
-      <details className="neo-card" style={{ padding: "0" }}>
+      <details className="neo-card schedule-panel" style={{ padding: "0" }} data-testid="schedule-panel">
+        {/* Раздел раскрывается и сворачивается заголовком; стрелка и «Свернуть»
+            говорят об этом — без них раздел выглядел окном, которое нельзя
+            закрыть (владелец, 18.09.2026). */}
         <summary style={{
           cursor: "pointer", padding: "16px 20px", fontSize: "14px", fontWeight: 600,
           color: "var(--color-text-primary)", listStyle: "none",
+          display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px",
         }}>
-          {t("Расписание визитов — задать один раз и разворачивать в планы",
-             "Tashrif jadvali — bir marta belgilab, rejalarga yoyish")}
+          <span>{t("Расписание визитов — задать один раз и разворачивать в планы",
+             "Tashrif jadvali — bir marta belgilab, rejalarga yoyish")}</span>
+          <span className="schedule-panel-toggle" style={{ display: "inline-flex", alignItems: "center", gap: "6px", fontSize: "12px", fontWeight: 500, color: "var(--color-text-secondary)", flexShrink: 0 }}>
+            <span className="schedule-panel-open-label">{t("Свернуть", "Yig'ish")}</span>
+            <span className="schedule-panel-closed-label">{t("Открыть", "Ochish")}</span>
+            <ChevronDown size={16} className="schedule-panel-chevron" />
+          </span>
         </summary>
         <div style={{ padding: "0 20px 20px" }}>
           <ScheduleManager lang={lang} />

@@ -114,8 +114,13 @@ export function BarcodeScanner({ onScan, onClose, label = "Scan barcode", contin
     return () => stopCamera();
   }, [stopCamera]);
 
+  /*
+    Сканер открывается ИЗ окон — из формы прихода (слой 9999/10000) и из
+    быстрого заказа. Со своим z-50 он рисовался под ними: экран темнел, а
+    камеры не было. Подтверждение (ConfirmDialog, 99999) остаётся выше.
+  */
   return createPortal(
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm app-modal-shell">
+    <div className="fixed inset-0 z-[20000] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm app-modal-shell">
       <div className="relative w-full max-w-sm bg-surface rounded-xl overflow-hidden shadow-2xl">
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-border-custom">

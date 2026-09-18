@@ -1,7 +1,6 @@
 import { useState, useMemo } from "react";
 import { useScrollTopOnChange } from "@/hooks/useScrollTopOnChange";
 import { keepPreviousData } from "@tanstack/react-query";
-import { createPortal } from "react-dom";
 import { trpc } from "@/providers/trpc";
 import { useLang } from "@/i18n";
 import { notify } from "@/lib/toast";
@@ -23,7 +22,7 @@ import { TransferCredentialsModal } from "@/components/users/TransferCredentials
 import { ROLES, type Role } from "@contracts/types";
 
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
-import { useOverlay } from "@/lib/overlay";
+import { AppModal, modalFieldLabel } from "@/components/ui/AppModal";
 // The filter select carries "" for "all roles"; the list query wants no role at all.
 const isRole = (value: string): value is Role => ROLES.some(r => r === value);
 
@@ -195,7 +194,6 @@ function InviteForm({ onDone, lang }: { onDone: () => void; lang: "ru" | "uz" })
 function ResetPasswordModal({ userId, userName, onClose, lang }: {
   userId: number; userName: string; onClose: () => void; lang: "ru" | "uz";
 }) {
-  useOverlay({ open: true, onClose: onClose });
   const t = (ru: string, uz: string) => (lang === "uz" ? uz : ru);
   const [pw, setPw] = useState("");
   const reset = trpc.user.resetPassword.useMutation({
@@ -205,54 +203,29 @@ function ResetPasswordModal({ userId, userName, onClose, lang }: {
     },
     onError: (e) => notify.error(e.message),
   });
+  const ok = pw.length >= 8;
 
-  return createPortal(
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
-      style={{ background: "rgba(0,0,0,0.45)", backdropFilter: "blur(4px)" }}>
-      <div style={{
-        background: COLORS.surface, borderRadius: "24px", padding: "24px",
-        boxShadow: "0 24px 48px rgba(0,0,0,0.18)", width: "100%", maxWidth: "400px",
-        display: "flex", flexDirection: "column", gap: "16px",
-      }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <h2 style={{ fontFamily: F.display, fontSize: "16px", fontWeight: 600, color: COLORS.textPrimary, margin: 0 }}>
-            {t("Сброс пароля", "Parolni tiklash")} — {userName}
-          </h2>
-          <button onClick={onClose} className="btn-ghost p-1.5"><X size={18} /></button>
-        </div>
-        <div>
-          <label className="font-label text-[10px] text-secondary tracking-wider block mb-1.5">
-            {t("НОВЫЙ ПАРОЛЬ (мин. 8 символов)", "YANGI PAROL (kamida 8 ta belgi)")}
-          </label>
-          <input
-            type="password"
-            className="neo-input w-full"
-            placeholder="••••••••"
-            value={pw}
-            onChange={e => setPw(e.target.value)}
-            autoFocus
-          />
-        </div>
-        <div className="flex gap-2">
-          <button
-            onClick={() => pw.length >= 8 && reset.mutate({ id: userId, newPassword: pw })}
-            disabled={reset.isPending || pw.length < 8}
-            className="neo-btn-primary flex-1 flex items-center justify-center gap-2"
-          >
-            {reset.isPending && <Loader2 size={14} className="animate-spin" />}
-            {t("Сохранить", "Saqlash")}
-          </button>
-          <button onClick={onClose} className="neo-btn flex-1">
-            {t("Отмена", "Bekor")}
-          </button>
-        </div>
+  return (
+    <AppModal open onClose={onClose} dirty={pw !== ""} maxWidth={420}
+      title={t("Сброс пароля", "Parolni tiklash")} subtitle={userName}
+      footer={<>
+        <button type="button" onClick={onClose} className="neo-btn flex-1">{t("Отмена", "Bekor")}</button>
+        <button type="button" onClick={() => ok && reset.mutate({ id: userId, newPassword: pw })} disabled={reset.isPending || !ok}
+          className="neo-btn-primary flex-1 flex items-center justify-center gap-2 disabled:opacity-40" data-testid="reset-password-submit">
+          {reset.isPending && <Loader2 size={14} className="animate-spin" />}
+          {t("Сохранить", "Saqlash")}
+        </button>
+      </>}
+    >
+      <div>
+        <label className={modalFieldLabel}>{t("Новый пароль (мин. 8 символов)", "Yangi parol (kamida 8 ta belgi)")}</label>
+        <input type="password" className="neo-input w-full" placeholder="••••••••" value={pw} autoComplete="new-password"
+          onChange={e => setPw(e.target.value)} onKeyDown={e => { if (e.key === "Enter" && ok) reset.mutate({ id: userId, newPassword: pw }); }} autoFocus />
       </div>
-    </div>,
-    document.body
+    </AppModal>
   );
 }
 
-/* ── Main ──────────────────────────────────────────────────────────────────── */
 export default function Users() {
   const [page, setPage] = useState(1);
   useScrollTopOnChange(page);
