@@ -8,7 +8,7 @@
  * этому магазину — по карточке. После проведения долг уменьшается на 100,
  * а не на 5.
  */
-import { describe, it, expect, beforeAll, beforeEach, afterAll } from "vitest";
+import { describe, it, expect, beforeAll, beforeEach, afterAll, vi } from "vitest";
 import { eq } from "drizzle-orm";
 import * as schema from "@db/schema";
 import { OrderService } from "../../services/order";
@@ -18,6 +18,10 @@ import {
 } from "./harness";
 
 const describeIf = hasRealDb ? describe : describe.skip;
+
+// Роутер ходит в getDb(), а не в ctx.db — подменяем на тестовую базу.
+let current: ServiceDb;
+vi.mock("../../queries/connection", () => ({ getDb: () => current, getPool: () => null }));
 
 function ctxFor(db: ServiceDb, tenantId: number, userId: number, role: "agent" | "operator"): any {
   return {
@@ -31,7 +35,7 @@ describeIf("возврат без заказа — цена сервера", () 
   let db: ServiceDb;
   let s: Seeded;
 
-  beforeAll(async () => { db = await connectRealDb(); });
+  beforeAll(async () => { db = await connectRealDb(); current = db; });
   afterAll(async () => { await closeRealDb(); });
   beforeEach(async () => {
     await truncateAll(); s = await seed("100.000");
