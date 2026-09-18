@@ -363,6 +363,7 @@ describe("visitedAt is written when a plan is marked visited", () => {
     const body = src.slice(start, src.indexOf("return { success: true }", start));
 
     expect(body).toContain("visitedAt:");
-    expect(body).toMatch(/input\.status === "visited" \? new Date\(\) : null/);
+    // Время — через eventTime: отметка из очереди несёт свой час (lib/event-time).
+    expect(body).toMatch(/input\.status === "visited" \? eventTime\(input\.recordedAt\) : null/);
   });
 });
