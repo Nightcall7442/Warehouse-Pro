@@ -101,3 +101,24 @@ describe("без сдвига", () => {
     expect(getPeriod("month")).toEqual(getPeriod("month", 0));
   });
 });
+
+describe("сегодня", () => {
+  it("с полуночи по сейчас; вчера — целиком", () => {
+    // Главная курьера: список доставок отдаёт только не довезённое, и
+    // «Доставлено / Прогресс дня» считались из него нулём весь день.
+    at("2026-09-05T12:00:00");
+    const today = getPeriod("today", 0);
+    expect(ymd(today.periodStart)).toBe("2026-09-05");
+    expect(today.periodStart.getHours()).toBe(0);
+    expect(ymd(today.periodEnd)).toBe("2026-09-05");
+    const yesterday = getPeriod("today", 1);
+    expect(ymd(yesterday.periodStart)).toBe("2026-09-04");
+    expect(ymd(yesterday.periodEnd)).toBe("2026-09-04");
+    expect(yesterday.periodEnd.getHours()).toBe(23);
+  });
+
+  it("месячная граница: сегодня 1-е — вчера в прошлом месяце", () => {
+    at("2026-10-01T09:00:00");
+    expect(ymd(getPeriod("today", 1).periodStart)).toBe("2026-09-30");
+  });
+});

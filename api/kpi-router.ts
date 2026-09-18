@@ -76,7 +76,7 @@ export const kpiRouter = createRouter({
    */
   courierKpi: selfKpiQuery
     .input(z.object({
-      period: z.enum(["week", "month", "quarter"]).default("month"),
+      period: z.enum(["today", "week", "month", "quarter"]).default("month"),
       /* Директор смотрит чужие показатели, курьер — только свои. */
       courierId: z.number().int().positive().optional(),
     }).optional())
