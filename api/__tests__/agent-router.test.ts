@@ -448,6 +448,24 @@ describe("agent.saveVisitPhoto", () => {
     expect(plansTable.find((p) => p.id === 1)!.notes).toBe("Good visit");
   });
 
+  it("подменённые координаты (эмулятор) вдали от магазина — визит заблокирован", async () => {
+    // Проверка на подлог брала точки без признака mocked: +50 за эмулятор не
+    // начислялось никогда, порог 70 был недостижим, блокировка не работала.
+    const { agentRouter } = await import("../agent-router");
+    const caller = agentRouter.createCaller(makeCtx(1, 10, "agent"));
+    Object.assign(shopsTable.find((s) => s.id === 1)!, { gpsLat: "41.3111", gpsLng: "69.2797" });
+    locationsTable.push({ id: 99, tenantId: 1, agentId: 10, lat: "39.6542", lng: "66.9597", accuracy: "10", batteryLevel: 80, createdAt: new Date(), mocked: true } as never);
+    await expect(caller.saveVisitPhoto({ planId: 1, photoUrl: "data:image/png;base64,test" }))
+      .rejects.toThrow(/заблокирован.*эмулятор/i);
+    expect(plansTable.find((p) => p.id === 1)!.status).toBe("planned");
+    // Двойник базы отдаёт строку целиком, какой бы ни была проекция, — поэтому
+    // проекция проверяется по исходнику: точки для проверки читаются с mocked.
+    const { readFileSync } = await import("node:fs");
+    const src = readFileSync(new URL("../agent-router.ts", import.meta.url), "utf8");
+    const photo = src.slice(src.indexOf("saveVisitPhoto:"), src.indexOf("verifyVisit(", src.indexOf("saveVisitPhoto:")));
+    expect(photo).toMatch(/mocked:\s*agentLocations\.mocked/);
+  });
+
   it("чужой план — отказ вслух, снимок не привязывается", async () => {
     const { agentRouter } = await import("../agent-router");
     const caller = agentRouter.createCaller(makeCtx(1, 10, "agent"));

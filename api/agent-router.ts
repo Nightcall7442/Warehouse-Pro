@@ -748,6 +748,11 @@ export const agentRouter = createRouter({
           lat: agentLocations.lat,
           lng: agentLocations.lng,
           createdAt: agentLocations.createdAt,
+          // Без этого поля проверка не видела подмены координат: +50 за
+          // эмулятор не начислялось никогда, и порог блокировки 70 был
+          // недостижим (максимум 40 за расстояние + 25 за повтор). «Фрод-
+          // мониторинг блокирует визит» не срабатывал ни для кого.
+          mocked: agentLocations.mocked,
         }).from(agentLocations)
           .where(and(
             eq(agentLocations.tenantId, ctx.tenant.id),
