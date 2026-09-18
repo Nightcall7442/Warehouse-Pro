@@ -48,7 +48,6 @@ function spyTx() {
       return [{ affectedRows: 1 }];
     }),
     insert: vi.fn(() => ({ values: vi.fn(async () => [{ insertId: 1 }]) })),
-    // Дверь читает тару товара (services/tare.ts): здесь товар без тары — пусто.
     select: vi.fn(() => ({ from: () => ({ where: () => ({ limit: async () => [] }) }) })),
   };
   return { tx: tx as never, queries };

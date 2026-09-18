@@ -76,8 +76,6 @@ export async function list(db: Db, tenantId: number, filters: Record<string, unk
     paymentMethod: orders.paymentMethod,
     deletedAt: orders.deletedAt,
     territoryName: territories.name,
-    // Продажа с машины: заполнен склад-машина — список показывает метку.
-    warehouseId: orders.warehouseId,
     // Fields the table can show as optional columns. All of them already sat
     // on the row — the list simply never selected them, so the Orders page
     // had no way to offer a column for something the record plainly knows.

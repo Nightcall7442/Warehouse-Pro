@@ -250,15 +250,6 @@ export const products = mysqlTable("products", {
   unit:         mysqlEnum("unit", ["kg", "l", "pcs", "box", "pack", "m", "block"]).default("pcs").notNull(),
   unitWeight:   decimal("unit_weight", { precision: 10, scale: 3 }).default("0.000").notNull(),
   /*
-    Возвратная тара товара: какого вида и сколько единиц тары на единицу
-    товара (ящик пива — 20 бутылок: тара «бутылка», 20 на единицу). Тара
-    следует за товаром по всем движениям остатка (services/tare.ts); пусто —
-    у товара тары нет. ponytail: один вид тары на товар; ящик поверх бутылок —
-    второй вид — когда попросят.
-  */
-  tareTypeId:   bigint("tare_type_id", { mode: "number", unsigned: true }),
-  tarePerUnit:  decimal("tare_per_unit", { precision: 10, scale: 3 }).default("1.000").notNull(),
-  /*
     Упаковка: сколько единиц учёта в одной таре (12 бутылок в коробке, 6
     пачек в блоке) и как она называется. Остаток и цена — всегда в единицах
     учёта; упаковка нужна там, где человек считает тарой: «+ коробка» в
@@ -396,12 +387,6 @@ export const orders = mysqlTable("orders", {
   shopConfirmedAt:  timestamp("shop_confirmed_at"),
   shopDisputedAt:   timestamp("shop_disputed_at"),
   shopDisputeNote:  varchar("shop_dispute_note", { length: 300 }),
-  /*
-    Продажа с машины: склад-машина, с которой ушёл товар. Пусто у обычных
-    заказов — их путь (резерв → доставка) идёт через основной склад.
-    Заказ с машины рождается доставленным и в работу не возвращается.
-  */
-  warehouseId: bigint("warehouse_id", { mode: "number", unsigned: true }).references(() => warehouses.id, { onDelete: "set null" }),
   priority:    mysqlEnum("priority", ["low", "normal", "high"]).default("normal").notNull(),
   deletedAt:   timestamp("deleted_at"),
   createdAt:   timestamp("created_at").defaultNow().notNull(),
@@ -568,15 +553,6 @@ export const warehouses = mysqlTable("warehouses", {
   city:        varchar("city", { length: 100 }),
   isDefault:   boolean("is_default").default(false).notNull(),
   status:      varchar("status", { length: 20 }).default("active").notNull(),
-  /*
-    Ван-селлинг: машина — это склад. Товар грузится в неё перемещением
-    (под PIN водителя), продаётся с неё «с колёс» и возвращается на склад
-    тем же перемещением. Что не продано и не вернулось — недостача водителя.
-    Обычный склад: kind = warehouse, водителя и номера нет.
-  */
-  kind:        mysqlEnum("kind", ["warehouse", "van"]).default("warehouse").notNull(),
-  driverId:    bigint("driver_id", { mode: "number", unsigned: true }).references(() => users.id, { onDelete: "set null" }),
-  plate:       varchar("plate", { length: 20 }),
   createdAt:   timestamp("created_at").defaultNow().notNull(),
   updatedAt:   timestamp("updated_at").defaultNow().notNull().$onUpdate(() => new Date()),
 }, (t) => ({
@@ -601,9 +577,6 @@ export const stockTransfers = mysqlTable("stock_transfers", {
   createdBy:     bigint("created_by", { mode: "number", unsigned: true }).references(() => users.id, { onDelete: "restrict" }),
   createdAt:     timestamp("created_at").defaultNow().notNull(),
   completedAt:   timestamp("completed_at"),
-  /** Кто принял товар и когда: загрузка машины подтверждается PIN водителя — это его подпись под количеством. */
-  acceptedBy:    bigint("accepted_by", { mode: "number", unsigned: true }).references(() => users.id, { onDelete: "set null" }),
-  acceptedAt:    timestamp("accepted_at"),
 }, (t) => ({
   tenantIdx:   index("idx_transfers_tenant").on(t.tenantId),
   fromIdx:     index("idx_transfers_from").on(t.fromWarehouseId),
@@ -1468,10 +1441,6 @@ export const settings = mysqlTable("settings", {
    * По умолчанию — день, когда касса появилась в продукте.
    */
   cashStartDay:        date("cash_start_day", { mode: "string" }).default("2026-09-16").notNull(),
-  /** Ван-селлинг включён (тарифы Pro и Exclusive; пробный — всё). */
-  vanSellingEnabled:   boolean("van_selling_enabled").default(false).notNull(),
-  /** Возвратная тара включена (тарифы Pro и Exclusive; пробный — всё). */
-  tareEnabled:         boolean("tare_enabled").default(false).notNull(),
   /** Себестоимость при приходе: last — последняя закупка (как было), average — средняя по остатку (services/cost-method.ts). */
   costMethod:          mysqlEnum("cost_method", ["last", "average"]).default("last").notNull(),
   /** Контроль: подтверждение доставки магазином и индекс риска по сотруднику. Pro/Exclusive. */
@@ -2404,48 +2373,3 @@ export const cashCategories = mysqlTable("cash_categories", {
   codeIdx: uniqueIndex("uq_cash_category").on(t.tenantId, t.code),
 }));
 
-// ============================================
-// ВОЗВРАТНАЯ ТАРА
-// ============================================
-/*
-  Тара — бутылки, ящики, кеги — уходит магазину вместе с товаром и должна
-  вернуться. Две правды одновременно: ШТУКИ (у кого сколько) и ЗАЛОГ
-  (сколько это стоит, если не вернут). Залог — свойство вида тары: ноль —
-  фирма считает только штуками, больше нуля — штуки и деньги. Так одна и та
-  же программа подходит и тем, кто берёт залог, и тем, кто нет.
-
-  Движения — журнал со знаком, остаток у держателя выводится суммой:
-  держатель — склад (в том числе машина) или магазин. Тара следует за
-  товаром автоматически (дверь остатка, services/tare.ts); отдельно —
-  возврат пустой тары от магазина и списание невозвращённой в долг деньгами.
-*/
-export const tareTypes = mysqlTable("tare_types", {
-  id:           serial("id").primaryKey(),
-  tenantId:     bigint("tenant_id", { mode: "number", unsigned: true }).notNull().references(() => tenants.id, { onDelete: "restrict" }),
-  name:         varchar("name", { length: 100 }).notNull(),
-  /** Залог за единицу; 0 — учёт только штуками. */
-  depositPrice: decimal("deposit_price", { precision: 12, scale: 2 }).default("0.00").notNull(),
-  isActive:     boolean("is_active").default(true).notNull(),
-  createdAt:    timestamp("created_at").defaultNow().notNull(),
-}, (t) => ({
-  tenantIdx: index("idx_tare_types_tenant").on(t.tenantId),
-}));
-
-export const tareMovements = mysqlTable("tare_movements", {
-  id:           serial("id").primaryKey(),
-  tenantId:     bigint("tenant_id", { mode: "number", unsigned: true }).notNull().references(() => tenants.id, { onDelete: "restrict" }),
-  tareTypeId:   bigint("tare_type_id", { mode: "number", unsigned: true }).notNull().references(() => tareTypes.id, { onDelete: "restrict" }),
-  holderKind:   mysqlEnum("holder_kind", ["warehouse", "shop"]).notNull(),
-  holderId:     bigint("holder_id", { mode: "number", unsigned: true }).notNull(),
-  /** Со знаком: плюс — пришло держателю, минус — ушло от него. */
-  delta:        decimal("delta", { precision: 12, scale: 3 }).notNull(),
-  reason:       mysqlEnum("reason", ["follow", "return", "charge", "count", "adjust"]).notNull(),
-  referenceId:  bigint("reference_id", { mode: "number", unsigned: true }),
-  note:         varchar("note", { length: 255 }),
-  createdBy:    bigint("created_by", { mode: "number", unsigned: true }).references(() => users.id, { onDelete: "set null" }),
-  createdAt:    timestamp("created_at").defaultNow().notNull(),
-}, (t) => ({
-  holderIdx: index("idx_tare_movements_holder").on(t.tenantId, t.holderKind, t.holderId, t.tareTypeId),
-}));
-
-export type TareType = typeof tareTypes.$inferSelect;

@@ -12,8 +12,6 @@ export interface TransferInput {
   toWarehouseId: number;
   items: Array<{ productId: number; quantity: number }>;
   notes?: string | null;
-  /** Кто принял товар: загрузка машины подписывается PIN водителя. */
-  acceptedBy?: number | null;
 }
 
 /**
@@ -25,8 +23,7 @@ export interface TransferInput {
  * же, что даёт ручную правку остатков: перемещение — та же рука на остатке.
  *
  * Строки stock_transfers остаются по одной на позицию — это история; статус
- * ставится «completed» сразу. Вынесено из роутера, потому что тем же
- * документом грузится и разгружается машина (services/van.ts).
+ * ставится «completed» сразу.
  */
 export async function transferStock(db: Db, tenantId: number, actor: Actor, input: TransferInput): Promise<{ ids: number[]; count: number; fromName: string; toName: string }> {
   if (input.fromWarehouseId === input.toWarehouseId) throw badRequest("Нельзя перемещать товар на тот же склад");
@@ -65,7 +62,6 @@ export async function transferStock(db: Db, tenantId: number, actor: Actor, inpu
         tenantId, fromWarehouseId: input.fromWarehouseId, toWarehouseId: input.toWarehouseId,
         productId: it.productId, quantity: String(it.quantity),
         status: "completed", completedAt: new Date(), notes: input.notes ?? null, createdBy: actor.id,
-        acceptedBy: input.acceptedBy ?? null, acceptedAt: input.acceptedBy ? new Date() : null,
       });
       const transferId = Number(result.insertId);
       ids.push(transferId);

@@ -310,11 +310,6 @@
     "kind": "query"
   },
   {
-    "fn": "getOrderReceipt",
-    "path": "order.receipt",
-    "kind": "query"
-  },
-  {
     "fn": "recordDeliveryAndPayment",
     "path": "order.recordDeliveryAndPayment",
     "kind": "mutation"
@@ -435,26 +430,6 @@
     "kind": "query"
   },
   {
-    "fn": "getTareOverview",
-    "path": "tare.overview",
-    "kind": "query"
-  },
-  {
-    "fn": "returnTareFromShop",
-    "path": "tare.returnFromShop",
-    "kind": "mutation"
-  },
-  {
-    "fn": "getShopTare",
-    "path": "tare.shop",
-    "kind": "query"
-  },
-  {
-    "fn": "getTareStatus",
-    "path": "tare.status",
-    "kind": "query"
-  },
-  {
     "fn": "getTerritories",
     "path": "territory.list",
     "kind": "query"
@@ -483,36 +458,6 @@
     "fn": "updateProfile",
     "path": "user.updateMe",
     "kind": "mutation"
-  },
-  {
-    "fn": "getMyVans",
-    "path": "van.list",
-    "kind": "query"
-  },
-  {
-    "fn": "vanSale",
-    "path": "van.sale",
-    "kind": "mutation"
-  },
-  {
-    "fn": "getVanSales",
-    "path": "van.sales",
-    "kind": "query"
-  },
-  {
-    "fn": "getVanShops",
-    "path": "van.shops",
-    "kind": "query"
-  },
-  {
-    "fn": "getVanStatus",
-    "path": "van.status",
-    "kind": "query"
-  },
-  {
-    "fn": "getVanStock",
-    "path": "van.stock",
-    "kind": "query"
   },
   {
     "fn": "getReorderAlerts",
