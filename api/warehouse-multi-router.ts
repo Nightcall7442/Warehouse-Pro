@@ -1,9 +1,10 @@
 import { z } from "zod";
 import { createRouter, adminQuery, authedQuery, operatorQuery, can } from "./middleware";
 import { getDb } from "./queries/connection";
-import { warehouses, warehouseStock, stockTransfers, products } from "@db/schema";
-import { eq, and, sql, desc } from "drizzle-orm";
+import { warehouses, warehouseStock, stockTransfers, products, orders } from "@db/schema";
+import { eq, and, sql, desc, isNull, inArray, gt } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
+import { OPEN_ORDER_STATUSES } from "./lib/order-status";
 import { applyStockEffect, receiveStock } from "./services/stock-ledger";
 import { transferStock } from "./services/stock-transfer";
 import { recordAudit, auditActor } from "./services/audit-log";
@@ -74,6 +75,25 @@ export const warehouseMultiRouter = createRouter({
           .for("update")
           .limit(1);
         if (!target) throw new TRPCError({ code: "NOT_FOUND", message: "Склад не найден" });
+
+        /*
+          Пока есть открытые заказы (те, что держат резерв — holdsStock) или
+          резерв на любом складе, умолчание не меняется.
+          Заказы помнят свой склад (orders.warehouseId), но старые — нет, а
+          каталог и новые заказы тут же переключатся на другой склад:
+          агент увидит остаток нового, а резерв старых заказов останется на
+          прежнем. Сначала довезти или отменить открытое — потом менять.
+        */
+        const [open] = await tx.select({ n: sql<number>`count(*)` }).from(orders)
+          .where(and(eq(orders.tenantId, ctx.tenant.id), isNull(orders.deletedAt), inArray(orders.status, OPEN_ORDER_STATUSES)));
+        const [held] = await tx.select({ n: sql<number>`count(*)` }).from(warehouseStock)
+          .where(and(eq(warehouseStock.tenantId, ctx.tenant.id), gt(warehouseStock.reserved, "0")));
+        if (Number(open?.n ?? 0) > 0 || Number(held?.n ?? 0) > 0) {
+          throw new TRPCError({
+            code: "PRECONDITION_FAILED",
+            message: `Сменить склад по умолчанию нельзя: открытых заказов ${Number(open?.n ?? 0)}, позиций с резервом ${Number(held?.n ?? 0)}. Довезите или отмените открытые заказы и повторите.`,
+          });
+        }
 
         await tx.update(warehouses).set({ isDefault: false }).where(eq(warehouses.tenantId, ctx.tenant.id));
         await tx.update(warehouses).set({ isDefault: true }).where(eq(warehouses.id, input.id));

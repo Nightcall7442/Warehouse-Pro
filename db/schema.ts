@@ -394,6 +394,15 @@ export const orders = mysqlTable("orders", {
   */
   priceListId:      bigint("price_list_id", { mode: "number", unsigned: true }).references(() => priceLists.id, { onDelete: "set null" }),
   /*
+    Склад заказа — тот, с которого резервировали при оформлении. Отмена,
+    удаление, восстановление и доставка возвращают или списывают с НЕГО, а
+    не со склада по умолчанию на момент операции: смена умолчания между
+    оформлением и доставкой иначе разводила резерв и списание по разным
+    складам. Пусто — у заказов до этой колонки; тогда склад по умолчанию.
+    restrict: склад с заказами в истории удалить нельзя.
+  */
+  warehouseId:      bigint("warehouse_id", { mode: "number", unsigned: true }).references(() => warehouses.id, { onDelete: "restrict" }),
+  /*
     Расчёт по заказу (services/order-close.ts). Доставка — не конец: заказ
     закрыт, когда офис принял по нему деньги — наличные из рук курьера,
     карта или перевод — и остаток либо ноль, либо явно оставлен долгом
@@ -553,6 +562,11 @@ export const returnItems = mysqlTable("return_items", {
   quantity:    decimal("quantity", { precision: 10, scale: 2 }).notNull(),
   unitPrice:   decimal("unit_price", { precision: 10, scale: 2 }).notNull(),
   subtotal:    decimal("subtotal", { precision: 12, scale: 2 }).notNull(),
+  /*
+    Цена, которую назвал агент, если она разошлась с ценой сервера. В сумму
+    возврата до одобрения не входит — оператор видит обе и решает.
+  */
+  requestedPrice: decimal("requested_price", { precision: 10, scale: 2 }),
   reason:      varchar("reason", { length: 255 }),
   condition:   varchar("condition", { length: 255 }), // new, used, damaged, expired
   createdAt:   timestamp("created_at").defaultNow().notNull(),

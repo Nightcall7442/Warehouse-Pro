@@ -6,14 +6,42 @@ import { getDb } from "./queries/connection";
 import { assertProductsBelongToTenant } from "./lib/tenant-refs";
 import { returns, returnItems, orderItems, shops, users, products, orders, warehouseStock, warehouses } from "@db/schema";
 import { ORDER_STATUS_LABELS, RETURN_STATUS_LABELS } from "./lib/order-status";
-import { eq, and, desc, sql, ne } from "drizzle-orm";
+import { eq, and, desc, sql, ne, inArray, notInArray, isNull } from "drizzle-orm";
 import { cache, CacheKeys } from "./lib/cache";
 import { sanitizeString } from "./lib/sanitize";
 import { recalcShopDebt } from "./services/shop-debt";
 import { productLabel } from "./services/order";
+import { tiyin } from "./services/payment";
 
 import { affectedRows } from "./lib/db-rows";
 import { recordAudit, auditActor } from "./services/audit-log";
+/**
+ * Цена товара для возврата без заказа: последняя продажа этому магазину
+ * (по ней он платил), а без продаж — карточка. Нет ни того, ни другого —
+ * товара нет в Map, и вызывающий отказывает.
+ */
+async function serverPricesForShop(db: ReturnType<typeof getDb>, tenantId: number, shopId: number, productIds: number[]): Promise<Map<number, number>> {
+  const ids = [...new Set(productIds)];
+  const price = new Map<number, number>();
+  const cards = await db.select({ id: products.id, unitPrice: products.unitPrice }).from(products)
+    .where(and(eq(products.tenantId, tenantId), inArray(products.id, ids)));
+  for (const c of cards) price.set(Number(c.id), Number(c.unitPrice));
+  // Последняя продажа — по наибольшему id заказа; выбор в коде, чтобы не
+  // зависеть от порядка строк. 500 строк с запасом покрывают историю
+  // магазина по нескольким товарам; старше — цена карточки.
+  const sales = await db.select({ productId: orderItems.productId, unitPrice: orderItems.unitPrice, orderId: orders.id }).from(orderItems)
+    .innerJoin(orders, eq(orderItems.orderId, orders.id))
+    .where(and(eq(orders.tenantId, tenantId), eq(orders.shopId, shopId), inArray(orderItems.productId, ids),
+      notInArray(orders.status, ["cancelled", "returned"]), isNull(orders.deletedAt)))
+    .orderBy(desc(orders.id)).limit(500);
+  const latest = new Map<number, number>();
+  for (const r of sales) {
+    const pid = Number(r.productId);
+    if ((latest.get(pid) ?? -1) < Number(r.orderId)) { latest.set(pid, Number(r.orderId)); price.set(pid, Number(r.unitPrice)); }
+  }
+  return price;
+}
+
 /**
  * Куда девать вернувшийся товар, если оператор не сказал. Брак, просрочка и
  * порча — списать: они и вернулись потому, что продавать их нельзя. Пересорт
@@ -100,6 +128,7 @@ export const returnsRouter = createRouter({
         quantity: returnItems.quantity,
         unitPrice: returnItems.unitPrice,
         subtotal: returnItems.subtotal,
+        requestedPrice: returnItems.requestedPrice,
         reason: returnItems.reason,
         condition: returnItems.condition,
       }).from(returnItems)
@@ -209,6 +238,26 @@ export const returnsRouter = createRouter({
         });
       }
 
+      /*
+        Возврат БЕЗ заказа: цену тоже называет сервер, а не клиент. Раньше
+        агент присылал любую цену, и она сразу ложилась в сумму возврата — а
+        сумма после одобрения уменьшает долг магазина. Берётся цена последней
+        продажи этому магазину (по ней он и платил), без продаж — карточка.
+        Названная агентом цена, если разошлась, хранится рядом
+        (requestedPrice): оператор видит обе при одобрении, в сумму до
+        одобрения она не входит.
+      */
+      const requested = new Map<number, number | null>();
+      if (!input.orderId) {
+        const serverPrice = await serverPricesForShop(db, ctx.tenant.id, input.shopId, input.items.map(i => i.productId));
+        for (const item of input.items) {
+          const price = serverPrice.get(item.productId);
+          if (price === undefined) throw new Error(`«${await productLabel(db, ctx.tenant.id, item.productId)}»: у товара нет цены — возврат без заказа оформить нельзя`);
+          requested.set(item.productId, tiyin(item.unitPrice) === tiyin(price) ? null : item.unitPrice);
+          item.unitPrice = price;
+        }
+      }
+
       const totalAmount = input.items.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0);
 
       // Use transaction for atomicity
@@ -234,6 +283,7 @@ export const returnsRouter = createRouter({
           quantity: item.quantity.toFixed(2),
           unitPrice: item.unitPrice.toFixed(2),
           subtotal: (item.unitPrice * item.quantity).toFixed(2),
+          requestedPrice: requested.get(item.productId)?.toFixed(2) ?? null,
           reason: item.reason ? sanitizeString(item.reason) : null,
           condition: item.condition ? sanitizeString(item.condition) : null,
         })));

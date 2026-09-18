@@ -448,6 +448,8 @@ interface ReturnLine {
   quantity: string;
   unitPrice: string;
   subtotal: string;
+  /** Цена, которую назвал агент, если разошлась с ценой сервера. */
+  requestedPrice?: string | null;
 }
 
 /**
@@ -495,6 +497,12 @@ function ReturnItems({ items, notes, loading, failed, onRetry, t, fmt }: {
           </span>
           <span style={{ fontVariantNumeric: "tabular-nums" }}>
             {Number(i.quantity)} × {fmt(Number(i.unitPrice ?? 0))} = <b style={{ color: COLORS.textPrimary }}>{fmt(Number(i.subtotal ?? 0))}</b>
+            {i.requestedPrice != null && (
+              /* Агент назвал другую цену: в сумму не вошла, оператор решает при одобрении. */
+              <span data-testid="return-requested-price" style={{ marginLeft: "8px", fontSize: "12px", color: "var(--color-warning-text)" }}>
+                {t("агент указал", "agent ko'rsatdi")} {fmt(Number(i.requestedPrice))}
+              </span>
+            )}
           </span>
         </div>
       ))}

@@ -22,13 +22,14 @@ vi.mock("../lib/cache", () => ({
 let mockDb: any;
 vi.mock("../queries/connection", () => ({ getDb: () => mockDb }));
 
-import { warehouses, warehouseStock, stockTransfers, products } from "@db/schema";
+import { warehouses, warehouseStock, stockTransfers, products, orders } from "@db/schema";
 import { makeConditionEvaluator } from "./helpers/fake-conditions";
 
 let warehousesTable: any[] = [];
 let warehouseStockTable: any[] = [];
 let stockTransfersTable: any[] = [];
 let productsTable: any[] = [];
+let ordersTable: any[] = [];
 let nextId = 400;
 
 function resetTables() {
@@ -46,6 +47,7 @@ function resetTables() {
     { id: 1, name: "Tomato", code: "T001", tenantId: 1 },
     { id: 2, name: "Cucumber", code: "C001", tenantId: 1 },
   ];
+  ordersTable = [];
   nextId = 400;
 }
 
@@ -63,6 +65,7 @@ reg(stockTransfers, "toWarehouseId"); reg(stockTransfers, "productId"); reg(stoc
 reg(stockTransfers, "status"); reg(stockTransfers, "notes"); reg(stockTransfers, "createdBy");
 reg(stockTransfers, "createdAt"); reg(stockTransfers, "completedAt");
 reg(products, "id"); reg(products, "name"); reg(products, "code"); reg(products, "tenantId"); reg(products, "status");
+reg(orders, "id"); reg(orders, "tenantId"); reg(orders, "status"); reg(orders, "deletedAt");
 
 function mapCol(col: unknown): string { return colToField.get(col) ?? (col as any)?.name ?? String(col); }
 
@@ -104,6 +107,7 @@ function useTable(col: unknown): Record<string, unknown>[] {
   if (col === warehouseStock) return warehouseStockTable;
   if (col === stockTransfers) return stockTransfersTable;
   if (col === products) return productsTable;
+  if (col === orders) return ordersTable;
   return [];
 }
 
@@ -120,8 +124,15 @@ function makeMockDb() {
         return from;
       };
       from.innerJoin = from.leftJoin;
+      // count(*) через sql`` — одна строка со счётчиком, как отдаст база.
+      const isCount = (def: any) => def?.__kind === "count" || (def?.__kind === "sql" && String(def.strings?.join("") ?? "").includes("count("));
       from.where = (cond: unknown) => {
         let filtered = primaryRows.filter((r: any) => evalCond(r, cond));
+        if (fields && typeof fields === "object" && Object.values(fields).some(isCount)) {
+          const out: Record<string, unknown> = {};
+          for (const [alias, def] of Object.entries(fields)) out[alias] = isCount(def) ? filtered.length : null;
+          return buildChain([out]);
+        }
         for (const join of joins) {
           const expanded: Record<string, unknown>[] = [];
           for (const row of filtered) {
@@ -307,9 +318,13 @@ describe("warehouseMulti.update", () => {
 });
 
 describe("warehouseMulti.setDefault", () => {
+  // Стенд держит 5 в резерве на строке 10 — для смены умолчания резерв снимается.
+  const freeReserve = () => { warehouseStockTable.find(r => r.id === 10)!.reserved = "0.00"; };
+
   it("sets target as default and resets others", async () => {
     const { warehouseMultiRouter } = await import("../warehouse-multi-router");
     const caller = warehouseMultiRouter.createCaller(buildCtx());
+    freeReserve();
     const result = await caller.setDefault({ id: 2 });
     expect(result.success).toBe(true);
     expect(warehousesTable.find(w => w.id === 1)?.isDefault).toBe(false);
@@ -320,6 +335,34 @@ describe("warehouseMulti.setDefault", () => {
     const { warehouseMultiRouter } = await import("../warehouse-multi-router");
     const caller = warehouseMultiRouter.createCaller(buildCtx());
     await expect(caller.setDefault({ id: 999 })).rejects.toThrow();
+  });
+
+  /*
+    Пока есть открытые заказы или резерв, умолчание не меняется: каталог и
+    новые заказы переключатся на другой склад, а резерв старых останется на
+    прежнем. Доставленные и удалённые заказы не в счёт.
+  */
+  it("отказывает, пока есть открытый заказ; доставленный и удалённый не мешают", async () => {
+    const { warehouseMultiRouter } = await import("../warehouse-multi-router");
+    const caller = warehouseMultiRouter.createCaller(buildCtx());
+    freeReserve();
+    ordersTable.push({ id: 1, tenantId: 1, status: "processing", deletedAt: null });
+    await expect(caller.setDefault({ id: 2 })).rejects.toThrow(/открытых заказов 1/);
+    expect(warehousesTable.find(w => w.id === 1)?.isDefault).toBe(true);
+    ordersTable[0].status = "shipped";   // отгружен, но не доставлен — резерв ещё держит
+    await expect(caller.setDefault({ id: 2 })).rejects.toThrow(/открытых заказов 1/);
+    ordersTable[0].status = "delivered";
+    ordersTable.push({ id: 2, tenantId: 1, status: "new", deletedAt: new Date() });
+    ordersTable.push({ id: 3, tenantId: 2, status: "new", deletedAt: null });
+    await expect(caller.setDefault({ id: 2 })).resolves.toEqual({ success: true });
+  });
+
+  it("отказывает, пока на любом складе есть резерв", async () => {
+    const { warehouseMultiRouter } = await import("../warehouse-multi-router");
+    const caller = warehouseMultiRouter.createCaller(buildCtx());
+    await expect(caller.setDefault({ id: 2 })).rejects.toThrow(/позиций с резервом 1/);
+    freeReserve();
+    await expect(caller.setDefault({ id: 2 })).resolves.toEqual({ success: true });
   });
 });
 

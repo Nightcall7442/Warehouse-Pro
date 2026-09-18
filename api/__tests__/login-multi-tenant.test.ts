@@ -40,6 +40,7 @@ vi.mock("../queries/users", () => ({
   findUserByEmail:           vi.fn(),
   createUser:                vi.fn(),
   updateUserLastSignIn:      vi.fn(async () => {}),
+  updateUserPasswordHash:    vi.fn(async (id: number, passwordHash: string) => { const u = users.rows.find(r => r.id === id); if (u) u.passwordHash = passwordHash; }),
   findUsersByEmailAnyTenant: vi.fn(async (email: string) =>
     users.rows.filter(u => u.email === email).sort((a, b) => a.id - b.id)),
 }));
@@ -57,7 +58,9 @@ vi.mock("../auth/session", () => ({
 }));
 
 import app from "../boot";
-import { hashPassword } from "../auth/password";
+import { hashPassword, needsRehash } from "../auth/password";
+import { pbkdf2Sync } from "node:crypto";
+import { updateUserPasswordHash } from "../queries/users";
 import { Session } from "@contracts/constants";
 
 type Row = { id: number; tenantId: number; email: string; password: string; status?: string };
@@ -245,5 +248,40 @@ describe("вход в остальных случаях не изменился"
     const res = await login({ email: "susp@example.com", password: "правильный" });
 
     expect(res.status).toBe(401);
+  });
+});
+
+describe("перехеш пароля при входе", () => {
+  /** Хеш старого образца — 100 000 итераций; формат тот же, число внутри. */
+  const legacy = (password: string) => {
+    const salt = "0123456789abcdef0123456789abcdef";
+    return `pbkdf2$100000$${salt}$${pbkdf2Sync(password, salt, 100_000, 64, "sha256").toString("hex")}`;
+  };
+
+  it("старый хеш пускает и тут же переписывается новым числом итераций; свежий не трогается", async () => {
+    await seed([{ id: 30, tenantId: 1, email: "old@example.com", password: "п" }], [{ id: 1, name: "Организация А" }]);
+    users.rows[0].passwordHash = legacy("старый-пароль");
+    vi.mocked(updateUserPasswordHash).mockClear();
+
+    const res = await login({ email: "old@example.com", password: "старый-пароль" });
+    expect(res.status).toBe(200);
+    expect(updateUserPasswordHash).toHaveBeenCalledTimes(1);
+    const [id, fresh] = vi.mocked(updateUserPasswordHash).mock.calls[0];
+    expect(id).toBe(30);
+    expect(fresh).toMatch(/^pbkdf2\$600000\$/);
+    expect(needsRehash(fresh)).toBe(false);
+
+    // Повторный вход — уже по новому хешу, перехеш не повторяется.
+    const again = await login({ email: "old@example.com", password: "старый-пароль" });
+    expect(again.status).toBe(200);
+    expect(updateUserPasswordHash).toHaveBeenCalledTimes(1);
+  });
+
+  it("неверный пароль к старому хешу ничего не перехеширует", async () => {
+    await seed([{ id: 31, tenantId: 1, email: "old2@example.com", password: "п" }], [{ id: 1, name: "Организация А" }]);
+    users.rows[0].passwordHash = legacy("верный");
+    vi.mocked(updateUserPasswordHash).mockClear();
+    expect((await login({ email: "old2@example.com", password: "неверный" })).status).toBe(401);
+    expect(updateUserPasswordHash).not.toHaveBeenCalled();
   });
 });

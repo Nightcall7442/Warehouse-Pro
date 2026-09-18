@@ -3,8 +3,8 @@ import { sql } from "drizzle-orm";
 import { logger } from "../lib/logger";
 import * as cookie from "cookie";
 import { Session } from "@contracts/constants";
-import { verifyPassword } from "../auth/password";
-import { findUsersByEmailAnyTenant, updateUserLastSignIn } from "../queries/users";
+import { verifyPassword, hashPassword, needsRehash, ITERATIONS } from "../auth/password";
+import { findUsersByEmailAnyTenant, updateUserLastSignIn, updateUserPasswordHash } from "../queries/users";
 import { findTenantById } from "../queries/tenants";
 import { signSessionToken } from "../auth/session";
 import { checkRateLimit, rateLimitSubject } from "../lib/rate-limit";
@@ -73,7 +73,9 @@ routes.post("/api/login", async (c) => {
     }
 
     const GENERIC_AUTH_ERROR = "Неверный email или пароль";
-    const dummyHash = "pbkdf2$100000$00000000000000000000000000000000$" + "0".repeat(128);
+    // То же число итераций, что у настоящих хешей, — иначе ответ по чужому
+    // адресу приходил бы заметно быстрее.
+    const dummyHash = `pbkdf2$${ITERATIONS}$00000000000000000000000000000000$` + "0".repeat(128);
 
     // Один адрес может принадлежать разным организациям — схема это прямо
     // разрешает (uq_user_email_tenant по паре email + tenant_id). Раньше вход
@@ -151,6 +153,19 @@ routes.post("/api/login", async (c) => {
       const { open } = await import("../lib/secret-box");
       if (!verifyTotp(open(user.totpSecret), String(totpFromBody))) {
         return c.json({ error: "Неверный код подтверждения", code: "TOTP_INVALID" }, 401);
+      }
+    }
+
+    /*
+      Пароль подошёл, а хеш сделан старым числом итераций — перехешировать
+      сейчас, пока пароль в руках: другого случая узнать его открытым текстом
+      нет. Неудача перехеша вход не ломает — старый хеш остаётся рабочим.
+    */
+    if (user.passwordHash && needsRehash(user.passwordHash)) {
+      try {
+        await updateUserPasswordHash(user.id, await hashPassword(password));
+      } catch (e) {
+        logger.warn("password rehash failed", { userId: user.id, error: e instanceof Error ? e.message : String(e) });
       }
     }
 

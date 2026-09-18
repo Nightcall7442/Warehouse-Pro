@@ -13,10 +13,16 @@ import { readFileSync } from "node:fs";
  * всю цепочку поверх готовой схемы: первая же CREATE TABLE упала бы на «table
  * already exists», и сервер не поднялся бы.
  *
- * Поэтому журнал заполняется здесь: одна запись с временем последней миграции.
- * drizzle сравнивает именно created_at (mysql-core/dialect.js: применяются
- * миграции, у которых folderMillis больше последнего created_at) — хеш он
- * записывает, но никогда не сверяет. Одной записи достаточно.
+ * Поэтому журнал заполняется здесь — по записи на КАЖДУЮ миграцию.
+ *
+ * Штатному мигратору drizzle хватило бы одной, последней: он сравнивает
+ * только created_at (mysql-core/dialect.js: применяются миграции, у которых
+ * folderMillis больше последнего created_at). Но следом за ним идёт догон
+ * (api/lib/migration-catchup.ts), и тот сверяет журнал построчно: всё, чего
+ * нет в таблице, он применяет заново, прощая «уже есть». С одной записью он
+ * переигрывал все 57 прежних файлов поверх готовой схемы — и 0052, снимающая
+ * orders.warehouse_id, честно снимала колонку, которую 0057 вернула. Сервер
+ * стартовал, а первый же заказ падал на «Unknown column 'warehouse_id'».
  *
  * ── Чего это НЕ делает ──────────────────────────────────────────────────────
  *
@@ -36,7 +42,6 @@ if (!url) {
 }
 
 const journal = JSON.parse(readFileSync("db/migrations/meta/_journal.json", "utf8"));
-const last = Math.max(...journal.entries.map(e => e.when));
 
 const conn = await mysql.createConnection(url);
 try {
@@ -51,10 +56,13 @@ try {
   if (Number(rows[0].n) > 0) {
     console.log("журнал уже заполнен — ничего не меняю");
   } else {
-    await conn.execute(
-      "insert into `__drizzle_migrations` (`hash`, `created_at`) values (?, ?)",
-      [`e2e-baseline:${journal.entries.length} миграций`, last],
-    );
+    for (const e of journal.entries) {
+      await conn.execute(
+        "insert into `__drizzle_migrations` (`hash`, `created_at`) values (?, ?)",
+        [`e2e-baseline:${e.tag}`, e.when],
+      );
+    }
+    const last = Math.max(...journal.entries.map(e => e.when));
     console.log(`журнал отмечен: ${journal.entries.length} миграций, последняя ${last}`);
   }
 } finally {
