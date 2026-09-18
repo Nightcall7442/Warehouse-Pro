@@ -2,6 +2,7 @@ import { eq, and, isNull, inArray } from "drizzle-orm";
 import { orders, orderItems, warehouseStock, products } from "@db/schema";
 import { resolvePrices } from "./price-resolver";
 import { cache, CacheKeys } from "../lib/cache";
+import { invalidateReports } from "../lib/report-cache";
 import type { Db, AuditActor } from "./order-shared";
 import { orderWarehouseId, settleShopDebt, stockModeFor, productLabel, applyStockDelta, traceOrderChange } from "./order-shared";
 
@@ -74,6 +75,7 @@ export async function update(
   });
 
   cache.invalidate(CacheKeys.dashboardKpis(Number(tenantId)));
+  await invalidateReports(tenantId, "order");
   // Только денежные поля: заметки и срок доставки долга не меняют.
   if (data.discount !== undefined || data.paymentMethod !== undefined) {
     await traceOrderChange(db, tenantId, orderId, "order.update", actor, {
@@ -283,6 +285,7 @@ export async function updateItems(
   });
 
   cache.invalidate(CacheKeys.dashboardKpis(Number(tenantId)));
+  await invalidateReports(tenantId, "order");
   await traceOrderChange(db, tenantId, orderId, "order.update_items", actor, { totalBefore: totals.before, totalAfter: totals.after, lines: data.items.length });
   return { success: true };
 }

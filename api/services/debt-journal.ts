@@ -94,10 +94,52 @@ const HARD_CAP = 20_000;
 
 const money = (v: unknown) => Number(v ?? 0);
 
+/** Собранный и отсортированный архив под фильтрами — ещё без разреза на страницы. */
+export interface DebtJournalCollected {
+  rows: DebtJournalRow[];
+  totals: { taken: number; paid: number };
+  truncated: boolean;
+}
+
+/*
+  ── Сбор и страница разведены ─────────────────────────────────────────────
+
+  Было: одна функция тянула до 3 × 20 000 строк, сливала и сортировала их в
+  памяти — и делала это заново на КАЖДЫЙ листок: страница 2 стоила столько
+  же, сколько страница 1, а реестр отчётов (pageSize 500) и панель (50) не
+  делили между собой ничего.
+
+  Теперь: collectDebtJournal собирает весь набор под фильтрами, а
+  paginateDebtJournal режет из него страницу. Роутер кладёт под кэш отчётов
+  именно собранный набор (ключ — фильтры без page/pageSize), и сорок страниц
+  становятся одним проходом по базе. debtJournal остался тонкой обёрткой —
+  для тех, кому кэш не нужен, и для прежних проверок.
+*/
 export async function debtJournal(tenantId: number, q: DebtJournalQuery = {}): Promise<DebtJournalPage> {
+  return paginateDebtJournal(await collectDebtJournal(tenantId, q), q.page, q.pageSize);
+}
+
+export function paginateDebtJournal(c: DebtJournalCollected, page?: number, pageSize?: number): DebtJournalPage {
+  const p = Math.max(1, page ?? 1);
+  const size = Math.min(MAX_PAGE_SIZE, Math.max(1, pageSize ?? 50));
+  const offset = (p - 1) * size;
+  return {
+    // После Redis дата приезжает строкой: собранный набор проходит через JSON.
+    // Ряд, который уходит клиенту, обязан нести Date, как и до кэша.
+    rows: c.rows.slice(offset, offset + size).map(r => ({ ...r, date: new Date(r.date) })),
+    total: c.rows.length,
+    page: p,
+    pageSize: size,
+    totals: c.totals,
+    truncated: c.truncated,
+  };
+}
+
+export async function collectDebtJournal(
+  tenantId: number,
+  q: Omit<DebtJournalQuery, "page" | "pageSize"> = {},
+): Promise<DebtJournalCollected> {
   const db = getDb();
-  const page = Math.max(1, q.page ?? 1);
-  const pageSize = Math.min(MAX_PAGE_SIZE, Math.max(1, q.pageSize ?? 50));
 
   /** Условия по самой точке — общие для всех источников. */
   const shopScope = [eq(shops.tenantId, tenantId)];
@@ -234,12 +276,8 @@ export async function debtJournal(tenantId: number, q: DebtJournalQuery = {}): P
     { taken: 0, paid: 0 },
   );
 
-  const offset = (page - 1) * pageSize;
   return {
-    rows: all.slice(offset, offset + pageSize),
-    total: all.length,
-    page,
-    pageSize,
+    rows: all,
     totals,
     truncated: orderRows.length >= HARD_CAP || paymentRows.length >= HARD_CAP || returnRows.length >= HARD_CAP,
   };

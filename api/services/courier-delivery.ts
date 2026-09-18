@@ -9,6 +9,7 @@ import { paidForOrder, assertFitsRemainder, splitExcess, recordExcess } from "./
 import { productLabel } from "./order";
 import { releaseStock, shipStock } from "./stock-ledger";
 import { NotificationService } from "./NotificationService";
+import { invalidateReports } from "../lib/report-cache";
 import { orderWarehouseId, type Db } from "./order-shared";
 
 /*
@@ -192,6 +193,8 @@ export async function markDelivered(db: Db, tenantId: number, courierId: number,
     // the cash — subtracting alone never booked the shortfall.
     await recalcShopDebt(tx, tenantId, order.shopId);
   });
+  // «Довезено сегодня», выручка, долг, остаток — после коммита, до уведомлений.
+  await invalidateReports(tenantId, "delivery");
 
   const [ceo] = await db.select({ id: users.id }).from(users)
     .where(and(eq(users.tenantId, tenantId), eq(users.role, "ceo")))
@@ -611,6 +614,7 @@ export async function completeDelivery(db: Db, tenantId: number, courierId: numb
       });
     }
   });
+  await invalidateReports(tenantId, "delivery");
 
   // ── Notifications ──
   const resultLabels: Record<string, string> = {
@@ -713,6 +717,7 @@ export async function markFailed(db: Db, tenantId: number, courierId: number, in
     // negative once the retried delivery completed. Stock is returned only
     // when the order is cancelled or deleted.
   });
+  await invalidateReports(tenantId, "delivery");
 
   const [ceo] = await db.select({ id: users.id }).from(users)
     .where(and(eq(users.tenantId, tenantId), eq(users.role, "ceo")))

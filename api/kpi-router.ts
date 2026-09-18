@@ -1,12 +1,11 @@
 import { z } from "zod";
-import { monthRange } from "./lib/period";
 import { TRPCError } from "@trpc/server";
 import { createRouter, supervisorQuery, selfKpiQuery, managementQuery, financeQuery, adminQuery, authedQuery } from "./middleware";
 import { getDb } from "./queries/connection";
-import { getPeriod } from "./lib/period";
+import { getPeriod, dayKey, monthRange } from "./lib/period";
 import { onDate } from "./lib/date-range";
 import { calculateAgentKpi, calculateAllAgentsKpi, calculateCourierStats, calculateSalary, getAgentList, getCourierList, getCourierDaily } from "./services/kpi";
-import { withCache, CacheTTL, cache, CacheKeys } from "./lib/cache";
+import { reportCached, invalidateReports, ReportTTL } from "./lib/report-cache";
 import { recordAudit } from "./services/audit-log";
 import { getClientIp } from "./lib/rate-limit";
 import { commissions, salaryPayouts, shops, users } from "@db/schema";
@@ -14,6 +13,39 @@ import { NotificationService } from "./services/NotificationService";
 import { sendPushToUser } from "./services/push-service";
 import { alias } from "drizzle-orm/mysql-core";
 import { eq, and, sql, gte, lte, desc } from "drizzle-orm";
+
+/*
+  Кэш отчётов этого роутера.
+
+  Было: свой кэш только у agentKpi и courierKpi — `withCache` на две минуты по
+  ключу со СЛОВОМ периода (`kpi:agent:{t}:{u}:month`), который никто никогда
+  не сбрасывал; остальные девять ручек ходили в базу при каждом открытии.
+  Ведомость зарплат — это ≈780 запросов на организацию из 18 человек, и
+  тридцать директоров, открывших её первого числа, давали тридцать таких
+  пересчётов в пул на 20 соединений.
+
+  Теперь: всё, что читает руководитель, обёрнуто в reportCached. Ключ —
+  организация + имя ручки + разрешённый период + аргументы; промах считается
+  один раз на ключ, остальные ждут ту же Promise; сброс `report:{tenant}:*`
+  зовут сервисы записи (заказы, доставки, платежи, возвраты) — здесь его
+  зовут только три записи, у которых сервиса нет: setSalary,
+  setFraudDeduction, recordPayout.
+
+  Период в ключе — ДАТАМИ, а не словом: getPeriod("month") зависит от
+  «сейчас», и в ночь на первое число ключ «month» до конца TTL отдавал бы
+  сентябрь под видом октября. Сменились сутки — сменился ключ.
+
+  Область видимости: managementQuery/supervisorQuery не сужают выборку по
+  территориям (связи супервайзер → территория в схеме нет), поэтому в ключе
+  нет userId. Он обязателен только у само-ручек — agentKpi, courierKpi,
+  salary, — и там кладётся РАЗРЕШЁННЫЙ id, а не сырой input.
+
+  TTL: minute — экраны, которые сбрасываются записью; минута нужна лишь как
+  потолок для того, что запись не сбрасывает (пинги GPS, визиты). fiveMin —
+  ведомость: итоги периода, прошлые месяцы не меняются вовсе.
+*/
+const span = ({ periodStart, periodEnd }: { periodStart: Date; periodEnd: Date }) =>
+  ({ from: dayKey(periodStart), to: dayKey(periodEnd) });
 
 export const kpiRouter = createRouter({
   /*
@@ -28,14 +60,10 @@ export const kpiRouter = createRouter({
     .input(z.object({
       period: z.enum(["week", "month", "quarter"]).default("month"),
     }).optional())
-    .query(async ({ input, ctx }) => {
-      const db = getDb();
-      const period = input?.period ?? "month";
-      const { periodStart, periodEnd } = getPeriod(period);
-      const cacheKey = `kpi:agent:${ctx.tenant.id}:${ctx.user.id}:${period}`;
-
-      return withCache(cacheKey, CacheTTL.kpis, () =>
-        calculateAgentKpi(db, ctx.user.id, ctx.tenant.id, periodStart, periodEnd));
+    .query(({ input, ctx }) => {
+      const p = getPeriod(input?.period ?? "month");
+      return reportCached(ctx.tenant.id, "kpi.agentKpi", { userId: ctx.user.id, ...span(p) }, ReportTTL.minute, () =>
+        calculateAgentKpi(getDb(), ctx.user.id, ctx.tenant.id, p.periodStart, p.periodEnd));
     }),
 
   /**
@@ -52,17 +80,16 @@ export const kpiRouter = createRouter({
       /* Директор смотрит чужие показатели, курьер — только свои. */
       courierId: z.number().int().positive().optional(),
     }).optional())
-    .query(async ({ input, ctx }) => {
-      const db = getDb();
-      const period = input?.period ?? "month";
-      const { periodStart, periodEnd } = getPeriod(period);
+    .query(({ input, ctx }) => {
+      const p = getPeriod(input?.period ?? "month");
 
       const canSeeOthers = ctx.user.role === "ceo" || ctx.user.role === "operator" || ctx.user.role === "supervisor";
       const courierId = canSeeOthers && input?.courierId ? input.courierId : ctx.user.id;
 
-      const cacheKey = `kpi:courier:${ctx.tenant.id}:${courierId}:${period}`;
-      return withCache(cacheKey, CacheTTL.kpis, () =>
-        calculateCourierStats(db, courierId, ctx.tenant.id, periodStart, periodEnd));
+      // В ключе — разрешённый courierId, не input: курьер с чужим id во входе
+      // получает свой ключ, а директор, открывший его карточку, — тот же.
+      return reportCached(ctx.tenant.id, "kpi.courierKpi", { courierId, ...span(p) }, ReportTTL.minute, () =>
+        calculateCourierStats(getDb(), courierId, ctx.tenant.id, p.periodStart, p.periodEnd));
     }),
 
   /*
@@ -90,12 +117,12 @@ export const kpiRouter = createRouter({
     .input(z.object({
       period: z.enum(["week", "month", "quarter"]).default("month"),
     }).optional())
-    .query(async ({ input, ctx }) => {
-      const db = getDb();
-      const period = input?.period ?? "month";
-      const { periodStart, periodEnd } = getPeriod(period);
-
-      return getAgentList(db, ctx.tenant.id, periodStart, periodEnd);
+    .query(({ input, ctx }) => {
+      const p = getPeriod(input?.period ?? "month");
+      // minute, не fiveMin: визиты и пинги GPS кэш не сбрасывают, а список
+      // показывает и их — супервайзер смотрит ход дня.
+      return reportCached(ctx.tenant.id, "kpi.agentList", span(p), ReportTTL.minute, () =>
+        getAgentList(getDb(), ctx.tenant.id, p.periodStart, p.periodEnd));
     }),
 
   /*
@@ -109,10 +136,10 @@ export const kpiRouter = createRouter({
     .input(z.object({
       period: z.enum(["week", "month", "quarter"]).default("month"),
     }).optional())
-    .query(async ({ input, ctx }) => {
-      const db = getDb();
-      const { periodStart, periodEnd } = getPeriod(input?.period ?? "month");
-      return getCourierList(db, ctx.tenant.id, periodStart, periodEnd);
+    .query(({ input, ctx }) => {
+      const p = getPeriod(input?.period ?? "month");
+      return reportCached(ctx.tenant.id, "kpi.courierList", span(p), ReportTTL.minute, () =>
+        getCourierList(getDb(), ctx.tenant.id, p.periodStart, p.periodEnd));
     }),
 
   /**
@@ -130,31 +157,35 @@ export const kpiRouter = createRouter({
       courierId: z.number().int().positive(),
       period: z.enum(["week", "month", "quarter"]).default("month"),
     }))
-    .query(async ({ input, ctx }) => {
-      const db = getDb();
+    .query(({ input, ctx }) => {
       const { periodStart, periodEnd } = getPeriod(input.period);
+      // Проверка принадлежности — внутри: отказ бросает, а брошенное не
+      // кэшируется; попадание же обходится без базы вовсе.
+      return reportCached(ctx.tenant.id, "kpi.courierDetail", { courierId: input.courierId, ...span({ periodStart, periodEnd }) }, ReportTTL.minute, async () => {
+        const db = getDb();
 
-      const [who] = await db.select({ id: users.id, role: users.role })
-        .from(users)
-        .where(and(
-          eq(users.id, input.courierId),
-          eq(users.tenantId, ctx.tenant.id),
-        ))
-        .limit(1);
+        const [who] = await db.select({ id: users.id, role: users.role })
+          .from(users)
+          .where(and(
+            eq(users.id, input.courierId),
+            eq(users.tenantId, ctx.tenant.id),
+          ))
+          .limit(1);
 
-      // Чужой сотрудник и просто «не курьер» — оба случая отвечают отказом, а
-      // не пустой карточкой: пустая читается как «ничего не возил».
-      if (!who || who.role !== "courier") {
-        throw new TRPCError({ code: "NOT_FOUND", message: "Курьер не найден в вашей организации" });
-      }
+        // Чужой сотрудник и просто «не курьер» — оба случая отвечают отказом, а
+        // не пустой карточкой: пустая читается как «ничего не возил».
+        if (!who || who.role !== "courier") {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Курьер не найден в вашей организации" });
+        }
 
-      const [stats, salary, daily] = await Promise.all([
-        calculateCourierStats(db, input.courierId, ctx.tenant.id, periodStart, periodEnd),
-        calculateSalary(db, input.courierId, ctx.tenant.id, periodStart, periodEnd, undefined, false),
-        getCourierDaily(db, input.courierId, ctx.tenant.id, periodStart, periodEnd),
-      ]);
+        const [stats, salary, daily] = await Promise.all([
+          calculateCourierStats(db, input.courierId, ctx.tenant.id, periodStart, periodEnd),
+          calculateSalary(db, input.courierId, ctx.tenant.id, periodStart, periodEnd, undefined, false),
+          getCourierDaily(db, input.courierId, ctx.tenant.id, periodStart, periodEnd),
+        ]);
 
-      return { stats, salary, daily };
+        return { stats, salary, daily };
+      });
     }),
 
   // Тот же набор ролей, что и у списка выше.
@@ -163,11 +194,10 @@ export const kpiRouter = createRouter({
       agentId: z.number().int().positive(),
       period: z.enum(["week", "month", "quarter"]).default("month"),
     }))
-    .query(async ({ input, ctx }) => {
-      const db = getDb();
-      const { periodStart, periodEnd } = getPeriod(input.period);
-
-      return calculateAgentKpi(db, input.agentId, ctx.tenant.id, periodStart, periodEnd);
+    .query(({ input, ctx }) => {
+      const p = getPeriod(input.period);
+      return reportCached(ctx.tenant.id, "kpi.agentDetail", { agentId: input.agentId, ...span(p) }, ReportTTL.minute, () =>
+        calculateAgentKpi(getDb(), input.agentId, ctx.tenant.id, p.periodStart, p.periodEnd));
     }),
 
   // Тот же набор ролей, что и у списка выше.
@@ -176,9 +206,12 @@ export const kpiRouter = createRouter({
       territoryId: z.number().int().positive(),
       period: z.enum(["week", "month", "quarter"]).default("month"),
     }))
-    .query(async ({ input, ctx }) => {
-      const db = getDb();
+    .query(({ input, ctx }) => {
       const { periodStart, periodEnd } = getPeriod(input.period);
+      // Самая дорогая ручка экрана KPI: N агентов × полный расчёт каждого.
+      // Кэш не делает её дешевле — он делает её ОДНОЙ на организацию.
+      return reportCached(ctx.tenant.id, "kpi.territoryKpi", { territoryId: input.territoryId, ...span({ periodStart, periodEnd }) }, ReportTTL.minute, async () => {
+      const db = getDb();
 
       // Get unique agents in this territory
       const territoryAgentRows = await db.select({ agentId: shops.agentId })
@@ -223,6 +256,7 @@ export const kpiRouter = createRouter({
         totalVisits,
         agents: allKpi.sort((a, b) => b.kpiScore - a.kpiScore),
       };
+      });
     }),
 
   /*
@@ -245,15 +279,24 @@ export const kpiRouter = createRouter({
     .input(z.object({
       period: z.enum(["week", "month", "quarter"]).default("month"),
     }).optional())
-    .query(async ({ input, ctx }) => {
-      const db = getDb();
+    .query(({ input, ctx }) => {
       const period = input?.period ?? "month";
-      const { periodStart, periodEnd } = getPeriod(period);
+      const p = getPeriod(period);
 
-      // Only the "month" view is allowed to write back to the agent's one
-      // canonical monthly commission record — a "week"/"quarter" view still
-      // computes and shows live numbers, just doesn't persist them over it.
-      return calculateSalary(db, ctx.user.id, ctx.tenant.id, periodStart, periodEnd, undefined, period === "month");
+      /*
+        Only the "month" view is allowed to write back to the agent's one
+        canonical monthly commission record — a "week"/"quarter" view still
+        computes and shows live numbers, just doesn't persist them over it.
+
+        Под кэшем эта запись (черновик строки commissions) случается только
+        на промахе — раз в минуту, пока экран открыт, и сразу после любой
+        записи, сбросившей отчёты. Свежесть строки от этого не хуже прежней:
+        и раньше она обновлялась только открытием экрана. Сам persist
+        ОБЯЗАН остаться внутри расчёта, а не после reportCached: иначе
+        SELECT … FOR UPDATE шёл бы на каждое попадание, и «без базы» не было бы.
+      */
+      return reportCached(ctx.tenant.id, "kpi.salary", { userId: ctx.user.id, ...span(p) }, ReportTTL.minute, () =>
+        calculateSalary(getDb(), ctx.user.id, ctx.tenant.id, p.periodStart, p.periodEnd, undefined, period === "month"));
     }),
 
   /*
@@ -271,13 +314,15 @@ export const kpiRouter = createRouter({
       agentId: z.number().int().positive(),
       period: z.enum(["week", "month", "quarter"]).default("month"),
     }))
-    .query(async ({ input, ctx }) => {
-      const db = getDb();
-      const [who] = await db.select({ id: users.id }).from(users)
-        .where(and(eq(users.id, input.agentId), eq(users.tenantId, ctx.tenant.id))).limit(1);
-      if (!who) throw new TRPCError({ code: "NOT_FOUND", message: "Сотрудник не найден" });
-      const { periodStart, periodEnd } = getPeriod(input.period);
-      return calculateSalary(db, input.agentId, ctx.tenant.id, periodStart, periodEnd, undefined, false);
+    .query(({ input, ctx }) => {
+      const p = getPeriod(input.period);
+      return reportCached(ctx.tenant.id, "kpi.salaryOf", { agentId: input.agentId, ...span(p) }, ReportTTL.minute, async () => {
+        const db = getDb();
+        const [who] = await db.select({ id: users.id }).from(users)
+          .where(and(eq(users.id, input.agentId), eq(users.tenantId, ctx.tenant.id))).limit(1);
+        if (!who) throw new TRPCError({ code: "NOT_FOUND", message: "Сотрудник не найден" });
+        return calculateSalary(db, input.agentId, ctx.tenant.id, p.periodStart, p.periodEnd, undefined, false);
+      });
     }),
 
   salaryReport: supervisorQuery
@@ -287,10 +332,19 @@ export const kpiRouter = createRouter({
       // хватает; дальше это уже не зарплата, а архив.
       offset: z.number().int().min(0).max(36).default(0),
     }).optional())
-    .query(async ({ input, ctx }) => {
-      const db = getDb();
+    .query(({ input, ctx }) => {
       const period = input?.period ?? "month";
       const { periodStart, periodEnd } = getPeriod(period, input?.offset ?? 0);
+
+      /*
+        fiveMin, а не minute: это итоги периода, а не ход дня. Записи, которые
+        двигают деньги (заказы, возвраты, ставки, выдачи), сбрасывают кэш сами;
+        то, что не сбрасывает (визиты, пинги), меняет здесь только балл KPI —
+        пять минут для него не срок. Прошлые месяцы (offset > 0) не меняются
+        вовсе. Черновик commissions пишется на промахе — см. salary выше.
+      */
+      return reportCached(ctx.tenant.id, "kpi.salaryReport", span({ periodStart, periodEnd }), ReportTTL.fiveMin, async () => {
+      const db = getDb();
 
       /*
         Все, кому платят, а не только агенты.
@@ -328,6 +382,7 @@ export const kpiRouter = createRouter({
       );
 
       return salaries;
+      });
     }),
 
   /*
@@ -418,6 +473,11 @@ export const kpiRouter = createRouter({
         note:      input.note?.trim() || null,
         createdBy: ctx.user.id,
       });
+
+      // Выданное входит в ФОТ прибыли (analytics.pnl) — по дате выдачи.
+      // Сервиса у выплат нет, сброс здесь; confirmPayout не сбрасывает —
+      // он меняет только confirmed_at, на которое не смотрит ни один отчёт.
+      await invalidateReports(ctx.tenant.id, "salary.payout");
 
       // След на случай спора: кто выдал, кому, сколько и когда.
       await recordAudit(db, {
@@ -609,7 +669,10 @@ export const kpiRouter = createRouter({
           fraudDeduction: value,
         });
       }
-      cache.invalidate(CacheKeys.commissions(ctx.tenant.id));
+      // Было `cache.invalidate(CacheKeys.commissions(...))` — ключ, который
+      // никто не читал. Теперь сбрасываются отчёты: вычет виден в ведомости
+      // и в карточке сразу, а не через пять минут.
+      await invalidateReports(ctx.tenant.id, "salary.fraud_deduction");
       await recordAudit(db, {
         tenantId: ctx.tenant.id, actorId: ctx.user.id, actorName: ctx.user.name,
         action: "salary.fraud_deduction", targetType: "user", targetId: person.id,
@@ -676,7 +739,8 @@ export const kpiRouter = createRouter({
         });
       }
 
-      cache.invalidate(CacheKeys.commissions(ctx.tenant.id));
+      // Тот же мёртвый ключ, что и у вычета выше; см. там.
+      await invalidateReports(ctx.tenant.id, "salary.rate_set");
 
       await recordAudit(db, {
         tenantId:   ctx.tenant.id,

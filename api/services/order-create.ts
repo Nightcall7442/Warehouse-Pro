@@ -5,6 +5,7 @@ import { resolvePrices } from "./price-resolver";
 import { recalcShopDebt } from "./shop-debt";
 import { NotificationService } from "./NotificationService";
 import { cache, CacheKeys } from "../lib/cache";
+import { invalidateReports } from "../lib/report-cache";
 import { logger } from "../lib/logger";
 import { isDuplicateEntry } from "../lib/db-errors";
 import type { Db } from "./order-shared";
@@ -262,6 +263,7 @@ export async function create(db: Db, tenantId: number, agentId: number, input: {
   }
 
   cache.invalidate(CacheKeys.dashboardKpis(Number(tenantId)));
+  await invalidateReports(tenantId, "order");
 
   /*
     Уведомления — ПОСЛЕ ответа, не перед ним.

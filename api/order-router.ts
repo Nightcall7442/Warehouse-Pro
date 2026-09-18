@@ -15,6 +15,7 @@ import { eq, and, or, desc, sql, isNull, inArray } from "drizzle-orm";
 import { sanitizeString } from "./lib/sanitize";
 import { OPEN_ORDER_STATUSES, CLOSED_ORDER_STATUSES } from "./lib/order-status";
 import { NotificationService } from "./services/NotificationService";
+import { reportCached, ReportTTL } from "./lib/report-cache";
 
 /**
  * Скидка — процент от суммы заказа, от нуля до ста.
@@ -56,6 +57,17 @@ export const orderRouter = createRouter({
     .query(async ({ input, ctx }) => {
       const db = getDb();
       const tenantId = ctx.tenant.id;
+      // Было: плитки над таблицей заказов считались двумя проходами по месяцу
+      // на каждое монтирование страницы каждым оператором (после своей же
+      // мутации клиент перезапрашивает их вместе с ещё десятью роутерами).
+      // Теперь: для управленческих ролей — один пересчёт на организацию и
+      // набор фильтров, 20 секунд; запись заказа сбрасывает его через
+      // invalidateReports в сервисах записи, TTL — только страховка.
+      // Агент и мерчандайзер кэш минуют: их срез сужен до своих заказов, и
+      // ключей было бы столько же, сколько людей, — попаданий почти ноль, а
+      // цена ошибки в ключе — чужая выручка на чужом телефоне.
+      const isManager = ["ceo", "operator", "supervisor", "superadmin"].includes(ctx.user.role);
+      const compute = async () => {
       const conditions = [eq(orders.tenantId, tenantId), isNull(orders.deletedAt)];
 
       // The same narrowing OrderService.list applies. Without it the tiles above
@@ -63,7 +75,7 @@ export const orderRouter = createRouter({
       // listed only the agent's own work — both a leak of company revenue to a
       // field agent and a visible disagreement between two numbers on one
       // screen. A caller-supplied agentId cannot widen this: it is pushed after.
-      if (!["ceo", "operator", "supervisor", "superadmin"].includes(ctx.user.role)) {
+      if (!isManager) {
         conditions.push(eq(orders.agentId, ctx.user.id));
       }
 
@@ -115,6 +127,9 @@ export const orderRouter = createRouter({
         cancelledCount: statusMap["cancelled"] ?? 0,
         returnedCount: statusMap["returned"] ?? 0,
       };
+      };
+      if (!isManager) return compute();
+      return reportCached(tenantId, "order.stats", input ?? {}, ReportTTL.live, compute);
     }),
 
   /**
@@ -153,6 +168,12 @@ export const orderRouter = createRouter({
       const db = getDb();
       const tenantId = ctx.tenant.id;
 
+      // Было: два коррелированных SUM (платежи, возвраты) на каждый заказ
+      // периода — и это грузилось при каждом открытии «Заказов» всеми
+      // операторами, потому что кормит ещё и выпадашку фильтра по агентам.
+      // Теперь: один пересчёт на организацию и фильтры, 20 секунд; запись
+      // заказа или платежа сбрасывает через invalidateReports.
+      return reportCached(tenantId, "order.agentSummary", input ?? {}, ReportTTL.live, async () => {
       const conditions = [eq(orders.tenantId, tenantId), isNull(orders.deletedAt)];
       if (input?.dateFrom) conditions.push(sql`${orders.createdAt} >= ${input.dateFrom}`);
       if (input?.dateTo)   conditions.push(sql`${orders.createdAt} <= ${input.dateTo + " 23:59:59"}`);
@@ -242,6 +263,7 @@ export const orderRouter = createRouter({
         openCount: Number(r.openCount),
         deliveredCount: Number(r.deliveredCount),
       }));
+      });
     }),
 
   list: fieldSalesQuery

@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import type { TrpcContext } from "../context";
+import type { dashboardRouter as DashboardRouter } from "../dashboard-router";
 import { asTestContext } from "./helpers/test-context";
 
 vi.mock("drizzle-orm", async () => {
@@ -30,7 +31,31 @@ vi.mock("../lib/cache", () => {
   };
 });
 
+/*
+  Кэш отчётов — настоящая память, а не пропуск: проверки ниже обязаны видеть,
+  что второе открытие не ходит в базу, а разные организации, аргументы и
+  ветки роли не делят одну запись. Каждый вызов записывается — по журналу
+  сверяются ключи и TTL.
+*/
+type ReportCall = { tenantId: number; name: string; input: unknown; ttlMs: number };
+const reportCalls: ReportCall[] = [];
+const reportStore = new Map<string, unknown>();
+vi.mock("../lib/report-cache", () => ({
+  ReportTTL: { live: 20_000, minute: 60_000, fiveMin: 5 * 60_000 },
+  reportCached: async (tenantId: number, name: string, input: unknown, ttlMs: number, fn: () => Promise<unknown>) => {
+    reportCalls.push({ tenantId, name, input, ttlMs });
+    const key = `report:${tenantId}:${name}:${JSON.stringify(input)}`;
+    if (reportStore.has(key)) return reportStore.get(key);
+    const value = await fn();
+    reportStore.set(key, value);
+    return value;
+  },
+  invalidateReports: async () => {},
+}));
+
 let mockDb: any;
+/** Сколько раз проверяемый код обратился к базе. */
+let dbQueries = 0;
 vi.mock("../queries/connection", () => ({ getDb: () => mockDb }));
 
 import { orders, warehouseStock, users, shops, agentLocations, dailyPlans, orderItems, products } from "@db/schema";
@@ -283,7 +308,27 @@ function supervisorCtx() {
 beforeEach(() => {
   resetTables();
   mockDb = makeMockDb();
+  const select = mockDb.select;
+  mockDb.select = (...args: unknown[]) => { dbQueries++; return select(...args); };
+  dbQueries = 0;
+  reportCalls.length = 0;
+  reportStore.clear();
 });
+
+function tenant2Ctx() {
+  return buildCtx({
+    tenant: { id: 2, slug: "other", name: "Other Org", plan: "trial" as const, status: "active" as const, createdAt: new Date(), updatedAt: new Date() },
+    user: { id: 40, tenantId: 2, role: "ceo" as const, status: "active" as const, name: "CEO 2", email: "ceo2@test.com", passwordHash: "x", avatar: null, phone: null, createdAt: new Date(), updatedAt: new Date(), lastSignInAt: new Date() },
+  });
+}
+
+function agent21Ctx() {
+  return buildCtx({
+    user: { id: 21, tenantId: 1, role: "agent" as const, status: "active" as const, name: "Agent 2", email: "agent2@test.com", passwordHash: "x", avatar: null, phone: null, createdAt: new Date(), updatedAt: new Date(), lastSignInAt: new Date() },
+  });
+}
+
+const lastCall = (name: string) => reportCalls.filter(c => c.name === name).at(-1);
 
 describe("dashboard.kpis", () => {
   it("returns KPI metrics", async () => {
@@ -397,5 +442,117 @@ describe("dashboard.revenueTrend", () => {
     const result = await caller.revenueTrend({ days: 3 });
     expect(result.length).toBe(3);
     expect(result.every(v => typeof v === "number")).toBe(true);
+  });
+});
+
+/*
+  ── Кэш отчётов: один пересчёт на организацию ───────────────────────────────
+
+  Тридцать директоров, открывших главную в 9:00, обязаны дать один пересчёт
+  kpis, а не тридцать. Ключ — организация + ручка + всё, что меняет ответ.
+  Каждая проверка ниже падает, если обёртку снять или ключ обеднить.
+*/
+describe("кэш отчётов главной", () => {
+  it("kpis: второе открытие — без базы", async () => {
+    const { dashboardRouter } = await import("../dashboard-router");
+    const caller = dashboardRouter.createCaller(buildCtx());
+    const first = await caller.kpis();
+    const afterFirst = dbQueries;
+    expect(afterFirst).toBeGreaterThan(0);
+    const second = await caller.kpis();
+    expect(dbQueries).toBe(afterFirst);
+    expect(second).toEqual(first);
+  });
+
+  it("kpis: ключ — по организации из контекста, соседи чужие числа не видят", async () => {
+    const { dashboardRouter } = await import("../dashboard-router");
+    // Организация 1: заказы 1 и 2; организация 2: только заказ 3. Кэш,
+    // забитый первой, обязан быть чужим для второй.
+    expect((await dashboardRouter.createCaller(buildCtx()).kpis()).todayOrders).toBe(2);
+    expect((await dashboardRouter.createCaller(tenant2Ctx()).kpis()).todayOrders).toBe(1);
+    expect(lastCall("dashboard.kpis")?.tenantId).toBe(2);
+  });
+
+  it("trends: диапазон входит в ключ — «7д» и «30д» не подменяют друг друга", async () => {
+    const { dashboardRouter } = await import("../dashboard-router");
+    const caller = dashboardRouter.createCaller(buildCtx());
+    await caller.trends({ range: "7d" });
+    const after7 = dbQueries;
+    await caller.trends({ range: "30d" });
+    expect(dbQueries, "30д отдан из записи 7д").toBeGreaterThan(after7);
+    const after30 = dbQueries;
+    await caller.trends({ range: "7d" });
+    expect(dbQueries, "повтор 7д пошёл в базу").toBe(after30);
+    expect(reportCalls.filter(c => c.name === "dashboard.trends").map(c => c.input))
+      .toEqual([{ range: "7d" }, { range: "30d" }, { range: "7d" }]);
+  });
+
+  it("revenueTrend: у директора и супервайзера один ключ фирмы, у агентов — свой", async () => {
+    const { dashboardRouter } = await import("../dashboard-router");
+    await dashboardRouter.createCaller(buildCtx()).revenueTrend({ days: 7 });
+    const afterCeo = dbQueries;
+    // Супервайзер видит ту же фирму — обязан попасть в запись директора.
+    await dashboardRouter.createCaller(supervisorCtx()).revenueTrend({ days: 7 });
+    expect(dbQueries, "супервайзер пересчитал то, что уже посчитал директор").toBe(afterCeo);
+    // Агент видит только себя — из записи фирмы ему отдавать нельзя.
+    await dashboardRouter.createCaller(agentCtx()).revenueTrend({ days: 7 });
+    expect(dbQueries, "агент получил выручку фирмы из чужого кэша").toBeGreaterThan(afterCeo);
+    const afterAgent20 = dbQueries;
+    // И у двух агентов — разные записи.
+    await dashboardRouter.createCaller(agent21Ctx()).revenueTrend({ days: 7 });
+    expect(dbQueries, "второй агент получил выручку первого").toBeGreaterThan(afterAgent20);
+
+    expect(reportCalls.filter(c => c.name === "dashboard.revenueTrend").map(c => c.input)).toEqual([
+      { days: 7, scope: "tenant" },
+      { days: 7, scope: "tenant" },
+      { days: 7, userId: 20 },
+      { days: 7, userId: 21 },
+    ]);
+  });
+
+  it("revenueTrend: число дней входит в ключ", async () => {
+    const { dashboardRouter } = await import("../dashboard-router");
+    const caller = dashboardRouter.createCaller(buildCtx());
+    await caller.revenueTrend({ days: 7 });
+    const after7 = dbQueries;
+    await caller.revenueTrend({ days: 30 });
+    expect(dbQueries).toBeGreaterThan(after7);
+    // Без входа — те же 7 дней, что и явные: один ключ.
+    await caller.revenueTrend();
+    expect(lastCall("dashboard.revenueTrend")?.input).toEqual({ days: 7, scope: "tenant" });
+  });
+
+  it("agentDashboard не кэшируется: ответ персональный, попаданий не будет", async () => {
+    const { dashboardRouter } = await import("../dashboard-router");
+    const caller = dashboardRouter.createCaller(agentCtx());
+    await caller.agentDashboard();
+    const afterFirst = dbQueries;
+    await caller.agentDashboard();
+    expect(dbQueries).toBeGreaterThan(afterFirst);
+    expect(reportCalls.map(c => c.name)).not.toContain("dashboard.agentDashboard");
+  });
+
+  type Caller = ReturnType<typeof DashboardRouter.createCaller>;
+  // TTL по свежести. live — там, где число живёт на пингах геолокации
+  // (они сброс не зовут) или где это лента «сейчас»; minute — плитки,
+  // которые сбрасываются сервисами записи, минута лишь потолок между сбросами.
+  it.each([
+    ["kpis",                60_000, (c: Caller) => c.kpis()],
+    ["trends",              60_000, (c: Caller) => c.trends({ range: "7d" })],
+    ["statusBreakdown",     60_000, (c: Caller) => c.statusBreakdown()],
+    ["revenueTrend",        60_000, (c: Caller) => c.revenueTrend()],
+    ["activity",            20_000, (c: Caller) => c.activity()],
+    ["supervisorDashboard", 20_000, (c: Caller) => c.supervisorDashboard()],
+  ] as const)("%s: TTL %d мс, ключ по организации", async (name, ttl, call) => {
+    const { dashboardRouter } = await import("../dashboard-router");
+    await call(dashboardRouter.createCaller(buildCtx()));
+    const rec = lastCall(`dashboard.${name}`);
+    expect(rec, `${name} не обёрнут в reportCached`).toBeDefined();
+    expect(rec!.ttlMs).toBe(ttl);
+    expect(rec!.tenantId).toBe(1);
+    // Повтор — без базы.
+    const before = dbQueries;
+    await call(dashboardRouter.createCaller(buildCtx()));
+    expect(dbQueries, `${name}: второе открытие пошло в базу`).toBe(before);
   });
 });

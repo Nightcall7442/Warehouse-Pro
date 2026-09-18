@@ -5,6 +5,7 @@ import { arrivals, arrivalItems, products, warehouses, suppliers, supplies, supp
 import { eq, and, sql } from "drizzle-orm";
 import { sanitizeString } from "../lib/sanitize";
 import { sseBus } from "../lib/sse";
+import { invalidateReports } from "../lib/report-cache";
 import { isDuplicateOf } from "../lib/db-errors";
 import { dateColumnDay } from "../lib/period";
 import type { Db } from "./order-shared";
@@ -117,7 +118,7 @@ export async function createArrival(db: Db, tenantId: number, userId: number, in
     }
   }
 
-  return db.transaction(async (tx) => {
+  const created = await db.transaction(async (tx) => {
     const [result] = await tx.insert(arrivals).values({
       tenantId, arrivalNumber,
       truckId:     input.truckId ? sanitizeString(input.truckId) : undefined,
@@ -198,6 +199,9 @@ export async function createArrival(db: Db, tenantId: number, userId: number, in
 
     return { id: arrivalId, arrivalNumber };
   });
+  // «Расходы прихода» считают по дате создания без статуса — сброс уже на создании.
+  await invalidateReports(tenantId, "arrival");
+  return created;
 }
 
 export async function updateArrival(db: Db, tenantId: number, input: UpdateArrivalInput, actor?: { id: number; name: string; ip?: string }) {
@@ -414,6 +418,8 @@ export async function updateArrival(db: Db, tenantId: number, input: UpdateArriv
 
     // Notify connected frontends that stock has changed
     sseBus.emit({ type: "notification.new", tenantId, data: { type: "arrival.completed", arrivalId: id, arrivalNumber } });
+    // Остаток, оценка склада, партии, расходы P&L — после коммита проведения.
+    await invalidateReports(tenantId, "arrival.completed");
 
     return { success: true };
   }
@@ -428,6 +434,7 @@ export async function updateArrival(db: Db, tenantId: number, input: UpdateArriv
       const other = Number(data.otherCost ?? existing.otherCost);
       await db.update(arrivals).set({ ...data, totalExpense: (fuel + toll + other).toFixed(2) })
         .where(and(eq(arrivals.id, id), eq(arrivals.tenantId, tenantId)));
+      await invalidateReports(tenantId, "arrival.costs");
       return { success: true };
     }
   }
@@ -478,6 +485,7 @@ export async function deleteArrival(db: Db, tenantId: number, arrivalId: number)
     }
     await tx.delete(arrivals).where(and(eq(arrivals.id, arrivalId), eq(arrivals.tenantId, tenantId)));
   });
+  await invalidateReports(tenantId, "arrival.delete");
 
   return { success: true };
 }
