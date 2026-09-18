@@ -27,7 +27,7 @@ export async function create(db: Db, tenantId: number, agentId: number, input: {
   const items = mergeDuplicateItems(input.items);
 
   // P0-1 FIX: Validate shop belongs to this tenant
-  const [shop] = await db.select({ id: shops.id, name: shops.name, debt: shops.debt, creditLimit: shops.creditLimit }).from(shops)
+  const [shop] = await db.select({ id: shops.id, name: shops.name }).from(shops)
     .where(and(eq(shops.id, input.shopId), eq(shops.tenantId, tenantId))).limit(1);
   if (!shop) throw new Error("Магазин не найден в вашей организации");
 
@@ -91,24 +91,6 @@ export async function create(db: Db, tenantId: number, agentId: number, input: {
     const discount = subtotal * (discountPercent / 100);
     const total = subtotal - discount;
 
-    /*
-      Кредитный контроль. Заказ «в долг» должен деньгами с момента
-      оформления (services/shop-debt.ts), поэтому проверяется здесь, а не
-      при отгрузке: агент узнаёт отказ у прилавка, а не через два дня от
-      курьера. Долг магазина — выведенное число, пересчитанное последней
-      операцией; читается под той же транзакцией. Лимит пустой — проверки
-      нет, как и было у всех до появления поля.
-    */
-    if (input.paymentMethod === "debt" && shop.creditLimit != null) {
-      const limit = Number(shop.creditLimit);
-      const debt = Number(shop.debt);
-      if (debt + total > limit) {
-        throw new Error(
-          `Кредитный лимит магазина «${shop.name}» ${limit.toFixed(0)} превышен: долг ${debt.toFixed(0)} + заказ ${total.toFixed(0)}. Примите оплату или попросите офис поднять лимит.`,
-        );
-      }
-    }
-
     // Reserve from one explicit warehouse. Without this filter a product with
     // stock rows in several warehouses yielded an arbitrary row for the
     // availability check and a different one for the reservation.
@@ -168,12 +150,42 @@ export async function create(db: Db, tenantId: number, agentId: number, input: {
     // со ста сорока восемью заказами свежий заказ под номером один выглядел бы
     // ошибкой. Поэтому берётся большее из числа заказов организации и
     // максимума среди уже выданных №-номеров.
+    /*
+      Кредитный контроль. Заказ «в долг» должен деньгами с момента
+      оформления (services/shop-debt.ts), поэтому проверяется здесь, а не
+      при отгрузке: агент узнаёт отказ у прилавка, а не через два дня от
+      курьера. Лимит пустой — проверки нет, как и было у всех до появления
+      поля.
+
+      Долг читается под замком строки магазина, а не снаружи транзакции: два
+      заказа «в долг», оформленные одновременно, оба видели долг ДО друг
+      друга и оба проходили под лимит, хотя вместе его превышали. Второй
+      теперь ждёт первого и видит уже пересчитанный долг (recalcShopDebt в
+      конце той же транзакции). Замок берётся после строк остатка — в том же
+      порядке, что у отмены и доставки (заказ → остаток → магазин), чтобы не
+      сплести взаимную блокировку.
+    */
+    const [shopLocked] = await tx.select({ debt: shops.debt, creditLimit: shops.creditLimit }).from(shops)
+      .where(and(eq(shops.id, input.shopId), eq(shops.tenantId, tenantId))).for("update").limit(1);
+    if (!shopLocked) throw new Error("Магазин не найден в вашей организации");
+    if (input.paymentMethod === "debt" && shopLocked.creditLimit != null) {
+      const limit = Number(shopLocked.creditLimit);
+      const debt = Number(shopLocked.debt);
+      if (debt + total > limit) {
+        throw new Error(
+          `Кредитный лимит магазина «${shop.name}» ${limit.toFixed(0)} превышен: долг ${debt.toFixed(0)} + заказ ${total.toFixed(0)}. Примите оплату или попросите офис поднять лимит.`,
+        );
+      }
+    }
+
     let number = await nextOrderNumber(tx, tenantId);
     let id = 0;
     for (let attempt = 0; ; attempt++) {
       try {
         const [result] = await tx.insert(orders).values({
           tenantId, orderNumber: number, shopId: input.shopId, agentId, priceListId: input.priceListId ?? null,
+          // Склад резерва — с него же потом снимут или спишут (orderWarehouseId).
+          warehouseId: reserveWarehouseId,
           // Заказ с причиной ждёт офиса: резерв держит, в работу не идёт.
           status: input.holdReason ? "pending" : "new",
           holdReason: input.holdReason ?? null,

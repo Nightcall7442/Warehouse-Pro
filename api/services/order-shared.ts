@@ -10,6 +10,7 @@ import { logger } from "../lib/logger";
 import { badRequest } from "../lib/errors";
 import { TRPCError } from "@trpc/server";
 import { isDuplicateOf } from "../lib/db-errors";
+import { tiyin } from "./payment";
 
 /*
   Общее для служб заказа: типы, права, доступ, склад-дельта, следы в
@@ -124,6 +125,19 @@ export async function resolveOrderWarehouse(tx: Tx, tenantId: number, requested?
     throw new Error("Заказ можно оформить только со склада по умолчанию");
   }
   return whId;
+}
+
+/**
+ * Склад, с которым живёт уже оформленный заказ.
+ *
+ * Резерв лёг на orders.warehouseId при оформлении — отмена, удаление,
+ * восстановление, правка состава и доставка обязаны работать с ним же. Иначе
+ * смена склада по умолчанию между оформлением и доставкой снимала резерв с
+ * одного склада, а списывала с другого. Пусто только у заказов до этой
+ * колонки — им остаётся склад по умолчанию, как и было.
+ */
+export async function orderWarehouseId(tx: Tx, tenantId: number, order: { warehouseId: number | null }): Promise<number> {
+  return order.warehouseId ?? resolveOrderWarehouse(tx, tenantId);
 }
 
 /**
@@ -731,7 +745,7 @@ export type OrderPaymentInput = {
 };
 
 /** Деньги сравниваются в тийинах, а не в double: см. проверку остатка ниже. */
-export const tiyin = (x: number) => Math.round(x * 100);
+export { tiyin };
 
 export async function applyPartialPayment(
   tx: Tx, tenantId: number, actor: Actor,
@@ -876,7 +890,7 @@ export async function applyPartialDelivery(
   const [order] = await tx.select({
     id: orders.id, status: orders.status, total: orders.total,
     subtotal: orders.subtotal, discount: orders.discount,
-    shopId: orders.shopId, orderNumber: orders.orderNumber,
+    shopId: orders.shopId, orderNumber: orders.orderNumber, warehouseId: orders.warehouseId,
   }).from(orders)
     .where(and(eq(orders.id, input.orderId), eq(orders.tenantId, tenantId), isNull(orders.deletedAt), ...ownerScope(actor)))
     .for("update")
@@ -925,8 +939,10 @@ export async function applyPartialDelivery(
   const oldItems: Array<{ id: number; quantity: string; subtotal: string }> = [];
   const newItems: Array<{ id: number; quantity: string; subtotal: string }> = [];
 
-  const [defaultWh] = await tx.select({ id: warehouses.id }).from(warehouses)
-    .where(and(eq(warehouses.tenantId, tenantId), eq(warehouses.isDefault, true))).limit(1);
+  // Склад заказа. Раньше отсутствие склада по умолчанию здесь ПРОПУСКАЛО
+  // списание молча: заказ становился delivered, а полка не менялась.
+  // Теперь это отказ — orderWarehouseId бросает «Склад по умолчанию не найден».
+  const whId = await orderWarehouseId(tx, tenantId, order);
 
   for (const item of input.items) {
     const [orderItem] = await tx.select({
@@ -971,32 +987,30 @@ export async function applyPartialDelivery(
     // or decremented current_stock at all); the undelivered portion goes back
     // to available (matching "open → returned"). Either way `reserved` drops
     // by the full original order quantity.
-    if (defaultWh) {
-      /*
-        С резерва снимается всё, что держал заказ, со склада уходит только
-        увезённое, а невывезенная часть возвращается в свободный остаток —
-        дверь выводит его от новых значений, и подбирать выражение
-        `available − увезено + LEAST(отложено, reserved)` больше не нужно.
+    /*
+      С резерва снимается всё, что держал заказ, со склада уходит только
+      увезённое, а невывезенная часть возвращается в свободный остаток —
+      дверь выводит его от новых значений, и подбирать выражение
+      `available − увезено + LEAST(отложено, reserved)` больше не нужно.
 
-        Движение пишет она же и только на увезённое: невывезенное никуда не
-        ехало, и запись о нём развела бы журнал с полкой. Почему часть
-        вернулась, видно на строке заказа (deliveredQuantity / returnReason)
-        и в журнале правок.
-      */
-      await shipStock(tx, {
-        tenantId, warehouseId: defaultWh.id,
-        items: [{
-          productId: orderItem.productId,
-          orderedQuantity: orderedQty,
-          deliveredQuantity: deliveredQty,
-        }],
-        reason: "order_delivery",
-        referenceId: order.id,
-        notes: returnedQty > 0
-          ? `Доставлено по заказу ${order.orderNumber} (не доставлено ${returnedQty}: ${item.returnReason ?? "причина не указана"})`
-          : `Доставлено по заказу ${order.orderNumber}`,
-      });
-    }
+      Движение пишет она же и только на увезённое: невывезенное никуда не
+      ехало, и запись о нём развела бы журнал с полкой. Почему часть
+      вернулась, видно на строке заказа (deliveredQuantity / returnReason)
+      и в журнале правок.
+    */
+    await shipStock(tx, {
+      tenantId, warehouseId: whId,
+      items: [{
+        productId: orderItem.productId,
+        orderedQuantity: orderedQty,
+        deliveredQuantity: deliveredQty,
+      }],
+      reason: "order_delivery",
+      referenceId: order.id,
+      notes: returnedQty > 0
+        ? `Доставлено по заказу ${order.orderNumber} (не доставлено ${returnedQty}: ${item.returnReason ?? "причина не указана"})`
+        : `Доставлено по заказу ${order.orderNumber}`,
+    });
   }
 
   // Recalculate order totals. The discount was granted as a percentage of the

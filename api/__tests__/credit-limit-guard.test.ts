@@ -2,12 +2,17 @@
  * Кредитный лимит стоит там, где долг возникает.
  *
  * Заказ «в долг» должен деньгами с момента оформления (services/shop-debt.ts),
- * поэтому проверка стоит в OrderService.create до резерва и записи, только
+ * поэтому проверка стоит в OrderService.create до записи заказа, только
  * для paymentMethod = debt и только при заданном лимите (NULL — без лимита,
  * ничьё поведение не меняется). Поведение — real-db/credit-limit.test.ts.
  *
- * Нарочная поломка: убери условие `shop.creditLimit != null` — вторая проверка
- * падает.
+ * Долг читается ПОД ЗАМКОМ строки магазина внутри транзакции, а не снаружи:
+ * два одновременных заказа «в долг» иначе оба видели долг до друг друга и
+ * оба проходили под лимит. Замок — после строк остатка, в порядке
+ * заказ → остаток → магазин, как у отмены и доставки.
+ *
+ * Нарочная поломка: убери условие `shopLocked.creditLimit != null` — вторая
+ * проверка падает; убери `.for("update")` у чтения магазина — первая.
  */
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
@@ -17,15 +22,20 @@ import { orderMethod } from "./helpers/order-source";
 const create = orderMethod("create");
 
 describe("кредитный контроль при оформлении", () => {
-  it("проверяется до резерва склада и записи заказа", () => {
-    const at = create.indexOf('input.paymentMethod === "debt" && shop.creditLimit != null');
-    expect(at).toBeGreaterThan(0);
-    expect(at).toBeLessThan(create.indexOf("resolveOrderWarehouse(tx"));
+  it("долг читается под замком строки магазина, после замка остатка и до записи заказа", () => {
+    const lock = create.indexOf('eq(shops.tenantId, tenantId))).for("update")');
+    expect(lock).toBeGreaterThan(0);
+    const at = create.indexOf('input.paymentMethod === "debt" && shopLocked.creditLimit != null');
+    expect(at).toBeGreaterThan(lock);
+    expect(lock).toBeGreaterThan(create.indexOf('.for("update")')); // сначала остаток
     expect(at).toBeLessThan(create.indexOf("tx.insert(orders)"));
+    expect(at).toBeGreaterThan(create.indexOf("await db.transaction("));
+    // Снаружи транзакции долг и лимит не читаются вовсе.
+    expect(create.slice(0, create.indexOf("await db.transaction("))).not.toMatch(/debt: shops\.debt|creditLimit: shops\.creditLimit/);
   });
 
   it("пустой лимит — без проверки, отказ называет магазин и суммы", () => {
-    expect(create).toContain("shop.creditLimit != null");
+    expect(create).toContain("shopLocked.creditLimit != null");
     expect(create).toMatch(/Кредитный лимит магазина «\$\{shop\.name\}» .*превышен: долг .*заказ /);
   });
 

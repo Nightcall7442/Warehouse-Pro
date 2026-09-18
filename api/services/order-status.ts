@@ -7,7 +7,7 @@ import { cache, CacheKeys } from "../lib/cache";
 import { logger } from "../lib/logger";
 import { affectedRows } from "../lib/db-rows";
 import type { Db, AuditActor } from "./order-shared";
-import { resolveOrderWarehouse, settleShopDebt, returnedQuantitiesByProduct, heldQuantity, stockEffect, productNames, productLabel, canCancelAnyOrder, orderAccessError, traceOrderChange, traceDebtChange } from "./order-shared";
+import { orderWarehouseId, settleShopDebt, returnedQuantitiesByProduct, heldQuantity, stockEffect, productNames, productLabel, canCancelAnyOrder, orderAccessError, traceOrderChange, traceDebtChange } from "./order-shared";
 
 export async function cancel(db: Db, tenantId: number, orderId: number, opts: { userId: number; userRole: string }) {
   /*
@@ -35,7 +35,7 @@ export async function cancel(db: Db, tenantId: number, orderId: number, opts: { 
     // reserved stock a second time once the first call's release commits.
     const [order] = await tx.select({
       id: orders.id, status: orders.status, shopId: orders.shopId,
-      total: orders.total, paymentMethod: orders.paymentMethod,
+      total: orders.total, paymentMethod: orders.paymentMethod, warehouseId: orders.warehouseId,
     }).from(orders).where(and(...conditions)).for("update").limit(1);
     // «Заказ не найден» значило и «нет такого», и «чужой». Права не
     // меняются — меняется объяснение.
@@ -48,7 +48,7 @@ export async function cancel(db: Db, tenantId: number, orderId: number, opts: { 
     // полное quantity значит аннулировать резерв чужих заказов.
     const cancelReturned = await returnedQuantitiesByProduct(tx, tenantId, orderId);
     if (items.length > 0) {
-      const cancelWhId = await resolveOrderWarehouse(tx, tenantId);
+      const cancelWhId = await orderWarehouseId(tx, tenantId, order);
 
       // Lock stock rows to prevent race conditions
       for (const item of items) {
@@ -129,7 +129,7 @@ export async function updateStatus(
       id: orders.id, status: orders.status, shopId: orders.shopId,
       agentId: orders.agentId, total: orders.total, subtotal: orders.subtotal,
       deliveryStatus: orders.deliveryStatus, paymentMethod: orders.paymentMethod,
-      orderNumber: orders.orderNumber,
+      orderNumber: orders.orderNumber, warehouseId: orders.warehouseId,
     }).from(orders)
       // Soft-deleted orders already gave their stock back; moving them through
       // the lifecycle again would double-count it. Locked so two concurrent
@@ -223,7 +223,7 @@ export async function updateStatus(
       ранний выход выше и условие eq(status, order.status) в UPDATE ниже.
     */
     if (items.length > 0 && (d.current || d.reserved || d.available)) {
-      const whId = await resolveOrderWarehouse(tx, tenantId);
+      const whId = await orderWarehouseId(tx, tenantId, order);
 
       // Lock every affected row in one query before reading or writing.
       const stockRows = await tx.select({
@@ -418,6 +418,7 @@ export async function deleteOrder(db: Db, tenantId: number, orderId: number, act
       shopId: orders.shopId,
       total: orders.total,
       paymentMethod: orders.paymentMethod,
+      warehouseId: orders.warehouseId,
     }).from(orders).where(and(eq(orders.id, orderId), eq(orders.tenantId, tenantId), isNull(orders.deletedAt))).for("update").limit(1);
     if (!order) throw new Error("Заказ не найден или уже удалён");
     deletedMeta = { status: order.status, total: order.total, paymentMethod: order.paymentMethod, shopId: order.shopId };
@@ -432,7 +433,7 @@ export async function deleteOrder(db: Db, tenantId: number, orderId: number, act
         deliveredQuantity: orderItems.deliveredQuantity,
       }).from(orderItems).where(eq(orderItems.orderId, orderId));
       if (items.length > 0) {
-        const deleteWhId = await resolveOrderWarehouse(tx, tenantId);
+        const deleteWhId = await orderWarehouseId(tx, tenantId, order);
         // См. heldQuantity: отдаём назад ровно то, что строка держит сейчас.
         const deleteReturned = await returnedQuantitiesByProduct(tx, tenantId, orderId);
 
@@ -482,6 +483,7 @@ export async function restore(db: Db, tenantId: number, orderId: number, actor?:
     const [order] = await tx.select({
       id: orders.id, deletedAt: orders.deletedAt, status: orders.status,
       shopId: orders.shopId, total: orders.total, paymentMethod: orders.paymentMethod,
+      warehouseId: orders.warehouseId,
     }).from(orders)
       .where(and(eq(orders.id, orderId), eq(orders.tenantId, tenantId)))
       .for("update")
@@ -506,7 +508,7 @@ export async function restore(db: Db, tenantId: number, orderId: number, actor?:
     // Re-reserve stock if order was new/processing when deleted
     if (holdsStock(order.status)) {
       const items = await tx.select().from(orderItems).where(eq(orderItems.orderId, orderId));
-      const restoreWhId = await resolveOrderWarehouse(tx, tenantId);
+      const restoreWhId = await orderWarehouseId(tx, tenantId, order);
       const restoreReturned = await returnedQuantitiesByProduct(tx, tenantId, orderId);
 
       // Блокируем и СРАЗУ читаем available той же выборкой. Прежде остаток

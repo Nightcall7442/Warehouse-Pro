@@ -93,6 +93,14 @@ export async function createUser(data: InsertUser) {
   return findUserById(Number(result.insertId));
 }
 
+/** Перехеш при входе: только хеш, ничего больше. */
+export async function updateUserPasswordHash(id: number, passwordHash: string) {
+  await getDb()
+    .update(schema.users)
+    .set({ passwordHash })
+    .where(eq(schema.users.id, id));
+}
+
 export async function updateUserLastSignIn(id: number) {
   await getDb()
     .update(schema.users)

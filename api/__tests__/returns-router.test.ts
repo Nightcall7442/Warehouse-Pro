@@ -10,6 +10,8 @@ vi.mock("drizzle-orm", () => {
   ne:  (col: unknown, val: unknown) => ({ __kind: "ne", col, val }),
   and: (...conds: unknown[]) => ({ __kind: "and", conds }),
   inArray: (col: unknown, values: unknown[]) => ({ __kind: "inArray", col, values }),
+  notInArray: (col: unknown, values: unknown[]) => ({ __kind: "notInArray", col, values }),
+  isNull: (col: unknown) => ({ __kind: "isNull", col }),
   gte: (col: unknown, val: unknown) => ({ __kind: "gte", col, val }),
   lte: (col: unknown, val: unknown) => ({ __kind: "lte", col, val }),
   desc: (col: unknown) => ({ __kind: "desc", col }),
@@ -36,7 +38,7 @@ import { returns, returnItems, orderItems, shops, users, products, orders, wareh
 // `Record<string, unknown>` to read columns by name, and only an alias of an
 // object literal gets the implicit index signature that allows.
 type FakeReturn = { id: number; tenantId: number; orderId: number | null; shopId: number; agentId: number; returnNumber: string; reason: string; notes: string | null; status: string; totalAmount: string; createdBy: number; disposition?: string | null; };
-type FakeReturnItem = { id: number; returnId: number; productId: number; quantity: string; unitPrice: string; subtotal: string; reason: string | null; condition: string | null; };
+type FakeReturnItem = { id: number; returnId: number; productId: number; quantity: string; unitPrice: string; subtotal: string; requestedPrice?: string | null; reason: string | null; condition: string | null; };
 type FakeOrder = { id: number; tenantId: number; agentId: number; shopId: number; status: string; total: string; };
 type FakeOrderItem = { id: number; orderId: number; productId: number; quantity: string; unitPrice: string;  deliveredQuantity?: string | null; };
 type FakeStock = { productId: number; tenantId: number; currentStock: string; reserved: string; available: string; };
@@ -109,7 +111,7 @@ reg(returnItems, "quantity"); reg(returnItems, "unitPrice"); reg(returnItems, "s
 reg(returnItems, "reason"); reg(returnItems, "condition");
 reg(orderItems, "id"); reg(orderItems, "orderId"); reg(orderItems, "productId");
 reg(orderItems, "quantity"); reg(orderItems, "unitPrice"); reg(orderItems, "deliveredQuantity");
-reg(orders, "id"); reg(orders, "tenantId"); reg(orders, "status"); reg(orders, "total");
+reg(orders, "id"); reg(orders, "tenantId"); reg(orders, "status"); reg(orders, "total"); reg(orders, "shopId"); reg(orders, "deletedAt");
 reg(products, "id"); reg(products, "name"); reg(products, "unitPrice"); reg(products, "tenantId");
 reg(warehouseStock, "productId"); reg(warehouseStock, "tenantId");
 reg(warehouseStock, "currentStock"); reg(warehouseStock, "reserved"); reg(warehouseStock, "available");
@@ -447,6 +449,36 @@ describe("returnsRouter", () => {
       const result = await caller.create({ shopId: 1, reason: "defect", items: [{ productId: 1, quantity: 2, unitPrice: 50, reason: "broken", condition: "bad" }] });
       expect(result.id).toBeGreaterThan(0);
       expect(result.returnNumber).toMatch(/^RET-/);
+    });
+
+    /*
+      Без заказа цену называет сервер: последняя продажа магазину, без неё —
+      карточка. Цена агента, если разошлась, ложится рядом и в сумму не входит.
+    */
+    it("без заказа: цена — последняя продажа магазину или карточка; цена агента отдельно и не в сумме", async () => {
+      shopsTable.push({ id: 1, tenantId: 1, name: "Shop 1", debt: "0" });
+      // Продажа продукта 2 этому магазину позже заказа 1 — по 25, а карточка 30.
+      ordersTable.push({ id: 3, tenantId: 1, agentId: 10, shopId: 1, status: "delivered", total: "25.00" });
+      orderItemsTable.push({ id: 4, orderId: 3, productId: 2, quantity: "1.00", unitPrice: "25.00" });
+      const caller = returnsRouter.createCaller(buildCtx());
+      const result = await caller.create({ shopId: 1, reason: "defect", items: [
+        { productId: 1, quantity: 2, unitPrice: 1 },      // агент занизил: продажа была по 50
+        { productId: 2, quantity: 1, unitPrice: 25 },     // совпало с последней продажей
+      ] });
+      const lines = returnItemsTable.filter(r => r.returnId === result.id);
+      expect(lines.map(l => [l.productId, l.unitPrice, l.subtotal, l.requestedPrice ?? null])).toEqual([
+        [1, "50.00", "100.00", "1.00"],
+        [2, "25.00", "25.00", null],
+      ]);
+      expect(returnsTable.find(r => r.id === result.id)!.totalAmount).toBe("125.00");
+    });
+
+    it("без заказа и без продаж — цена карточки", async () => {
+      shopsTable.push({ id: 5, tenantId: 1, name: "Shop 5", debt: "0" });
+      const caller = returnsRouter.createCaller(buildCtx());
+      const result = await caller.create({ shopId: 5, reason: "other", items: [{ productId: 2, quantity: 3, unitPrice: 999 }] });
+      const [line] = returnItemsTable.filter(r => r.returnId === result.id);
+      expect([line.unitPrice, line.subtotal, line.requestedPrice]).toEqual(["30.00", "90.00", "999.00"]);
     });
 
     it("sanitizes notes", async () => {

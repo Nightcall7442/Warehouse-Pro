@@ -3,7 +3,7 @@ import { orders, orderItems, warehouseStock, products } from "@db/schema";
 import { resolvePrices } from "./price-resolver";
 import { cache, CacheKeys } from "../lib/cache";
 import type { Db, AuditActor } from "./order-shared";
-import { resolveOrderWarehouse, settleShopDebt, stockModeFor, productLabel, applyStockDelta, traceOrderChange } from "./order-shared";
+import { orderWarehouseId, settleShopDebt, stockModeFor, productLabel, applyStockDelta, traceOrderChange } from "./order-shared";
 
 export async function update(
   db: Db, tenantId: number, orderId: number,
@@ -107,7 +107,7 @@ export async function updateItems(
     const [order] = await tx.select({
       id: orders.id, status: orders.status, shopId: orders.shopId, priceListId: orders.priceListId,
       subtotal: orders.subtotal, total: orders.total, discount: orders.discount,
-      paymentMethod: orders.paymentMethod, deletedAt: orders.deletedAt,
+      paymentMethod: orders.paymentMethod, deletedAt: orders.deletedAt, warehouseId: orders.warehouseId,
     }).from(orders).where(and(eq(orders.id, orderId), eq(orders.tenantId, tenantId), isNull(orders.deletedAt)))
       // Под замком до выбора режима склада. Без него: T1 (правка состава)
       // читает status=new, T2 (updateStatus new→delivered) блокирует заказ,
@@ -119,7 +119,7 @@ export async function updateItems(
     if (!order) throw new Error("Заказ не найден");
 
     const mode = stockModeFor(order.status);
-    const whId = await resolveOrderWarehouse(tx, tenantId);
+    const whId = await orderWarehouseId(tx, tenantId, order);
     const existingItems = await tx.select().from(orderItems).where(eq(orderItems.orderId, orderId));
     const existingById = new Map(existingItems.map(i => [i.id, i]));
 

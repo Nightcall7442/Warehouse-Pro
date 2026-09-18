@@ -446,11 +446,18 @@ describe("courier.markDelivered", () => {
     expect(payment!.type).toBe("payment");
   });
 
-  it("throws if cashAmount exceeds order total by >20%", async () => {
+  it("сверх остатка больше 500 сум — отказ", async () => {
     const { courierRouter } = await import("../courier-router");
     const caller = courierRouter.createCaller(makeCtx(1, 100));
-    // Сумма сверяется с остатком по заказу; текст отказа называет остаток.
-    await expect(caller.markDelivered({ orderId: 1, cashAmount: "1000.00" })).rejects.toThrow(/больше остатка по заказу/);
+    // Сумма сверяется с остатком по заказу (500); текст отказа называет остаток.
+    await expect(caller.markDelivered({ orderId: 1, cashAmount: "1000.01" })).rejects.toThrow(/больше остатка по заказу/);
+  });
+
+  it("ровно 500 сум сверху — «сдачу оставьте», проходит", async () => {
+    const { courierRouter } = await import("../courier-router");
+    const caller = courierRouter.createCaller(makeCtx(1, 100));
+    await caller.markDelivered({ orderId: 1, cashAmount: "1000.00" });
+    expect(paymentsTable.find((p) => p.orderId === 1)).toBeDefined();
   });
 
   it("throws if order not found or not assigned", async () => {

@@ -1,4 +1,4 @@
-import { orders, users, shops, payments, orderItems, warehouseStock, warehouses, debtReminders, orderAdjustments } from "@db/schema";
+import { orders, users, shops, payments, orderItems, warehouseStock, debtReminders, orderAdjustments } from "@db/schema";
 import { ORDER_STATUS_LABELS } from "../lib/order-status";
 import { eq, and, sql, isNull } from "drizzle-orm";
 import { logger } from "../lib/logger";
@@ -9,7 +9,7 @@ import { paidForOrder, assertFitsRemainder, splitExcess, recordExcess } from "./
 import { productLabel } from "./order";
 import { releaseStock, shipStock } from "./stock-ledger";
 import { NotificationService } from "./NotificationService";
-import type { Db } from "./order-shared";
+import { orderWarehouseId, type Db } from "./order-shared";
 
 /*
   Доставка глазами курьера: довёз, довёз с расчётом, не довёз.
@@ -58,7 +58,7 @@ export interface CompleteDeliveryInput {
 }
 
 export async function markDelivered(db: Db, tenantId: number, courierId: number, input: MarkDeliveredInput) {
-  const [order] = await db.select({ id: orders.id, orderNumber: orders.orderNumber, shopId: orders.shopId, status: orders.status, deliveryStatus: orders.deliveryStatus, total: orders.total }).from(orders)
+  const [order] = await db.select({ id: orders.id, orderNumber: orders.orderNumber, shopId: orders.shopId, status: orders.status, deliveryStatus: orders.deliveryStatus, total: orders.total, warehouseId: orders.warehouseId }).from(orders)
     .where(and(
       eq(orders.id, input.orderId),
       eq(orders.tenantId, tenantId),
@@ -124,11 +124,8 @@ export async function markDelivered(db: Db, tenantId: number, courierId: number,
     }
 
     const items = await tx.select().from(orderItems).where(eq(orderItems.orderId, input.orderId));
-    // Get default warehouse for stock operations
-    const [defaultWh] = await tx.select({ id: warehouses.id }).from(warehouses)
-      .where(and(eq(warehouses.tenantId, tenantId), eq(warehouses.isDefault, true))).limit(1);
-    const whId = defaultWh?.id;
-    if (!whId) throw new Error("Склад по умолчанию не найден");
+    // Склад заказа — тот, где лежит его резерв.
+    const whId = await orderWarehouseId(tx, tenantId, order);
 
     // Lock stock rows with FOR UPDATE to prevent race conditions
     for (const item of items) {
@@ -316,7 +313,7 @@ export async function completeDelivery(db: Db, tenantId: number, courierId: numb
     // second time for goods and cash that only moved once.
     const [locked] = await tx.select({
       total: orders.total, subtotal: orders.subtotal, discount: orders.discount,
-      deliveryStatus: orders.deliveryStatus,
+      deliveryStatus: orders.deliveryStatus, warehouseId: orders.warehouseId,
     }).from(orders)
       .where(and(
         eq(orders.id, input.orderId),
@@ -346,11 +343,8 @@ export async function completeDelivery(db: Db, tenantId: number, courierId: numb
     */
     const totalBeforeDelivery = String(locked.total);
 
-    // Get default warehouse
-    const [defaultWh] = await tx.select({ id: warehouses.id }).from(warehouses)
-      .where(and(eq(warehouses.tenantId, tenantId), eq(warehouses.isDefault, true))).limit(1);
-    const whId = defaultWh?.id;
-    if (!whId) throw new Error("Склад по умолчанию не найден");
+    // Склад заказа — тот, где лежит его резерв.
+    const whId = await orderWarehouseId(tx, tenantId, locked);
 
     const items = await tx.select().from(orderItems).where(eq(orderItems.orderId, input.orderId));
 
