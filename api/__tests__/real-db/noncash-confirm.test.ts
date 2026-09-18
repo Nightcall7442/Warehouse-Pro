@@ -88,8 +88,8 @@ describe.skipIf(!hasRealDb)("безнал: в пути, подтверждени
     expect(after.rows.map(r => r.id)).toEqual([stale]);
     expect(after.totals.transfer).toBe(120_000); // сторно в оборот не входит
 
-    // Кошелёк курьера: переводов в пути не осталось.
-    expect(await NonCashService.mineTransit(db as any, s.tenantId, s.courierId)).toEqual({ count: 0, total: 0 });
+    // У курьера переводов в пути не осталось (сводка по людям).
+    expect((await NonCashService.summary(db as any, s.tenantId, now)).byEmployee.find(e => e.id === s.courierId)?.count ?? 0).toBe(0);
 
     // Журнал: три подтверждения, с автором платежа по имени.
     const audit = await (db as any).select().from(schema.auditLog)
