@@ -101,7 +101,7 @@ describe("отметка визита несёт время визита", () =>
     */
     const agent = FILES.find(f => f.rel === "agent-router.ts")!;
     expect(agent.text).toMatch(
-      /visitedAt:\s*input\.status === "visited"\s*\?\s*new Date\(\)\s*:\s*null/,
+      /visitedAt:\s*input\.status === "visited"\s*\?\s*eventTime\(input\.recordedAt\)\s*:\s*null/,
     );
   });
 });

@@ -14,6 +14,7 @@ import { haversineKm } from "./lib/geo";
 import { onDate } from "./lib/date-range";
 import { photoRef } from "./lib/photo-url";
 import { isDuplicateEntry } from "./lib/db-errors";
+import { recordedAtInput, eventTime } from "./lib/event-time";
 
 
 /**
@@ -690,7 +691,7 @@ export const agentRouter = createRouter({
     дало бы ноль при живом и своём плане.
   */
   updatePlanStatus: merchVisitQuery
-    .input(z.object({ planId: z.number(), status: z.enum(["planned", "visited", "skipped"]) }))
+    .input(z.object({ planId: z.number(), status: z.enum(["planned", "visited", "skipped"]), recordedAt: recordedAtInput }))
     .mutation(async ({ input, ctx }) => {
       const isPrivileged = ["ceo", "supervisor", "superadmin"].includes(ctx.user.role);
       const conditions = [
@@ -708,7 +709,7 @@ export const agentRouter = createRouter({
       await getDb().update(dailyPlans)
         .set({
           status: input.status,
-          visitedAt: input.status === "visited" ? new Date() : null,
+          visitedAt: input.status === "visited" ? eventTime(input.recordedAt) : null,
         })
         .where(and(...conditions));
       return { success: true };
@@ -724,6 +725,7 @@ export const agentRouter = createRouter({
         .refine(v => v.length <= 5_000_000, "Файл слишком большой (макс. 5 МБ)")
         .refine(isSafePhotoValue, PHOTO_VALUE_ERROR),
       notes: z.string().optional(),
+      recordedAt: recordedAtInput,
     }))
     .mutation(async ({ input, ctx }) => {
       const isPrivileged = ["ceo", "supervisor", "superadmin"].includes(ctx.user.role);
@@ -772,7 +774,7 @@ export const agentRouter = createRouter({
           заполненной ровно у тех, кто отметился без доказательства, и пустой у
           тех, кто снял магазин. Ровно наоборот тому, зачем фотоотчёт заводят.
         */
-        visitedAt: new Date(),
+        visitedAt: eventTime(input.recordedAt),
         photoUrl: input.photoUrl,
         notes: input.notes ?? undefined,
       }).where(and(...conditions));

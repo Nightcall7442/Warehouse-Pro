@@ -10,6 +10,7 @@ import { productLabel } from "./order";
 import { releaseStock, shipStock } from "./stock-ledger";
 import { NotificationService } from "./NotificationService";
 import { orderWarehouseId, type Db } from "./order-shared";
+import { eventTime } from "../lib/event-time";
 
 /*
   Доставка глазами курьера: довёз, довёз с расчётом, не довёз.
@@ -43,10 +44,12 @@ async function alreadyDeliveredByMe(
   return done ?? null;
 }
 
-export interface MarkDeliveredInput { orderId: number; cashAmount?: string }
+/** recordedAt — когда это было на телефоне (отметка ждала связи); см. lib/event-time. */
+export interface MarkDeliveredInput { orderId: number; cashAmount?: string; recordedAt?: string }
 export interface MarkFailedInput { orderId: number; reason?: string }
 export interface CompleteDeliveryInput {
   orderId: number;
+  recordedAt?: string;
   result: "paid" | "partial_paid" | "returned" | "partial_returned";
   paidAmount?: string;
   paymentMethod: "cash" | "card" | "transfer";
@@ -114,7 +117,7 @@ export async function markDelivered(db: Db, tenantId: number, courierId: number,
     // behind the first and then see the order already delivered, so it
     // fails here instead of deducting stock a second time.
     const [statusUpdateResult] = await tx.update(orders)
-      .set({ deliveryStatus: "delivered", deliveredAt: new Date(), status: "delivered" })
+      .set({ deliveryStatus: "delivered", deliveredAt: eventTime(input.recordedAt), status: "delivered" })
       .where(and(
         eq(orders.id, input.orderId), eq(orders.tenantId, tenantId),
         sql`${orders.deliveryStatus} IN ('assigned', 'out_for_delivery')`,
@@ -570,7 +573,7 @@ export async function completeDelivery(db: Db, tenantId: number, courierId: numb
     await tx.update(orders).set({
       status: finalStatus as "new" | "processing" | "shipped" | "pending" | "delivered" | "cancelled" | "returned",
       deliveryStatus: "delivered",
-      deliveredAt: new Date(),
+      deliveredAt: eventTime(input.recordedAt),
       deliveryResult,
       deliveryNotes: input.notes ? sanitizeString(input.notes) : null,
     }).where(and(eq(orders.id, input.orderId), eq(orders.tenantId, tenantId)));
@@ -682,7 +685,17 @@ export async function markFailed(db: Db, tenantId: number, courierId: number, in
       eq(orders.courierId, courierId),
       sql`${orders.deliveryStatus} IN ('assigned', 'out_for_delivery')`,
     )).limit(1);
-  if (!order) throw new Error("Заказ не найден или не назначен на вас");
+  if (!order) {
+    // Ответ на «не довёз» не дошёл до телефона, отметка ушла из очереди
+    // повторно: заказ уже снят с курьера (courierId = null, failed). Это дубль,
+    // а не отказ — иначе курьер видел красную строку «не назначен на вас» по
+    // действию, которое проведено, и звонил в офис.
+    const [failed] = await db.select({ id: orders.id }).from(orders)
+      .where(and(eq(orders.id, input.orderId), eq(orders.tenantId, tenantId), eq(orders.deliveryStatus, "failed"), isNull(orders.courierId)))
+      .limit(1);
+    if (failed) return { success: true, duplicate: true };
+    throw new Error("Заказ не найден или не назначен на вас");
+  }
 
   /*
     'returned' входит в список наравне с остальными двумя.

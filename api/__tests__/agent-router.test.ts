@@ -399,6 +399,27 @@ describe("agent.updatePlanStatus", () => {
     await expect(caller.updatePlanStatus({ planId: 999, status: "visited" })).rejects.toThrow(/не найден/);
   });
 
+  it("отметка из очереди несёт время визита, а не отправки", async () => {
+    // Визит был утром без связи, ушёл вечером: в журнале должно стоять утро.
+    const { agentRouter } = await import("../agent-router");
+    const caller = agentRouter.createCaller(makeCtx(1, 10, "agent"));
+    const morning = new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString();
+    await caller.updatePlanStatus({ planId: 1, status: "visited", recordedAt: morning });
+    expect(plansTable.find((p) => p.id === 1)!.visitedAt).toEqual(new Date(morning));
+    await caller.saveVisitPhoto({ planId: 1, photoUrl: "data:image/png;base64,test", recordedAt: morning });
+    expect(plansTable.find((p) => p.id === 1)!.visitedAt).toEqual(new Date(morning));
+  });
+
+  it("время из будущего не принимается — визит отмечен «сейчас»", async () => {
+    const { agentRouter } = await import("../agent-router");
+    const caller = agentRouter.createCaller(makeCtx(1, 10, "agent"));
+    const before = Date.now();
+    await caller.updatePlanStatus({ planId: 1, status: "visited", recordedAt: new Date(before + 60 * 60 * 1000).toISOString() });
+    const at = (plansTable.find((p) => p.id === 1)!.visitedAt as Date).getTime();
+    expect(at).toBeGreaterThanOrEqual(before);
+    expect(at).toBeLessThanOrEqual(Date.now());
+  });
+
   it("повторное «пропущен» на пропущенном плане — по-прежнему успех", async () => {
     // Число изменённых строк тут не годится: MySQL считает изменённые, а не
     // найденные, и повтор дал бы ноль при живом и своём плане.

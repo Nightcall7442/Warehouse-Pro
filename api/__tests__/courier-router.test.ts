@@ -500,6 +500,26 @@ describe("courier.markFailed", () => {
     await expect(caller.markFailed({ orderId: 2 })).rejects.toThrow("Заказ не найден");
   });
 
+  it("повтор «не довёз» после потерянного ответа — дубль, а не отказ", async () => {
+    // Первый вызов снял курьера с заказа (courierId = null); ответ не дошёл,
+    // очередь прислала отметку снова. Раньше — «не назначен на вас», красная
+    // строка у курьера по действию, которое проведено.
+    const { courierRouter } = await import("../courier-router");
+    const caller = courierRouter.createCaller(makeCtx(1, 100));
+    await caller.markFailed({ orderId: 1 });
+    expect(ordersTable.find((o) => o.id === 1)!.courierId).toBeNull();
+    await expect(caller.markFailed({ orderId: 1 })).resolves.toEqual({ success: true, duplicate: true });
+  });
+
+  it("отметка из очереди несёт время доставки, а не отправки", async () => {
+    // Довёз в 23:50 без связи, ушло в 00:10: доставка — во вчерашнем дне.
+    const { courierRouter } = await import("../courier-router");
+    const caller = courierRouter.createCaller(makeCtx(1, 100));
+    const earlier = new Date(Date.now() - 40 * 60 * 1000).toISOString();
+    await caller.markDelivered({ orderId: 1, recordedAt: earlier });
+    expect(ordersTable.find((o) => o.id === 1)!.deliveredAt).toEqual(new Date(earlier));
+  });
+
   it("keeps the reservation on failed delivery so the order still owns the goods", async () => {
     const { courierRouter } = await import("../courier-router");
     const caller = courierRouter.createCaller(makeCtx(1, 100));
