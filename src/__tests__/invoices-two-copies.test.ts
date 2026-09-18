@@ -165,3 +165,31 @@ describe("лист печатается повторно из «Погрузоч
     expect(router).toContain("LoadingListService.getForPrint(");
   });
 });
+
+describe("два экземпляра помещаются на один лист", () => {
+  /*
+    Владелец (18.09.2026): второй экземпляр уезжал на второй лист, а половина
+    первого оставалась пустой. Копия с шестью строками реквизитов, двумя
+    товарами и подписями занимала 128 мм; две копии — 266 из 277 печатных
+    миллиметров, и любая перенесённая строка адреса выталкивала вторую копию.
+    Измерено в браузере на ширине А4: после уплотнения копия — 104,5 мм, две
+    — 217 при 281 печатных (поля 8 мм). Числа ниже — то, что даёт такой запас;
+    поднять любое из них — значит вернуть пустой лист.
+  */
+  const css = readFileSync(path.join(process.cwd(), "src/lib/documents.ts"), "utf8");
+  it("поля страницы, реквизиты и подписи — плотные", () => {
+    expect(css).toContain("@page { margin: 8mm; }");
+    expect(css).toContain(".meta   { margin: 4px 0; font-size: 9pt; }");
+    expect(css).toContain(".meta-row { display: flex; justify-content: space-between; margin-bottom: 1px; }");
+    expect(css).toContain(".signature-block { margin-top: 10px; }");
+    expect(css).toContain(".sig-line { border-bottom: 1px solid #000; margin-bottom: 2px; min-height: 16px; }");
+    expect(css).toContain("th, td { border: 1px solid #000; padding: 2px 4px; font-size: 9.5pt; vertical-align: top; }");
+    expect(css).toContain(".title  { font-size: 13pt; font-weight: bold; text-align: center; margin: 4px 0 2px; }");
+  });
+  it("каждый экземпляр — целиком (не рвётся между листами), кассовых документов в файле нет", () => {
+    expect(css).toContain('<div style="page-break-inside:avoid">${copyLabel(0)}${body}</div>');
+    expect(css).toContain('<div style="page-break-inside:avoid">${copyLabel(1)}${body}</div>');
+    expect(css).not.toContain("printCashOrder");
+    expect(css).not.toContain("printCashBook");
+  });
+});

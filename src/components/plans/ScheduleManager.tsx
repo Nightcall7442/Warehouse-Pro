@@ -56,20 +56,40 @@ export function ScheduleManager({ lang }: { lang: string }) {
     { enabled: !!selectedAgent }
   );
 
+  /*
+    Галочка отвечает сразу.
+
+    Каждый клик ходил на сервер, ждал ответа, перечитывал весь список и только
+    потом менял клетку; пока шёл запрос, ВСЕ клетки были заперты, а на каждую
+    — свой тост. Неделя магазина — семь кликов по секунде с семью
+    всплывашками (владелец, 18.09.2026: «галочки очень медленно реагируют»).
+
+    Теперь клетка меняется в кэше в момент клика, запросы идут параллельно,
+    сервер только подтверждает; отказ откатывает клетку и говорит словами.
+    Список перечитывается по окончании — за настоящими id.
+  */
+  type Row = { id: number; agentId: number; agentName: string | null; shopId: number; shopName: string | null; dayOfWeek: number; active: boolean };
+  const listKey = { agentId: selectedAgent };
   const createMutation = trpc.schedule.create.useMutation({
-    onSuccess: () => {
-      utils.schedule.list.invalidate();
-      notify.success(t("Расписание добавлено", "Jadval qo'shildi"));
+    onMutate: async (v) => {
+      await utils.schedule.list.cancel(listKey);
+      const prev = utils.schedule.list.getData(listKey);
+      utils.schedule.list.setData(listKey, (old) => [...((old ?? []) as Row[]), { id: -Date.now(), agentId: v.agentId, agentName: null, shopId: v.shopId, shopName: null, dayOfWeek: v.dayOfWeek, active: true }]);
+      return { prev };
     },
-    onError: (e) => notify.error(e.message),
+    onError: (e, _v, ctx) => { utils.schedule.list.setData(listKey, ctx?.prev); notify.error(e.message); },
+    onSettled: () => utils.schedule.list.invalidate(listKey),
   });
 
   const deleteMutation = trpc.schedule.delete.useMutation({
-    onSuccess: () => {
-      utils.schedule.list.invalidate();
-      notify.success(t("Расписание удалено", "Jadval o'chirildi"));
+    onMutate: async (v) => {
+      await utils.schedule.list.cancel(listKey);
+      const prev = utils.schedule.list.getData(listKey);
+      utils.schedule.list.setData(listKey, (old) => ((old ?? []) as Row[]).filter(s => s.id !== v.id));
+      return { prev };
     },
-    onError: (e) => notify.error(e.message),
+    onError: (e, _v, ctx) => { utils.schedule.list.setData(listKey, ctx?.prev); notify.error(e.message); },
+    onSettled: () => utils.schedule.list.invalidate(listKey),
   });
 
   const generateMutation = trpc.schedule.generatePlans.useMutation({
@@ -83,6 +103,8 @@ export function ScheduleManager({ lang }: { lang: string }) {
   const toggleSchedule = (shopId: number, day: number) => {
     const existing = schedules.find((s: { shopId: number; dayOfWeek: number }) => s.shopId === shopId && s.dayOfWeek === day);
     if (existing) {
+      // Только что поставленная галочка ещё без настоящего id — снять её можно через мгновение.
+      if (existing.id < 0) return;
       deleteMutation.mutate({ id: existing.id });
     } else if (selectedAgent) {
       createMutation.mutate({ agentId: selectedAgent, shopId, dayOfWeek: day });
@@ -159,7 +181,8 @@ export function ScheduleManager({ lang }: { lang: string }) {
                           <td key={day} style={{ padding: "4px", textAlign: "center" }}>
                             <button
                               onClick={() => toggleSchedule(shop.id, day)}
-                              disabled={createMutation.isPending || deleteMutation.isPending}
+                              aria-pressed={hasSchedule}
+                              data-testid={`schedule-${shop.id}-${day}`}
                               style={{
                                 width: "28px", height: "28px", borderRadius: "6px", border: "none", cursor: "pointer",
                                 background: hasSchedule ? COLORS.primary : COLORS.surfaceHover,
