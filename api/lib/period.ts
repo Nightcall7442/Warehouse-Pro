@@ -17,6 +17,13 @@ export function getPeriod(period: string, offset = 0): { periodStart: Date; peri
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
   const endOf = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59);
 
+  // «Сегодня» — для главной курьера: список доставок отдаёт только не
+  // довезённое, и «Доставлено / Прогресс дня» считались из него нулём весь день.
+  if (period === "today") {
+    const day = new Date(now.getFullYear(), now.getMonth(), now.getDate() - offset);
+    return { periodStart: day, periodEnd: offset === 0 ? today : endOf(day) };
+  }
+
   if (period === "week") {
     const end = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 7 * offset);
     const periodStart = new Date(end.getFullYear(), end.getMonth(), end.getDate() - 6);
