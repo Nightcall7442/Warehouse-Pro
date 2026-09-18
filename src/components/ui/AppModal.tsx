@@ -1,5 +1,6 @@
-import { useEffect, useRef, useId, useEffectEvent } from "react";
+import { useEffect, useRef, useId } from "react";
 import { createPortal } from "react-dom";
+import { useOverlay } from "@/lib/overlay";
 import { X } from "lucide-react";
 import { useTranslate } from "@/i18n";
 
@@ -61,48 +62,13 @@ export function AppModal({
   // отдельный хук — он и предназначен для связывания подписи с полем.
   const titleId = useId();
 
-  // Свежий onClose держится в ссылке, а не в зависимостях эффекта.
-  //
-  // Эффект ставит фокус на панель окна, и в зависимостях у него стоял onClose.
-  // Вызывающая сторона почти всегда передаёт стрелку, создаваемую заново на
-  // каждый рендер, — значит зависимость менялась всегда, эффект перезапускался
-  // на каждый рендер и каждый раз уводил фокус на панель.
-  //
-  // Для человека это выглядело так: в поле поиска товара вводится «м», после
-  // чего каретка исчезает, и «о» с «л» уже некуда печатать. Набрать слово в
-  // быстром заказе было нельзя — только вставить из буфера целиком. То же в
-  // полях скидки и примечания.
-  //
-  // Ссылка решает это без требований к вызывающей стороне: обработчик всегда
-  // берётся последний, а эффект зависит только от того, открыто ли окно.
-  const requestClose = useEffectEvent(() => onClose());
-
-  // Escape to close, and hold the page still behind the overlay. Without the
-  // scroll lock the page underneath scrolls when the cursor leaves the panel,
-  // which makes the modal feel detached from the app.
-  useEffect(() => {
-    if (!open) return;
-    const previouslyFocused = document.activeElement as HTMLElement | null;
-    const onKey = (e: KeyboardEvent) => {
-      // Escape закрывает пустое окно и не трогает то, в котором уже работают.
-      // Клавиша стоит рядом с цифрами и «1» на верхнем ряду — промахиваются
-      // по ней чаще, чем кажется.
-      if (e.key === "Escape" && !dirty) requestClose();
-    };
-    document.addEventListener("keydown", onKey);
-    const prevOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    panelRef.current?.focus();
-    return () => {
-      document.removeEventListener("keydown", onKey);
-      document.body.style.overflow = prevOverflow;
-      previouslyFocused?.focus?.();
-    };
-    // dirty в зависимостях: слушатель пересоздаётся, когда в окне появляется
-    // работа. Читать свежее значение через ссылку было бы дешевле, но в этом
-    // файле такое чтение во время отрисовки уже помечено линтером как ошибка —
-    // добавлять к ней ещё одну ради экономии на подписке незачем.
-  }, [open, dirty]);
+  // Замок прокрутки, Escape (не трогает окно с работой — dirty) и возврат
+  // фокуса — общие для всех окон (src/lib/overlay.ts). Здесь только фокус
+  // на панель при открытии: эффект зависит лишь от open, иначе стрелка
+  // onClose, новая на каждый рендер, уводила бы фокус из поля при каждом
+  // нажатии клавиши.
+  useOverlay({ open, onClose, dirty });
+  useEffect(() => { if (open) panelRef.current?.focus(); }, [open]);
 
   if (!open) return null;
 

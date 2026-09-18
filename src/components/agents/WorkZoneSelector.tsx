@@ -4,6 +4,7 @@ import { X, Loader2, MapPin, Check } from "lucide-react";
 import { trpc } from "@/providers/trpc";
 import { notify } from "@/lib/toast";
 import { COLORS, SHADOW, F } from "@/components/shops/constants";
+import { useOverlay } from "@/lib/overlay";
 
 interface WorkZoneSelectorProps {
   agentId: number;
@@ -14,6 +15,7 @@ interface WorkZoneSelectorProps {
 }
 
 export function WorkZoneSelector({ agentId, agentName, lang, onClose, onSaved }: WorkZoneSelectorProps) {
+  useOverlay({ open: true, onClose: onClose });
   const t = (ru: string, uz: string) => lang === "uz" ? uz : ru;
   const utils = trpc.useUtils();
 

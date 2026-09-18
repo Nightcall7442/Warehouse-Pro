@@ -5,6 +5,7 @@ import { useLang } from "@/i18n";
 import { toKg } from "./warehouse-utils";
 import { formatQty } from "@/lib/format";
 import { colorMix } from "@/lib/color-mix";
+import { useOverlay } from "@/lib/overlay";
 
 export const AdjustModal = memo(function AdjustModal({ productId, productName, currentStock, unitWeight, warehouseId, onSave, onClose, isPending }: {
   productId: number; productName: string; currentStock: number;
@@ -14,6 +15,7 @@ export const AdjustModal = memo(function AdjustModal({ productId, productName, c
   const { lang } = useLang();
   const t = (ru: string, uz: string) => lang === "uz" ? uz : ru;
   const [qty, setQty] = useState("");
+  useOverlay({ open: true, onClose: onClose });
   const [type, setType] = useState<"in" | "out" | "adjustment">("in");
   const [notes, setNotes] = useState("");
 

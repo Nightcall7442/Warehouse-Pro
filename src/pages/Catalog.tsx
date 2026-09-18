@@ -11,6 +11,7 @@ import { unitLabel } from "@/components/orders/types";
 import { useLang } from "@/i18n";
 import { createPortal } from "react-dom";
 import { useOfflineCopy } from "@/hooks/useOfflineCopy";
+import { useOverlay } from "@/lib/overlay";
 
 /* ═══════════════════════════════════════════════════════════════════════════
    КАТАЛОГ АГЕНТА — то, чем он пользуется у прилавка.
@@ -92,6 +93,7 @@ function ProductSheet({ product, onClose, onOrder }: {
   onClose: () => void;
   onOrder: (qty: number) => void;
 }) {
+  useOverlay({ open: true, onClose: onClose });
   const { fmt } = useCurrency();
   const { lang } = useLang();
   const tr = useTranslate();

@@ -4,6 +4,7 @@ import { X, Loader2, ShieldCheck, Eye, EyeOff } from "lucide-react";
 import { trpc } from "@/providers/trpc";
 import { notify } from "@/lib/toast";
 import { COLORS, F, type Lang } from "./types";
+import { useOverlay } from "@/lib/overlay";
 
 interface Props {
   userId: number;
@@ -23,6 +24,7 @@ export function TransferCredentialsModal({
   onDone,
 }: Props) {
   const t = (ru: string, uz: string) => (lang === "uz" ? uz : ru);
+  useOverlay({ open: true, onClose: onClose });
   const utils = trpc.useUtils();
 
   const [newEmail, setNewEmail] = useState(userEmail);

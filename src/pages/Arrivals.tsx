@@ -84,6 +84,7 @@ function KpiCard({ label, value, delta, icon, gradient, delay }: {
 }
 
 import { unitShort as unitLabel } from "@/lib/units";
+import { useOverlay } from "@/lib/overlay";
 
 const STATUS: Record<string, { ru: string; uz: string; color: string }> = {
   pending:   { ru: "Ожидает", uz: "Kutilmoqda", color: "var(--color-warning-text)" },
@@ -107,6 +108,7 @@ const StatusBadge = memo(function StatusBadge({ status, lang }: { status: string
 
 // ── Arrival Form ─────────────────────────────────────────────────────────────
 function ArrivalForm({ onSave, onClose, isPending }: { onSave: (d: ArrivalCreateInput, complete: boolean) => void; onClose: () => void; isPending: boolean }) {
+  useOverlay({ open: true, onClose: onClose });
   const { lang } = useLang();
   const { fmt } = useCurrency();
   const t = (ru: string, uz: string) => lang === "uz" ? uz : ru;
@@ -671,6 +673,7 @@ function SupplierDebtSection({ arrivalId }: { arrivalId: number }) {
 
 // ── Arrival Detail Modal ─────────────────────────────────────────────────────
 function ArrivalDetail({ arrivalId, onClose }: { arrivalId: number; onClose: () => void }) {
+  useOverlay({ open: true, onClose: onClose });
   const { fmt, symbol, currency } = useCurrency();
   const { lang } = useLang();
   const t = useCallback((ru: string, uz: string) => lang === "uz" ? uz : ru, [lang]);

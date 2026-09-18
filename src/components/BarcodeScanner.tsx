@@ -9,6 +9,7 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { X, Keyboard, CheckCircle2 } from "lucide-react";
 import { useTranslate } from "@/i18n";
+import { useOverlay } from "@/lib/overlay";
 
 interface Props {
   onScan:   (code: string) => void;
@@ -30,6 +31,7 @@ const REPEAT_COOLDOWN_MS = 1500;
 const SUPPORTED = typeof window !== "undefined" && "BarcodeDetector" in window;
 
 export function BarcodeScanner({ onScan, onClose, label = "Scan barcode", continuous = false, lastResult = null }: Props) {
+  useOverlay({ open: true, onClose: onClose });
   const t = useTranslate();
   const videoRef    = useRef<HTMLVideoElement>(null);
   const streamRef   = useRef<MediaStream | null>(null);

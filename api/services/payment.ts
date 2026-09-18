@@ -11,6 +11,8 @@ export interface AddPaymentInput {
   shopId: number;
   amount: string;
   type?: "payment" | "debt";
+  /** Наличные, карта или перевод. Карта и перевод — «в пути» до выписки (services/noncash.ts). */
+  paymentMethod?: "cash" | "card" | "transfer";
   notes?: string;
   createdBy: number;
   /**
@@ -52,7 +54,7 @@ const isDuplicateKey = isDuplicateEntry;
 
 export const PaymentService = {
   async addPayment(db: DrizzleInstance, tenantId: number, input: AddPaymentInput): Promise<AddPaymentResult> {
-    const { shopId, amount, type = "payment", notes, createdBy, idempotencyKey } = input;
+    const { shopId, amount, type = "payment", paymentMethod = "cash", notes, createdBy, idempotencyKey } = input;
 
     // #FIX3: Validate amount
     const amt = Number(amount);
@@ -81,14 +83,19 @@ export const PaymentService = {
         // записи»: между проверкой и вставкой успевает вклиниться второй
         // запрос, и оба видят пусто. Индекс же отказывает второму независимо
         // от того, насколько близко по времени пришли повторы.
+        // Платёж магазина записывает офис (operatorQuery): наличные уже в
+        // офисе — получены сразу (services/order-close.ts), не «на руках».
         await tx.insert(payments).values({
           tenantId,
           shopId,
           amount: amt.toFixed(2),
           type,
+          paymentMethod,
           notes: notes ? sanitizeString(notes) : undefined,
           createdBy,
           idempotencyKey,
+          receivedAt: type === "payment" && paymentMethod === "cash" ? new Date() : null,
+          receivedBy: type === "payment" && paymentMethod === "cash" ? createdBy : null,
         });
 
         // These rows carry no orderId — they are shop-level adjustments, and

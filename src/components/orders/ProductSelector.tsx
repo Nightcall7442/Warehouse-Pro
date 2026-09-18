@@ -1,4 +1,5 @@
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useState, useRef, useCallback } from "react";
+import { useOverlay } from "@/lib/overlay";
 import { createPortal } from "react-dom";
 import { useCurrency } from "@/hooks/useCurrency";
 import { trpc } from "@/providers/trpc";
@@ -158,17 +159,7 @@ export function ProductSelector({ items, onChange, cartOpen = false, onCartOpenC
   // её закрывает. overscroll-behavior: contain в стилях удерживает только
   // жест, дотянувший список корзины до края; без замка на body фон под
   // панелью всё равно уезжает вместе с пальцем.
-  useEffect(() => {
-    if (!cartOpen) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onCartOpenChange?.(false); };
-    document.addEventListener("keydown", onKey);
-    const prevOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.removeEventListener("keydown", onKey);
-      document.body.style.overflow = prevOverflow;
-    };
-  }, [cartOpen, onCartOpenChange]);
+  useOverlay({ open: !!cartOpen, onClose: () => onCartOpenChange?.(false) });
 
   /* Содержимое корзины. Одна разметка на два места вывода: боковая колонка
      на десктопе и выдвижная панель снизу на мобильном. Отличие ровно одно —

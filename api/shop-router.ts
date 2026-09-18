@@ -585,6 +585,7 @@ export const shopRouter = createRouter({
       shopId: z.number(),
       amount: z.string().refine(v => /^\d+(\.\d{1,2})?$/.test(v) && Number(v) > 0, "Неверный формат суммы"),
       type:   z.enum(["payment", "debt"]).default("payment"),
+      paymentMethod: z.enum(["cash", "card", "transfer"]).default("cash"),
       notes:  z.string().optional(),
       // Метка одной попытки оплаты, одинаковая у всех её повторов. Клиент
       // выдаёт её один раз на открытую форму, поэтому повторная отправка —

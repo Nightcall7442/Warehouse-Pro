@@ -1,4 +1,5 @@
-import { memo, useState, useEffect } from "react";
+import { memo, useState } from "react";
+import { useOverlay } from "@/lib/overlay";
 import { createPortal } from "react-dom";
 import { AlertTriangle, X } from "lucide-react";
 import { useTranslate } from "@/i18n";
@@ -14,21 +15,9 @@ interface Props {
 
 export const ConfirmDialog = memo(function ConfirmDialog({ title, message, confirmText = "Confirm", danger = false, onConfirm, onCancel }: Props) {
   const t = useTranslate();
-  useEffect(() => {
-    const prevOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    // Radix Select/DropdownMenu, закрываясь ровно в тот момент, когда открывается
-    // это подтверждение, оставляет на <body> инлайновый pointer-events:none.
-    // Диалог — это портал ВНУТРИ body, поэтому он наследует none и перестаёт
-    // ловить клики: кнопки не нажимаются, а весь экран мёртв до перезагрузки.
-    // Снимаем залипший стиль при открытии и не восстанавливаем его при закрытии —
-    // «none» на body после закрытого меню никому не нужен и есть сам баг.
-    document.body.style.pointerEvents = "";
-    return () => {
-      document.body.style.overflow = prevOverflow;
-      document.body.style.pointerEvents = "";
-    };
-  }, []);
+  // Замок прокрутки, Escape → отмена, снятие залипшего pointer-events с body —
+  // общее поведение окон (src/lib/overlay.ts).
+  useOverlay({ open: true, onClose: onCancel });
 
   const content = (
     <div style={{

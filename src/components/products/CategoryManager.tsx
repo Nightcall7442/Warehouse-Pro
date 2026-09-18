@@ -5,6 +5,7 @@ import { X, Pencil, Trash2, Tag, Loader2 } from "lucide-react";
 import { trpc } from "@/providers/trpc.client";
 import { notify } from "@/lib/toast";
 import { COLORS, SHADOW, F } from "./constants";
+import { useOverlay } from "@/lib/overlay";
 
 interface CategoryManagerProps {
   lang: string;
@@ -12,6 +13,7 @@ interface CategoryManagerProps {
 }
 
 export function CategoryManager({ lang, onClose }: CategoryManagerProps) {
+  useOverlay({ open: true, onClose: onClose });
   const t = (ru: string, uz: string) => lang === "uz" ? uz : ru;
   const utils = trpc.useContext();
   /*
