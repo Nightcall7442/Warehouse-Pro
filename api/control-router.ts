@@ -36,6 +36,17 @@ export const controlRouter = createRouter({
       return ControlService.overview(getDb(), ctx.tenant.id, { from: new Date(input.from), to: new Date(input.to) });
     }),
 
+  /** Деньги в поле: на руках и ждут расчёта. Без периода — это «сейчас». */
+  money: adminQuery.query(async ({ ctx }) => {
+    await assertControl(getDb(), ctx.tenant.id, ctx.tenant.plan);
+    return ControlService.money(getDb(), ctx.tenant.id);
+  }),
+  shortages: adminQuery
+    .input(period)
+    .query(async ({ input, ctx }) => {
+      await assertControl(getDb(), ctx.tenant.id, ctx.tenant.plan);
+      return ControlService.shortages(getDb(), ctx.tenant.id, { from: new Date(input.from), to: new Date(input.to) });
+    }),
   disputes: adminQuery
     .input(period)
     .query(async ({ input, ctx }) => {

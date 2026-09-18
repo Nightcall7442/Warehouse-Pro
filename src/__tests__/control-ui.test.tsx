@@ -19,6 +19,11 @@ const stub = vi.hoisted(() => {
       totals: { disputed: 1, unconfirmed: 1, confirmed: 1, delivered: 3, atRisk: 1 },
     },
     disputes: [{ id: 77, number: "№1002", total: 300000, deliveredAt: "2026-09-14T09:00:00.000Z", disputedAt: "2026-09-16T10:30:00.000Z", note: "Нет двух ящиков", shopId: 5, shopName: "Магазин Альфа", courierId: 3, courierName: "Курьер Ботир" }],
+    money: {
+      onHands: [{ userId: 3, name: "Курьер Ботир", amount: 1_200_000, since: "2026-09-15T09:00:00.000Z", orders: 2, hours: 49 }],
+      awaiting: { count: 3, total: 2_500_000, oldestAt: "2026-09-15T09:00:00.000Z" },
+    },
+    shortages: [{ id: 88, number: "№1004", closedAt: "2026-09-16T14:00:00.000Z", amount: 70_000, note: "не хватило пачки", shopName: "Магазин Альфа", userId: 3, userName: "Курьер Ботир", closedByName: "Дилноза", total: 300_000 }],
     setEnabled: vi.fn(), exportToExcel: vi.fn(), navigate: vi.fn(), invalidate: vi.fn(),
   };
   const q = (get: () => unknown) => (_input?: unknown, _opts?: unknown) => ({ data: get(), isLoading: false, isError: false, refetch: vi.fn() });
@@ -30,6 +35,8 @@ const stub = vi.hoisted(() => {
         status: { useQuery: q(() => ({ enabled: state.enabled, planAllows: state.planAllows })) },
         overview: { useQuery: q(() => state.overview) },
         disputes: { useQuery: q(() => state.disputes) },
+        money: { useQuery: q(() => state.money) },
+        shortages: { useQuery: q(() => state.shortages) },
         setEnabled: { useMutation: (opts?: { onSuccess?: (r: unknown, v: unknown) => void }) => ({ mutate: (v: unknown) => { state.setEnabled(v); opts?.onSuccess?.({ ok: true }, v); }, isPending: false }) },
       },
       useUtils: () => ({ control: { status: { invalidate: state.invalidate } } }),
@@ -74,16 +81,33 @@ describe("страница «Контроль»", () => {
     fireEvent.click(row);
     expect(stub.state.navigate).toHaveBeenCalledWith("/orders/77");
   });
-  it("Excel — по-русски, два листа: индекс и споры", () => {
+  it("деньги в поле: плитки, «на руках» с возрастом, недостачи с переходом в заказ", () => {
+    show(<Control />);
+    const money = screen.getByTestId("control-money");
+    expect(money.textContent).toContain("Ждут расчёта");
+    expect(money.textContent).toContain("3");
+    const hands = screen.getByTestId("control-on-hands");
+    expect(within(hands).getByTestId("on-hands-3").textContent).toContain("2 дн.");
+    fireEvent.click(within(hands).getByTestId("on-hands-3"));
+    expect(stub.state.navigate).toHaveBeenCalledWith("/orders?status=money");
+    const sh = screen.getByTestId("control-shortages");
+    expect(sh.textContent).toContain("не хватило пачки");
+    expect(sh.textContent).toContain("Дилноза");
+    fireEvent.click(within(sh).getByTestId("shortage-88"));
+    expect(stub.state.navigate).toHaveBeenCalledWith("/orders/88");
+  });
+  it("Excel — по-русски, четыре листа: индекс, на руках, недостачи, споры", () => {
     show(<Control />);
     fireEvent.click(screen.getByTestId("control-excel"));
     const [sheets, name] = stub.state.exportToExcel.mock.calls[0] as [Array<{ name: string; data: Array<Record<string, unknown>>; columns: Array<{ header: string }> }>, string];
     expect(name).toBe("control-30d");
-    expect(sheets.map(s => s.name)).toEqual(["Индекс риска", "Спорные доставки"]);
+    expect(sheets.map(s => s.name)).toEqual(["Индекс риска", "На руках", "Недостачи", "Спорные доставки"]);
+    expect(sheets[1].data[0]).toMatchObject({ name: "Курьер Ботир", amount: 1_200_000, orders: 2 });
+    expect(sheets[2].data[0]).toMatchObject({ number: "№1004", who: "Курьер Ботир", amount: 70_000, by: "Дилноза" });
     expect(sheets[0].columns.map(c => c.header)).toEqual(["Сотрудник", "Роль", "Баллы", "Уровень", "Факторы", "Доставлено", "Подтверждено", "Спорных", "На руках", "Недостача"]);
     expect(sheets[0].data[0]).toMatchObject({ name: "Курьер Ботир", role: "Курьер", score: 50, level: "Присмотреться" });
     expect(String(sheets[0].data[0].factors)).toContain("Магазин оспорил доставку — 1; Недостача при расчёте заказа — 1");
-    expect(sheets[1].data[0]).toMatchObject({ number: "№1002", shop: "Магазин Альфа", note: "Нет двух ящиков", total: 300000 });
+    expect(sheets[3].data[0]).toMatchObject({ number: "№1002", shop: "Магазин Альфа", note: "Нет двух ящиков", total: 300000 });
   });
   it("выключено — подсказка в настройки; Basic — подсказка о тарифе; таблиц нет", () => {
     stub.state.enabled = false;
