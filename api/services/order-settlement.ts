@@ -1,6 +1,5 @@
 import { eq, and, sql, isNull } from "drizzle-orm";
 import { orders, shops, payments } from "@db/schema";
-import { cache, CacheKeys } from "../lib/cache";
 import { invalidateReports } from "../lib/report-cache";
 import { logger } from "../lib/logger";
 import { isDuplicateOf } from "../lib/db-errors";
@@ -23,7 +22,6 @@ export async function recordPartialPayment(
     }
     throw e;
   }
-  cache.invalidate(CacheKeys.dashboardKpis(tenantId));
   await invalidateReports(tenantId, "order");
 
   /*
@@ -76,7 +74,6 @@ export async function recordPartialDelivery(
   },
 ) {
   await db.transaction((tx) => applyPartialDelivery(tx, tenantId, actor, input));
-  cache.invalidate(CacheKeys.dashboardKpis(tenantId));
   await invalidateReports(tenantId, "order");
   return { success: true };
 }
@@ -145,7 +142,6 @@ export async function bulkCompleteWithPayment(db: Db, tenantId: number, actor: A
     }
   }
 
-  cache.invalidate(CacheKeys.dashboardKpis(tenantId));
   await invalidateReports(tenantId, "order");
   return { updated, failed };
 }
@@ -212,7 +208,6 @@ export async function bulkCompleteDetailed(
     }
   }
 
-  cache.invalidate(CacheKeys.dashboardKpis(tenantId));
   await invalidateReports(tenantId, "order");
   return { updated, failed };
 }
@@ -254,7 +249,6 @@ export async function recordDeliveryAndPayment(
     throw e;
   }
 
-  cache.invalidate(CacheKeys.dashboardKpis(tenantId));
   await invalidateReports(tenantId, "order");
   return { success: true };
 }
