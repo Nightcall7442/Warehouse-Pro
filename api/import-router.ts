@@ -15,6 +15,7 @@ import type { CellValue } from "exceljs";
 
 import { firstRow } from "./lib/db-rows";
 import { uploadBase64ToS3 } from "./lib/photo-upload";
+import { invalidateReports } from "./lib/report-cache";
 /**
  * A spreadsheet cell is whatever exceljs hands back — a string or number for
  * the templates we publish, but also a Date, a formula result or rich text for
@@ -632,6 +633,7 @@ export const importRouter = createRouter({
       cache.invalidatePrefix(`shop_cities:${tenantId}`);
       cache.invalidatePrefix(`shop_districts:${tenantId}`);
       cache.invalidatePrefix(`warehouse:${tenantId}`);
+      await invalidateReports(tenantId, "import");
       cache.invalidatePrefix(`warehouse_valuation:${tenantId}`);
 
       if (unusablePhotos.count > 0) {

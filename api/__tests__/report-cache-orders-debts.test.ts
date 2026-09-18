@@ -104,16 +104,20 @@ describe("order.stats", () => {
 
   it("другая организация — другой ключ", async () => {
     await orderRouter.createCaller(ctx("ceo", 1)).stats(input);
+    const one = mockDb.select.mock.calls.length;
     await orderRouter.createCaller(ctx("ceo", 2)).stats(input);
     expect(rc.calls.map(c => c.tenantId)).toEqual([1, 2]);
-    expect(mockDb.select).toHaveBeenCalledTimes(4);
+    // Вторая организация считает столько же, сколько первая, — не ноль.
+    expect(mockDb.select).toHaveBeenCalledTimes(one * 2);
   });
 
   it("агент и мерчандайзер кэш минуют: свой срез считается всегда", async () => {
     await orderRouter.createCaller(ctx("agent")).stats(input);
+    const one = mockDb.select.mock.calls.length;
     await orderRouter.createCaller(ctx("merchandiser")).stats(input);
     expect(rc.reportCached).not.toHaveBeenCalled();
-    expect(mockDb.select).toHaveBeenCalledTimes(4);
+    expect(one).toBeGreaterThan(0);
+    expect(mockDb.select).toHaveBeenCalledTimes(one * 2);
   });
 });
 

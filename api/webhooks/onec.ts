@@ -8,6 +8,7 @@ import { createHash } from "crypto";
 import { safeEqual } from "../lib/safe-compare";
 import { recalcShopDebt } from "../services/shop-debt";
 import { recordStockMovement, setStock } from "../services/stock-ledger";
+import { invalidateReports } from "../lib/report-cache";
 
 const app = new Hono<{ Variables: { validatedBody: Record<string, unknown> } }>();
 
@@ -146,6 +147,7 @@ app.post("/payment", async (c) => {
 
         await recalcShopDebt(tx, tenantId, shopId);
       });
+      await invalidateReports(tenantId, "onec.payment");
     } catch (e) {
       // Отказ по уникальному индексу означает: этот документ уже проведён, а
       // транзакция откатилась целиком — лишней строки нет, долг не тронут. 1С
@@ -224,6 +226,7 @@ app.post("/stock", async (c) => {
         reason: "onec_sync", notes: `1C: остаток установлен в ${parsedQty}`,
       });
     });
+    await invalidateReports(tenantId, "onec.stock");
 
     logger.info("Stock update received from 1C", { tenantId, productId, quantity: parsedQty });
     return c.json({ success: true });

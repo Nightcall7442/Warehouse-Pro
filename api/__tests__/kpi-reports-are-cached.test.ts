@@ -101,9 +101,11 @@ async function cost(run: () => Promise<unknown>): Promise<number> {
 beforeEach(async () => {
   dbCalls.selects = 0;
   vi.clearAllMocks();
+  // Подделка не фильтрует: courierDetail берёт первую строку и проверяет роль,
+  // поэтому курьер стоит первым.
   rowsOf.set(users, [
-    { id: 10, name: "Агент", role: "agent" },
     { id: 7, name: "Курьер", role: "courier" },
+    { id: 10, name: "Агент", role: "agent" },
   ]);
   rowsOf.set(shops, [{ agentId: 10 }, { agentId: 11 }]);
   // Кэш — настоящий и живёт между тестами; сброс версией, как в бою.

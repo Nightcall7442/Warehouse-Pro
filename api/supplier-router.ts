@@ -9,6 +9,7 @@ import { decimalOrDefault } from "./lib/zod-decimal";
 import { logger } from "./lib/logger";
 import { isDuplicateOf } from "./lib/db-errors";
 import type { getDb } from "./queries/connection";
+import { invalidateReports } from "./lib/report-cache";
 
 type Db = ReturnType<typeof getDb>;
 
@@ -574,7 +575,7 @@ export const supplierRouter = createRouter({
       const db       = ctx.db;
       const tenantId = ctx.tenant.id;
 
-      return await db.transaction(async (tx) => {
+      const result = await db.transaction(async (tx) => {
         const [supply] = await tx.select({
           id: supplies.id, supplierId: supplies.supplierId, amount: supplies.amount,
           currency: supplies.currency, rateToUzs: supplies.rateToUzs, supplyNumber: supplies.supplyNumber, paid: paidSubquery,
@@ -647,6 +648,8 @@ export const supplierRouter = createRouter({
         });
         return { id: paymentId, credited: applied, debt: debtAfter, uncredited: Math.max(0, Math.round((credit - applied) * 100) / 100) };
       });
+      await invalidateReports(tenantId, "supplier.return");
+      return result;
     }),
 
   // ── Акт сверки ─────────────────────────────────────────────────────────────

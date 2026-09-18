@@ -50,7 +50,7 @@ function row() {
     productName: "Товар", productCode: "T-1", unit: "шт", shopName: "Магазин",
     revenue: revenueNow, totalRevenue: revenueNow, totalDiscount: "10", orderCount: 2, orders: 2,
     totalQty: "5", totalCOGS: "400", totalCost: "400", cogs: "400", totalExpenses: "100", arrivalCount: 1,
-    totalPayroll: "50", payoutCount: 1, expenses: "100", amount: "5", visits: 3, avgOrderValue: "500",
+    totalPayroll: "50", payoutCount: 1, expenses: "100", amount: "0", visits: 3, avgOrderValue: "500",
     returnId: 1, quantity: "1", orderCost: "3", productCost: "3",
   };
 }

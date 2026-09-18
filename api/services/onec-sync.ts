@@ -15,6 +15,7 @@ import { logger } from "../lib/logger";
 import { updateSyncStatus } from "./onec-status";
 import { record1CSync } from "../lib/metrics";
 import { setStock } from "./stock-ledger";
+import { invalidateReports } from "../lib/report-cache";
 
 /*
   Обмен с 1С по стандартному OData.
@@ -627,6 +628,8 @@ export class OneCSyncService {
       // Безнал сверяется после контрагентов: магазин без связи с 1С искать не по чему.
       if (c.syncPayments) await step("bank", () => this.reconcileBankReceipts(c.tenantId, now));
       await db.update(onecConfig).set({ lastSyncAt: now }).where(eq(onecConfig.tenantId, c.tenantId));
+      // Раз на прогон, не на каждый товар: прогон меняет сотни строк, отчёт один.
+      await invalidateReports(c.tenantId, "onec.sync");
     }
     return { tenants: ran };
   }

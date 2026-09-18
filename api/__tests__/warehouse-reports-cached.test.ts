@@ -247,7 +247,7 @@ describe("warehouseReports: ключ и срок", () => {
     expect(selects).toBe(2);
     await c.movementTrends({ days: 30 });
     expect(selects).toBe(2);
-    expect(cacheCalls.map(x => x.input)).toEqual([{ days: 7 }, { days: 30 }, { days: 30 }]);
+    expect(cacheCalls.map(x => x.input)).toEqual([{ days: 7, warehouseId: null }, { days: 30, warehouseId: null }, { days: 30, warehouseId: null }]);
   });
 
   it("день — в ключе у «что сгорает»: в полночь границы «просрочено/горит» сдвигаются", async () => {

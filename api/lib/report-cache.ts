@@ -1,5 +1,5 @@
+import superjson from "superjson";
 import { getRedis, isRedisAvailable, subscribeChannel, publishChannel } from "./redis";
-import { logger } from "./logger";
 
 /*
   Кэш отчётов директора: один пересчёт на организацию, а не тридцать.
@@ -88,11 +88,11 @@ export class ReportCache {
     return p;
   }
 
-  async invalidate(tenantId: number, reason?: string): Promise<void> {
+  /** `reason` — для читающего код у места вызова; в лог не пишется: это горячий путь, по вызову на каждую запись заказа. */
+  async invalidate(tenantId: number, _reason?: string): Promise<void> {
     this.ensureSubscribed();
     // Своя память — сразу и синхронно: читатель в этом же процессе не успеет взять старое.
     this.adopt(tenantId, (this.versions.get(tenantId) ?? 0) + 1);
-    logger.debug("reports invalidated", { tenantId, reason });
     if (!isRedisAvailable()) return;
     try {
       const ver = await getRedis().incr(`reportver:${tenantId}`);
@@ -115,7 +115,9 @@ export class ReportCache {
     // Версия взята до расчёта: сброс во время расчёта делает ответ устаревшим сразу.
     this.remember(key, value, ver, ttlMs);
     if (isRedisAvailable()) {
-      getRedis().setex(key, Math.ceil(ttlMs / 1000), JSON.stringify({ ver, value })).catch(() => {});
+      // superjson, не JSON: в отчётах есть даты, а JSON вернул бы их соседу
+      // строками — и клиент, ждущий Date, упал бы на первом же getTime().
+      getRedis().setex(key, Math.ceil(ttlMs / 1000), superjson.stringify({ ver, value })).catch(() => {});
     }
     return value;
   }
@@ -133,7 +135,7 @@ export class ReportCache {
     try {
       const [[, raw], [, pttl]] = (await getRedis().multi().get(key).pttl(key).exec()) ?? [];
       if (raw == null) return undefined;
-      const parsed = JSON.parse(String(raw)) as { ver: number; value: T };
+      const parsed = superjson.parse<{ ver: number; value: T }>(String(raw));
       return { value: parsed.value, ver: Number(parsed.ver) || 0, ttlMs: Number(pttl) };
     } catch {
       return undefined;
