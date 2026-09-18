@@ -102,6 +102,12 @@ describe("все окна — на общем поведении", () => {
     }
     expect(offenders, "окно без замка прокрутки и Escape").toEqual([]);
   });
+  it("сканер выше любого окна, подтверждение — выше сканера", () => {
+    // Сканер зовут из формы прихода и быстрого заказа (AppModal: 9999/10000).
+    expect(read("src/components/BarcodeScanner.tsx")).toContain("fixed inset-0 z-[20000]");
+    expect(read("src/components/ui/AppModal.tsx")).toContain("z-[10000]");
+    expect(read("src/components/ConfirmDialog.tsx")).toContain("zIndex: 99999");
+  });
   it("AppModal и ConfirmDialog не держат свой замок — только общий", () => {
     for (const p of ["src/components/ui/AppModal.tsx", "src/components/ConfirmDialog.tsx", "src/components/orders/ProductSelector.tsx"]) {
       expect(read(p), `${p}: свой overflow`).not.toContain('document.body.style.overflow = "hidden"');
