@@ -13,7 +13,7 @@ import { useAuth } from "@/hooks/useAuth";
 import AgentOrders from "@/pages/AgentOrders";
 import {
   Plus, FileDown, ChevronRight, Store, User,
-  ShoppingCart, Clock, CheckCircle2, XCircle, DollarSign,
+  ShoppingCart, Clock, CheckCircle2, XCircle, DollarSign, Wallet,
   Trash2, RotateCcw, Printer,
   CheckSquare, Square, LayoutGrid, Table as TableIcon, Eye, Users,
   RefreshCw, Truck, ClipboardList,
@@ -35,7 +35,6 @@ import { OrderBulkActions } from "@/components/orders/OrderBulkActions";
 import { InvoicePrintModal } from "@/components/orders/InvoicePrintModal";
 import { LoadingListModal } from "@/components/orders/LoadingListModal";
 import { LoadingListsModal } from "@/components/orders/LoadingListsModal";
-import { OrderSlideOver } from "@/components/orders/OrderSlideOver";
 import { OrderKanbanBoard } from "@/components/orders/OrderKanbanBoard";
 import { OrderAgentGroups } from "@/components/orders/OrderAgentGroups";
 import { QuickOrderModal } from "@/components/orders/QuickOrderModal";
@@ -138,7 +137,10 @@ function OperatorOrders() {
   // Only one agent's orders are loaded at a time — see OrderAgentGroups.
   const [expandedAgentId, setExpandedAgentId] = useState<number | null>(null);
   const [chipFilters, setChipFilters] = useState<ActiveFilters>({});
-  const [slideOverOrderId, setSlideOverOrderId] = useState<number | null>(null);
+  // Заказ открывается страницей, не панелью сбоку: карточка — рабочее место
+  // оператора (расчёт, состав, история), а панель справа резала её в узкую
+  // колонку и дублировала экран (владелец, 18.09.2026).
+  const openOrder = (id: number) => navigate(`/orders/${id}`);
   const [showInvoiceModal, setShowInvoiceModal] = useState(false);
   const [showLoadingListModal, setShowLoadingListModal] = useState(false);
   // Список уже собранных листов: незакрытый держит свои заказы, и закрыть его
@@ -210,7 +212,9 @@ function OperatorOrders() {
     if (chipFilters.datePreset) return format(new Date(), "yyyy-MM-dd");
     return dateTo;
   }, [chipFilters.datePreset, dateTo]);
-  const effectiveStatus = chipFilters.status ?? status;
+  // «Ждут расчёта» — не статус, а очередь: доставлены, деньги офис ещё не принял.
+  const awaitingMoney = status === "money";
+  const effectiveStatus = chipFilters.status ?? (awaitingMoney ? "" : status);
   const effectivePaymentMethod = chipFilters.paymentMethod;
 
   const { data, isLoading, isLoadingError, refetch } = trpc.order.list.useQuery({
@@ -224,6 +228,7 @@ function OperatorOrders() {
     dateTo: effectiveDateTo || undefined,
     paymentMethod: effectivePaymentMethod as "cash" | "card" | "transfer" | "debt" | undefined,
     agentIds: agentFilter.length > 0 ? agentFilter.map(Number) : undefined,
+    awaitingMoney: awaitingMoney || undefined,
   }, {
     // Прошлый список остаётся на экране, пока грузится новый: без этого
     // смена запроса обнуляет data, и страница падает в скелетон на каждый
@@ -476,7 +481,7 @@ function OperatorOrders() {
   });
 
   /**
-   * Cells whose own controls must not also open the slide-over.
+   * Cells whose own controls must not also open the order page.
    *
    * The row is clickable; a select or a delete button inside it is not a place
    * where "open the order" is the intended outcome.
@@ -510,6 +515,7 @@ function OperatorOrders() {
         return (
           <span className="flex items-center gap-1" style={{ fontFamily: F.display, fontWeight: 600, color: COLORS.primaryText }}>
             {o.orderNumber}
+            {o.status === "delivered" && !o.closedAt && <Wallet size={12} aria-label={t("ждёт расчёта", "hisob-kitob kutmoqda")} style={{ color: "var(--color-warning-text)" }} />}
             <Eye className="h-3 w-3 opacity-0 group-hover:opacity-50" />
           </span>
         );
@@ -772,6 +778,7 @@ function OperatorOrders() {
           { key: "processing", n: stats?.processingCount ?? 0, ru: "В обработке", uz: "Jarayonda", icon: <RefreshCw size={13} />, tone: undefined },
           { key: "shipped", n: stats?.shippedCount ?? 0, ru: "Отгружены", uz: "Yuklandi", icon: <Truck size={13} />, tone: undefined },
           { key: "delivered", n: stats?.deliveredCount ?? 0, ru: "Доставлены", uz: "Yetkazildi", icon: <CheckCircle2 size={13} />, tone: undefined },
+          { key: "money", n: stats?.awaitingMoneyCount ?? 0, ru: "Ждут расчёта", uz: "Hisob-kitob kutmoqda", icon: <Wallet size={13} />, tone: (stats?.awaitingMoneyCount ?? 0) > 0 ? "warning" : undefined },
           { key: "cancelled", n: stats?.cancelledCount ?? 0, ru: "Отменены", uz: "Bekor", icon: <XCircle size={13} />, tone: undefined },
         ] as const).map(s => {
           const active = status === s.key;
@@ -920,7 +927,7 @@ function OperatorOrders() {
                 return next;
               });
             }}
-            onOrderClick={setSlideOverOrderId}
+            onOrderClick={openOrder}
             fmt={fmt}
             t={t}
             lang={lang}
@@ -941,7 +948,7 @@ function OperatorOrders() {
             territoryName: (o as Record<string, unknown>).territoryName as string | null,
             paymentMethod: o.paymentMethod ?? "cash",
           }))}
-          onOrderClick={setSlideOverOrderId}
+          onOrderClick={openOrder}
           // Доску супервайзер смотрит, но карточки не двигает: смена статуса
           // — operatorQuery, и перетаскивание кончалось бы отказом.
           onStatusChange={isOperatorOrCeo ? (orderId, newStatus) => handleStatusChange(orderId, newStatus) : undefined}
@@ -1089,7 +1096,7 @@ function OperatorOrders() {
                       }}
                       onMouseEnter={e => (e.currentTarget.style.background = colorMix(COLORS.surfaceLight, 50))}
                       onMouseLeave={e => (e.currentTarget.style.background = o.deletedAt ? colorMix(COLORS.danger, 3) : "transparent")}
-                      onClick={() => setSlideOverOrderId(o.id as number)}
+                      onClick={() => openOrder(o.id as number)}
                     >
                       {isOperatorOrCeo && (
                       <td style={{ padding: "14px 8px 14px 16px", textAlign: "center" }} onClick={e => e.stopPropagation()}>
@@ -1252,14 +1259,6 @@ function OperatorOrders() {
       onOpenChange={setShowLoadingListModal}
       orderIds={Array.from(selected)}
       onDone={() => { invalidateOrderCaches(); }}
-    />
-
-    {/* ── Order Slide-Over ── */}
-    <OrderSlideOver
-      open={!!slideOverOrderId}
-      onOpenChange={(v) => { if (!v) setSlideOverOrderId(null); }}
-      orderId={slideOverOrderId}
-      currency={symbol}
     />
 
     {/* ── Quick Order Modal ── */}

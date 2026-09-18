@@ -80,11 +80,6 @@ export function ProfileSettings() {
   // видел зелёное «Пароль изменён», продолжал работать, и через несколько
   // секунд его без объяснений выкидывало на вход. Теперь предупреждаем заранее
   // и уводим на вход сами.
-  const [pin, setPin] = useState("");
-  const setPinMutation = trpc.cash.setPin.useMutation({
-    onSuccess: () => { setPin(""); notify.success(t("PIN сохранён", "PIN saqlandi")); },
-    onError: (e) => notify.error(e.message),
-  });
   const changePassword = trpc.user.changePassword.useMutation({
     onSuccess: () => {
       setPwForm({ current: "", next: "", confirm: "" });
@@ -158,27 +153,6 @@ export function ProfileSettings() {
         />
       </FieldGroup>
 
-      {/*
-        PIN кассы — только тем, кто носит наличные. Кассир его не знает:
-        сотрудник вводит его сам при сдаче, и это его подпись под суммой.
-      */}
-      {(user?.role === "courier" || user?.role === "agent" || user?.role === "supervisor") && (
-        <FieldGroup title={t("PIN для сдачи наличных", "Naqd pul topshirish PIN-kodi")}>
-          <FieldRow>
-            <Field label={t("PIN (4–6 цифр)", "PIN (4–6 raqam)")}
-              hint={t("Вводится при сдаче в кассу: подтверждает, что сумму сдали вы", "Kassaga topshirishda kiritiladi: summani siz topshirganingizni tasdiqlaydi")}>
-              <input type="password" inputMode="numeric" className="neo-input" autoComplete="off" value={pin}
-                onChange={e => setPin(e.target.value.replace(/\D/g, "").slice(0, 6))} data-testid="cash-pin" />
-            </Field>
-          </FieldRow>
-          <SaveBar
-            onSave={() => setPinMutation.mutate({ pin })}
-            isPending={setPinMutation.isPending}
-            disabled={pin.length < 4}
-            label={t("Сохранить PIN", "PINni saqlash")}
-          />
-        </FieldGroup>
-      )}
 
       {/*
         Выход на всех устройствах.

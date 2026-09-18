@@ -121,9 +121,9 @@ export interface SalaryData {
     /** Утверждённый вычет, со знаком минус; 0 — не утверждали. */
     fraudDeduction: number;
     /**
-     * Недостача по кассе за период, со знаком минус: сдал меньше, чем принял
-     * (services/cash.ts, счёт receivable.employee). Списанное директором сюда
-     * не попадает. Удерживается автоматически — решение владельца.
+     * Недостача за период, со знаком минус: сдал офису меньше наличных, чем
+     * заявил при доставке (services/order-close.ts, orders.courier_shortage).
+     * Удерживается автоматически — решение владельца.
      */
     cashShortage: number;
     /** Оплата за доставки: ставка × довезённые заказы. */
@@ -969,9 +969,10 @@ export async function calculateSalary(
   const workDays = courier?.workDays ?? 0;
   const allowancePay = Number(((mealAllowance + travelAllowance) * workDays).toFixed(2));
 
-  // Недостача по кассе за период — у любой роли, что носит наличные.
-  const { CashService } = await import("./cash");
-  const cashShortage = await CashService.employeeDebtIn(db as never, tenantId, agentId, periodStart, periodEnd).catch(() => 0);
+  // Недостача за период — у любой роли, что носит наличные: заявил при
+  // доставке больше, чем сдал офису при закрытии заказа (services/order-close.ts).
+  const { OrderCloseService } = await import("./order-close");
+  const cashShortage = await OrderCloseService.shortageIn(db as never, tenantId, agentId, periodStart, periodEnd).then(s => s.amount).catch(() => 0);
 
   const totalSalary = isCourier
     ? Math.max(0, baseSalary + deliveryPay + allowancePay - cashShortage)

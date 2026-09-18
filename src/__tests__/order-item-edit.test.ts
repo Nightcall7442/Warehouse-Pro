@@ -136,10 +136,8 @@ describe("оба экрана правят состав одним правил�
       было вопросом времени — а цена ошибки: товар, молча оставшийся в заказе
       вместе с резервом на складе.
     */
-    for (const f of [
-      "src/components/orders/OrderSlideOver.tsx",
-      "src/components/orders/OrderItemsEditor.tsx",
-    ]) {
+    // Панель списка (OrderSlideOver) убрана 18.09.2026: состав правит один редактор.
+    for (const f of ["src/components/orders/OrderItemsEditor.tsx"]) {
       const src = read(f);
       expect(src, `${f}: запрос собирается на месте`).toContain("linesToPayload(");
       expect(src, `${f}: вернулась своя сборка убранных строк`)

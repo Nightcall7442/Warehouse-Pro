@@ -41,7 +41,6 @@ const DOCUMENT_MAKERS = [
 /** Экраны, которые собирают документ и зовут печать. */
 const DOCUMENT_CALLERS = [
   "src/components/orders/InvoicePrintModal.tsx",
-  "src/components/orders/OrderSlideOver.tsx",
   "src/components/orders/LoadingListModal.tsx",
   "src/pages/OrderDetail.tsx",
   "src/pages/PnL.tsx",
@@ -68,10 +67,10 @@ describe("документы не подписаны именем системы
 
   it("реквизиты продавца собираются в одном месте", () => {
     /*
-      Три экрана собирали CompanyInfo сами, слово в слово. Достаточно было
-      поправить один — и два остались бы с прежней подстановкой.
+      Экраны собирали CompanyInfo сами, слово в слово. Достаточно было
+      поправить один — и остальные остались бы с прежней подстановкой.
     */
-    for (const file of ["src/components/orders/OrderSlideOver.tsx", "src/pages/OrderDetail.tsx", "src/components/orders/InvoicePrintModal.tsx"]) {
+    for (const file of ["src/pages/OrderDetail.tsx", "src/components/orders/InvoicePrintModal.tsx"]) {
       const src = read(file);
       expect(src, `${file} должен брать продавца из useSellerCompany`).toContain("useSellerCompany");
       expect(
@@ -84,7 +83,7 @@ describe("документы не подписаны именем системы
   it("без прочитанных реквизитов документ не строится", () => {
     // Печать до ответа сервера — это и есть тот случай, когда в шапку
     // подставлялось чужое имя.
-    for (const file of ["src/components/orders/OrderSlideOver.tsx", "src/pages/OrderDetail.tsx"]) {
+    for (const file of ["src/pages/OrderDetail.tsx"]) {
       expect(stripComments(read(file)), `${file}: нет отказа печатать без имени`)
         .toMatch(/if \(!seller\.name\) return null;/);
     }

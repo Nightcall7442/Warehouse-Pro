@@ -27,7 +27,7 @@ const strip = (t: string) => t.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^[^\S\r
 const read = (p: string) => strip(readFileSync(join(ROOT, p), "utf8"));
 const NOW = new Date("2026-09-17T10:00:00Z");
 const quiet: RiskSignals = {
-  shortageCount: 0, shortageMoney: 0, debt: 0, cashLimit: 5_000_000, onHand: 0, lastHandoverAt: null, overLimit: false,
+  shortageCount: 0, shortageMoney: 0, onHand: 0, onHandSince: null,
   nonCashOverdueCount: 0, nonCashOverdueMoney: 0, delivered: 10, deliveredOld: 8, unconfirmed: 0, disputed: 0,
   reopened: 0, returned: 0, agentOrders: 10, discounted: 0, visits: 10, suspiciousVisits: 0,
 };
@@ -43,16 +43,13 @@ describe("индекс риска — чистая функция", () => {
     expect(score({ disputed: 5 }).factors[0].points).toBe(40);
     expect(score({ shortageCount: 2, shortageMoney: 120000.456 }).factors).toEqual([{ code: "shortage", points: 30, count: 2, money: 120000.46 }]);
     expect(score({ shortageCount: 9 }).factors[0].points).toBe(45);
-    expect(score({ debt: 500_000 }).factors).toEqual([{ code: "debt", points: 17, money: 500000 }]);
-    expect(score({ debt: 50_000_000 }).factors[0].points).toBe(35);
   });
   it("наличные: дольше суток — 15 с часами; сверх лимита — 10; без денег на руках — ничего", () => {
     const late = new Date(NOW.getTime() - 30 * 3_600_000), fresh = new Date(NOW.getTime() - 3 * 3_600_000);
-    expect(score({ onHand: 300_000, lastHandoverAt: late }).factors).toEqual([{ code: "cashLate", points: 15, money: 300000, hours: 30 }]);
-    expect(score({ onHand: 300_000, lastHandoverAt: null }).factors).toEqual([{ code: "cashLate", points: 15, money: 300000, hours: undefined }]);
-    expect(score({ onHand: 300_000, lastHandoverAt: fresh }).factors).toEqual([]);
-    expect(score({ onHand: 9_000_000, lastHandoverAt: fresh, overLimit: true }).factors).toEqual([{ code: "overLimit", points: 10, money: 9000000 }]);
-    expect(score({ onHand: 0, lastHandoverAt: late, overLimit: true }).factors).toEqual([]);
+    expect(score({ onHand: 300_000, onHandSince: late }).factors).toEqual([{ code: "cashLate", points: 15, money: 300000, hours: 30 }]);
+    expect(score({ onHand: 300_000, onHandSince: null }).factors).toEqual([]);
+    expect(score({ onHand: 300_000, onHandSince: fresh }).factors).toEqual([]);
+    expect(score({ onHand: 0, onHandSince: late }).factors).toEqual([]);
   });
   it("безнал без выписки — 10 + 2 за каждый, потолок 20; переигранные заказы — 5 за каждый, потолок 20", () => {
     expect(score({ nonCashOverdueCount: 3, nonCashOverdueMoney: 900 }).factors).toEqual([{ code: "nonCash", points: 16, count: 3, money: 900 }]);
@@ -77,7 +74,7 @@ describe("индекс риска — чистая функция", () => {
     const r = score({ disputed: 1, reopened: 1, shortageCount: 1 });
     expect(r.factors.map(f => f.code)).toEqual(["dispute", "shortage", "reopened"]);
     expect(r).toMatchObject({ score: 40, level: "watch" });
-    const max = score({ disputed: 3, shortageCount: 3, debt: 50_000_000, onHand: 9_000_000, overLimit: true, nonCashOverdueCount: 9, reopened: 9 });
+    const max = score({ disputed: 3, shortageCount: 3, onHand: 9_000_000, onHandSince: new Date("2026-09-10T10:00:00Z"), nonCashOverdueCount: 9, reopened: 9, unconfirmed: 8 });
     expect(max.score).toBe(100);
     expect(max.level).toBe("act");
   });

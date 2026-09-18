@@ -244,7 +244,7 @@ describe("экраны знают, что закрыто", () => {
       ["src/pages/Products.tsx", "products.manage"],
       ["src/pages/Warehouse.tsx", "warehouse.adjust"],
       ["src/pages/ShopDetail.tsx", "shops.delete"],
-      ["src/components/orders/OrderSlideOver.tsx", "payments.accept"],
+      ["src/components/orders/OrderMoney.tsx", "payments.accept"],
       ["src/components/counterparties/CounterpartiesSection.tsx", "suppliers.manage"],
       ["src/pages/AgentKpi.tsx", "commission.manage"],
     ];

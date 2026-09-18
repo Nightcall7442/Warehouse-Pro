@@ -121,12 +121,6 @@ export const users = mysqlTable("users", {
     сводки в телефоне читать по-узбекски. Пусто — ещё не спрашивали.
   */
   telegramLang:     varchar("telegram_lang", { length: 2 }),
-  /**
-   * PIN для подтверждения сдачи наличных в кассу (см. cash_documents).
-   * Хэш, как пароль; сам код знает только сотрудник. Пусто — сдачу
-   * подтверждают подписью на бумажном ПКО.
-   */
-  cashPinHash:      varchar("cash_pin_hash", { length: 255 }),
 }, (t) => ({
   // email уникален внутри тенанта, но может повторяться в разных тенантах
   emailPerTenant: uniqueIndex("uq_user_email_tenant").on(t.email, t.tenantId),
@@ -387,6 +381,22 @@ export const orders = mysqlTable("orders", {
   shopConfirmedAt:  timestamp("shop_confirmed_at"),
   shopDisputedAt:   timestamp("shop_disputed_at"),
   shopDisputeNote:  varchar("shop_dispute_note", { length: 300 }),
+  /*
+    Расчёт по заказу (services/order-close.ts). Доставка — не конец: заказ
+    закрыт, когда офис принял по нему деньги — наличные из рук курьера,
+    карта или перевод — и остаток либо ноль, либо явно оставлен долгом
+    магазина. До этого заказ «ждёт расчёта». Полевой наличный платёж по уже
+    закрытому заказу (агент собрал старый долг) открывает расчёт заново.
+
+    Недостача курьера: отметил наличных больше, чем сдал. Разница остаётся
+    на нём — здесь и в удержании из зарплаты (services/kpi.ts); магазину она
+    не долг: магазин заплатил.
+  */
+  closedAt:         timestamp("closed_at"),
+  closedBy:         bigint("closed_by", { mode: "number", unsigned: true }).references(() => users.id, { onDelete: "set null" }),
+  courierShortage:  decimal("courier_shortage", { precision: 12, scale: 2 }).default("0.00").notNull(),
+  shortageUserId:   bigint("shortage_user_id", { mode: "number", unsigned: true }).references(() => users.id, { onDelete: "set null" }),
+  shortageNote:     varchar("shortage_note", { length: 300 }),
   priority:    mysqlEnum("priority", ["low", "normal", "high"]).default("normal").notNull(),
   deletedAt:   timestamp("deleted_at"),
   createdAt:   timestamp("created_at").defaultNow().notNull(),
@@ -1022,11 +1032,17 @@ export const payments = mysqlTable("payments", {
     видно только в выписке. Кассир сверяет с выпиской и ставит «пришло»;
     до этого платёж «в пути», а дольше settings.bankConfirmDays — просрочен и
     висит на том, кто его записал. Не пришло — сторно, как у любого платежа.
-    Наличных не касается: их путь — сдача в кассу (cash_documents).
   */
   bankConfirmedAt: timestamp("bank_confirmed_at"),
   bankConfirmedBy: bigint("bank_confirmed_by", { mode: "number", unsigned: true }).references(() => users.id, { onDelete: "restrict" }),
   bankRef: varchar("bank_ref", { length: 64 }),
+  /*
+    Наличные получены офисом. Наличный платёж, записанный в поле, — деньги на
+    руках у курьера или агента, пока офис не принял их при закрытии расчёта по
+    заказу (services/order-close.ts). Платёж, записанный офисом, получен сразу.
+  */
+  receivedAt: timestamp("received_at"),
+  receivedBy: bigint("received_by", { mode: "number", unsigned: true }).references(() => users.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 }, (t) => ({
   tenantIdx: index("idx_payments_tenant").on(t.tenantId),
@@ -1428,19 +1444,8 @@ export const settings = mysqlTable("settings", {
   companyBankAccount:  varchar("company_bank_account", { length: 50 }),
   companyMfo:          varchar("company_mfo", { length: 20 }),      // МФО банка
   logoUrl:             text("logo_url"),
-  /** Касса: сколько наличных сотруднику можно держать на руках и до какого часа сдать. */
-  cashLimit:           decimal("cash_limit", { precision: 15, scale: 2 }).default("5000000.00").notNull(),
-  cashDeadline:        varchar("cash_deadline", { length: 5 }).default("19:00").notNull(),
   /** Безнал: через сколько дней неподтверждённый банком перевод считается просроченным. */
   bankConfirmDays:     int("bank_confirm_days").default(3).notNull(),
-  /**
-   * Касса ведётся с этого дня. Платежи раньше в проводки не входят: у
-   * организации, работавшей до кассы, вся история наличных иначе легла бы
-   * «в сейф» — 8 млн по системе против пустого ящика, и первое закрытие дня
-   * повесило бы разницу долгом на кассира. Стартовый остаток — «Внесением».
-   * По умолчанию — день, когда касса появилась в продукте.
-   */
-  cashStartDay:        date("cash_start_day", { mode: "string" }).default("2026-09-16").notNull(),
   /** Себестоимость при приходе: last — последняя закупка (как было), average — средняя по остатку (services/cost-method.ts). */
   costMethod:          mysqlEnum("cost_method", ["last", "average"]).default("last").notNull(),
   /** Контроль: подтверждение доставки магазином и индекс риска по сотруднику. Pro/Exclusive. */
@@ -2294,82 +2299,4 @@ export const onecJournal = mysqlTable("onec_journal", {
 
 export type OnecJournalRow = typeof onecJournal.$inferSelect;
 
-/* ═══════════════════════════════════════════════════════════════════════════
-   КАССА — двойная запись поверх платежей.
-
-   Наличные платежи уже лежат в payments и уже считают выручку и долг. Касса
-   не копирует их: платёж наличными сам по себе — проводка «на руки тому, кто
-   его записал». Здесь только то, чего в платежах нет: сдача в кассу (ПКО),
-   расход (РКО), внесение, выемка, списание долга сотрудника, сторно.
-
-   Каждый документ — две стороны (дебет/кредит), и сумма всех счетов всегда
-   ноль: деньги не исчезают из отчёта, они только переезжают между счетами.
-   Документы не правятся и не удаляются (это держит тест): ошибка —
-   отдельным сторно с причиной. Цепочка hash → prev_hash делает подмену строки
-   в базе заметной.
-   ═══════════════════════════════════════════════════════════════════════════ */
-export const cashDocuments = mysqlTable("cash_documents", {
-  id:             serial("id").primaryKey(),
-  tenantId:       bigint("tenant_id", { mode: "number", unsigned: true }).notNull().references(() => tenants.id, { onDelete: "restrict" }),
-  /** ПКО — деньги пришли в кассу, РКО — ушли. Сторно — документ противоположного вида со ссылкой storno_of. */
-  kind:           mysqlEnum("kind", ["pko", "rko"]).notNull(),
-  /** Сквозной номер в году по виду: ПКО-0001, РКО-0001. */
-  year:           int("year").notNull(),
-  number:         int("number").notNull(),
-  /** Счета: cash.office, cash.employee.<id>, receivable.employee.<id>, expense.<статья>, owner, income.unexplained. */
-  debit:          varchar("debit", { length: 64 }).notNull(),
-  credit:         varchar("credit", { length: 64 }).notNull(),
-  amount:         decimal("amount", { precision: 15, scale: 2 }).notNull(),
-  /** У сдачи: сколько система ожидала и на сколько разошлось. */
-  expectedAmount: decimal("expected_amount", { precision: 15, scale: 2 }),
-  discrepancy:    decimal("discrepancy", { precision: 15, scale: 2 }),
-  fromUserId:     bigint("from_user_id", { mode: "number", unsigned: true }).references(() => users.id, { onDelete: "restrict" }),
-  toUserId:       bigint("to_user_id", { mode: "number", unsigned: true }).references(() => users.id, { onDelete: "restrict" }),
-  category:       varchar("category", { length: 64 }),
-  note:           varchar("note", { length: 500 }),
-  /** Купюры при сдаче: { "100000": 12, "50000": 3 } — считать быстрее, врать труднее. */
-  denominations:  json("denominations").$type<Record<string, number> | null>(),
-  photoUrl:       text("photo_url"),
-  /** Чем подтверждена сдача: PIN сотрудника в телефоне или подпись на бумаге. */
-  pinConfirmedAt: timestamp("pin_confirmed_at"),
-  paperSigned:    boolean("paper_signed").default(false).notNull(),
-  stornoOfId:     bigint("storno_of_id", { mode: "number", unsigned: true }),
-  prevHash:       varchar("prev_hash", { length: 64 }),
-  hash:           varchar("hash", { length: 64 }).notNull(),
-  createdBy:      bigint("created_by", { mode: "number", unsigned: true }).notNull().references(() => users.id, { onDelete: "restrict" }),
-  createdAt:      timestamp("created_at").defaultNow().notNull(),
-}, (t) => ({
-  numberIdx: uniqueIndex("uq_cash_doc_number").on(t.tenantId, t.year, t.kind, t.number),
-  tenantIdx: index("idx_cash_doc_tenant_at").on(t.tenantId, t.createdAt),
-  fromIdx:   index("idx_cash_doc_from").on(t.fromUserId),
-}));
-
-/** Закрытие дня: сейф по системе против пересчёта кассиром. Закрытый день проводок не принимает. */
-export const cashDays = mysqlTable("cash_days", {
-  id:             serial("id").primaryKey(),
-  tenantId:       bigint("tenant_id", { mode: "number", unsigned: true }).notNull().references(() => tenants.id, { onDelete: "restrict" }),
-  day:            date("day", { mode: "string" }).notNull(),
-  systemBalance:  decimal("system_balance", { precision: 15, scale: 2 }).notNull(),
-  countedBalance: decimal("counted_balance", { precision: 15, scale: 2 }).notNull(),
-  discrepancy:    decimal("discrepancy", { precision: 15, scale: 2 }).notNull(),
-  closedBy:       bigint("closed_by", { mode: "number", unsigned: true }).notNull().references(() => users.id, { onDelete: "restrict" }),
-  closedAt:       timestamp("closed_at").defaultNow().notNull(),
-  reopenedBy:     bigint("reopened_by", { mode: "number", unsigned: true }).references(() => users.id, { onDelete: "restrict" }),
-  reopenedAt:     timestamp("reopened_at"),
-}, (t) => ({
-  dayIdx: uniqueIndex("uq_cash_day").on(t.tenantId, t.day),
-}));
-
-/** Статьи расхода арендатора с месячным лимитом; сверх лимита — только директор. */
-export const cashCategories = mysqlTable("cash_categories", {
-  id:           serial("id").primaryKey(),
-  tenantId:     bigint("tenant_id", { mode: "number", unsigned: true }).notNull().references(() => tenants.id, { onDelete: "restrict" }),
-  code:         varchar("code", { length: 64 }).notNull(),
-  name:         varchar("name", { length: 100 }).notNull(),
-  monthlyLimit: decimal("monthly_limit", { precision: 15, scale: 2 }),
-  isActive:     boolean("is_active").default(true).notNull(),
-  createdAt:    timestamp("created_at").defaultNow().notNull(),
-}, (t) => ({
-  codeIdx: uniqueIndex("uq_cash_category").on(t.tenantId, t.code),
-}));
 

@@ -372,6 +372,27 @@
       "when": 1789731883695,
       "tag": "0052_remove_van_tare",
       "breakpoints": true
+    },
+    {
+      "idx": 53,
+      "version": "5",
+      "when": 1789733682236,
+      "tag": "0053_order_close",
+      "breakpoints": true
+    },
+    {
+      "idx": 54,
+      "version": "5",
+      "when": 1789734831778,
+      "tag": "0054_orders_closed_history",
+      "breakpoints": true
+    },
+    {
+      "idx": 55,
+      "version": "5",
+      "when": 1789734833007,
+      "tag": "0055_payments_received_history",
+      "breakpoints": true
     }
   ]
 }

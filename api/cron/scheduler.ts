@@ -81,21 +81,6 @@ const JOBS: Job[] = [
     run: async () => (await import("./telegram-morning")).runTelegramMorning(),
   },
   {
-    // Касса вечером: кто не сдал наличные, не закрыт ли день. 19:30 —
-    // после самого позднего разумного срока сдачи.
-    name: "cash-evening",
-    daily: { hour: 19, minute: 30 },
-    catchUpHours: 2,
-    run: async () => (await import("./cash-evening")).runCashEvening(),
-  },
-  {
-    // Цепочка кассовых документов: подмена строки в базе не переживает ночь.
-    name: "cash-chain-check",
-    daily: { hour: 3, minute: 20 },
-    catchUpHours: 6,
-    run: async () => (await import("./cash-evening")).runCashChainCheck(),
-  },
-  {
     // Долги — утром рабочего дня: по ним звонят, а не читают на ночь.
     name: "debt-reminders",
     daily: { hour: 9, minute: 0 },

@@ -6,7 +6,6 @@ export { InvoicePrintModal } from "./InvoicePrintModal";
 export { LoadingListModal } from "./LoadingListModal";
 export { OrderFilterChips } from "./OrderFilterChips";
 export { OrderBulkActions } from "./OrderBulkActions";
-export { OrderSlideOver } from "./OrderSlideOver";
 export { OrderKanbanBoard } from "./OrderKanbanBoard";
 export { OrderComments } from "./OrderComments";
 export { QuickOrderModal } from "./QuickOrderModal";

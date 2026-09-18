@@ -488,7 +488,7 @@ describe("веб-закрытие оставляет след доставки",
 
   it("выполнение с оплатой — тоже", () => {
     const at = order.indexOf("// Update order status — goods were delivered");
-    expect(order.slice(at, at + 500)).toContain('deliveryStatus: "delivered"');
+    expect(order.slice(at, at + 900)).toContain('deliveryStatus: "delivered"');
   });
 
   it("частичная доставка — тоже доставка", () => {

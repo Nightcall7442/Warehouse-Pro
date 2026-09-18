@@ -52,7 +52,7 @@ async function cachedTenant(id: number) {
  * authenticated request never carries one around — the two flows that need it
  * (login, change password) read it themselves.
  */
-export type AuthenticatedUser = Omit<User, "passwordHash" | "totpSecret" | "cashPinHash">;
+export type AuthenticatedUser = Omit<User, "passwordHash" | "totpSecret">;
 
 export type AuthResult = {
   user: AuthenticatedUser;

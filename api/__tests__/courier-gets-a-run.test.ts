@@ -74,9 +74,9 @@ describe("одно правило: пока заказ открыт", () => {
       Иначе поле исчезало после сборки листа — ровно тогда, когда курьера и
       назначают.
     */
-    const slide = read("src/components/orders/OrderSlideOver.tsx");
-    expect(slide).toContain("OPEN_STATUSES.includes(order.status)");
-    expect(slide).not.toContain('order.status === "new" || order.status === "processing"');
+    const detail = read("src/pages/OrderDetail.tsx");
+    expect(detail).toContain("OPEN_STATUSES.includes(order.status)");
+    expect(detail).not.toContain('order.status === "new" || order.status === "processing"');
   });
 });
 
