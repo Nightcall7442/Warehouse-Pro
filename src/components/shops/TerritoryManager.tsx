@@ -4,6 +4,7 @@ import { X, Pencil, Trash2, Loader2, Plus, MapPin, Layers } from "lucide-react";
 import { trpc } from "@/providers/trpc.client";
 import { notify } from "@/lib/toast";
 import { COLORS, F } from "./constants";
+import { useOverlay } from "@/lib/overlay";
 
 interface TerritoryManagerProps {
   lang: string;
@@ -11,6 +12,7 @@ interface TerritoryManagerProps {
 }
 
 export function TerritoryManager({ lang, onClose }: TerritoryManagerProps) {
+  useOverlay({ open: true, onClose: onClose });
   const t = (ru: string, uz: string) => lang === "uz" ? uz : ru;
   const utils = trpc.useContext();
   const { data: territories = [], isLoading } = trpc.territory.list.useQuery();

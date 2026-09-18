@@ -6,11 +6,13 @@ import { useTranslate, useLang } from "@/i18n";
 import { labelled, ORDER_STATUS_LABEL } from "@/lib/entity-labels";
 import { useAuth } from "@/hooks/useAuth";
 import { canOperate, canSupervise } from "@/lib/permissions";
+import { useOverlay } from "@/lib/overlay";
 
 export function GlobalSearch() {
   const tr = useTranslate();
   const { lang } = useLang();
   const [open,  setOpen]  = useState(false);
+  useOverlay({ open, onClose: () => setOpen(false) });
   const [query, setQuery] = useState("");
   const inputRef          = useRef<HTMLInputElement>(null);
   const navigate          = useNavigate();
@@ -24,7 +26,6 @@ export function GlobalSearch() {
         e.preventDefault();
         setOpen(v => !v);
       }
-      if (e.key === "Escape") setOpen(false);
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);

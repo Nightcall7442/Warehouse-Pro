@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useOverlay } from "@/lib/overlay";
 import { createPortal } from "react-dom";
 import { AlertCircle, XCircle, ExternalLink } from "lucide-react";
 import { trpc } from "@/providers/trpc";
@@ -22,11 +22,7 @@ export function ErrorDetailModal({ errorId, onClose }: ErrorDetailModalProps) {
   const grafanaUrl = obs?.grafana.url ?? "";
   const lokiDatasource = obs?.grafana.lokiDatasource ?? "loki";
 
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, [onClose]);
+  useOverlay({ open: true, onClose });
 
   return createPortal(
     <div style={{ position: "fixed", inset: 0, zIndex: 50, display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" }} onClick={onClose}>

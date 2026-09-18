@@ -23,6 +23,7 @@ import { TransferCredentialsModal } from "@/components/users/TransferCredentials
 import { ROLES, type Role } from "@contracts/types";
 
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
+import { useOverlay } from "@/lib/overlay";
 // The filter select carries "" for "all roles"; the list query wants no role at all.
 const isRole = (value: string): value is Role => ROLES.some(r => r === value);
 
@@ -194,6 +195,7 @@ function InviteForm({ onDone, lang }: { onDone: () => void; lang: "ru" | "uz" })
 function ResetPasswordModal({ userId, userName, onClose, lang }: {
   userId: number; userName: string; onClose: () => void; lang: "ru" | "uz";
 }) {
+  useOverlay({ open: true, onClose: onClose });
   const t = (ru: string, uz: string) => (lang === "uz" ? uz : ru);
   const [pw, setPw] = useState("");
   const reset = trpc.user.resetPassword.useMutation({

@@ -4,6 +4,7 @@ import { useLang } from "@/i18n";
 import { useCurrency } from "@/hooks/useCurrency";
 import { trpc } from "@/providers/trpc";
 import { useAuth } from "@/hooks/useAuth";
+import { useOverlay } from "@/lib/overlay";
 import {
   Search, ShoppingCart, Package, Store, Users, FileText,
   BarChart3, Settings, Truck, ArrowRight,
@@ -30,6 +31,7 @@ interface CommandItem {
 
 export function CommandPalette() {
   const [open, setOpen] = useState(false);
+  useOverlay({ open, onClose: () => setOpen(false) });
   const [query, setQuery] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
@@ -156,7 +158,6 @@ export function CommandPalette() {
         e.preventDefault();
         setOpen(v => !v);
       }
-      if (e.key === "Escape") setOpen(false);
     };
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);

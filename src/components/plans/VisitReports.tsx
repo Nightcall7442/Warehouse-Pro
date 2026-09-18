@@ -5,6 +5,7 @@ import { trpc } from "@/providers/trpc";
 import { PhotoOrIcon } from "@/components/PhotoOrIcon";
 import { PremiumSelect } from "@/components/PremiumSelect";
 import { monthEnd, monthLabel } from "./month";
+import { useOverlay } from "@/lib/overlay";
 
 /*
   ── Отчёты о визитах ────────────────────────────────────────────────────────
@@ -142,6 +143,7 @@ function ReportCard({ report, onOpen, lang }: { report: Report; onOpen: () => vo
 
 // ── Развёрнутый отчёт ─────────────────────────────────────────────────────────
 function ReportModal({ reportId, onClose, lang }: { reportId: number; onClose: () => void; lang: string }) {
+  useOverlay({ open: true, onClose: onClose });
   const t = (ru: string, uz: string) => lang === "uz" ? uz : ru;
   const { data, isLoading } = trpc.merchandiser.getReportById.useQuery({ id: reportId });
   const p = presence((data?.checklist ?? null) as Checklist | null);

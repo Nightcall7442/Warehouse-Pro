@@ -4,7 +4,6 @@ import { ShopVisitReports } from "@/components/plans/VisitReports";
 import { normalizeDecimalInput } from "@/lib/decimal-input";
 import { useCurrency } from "@/hooks/useCurrency";
 import { useRef, useState, useMemo, useCallback } from "react";
-import { createPortal } from "react-dom";
 import { trpc } from "@/providers/trpc";
 import { notify } from "@/lib/toast";
 import { compressImage } from "@/lib/compress-image";
@@ -15,7 +14,7 @@ import { labelled, ORDER_STATUS_LABEL } from "@/lib/entity-labels";
 import { format } from "date-fns";
 import {
   ArrowLeft, Phone, MapPin, Edit2, Plus,
-  AlertCircle, Loader2, CheckCircle2, X, Trash2, ChevronRight, Camera, Archive, RotateCcw,
+  AlertCircle, Loader2, CheckCircle2, Trash2, ChevronRight, Camera, Archive, RotateCcw,
 } from "lucide-react";
 import { PhotoOrIcon } from "@/components/PhotoOrIcon";
 import { ShopAvatar } from "@/components/shops/ShopAvatar";
@@ -25,12 +24,14 @@ import { QueryErrorFallback } from "@/components/QueryErrorFallback";
 import { ShopMoney } from "@/components/shops/ShopMoney";
 import { useAuth } from "@/hooks/useAuth";
 import { canOperate } from "@/lib/permissions";
+import { AppModal, modalFieldLabel } from "@/components/ui/AppModal";
 
 
 // ── Форма платежа ─────────────────────────────────────────────────────────────
-function PaymentModal({ shopId, onClose }: { shopId: number; onClose: () => void }) {
+export function PaymentModal({ shopId, shopName, onClose }: { shopId: number; shopName: string; onClose: () => void }) {
   const [amount, setAmount] = useState("");
   const [type,   setType]   = useState<"payment" | "debt">("payment");
+  const [method, setMethod] = useState<"cash" | "card" | "transfer">("cash");
   const [notes,  setNotes]  = useState("");
   // Метка этой попытки оплаты: одна на открытую форму. Второй клик по кнопке
   // или повтор после сорванной связи уходят с той же меткой, и сервер не
@@ -42,80 +43,80 @@ function PaymentModal({ shopId, onClose }: { shopId: number; onClose: () => void
 
   const addPayment = trpc.shop.addPayment.useMutation({
     onSuccess: () => {
-      utils.shop.getById.invalidate({ id: shopId });
+      // Всё, что на странице считает деньги магазина: карточка, долг и акт
+      // сверки, история. Раньше обновлялась одна карточка, и долг под ней
+      // показывал старую сумму до перезагрузки.
+      utils.shop.invalidate();
+      utils.dashboard.invalidate();
       notify.success(t("Платёж записан", "To'lov kiritildi"));
       onClose();
     },
     onError: (e) => notify.error(e.message),
   });
 
+  const amt = Number(amount);
+  const valid = Number.isFinite(amt) && amt > 0;
   const options = [
-    { val: "payment", labelRu: "💰 Оплата (уменьшает долг)",    labelUz: "💰 To'lov (qarzni kamaytiradi)"  },
-    { val: "debt",    labelRu: "📋 Новый долг (увеличивает)",    labelUz: "📋 Yangi qarz (oshiradi)"        },
-  ];
+    { val: "payment", labelRu: "Оплата — уменьшает долг", labelUz: "To'lov — qarzni kamaytiradi" },
+    { val: "debt",    labelRu: "Начисление — увеличивает", labelUz: "Hisoblash — oshiradi" },
+  ] as const;
+  const methods = [
+    { val: "cash", ru: "Наличные", uz: "Naqd" }, { val: "card", ru: "Карта", uz: "Karta" }, { val: "transfer", ru: "Перевод", uz: "O'tkazma" },
+  ] as const;
+  const pick = (active: boolean) => `py-2.5 px-3 rounded-lg border text-xs font-medium text-left transition-all ${active ? "border-primary bg-primary/10 text-primary" : "border-border-subtle text-secondary hover:border-border-strong"}`;
 
-  return createPortal(
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center"
-      style={{ background: "rgba(0,0,0,0.45)", backdropFilter: "blur(4px)" }}>
-      {/* Фон панели — из темы, а не литералом.
-          Здесь стоял bg-[#ffffff]. Весь текст внутри берёт цвет из токенов, и
-          в тёмной теме это давало почти белый текст на белом: заголовок
-          #ede9e3 на #ffffff — контраст 1.21 при норме 4.5, подпись поля —
-          2.69. Форма читалась только на ощупь.
-          Соседняя модалка (warehouse/AdjustModal) с самого начала красится
-          через var(--color-surface) — здесь теперь так же. */}
-      <div className="w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl shadow-2xl p-5 space-y-4"
-        style={{ background: "var(--color-surface, #efedea)" }}>
-        <div className="flex items-center justify-between">
-          <h2 className="font-display text-base text-primary">{t("Добавить платёж", "To'lov qo'shish")}</h2>
-          <button onClick={onClose} className="btn-ghost p-1.5"><X size={18} /></button>
-        </div>
-
-        <div className="grid grid-cols-2 gap-2">
-          {options.map(o => (
-            <button key={o.val} onClick={() => setType(o.val as "payment" | "debt")}
-              className={`py-3 px-3 rounded-lg border text-xs font-medium text-left transition-all ${
-                type === o.val
-                  ? "border-primary bg-primary/10 text-primary"
-                  : "border-border-subtle text-secondary hover:border-border-strong"
-              }`}>
-              {lang === "uz" ? o.labelUz : o.labelRu}
-            </button>
-          ))}
-        </div>
-
-        <div>
-          <label className="font-label text-[10px] text-secondary tracking-wider block mb-1.5">
-            {t("СУММА", "SUMMA")}
-          </label>
-          <input data-testid="payment-amount" type="text" inputMode="decimal"
-            className="neo-input w-full font-data text-lg"
-            placeholder="0.00" value={amount}
-            onChange={e => setAmount(normalizeDecimalInput(e.target.value))} autoFocus />
-        </div>
-
-        <div>
-          <label className="font-label text-[10px] text-secondary tracking-wider block mb-1.5">
-            {t("ПРИМЕЧАНИЯ", "IZOHLAR")}
-          </label>
-          <input className="neo-input w-full" placeholder={t("Комментарий…", "Izoh…")}
-            value={notes} onChange={e => setNotes(e.target.value)} />
-        </div>
-
-        <div className="flex gap-2">
-          <button
-            data-testid="payment-submit"
-            onClick={() => amount && addPayment.mutate({ shopId, amount, type, notes: notes || undefined, idempotencyKey })}
-            disabled={addPayment.isPending || !amount}
-            className="neo-btn-primary flex-1 flex items-center justify-center gap-2 disabled:opacity-40">
-            {addPayment.isPending && <Loader2 size={14} className="animate-spin" />}
-            {t("Записать", "Kiritish")}
+  return (
+    <AppModal open onClose={onClose} dirty={amount !== "" || notes !== ""} maxWidth={480}
+      title={t("Платёж магазина", "Do'kon to'lovi")} subtitle={shopName}
+      footer={<>
+        <button
+          data-testid="payment-submit"
+          onClick={() => valid && addPayment.mutate({ shopId, amount, type, paymentMethod: method, notes: notes || undefined, idempotencyKey })}
+          disabled={addPayment.isPending || !valid}
+          className="neo-btn-primary flex-1 flex items-center justify-center gap-2 disabled:opacity-40">
+          {addPayment.isPending && <Loader2 size={14} className="animate-spin" />}
+          {t("Записать", "Kiritish")}
+        </button>
+        <button onClick={onClose} className="neo-btn px-5">{t("Отмена", "Bekor")}</button>
+      </>}
+    >
+      <div className="grid grid-cols-2 gap-2">
+        {options.map(o => (
+          <button key={o.val} type="button" onClick={() => setType(o.val)} className={pick(type === o.val)} data-testid={`payment-type-${o.val}`}>
+            {lang === "uz" ? o.labelUz : o.labelRu}
           </button>
-          <button onClick={onClose} className="neo-btn px-5">{t("Отмена", "Bekor")}</button>
-        </div>
+        ))}
       </div>
-    </div>,
-    document.body
+
+      <div>
+        <label className={modalFieldLabel}>{t("Сумма", "Summa")}</label>
+        <input data-testid="payment-amount" type="text" inputMode="decimal"
+          className="neo-input w-full font-data text-lg"
+          placeholder="0" value={amount}
+          onChange={e => setAmount(normalizeDecimalInput(e.target.value))} autoFocus />
+      </div>
+
+      {/* Способ оплаты — только у оплаты: начисление денег не двигает. Карта и
+          перевод уходят «в пути» и ждут выписки; наличные офиса получены сразу. */}
+      {type === "payment" && (
+        <div>
+          <label className={modalFieldLabel}>{t("Способ", "Usul")}</label>
+          <div className="grid grid-cols-3 gap-2">
+            {methods.map(m => (
+              <button key={m.val} type="button" onClick={() => setMethod(m.val)} className={pick(method === m.val)} data-testid={`payment-method-${m.val}`}>
+                {lang === "uz" ? m.uz : m.ru}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div>
+        <label className={modalFieldLabel}>{t("Примечание", "Izoh")}</label>
+        <input className="neo-input w-full" placeholder={t("Комментарий…", "Izoh…")}
+          value={notes} onChange={e => setNotes(e.target.value)} />
+      </div>
+    </AppModal>
   );
 }
 
@@ -266,7 +267,7 @@ export default function ShopDetail() {
     <div className="max-w-2xl mx-auto space-y-4 animate-fade-up">
       <div key="confirm-dialog">{dialog}</div>
       <div key="payment-modal">
-        {showPayment && <PaymentModal shopId={shop.id} onClose={() => setShowPayment(false)} />}
+        {showPayment && <PaymentModal shopId={shop.id} shopName={shop.name} onClose={() => setShowPayment(false)} />}
       </div>
 
       {/* Навигация */}
