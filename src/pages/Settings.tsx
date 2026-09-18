@@ -4,13 +4,11 @@ import { useSearchParams } from "react-router";
 import { useLang } from "@/i18n";
 import { useAuth } from "@/hooks/useAuth";
 import {
-  User, Bell, Building2, SunMoon, Database, Warehouse, Palette, ShieldCheck, Tags, KeyRound, Truck, Boxes,
+  User, Bell, Building2, SunMoon, Database, Warehouse, Palette, ShieldCheck, Tags, KeyRound,
 } from "lucide-react";
 import { ProfileSettings } from "@/components/settings/ProfileSettings";
 import { CompanySettings } from "@/components/settings/CompanySettings";
 import { WarehouseSettings } from "@/components/settings/WarehouseSettings";
-import { VanSettings } from "@/components/settings/VanSettings";
-import { TareSettings } from "@/components/settings/TareSettings";
 import { ControlSettings } from "@/components/settings/ControlSettings";
 import { PriceListSettings } from "@/components/settings/PriceListSettings";
 import { ApiKeySettings } from "@/components/settings/ApiKeySettings";
@@ -87,20 +85,6 @@ const SECTIONS: Section[] = [
     descRu: "Склады организации и тот, который подставляется по умолчанию.",
     descUz: "Tashkilot omborxonalari va sukut bo'yicha tanlanadigani.",
     Comp: WarehouseSettings,
-  },
-  {
-    key: "van", Icon: Truck, roles: ["ceo"],
-    titleRu: "Ван-селлинг", titleUz: "Van-selling",
-    descRu: "Продажа с машины: машины как склады с водителем, загрузка под PIN, продажа с колёс, пересчёт с недостачей.",
-    descUz: "Mashinadan sotuv: mashinalar haydovchili ombor sifatida, PIN bilan yuklash, g'ildirakdan sotuv, kamomadli sanash.",
-    Comp: VanSettings,
-  },
-  {
-    key: "tare", Icon: Boxes, roles: ["ceo"],
-    titleRu: "Возвратная тара", titleUz: "Qaytariladigan idish",
-    descRu: "Бутылки, ящики, кеги: у кого сколько и залог, если не вернут. Тара следует за товаром сама.",
-    descUz: "Butilka, yashik, keg: kimda qancha va qaytarmasa — garov. Idish tovar ortidan o'zi yuradi.",
-    Comp: TareSettings,
   },
   {
     key: "control", Icon: ShieldCheck, roles: ["ceo"],

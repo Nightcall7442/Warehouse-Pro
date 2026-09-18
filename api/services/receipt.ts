@@ -1,7 +1,7 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { and, eq } from "drizzle-orm";
 import QRCode from "qrcode";
-import { orders, orderItems, products, shops, users, settings, warehouses, payments } from "@db/schema";
+import { orders, orderItems, products, shops, users, settings, payments } from "@db/schema";
 import { env } from "../lib/env";
 import { appLink } from "../lib/telegram";
 import { viewerScope, type OrderViewer } from "./order-shared";
@@ -63,7 +63,7 @@ const ddmm = (d: Date) => new Intl.DateTimeFormat("ru-RU", { timeZone: "Asia/Tas
 
 export interface ReceiptData {
   orderId: number; number: string; date: Date; company: string; phone: string | null; inn: string | null;
-  shop: string; seller: string | null; van: string | null; method: string; paid: number; total: number; currency: string;
+  shop: string; seller: string | null; method: string; paid: number; total: number; currency: string;
   items: Array<{ name: string; qty: string; price: string; sum: string }>; url: string;
 }
 
@@ -71,11 +71,10 @@ export interface ReceiptData {
 export async function receiptData(db: Db, tenantId: number, orderId: number, viewer: OrderViewer | null): Promise<ReceiptData | null> {
   const [o] = await db.select({
     id: orders.id, number: orders.orderNumber, status: orders.status, total: orders.total, method: orders.paymentMethod,
-    deliveredAt: orders.deliveredAt, createdAt: orders.createdAt, shop: shops.name, seller: users.name, van: warehouses.name,
+    deliveredAt: orders.deliveredAt, createdAt: orders.createdAt, shop: shops.name, seller: users.name,
   }).from(orders)
     .innerJoin(shops, eq(shops.id, orders.shopId))
     .leftJoin(users, eq(users.id, orders.agentId))
-    .leftJoin(warehouses, eq(warehouses.id, orders.warehouseId))
     .where(and(eq(orders.id, orderId), eq(orders.tenantId, tenantId), ...(viewer ? viewerScope(viewer) : [])))
     .limit(1);
   if (!o) return null;
@@ -89,7 +88,7 @@ export async function receiptData(db: Db, tenantId: number, orderId: number, vie
   const paid = pays.reduce((s, p) => s + Number(p.amount), 0);
   return {
     orderId: o.id, number: o.number, date: o.deliveredAt ?? o.createdAt, company: cfg?.company ?? "", phone: cfg?.phone ?? null, inn: cfg?.inn ?? null,
-    shop: o.shop, seller: o.seller ?? null, van: o.van ?? null, method: PAY[o.method] ?? o.method, paid, total: Number(o.total), currency: cur,
+    shop: o.shop, seller: o.seller ?? null, method: PAY[o.method] ?? o.method, paid, total: Number(o.total), currency: cur,
     items: rows.map(r => {
       const q = Number(r.delivered ?? r.qty);
       return { name: r.name, qty: qty(q), price: money(r.price, ""), sum: money(q * Number(r.price), "") };
@@ -139,7 +138,6 @@ export async function receiptHtml(d: ReceiptData, extra = ""): Promise<string> {
   <table class="m"><tr><td>Чек</td><td class="s"><b>${esc(d.number)}</b></td></tr>
   <tr><td>Дата</td><td class="s">${esc(ddmm(d.date))}</td></tr>
   <tr><td>Покупатель</td><td class="s">${esc(d.shop)}</td></tr>
-  ${d.van ? `<tr><td>Машина</td><td class="s">${esc(d.van)}</td></tr>` : ""}
   ${d.seller ? `<tr><td>Выдал</td><td class="s">${esc(d.seller)}</td></tr>` : ""}</table>
   <hr>
   <table class="m">${lines}</table>

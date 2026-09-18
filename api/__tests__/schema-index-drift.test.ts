@@ -55,6 +55,10 @@ const NOT_INDEX_NAMES = new Set(["IF", "NOT", "EXISTS"]);
 /** Имена индексов, живых после всех миграций (созданные минус удалённые). */
 function indexesInMigrations(): Set<string> {
   const alive = new Set<string>();
+  // Чей индекс: DROP TABLE уносит все индексы таблицы, отдельного DROP INDEX
+  // для них drizzle не пишет — без этого учёта снесённая таблица оставляла
+  // бы «живые» индексы, которых нет ни в базе, ни в модели.
+  const owner = new Map<string, string>();
   for (const file of readdirSync(MIGRATIONS).filter(f => f.endsWith(".sql")).sort()) {
     // Комментарии убираются до разбора: в этих файлах они по-русски и
     // многословны, и фраза вроде «добавить ключ, чтобы …» давала ложные имена.
@@ -62,10 +66,17 @@ function indexesInMigrations(): Set<string> {
       .replace(/\/\*[\s\S]*?\*\//g, " ")
       .replace(/--[^\n]*/g, " ");
 
-    const add = (name: string) => { if (!NOT_INDEX_NAMES.has(name.toUpperCase())) alive.add(name); };
-    for (const m of sql.matchAll(/CREATE\s+(?:UNIQUE\s+)?INDEX\s+`?(\w+)`?/gi)) add(m[1]);
+    const add = (name: string, table?: string) => {
+      if (NOT_INDEX_NAMES.has(name.toUpperCase())) return;
+      alive.add(name); if (table) owner.set(name, table);
+    };
+    for (const m of sql.matchAll(/CREATE\s+(?:UNIQUE\s+)?INDEX\s+`?(\w+)`?(?:\s+ON\s+`?(\w+)`?)?/gi)) add(m[1], m[2]);
+    for (const m of sql.matchAll(/ALTER\s+TABLE\s+`?(\w+)`?\s+ADD\s+(?:UNIQUE\s+)?(?:INDEX|KEY)\s+`?(\w+)`?/gi)) add(m[2], m[1]);
     for (const m of sql.matchAll(/ADD\s+(?:UNIQUE\s+)?(?:INDEX|KEY)\s+`?(\w+)`?/gi)) add(m[1]);
     for (const m of sql.matchAll(/DROP\s+INDEX\s+`?(\w+)`?/gi)) alive.delete(m[1]);
+    for (const m of sql.matchAll(/DROP\s+TABLE\s+(?:IF\s+EXISTS\s+)?`?(\w+)`?/gi)) {
+      for (const [name, table] of owner) if (table === m[1]) alive.delete(name);
+    }
   }
   return alive;
 }

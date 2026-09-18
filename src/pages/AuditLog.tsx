@@ -130,23 +130,6 @@ const ACTION_CONFIG: Record<string, { icon: LucideIcon; gradient: string }> = {
   // Склад
   "stock.adjusted":                  { icon: Package, gradient: WARNING },
   "stock.transfer_completed":        { icon: Boxes, gradient: PRIMARY },
-  // Ван-селлинг
-  "van.enabled":                     { icon: Truck, gradient: SUCCESS },
-  "van.disabled":                    { icon: Truck, gradient: WARNING },
-  "van.created":                     { icon: Truck, gradient: PRIMARY },
-  "van.updated":                     { icon: Truck, gradient: PRIMARY },
-  "van.loaded":                      { icon: Truck, gradient: SUCCESS },
-  "van.unloaded":                    { icon: Truck, gradient: PRIMARY },
-  "van.counted":                     { icon: Truck, gradient: WARNING },
-  "van.sale":                        { icon: Truck, gradient: SUCCESS },
-  // Тара
-  "tare.enabled":                    { icon: Boxes, gradient: SUCCESS },
-  "tare.disabled":                   { icon: Boxes, gradient: WARNING },
-  "tare.type_created":               { icon: Boxes, gradient: PRIMARY },
-  "tare.type_updated":               { icon: Boxes, gradient: PRIMARY },
-  "tare.product_set":                { icon: Boxes, gradient: PRIMARY },
-  "tare.returned":                   { icon: Boxes, gradient: SUCCESS },
-  "tare.charged":                    { icon: Boxes, gradient: DANGER },
   "control.enabled":                 { icon: ShieldCheck, gradient: SUCCESS },
   "control.disabled":                { icon: ShieldCheck, gradient: WARNING },
   "control.shop_confirmed":          { icon: ShieldCheck, gradient: SUCCESS },

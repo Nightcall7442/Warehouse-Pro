@@ -99,17 +99,6 @@ export async function assertReopenable(
   orderNumber: string,
 ): Promise<void> {
   /*
-    Продажа с машины родилась доставленной и списала товар с машины, а не с
-    основного склада. Второй круг повёл бы её через резерв основного склада —
-    другой остаток, другие деньги. Только новый заказ.
-  */
-  const [van] = await tx.select({ warehouseId: orders.warehouseId }).from(orders)
-    .where(and(eq(orders.id, orderId), eq(orders.tenantId, tenantId)));
-  if (van?.warehouseId) {
-    throw blocked(`Заказ ${orderNumber} — продажа с машины: вернуть его в работу нельзя. Товар ушёл с машины, а не со склада; оформите новый заказ.`);
-  }
-
-  /*
     Обычные select и сравнение в JS, а не COUNT(*) и не сырое условие в WHERE.
 
     Тот же приём, что в returnedQuantitiesByProduct рядом, и по той же
