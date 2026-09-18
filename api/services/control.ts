@@ -1,5 +1,6 @@
 import { and, eq, gte, lt, isNull, isNotNull, inArray, desc, sql } from "drizzle-orm";
-import { orders, shops, users, settings, auditLog } from "@db/schema";
+import { orders, shops, users, settings, auditLog, payments } from "@db/schema";
+import { alias } from "drizzle-orm/mysql-core";
 import { badRequest } from "../lib/errors";
 import { sanitizeString } from "../lib/sanitize";
 
@@ -199,6 +200,45 @@ export const ControlService = {
         atRisk: employees.filter(e => e.level !== "calm").length,
       },
     };
+  },
+
+  /**
+   * Деньги в поле — то, что раньше видела касса, а теперь считается из
+   * заказов: у кого сколько наличных на руках и с какого часа, сколько
+   * доставленных заказов офис ещё не рассчитал и на какую сумму.
+   */
+  async money(db: Db, tenantId: number, now = new Date()) {
+    const { OrderCloseService } = await import("./order-close");
+    const [hands, awaiting] = await Promise.all([
+      OrderCloseService.onHands(db, tenantId),
+      db.select({ n: sql<number>`count(*)`, s: sql<string>`coalesce(sum(${orders.total}), 0)`, oldest: sql<Date | null>`min(${orders.deliveredAt})` })
+        .from(orders).where(and(eq(orders.tenantId, tenantId), isNull(orders.deletedAt), eq(orders.status, "delivered"), isNull(orders.closedAt))),
+    ]);
+    const ordersByHolder = await db.select({ userId: payments.createdBy, n: sql<number>`count(distinct ${payments.orderId})` })
+      .from(payments)
+      .where(and(eq(payments.tenantId, tenantId), eq(payments.type, "payment"), eq(payments.paymentMethod, "cash"), isNull(payments.receivedAt), isNull(payments.reversalOf), sql`${payments.status} <> 'reversed'`))
+      .groupBy(payments.createdBy);
+    const nOf = new Map(ordersByHolder.map(r => [Number(r.userId), Number(r.n)]));
+    const a = awaiting[0];
+    return {
+      onHands: hands.map(h => ({ ...h, orders: nOf.get(h.userId) ?? 0, hours: Math.floor((now.getTime() - h.since.getTime()) / HOUR) })).sort((x, y) => y.amount - x.amount),
+      awaiting: { count: Number(a?.n ?? 0), total: round2(Number(a?.s ?? 0)), oldestAt: a?.oldest ? new Date(a.oldest) : null },
+    };
+  },
+
+  /** Недостачи за срок: заявил больше, чем сдал, — кто, когда, сколько, кто принял. */
+  async shortages(db: Db, tenantId: number, input: { from: Date; to: Date }) {
+    const closer = alias(users, "closer");
+    return db.select({
+      id: orders.id, number: orders.orderNumber, closedAt: orders.closedAt, amount: orders.courierShortage, note: orders.shortageNote,
+      shopName: shops.name, userId: orders.shortageUserId, userName: users.name, closedByName: closer.name, total: orders.total,
+    }).from(orders)
+      .innerJoin(shops, eq(shops.id, orders.shopId))
+      .leftJoin(users, eq(users.id, orders.shortageUserId))
+      .leftJoin(closer, eq(closer.id, orders.closedBy))
+      .where(and(eq(orders.tenantId, tenantId), sql`${orders.courierShortage} > 0`, isNotNull(orders.closedAt), gte(orders.closedAt, input.from), lt(orders.closedAt, input.to)))
+      .orderBy(desc(orders.closedAt))
+      .then(rows => rows.map(r => ({ ...r, amount: Number(r.amount), total: Number(r.total) })));
   },
 
   /** Спорные доставки за срок — что сказал магазин и кто вёз. */

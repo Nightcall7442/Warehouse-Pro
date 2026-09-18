@@ -81,6 +81,14 @@ const JOBS: Job[] = [
     run: async () => (await import("./telegram-morning")).runTelegramMorning(),
   },
   {
+    // Деньги в поле вечером: кто не сдал наличные, сколько заказов ждут
+    // расчёта. 19:30 — после самого позднего разумного возвращения курьеров.
+    name: "money-evening",
+    daily: { hour: 19, minute: 30 },
+    catchUpHours: 2,
+    run: async () => (await import("./money-evening")).runMoneyEvening(),
+  },
+  {
     // Долги — утром рабочего дня: по ним звонят, а не читают на ночь.
     name: "debt-reminders",
     daily: { hour: 9, minute: 0 },

@@ -11,7 +11,7 @@ import { ROLE_LABEL } from "@/lib/entity-labels";
 import { RISK_LABEL, LEVEL_LABEL, riskDetail, type RiskFactor, type RiskLevel } from "@/lib/risk-labels";
 import { F, COLORS, thStyle, tdStyle } from "@/components/users/types";
 import { format, subDays, addDays } from "date-fns";
-import { ShieldCheck, ShieldAlert, MessageSquareWarning, HandCoins, FileSpreadsheet, ChevronDown, ChevronRight, ExternalLink } from "lucide-react";
+import { ShieldCheck, ShieldAlert, MessageSquareWarning, HandCoins, FileSpreadsheet, ChevronDown, ChevronRight, ExternalLink, Wallet } from "lucide-react";
 
 /*
   Контроль — рабочее место директора.
@@ -36,6 +36,9 @@ export default function Control() {
   const on = status.data?.enabled === true;
   const overview = trpc.control.overview.useQuery(range, { enabled: on, refetchInterval: 120_000 });
   const disputes = trpc.control.disputes.useQuery(range, { enabled: on });
+  // Деньги в поле — то, что раньше показывала касса: на руках и ждут расчёта. Живое, без периода.
+  const money = trpc.control.money.useQuery(undefined, { enabled: on, refetchInterval: 120_000 });
+  const shortages = trpc.control.shortages.useQuery(range, { enabled: on });
   const [open, setOpen] = useState<Record<number, boolean>>({});
   const d = overview.data;
   const label = { fontFamily: F.display, fontSize: "10px", fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase" as const, color: COLORS.textTertiary };
@@ -55,6 +58,14 @@ export default function Control() {
       { key: "onHand", header: "На руках", width: 14 }, { key: "shortage", header: "Недостача", width: 14 },
     ],
   }, {
+    name: "На руках",
+    data: (money.data?.onHands ?? []).map(h => ({ name: h.name, amount: h.amount, orders: h.orders, since: format(new Date(h.since), "dd.MM.yyyy HH:mm"), hours: h.hours })),
+    columns: [{ key: "name", header: "Сотрудник", width: 26 }, { key: "amount", header: "На руках", width: 14 }, { key: "orders", header: "Заказов", width: 9 }, { key: "since", header: "С какого часа", width: 18 }, { key: "hours", header: "Часов", width: 8 }],
+  }, {
+    name: "Недостачи",
+    data: (shortages.data ?? []).map(x => ({ number: x.number, shop: x.shopName, who: x.userName ?? "", at: x.closedAt ? format(new Date(x.closedAt), "dd.MM.yyyy HH:mm") : "", amount: x.amount, note: x.note ?? "", by: x.closedByName ?? "" })),
+    columns: [{ key: "number", header: "Заказ", width: 10 }, { key: "shop", header: "Магазин", width: 26 }, { key: "who", header: "На ком", width: 20 }, { key: "at", header: "Когда", width: 16 }, { key: "amount", header: "Недостача", width: 14 }, { key: "note", header: "Заметка", width: 40 }, { key: "by", header: "Принял", width: 18 }],
+  }, {
     name: "Спорные доставки",
     data: (disputes.data ?? []).map(x => ({ number: x.number, shop: x.shopName, courier: x.courierName ?? "", at: x.disputedAt ? format(new Date(x.disputedAt), "dd.MM.yyyy HH:mm") : "", note: x.note ?? "", total: x.total })),
     columns: [{ key: "number", header: "Заказ", width: 10 }, { key: "shop", header: "Магазин", width: 26 }, { key: "courier", header: "Кто вёз", width: 20 }, { key: "at", header: "Когда", width: 16 }, { key: "note", header: "Что не сходится", width: 50 }, { key: "total", header: "Сумма", width: 14 }],
@@ -65,7 +76,7 @@ export default function Control() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 style={{ fontFamily: F.display, fontSize: "22px", fontWeight: 700, color: COLORS.textPrimary, letterSpacing: "-0.02em" }}>{t("Контроль", "Nazorat")}</h1>
-          <p style={{ fontFamily: F.body, fontSize: "13px", color: COLORS.textSecondary }}>{t("Слово магазина и индекс риска: куда смотреть сначала", "Do'kon so'zi va xavf indeksi: avval qayerga qarash")}</p>
+          <p style={{ fontFamily: F.body, fontSize: "13px", color: COLORS.textSecondary }}>{t("Деньги в поле, слово магазина и индекс риска: куда смотреть сначала", "Daladagi pul, do'kon so'zi va xavf indeksi: avval qayerga qarash")}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <PremiumSelect value={days} onChange={setDays} options={[{ value: "7", label: t("7 дней", "7 kun") }, { value: "30", label: t("30 дней", "30 kun") }, { value: "90", label: t("90 дней", "90 kun") }]} width="140px" />
@@ -77,6 +88,40 @@ export default function Control() {
         <SectionNotice kind="empty" message={status.data.planAllows ? t("Контроль выключен — включите его в Настройки → Контроль", "Nazorat o'chiq — Sozlamalar → Nazorat da yoqing") : t("Контроль доступен на тарифах Pro и Exclusive", "Nazorat Pro va Exclusive tariflarida")} />
       ) : overview.isError ? <QueryErrorFallback message={overview.error.message} onRetry={() => overview.refetch()} /> : (
         <>
+          {/* Деньги в поле — первой строкой: это и есть то, за чем директор приходит вечером. */}
+          <div className="grid grid-cols-2 lg:grid-cols-3 gap-3" data-testid="control-money">
+            {[
+              { label: t("Ждут расчёта", "Hisob-kitob kutmoqda"), n: money.data?.awaiting.count ?? 0, icon: Wallet, sub: money.data ? `${fmt(money.data.awaiting.total)}${money.data.awaiting.oldestAt ? ` · ${t("самый старый", "eng eskisi")} ${format(new Date(money.data.awaiting.oldestAt), "dd.MM")}` : ""}` : "", danger: (money.data?.awaiting.count ?? 0) > 0, to: "/orders?status=money" },
+              { label: t("На руках", "Qo'lda"), n: money.data?.onHands.length ?? 0, icon: HandCoins, sub: money.data ? `${fmt(money.data.onHands.reduce((s, h) => s + h.amount, 0))} · ${t("человек с наличными", "naqd pulli xodim")}` : "", danger: (money.data?.onHands ?? []).some(h => h.hours >= 24), to: undefined },
+              { label: t("Недостач за период", "Davr kamomadlari"), n: shortages.data?.length ?? 0, icon: ShieldAlert, sub: shortages.data ? fmt(shortages.data.reduce((s, x) => s + x.amount, 0)) : "", danger: (shortages.data?.length ?? 0) > 0, to: undefined },
+            ].map(tile => (
+              <div key={tile.label} className="neo-card neo-card-static" style={{ borderRadius: "20px", padding: "16px", cursor: tile.to ? "pointer" : "default" }} onClick={() => tile.to && navigate(tile.to)}>
+                <div className="flex items-center justify-between"><div style={{ ...label, color: tile.danger ? "var(--color-danger-text)" : COLORS.textTertiary }}>{tile.label}</div><tile.icon size={16} style={{ color: tile.danger ? "var(--color-danger-text)" : COLORS.textTertiary }} /></div>
+                <div className="font-data" style={{ fontFamily: F.display, fontSize: "20px", fontWeight: 700, color: tile.danger ? "var(--color-danger-text)" : tile.n === 0 ? COLORS.textTertiary : COLORS.textPrimary, marginTop: "6px", lineHeight: 1 }}>{tile.n}</div>
+                <div style={{ fontSize: "12px", color: COLORS.textSecondary, marginTop: "4px" }}>{tile.sub}</div>
+              </div>
+            ))}
+          </div>
+
+          {(money.data?.onHands.length ?? 0) > 0 && (
+            <div className="neo-card neo-card-static" style={{ borderRadius: "20px", padding: "8px" }} data-testid="control-on-hands">
+              <div style={{ padding: "6px 10px", fontFamily: F.display, fontSize: "13px", fontWeight: 700, color: COLORS.textPrimary }}>{t("Наличные на руках", "Qo'ldagi naqd pul")}</div>
+              <div style={{ overflowX: "auto" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", minWidth: "560px" }}>
+                  <thead><tr><th style={thStyle}>{t("Сотрудник", "Xodim")}</th><th style={{ ...thStyle, textAlign: "right" }}>{t("На руках", "Qo'lda")}</th><th style={{ ...thStyle, textAlign: "right" }}>{t("Заказов", "Buyurtma")}</th><th style={thStyle}>{t("С какого часа", "Qaysi soatdan")}</th></tr></thead>
+                  <tbody>{money.data!.onHands.map(h => (
+                    <tr key={h.userId} className="row-hover" data-testid={`on-hands-${h.userId}`} style={{ cursor: "pointer" }} onClick={() => navigate("/orders?status=money")}>
+                      <td style={{ ...tdStyle, fontWeight: 600 }}>{h.name}</td>
+                      <td className="font-data" style={{ ...tdStyle, textAlign: "right", color: h.hours >= 24 ? "var(--color-danger-text)" : COLORS.textPrimary }}>{fmt(h.amount)}</td>
+                      <td className="font-data" style={{ ...tdStyle, textAlign: "right" }}>{h.orders}</td>
+                      <td style={{ ...tdStyle, whiteSpace: "nowrap", color: h.hours >= 24 ? "var(--color-danger-text)" : COLORS.textSecondary }}>{format(new Date(h.since), "dd.MM HH:mm")}{h.hours >= 24 ? ` · ${Math.floor(h.hours / 24)} ${t("дн.", "kun")}` : ""}</td>
+                    </tr>
+                  ))}</tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
             {[
               { label: t("Спорных доставок", "Nizoli yetkazishlar"), n: d?.totals.disputed ?? 0, icon: MessageSquareWarning, sub: t("магазин сказал «не сходится»", "do'kon «to'g'ri kelmaydi» dedi"), danger: (d?.totals.disputed ?? 0) > 0 },
@@ -101,6 +146,28 @@ export default function Control() {
                   <thead><tr><th style={thStyle}></th><th style={thStyle}>{t("Сотрудник", "Xodim")}</th><th style={{ ...thStyle, textAlign: "right" }}>{t("Баллы", "Ball")}</th><th style={thStyle}>{t("Уровень", "Daraja")}</th><th style={thStyle}>{t("Почему", "Nima uchun")}</th><th style={{ ...thStyle, textAlign: "right" }}>{t("Доставлено · подтверждено", "Yetkazildi · tasdiqlandi")}</th><th style={{ ...thStyle, textAlign: "right" }}>{t("На руках", "Qo'lda")}</th></tr></thead>
                   <tbody>{d!.employees.map(e => (
                     <EmployeeRows key={e.id} e={e} open={!!open[e.id]} toggle={() => setOpen({ ...open, [e.id]: !open[e.id] })} roleOf={roleOf} factorText={factorText} fmt={fmt} lang={lang} />
+                  ))}</tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+          <div className="neo-card neo-card-static" style={{ borderRadius: "20px", padding: "8px" }} data-testid="control-shortages">
+            <div style={{ padding: "6px 10px", fontFamily: F.display, fontSize: "13px", fontWeight: 700, color: COLORS.textPrimary }}>{t("Недостачи при расчёте", "Hisob-kitobdagi kamomadlar")} · {shortages.data?.length ?? 0}</div>
+            {(shortages.data?.length ?? 0) === 0 ? <SectionNotice kind="empty" message={t("Недостач за период нет", "Davrda kamomad yo'q")} /> : (
+              <div style={{ overflowX: "auto" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", minWidth: "720px" }}>
+                  <thead><tr><th style={thStyle}>{t("Заказ", "Buyurtma")}</th><th style={thStyle}>{t("Магазин", "Do'kon")}</th><th style={thStyle}>{t("На ком", "Kimda")}</th><th style={thStyle}>{t("Когда", "Qachon")}</th><th style={{ ...thStyle, textAlign: "right" }}>{t("Недостача", "Kamomad")}</th><th style={thStyle}>{t("Заметка", "Izoh")}</th><th style={thStyle}>{t("Принял", "Qabul qildi")}</th></tr></thead>
+                  <tbody>{(shortages.data ?? []).map(x => (
+                    <tr key={x.id} className="row-hover" data-testid={`shortage-${x.id}`} style={{ cursor: "pointer" }} onClick={() => navigate(`/orders/${x.id}`)}>
+                      <td style={{ ...tdStyle, fontWeight: 600, whiteSpace: "nowrap" }}>{x.number} <ExternalLink size={11} style={{ display: "inline", color: COLORS.textTertiary }} /></td>
+                      <td style={tdStyle}>{x.shopName}</td>
+                      <td style={tdStyle}>{x.userName ?? "—"}</td>
+                      <td style={{ ...tdStyle, whiteSpace: "nowrap" }}>{x.closedAt ? format(new Date(x.closedAt), "dd.MM HH:mm") : ""}</td>
+                      <td className="font-data" style={{ ...tdStyle, textAlign: "right", color: "var(--color-danger-text)" }}>{fmt(x.amount)}</td>
+                      <td style={{ ...tdStyle, color: COLORS.textSecondary }}>{x.note ?? ""}</td>
+                      <td style={tdStyle}>{x.closedByName ?? ""}</td>
+                    </tr>
                   ))}</tbody>
                 </table>
               </div>

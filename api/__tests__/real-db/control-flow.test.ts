@@ -79,7 +79,16 @@ describe.skipIf(!hasRealDb)("контроль: слово магазина и и
 
     // Недостача курьера: заявил 300 наличными при доставке, офис получил 230 — 70 остаются на нём.
     await (db as any).insert(schema.payments).values({ tenantId: s.tenantId, shopId: s.shopId, orderId: oldId, amount: "300.00", type: "payment", paymentMethod: "cash", status: "paid", createdBy: s.courierId });
+    // До закрытия: деньги в поле видят курьера с 300 на руках по одному заказу и три заказа в очереди.
+    const before = await ControlService.money(db as any, s.tenantId);
+    expect(before.onHands.map(h => [h.userId, h.amount, h.orders])).toEqual([[s.courierId, 300, 1]]);
+    expect(before.awaiting).toMatchObject({ count: 3, total: 900 });
     expect(await OrderCloseService.close(db as any, s.tenantId, ceo(), { orderId: oldId, cashReceived: 230 })).toMatchObject({ shortage: 70, remainder: 0, claimed: 300 });
+    const after = await ControlService.money(db as any, s.tenantId);
+    expect(after.onHands).toEqual([]);
+    expect(after.awaiting.count).toBe(2);
+    const shortages = await ControlService.shortages(db as any, s.tenantId, { from: new Date(Date.now() - 86_400_000), to: new Date(Date.now() + 86_400_000) });
+    expect(shortages.map(x => [x.number, x.amount, x.userName, x.closedByName])).toEqual([["№1004", 70, "Курьер", "Директор"]]);
 
     // Индекс: курьер — спор (20) + недостача (15) = 35, «присмотреться»; агент — чист.
     const ov = await ControlService.overview(db as any, s.tenantId, { from: new Date(Date.now() - 30 * 86_400_000), to: new Date(Date.now() + 86_400_000) });

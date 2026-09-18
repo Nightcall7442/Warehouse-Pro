@@ -125,8 +125,11 @@ describe("права, экраны и хозяйство", () => {
     expect(proc("setEnabled")).toBe("adminQuery");
     expect(proc("overview")).toBe("adminQuery");
     expect(proc("disputes")).toBe("adminQuery");
+    expect(proc("money")).toBe("adminQuery");
+    expect(proc("shortages")).toBe("adminQuery");
     expect(proc("status")).toBe("authedQuery");
-    expect((router.match(/await assertControl\(getDb\(\), ctx\.tenant\.id, ctx\.tenant\.plan\);/g) ?? []).length).toBe(2);
+    // Обзор, споры, деньги, недостачи — все четыре под assertControl.
+    expect((router.match(/await assertControl\(getDb\(\), ctx\.tenant\.id, ctx\.tenant\.plan\);/g) ?? []).length).toBe(4);
     expect(read("api/router.ts")).toContain("control:      controlRouter,");
   });
   it("карточка заказа несёт слово магазина; журнал действий знает control.*", () => {
