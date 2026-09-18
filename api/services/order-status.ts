@@ -3,7 +3,6 @@ import { applyStockEffect, releaseStock, reserveStock } from "./stock-ledger";
 import { orders, orderItems, warehouseStock, shops, users } from "@db/schema";
 import { ORDER_STATUS_LABELS, holdsStock } from "../lib/order-status";
 import { isReopen, reversesRevenue, assertReopenable, clearDeliveryTrace, dateSecondLife } from "./order-reopen";
-import { cache, CacheKeys } from "../lib/cache";
 import { invalidateReports } from "../lib/report-cache";
 import { logger } from "../lib/logger";
 import { affectedRows } from "../lib/db-rows";
@@ -90,7 +89,6 @@ export async function cancel(db: Db, tenantId: number, orderId: number, opts: { 
     }
   });
 
-  cache.invalidate(CacheKeys.dashboardKpis(Number(tenantId)));
   await invalidateReports(tenantId, "order");
 
   const debtTrace = cancelled.debt;
@@ -354,7 +352,6 @@ export async function updateStatus(
     await settleShopDebt(tx, tenantId, order.shopId);
   });
 
-  cache.invalidate(CacheKeys.dashboardKpis(Number(tenantId)));
   await invalidateReports(tenantId, "order");
 
   /*
@@ -465,7 +462,6 @@ export async function deleteOrder(db: Db, tenantId: number, orderId: number, act
     await settleShopDebt(tx, tenantId, order.shopId);
   });
 
-  cache.invalidate(CacheKeys.dashboardKpis(Number(tenantId)));
   await invalidateReports(tenantId, "order");
   await traceOrderChange(db, tenantId, orderId, "order.delete", actor, deletedMeta);
 
@@ -550,7 +546,6 @@ export async function restore(db: Db, tenantId: number, orderId: number, actor?:
     }
   });
 
-  cache.invalidate(CacheKeys.dashboardKpis(Number(tenantId)));
   await invalidateReports(tenantId, "order");
   await traceOrderChange(db, tenantId, orderId, "order.restore", actor, {});
 

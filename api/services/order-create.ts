@@ -4,7 +4,6 @@ import { orders, orderItems, warehouseStock, shops, users, products } from "@db/
 import { resolvePrices } from "./price-resolver";
 import { recalcShopDebt } from "./shop-debt";
 import { NotificationService } from "./NotificationService";
-import { cache, CacheKeys } from "../lib/cache";
 import { invalidateReports } from "../lib/report-cache";
 import { logger } from "../lib/logger";
 import { isDuplicateEntry } from "../lib/db-errors";
@@ -262,7 +261,6 @@ export async function create(db: Db, tenantId: number, agentId: number, input: {
     throw err;
   }
 
-  cache.invalidate(CacheKeys.dashboardKpis(Number(tenantId)));
   await invalidateReports(tenantId, "order");
 
   /*

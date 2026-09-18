@@ -313,7 +313,6 @@ export async function withCache<T>(
 export const CacheKeys = {
   tenantSettings: (tenantId: number) => `settings:${tenantId}`,
   tenantBranding: (tenantId: number) => `branding:${tenantId}`,
-  dashboardKpis: (tenantId: number) => `kpis:${tenantId}`,
   tenantSubscription: (tenantId: number) => `sub:${tenantId}`,
   userList: (tenantId: number, page: number, search?: string, role?: string) =>
     `users:${tenantId}:${page}:${search ?? ""}:${role ?? ""}`,

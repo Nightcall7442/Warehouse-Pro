@@ -1,6 +1,5 @@
 import { eq, and, sql, desc } from "drizzle-orm";
 import { visitReports, dailyPlans, shops, users } from "@db/schema";
-import { cache, CacheKeys } from "../lib/cache";
 
 type Db = ReturnType<typeof import("../queries/connection").getDb>;
 
@@ -77,7 +76,6 @@ export const MerchandiserService = {
       .set({ status: "visited", visitedAt: new Date() })
       .where(and(eq(dailyPlans.id, input.planId), eq(dailyPlans.tenantId, tenantId)));
 
-    cache.invalidate(CacheKeys.dashboardKpis(tenantId));
 
     return { success: true, reportId: Number(report.insertId) };
   },
