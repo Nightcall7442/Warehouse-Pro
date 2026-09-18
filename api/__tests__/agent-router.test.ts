@@ -399,6 +399,27 @@ describe("agent.updatePlanStatus", () => {
     await expect(caller.updatePlanStatus({ planId: 999, status: "visited" })).rejects.toThrow(/не найден/);
   });
 
+  it("отметка из очереди несёт время визита, а не отправки", async () => {
+    // Визит был утром без связи, ушёл вечером: в журнале должно стоять утро.
+    const { agentRouter } = await import("../agent-router");
+    const caller = agentRouter.createCaller(makeCtx(1, 10, "agent"));
+    const morning = new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString();
+    await caller.updatePlanStatus({ planId: 1, status: "visited", recordedAt: morning });
+    expect(plansTable.find((p) => p.id === 1)!.visitedAt).toEqual(new Date(morning));
+    await caller.saveVisitPhoto({ planId: 1, photoUrl: "data:image/png;base64,test", recordedAt: morning });
+    expect(plansTable.find((p) => p.id === 1)!.visitedAt).toEqual(new Date(morning));
+  });
+
+  it("время из будущего не принимается — визит отмечен «сейчас»", async () => {
+    const { agentRouter } = await import("../agent-router");
+    const caller = agentRouter.createCaller(makeCtx(1, 10, "agent"));
+    const before = Date.now();
+    await caller.updatePlanStatus({ planId: 1, status: "visited", recordedAt: new Date(before + 60 * 60 * 1000).toISOString() });
+    const at = (plansTable.find((p) => p.id === 1)!.visitedAt as Date).getTime();
+    expect(at).toBeGreaterThanOrEqual(before);
+    expect(at).toBeLessThanOrEqual(Date.now());
+  });
+
   it("повторное «пропущен» на пропущенном плане — по-прежнему успех", async () => {
     // Число изменённых строк тут не годится: MySQL считает изменённые, а не
     // найденные, и повтор дал бы ноль при живом и своём плане.
@@ -425,6 +446,24 @@ describe("agent.saveVisitPhoto", () => {
     const caller = agentRouter.createCaller(makeCtx(1, 10, "agent"));
     await caller.saveVisitPhoto({ planId: 1, photoUrl: "data:image/png;base64,test", notes: "Good visit" });
     expect(plansTable.find((p) => p.id === 1)!.notes).toBe("Good visit");
+  });
+
+  it("подменённые координаты (эмулятор) вдали от магазина — визит заблокирован", async () => {
+    // Проверка на подлог брала точки без признака mocked: +50 за эмулятор не
+    // начислялось никогда, порог 70 был недостижим, блокировка не работала.
+    const { agentRouter } = await import("../agent-router");
+    const caller = agentRouter.createCaller(makeCtx(1, 10, "agent"));
+    Object.assign(shopsTable.find((s) => s.id === 1)!, { gpsLat: "41.3111", gpsLng: "69.2797" });
+    locationsTable.push({ id: 99, tenantId: 1, agentId: 10, lat: "39.6542", lng: "66.9597", accuracy: "10", batteryLevel: 80, createdAt: new Date(), mocked: true } as never);
+    await expect(caller.saveVisitPhoto({ planId: 1, photoUrl: "data:image/png;base64,test" }))
+      .rejects.toThrow(/заблокирован.*эмулятор/i);
+    expect(plansTable.find((p) => p.id === 1)!.status).toBe("planned");
+    // Двойник базы отдаёт строку целиком, какой бы ни была проекция, — поэтому
+    // проекция проверяется по исходнику: точки для проверки читаются с mocked.
+    const { readFileSync } = await import("node:fs");
+    const src = readFileSync(new URL("../agent-router.ts", import.meta.url), "utf8");
+    const photo = src.slice(src.indexOf("saveVisitPhoto:"), src.indexOf("verifyVisit(", src.indexOf("saveVisitPhoto:")));
+    expect(photo).toMatch(/mocked:\s*agentLocations\.mocked/);
   });
 
   it("чужой план — отказ вслух, снимок не привязывается", async () => {

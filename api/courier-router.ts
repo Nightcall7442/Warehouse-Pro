@@ -8,6 +8,7 @@ import { eq, and, sql, desc, isNull } from "drizzle-orm";
 import { sseBus } from "./lib/sse";
 import { logger } from "./lib/logger";
 import { NotificationService } from "./services/NotificationService";
+import { recordedAtInput } from "./lib/event-time";
 
 export const courierRouter = createRouter({
   listMyDeliveries: courierQuery.query(async ({ ctx }) => {
@@ -191,6 +192,7 @@ export const courierRouter = createRouter({
     .input(z.object({
       orderId: z.number().int().positive(),
       cashAmount: z.string().regex(/^\d+(\.\d{1,2})?$/, "Неверный формат суммы").optional(),
+      recordedAt: recordedAtInput,
     }))
     .mutation(({ input, ctx }) => markDelivered(getDb(), ctx.tenant.id, ctx.user.id, input)),
 
@@ -198,6 +200,7 @@ export const courierRouter = createRouter({
   completeDelivery: courierQuery
     .input(z.object({
       orderId: z.number().int().positive(),
+      recordedAt: recordedAtInput,
       result: z.enum(["paid", "partial_paid", "returned", "partial_returned"]),
       // Формат тот же, что у cashAmount в markDelivered выше. Раньше поле было
       // просто z.string(): курьер набирал «50,000» (запятая — привычный

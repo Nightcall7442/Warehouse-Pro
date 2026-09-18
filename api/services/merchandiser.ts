@@ -51,6 +51,14 @@ export const MerchandiserService = {
     if (!plan) throw new Error("План визита не найден");
     if (plan.agentId !== userId) throw new Error("Этот план назначен другому сотруднику");
 
+    // Отчёт по плану — один. Ответ на слабой связи терялся после того, как
+    // строка уже вставлена, мерчандайзер жал «повторить» — и по одному визиту
+    // выходило два отчёта в контроле. Повтор возвращает первый.
+    const [existing] = await db.select({ id: visitReports.id }).from(visitReports)
+      .where(and(eq(visitReports.tenantId, tenantId), eq(visitReports.planId, input.planId), eq(visitReports.userId, userId)))
+      .limit(1);
+    if (existing) return { success: true, reportId: existing.id, duplicate: true };
+
     const [report] = await db.insert(visitReports).values({
       tenantId,
       shopId: input.shopId,
