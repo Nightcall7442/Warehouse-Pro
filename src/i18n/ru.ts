@@ -10,7 +10,6 @@ export const ru = {
     orders:      "Заказы",
     warehouse:   "Склад",
     returns:     "Возвраты",
-    cash:        "Касса",
     warehouseReports: "Отчёты склада",
     auditLog:    "Журнал действий",
     control:     "Контроль",

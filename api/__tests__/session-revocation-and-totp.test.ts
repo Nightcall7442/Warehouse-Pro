@@ -101,7 +101,7 @@ describe("TOTP", () => {
     expect(proj).toContain("totpEnabledAt");
     expect(proj).not.toContain("totpSecret");
     // Хэш PIN кассы — того же рода секрет: наружу не идёт.
-    expect(readFileSync("api/auth/index.ts", "utf-8")).toContain('Omit<User, "passwordHash" | "totpSecret" | "cashPinHash">');
+    expect(readFileSync("api/auth/index.ts", "utf-8")).toContain('Omit<User, "passwordHash" | "totpSecret">');
 
     const router = readFileSync("api/user-router.ts", "utf-8");
     expect(router).toContain("totpSecret: seal(secret)");

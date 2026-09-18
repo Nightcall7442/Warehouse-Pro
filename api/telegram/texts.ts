@@ -202,7 +202,7 @@ export const T = {
   hStock:      { ru: "Заканчивается на складе",  uz: "Omborda tugayapti" },
   hDeliveries: { ru: "Доставки сегодня",         uz: "Bugungi yetkazishlar" },
   hMyDeliveries: { ru: "Мои доставки сегодня",   uz: "Bugungi yetkazishlarim" },
-  hCash:       { ru: "Моя касса",                uz: "Mening kassam" },
+  hCash:       { ru: "Наличные на руках",        uz: "Qo'ldagi naqd pul" },
   hTop:        { ru: "Топ товаров за 30 дней",   uz: "30 kunlik top mahsulotlar" },
   hPlans:      { ru: "Визиты сегодня",           uz: "Bugungi tashriflar" },
   hMyPlan:     { ru: "Мой план на сегодня",      uz: "Bugungi rejam" },
@@ -246,7 +246,7 @@ export const T = {
   wNoPlans:   { ru: "На сегодня визитов не запланировано.", uz: "Bugunga tashrif rejalashtirilmagan." },
   wNoDeliveries: { ru: "На сегодня доставок нет.", uz: "Bugunga yetkazish yo'q." },
   wNoAgents:  { ru: "Сегодня заказов и визитов ещё не было.", uz: "Bugun hali buyurtma va tashrif bo'lmadi." },
-  wNoCash:    { ru: "Сегодня денег ещё не принимали.", uz: "Bugun hali pul qabul qilinmadi." },
+  wNoCash:    { ru: "Наличных на руках нет — всё принято.", uz: "Qo'lda naqd pul yo'q — hammasi qabul qilingan." },
   wNoStaff:   { ru: "Сотрудников нет.", uz: "Xodimlar yo'q." },
   staffHint: {
     ru: "Не подключённые к боту уведомлений не получают. Настройки → Telegram в приложении.",
@@ -260,11 +260,7 @@ export const T = {
 
   /* ── Касса ───────────────────────────────────────────────────────────── */
   wOnHand:        { ru: "На руках",             uz: "Qo'lda" },
-  wOverLimit:     { ru: "выше лимита",          uz: "limitdan yuqori" },
-  wTodayIn:       { ru: "Принято сегодня",      uz: "Bugun qabul qilindi" },
-  wMyDebt:        { ru: "Мой долг по кассе",    uz: "Kassa bo'yicha qarzim" },
-  wHandoverBy:    { ru: "Сдать в кассу до",     uz: "Kassaga topshirish muddati" },
-  wLastHandovers: { ru: "Последние сдачи",      uz: "Oxirgi topshirishlar" },
+  wSince:         { ru: "Самая старая запись",  uz: "Eng eski yozuv" },
   wDeliveriesPlanned: { ru: "Доставок назначено", uz: "Yetkazish tayinlandi" },
 } satisfies Record<string, Pair>;
 

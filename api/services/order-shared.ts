@@ -781,6 +781,12 @@ export async function applyPartialPayment(
 
   const debt = total - priorPaid - paid;
 
+  // Наличные офиса — уже в офисе; полевые — на руках до закрытия расчёта
+  // по заказу (services/order-close.ts).
+  const { isOffice } = await import("./order-close");
+  const office = isOffice(actor.role);
+  const inOffice = input.method === "cash" && office;
+
   // Record payment
   await tx.insert(payments).values({
     tenantId,
@@ -802,6 +808,8 @@ export async function applyPartialPayment(
     notes: input.notes ?? null,
     createdBy: userId,
     idempotencyKey: input.idempotencyKey ?? null,
+    receivedAt: inOffice ? new Date() : null,
+    receivedBy: inOffice ? userId : null,
   });
 
   // Create debt reminder if there's remaining debt and a due date
@@ -821,10 +829,16 @@ export async function applyPartialPayment(
   //
   // Отметка доставки — вместе со статусом: см. updateStatus о том, почему без
   // неё показатели курьера меряли экран, а не работу.
+  //
+  // Расчёт (services/order-close.ts): оплата, записанная офисом, — это и есть
+  // решение по деньгам (сколько получено, остаток — долг), заказ закрыт.
+  // Полевые наличные — на руках, расчёт открыт, даже по уже закрытому заказу
+  // (агент собрал старый долг): эти деньги офису ещё предстоит принять.
   await tx.update(orders).set({
     status: "delivered",
     deliveryStatus: "delivered",
     deliveredAt: new Date(),
+    ...(office ? { closedAt: new Date(), closedBy: userId } : input.method === "cash" ? { closedAt: null, closedBy: null } : {}),
   }).where(and(eq(orders.id, order.id), eq(orders.tenantId, tenantId)));
 
   // Log adjustment

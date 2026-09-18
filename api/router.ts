@@ -35,7 +35,6 @@ import { territoryRouter } from "./territory-router";
 import { salesTargetRouter } from "./sales-target-router";
 import { commissionRouter } from "./commission-router";
 import { returnsRouter } from "./returns-router";
-import { cashRouter } from "./cash-router";
 import { controlRouter } from "./control-router";
 import { priceListRouter } from "./price-list-router";
 import { kpiRouter } from "./kpi-router";
@@ -86,7 +85,6 @@ export const appRouter = createRouter({
   salesTarget:  salesTargetRouter,
   commission:   commissionRouter,
   returns:      returnsRouter,
-  cash:         cashRouter,
   control:      controlRouter,
   priceList:    priceListRouter,
   kpi:          kpiRouter,

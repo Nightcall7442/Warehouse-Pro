@@ -339,25 +339,20 @@ export async function answerDeliveries(scope: Scope, now = new Date()): Promise<
 }
 
 /**
- * Касса сотрудника — по кассовому учёту (services/cash.ts): на руках,
- * принято сегодня, долг, лимит и час сдачи. Не «сколько записал платежей»,
- * а «сколько должен сдать» — это разные числа, и второе здесь.
+ * Наличные сотрудника — по расчёту заказов (services/order-close.ts): что
+ * записано наличными и ещё не принято офисом. Не «сколько записал», а
+ * «сколько на руках» — это разные числа, и второе здесь.
  */
 export async function answerCash(scope: Scope, now = new Date()): Promise<Reply> {
   const { tenantId, lang, courierId, agentId, currency } = scope;
   const userId = courierId ?? agentId;
   if (!userId) return { text: T.notUnderstood[lang] };
-  const { CashService } = await import("../services/cash");
-  const m = await CashService.mine(getDb(), tenantId, userId, now);
-  const lines = [
-    `💵 ${T.wOnHand[lang]}: <b>${fmtMoney(m.onHand, currency)}</b>${m.onHand > m.limit ? ` ⚠️ ${T.wOverLimit[lang]} ${fmtMoney(m.limit, currency)}` : ""}`,
-    `📥 ${T.wTodayIn[lang]}: ${fmtMoney(m.todayIn, currency)} (${m.todayCount})`,
-    ...(m.debt > 0 ? [`🧾 ${T.wMyDebt[lang]}: <b>${fmtMoney(m.debt, currency)}</b>`] : []),
-    `⏰ ${T.wHandoverBy[lang]} ${m.deadline}`,
-  ];
-  const last = m.documents.slice(0, 3).map(d => `• ${d.kind === "pko" ? "ПКО" : "РКО"}-${String(d.number).padStart(4, "0")} · ${ddmm(d.createdAt)} — ${fmtMoney(d.amount, currency)}${d.discrepancy && Number(d.discrepancy) !== 0 ? ` (${Number(d.discrepancy) < 0 ? "−" : "+"}${fmtMoney(Math.abs(Number(d.discrepancy)), currency)})` : ""}`);
-  if (last.length) lines.push("", `<i>${T.wLastHandovers[lang]}</i>`, ...last);
-  return { text: card(`💵 ${T.hCash[lang]}`, todayLabel(now), lines) };
+  const { OrderCloseService } = await import("../services/order-close");
+  const mine = await OrderCloseService.mine(getDb(), tenantId, userId);
+  const lines = mine.amount > 0
+    ? [`💵 ${T.wOnHand[lang]}: <b>${fmtMoney(mine.amount, currency)}</b> · ${mine.orders}`, ...(mine.since ? [`📅 ${T.wSince[lang]} ${ddmm(mine.since)}`] : [])]
+    : [];
+  return { text: card(`💵 ${T.hCash[lang]}`, todayLabel(now), lines, T.wNoCash[lang]) };
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════

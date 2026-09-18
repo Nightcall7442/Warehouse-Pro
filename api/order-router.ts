@@ -2,6 +2,8 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { createRouter, operatorQuery, fieldSalesQuery, orderReaderQuery, can } from "./middleware";
 import { OrderService, assertOrderVisible, assertItemsEditableBy } from "./services/order";
+import { OrderCloseService } from "./services/order-close";
+import { NonCashService } from "./services/noncash";
 
 /** Кто делает правку — для журнала действий службы заказа. */
 const actorOf = (ctx: { user: { id: number; role: string; name: string } }) => ({ id: ctx.user.id, role: ctx.user.role, name: ctx.user.name });
@@ -96,9 +98,15 @@ export const orderRouter = createRouter({
         statusMap[row.status] = Number(row.count);
       }
 
+      // Ждут расчёта — очередь оператора на вечер (services/order-close.ts).
+      const [awaiting] = await db.select({ n: sql<number>`count(*)` }).from(orders)
+        .leftJoin(shops, and(eq(orders.shopId, shops.id), eq(shops.tenantId, ctx.tenant.id)))
+        .where(and(...conditions, eq(orders.status, "delivered"), isNull(orders.closedAt)));
+
       return {
         total: Number(result?.total ?? 0),
         totalRevenue: Number(result?.totalRevenue ?? 0),
+        awaitingMoneyCount: Number(awaiting?.n ?? 0),
         newCount: statusMap["new"] ?? 0,
         processingCount: statusMap["processing"] ?? 0,
         shippedCount: statusMap["shipped"] ?? 0,
@@ -252,6 +260,7 @@ export const orderRouter = createRouter({
       dateTo:      z.string().optional(),
       showDeleted: z.boolean().optional(),
       paymentMethod: z.enum(["cash", "card", "transfer", "debt"]).optional(),
+      awaitingMoney: z.boolean().optional(),
     }).optional())
     .query(async ({ input, ctx }) => {
       return OrderService.list(ctx.db, ctx.tenant.id, input ?? {}, {
@@ -938,6 +947,32 @@ export const orderRouter = createRouter({
       await assertOrderVisible(ctx.db, ctx.tenant.id, input.orderId, { id: ctx.user.id, role: ctx.user.role });
       return OrderService.getAdjustments(ctx.db, ctx.tenant.id, input.orderId);
     }),
+
+  // ── Расчёт по заказу ──────────────────────────────────────────────────────
+  // Деньги по заказу — тем же, кому видна карточка.
+  money: orderReaderQuery
+    .input(z.object({ orderId: z.number().int().positive() }))
+    .query(async ({ input, ctx }) => {
+      await assertOrderVisible(ctx.db, ctx.tenant.id, input.orderId, { id: ctx.user.id, role: ctx.user.role });
+      return OrderCloseService.money(getDb(), ctx.tenant.id, input.orderId);
+    }),
+  // Мои наличные на руках — телефону курьера и агента: сколько сдать офису.
+  myCash: orderReaderQuery.query(({ ctx }) => OrderCloseService.mine(getDb(), ctx.tenant.id, ctx.user.id)),
+  // Закрыть расчёт — офис, тем же правом, что приём денег.
+  close: operatorQuery.use(can("payments.accept"))
+    .input(z.object({
+      orderId: z.number().int().positive(),
+      cashReceived: z.number().min(0).max(1e12),
+      extra: z.array(z.object({ method: z.enum(["cash", "card", "transfer"]), amount: z.number().min(0).max(1e12) })).max(5).optional(),
+      acceptDebt: z.boolean().optional(),
+      debtDueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+      note: z.string().max(300).optional(),
+    }))
+    .mutation(({ input, ctx }) => OrderCloseService.close(getDb(), ctx.tenant.id, { id: ctx.user.id, name: ctx.user.name, role: ctx.user.role }, input)),
+  // Безнал «пришло на счёт» — по строкам платежей из карточки заказа.
+  confirmBank: operatorQuery.use(can("payments.accept"))
+    .input(z.object({ ids: z.array(z.number().int().positive()).min(1).max(200), bankRef: z.string().max(64).optional() }))
+    .mutation(({ input, ctx }) => NonCashService.confirm(getDb(), ctx.tenant.id, { id: ctx.user.id, name: ctx.user.name, role: ctx.user.role }, { ids: input.ids, bankRef: input.bankRef ? sanitizeString(input.bankRef) : null })),
 
   // ── Get Order Payments ─────────────────────────────────────────────────────
   getOrderPayments: fieldSalesQuery

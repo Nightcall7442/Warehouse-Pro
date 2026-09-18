@@ -3,16 +3,14 @@
   и выгрузка в Excel говорят словами. Экран — на двух языках; Excel и всё
   печатное — по-русски (memory: paper-stays-russian).
 */
-export type RiskCode = "shortage" | "debt" | "cashLate" | "overLimit" | "nonCash" | "dispute" | "unconfirmed" | "reopened" | "returns" | "discounts" | "visits";
+export type RiskCode = "shortage" | "cashLate" | "nonCash" | "dispute" | "unconfirmed" | "reopened" | "returns" | "discounts" | "visits";
 export type RiskLevel = "calm" | "watch" | "act";
 export interface RiskFactor { code: RiskCode; points: number; count?: number; money?: number; share?: number; hours?: number }
 
 export const RISK_LABEL: Record<RiskCode, { ru: string; uz: string }> = {
   dispute:     { ru: "Магазин оспорил доставку",       uz: "Do'kon yetkazishni rad etdi" },
-  shortage:    { ru: "Недостача по пересчёту",         uz: "Sanashda kamomad" },
-  debt:        { ru: "Непогашенный долг",              uz: "To'lanmagan qarz" },
+  shortage:    { ru: "Недостача при расчёте заказа",  uz: "Buyurtma hisob-kitobida kamomad" },
   cashLate:    { ru: "Наличные на руках дольше суток", uz: "Naqd pul qo'lda bir sutkadan ko'p" },
-  overLimit:   { ru: "Наличные сверх лимита",          uz: "Limitdan ortiq naqd" },
   nonCash:     { ru: "Безнал без выписки",             uz: "Ko'chirmasiz naqdsiz to'lov" },
   reopened:    { ru: "Заказ переигран после доставки", uz: "Yetkazishdan keyin buyurtma o'zgartirildi" },
   unconfirmed: { ru: "Доставки без слова магазина",    uz: "Do'kon so'zisiz yetkazishlar" },

@@ -32,9 +32,9 @@ const utc = (h: number, m = 0) => new Date(Date.UTC(2026, 8, 8, h, m, 0));
 describe("когда что запускается", () => {
   const job = (name: string) => _internals.JOBS.find(j => j.name === name)!;
 
-  it("все семнадцать работ на месте", () => {
+  it("все пятнадцать работ на месте", () => {
     expect(_internals.JOBS.map(j => j.name).sort()).toEqual([
-      "admin-digest", "agent-locations-cleanup", "api-export-log-cleanup", "backup", "cash-chain-check", "cash-evening", "debt-reminders",
+      "admin-digest", "agent-locations-cleanup", "api-export-log-cleanup", "backup", "debt-reminders",
       "low-stock-alerts", "notifications-cleanup", "onec-sync", "photos-to-s3", "restore-drill", "support-cleanup",
       "telegram-digest", "telegram-morning", "telegram-outbox", "trial-reminders",
     ]);

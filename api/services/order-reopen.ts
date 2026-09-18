@@ -179,6 +179,10 @@ export async function clearDeliveryTrace(tx: Tx, tenantId: number, orderId: numb
       // Накладную второй жизни печатают заново, а отметка о печати осталась бы
       // от первой и врала бы «уже печатался».
       invoicePrintedAt: null,
+      // Расчёт первой жизни закрыт по деньгам первой жизни; вторая доставка
+      // ждёт своего (services/order-close.ts). Недостача курьера остаётся.
+      closedAt: null,
+      closedBy: null,
     })
     .where(and(eq(orders.id, orderId), eq(orders.tenantId, tenantId)));
 

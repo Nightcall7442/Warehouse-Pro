@@ -47,12 +47,12 @@ export default function Control() {
     data: (d?.employees ?? []).map(e => ({
       name: e.name, role: (ROLE_LABEL as Record<string, { ru: string }>)[e.role]?.ru ?? e.role, score: e.score, level: LEVEL_LABEL[e.level].ru,
       factors: e.factors.map(f => `${RISK_LABEL[f.code].ru}${riskDetail(f, "ru", fmt) ? ` — ${riskDetail(f, "ru", fmt)}` : ""}`).join("; "),
-      delivered: e.delivered, confirmed: e.confirmed, disputed: e.disputed, onHand: e.onHand, debt: e.debt,
+      delivered: e.delivered, confirmed: e.confirmed, disputed: e.disputed, onHand: e.onHand, shortage: e.shortage,
     })),
     columns: [
       { key: "name", header: "Сотрудник", width: 26 }, { key: "role", header: "Роль", width: 14 }, { key: "score", header: "Баллы", width: 8 }, { key: "level", header: "Уровень", width: 14 },
       { key: "factors", header: "Факторы", width: 70 }, { key: "delivered", header: "Доставлено", width: 11 }, { key: "confirmed", header: "Подтверждено", width: 13 }, { key: "disputed", header: "Спорных", width: 9 },
-      { key: "onHand", header: "На руках", width: 14 }, { key: "debt", header: "Долг", width: 14 },
+      { key: "onHand", header: "На руках", width: 14 }, { key: "shortage", header: "Недостача", width: 14 },
     ],
   }, {
     name: "Спорные доставки",
@@ -133,7 +133,7 @@ export default function Control() {
   );
 }
 
-type Employee = { id: number; name: string; role: string; score: number; level: RiskLevel; factors: RiskFactor[]; delivered: number; confirmed: number; disputed: number; onHand: number; debt: number };
+type Employee = { id: number; name: string; role: string; score: number; level: RiskLevel; factors: RiskFactor[]; delivered: number; confirmed: number; disputed: number; onHand: number; shortage: number };
 
 function EmployeeRows({ e, open, toggle, roleOf, factorText, fmt, lang }: { e: Employee; open: boolean; toggle: () => void; roleOf: (r: string) => string; factorText: (f: RiskFactor) => string; fmt: (n: number) => string; lang: "ru" | "uz" }) {
   const color = LEVEL_COLOR[e.level];
@@ -146,7 +146,7 @@ function EmployeeRows({ e, open, toggle, roleOf, factorText, fmt, lang }: { e: E
         <td style={tdStyle}><span style={{ display: "inline-block", padding: "2px 8px", borderRadius: 999, fontSize: 11, fontWeight: 600, color, background: "var(--color-surface-light)" }}>{LEVEL_LABEL[e.level][lang]}</span></td>
         <td style={{ ...tdStyle, fontSize: 12, color: COLORS.textSecondary }}>{e.factors.length === 0 ? "—" : e.factors.slice(0, 3).map(f => RISK_LABEL[f.code][lang]).join(" · ") + (e.factors.length > 3 ? ` +${e.factors.length - 3}` : "")}</td>
         <td className="font-data" style={{ ...tdStyle, textAlign: "right" }}>{e.delivered} · {e.confirmed}{e.disputed > 0 && <span style={{ color: "var(--color-danger-text)" }}> · ⚠ {e.disputed}</span>}</td>
-        <td className="font-data" style={{ ...tdStyle, textAlign: "right", color: e.debt > 0 ? "var(--color-danger-text)" : COLORS.textPrimary }}>{fmt(e.onHand)}{e.debt > 0 && <div style={{ fontSize: 11 }}>{lang === "uz" ? "qarz" : "долг"} {fmt(e.debt)}</div>}</td>
+        <td className="font-data" style={{ ...tdStyle, textAlign: "right", color: e.shortage > 0 ? "var(--color-danger-text)" : COLORS.textPrimary }}>{fmt(e.onHand)}{e.shortage > 0 && <div style={{ fontSize: 11 }}>{lang === "uz" ? "kamomad" : "недостача"} {fmt(e.shortage)}</div>}</td>
       </tr>
       {open && (
         <tr data-testid={`risk-why-${e.id}`}><td style={tdStyle}></td><td colSpan={6} style={{ ...tdStyle, paddingTop: 0 }}>

@@ -110,16 +110,6 @@
     "kind": "query"
   },
   {
-    "fn": "getMyCash",
-    "path": "cash.mine",
-    "kind": "query"
-  },
-  {
-    "fn": "setCashPin",
-    "path": "cash.setPin",
-    "kind": "mutation"
-  },
-  {
     "fn": "getCommissions",
     "path": "commission.list",
     "kind": "query"
@@ -302,6 +292,11 @@
   {
     "fn": "getOrderComments",
     "path": "order.listComments",
+    "kind": "query"
+  },
+  {
+    "fn": "getMyCash",
+    "path": "order.myCash",
     "kind": "query"
   },
   {

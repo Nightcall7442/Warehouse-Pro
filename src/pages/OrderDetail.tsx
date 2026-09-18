@@ -4,6 +4,7 @@ import { normalizeDecimalInput } from "@/lib/decimal-input";
 import { FIELD_EDITABLE_ORDER_STATUSES } from "@contracts/constants";
 import { OrderItemsEditor } from "@/components/orders/OrderItemsEditor";
 import { OrderComments } from "@/components/orders/OrderComments";
+import { MoneyBlock } from "@/components/orders/OrderMoney";
 import { PromisedDelivery } from "@/components/orders/PromisedDelivery";
 import { discountMoneyToPct } from "@/lib/order-discount";
 import { trpc } from "@/providers/trpc";
@@ -17,7 +18,7 @@ import { ru as dateRu } from "date-fns/locale";
 import {
   ArrowLeft, Printer, FileDown, CheckCircle2,
   ChevronDown, Truck, Trash2, Edit3, CreditCard,
-  Phone, Package, User, Clock, AlertTriangle, Store, ShieldCheck, ShieldAlert,
+  Phone, Package, User, Clock, AlertTriangle, Store, ShieldCheck, ShieldAlert, X,
 } from "lucide-react";
 import { useState, useCallback } from "react";
 import { PremiumSelect } from "@/components/PremiumSelect";
@@ -59,6 +60,16 @@ function cleanNum(val: string | number | null | undefined): string {
 }
 
 type PaymentMethod = "cash" | "card" | "transfer" | "debt";
+
+/** Факт в шапке карточки: подпись капителью, значение обычным. */
+function Fact({ icon, label, children }: { icon: React.ReactNode; label: string; children: React.ReactNode }) {
+  return (
+    <div className="min-w-0">
+      <p className="font-label text-secondary text-[10px] tracking-wider mb-1 flex items-center gap-1 uppercase">{icon} {label}</p>
+      <div className="text-sm text-primary">{children}</div>
+    </div>
+  );
+}
 
 export default function OrderDetail() {
   const { id }      = useParams<{ id: string }>();
@@ -144,11 +155,6 @@ export default function OrderDetail() {
     { enabled: !!id }
   );
 
-  const { data: orderPayments } = trpc.order.getOrderPayments.useQuery(
-    { orderId: Number(id) },
-    { enabled: !!id }
-  );
-
   const updateStatus = trpc.order.updateStatus.useMutation({
     onSuccess: () => {
       invalidateOrderCaches();
@@ -212,8 +218,7 @@ export default function OrderDetail() {
    *
    * Второе хуже: это порча денег без единого признака на экране.
    *
-   * Рядом, в OrderSlideOver, пересчёт сделан правильно — здесь его просто
-   * забыли. Договор ручки описан в services/order.ts:1433.
+   * Договор ручки описан в services/order.ts.
    */
   // Скидка на момент открытия формы: отправляем поле, только если его
   // изменили. Иначе каждое сохранение гоняло бы сумму через проценты и
@@ -346,40 +351,77 @@ export default function OrderDetail() {
   const total    = Number(order.total ?? 0);
   const shopDebt = Number(order.shop?.debt ?? 0);
 
+  const DELIVERY_LABEL: Record<string, [string, string]> = {
+    delivered: ["Доставлен", "Yetkazildi"], out_for_delivery: ["В пути", "Yo'lda"], assigned: ["Назначен", "Tayinlangan"],
+    failed: ["Не доставлен", "Yetkazilmadi"], not_assigned: ["Не назначен", "Tayinlanmagan"],
+  };
+  const deliveryLabel = DELIVERY_LABEL[order.deliveryStatus ?? "not_assigned"] ?? DELIVERY_LABEL.not_assigned;
+  const pm = PAYMENT_METHODS[order.paymentMethod ?? "cash"];
+
+  /*
+    Рабочее место, а не лист: слева — что заказано и кому, справа — деньги.
+    Панель справа в списке заказов резала ту же карточку в узкую колонку и
+    дублировала экран; теперь карточка одна, и деньги в ней — первый взгляд
+    оператора вечером: курьер вернулся, сдал, заказ закрыт.
+  */
   return (
-    <div className="max-w-4xl mx-auto space-y-4">
+    <div className="max-w-6xl mx-auto space-y-4">
       {dialog}
 
-      {/* ── Header ── */}
-      <div className="flex items-center justify-between flex-wrap gap-2">
-        <button onClick={() => navigate("/orders")} className="neo-btn flex items-center gap-2 py-1.5 px-3 text-sm">
-          <ArrowLeft size={18}/><span>{lang === "uz" ? "Orqaga" : "Назад"}</span>
-        </button>
-        <div className="flex gap-2 relative flex-wrap">
+      {/* ── Шапка: назад, номер, статус, документы ── */}
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div className="flex items-center gap-3 flex-wrap min-w-0">
+          <button onClick={() => navigate("/orders")} className="neo-btn tap" aria-label={lang === "uz" ? "Orqaga" : "Назад"}>
+            <ArrowLeft size={18}/>
+          </button>
+          <div className="min-w-0">
+            <h1 className="font-display text-2xl font-bold text-primary tracking-tight leading-tight">
+              {lang === "uz" ? "Buyurtma" : "Заказ"} {order.orderNumber}
+            </h1>
+            <p className="text-xs text-secondary mt-0.5">
+              {order.createdAt ? format(new Date(order.createdAt), "d MMMM yyyy, HH:mm", { locale: dateRu }) : ""}
+              {/*
+                Заказ возвращали из архива в работу: дата выше — дата текущего
+                круга, её двигает order-reopen, чтобы выручка второго круга не
+                падала в месяц первого. Без этой строки карточка выглядела бы
+                так, будто январский заказ оформили сегодня.
+              */}
+              {order.firstOrderedAt && <> · {lang === "uz" ? "birinchi rasmiylashtirish" : "первое оформление"} {format(new Date(order.firstOrderedAt), "d MMMM yyyy", { locale: dateRu })}</>}
+            </p>
+          </div>
+          {isOperatorOrCeo && !order.deletedAt ? (
+            <Select value={order.status} onValueChange={handleStatusChange}>
+              <SelectTrigger className="h-8 text-xs rounded-full w-auto px-3"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {Object.entries(ORDER_STATUS_LABEL).map(([key, labels]) => (
+                  <SelectItem key={key} value={key} className="text-xs">{lang === "uz" ? labels.uz : labels.ru}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ) : (
+            <StatusBadge status={order.status} lang={lang} />
+          )}
+          {pm && (
+            <span style={{ display: "inline-flex", padding: "4px 12px", borderRadius: "9999px", fontSize: "11px", fontWeight: 600, background: colorMix(pm.color, 8), color: pm.color, border: `1px solid ${colorMix(pm.color, 19)}` }}>
+              {lang === "uz" ? pm.uz : pm.ru}
+            </span>
+          )}
+        </div>
+        <div className="flex gap-2 relative flex-wrap items-center">
           {/*
-            Выгрузка в 1С. Заказы туда не уезжают сами: расписания для них нет,
-            и единственная ручка, которая это делает, не вызывалась ниоткуда —
-            у организации с настроенным обменом товары приезжали, а заказы не
-            уходили, и увидеть это можно было только по пустой 1С.
-
-            Блок сам решает, показываться ли: обмен не настроен или выгрузка
-            заказов выключена — кнопки нет. Удалённый заказ не выгружаем: в 1С
-            он создал бы проведённый документ, который здесь уже отменён.
+            Выгрузка в 1С. Заказы туда не уезжают сами; блок сам решает,
+            показываться ли: обмен не настроен — кнопки нет. Удалённый заказ
+            не выгружаем: в 1С он создал бы проведённый документ.
           */}
           {!order.deletedAt && <OneCExport orderId={order.id} orderNumber={order.orderNumber} />}
-          <button onClick={handleExport} className="neo-btn flex items-center gap-2 text-sm py-2">
-            <FileDown size={15}/> Excel
-          </button>
-          {/* Print menu */}
+          <button onClick={handleExport} className="neo-btn tap text-sm"><FileDown size={15}/> Excel</button>
           <div className="relative">
-            <button onClick={() => setPrintMenu(v => !v)} className="neo-btn flex items-center gap-2 text-sm py-2">
+            <button onClick={() => setPrintMenu(v => !v)} className="neo-btn tap text-sm">
               <Printer size={15}/> {lang === "uz" ? "Chop etish" : "Печать"} <ChevronDown size={13}/>
             </button>
             {printMenu && (
               <div className="absolute right-0 top-full mt-1 w-64 panel py-1 z-20 shadow-lg rounded-lg border">
-                <p className="px-4 py-1.5 text-[10px] font-label text-secondary tracking-wider uppercase">
-                  {lang === "uz" ? "Hujjatlar" : "Документы"}
-                </p>
+                <p className="px-4 py-1.5 text-[10px] font-label text-secondary tracking-wider uppercase">{lang === "uz" ? "Hujjatlar" : "Документы"}</p>
                 {[
                   { label: lang === "uz" ? "Chiqim nakladnaya (O'Z)" : "Расходная накладная (УЗ)", fn: () => { const d = buildDocData(); if(d) printUzWaybill(d); } },
                   { label: lang === "uz" ? "Hisob-faktura" : "Счёт на оплату",                   fn: () => { const d = buildDocData(); if(d) printInvoice(d);  } },
@@ -389,523 +431,301 @@ export default function OrderDetail() {
                 ].map(item => (
                   <button key={item.label} onClick={() => { item.fn(); setPrintMenu(false); }}
                     className="w-full text-left px-4 py-2 text-sm text-primary hover:bg-surface-light flex items-center gap-2">
-                    <Printer size={13} className="text-secondary"/>
-                    {item.label}
+                    <Printer size={13} className="text-secondary"/>{item.label}
                   </button>
                 ))}
               </div>
             )}
           </div>
-        </div>
-      </div>
-
-      {/* ── Main Card ── */}
-      <div className="neo-card p-6 space-y-6">
-        {/* Title + Status + Edit */}
-        <div className="flex items-start justify-between flex-wrap gap-3">
-          <div>
-            <h1 className="font-display text-2xl font-bold text-primary tracking-tight">
-              {lang === "uz" ? "BUYURTMA" : "ЗАКАЗ"} {order.orderNumber}
-            </h1>
-            <p className="text-sm text-secondary mt-1">
-              {order.createdAt ? format(new Date(order.createdAt), "d MMMM yyyy, HH:mm", { locale: dateRu }) : ""}
-            </p>
-            {/*
-              Заказ возвращали из архива в работу: дата выше — дата текущего
-              круга, её двигает order-reopen, чтобы выручка второго круга не
-              падала в месяц первого. Без этой строки карточка выглядела бы
-              так, будто январский заказ оформили сегодня, и объяснения не
-              было бы нигде, кроме журнала правок.
-            */}
-            {order.firstOrderedAt && (
-              <p className="text-xs mt-0.5" style={{ color: "var(--color-text-tertiary)" }}>
-                {lang === "uz" ? "Birinchi rasmiylashtirish" : "Первое оформление"}:{" "}
-                {format(new Date(order.firstOrderedAt), "d MMMM yyyy", { locale: dateRu })}
-              </p>
-            )}
-            {/* Заказ ждёт офиса: причина — рядом со статусом, чтобы директор
-                подтверждал не вслепую. Снимается сама при выходе из «ожидает». */}
-            {order.status === "pending" && order.holdReason && (
-              <p className="text-xs mt-1 font-semibold" style={{ color: "var(--color-warning-text)" }} data-testid="order-hold-reason">
-                {lang === "uz" ? "Ofis tasdig'ini kutmoqda" : "Ждёт подтверждения офиса"}: {order.holdReason}
-                {isOperatorOrCeo && (lang === "uz" ? " — tasdiqlash uchun holatni «yangi»ga o'tkazing" : " — чтобы подтвердить, переведите в «новый»")}
-              </p>
-            )}
-          </div>
-          <div className="flex items-center gap-2 flex-wrap">
-            {/* Status dropdown */}
-            {isOperatorOrCeo && !order.deletedAt ? (
-              <Select value={order.status} onValueChange={handleStatusChange}>
-                <SelectTrigger className="h-8 text-xs rounded-full w-auto px-3">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {Object.entries(ORDER_STATUS_LABEL).map(([key, labels]) => (
-                    <SelectItem key={key} value={key} className="text-xs">
-                      {lang === "uz" ? labels.uz : labels.ru}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            ) : (
-              <StatusBadge status={order.status} lang={lang} />
-            )}
-
-            {/* Payment badge */}
-            {(() => {
-              const pm = PAYMENT_METHODS[order.paymentMethod ?? "cash"];
-              if (!pm) return null;
-              return (
-                <span style={{
-                  display: "inline-flex", padding: "4px 12px", borderRadius: "9999px",
-                  fontSize: "11px", fontWeight: 600,
-                  background: colorMix(pm.color, 8), color: pm.color, border: `1px solid ${colorMix(pm.color, 19)}`,
-                }}>
-                  {lang === "uz" ? pm.uz : pm.ru}
-                </span>
-              );
-            })()}
-
-            {editing && (
-              <button onClick={() => setEditing(false)} className="neo-btn tap">
-                {lang === "uz" ? "Bekor" : "Отмена"}
-              </button>
-            )}
-          </div>
-        </div>
-
-        {/* Total + Edit button */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-baseline gap-2">
-            <span className="font-display text-3xl font-bold text-primary">{cleanNum(total)}</span>
-            <span className="text-lg text-secondary">{symbol}</span>
-          </div>
           {isOperatorOrCeo && !order.deletedAt && (
-            <div className="flex items-center gap-2 flex-wrap">
-              {/* Complete stays available for every status the goods have not
-                  left on yet, so the order can be finished from here too. */}
+            <>
+              {/* Скидка, способ оплаты и примечание — одно действие; товары и
+                  количества — другое (блок состава), и склад двигает только второе. */}
+              {editing ? (
+                <>
+                  <button onClick={() => setEditing(false)} className="neo-btn tap text-sm"><X size={15}/> {lang === "uz" ? "Bekor" : "Отмена"}</button>
+                  <button onClick={saveEditing} disabled={updateOrder.isPending} className="neo-btn tap text-sm"><Edit3 size={15}/> {lang === "uz" ? "Saqlash" : "Сохранить"}</button>
+                </>
+              ) : (
+                <button onClick={startEditing} className="neo-btn tap text-sm"><Edit3 size={15}/> {lang === "uz" ? "Tahrirlash" : "Изменить"}</button>
+              )}
+              {/* Единственная заливка на открытом заказе: товар отдан — заказ завершён.
+                  У доставленного её место занимает «Закрыть расчёт» в блоке денег. */}
               {OPEN_STATUSES.includes(order.status) && (
-                <button
-                  onClick={() => handleStatusChange("delivered")}
-                  className="neo-btn-primary tap"
-                >
-                  <CheckCircle2 size={16} />
-                  {lang === "uz" ? "Buyurtmani yakunlash" : "Завершить заказ"}
+                <button onClick={() => handleStatusChange("delivered")} className="neo-btn-primary tap">
+                  <CheckCircle2 size={16} /> {lang === "uz" ? "Buyurtmani yakunlash" : "Завершить заказ"}
                 </button>
               )}
-              {/* Состав правится своим блоком ниже: скидка, способ оплаты и
-                  примечание — одно действие, а товары и количества — другое,
-                  и склад двигает только второе. */}
-              <button
-                onClick={editing ? saveEditing : startEditing}
-                disabled={editing && updateOrder.isPending}
-                /* Вторая по важности, а не вторая одинаковая: рядом стоит
-                   «Завершить заказ» — действие необратимое. Две кнопки одного
-                   вида подряд стирают между ними разницу. */
-                className="neo-btn tap"
-              >
-                <Edit3 size={16} />
-                {editing ? (lang === "uz" ? "Saqlash" : "Сохранить изменения") : (lang === "uz" ? "Tahrirlash" : "Изменить заказ")}
-              </button>
-            </div>
+            </>
           )}
         </div>
-
-        <Separator />
-
-        {/* ── Meta Grid ── */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-          <div className="p-3 rounded-lg bg-muted/20">
-            <p className="font-label text-secondary text-[10px] tracking-wider mb-1 flex items-center gap-1">
-              <Store size={12}/> {lang === "uz" ? "XARIDOR" : "ПОКУПАТЕЛЬ"}
-            </p>
-            <p className="text-sm font-medium text-primary">{order.shop?.name ?? "—"}</p>
-            {order.shop?.phone && (
-              <p className="text-xs text-secondary flex items-center gap-1 mt-0.5">
-                <Phone size={10}/> {order.shop.phone}
-              </p>
-            )}
-            {shopDebt > 0 && (
-              <p className="text-xs text-danger font-medium mt-1 flex items-center gap-1">
-                <AlertTriangle size={10}/> {lang === "uz" ? "Qarz:" : "Долг:"} {cleanNum(shopDebt)} {symbol}
-              </p>
-            )}
-          </div>
-          <div className="p-3 rounded-lg bg-muted/20">
-            <p className="font-label text-secondary text-[10px] tracking-wider mb-1 flex items-center gap-1">
-              <User size={12}/> {lang === "uz" ? "AGENT" : "АГЕНТ"}
-            </p>
-            <p className="text-sm text-primary">{order.agent?.name ?? "—"}</p>
-          </div>
-          <div className="p-3 rounded-lg bg-muted/20">
-            <p className="font-label text-secondary text-[10px] tracking-wider mb-1 flex items-center gap-1">
-              <CreditCard size={12}/> {lang === "uz" ? "TO'LOV" : "ОПЛАТА"}
-            </p>
-            <p className="text-sm text-primary">{PAYMENT_METHODS[order.paymentMethod ?? "cash"]?.[lang] ?? "—"}</p>
-          </div>
-          <div className="p-3 rounded-lg bg-muted/20">
-            <p className="font-label text-secondary text-[10px] tracking-wider mb-1 flex items-center gap-1">
-              <Truck size={12}/> {lang === "uz" ? "YETKAZIB BERISH" : "ДОСТАВКА"}
-            </p>
-            <p className="text-sm text-primary">
-              {order.deliveryStatus === "delivered" ? (lang === "uz" ? "Yetkazildi" : "Доставлен") :
-               order.deliveryStatus === "out_for_delivery" ? (lang === "uz" ? "Yo'lda" : "В пути") :
-               order.deliveryStatus === "assigned" ? (lang === "uz" ? "Tayinlangan" : "Назначен") :
-               (lang === "uz" ? "Tayinlanmagan" : "Не назначен")}
-            </p>
-          </div>
-        </div>
-
-        {/*
-          Обещанный срок.
-
-          Стоит сразу за сеткой фактов и до товаров: агент, открывший заказ по
-          звонку магазина «где мой товар», ищет здесь именно его.
-        */}
-        <PromisedDelivery
-          orderId={order.id}
-          promisedDeliveryAt={order.promisedDeliveryAt}
-          status={order.status}
-          deliveredAt={order.deliveredAt}
-          canEdit={canSetPromise}
-        />
-
-        {/* Слово магазина (контроль): по QR из чека магазин подтвердил или оспорил. */}
-        {(order.shopDisputedAt || order.shopConfirmedAt) && (
-          <div className="neo-card neo-card-static flex items-start gap-2" data-testid="shop-word"
-            style={{ borderRadius: "16px", padding: "10px 14px", fontSize: "13px", color: order.shopDisputedAt ? "var(--color-danger-text)" : "var(--color-success-text)" }}>
-            {order.shopDisputedAt ? <ShieldAlert size={16} style={{ flexShrink: 0, marginTop: 1 }} /> : <ShieldCheck size={16} style={{ flexShrink: 0, marginTop: 1 }} />}
-            <div>
-              <b>{order.shopDisputedAt ? (lang === "uz" ? "Do'kon yetkazishni rad etdi" : "Магазин оспорил доставку") : (lang === "uz" ? "Do'kon qabul qilganini tasdiqladi" : "Магазин подтвердил получение")}</b>
-              {" · "}{format(new Date(order.shopDisputedAt ?? order.shopConfirmedAt!), "dd.MM.yyyy HH:mm")}
-              {order.shopDisputedAt && order.shopDisputeNote && <div className="text-primary mt-1">«{order.shopDisputeNote}»</div>}
-            </div>
-          </div>
-        )}
-
-        <Separator />
-
-        {/* ── Items Table ── */}
-        <div>
-          <div className="flex items-center justify-between gap-3 flex-wrap mb-3">
-            <h3 className="font-label text-secondary text-xs tracking-wider flex items-center gap-1">
-              <Package size={13}/> {lang === "uz" ? "MAHSULOTLAR" : "ТОВАРЫ"} ({order.items?.length ?? 0})
-            </h3>
-            {/*
-              Правка состава — здесь же, у самих товаров, а не в общей кнопке
-              «Изменить заказ» сверху: та меняет скидку, способ оплаты и
-              примечание, и склад не двигает. Это разные действия с разными
-              последствиями, и сводить их в одну кнопку значит скрыть от
-              человека, что именно он сейчас поменяет.
-            */}
-            {canEditItems && (
-              <OrderItemsEditor
-                orderId={order.id}
-                items={(order.items ?? []).map(i => ({
-                  id: i.id,
-                  productId: i.productId,
-                  productName: i.productName,
-                  quantity: i.quantity,
-                  unitPrice: i.unitPrice,
-                  unit: i.unit,
-                }))}
-                onSaved={() => refetch()}
-              />
-            )}
-          </div>
-          {/* Desktop — table, scrolled horizontally rather than clipped so
-              narrow-but-not-phone widths don't silently lose the right
-              columns (overflow-x: auto, not overflow: hidden). */}
-          <div className="hidden lg:block border rounded-lg" style={{ overflowX: "auto" }}>
-            <table className="w-full">
-              <thead>
-                <tr className="bg-surface-light">
-                  <th className="text-left px-3 py-2 font-h3 text-secondary text-xs">№</th>
-                  <th className="text-left px-3 py-2 font-h3 text-secondary text-xs">
-                    {lang === "uz" ? "MAHSULOT" : "ТОВАР"}
-                  </th>
-                  <th className="text-left px-3 py-2 font-h3 text-secondary text-xs">
-                    {lang === "uz" ? "KOD" : "КОД"}
-                  </th>
-                  <th className="text-right px-3 py-2 font-h3 text-secondary text-xs">
-                    {(() => {
-                      const firstUnit = order.items?.[0]?.unit;
-                      return firstUnit ? unitShort(firstUnit, lang).toUpperCase() : (lang === "uz" ? "MIQDOR" : "КОЛ-ВО");
-                    })()}
-                  </th>
-                  <th className="text-right px-3 py-2 font-h3 text-secondary text-xs">
-                    {lang === "uz" ? "NARX" : "ЦЕНА"}
-                  </th>
-                  <th className="text-right px-3 py-2 font-h3 text-secondary text-xs">
-                    {lang === "uz" ? "SUMMA" : "СУММА"}
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {order.items?.map((item, i) => {
-                  const unitLabel = unitShort(item.unit, lang);
-                  const hasPartial = item.deliveredQuantity != null && Number(item.deliveredQuantity) < Number(item.quantity);
-                  return (
-                    <tr key={item.id ?? i} className="border-b border-border-subtle hover:bg-muted/20 transition-colors">
-                      <td className="px-3 py-2.5 text-xs text-secondary">{i + 1}</td>
-                      <td className="px-3 py-2.5 text-sm text-primary">
-                        {item.productName ?? "—"}
-                        {hasPartial && (
-                          <div className="text-xs text-amber-600 mt-0.5 flex items-center gap-1">
-                            <AlertTriangle size={10}/>
-                            {lang === "uz" ? "Qisman yetkazildi" : "Частичная доставка"}
-                            {item.returnReason && ` — ${item.returnReason}`}
-                          </div>
-                        )}
-                      </td>
-                      <td className="px-3 py-2.5 font-data text-xs text-secondary">{item.productCode ?? "—"}</td>
-                      <td className="px-3 py-2.5 font-data text-sm text-right">
-                        {hasPartial ? (
-                          <span>
-                            <span className="line-through text-muted-foreground">{cleanNum(item.quantity)}</span>
-                            <span className="ml-1 text-amber-600 font-medium">{cleanNum(item.deliveredQuantity)}</span>
-                            <span className="text-xs text-muted-foreground ml-0.5">{unitLabel}</span>
-                          </span>
-                        ) : (
-                          <span>{cleanNum(item.quantity)} <span className="text-xs text-muted-foreground">{unitLabel}</span></span>
-                        )}
-                      </td>
-                      <td className="px-3 py-2.5 font-data text-sm text-right text-secondary">{cleanNum(item.unitPrice)}</td>
-                      <td className="px-3 py-2.5 font-data text-sm text-right font-medium">{cleanNum(item.subtotal)}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Mobile — same positions as cards, per row instead of columns
-              that would otherwise be cut off on a phone. */}
-          <div className="lg:hidden space-y-2">
-            {order.items?.map((item, i) => {
-              const unitLabel = unitShort(item.unit, lang);
-              const hasPartial = item.deliveredQuantity != null && Number(item.deliveredQuantity) < Number(item.quantity);
-              return (
-                <div key={item.id ?? i} className="neo-card-sm" style={{ padding: "12px" }}>
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <p className="text-sm text-primary font-medium">{item.productName ?? "—"}</p>
-                      <p className="text-xs text-secondary font-data mt-0.5">{item.productCode ?? "—"}</p>
-                    </div>
-                    <span className="text-xs text-secondary shrink-0">№{i + 1}</span>
-                  </div>
-                  {hasPartial && (
-                    <div className="text-xs text-amber-600 mt-1 flex items-center gap-1">
-                      <AlertTriangle size={10}/>
-                      {lang === "uz" ? "Qisman yetkazildi" : "Частичная доставка"}
-                      {item.returnReason && ` — ${item.returnReason}`}
-                    </div>
-                  )}
-                  <div className="flex items-center justify-between mt-2 text-sm border-t border-border-subtle pt-2">
-                    <span className="text-secondary">
-                      {hasPartial ? (
-                        <>
-                          <span className="line-through text-muted-foreground">{cleanNum(item.quantity)}</span>{" "}
-                          <span className="text-amber-600 font-medium">{cleanNum(item.deliveredQuantity)}</span>{" "}
-                        </>
-                      ) : (
-                        <>{cleanNum(item.quantity)} </>
-                      )}
-                      <span className="text-xs text-muted-foreground">{unitLabel}</span>
-                      {" × "}{cleanNum(item.unitPrice)}
-                    </span>
-                    <span className="font-data font-medium text-primary">{cleanNum(item.subtotal)}</span>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* ── Totals ── */}
-        <div className="flex justify-end">
-          <div className="w-72 space-y-1.5 p-3 rounded-lg bg-muted/20">
-            <div className="flex justify-between text-sm">
-              <span className="text-secondary">{lang === "uz" ? "Oraliq summa" : "Подитог"}</span>
-              <span className="font-data">{cleanNum(subtotal)} {symbol}</span>
-            </div>
-            {discount > 0 && (
-              <div className="flex justify-between text-sm">
-                <span className="text-secondary">
-                  {lang === "uz" ? "Chegirma" : "Скидка"}
-                  {subtotal > 0 && ` (${((discount / subtotal) * 100).toFixed(1)}%)`}
-                </span>
-                <span className="font-data text-success">−{cleanNum(discount)} {symbol}</span>
-              </div>
-            )}
-            <Separator />
-            <div className="flex justify-between font-bold text-lg">
-              <span>{lang === "uz" ? "JAMI" : "ИТОГО"}</span>
-              <span className="font-data text-primary">{cleanNum(total)} {symbol}</span>
-            </div>
-          </div>
-        </div>
-
-        {/* ── Notes ── */}
-        {(order.notes || editing) && (
-          <div className="pt-4 border-t border-border-subtle">
-            <p className="font-label text-secondary text-[10px] tracking-wider mb-1">
-              {lang === "uz" ? "IZOH" : "ПРИМЕЧАНИЕ"}
-            </p>
-            {editing ? (
-              <Textarea value={editNotes} onChange={e => setEditNotes(e.target.value)} className="text-sm" rows={3}
-                placeholder={lang === "uz" ? "Izoh..." : "Комментарий..."} />
-            ) : (
-              <p className="text-sm text-secondary">{order.notes || (lang === "uz" ? "Izoh yo'q" : "Нет примечания")}</p>
-            )}
-          </div>
-        )}
       </div>
 
-      {/* ── Edit Form (shows when editing=true, triggered by header button) ── */}
-      {isOperatorOrCeo && editing && (
-        <div className="neo-card p-4">
-          <div className="space-y-3">
-            <p className="font-label text-secondary text-xs tracking-wider">
-              {lang === "uz" ? "BUYURTMANI TAHRIRLASH" : "РЕДАКТИРОВАНИЕ ЗАКАЗА"}
-            </p>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="text-xs text-secondary mb-1 block">{lang === "uz" ? "Chegirma (%)" : "Скидка (%)"}</label>
-                <Input type="text" inputMode="decimal" value={editDiscount} onChange={e => setEditDiscount(normalizeDecimalInput(e.target.value))} className="h-8 text-sm" />
-              </div>
-              <div>
-                <label className="text-xs text-secondary mb-1 block">{lang === "uz" ? "To'lov usuli" : "Метод оплаты"}</label>
-                <Select value={editPaymentMethod} onValueChange={v => setEditPaymentMethod(v as PaymentMethod)}>
-                  <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {Object.entries(PAYMENT_METHODS).map(([key, pm]) => (
-                      <SelectItem key={key} value={key} className="text-sm">{lang === "uz" ? pm.uz : pm.ru}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <div>
-              <label className="text-xs text-secondary mb-1 block">{lang === "uz" ? "Izoh" : "Примечания"}</label>
-              <Textarea value={editNotes} onChange={e => setEditNotes(e.target.value)} className="text-sm" rows={3} />
-            </div>
-          </div>
+      {/* Заказ ждёт офиса: причина — на виду, чтобы директор подтверждал не вслепую. */}
+      {order.status === "pending" && order.holdReason && (
+        <div className="neo-card neo-card-static" style={{ borderRadius: "16px", padding: "10px 14px", fontSize: "13px", color: "var(--color-warning-text)" }} data-testid="order-hold-reason">
+          <b>{lang === "uz" ? "Ofis tasdig'ini kutmoqda" : "Ждёт подтверждения офиса"}</b>: {order.holdReason}
+          {isOperatorOrCeo && (lang === "uz" ? " — tasdiqlash uchun holatni «yangi»ga o'tkazing" : " — чтобы подтвердить, переведите в «новый»")}
         </div>
       )}
 
-      {/*
-        Переписка по заказу.
+      <div className="grid gap-4 items-start" style={{ gridTemplateColumns: "minmax(0, 1fr)" }} data-testid="order-workplace">
+        <div className="grid gap-4 items-start lg:grid-cols-[minmax(0,1fr)_380px]">
+          {/* ── Слева: кому, что, сколько ── */}
+          <div className="space-y-4 min-w-0">
+            <div className="neo-card p-6 space-y-5">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                <Fact icon={<Store size={12}/>} label={lang === "uz" ? "Xaridor" : "Покупатель"}>
+                  <p className="font-medium">{order.shop?.name ?? "—"}</p>
+                  {order.shop?.phone && <p className="text-xs text-secondary flex items-center gap-1 mt-0.5"><Phone size={10}/> {order.shop.phone}</p>}
+                  {shopDebt > 0 && <p className="text-xs text-danger font-medium mt-1 flex items-center gap-1"><AlertTriangle size={10}/> {lang === "uz" ? "Qarz:" : "Долг:"} {cleanNum(shopDebt)} {symbol}</p>}
+                </Fact>
+                <Fact icon={<User size={12}/>} label={lang === "uz" ? "Agent" : "Агент"}>{order.agent?.name ?? "—"}</Fact>
+                <Fact icon={<Truck size={12}/>} label={lang === "uz" ? "Kuryer" : "Курьер"}>{order.courier?.name ?? "—"}</Fact>
+                <Fact icon={<CreditCard size={12}/>} label={lang === "uz" ? "Yetkazib berish" : "Доставка"}>
+                  {lang === "uz" ? deliveryLabel[1] : deliveryLabel[0]}
+                  {order.deliveredAt && <span className="text-xs text-secondary"> · {format(new Date(order.deliveredAt), "dd.MM HH:mm")}</span>}
+                </Fact>
+              </div>
 
-        В вебе она стояла ТОЛЬКО в операторской панели заказа
-        (OrderSlideOver), которая открывается из списка оператора. Агент из
-        своего списка попадает сюда, в карточку, — и переписки о собственном
-        заказе не видел и ответить не мог, хотя обе ручки ему открыты.
+              {/* Обещанный срок — сразу за фактами: агент, открывший заказ по звонку «где мой товар», ищет здесь именно его. */}
+              <PromisedDelivery
+                orderId={order.id}
+                promisedDeliveryAt={order.promisedDeliveryAt}
+                status={order.status}
+                deliveredAt={order.deliveredAt}
+                canEdit={canSetPromise}
+              />
 
-        Ровно та же дыра, что была на телефоне: экран есть, дойти нельзя.
+              {/* Слово магазина (контроль): по QR из чека магазин подтвердил или оспорил. */}
+              {(order.shopDisputedAt || order.shopConfirmedAt) && (
+                <div className="neo-card neo-card-static flex items-start gap-2" data-testid="shop-word"
+                  style={{ borderRadius: "16px", padding: "10px 14px", fontSize: "13px", color: order.shopDisputedAt ? "var(--color-danger-text)" : "var(--color-success-text)" }}>
+                  {order.shopDisputedAt ? <ShieldAlert size={16} style={{ flexShrink: 0, marginTop: 1 }} /> : <ShieldCheck size={16} style={{ flexShrink: 0, marginTop: 1 }} />}
+                  <div>
+                    <b>{order.shopDisputedAt ? (lang === "uz" ? "Do'kon yetkazishni rad etdi" : "Магазин оспорил доставку") : (lang === "uz" ? "Do'kon qabul qilganini tasdiqladi" : "Магазин подтвердил получение")}</b>
+                    {" · "}{format(new Date(order.shopDisputedAt ?? order.shopConfirmedAt!), "dd.MM.yyyy HH:mm")}
+                    {order.shopDisputedAt && order.shopDisputeNote && <div className="text-primary mt-1">«{order.shopDisputeNote}»</div>}
+                  </div>
+                </div>
+              )}
 
-        Кому что видно, решает сервер: assertOrderVisible не даёт ни читать,
-        ни писать в чужой заказ.
-      */}
-      {!order.deletedAt && <OrderComments orderId={order.id} />}
+              {/* Правка шапки: скидка и способ оплаты — здесь, рядом с суммами, которые они меняют. */}
+              {isOperatorOrCeo && editing && (
+                <div className="grid grid-cols-2 gap-4 p-3 rounded-lg" style={{ background: "var(--color-surface-light)" }} data-testid="order-edit-form">
+                  <div>
+                    <label className="text-xs text-secondary mb-1 block">{lang === "uz" ? "Chegirma (%)" : "Скидка (%)"}</label>
+                    <Input type="text" inputMode="decimal" value={editDiscount} onChange={e => setEditDiscount(normalizeDecimalInput(e.target.value))} className="h-8 text-sm" />
+                  </div>
+                  <div>
+                    <label className="text-xs text-secondary mb-1 block">{lang === "uz" ? "To'lov usuli" : "Метод оплаты"}</label>
+                    <Select value={editPaymentMethod} onValueChange={v => setEditPaymentMethod(v as PaymentMethod)}>
+                      <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {Object.entries(PAYMENT_METHODS).map(([key, p]) => (
+                          <SelectItem key={key} value={key} className="text-sm">{lang === "uz" ? p.uz : p.ru}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              )}
 
-      {/* ── Courier Assignment ── */}
-      {isOperatorOrCeo && OPEN_STATUSES.includes(order.status) && (
-        <div className="neo-card p-4">
-          <p className="font-label text-secondary text-xs tracking-wider mb-3 flex items-center gap-2">
-            <Truck size={14}/> {lang === "uz" ? "KURYERNI TAYINLASH" : "НАЗНАЧИТЬ КУРЬЕРА"}
-          </p>
-          <div className="flex items-center gap-3">
-            <PremiumSelect
-              value={order.courierId ? String(order.courierId) : ""}
-              options={[
-                { value: "", label: lang === "uz" ? "Kuryer tanlang" : "Выберите курьера" },
-                ...(couriers?.data?.map((c) => ({ value: String(c.id), label: c.name })) ?? []),
-              ]}
-              onChange={(val) => {
-                const courierId = Number(val);
-                if (courierId) assignCourier.mutate({ orderId: order.id, courierId });
-              }}
-              width="100%"
-            />
-          </div>
-        </div>
-      )}
+              <Separator />
 
-      {/* ── Payments History ── */}
-      {orderPayments && orderPayments.length > 0 && (
-        <div className="neo-card p-4">
-          <p className="font-label text-secondary text-xs tracking-wider mb-3 flex items-center gap-2">
-            <CreditCard size={14}/> {lang === "uz" ? "TO'LOVLAR TARIXI" : "ИСТОРИЯ ОПЛАТ"}
-          </p>
-          <div className="space-y-2">
-            {orderPayments.map(p => (
-              <div key={p.id} className="flex items-center justify-between p-2 rounded-lg bg-muted/20 text-sm">
-                <div>
-                  <span className="font-medium">{cleanNum(p.paidAmount ?? p.amount)} {symbol}</span>
-                  <span className="text-xs text-secondary ml-2">
-                    {p.paymentMethod && PAYMENT_METHODS[p.paymentMethod]?.[lang]}
-                  </span>
-                  {p.debtAmount && Number(p.debtAmount) > 0 && (
-                    <span className="text-xs text-danger ml-2">
-                      {lang === "uz" ? "Qarz:" : "Долг:"} {cleanNum(p.debtAmount)} {symbol}
-                    </span>
+              {/* ── Состав ── */}
+              <div>
+                <div className="flex items-center justify-between gap-3 flex-wrap mb-3">
+                  <h3 className="font-label text-secondary text-xs tracking-wider flex items-center gap-1 uppercase">
+                    <Package size={13}/> {lang === "uz" ? "Mahsulotlar" : "Товары"} ({order.items?.length ?? 0})
+                  </h3>
+                  {/* Правка состава — у самих товаров: это действие двигает склад, в отличие от «Изменить» в шапке. */}
+                  {canEditItems && (
+                    <OrderItemsEditor
+                      orderId={order.id}
+                      items={(order.items ?? []).map(i => ({ id: i.id, productId: i.productId, productName: i.productName, quantity: i.quantity, unitPrice: i.unitPrice, unit: i.unit }))}
+                      onSaved={() => refetch()}
+                    />
                   )}
                 </div>
-                <span className="text-xs text-secondary">
-                  {p.createdAt ? format(new Date(p.createdAt), "dd.MM.yyyy HH:mm") : ""}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* ── Adjustments History ── */}
-      {adjustments && adjustments.length > 0 && (
-        <div className="neo-card p-4">
-          <p className="font-label text-secondary text-xs tracking-wider mb-3 flex items-center gap-2">
-            <Clock size={14}/> {lang === "uz" ? "TUZATMALAR TARIXI" : "ИСТОРИЯ КОРРЕКТИРОВОК"}
-          </p>
-          <div className="space-y-2">
-            {adjustments.map(adj => {
-              const label = ADJUSTMENT_TYPE_LABEL[adj.type] ?? { ru: adj.type, uz: adj.type };
-              return (
-                <div key={adj.id} className="p-2 rounded-lg bg-muted/20 text-sm">
-                  <div className="flex items-center justify-between">
-                    <span className="font-medium">{lang === "uz" ? label.uz : label.ru}</span>
-                    <span className="text-xs text-secondary">
-                      {adj.createdAt ? format(new Date(adj.createdAt), "dd.MM.yyyy HH:mm") : ""}
-                      {adj.adjustedByName && ` • ${adj.adjustedByName}`}
-                    </span>
-                  </div>
-                  {adj.reason && <p className="text-xs text-secondary mt-1 italic">"{adj.reason}"</p>}
+                {/* Широкий экран — таблица с горизонтальной прокруткой, не обрезкой. */}
+                <div className="hidden md:block border rounded-lg" style={{ overflowX: "auto" }}>
+                  <table className="w-full">
+                    <thead>
+                      <tr className="bg-surface-light">
+                        <th className="text-left px-3 py-2 font-h3 text-secondary text-xs">№</th>
+                        <th className="text-left px-3 py-2 font-h3 text-secondary text-xs">{lang === "uz" ? "MAHSULOT" : "ТОВАР"}</th>
+                        <th className="text-left px-3 py-2 font-h3 text-secondary text-xs">{lang === "uz" ? "KOD" : "КОД"}</th>
+                        <th className="text-right px-3 py-2 font-h3 text-secondary text-xs">
+                          {(() => { const firstUnit = order.items?.[0]?.unit; return firstUnit ? unitShort(firstUnit, lang).toUpperCase() : (lang === "uz" ? "MIQDOR" : "КОЛ-ВО"); })()}
+                        </th>
+                        <th className="text-right px-3 py-2 font-h3 text-secondary text-xs">{lang === "uz" ? "NARX" : "ЦЕНА"}</th>
+                        <th className="text-right px-3 py-2 font-h3 text-secondary text-xs">{lang === "uz" ? "SUMMA" : "СУММА"}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {order.items?.map((item, i) => {
+                        const unitLabel = unitShort(item.unit, lang);
+                        const hasPartial = item.deliveredQuantity != null && Number(item.deliveredQuantity) < Number(item.quantity);
+                        return (
+                          <tr key={item.id ?? i} className="border-b border-border-subtle hover:bg-muted/20 transition-colors">
+                            <td className="px-3 py-2.5 text-xs text-secondary">{i + 1}</td>
+                            <td className="px-3 py-2.5 text-sm text-primary">
+                              {item.productName ?? "—"}
+                              {hasPartial && (
+                                <div className="text-xs text-amber-600 mt-0.5 flex items-center gap-1">
+                                  <AlertTriangle size={10}/>{lang === "uz" ? "Qisman yetkazildi" : "Частичная доставка"}{item.returnReason && ` — ${item.returnReason}`}
+                                </div>
+                              )}
+                            </td>
+                            <td className="px-3 py-2.5 font-data text-xs text-secondary">{item.productCode ?? "—"}</td>
+                            <td className="px-3 py-2.5 font-data text-sm text-right">
+                              {hasPartial ? (
+                                <span>
+                                  <span className="line-through text-muted-foreground">{cleanNum(item.quantity)}</span>
+                                  <span className="ml-1 text-amber-600 font-medium">{cleanNum(item.deliveredQuantity)}</span>
+                                  <span className="text-xs text-muted-foreground ml-0.5">{unitLabel}</span>
+                                </span>
+                              ) : (
+                                <span>{cleanNum(item.quantity)} <span className="text-xs text-muted-foreground">{unitLabel}</span></span>
+                              )}
+                            </td>
+                            <td className="px-3 py-2.5 font-data text-sm text-right text-secondary">{cleanNum(item.unitPrice)}</td>
+                            <td className="px-3 py-2.5 font-data text-sm text-right font-medium">{cleanNum(item.subtotal)}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
                 </div>
-              );
-            })}
+                {/* Телефон — те же данные карточками, строкой вместо колонок. */}
+                <div className="md:hidden space-y-2">
+                  {order.items?.map((item, i) => {
+                    const unitLabel = unitShort(item.unit, lang);
+                    const hasPartial = item.deliveredQuantity != null && Number(item.deliveredQuantity) < Number(item.quantity);
+                    return (
+                      <div key={item.id ?? i} className="neo-card-sm" style={{ padding: "12px" }}>
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className="text-sm text-primary font-medium">{item.productName ?? "—"}</p>
+                            <p className="text-xs text-secondary font-data mt-0.5">{item.productCode ?? "—"}</p>
+                          </div>
+                          <span className="text-xs text-secondary shrink-0">№{i + 1}</span>
+                        </div>
+                        {hasPartial && (
+                          <div className="text-xs text-amber-600 mt-1 flex items-center gap-1">
+                            <AlertTriangle size={10}/>{lang === "uz" ? "Qisman yetkazildi" : "Частичная доставка"}{item.returnReason && ` — ${item.returnReason}`}
+                          </div>
+                        )}
+                        <div className="flex items-center justify-between mt-2 text-sm border-t border-border-subtle pt-2">
+                          <span className="text-secondary">
+                            {hasPartial ? (<><span className="line-through text-muted-foreground">{cleanNum(item.quantity)}</span>{" "}<span className="text-amber-600 font-medium">{cleanNum(item.deliveredQuantity)}</span>{" "}</>) : (<>{cleanNum(item.quantity)} </>)}
+                            <span className="text-xs text-muted-foreground">{unitLabel}</span>{" × "}{cleanNum(item.unitPrice)}
+                          </span>
+                          <span className="font-data font-medium text-primary">{cleanNum(item.subtotal)}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* ── Итоги ── */}
+              <div className="flex justify-end">
+                <div className="w-72 max-w-full space-y-1.5 p-3 rounded-lg" style={{ background: "var(--color-surface-light)" }}>
+                  <div className="flex justify-between text-sm"><span className="text-secondary">{lang === "uz" ? "Oraliq summa" : "Подитог"}</span><span className="font-data">{cleanNum(subtotal)} {symbol}</span></div>
+                  {discount > 0 && (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-secondary">{lang === "uz" ? "Chegirma" : "Скидка"}{subtotal > 0 && ` (${((discount / subtotal) * 100).toFixed(1)}%)`}</span>
+                      <span className="font-data text-success">−{cleanNum(discount)} {symbol}</span>
+                    </div>
+                  )}
+                  <Separator />
+                  <div className="flex justify-between font-bold text-lg"><span>{lang === "uz" ? "JAMI" : "ИТОГО"}</span><span className="font-data text-primary">{cleanNum(total)} {symbol}</span></div>
+                </div>
+              </div>
+
+              {/* ── Примечание ── */}
+              {(order.notes || editing) && (
+                <div className="pt-4 border-t border-border-subtle">
+                  <p className="font-label text-secondary text-[10px] tracking-wider mb-1 uppercase">{lang === "uz" ? "Izoh" : "Примечание"}</p>
+                  {editing ? (
+                    <Textarea value={editNotes} onChange={e => setEditNotes(e.target.value)} className="text-sm" rows={3} placeholder={lang === "uz" ? "Izoh..." : "Комментарий..."} />
+                  ) : (
+                    <p className="text-sm text-secondary">{order.notes}</p>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Переписка по заказу: обе ручки открыты и агенту; чужой заказ не даёт сервер. */}
+            {!order.deletedAt && <OrderComments orderId={order.id} />}
+
+            {/* ── История корректировок ── */}
+            {adjustments && adjustments.length > 0 && (
+              <div className="neo-card p-4">
+                <p className="font-label text-secondary text-xs tracking-wider mb-3 flex items-center gap-2 uppercase"><Clock size={14}/> {lang === "uz" ? "Tuzatmalar tarixi" : "История корректировок"}</p>
+                <div className="space-y-2">
+                  {adjustments.map(adj => {
+                    const label = ADJUSTMENT_TYPE_LABEL[adj.type] ?? { ru: adj.type, uz: adj.type };
+                    return (
+                      <div key={adj.id} className="p-2 rounded-lg bg-muted/20 text-sm">
+                        <div className="flex items-center justify-between">
+                          <span className="font-medium">{lang === "uz" ? label.uz : label.ru}</span>
+                          <span className="text-xs text-secondary">{adj.createdAt ? format(new Date(adj.createdAt), "dd.MM.yyyy HH:mm") : ""}{adj.adjustedByName && ` • ${adj.adjustedByName}`}</span>
+                        </div>
+                        {adj.reason && <p className="text-xs text-secondary mt-1 italic">"{adj.reason}"</p>}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* ── Удаление ── */}
+            {isOperatorOrCeo && can("orders.delete") && ["new", "processing", "cancelled"].includes(order.status) && (
+              <div className="flex justify-end">
+                <button
+                  onClick={async () => {
+                    const ok = await confirm({
+                      title: lang === "uz" ? "Buyurtmani o'chirish?" : "Удалить заказ?",
+                      message: lang === "uz" ? "Bu amalni qaytarib bo'lmaydi" : "Это действие нельзя отменить",
+                      confirmText: lang === "uz" ? "O'chirish" : "Удалить",
+                      danger: true,
+                    });
+                    if (ok) deleteOrder.mutate({ id: order.id });
+                  }}
+                  className="neo-btn flex items-center gap-2 text-sm text-danger border-danger/30"
+                >
+                  <Trash2 size={14}/> {lang === "uz" ? "Buyurtmani o'chirish" : "Удалить заказ"}
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* ── Справа: деньги и курьер ── */}
+          <div className="space-y-4 min-w-0 lg:sticky lg:top-4">
+            <MoneyBlock orderId={order.id} status={order.status} courierName={order.courier?.name} />
+
+            {/* Курьера назначают, пока заказ открыт, — как на сервере: после сборки в лист (статус «отгружен») заказ как раз и отдают курьеру. */}
+            {isOperatorOrCeo && OPEN_STATUSES.includes(order.status) && (
+              <div className="neo-card p-4">
+                <p className="font-label text-secondary text-xs tracking-wider mb-3 flex items-center gap-2 uppercase"><Truck size={14}/> {lang === "uz" ? "Kuryer" : "Курьер"}</p>
+                <PremiumSelect
+                  value={order.courierId ? String(order.courierId) : ""}
+                  options={[
+                    { value: "", label: lang === "uz" ? "Kuryer tanlang" : "Выберите курьера" },
+                    ...(couriers?.data?.map((c) => ({ value: String(c.id), label: c.name })) ?? []),
+                  ]}
+                  onChange={(val) => { const courierId = Number(val); if (courierId) assignCourier.mutate({ orderId: order.id, courierId }); }}
+                  width="100%"
+                />
+              </div>
+            )}
           </div>
         </div>
-      )}
+      </div>
 
-      {/* ── Delete ── */}
-      {isOperatorOrCeo && can("orders.delete") && (order.status === "new" || order.status === "processing" || order.status === "cancelled") && (
-        <div className="neo-card p-4">
-          <button
-            onClick={async () => {
-              const ok = await confirm({
-                title: lang === "uz" ? "Buyurtmani o'chirish?" : "Удалить заказ?",
-                message: lang === "uz" ? "Bu amalni qaytarib bo'lmaydi" : "Это действие нельзя отменить",
-                confirmText: lang === "uz" ? "O'chirish" : "Удалить",
-                danger: true,
-              });
-              if (ok) deleteOrder.mutate({ id: order.id });
-            }}
-            className="neo-btn flex items-center gap-2 text-sm text-danger border-danger/30"
-          >
-            <Trash2 size={14}/> {lang === "uz" ? "Buyurtmani o'chirish" : "Удалить заказ"}
-          </button>
-        </div>
-      )}
       {/* ── Completion Flow Modal ── */}
       <CompletionFlowModal
         open={showCompletion}

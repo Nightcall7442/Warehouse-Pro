@@ -13,8 +13,8 @@ const stub = vi.hoisted(() => {
     enabled: true, planAllows: true,
     overview: {
       employees: [
-        { id: 3, name: "Курьер Ботир", role: "courier", score: 50, level: "watch", factors: [{ code: "dispute", points: 20, count: 1 }, { code: "shortage", points: 15, count: 1, money: 70000 }, { code: "debt", points: 15, money: 70000 }], delivered: 3, confirmed: 1, disputed: 1, unconfirmed: 1, onHand: 120000, debt: 70000 },
-        { id: 4, name: "Агент Азиз", role: "agent", score: 0, level: "calm", factors: [], delivered: 0, confirmed: 0, disputed: 0, unconfirmed: 0, onHand: 0, debt: 0 },
+        { id: 3, name: "Курьер Ботир", role: "courier", score: 50, level: "watch", factors: [{ code: "dispute", points: 20, count: 1 }, { code: "shortage", points: 15, count: 1, money: 70000 }, { code: "cashLate", points: 15, money: 120000, hours: 30 }], delivered: 3, confirmed: 1, disputed: 1, unconfirmed: 1, onHand: 120000, shortage: 70000 },
+        { id: 4, name: "Агент Азиз", role: "agent", score: 0, level: "calm", factors: [], delivered: 0, confirmed: 0, disputed: 0, unconfirmed: 0, onHand: 0, shortage: 0 },
       ],
       totals: { disputed: 1, unconfirmed: 1, confirmed: 1, delivered: 3, atRisk: 1 },
     },
@@ -60,7 +60,7 @@ describe("страница «Контроль»", () => {
     const why = screen.getByTestId("risk-why-3");
     expect(why.textContent).toContain("+20");
     expect(why.textContent).toContain("Магазин оспорил доставку — 1");
-    expect(why.textContent).toContain("Недостача по пересчёту — 1 · ");
+    expect(why.textContent).toContain("Недостача при расчёте заказа — 1 · ");
     // У чистого сотрудника раскрывать нечего.
     fireEvent.click(screen.getByTestId("risk-4"));
     expect(screen.queryByTestId("risk-why-4")).toBeNull();
@@ -80,9 +80,9 @@ describe("страница «Контроль»", () => {
     const [sheets, name] = stub.state.exportToExcel.mock.calls[0] as [Array<{ name: string; data: Array<Record<string, unknown>>; columns: Array<{ header: string }> }>, string];
     expect(name).toBe("control-30d");
     expect(sheets.map(s => s.name)).toEqual(["Индекс риска", "Спорные доставки"]);
-    expect(sheets[0].columns.map(c => c.header)).toEqual(["Сотрудник", "Роль", "Баллы", "Уровень", "Факторы", "Доставлено", "Подтверждено", "Спорных", "На руках", "Долг"]);
+    expect(sheets[0].columns.map(c => c.header)).toEqual(["Сотрудник", "Роль", "Баллы", "Уровень", "Факторы", "Доставлено", "Подтверждено", "Спорных", "На руках", "Недостача"]);
     expect(sheets[0].data[0]).toMatchObject({ name: "Курьер Ботир", role: "Курьер", score: 50, level: "Присмотреться" });
-    expect(String(sheets[0].data[0].factors)).toContain("Магазин оспорил доставку — 1; Недостача по пересчёту — 1");
+    expect(String(sheets[0].data[0].factors)).toContain("Магазин оспорил доставку — 1; Недостача при расчёте заказа — 1");
     expect(sheets[1].data[0]).toMatchObject({ number: "№1002", shop: "Магазин Альфа", note: "Нет двух ящиков", total: 300000 });
   });
   it("выключено — подсказка в настройки; Basic — подсказка о тарифе; таблиц нет", () => {

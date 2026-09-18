@@ -13,7 +13,7 @@ import { couriers, viewerScope } from "./order-shared";
   звёздочкой это ловил бы только тест; без неё не собирается сборка.
 */
 export async function list(db: Db, tenantId: number, filters: Record<string, unknown>, viewer: OrderViewer) {
-  const f = filters as { status?: string; archived?: boolean; agentId?: number; agentIds?: number[]; page?: number; pageSize?: number; search?: string; showDeleted?: boolean; dateFrom?: string; dateTo?: string; paymentMethod?: string };
+  const f = filters as { status?: string; archived?: boolean; agentId?: number; agentIds?: number[]; page?: number; pageSize?: number; search?: string; showDeleted?: boolean; dateFrom?: string; dateTo?: string; paymentMethod?: string; awaitingMoney?: boolean };
   const page = f.page ?? 1;
   const limit = f.pageSize ?? 25;
   const offset = (page - 1) * limit;
@@ -44,6 +44,8 @@ export async function list(db: Db, tenantId: number, filters: Record<string, unk
   if (f.agentIds?.length) conditions.push(inArray(orders.agentId, f.agentIds));
   else if (f.agentId) conditions.push(eq(orders.agentId, f.agentId));
   if (f.paymentMethod) conditions.push(eq(orders.paymentMethod, f.paymentMethod as "cash" | "card" | "transfer" | "debt"));
+  // Ждут расчёта: доставлены, офис деньги ещё не принял (services/order-close.ts).
+  if (f.awaitingMoney) conditions.push(eq(orders.status, "delivered"), isNull(orders.closedAt));
   // P0-14 FIX: Implement search filter
   if (f.search) conditions.push(sql`(${orders.orderNumber} LIKE ${'%' + f.search + '%'} OR ${shops.name} LIKE ${'%' + f.search + '%'})`);
   // P0-14 FIX: Implement date filters
@@ -68,6 +70,7 @@ export async function list(db: Db, tenantId: number, filters: Record<string, unk
     subtotal: orders.subtotal,
     discount: orders.discount,
     notes: orders.notes,
+    closedAt: orders.closedAt,
     createdAt: orders.createdAt,
     shopId: orders.shopId,
     agentId: orders.agentId,
@@ -146,10 +149,11 @@ export async function getById(db: Db, tenantId: number, orderId: number, viewer:
     paymentMethod: orders.paymentMethod, invoicePrintedAt: orders.invoicePrintedAt,
     // Слово магазина (контроль): подтвердил получение или оспорил — с заметкой.
     shopConfirmedAt: orders.shopConfirmedAt, shopDisputedAt: orders.shopDisputedAt, shopDisputeNote: orders.shopDisputeNote,
+    closedAt: orders.closedAt,
   }).from(orders).where(and(eq(orders.id, orderId), eq(orders.tenantId, tenantId), isNull(orders.deletedAt), ...scope)).limit(1);
   if (!order) return null;
 
-  const [items, [shop], [agent]] = await Promise.all([
+  const [items, [shop], [agent], [courier]] = await Promise.all([
     db.select({
       id: orderItems.id, productId: orderItems.productId, quantity: orderItems.quantity,
       unitPrice: orderItems.unitPrice, subtotal: orderItems.subtotal,
@@ -166,9 +170,12 @@ export async function getById(db: Db, tenantId: number, orderId: number, viewer:
     order.agentId
       ? db.select({ id: users.id, name: users.name }).from(users).where(eq(users.id, order.agentId)).limit(1)
       : Promise.resolve([]),
+    order.courierId
+      ? db.select({ id: users.id, name: users.name }).from(users).where(eq(users.id, order.courierId)).limit(1)
+      : Promise.resolve([]),
   ]);
 
-  return { ...order, items, shop: shop ?? null, shopName: shop?.name ?? null, agent: agent ?? null };
+  return { ...order, items, shop: shop ?? null, shopName: shop?.name ?? null, agent: agent ?? null, courier: courier ?? null };
 }
 
 export async function myOrders(db: Db, tenantId: number, agentId: number) {

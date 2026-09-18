@@ -98,14 +98,12 @@ describe.skipIf(!hasRealDb)("безнал: в пути, подтверждени
     expect(audit.find((a: any) => a.targetId === byCeo)?.meta).toMatchObject({ amount: "20000.00", method: "transfer", bankRef: "ВЫП-0916", recordedBy: "Директор" });
   });
 
-  it("директор подтверждает свой; сотрудник видит свои переводы в пути и в кошельке", async () => {
+  it("директор подтверждает свой; переводы сотрудника в пути видны в сводке по людям", async () => {
     const { NonCashService } = await import("../../services/noncash");
-    const { CashService } = await import("../../services/cash");
     const mine = await pay({ createdBy: ceoId });
     await pay({ amount: "40000.00" });
     expect(await NonCashService.confirm(db as any, s.tenantId, ceo(), { ids: [mine] }, now)).toEqual({ confirmed: 1, total: 100_000 });
-    const wallet = await CashService.mine(db as any, s.tenantId, s.courierId, now);
-    expect(wallet.nonCashTransit).toEqual({ count: 1, total: 40_000 });
-    expect(wallet.onHand).toBe(0); // перевод — не наличные на руках
+    const sum = await NonCashService.summary(db as any, s.tenantId, now);
+    expect(sum.byEmployee.find(e => e.id === s.courierId)).toMatchObject({ count: 1, total: 40_000 });
   });
 });

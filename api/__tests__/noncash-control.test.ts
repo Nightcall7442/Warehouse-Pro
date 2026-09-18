@@ -10,16 +10,14 @@
  *   · подтверждение — тем же правом, что приём денег; срок — только директор;
  *   · повтор, сторнированный и наличный платёж — отказ (текст в сервисе);
  *   · подтверждение пишется в журнал действий и названо по-русски;
- *   · вечерний крон отдаёт директору безнал в пути и просрочку по людям;
- *   · вкладка есть, «не пришло» ведёт в сторно платежа, выгрузка не глушится;
- *   · сотрудник в кошельке видит свои переводы, которые ещё не сверили;
+ *   · «пришло» — из карточки заказа, тем же правом, что приём денег
+ *     (касса убрана 18.09.2026 — безнал живёт в заказе);
  *   · миграция 0046 добавляет ровно три поля платежа и срок в настройках.
  */
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { nonCashStatus, canConfirm, NON_CASH } from "../services/noncash";
-import { nonCashLines } from "../cron/cash-evening";
 
 const ROOT = join(__dirname, "..", "..");
 const strip = (t: string) => t.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^[^\S\r\n]*\/\/.*$/gm, "");
@@ -62,11 +60,11 @@ describe("кто подтверждает", () => {
 });
 
 describe("права и отказы", () => {
-  const router = read("api/cash-router.ts");
+  const router = read("api/order-router.ts");
   const svc = read("api/services/noncash.ts");
-  it("список, сводка и «пришло» — кассир; срок подтверждения — только директор", () => {
-    for (const p of ["nonCash", "nonCashSummary", "bankConfirm"]) expect(router, `${p} не cashierQuery`).toMatch(new RegExp(`${p}:\\s*cashierQuery`));
-    expect(router).toMatch(/saveSettings:\s*adminQuery[\s\S]*?bankConfirmDays: z\.number\(\)\.int\(\)\.min\(1\)\.max\(60\)/);
+  it("«пришло» — из карточки заказа, правом приёма денег", () => {
+    expect(router).toMatch(/confirmBank:\s*operatorQuery\.use\(can\("payments\.accept"\)\)/);
+    expect(router).toContain("NonCashService.confirm(getDb(), ctx.tenant.id");
   });
   it("отказы названы: свой, повтор, сторно, не безнал; строки берутся под замок", () => {
     expect(svc).toContain("Подтвердить свой же платёж нельзя");
@@ -81,57 +79,6 @@ describe("права и отказы", () => {
     expect(svc).toContain('action: "payment.bank_confirm"');
     expect(read("contracts/audit-text.ts")).toMatch(/"payment\.bank_confirm": \{ ru: "[^"]+", uz: "[^"]+" \}/);
     expect(read("src/pages/AuditLog.tsx")).toContain('"payment.bank_confirm":');
-  });
-});
-
-describe("вечерний крон", () => {
-  const nc = (over: Array<[string, number, number]>, transit = { count: 0, total: 0 }) => ({
-    days: 3, transit, overdue: { count: over.reduce((s, o) => s + o[1], 0), total: over.reduce((s, o) => s + o[2], 0) },
-    confirmedToday: { count: 0, total: 0 },
-    byEmployee: over.map(([name, count, total], i) => ({ id: i + 1, name, count, total, overdueCount: count, overdueTotal: total })),
-  });
-  it("молчит, когда в пути пусто", () => {
-    expect(nonCashLines(nc([]))).toBe("");
-  });
-  it("в пути — цифрой; просрочка — по людям, с экранированием имени", () => {
-    const text = nonCashLines(nc([["Ali <b>", 2, 1_200_000]], { count: 1, total: 300_000 }));
-    expect(text).toContain("Безнал в пути: 3 на");
-    expect(text).toContain("дольше 3 дн.: 2 на");
-    expect(text).toContain("Ali &lt;b&gt; — 2 на");
-    expect(text).not.toContain("<b>Ali");
-  });
-  it("крон не пропускает организацию, у которой всё сдано, но безнал просрочен", () => {
-    const cron = read("api/cron/cash-evening.ts");
-    expect(cron).toContain("if (withCash.length === 0 && o.dayClosed && nc.overdue.count === 0) continue;");
-    expect(cron).toContain("nonCashLines(nc)");
-  });
-});
-
-describe("экран", () => {
-  const page = read("src/pages/Cash.tsx");
-  const tab = read("src/components/cash/NonCashTab.tsx");
-  it("вкладка «Безнал» на месте, просрочка видна с любой вкладки", () => {
-    expect(page).toContain('["noncash", t("Безнал", "Naqdsiz")]');
-    expect(page).toContain('data-testid="noncash-overdue-notice"');
-    expect(page).toContain('<NonCashTab');
-  });
-  it("«не пришло» — сторно платежа тем же путём, что везде; «пришло» — пакетом с подтверждением", () => {
-    expect(tab).toContain("trpc.shop.reversePayment.useMutation");
-    expect(tab).toContain("trpc.cash.bankConfirm.useMutation");
-    expect(tab).toContain("Отменить подтверждение нельзя — только сторно платежа");
-  });
-  it("свой платёж в списке не выбирается — подтвердит другой", () => {
-    expect(tab).toContain("(isCeo || r.createdBy !== userId)");
-    expect(tab).toContain('t("свой — подтвердит другой"');
-  });
-  it("выгрузка — русская и не глушится условием", () => {
-    expect(tab).toMatch(/name: "Безнал"/);
-    expect(tab).toMatch(/header: "Операция банка"/);
-    expect(tab).not.toMatch(/disabled=\{[^}]*\}\s*onClick=\{\(\) => exportToExcel/);
-  });
-  it("сотрудник видит в кошельке переводы, которые ещё не сверили", () => {
-    expect(read("api/services/cash.ts")).toContain("NonCashService.mineTransit(db, tenantId, userId)");
-    expect(read("src/components/cash/MyCashCard.tsx")).toContain("m.nonCashTransit.count > 0");
   });
 });
 

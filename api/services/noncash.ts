@@ -229,11 +229,4 @@ export const NonCashService = {
     }
     return n;
   },
-
-  /** Свои переводы в пути — сотруднику в кошелёк: что ещё не подтвердили. */
-  async mineTransit(db: Db, tenantId: number, userId: number) {
-    const [r] = await db.select({ n: sql<number>`count(*)`, s: sql<number>`coalesce(sum(${payments.amount}), 0)` }).from(payments)
-      .where(and(nonCashWhere(tenantId), eq(payments.createdBy, userId), isNull(payments.bankConfirmedAt), ne(payments.status, "reversed")));
-    return { count: Number(r?.n ?? 0), total: round2(Number(r?.s ?? 0)) };
-  },
 };

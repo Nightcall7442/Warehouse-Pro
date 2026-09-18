@@ -68,14 +68,6 @@ const KEY_LABEL: Record<string, Label> = {
 
 /** Подписи действий журнала — по-русски и по-узбекски; на экране и в CSV одни слова. */
 export const AUDIT_ACTION_LABEL: Record<string, Label> = {
-  "cash.handover": { ru: "Сдача наличных в кассу", uz: "Naqd pul kassaga topshirildi" },
-  "cash.expense": { ru: "Расход из кассы", uz: "Kassadan xarajat" },
-  "cash.deposit": { ru: "Внесение в кассу", uz: "Kassaga kiritish" },
-  "cash.withdrawal": { ru: "Выемка из кассы", uz: "Kassadan olish" },
-  "cash.write_off": { ru: "Списан долг сотрудника", uz: "Xodim qarzi hisobdan chiqarildi" },
-  "cash.storno": { ru: "Сторно кассового документа", uz: "Kassa hujjati stornosi" },
-  "cash.day_closed": { ru: "Касса: день закрыт", uz: "Kassa: kun yopildi" },
-  "cash.day_reopened": { ru: "Касса: день открыт снова", uz: "Kassa: kun qayta ochildi" },
   "user.updated": { ru: "Обновлён пользователь", uz: "Foydalanuvchi yangilandi" },
   "user.deactivated": { ru: "Пользователь деактивирован", uz: "Foydalanuvchi o'chirildi" },
   "user.password_reset_by_admin": { ru: "Сброс пароля", uz: "Parol tiklandi" },
@@ -99,6 +91,7 @@ export const AUDIT_ACTION_LABEL: Record<string, Label> = {
   "order.restore": { ru: "Заказ восстановлен", uz: "Buyurtma tiklandi" },
   "order.revenue_reversed": { ru: "Доставка отменена задним числом", uz: "Yetkazish orqaga qaytarildi" },
   "payment.reverse": { ru: "Оплата отменена", uz: "To'lov bekor qilindi" },
+  "order.closed": { ru: "Расчёт по заказу закрыт", uz: "Buyurtma hisob-kitobi yopildi" },
   "payment.bank_confirm": { ru: "Безнал подтверждён выпиской", uz: "Naqdsiz to'lov ko'chirma bilan tasdiqlandi" },
   "return.status": { ru: "Возврат: смена статуса", uz: "Qaytarish: holat o'zgardi" },
   "shop.credit_limit_changed": { ru: "Изменён кредитный лимит магазина", uz: "Do'kon kredit limiti o'zgartirildi" },

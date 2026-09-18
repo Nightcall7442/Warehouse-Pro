@@ -7,7 +7,7 @@ import * as schema from "@db/schema";
  * Контроль на настоящей базе: слово магазина по подписанной ссылке из чека
  * (подтвердил → один раз; оспорил → заметка, журнал, директору в Telegram;
  * недоставленный — отказ; выключено — отказ) → индекс риска: спор и
- * недостача по кассе дают курьеру баллы, чистый агент — ноль → список
+ * недостача при расчёте заказа дают курьеру баллы, чистый агент — ноль → список
  * споров → публичная страница чека несёт кнопки только при включённом
  * контроле и только пока слова нет.
  */
@@ -45,7 +45,7 @@ describe.skipIf(!hasRealDb)("контроль: слово магазина и и
   it("подтвердил → оспорил → индекс риска → споры → страница чека", async () => {
     const { shopWord, ControlService, assertControl } = await import("../../services/control");
     const { receiptToken, receiptWord, receiptPage } = await import("../../services/receipt");
-    const { CashService, ACCOUNT } = await import("../../services/cash");
+    const { OrderCloseService } = await import("../../services/order-close");
     const threeDaysAgo = new Date(Date.now() - 3 * 86_400_000);
     const okId = await order({ number: "№1001", deliveredAt: threeDaysAgo });
     const badId = await order({ number: "№1002", deliveredAt: threeDaysAgo });
@@ -77,16 +77,15 @@ describe.skipIf(!hasRealDb)("контроль: слово магазина и и
     await expect(shopWord(db as any, openId, { action: "confirm" })).rejects.toThrow(/только доставленный/);
     await expect(shopWord(db as any, 999_999, { action: "confirm" })).rejects.toThrow(/Такого заказа нет/);
 
-    // Недостача по кассе курьеру — документ РКО категории shortage.
-    await (db as any).transaction(async (tx: any) => {
-      await CashService.chargeEmployee(tx, s.tenantId, ceo(), { userId: s.courierId, amount: 70_000, credit: ACCOUNT.unexplained, note: "Недостача при сдаче" });
-    });
+    // Недостача курьера: заявил 300 наличными при доставке, офис получил 230 — 70 остаются на нём.
+    await (db as any).insert(schema.payments).values({ tenantId: s.tenantId, shopId: s.shopId, orderId: oldId, amount: "300.00", type: "payment", paymentMethod: "cash", status: "paid", createdBy: s.courierId });
+    expect(await OrderCloseService.close(db as any, s.tenantId, ceo(), { orderId: oldId, cashReceived: 230 })).toMatchObject({ shortage: 70, remainder: 0, claimed: 300 });
 
-    // Индекс: курьер — спор (20) + недостача (15) + долг (15 + 20·70000/5000000 ≈ 15) = 50, «присмотреться»; агент — чист.
+    // Индекс: курьер — спор (20) + недостача (15) = 35, «присмотреться»; агент — чист.
     const ov = await ControlService.overview(db as any, s.tenantId, { from: new Date(Date.now() - 30 * 86_400_000), to: new Date(Date.now() + 86_400_000) });
     const courier = ov.employees.find(e => e.id === s.courierId)!;
-    expect(courier.factors.map(f => [f.code, f.points])).toEqual([["dispute", 20], ["shortage", 15], ["debt", 15]]);
-    expect(courier).toMatchObject({ score: 50, level: "watch", delivered: 3, confirmed: 1, disputed: 1, unconfirmed: 1, debt: 70000 });
+    expect(courier.factors.map(f => [f.code, f.points])).toEqual([["dispute", 20], ["shortage", 15]]);
+    expect(courier).toMatchObject({ score: 35, level: "watch", delivered: 3, confirmed: 1, disputed: 1, unconfirmed: 1, shortage: 70, onHand: 0 });
     expect(ov.employees.find(e => e.id === s.agentId)).toMatchObject({ score: 0, level: "calm", factors: [] });
     expect(ov.totals).toEqual({ disputed: 1, unconfirmed: 1, confirmed: 1, delivered: 3, atRisk: 1 });
     expect(ov.employees[0].id).toBe(s.courierId);
