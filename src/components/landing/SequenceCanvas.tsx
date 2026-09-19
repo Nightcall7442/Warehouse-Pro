@@ -78,7 +78,10 @@ export function SequenceCanvas({
       ctx.globalAlpha = 1;
     };
     const resize = () => {
-      const dpr = Math.min(2, window.devicePixelRatio || 1);
+      // Масштаб листа (zoom на .lx-root) увеличивает холст на экране, но не
+      // clientWidth — иначе кадры на большом мониторе шли бы в пониженном разрешении.
+      const zoom = parseFloat(getComputedStyle(canvas).getPropertyValue("--lx-zoom")) || 1;
+      const dpr = Math.min(2, window.devicePixelRatio || 1) * zoom;
       // Размер раскладки, не прямоугольник на экране: кадр плёнки въезжает
       // вставкой через transform: scale, а холст должен быть в полном разрешении.
       const w = Math.max(1, Math.round(canvas.clientWidth * dpr)), h = Math.max(1, Math.round(canvas.clientHeight * dpr));

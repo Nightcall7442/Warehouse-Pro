@@ -75,6 +75,15 @@ export function LandingStyles() {
         border-radius: 6px;
       }
       .lx-ink :is(a, button):focus-visible { outline-color: ${LX.paperOnInk}; }
+      /* Лист растёт вместе со стеной. Страница собрана под 1240 px; на
+         мониторе 2560 это полоска в половину экрана с мелким шрифтом —
+         владелец назвал это «720p» (19.09.2026). Масштаб задаётся один раз
+         здесь: всё, что внутри, растёт пропорционально, а секции, меряющие
+         себя окном (плёнка, интерлюдия), делят vh на --lx-zoom, иначе они
+         стали бы выше экрана. */
+      .lx-root { --lx-zoom: 1; }
+      @media (min-width: 1800px) { .lx-root { zoom: 1.2; --lx-zoom: 1.2; } }
+      @media (min-width: 2300px) { .lx-root { zoom: 1.4; --lx-zoom: 1.4; } }
     `}</style>
   );
 }

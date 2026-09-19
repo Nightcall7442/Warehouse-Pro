@@ -67,8 +67,12 @@ describe("сцена", () => {
     const { default: StoryScroll } = await import("@/components/landing/StoryScroll");
     const { container } = render(<LangProvider><StoryScroll /></LangProvider>);
     const section = container.querySelector("#story") as HTMLElement;
-    expect(section.style.height).toBe("320vh");
-    expect(section.querySelector(".sticky")).toBeTruthy();
+    // vh делится на масштаб листа (--lx-zoom): на мониторе 2560 страница
+    // увеличена, а секция, меряющая себя окном, должна остаться ровно в экран.
+    expect(section.style.height).toBe("calc(320vh / var(--lx-zoom, 1))");
+    const stickyStory = section.querySelector(".sticky") as HTMLElement;
+    expect(stickyStory).toBeTruthy();
+    expect(stickyStory.style.height).toBe("calc(100vh / var(--lx-zoom, 1))");
     const imgs = Array.from(section.querySelectorAll("img")).map(i => i.getAttribute("src"));
     expect(imgs).toEqual(["/landing/ru/web-operator-orders-content.webp", "/landing/ru/mobile-agent-order-step2.webp"]);
     expect(section.querySelectorAll("canvas").length).toBe(2);
@@ -170,8 +174,15 @@ describe("плёнка из видео (Higgsfield → кадры → прокр
     expect(pickFilmWidth([960, 1920], 5000)).toBe(1920);
     const { container } = render(<LangProvider><FilmScroll /></LangProvider>);
     const section = container.querySelector("#film") as HTMLElement;
-    expect(section.style.height).toBe("520vh");
-    expect(section.querySelector(".sticky")).toBeTruthy();
+    expect(section.style.height).toBe("calc(520vh / var(--lx-zoom, 1))");
+    const stickyFilm = section.querySelector(".sticky") as HTMLElement;
+    expect(stickyFilm).toBeTruthy();
+    expect(stickyFilm.style.height).toBe("calc(100vh / var(--lx-zoom, 1))");
+    // Масштаб объявлен один раз в стилях листа и подхватывается холстом.
+    const shared = read("src/components/landing/landing-shared.tsx");
+    expect(shared).toContain(".lx-root { --lx-zoom: 1; }");
+    expect(shared).toMatch(/@media \(min-width: 1800px\) \{ \.lx-root \{ zoom: 1\.2; --lx-zoom: 1\.2; \} \}/);
+    expect(read("src/components/landing/SequenceCanvas.tsx")).toContain('getPropertyValue("--lx-zoom")');
     expect(section.querySelector("img")?.getAttribute("src")).toMatch(/^\/landing\/film\/warehouse\/w(960|1920)\/001\.webp$/);
     // Плёнка без затухания между кадрами: два кадра с движением камеры, наложенные полупрозрачно, двоят.
     expect(read("src/components/landing/FilmScroll.tsx")).toContain("blend={false}");

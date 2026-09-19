@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { trpc } from "@/providers/trpc";
 import { useLang } from "@/i18n";
 import { notify } from "@/lib/toast";
@@ -60,11 +60,14 @@ export function InvoiceSettings() {
     [company, currency, tpl, opts, fallbackName],
   );
 
-  const toggles: Array<{ key: Bool; ru: string; uz: string }> = [
+  // requires — галочка печатается только вместе с родительской: телефон агента
+  // без строки агента печатать негде, и переключатель без родителя ничего не
+  // менял в предпросмотре (владелец, 20.09.2026: «убрал — сразу убрать»).
+  const toggles: Array<{ key: Bool; ru: string; uz: string; requires?: Bool }> = [
     { key: "showShopPhone",    ru: "Телефон магазина",            uz: "Do'kon telefoni" },
     { key: "showShopAddress",  ru: "Адрес магазина",              uz: "Do'kon manzili" },
     { key: "showAgent",        ru: "Агент",                       uz: "Agent" },
-    { key: "showAgentPhone",   ru: "Телефон агента",              uz: "Agent telefoni" },
+    { key: "showAgentPhone",   ru: "Телефон агента",              uz: "Agent telefoni", requires: "showAgent" },
     { key: "showCourier",      ru: "Курьер",                      uz: "Kuryer" },
     { key: "showPaymentMethod",ru: "Способ оплаты",               uz: "To'lov usuli" },
     { key: "showProductCode",  ru: "Артикул товара",              uz: "Tovar artikuli" },
@@ -122,7 +125,10 @@ export function InvoiceSettings() {
             <div>
               <p className="text-[13px] font-medium text-secondary mb-1.5">{t("Экземпляров на листе", "Varaqdagi nusxalar")}</p>
               <Segmented<"1" | "2"> value={String(opts.copies) as "1" | "2"} onChange={v => set("copies", Number(v) as 1 | 2)} ariaLabel={t("Экземпляры", "Nusxalar")}
-                options={[{ value: "1", label: t("Один", "Bitta") }, { value: "2", label: t("Два — покупателю и поставщику", "Ikkita — xaridor va yetkazib beruvchiga") }]} />
+                options={[{ value: "1", label: t("Один", "Bitta") }, { value: "2", label: t("Два", "Ikkita") }]} />
+              {/* Пояснения — под переключателем, а не внутри: длинная подпись
+                  переносилась на две строки и вылезала из кнопки (снимок владельца, 20.09.2026). */}
+              <p className="text-xs text-tertiary mt-1.5">{t("Два — покупателю и поставщику.", "Ikkita — xaridorga va yetkazib beruvchiga.")}</p>
             </div>
             {opts.copies === 2 && (
               <div>
@@ -130,24 +136,31 @@ export function InvoiceSettings() {
                 <Segmented<InvoiceOptions["copiesLayout"]> value={opts.copiesLayout} onChange={v => set("copiesLayout", v)} ariaLabel={t("Расположение", "Joylashuv")}
                   options={[
                     { value: "stack", label: t("Друг под другом", "Ustma-ust"), Icon: Rows3 },
-                    { value: "side", label: t("Рядом (альбомный лист)", "Yonma-yon (albom varaq)"), Icon: Columns2 },
+                    { value: "side", label: t("Рядом", "Yonma-yon"), Icon: Columns2 },
                   ]} />
-                {opts.copiesLayout === "side" && <p className="text-xs text-tertiary mt-1.5">{t("В окне печати выберите альбомную ориентацию — тогда два экземпляра встанут рядом, как на образце.", "Chop etish oynasida albom yo'nalishini tanlang — shunda ikki nusxa namunadagidek yonma-yon turadi.")}</p>}
+                <p className="text-xs text-tertiary mt-1.5">{opts.copiesLayout === "side"
+                  ? t("Рядом — альбомный лист: в окне печати выберите альбомную ориентацию, и два экземпляра встанут рядом, как на образце.", "Yonma-yon — albom varaq: chop etish oynasida albom yo'nalishini tanlang, ikki nusxa namunadagidek yonma-yon turadi.")
+                  : t("Друг под другом — обычный лист А4, линия отреза между экземплярами.", "Ustma-ust — oddiy A4 varaq, nusxalar orasida kesish chizig'i.")}</p>
               </div>
             )}
             <div>
               <p className="text-[13px] font-medium text-secondary mb-1.5">{t("Размер шрифта", "Shrift o'lchami")}</p>
               <Segmented<InvoiceOptions["fontSize"]> value={opts.fontSize} onChange={v => set("fontSize", v)} ariaLabel={t("Шрифт", "Shrift")}
-                options={[{ value: "small", label: t("Мелкий — больше строк на лист", "Mayda — varaqqa ko'proq qator") }, { value: "normal", label: t("Обычный", "Oddiy") }]} />
+                options={[{ value: "small", label: t("Мелкий", "Mayda") }, { value: "normal", label: t("Обычный", "Oddiy") }]} />
+              <p className="text-xs text-tertiary mt-1.5">{t("Мелкий — больше строк на лист; обычный — как в классической.", "Mayda — varaqqa ko'proq qator; oddiy — klassikdagidek.")}</p>
             </div>
             <div className="grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-x-5 gap-y-2 pt-2">
-              {toggles.map(tg => (
-                <label key={tg.key} className="flex items-center gap-2.5 text-sm text-primary cursor-pointer">
-                  <input type="checkbox" checked={opts[tg.key]} onChange={e => set(tg.key, e.target.checked)} data-testid={`invoice-${tg.key}`}
-                    style={{ width: "16px", height: "16px", accentColor: "var(--color-primary)" }} />
-                  <span>{t(tg.ru, tg.uz)}</span>
-                </label>
-              ))}
+              {toggles.map(tg => {
+                const off = tg.requires ? !opts[tg.requires] : false;
+                return (
+                  <label key={tg.key} className={`flex items-center gap-2.5 text-sm ${off ? "text-tertiary cursor-not-allowed" : "text-primary cursor-pointer"} ${tg.requires ? "pl-6" : ""}`}
+                    title={off ? t("Печатается вместе с «Агент»", "«Agent» bilan birga chop etiladi") : undefined}>
+                    <input type="checkbox" checked={opts[tg.key] && !off} disabled={off} onChange={e => set(tg.key, e.target.checked)} data-testid={`invoice-${tg.key}`}
+                      style={{ width: "16px", height: "16px", accentColor: "var(--color-primary)" }} />
+                    <span>{t(tg.ru, tg.uz)}</span>
+                  </label>
+                );
+              })}
             </div>
           </div>
         </div>
@@ -155,9 +168,13 @@ export function InvoiceSettings() {
         <div>
           <h3 className="text-sm font-semibold text-primary mb-4 flex items-center gap-2"><Printer size={15} /> {t("Предпросмотр", "Oldindan ko'rish")}</h3>
           <div className="rounded-2xl overflow-hidden" style={{ background: "var(--color-surface-light)", boxShadow: "var(--shadow-pressed)", padding: "12px" }}>
-            {/* Вымышленный заказ, не данные арендатора; масштаб — чтобы лист поместился в колонку. */}
-            <iframe title={t("Предпросмотр накладной", "Yuk xatini oldindan ko'rish")} srcDoc={preview} data-testid="invoice-preview"
-              style={{ width: opts.copies === 2 && opts.copiesLayout === "side" ? "1000px" : "760px", height: opts.copies === 2 && opts.copiesLayout === "side" ? "560px" : "900px", border: "none", background: "var(--color-surface)", transform: "scale(0.62)", transformOrigin: "top left", borderRadius: "8px", display: "block", marginBottom: opts.copies === 2 && opts.copiesLayout === "side" ? "-212px" : "-342px" }} />
+            {/* Вымышленный заказ, не данные арендатора. */}
+            <PreviewFrame
+              title={t("Предпросмотр накладной", "Yuk xatini oldindan ko'rish")}
+              html={preview}
+              docWidth={opts.copies === 2 && opts.copiesLayout === "side" ? 1000 : 760}
+              docHeight={opts.copies === 2 && opts.copiesLayout === "side" ? 560 : 900}
+            />
           </div>
           <p className="text-xs text-tertiary mt-2">{t("Образец — вымышленный магазин и товары. Реквизиты продавца — из «Компании».", "Namuna — o'ylab topilgan do'kon va tovarlar. Sotuvchi rekvizitlari — «Kompaniya»dan.")}</p>
         </div>
@@ -169,6 +186,39 @@ export function InvoiceSettings() {
         label={t("Сохранить", "Saqlash")}
         hint={t("Применяется ко всем, кто печатает накладные в организации.", "Tashkilotda yuk xatini chop etadigan hammaga qo'llanadi.")}
       />
+    </div>
+  );
+}
+
+/*
+  Лист в колонке — масштабом по её ширине.
+
+  Стоял один масштаб 0,62: на узком окне колонка предпросмотра уже 470 px,
+  и правый край накладной («Кол-во», «Цена», «Сумма») уходил под обрез —
+  владелец прислал снимок (20.09.2026). Ширину меряет ResizeObserver, а
+  стили ставятся прямо на элементы: состояние React здесь не нужно.
+*/
+function PreviewFrame({ title, html, docWidth, docHeight }: { title: string; html: string; docWidth: number; docHeight: number }) {
+  const box = useRef<HTMLDivElement>(null);
+  const frame = useRef<HTMLIFrameElement>(null);
+  useEffect(() => {
+    const el = box.current, fr = frame.current;
+    if (!el || !fr) return;
+    const fit = () => {
+      if (!el.clientWidth) return; // раздел скрыт или ещё не разложен — мерить нечего
+      const scale = Math.min(1, el.clientWidth / docWidth);
+      fr.style.transform = `scale(${scale.toFixed(4)})`;
+      el.style.height = `${Math.round(docHeight * scale)}px`;
+    };
+    fit();
+    const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(fit) : null;
+    ro?.observe(el);
+    return () => ro?.disconnect();
+  }, [docWidth, docHeight]);
+  return (
+    <div ref={box} style={{ overflow: "hidden", borderRadius: "8px" }}>
+      <iframe ref={frame} title={title} srcDoc={html} data-testid="invoice-preview"
+        style={{ width: `${docWidth}px`, height: `${docHeight}px`, border: "none", background: "var(--color-surface)", transformOrigin: "top left", display: "block" }} />
     </div>
   );
 }

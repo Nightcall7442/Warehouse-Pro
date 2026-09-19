@@ -82,7 +82,7 @@ export function Segmented<T extends string>({
         return (
           <button key={o.value} type="button" role="radio" aria-checked={selected}
             onClick={() => onChange(o.value)}
-            className={`flex items-center justify-center gap-2 h-10 px-4 rounded-lg text-sm font-medium transition-colors ${
+            className={`flex items-center justify-center gap-2 h-10 px-4 rounded-lg text-sm font-medium whitespace-nowrap transition-colors ${
               selected ? "text-primary" : "text-secondary hover:text-primary"
             }`}
             style={selected

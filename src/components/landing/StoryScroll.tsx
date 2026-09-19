@@ -77,9 +77,9 @@ export default function StoryScroll() {
       id="story"
       data-story
       aria-label={tr("От заказа до денег", "Buyurtmadan pulgacha")}
-      style={{ background: LX.paper, borderTop: `1px solid ${LX.rule}`, height: still ? "auto" : `${LENGTH_VH}vh` }}
+      style={{ background: LX.paper, borderTop: `1px solid ${LX.rule}`, height: still ? "auto" : `calc(${LENGTH_VH}vh / var(--lx-zoom, 1))` }}
     >
-      <div className={still ? "py-20 md:py-32" : "sticky top-0 h-screen flex items-center overflow-hidden pt-14 md:pt-0"}>
+      <div className={still ? "py-20 md:py-32" : "sticky top-0 flex items-center overflow-hidden pt-14 md:pt-0"} style={still ? undefined : { height: "calc(100vh / var(--lx-zoom, 1))" }}>
         <div className="max-w-[1240px] mx-auto px-6 w-full">
           <div className="grid grid-cols-1 md:grid-cols-12 gap-6 md:gap-8 items-center">
             {/* ── Подписи ───────────────────────────────────────────────── */}
