@@ -245,6 +245,47 @@ describe("настройки → «Накладные»", () => {
     expect(stub.state.update).toHaveBeenLastCalledWith({ invoiceTemplate: "compact", invoiceOptions: null });
   });
 
+  it("галочка меняет предпросмотр сразу: телефон агента уходит и возвращается; без «Агента» телефон недоступен", async () => {
+    stub.state.template = "compact";
+    await mount();
+    expect(text(preview())).toContain("Агент: Эшмуродов Жасур (+998 99 967 17 71)");
+    fireEvent.click(screen.getByTestId("invoice-showAgentPhone"));
+    expect(text(preview())).toContain("Агент: Эшмуродов Жасур");
+    expect(text(preview())).not.toContain("+998 99 967 17 71");
+    fireEvent.click(screen.getByTestId("invoice-showAgentPhone"));
+    expect(text(preview())).toContain("Агент: Эшмуродов Жасур (+998 99 967 17 71)");
+    // Снял «Агент» — телефон агента гаснет и выключается: без родителя ему негде печататься.
+    fireEvent.click(screen.getByTestId("invoice-showAgent"));
+    expect(text(preview())).not.toContain("Агент:");
+    const phone = screen.getByTestId("invoice-showAgentPhone") as HTMLInputElement;
+    expect(phone.disabled).toBe(true);
+    expect(phone.checked).toBe(false);
+  });
+
+  it("предпросмотр подгоняется под ширину колонки, а не режется (снимок владельца 20.09)", async () => {
+    // Колонка 380 px при листе 760 → масштаб 0,5, высота обёртки 450; после
+    // перекладки (ResizeObserver) — пересчёт. Без наблюдателя в jsdom — стуб.
+    const callbacks: Array<() => void> = [];
+    vi.stubGlobal("ResizeObserver", class { constructor(cb: () => void) { callbacks.push(cb); } observe() {} unobserve() {} disconnect() {} });
+    try {
+      await mount();
+      const frame = screen.getByTestId("invoice-preview") as HTMLIFrameElement;
+      const box = frame.parentElement as HTMLDivElement;
+      expect(frame.style.transform).toBe(""); // ширины нет — ничего не трогаем
+      Object.defineProperty(box, "clientWidth", { configurable: true, get: () => 380 });
+      callbacks.forEach(cb => cb());
+      expect(frame.style.transform).toBe("scale(0.5000)");
+      expect(box.style.height).toBe("450px");
+      expect(frame.style.width).toBe("760px");
+      Object.defineProperty(box, "clientWidth", { configurable: true, get: () => 1200 });
+      callbacks.forEach(cb => cb());
+      expect(frame.style.transform).toBe("scale(1.0000)"); // шире листа — не растягиваем
+      expect(box.style.height).toBe("900px");
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it("сохранённый выбор читается из базы", async () => {
     stub.state.template = "detailed"; stub.state.options = { showDebt: false };
     await mount();
