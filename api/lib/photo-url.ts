@@ -1,5 +1,6 @@
 import { sql, type SQL } from "drizzle-orm";
 import type { AnyMySqlColumn } from "drizzle-orm/mysql-core";
+import { storageUrlPrefixes } from "./s3";
 
 /**
  * Photo reference for list queries.
@@ -43,9 +44,22 @@ export function photoRef(
   updatedAtCol: AnyMySqlColumn,
 ): SQL<string | null> {
   const prefix = `/api/photos/${kind}/`;
+  const lazy = sql`CONCAT(${prefix}, ${idCol}, '?v=', UNIX_TIMESTAMP(${updatedAtCol}))`;
+  /*
+    Ссылка на НАШЕ хранилище тоже идёт через ручку (api/photos.ts читает объект
+    своими ключами): открыт ли бакет и верен ли публичный домен, снаружи не
+    видно, а после ночного переноса фото в S3 экран показывал заглушки
+    (19.09.2026). Чужая https-ссылка — как есть: её ручка отдать не сможет.
+  */
+  // Префиксов не больше двух (свой домен и амазоновская форма) — ветви пишутся
+  // явно, а не sql.join: тесты роутеров подменяют drizzle одной функцией sql.
+  const [p1, p2] = storageUrlPrefixes();
+  const own1 = p1 ? sql`WHEN ${photoCol} LIKE ${p1 + "%"} THEN ${lazy}` : sql``;
+  const own2 = p2 ? sql`WHEN ${photoCol} LIKE ${p2 + "%"} THEN ${lazy}` : sql``;
   return sql<string | null>`CASE
     WHEN ${photoCol} IS NULL OR ${photoCol} = '' THEN NULL
-    WHEN ${photoCol} LIKE 'data:%' THEN CONCAT(${prefix}, ${idCol}, '?v=', UNIX_TIMESTAMP(${updatedAtCol}))
+    WHEN ${photoCol} LIKE 'data:%' THEN ${lazy}
+    ${own1} ${own2}
     WHEN ${photoCol} LIKE 'https://%' THEN ${photoCol}
     ELSE NULL
   END`;

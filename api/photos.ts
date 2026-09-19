@@ -1,5 +1,5 @@
 import { Hono, type Context } from "hono";
-import { allowedPhotoHost } from "./lib/s3";
+import { allowedPhotoHost, readObject, storageKeyOf } from "./lib/s3";
 import { eq, and, sql } from "drizzle-orm";
 import { products, shops, dailyPlans, visitReports } from "@db/schema";
 import { getDb } from "./queries/connection";
@@ -122,6 +122,24 @@ async function serve(
 
   // Already hosted elsewhere (S3) — send the client straight there.
   if (!photoUrl.startsWith("data:")) {
+    /*
+      Своё хранилище — читаем объект сами и отдаём байты: бакет может быть
+      закрыт, а публичный домен — не задан или задан криво; и то и другое
+      снаружи выглядело как «фото товаров пропали» (19.09.2026, после ночного
+      переноса фото из базы в S3). Переадресация остаётся только для чужих
+      ссылок на разрешённый хост.
+    */
+    const key = storageKeyOf(photoUrl);
+    if (key) {
+      const obj = await readObject(key);
+      if (!obj || !SAFE_IMAGE_TYPES.has(obj.contentType)) return c.json({ error: "Not Found" }, 404);
+      return c.body(Buffer.from(obj.body), 200, {
+        "Content-Type":  obj.contentType,
+        "Cache-Control": CACHE_HEADER,
+        "X-Content-Type-Options": "nosniff",
+        "Content-Security-Policy": "default-src 'none'; sandbox",
+      });
+    }
     if (!isAllowedPhotoTarget(photoUrl)) return c.json({ error: "Not Found" }, 404);
     return c.redirect(photoUrl, 302);
   }

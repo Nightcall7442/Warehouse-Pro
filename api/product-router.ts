@@ -287,7 +287,9 @@ export const productRouter = createRouter({
         id: products.id, code: products.code, barcode: products.barcode, name: products.name,
         category: products.category, costPrice: products.costPrice, unitPrice: products.unitPrice,
         unit: products.unit, unitWeight: products.unitWeight, packSize: products.packSize, packLabel: products.packLabel, description: products.description,
-        photoUrl: products.photoUrl, reorderPoint: products.reorderPoint, status: products.status,
+        // Через ручку, как в списке: прямая ссылка на бакет открывалась не всегда.
+        photoUrl: photoRef("product", products.id, products.photoUrl, products.updatedAt),
+        reorderPoint: products.reorderPoint, status: products.status,
         createdAt: products.createdAt,
       }).from(products)
         .where(and(eq(products.id, input.id), eq(products.tenantId, tenantId)))
