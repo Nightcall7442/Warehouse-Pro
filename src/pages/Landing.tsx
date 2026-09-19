@@ -212,6 +212,12 @@ function Footer() {
   return (
     <footer className="py-12" style={{ borderTop: `1px solid ${LX.rule}` }}>
       <div className="max-w-[1240px] mx-auto px-6">
+        {/* Последний лист реестра: та же метка, что открывала первый экран. */}
+        <div className="mb-8 flex flex-wrap gap-x-6 text-[11px] uppercase" style={{ ...MONO, fontWeight: 500, letterSpacing: "0.08em", lineHeight: 1.9 }}>
+          <span style={{ color: LX.brassText }}>{tr("Лист 01 из 01", "Varaq 01 / 01")}</span>
+          <span style={{ color: LX.inkFaint }}>{tr("Реестр WP-2026", "Reyestr WP-2026")}</span>
+          <span style={{ color: LX.inkFaint }}>{tr("Сходится вечером", "Kechqurun to'g'ri keladi")}</span>
+        </div>
         <div className="flex flex-col md:flex-row md:items-start justify-between gap-8">
           <div className="max-w-xs">
             <div className="flex items-center gap-2.5 mb-4">
