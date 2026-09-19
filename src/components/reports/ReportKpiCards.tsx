@@ -40,7 +40,7 @@ export interface KpiComparison {
  * Отсутствие сравнения показывается словами, а не нулём: «0 %» человек читает
  * как «не изменилось», хотя на деле сравнивать не с чем.
  */
-export const KpiCard = memo(function KpiCard({ label, value, icon, tone, comparison, note }: {
+export const KpiCard = memo(function KpiCard({ label, value, icon, tone, comparison, note, onClick }: {
   label: string;
   value: string;
   icon: React.ReactNode;
@@ -48,6 +48,8 @@ export const KpiCard = memo(function KpiCard({ label, value, icon, tone, compari
   comparison?: KpiComparison;
   /** Пояснение под числом там, где сравнение невозможно по существу (остаток, а не поток). */
   note?: string;
+  /** Плитка как вход в список: на складе «ниже порога» ведёт к дозаказу. */
+  onClick?: () => void;
 }) {
   const accent = `var(--kpi-${tone})`;
   const pct = comparison?.pct ?? null;
@@ -56,7 +58,11 @@ export const KpiCard = memo(function KpiCard({ label, value, icon, tone, compari
   const DirIcon = dir === "up" ? TrendingUp : dir === "down" ? TrendingDown : Minus;
 
   return (
-    <div className="kpi-hero" style={{ padding: "20px" }}>
+    <div className="kpi-hero" style={{ padding: "20px", cursor: onClick ? "pointer" : undefined }}
+      role={onClick ? "button" : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      onClick={onClick}
+      onKeyDown={onClick ? e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onClick(); } } : undefined}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "10px", marginBottom: "14px" }}>
         <span style={{
           fontFamily: F.display, fontSize: "10px", fontWeight: 600, textTransform: "uppercase",

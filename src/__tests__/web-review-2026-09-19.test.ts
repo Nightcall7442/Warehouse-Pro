@@ -37,7 +37,8 @@ describe("подпись референса и плитки", () => {
     expect(rule).toContain("border-radius: 50%");
     expect(rule).toContain("box-shadow: var(--shadow-raised)");
     expect(read("components/DashboardLayout.tsx")).toContain('style={{ color: kpiAccent(gradient) }}');
-    expect(read("pages/Warehouse.tsx")).toContain('style={{ color: kpiAccent(k.gradient) }}');
+    // Склад после переделки берёт общую плитку отчётов — язык тот же по построению.
+    expect(read("pages/Warehouse.tsx")).toContain('import { KpiCard } from "@/components/reports/ReportKpiCards";');
   });
 
   it("версия на входе — та же, что у сборки, не число из головы", () => {
