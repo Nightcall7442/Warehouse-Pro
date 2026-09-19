@@ -26,6 +26,14 @@ import { LX, MONO } from "./landing-tokens";
    честно — ни одна цифра на странице не выдаёт себя за боевую. Четыре тона
    состояния, пятого не заводить.
 
+   ── Лист в экран (20.09.2026, «Монументальный реестр») ─────────────────────
+
+   Первый экран — законченный лист, а не верх стопки: секция ростом ровно в
+   окно (vh делится на масштаб листа, см. landing-shared), подвал бланка с
+   формой прижат к нижней кромке, а поле листа несёт линейку дня — шесть
+   отметок времени, те же, что в строках панели. Сгиб страницы приходится
+   на линию подвала, а не на случайную строку.
+
    ── Переносы заголовка ────────────────────────────────────────────────────
 
    Не хардкодятся <br> под русскую меру: узбекский на 15–30% длиннее и уронил
@@ -107,23 +115,32 @@ export default function HeroSection() {
   );
 
   return (
-    <section className="relative pt-24 md:pt-32 pb-14 md:pb-[88px]">
-      <div className="max-w-[1240px] mx-auto px-6">
-        <div className="grid gap-x-0 lg:grid-cols-[96px_1fr_400px]">
+    <section className="relative flex flex-col pt-24 md:pt-32 pb-14 md:pb-10" style={{ minHeight: "calc(100vh / var(--lx-zoom, 1))" }}>
+      <div className="max-w-[1240px] w-full mx-auto px-6 flex-1 flex flex-col">
+        <div className="grid gap-x-0 lg:grid-cols-[96px_1fr_400px] flex-1">
 
           {/* Поле листа */}
           <aside
             data-hero-step="0"
-            className="lg:pr-6 mb-6 lg:mb-0 flex lg:block gap-x-4 text-[11px] uppercase whitespace-nowrap"
-            style={{ ...MONO, fontWeight: 500, letterSpacing: "0.08em", lineHeight: 1.9, borderRight: undefined }}
+            className="lg:pr-6 mb-6 lg:mb-0 flex lg:flex-col gap-x-4 text-[11px] uppercase whitespace-nowrap"
+            style={{ ...MONO, fontWeight: 500, letterSpacing: "0.08em", lineHeight: 1.9 }}
           >
             <span className="block" style={{ color: LX.brassText }}>{tr("Лист 01", "Varaq 01")}</span>
             <span className="block" style={{ color: LX.inkFaint }}>{tr("Реестр WP-2026", "Reyestr WP-2026")}</span>
+            {/* Линейка дня: те же шесть отметок, что в строках панели, — во всю высоту листа. */}
+            <div aria-hidden="true" className="hidden lg:flex flex-col justify-between flex-1 mt-8 mb-3 pl-3 relative" style={{ borderLeft: `1px solid ${LX.brass}` }}>
+              {rows.map(r => (
+                <span key={r.t} className="relative leading-none" style={{ color: LX.brassText, letterSpacing: "0.04em" }}>
+                  <i className="absolute top-1/2 -left-3 w-2 h-px" style={{ background: LX.brass }} />
+                  {r.t}
+                </span>
+              ))}
+            </div>
             <span className="block" style={{ color: LX.inkFaint }}>{tr("Ургенч, Хорезм", "Urganch, Xorazm")}</span>
           </aside>
 
           {/* Тело */}
-          <div className="lg:pl-10 lg:pr-8 lg:border-l" style={{ borderColor: LX.rule }}>
+          <div className="lg:pl-10 lg:pr-8">
             {/*
               key по языку — не украшение.
 
@@ -146,7 +163,7 @@ export default function HeroSection() {
               key={lang}
               data-hero-title=""
               className="font-extrabold"
-              style={{ fontSize: "clamp(2.75rem, 5.4vw, 5.25rem)", letterSpacing: "-0.045em", lineHeight: 0.96, color: LX.ink, maxWidth: "12ch" }}
+              style={{ fontSize: "clamp(2.875rem, 5.8vw, 5.75rem)", letterSpacing: "-0.045em", lineHeight: 0.96, color: LX.ink, maxWidth: "12ch" }}
             >
               {tr("Учёт склада", "Ombor hisobi")}
               <br />
@@ -192,10 +209,10 @@ export default function HeroSection() {
           <div className="mt-10 lg:mt-2 lg:pl-8">{panel}</div>
         </div>
 
-        {/* Подвал бланка — во всю ширину, под всеми тремя колонками. Только десктоп: на телефоне форма уже стоит выше. */}
+        {/* Подвал бланка — во всю ширину, под всеми тремя колонками, прижат к нижней кромке листа. Только десктоп: на телефоне форма уже стоит выше. */}
         <div
           data-reveal="hero-foot"
-          className="hidden lg:grid grid-cols-[280px_1fr] gap-10 mt-14 pt-8"
+          className="hidden lg:grid grid-cols-[280px_1fr] gap-10 mt-14 pt-8 lg:mt-auto"
           style={{ borderTop: `1px solid ${LX.rule}` }}
         >
           <div>
