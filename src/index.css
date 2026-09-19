@@ -1136,6 +1136,11 @@
     font-weight: 600;
     box-shadow: none;
   }
+  /* Пункт внутри группы: без значка, со сдвигом под подпись заголовка. */
+  .sidebar-nav-item.nested {
+    padding: 9px 18px 9px 48px; margin: 2px 10px;
+    font-size: 12.5px;
+  }
   .sidebar-nav-item.active::before {
     content: "";
     position: absolute; left: 0; top: 50%;

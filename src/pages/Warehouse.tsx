@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useState } from "react";
+import { useSearchParams } from "react-router";
 import { useCan } from "@/hooks/useCan";
 import { keepPreviousData } from "@tanstack/react-query";
 import { trpc } from "@/providers/trpc";
@@ -8,7 +9,7 @@ import { useLang, useTranslate } from "@/i18n";
 import { format } from "date-fns";
 import {
   AlertTriangle, Package, FileDown, Trash2, Loader2, Boxes, Banknote, Clock,
-  ShoppingCart, Layers, TrendingUp, Columns3, ArrowLeftRight, ClipboardCheck, SlidersHorizontal,
+  ShoppingCart, Layers, TrendingUp, Columns3, ArrowLeftRight, ClipboardCheck, SlidersHorizontal, BarChart3,
 } from "lucide-react";
 import { exportToExcel, formatWarehouseForExport, formatStockValuationForExport, formatDeadStockForExport, formatReorderForExport } from "@/lib/excel";
 import { useCurrency } from "@/hooks/useCurrency";
@@ -27,6 +28,7 @@ import { StockTransfers } from "@/components/warehouse/StockTransfers";
 import { WarehouseCompare } from "@/components/warehouse/WarehouseCompare";
 import { StockCounts } from "@/components/warehouse/StockCounts";
 import { DemandForecast } from "@/components/warehouse/DemandForecast";
+import WarehouseReports from "@/pages/WarehouseReports";
 
 // warehouseMulti.getStock is raw SQL behind db.execute, so tRPC infers its rows
 // as `unknown` — these two mirror the SELECT lists in that procedure. Decimal
@@ -54,7 +56,8 @@ type StockSummary = {
   lowStockCount: number;
 };
 
-type Tab = "stock" | "reorder" | "deadstock" | "forecast" | "compare" | "transfers" | "counts";
+type Tab = "stock" | "reorder" | "deadstock" | "forecast" | "reports" | "compare" | "transfers" | "counts";
+const TABS: readonly Tab[] = ["stock", "reorder", "deadstock", "forecast", "reports", "compare", "transfers", "counts"];
 
 /** Порог — тот же, что у сервера (lowStockCondition): свободный остаток не выше порога, порог задан. */
 const isLow = (r: StockRow) => Number(r.reorderPoint ?? 0) > 0 && Number(r.available ?? 0) <= Number(r.reorderPoint ?? 0);
@@ -134,7 +137,12 @@ export default function Warehouse() {
   // `unit` is captured for the adjust dialog, which today renders quantities
   // without a unit label — AdjustModal takes no unit prop yet.
   const [adjusting, setAdjusting] = useState<{ id: number; name: string; stock: number; unit: string; unitWeight: number } | null>(null);
-  const [activeTab, setActiveTab] = useState<Tab>("stock");
+  // Раздел из адреса: /warehouse?tab=reports — сюда ведут главная и прежний /warehouse-reports.
+  const [searchParams] = useSearchParams();
+  const [activeTab, setActiveTab] = useState<Tab>(() => {
+    const want = searchParams.get("tab");
+    return (TABS as readonly string[]).includes(want ?? "") ? (want as Tab) : "stock";
+  });
   const [deadStockDays, setDeadStockDays] = useState(30);
   // Фильтры таблицы остатков — на клиенте: список и так приходит целиком.
   const [category, setCategory] = useState("");
@@ -285,6 +293,8 @@ export default function Warehouse() {
     { key: "deadstock" as const, label: t("Мёртвый сток", "O'lik stok"), icon: <Clock size={15} />, count: deadCount, warn: false },
     // «Прогноз» — другой вопрос: КОГДА кончится и сколько заказать с учётом доставки.
     { key: "forecast" as const, label: t("Прогноз", "Prognoz"), icon: <TrendingUp size={15} />, count: 0, warn: false },
+    // «Отчёты» — бывшая страница «Отчёты склада»: сроки годности, категории, движение, оборачиваемость.
+    { key: "reports" as const, label: t("Отчёты", "Hisobotlar"), icon: <BarChart3 size={15} />, count: 0, warn: false },
     // Сравнение и перемещения — только когда складов больше одного: одному
     // складу не с чем сравниваться и некуда перемещать.
     ...(multi ? [
@@ -363,7 +373,7 @@ export default function Warehouse() {
           <p style={{ fontSize: "13px", color: COLORS.textSecondary, margin: "4px 0 0" }}>
             {t("Остатки, дозаказ и движение товара", "Qoldiqlar, qayta buyurtma va tovar harakati")}
           </p>
-          {multi && activeTab !== "compare" && activeTab !== "transfers" && (
+          {multi && activeTab !== "compare" && activeTab !== "transfers" && activeTab !== "reports" && (
             <div className="flex flex-wrap gap-2 mt-3" role="tablist" aria-label={t("Склад", "Ombor")} data-testid="warehouse-chips">
               {warehouses.map(w => {
                 const active = w.id === warehouseId;
@@ -607,6 +617,8 @@ export default function Warehouse() {
 
       {/* ── FORECAST / TRANSFERS / COMPARE / COUNTS ───────────────────────── */}
       {activeTab === "forecast" && <DemandForecast />}
+
+      {activeTab === "reports" && <WarehouseReports />}
 
       {activeTab === "transfers" && multi && (
         <StockTransfers warehouses={warehouses} canTransfer={canAdjust} />

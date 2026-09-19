@@ -116,7 +116,7 @@ const WEB_SCENARIOS = {
       marks: [["save", T.saveComplete]] },
     { name: "returns", path: "/returns" },
     { name: "warehouse", path: "/warehouse" },
-    { name: "warehouse-reports", path: "/warehouse-reports" },
+    { name: "warehouse-reports", path: "/warehouse?tab=reports" },
     { name: "products", path: "/products" },
     { name: "product-detail", path: "/products", do: [["click", "css=[data-testid=product-row] >> nth=0"], ["wait", 1500]] },
     { name: "shops", path: "/shops", marks: [["search", "ph=/Название|Nomi|Поиск|Qidir/"]] },

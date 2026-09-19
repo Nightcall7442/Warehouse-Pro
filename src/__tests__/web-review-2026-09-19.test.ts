@@ -5,7 +5,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { NAV_ITEMS } from "@/const";
+import { NAV_ITEMS, NAV_GROUPS } from "@/const";
 
 const SRC = join(__dirname, "..");
 const read = (p: string) => readFileSync(join(SRC, p), "utf8");
@@ -19,6 +19,7 @@ describe("боковое меню", () => {
     const names = new Set(map.match(/\b[A-Z][A-Za-z0-9]+\b/g) ?? []);
     const missing = new Set<string>();
     for (const items of Object.values(NAV_ITEMS)) for (const it of items) if (!names.has(it.icon)) missing.add(it.icon);
+    for (const g of Object.values(NAV_GROUPS)) if (!names.has(g.icon)) missing.add(g.icon);
     expect([...missing]).toEqual([]);
   });
 });

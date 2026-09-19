@@ -274,7 +274,7 @@ export default function Dashboard() {
           {alerts.slice(0, 4).map((alert, i) => {
             const target: Record<string, string> = {
               low_stock: "/warehouse", pending_orders: "/orders?status=new", plan_summary: "/supervisor/plans",
-              high_debt: "/reports?tab=debts", expired_stock: "/warehouse-reports", expiring_stock: "/warehouse-reports",
+              high_debt: "/reports?tab=debts", expired_stock: "/warehouse?tab=reports", expiring_stock: "/warehouse?tab=reports",
             };
             const link = target[alert.type];
             const colors: Record<string, { bg: string; icon: string }> = {
