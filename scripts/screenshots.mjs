@@ -100,7 +100,7 @@ const WEB_SCENARIOS = {
       marks: [["summary", T.pending], ["search", "ph=/Поиск заказов|Buyurtma/"], ["lists", T.lists], ["new", T.newOrder], ["status", "css=table tbody tr [role=combobox] >> nth=0"], ["complete", "text=/^(Выполнен|Bajarildi)$/ >> nth=0"]] },
     // Карточка заказа — страница /orders/:id (панель справа снята 18.09.2026); имя сценария оставлено ради книги.
     { name: "order-panel", path: "/orders", do: [["click", "css=table tbody tr td >> nth=1"], ["wait", 1800]],
-      marks: [["status", "css=main [role=combobox] >> nth=0"], ["docs", "role=button:/^(Документы|Hujjatlar)$/"], ["money", "text=/^(Деньги|Pul)$/"], ["courier", "text=/^(Курьер|Kuryer)$/"], ["debt", "text=/Долг:|Qarz:/ >> nth=0"]] },
+      marks: [["status", "testid=order-status"], ["docs", "testid=order-print"], ["money", "testid=order-money"], ["courier", "testid=order-courier"], ["debt", "text=/Долг:|Qarz:/ >> nth=0"]] },
     { name: "quick-order", path: "/orders", do: [["click", T.newOrder], ["wait", 1200]],
       marks: [["shop", "css=[role=dialog] input >> nth=0"]] },
     { name: "loading-list-create", path: "/orders",
@@ -123,7 +123,7 @@ const WEB_SCENARIOS = {
     { name: "shops", path: "/shops", marks: [["search", "ph=/Название|Nomi|Поиск|Qidir/"]] },
     { name: "barcode", path: "/barcode" },
     /* ── вторая волна: вкладки панели заказа, завершение, детали ───────── */
-    { name: "order-documents", path: "/orders", do: [["click", T.openOrder], ["wait", 1800], ["click", "role=button:/^(Документы|Hujjatlar)$/"], ["wait", 700]] },
+    { name: "order-documents", path: "/orders", do: [["click", T.openOrder], ["wait", 1800], ["click", "testid=order-print"], ["wait", 700]] },
     { name: "order-complete", path: "/orders", do: [["click", "text=/^(Этот месяц|Bu oy)$/"], ["wait", 1200], ["click", "text=/^(Выполнен|Bajarildi)$/ >> nth=0"], ["wait", 1200]],
       marks: [["submit", "role=button:/Завершить заказ|Buyurtmani tugatish/"]] },
     { name: "arrival-detail", path: "/arrivals", do: [["click", "css=table tbody tr >> nth=0"], ["wait", 1800]], marks: [["labels", "testid=arrival-print-labels"]] },
@@ -161,7 +161,7 @@ const WEB_SCENARIOS = {
     { name: "salaries", path: "/salaries", marks: [["payAll", "text=/Выдать всем|Hammaga berish/ >> nth=0"]] },
     { name: "users", path: "/users" },
     { name: "audit-log", path: "/audit-log" },
-    { name: "control", path: "/control", marks: [["money", "text=/^(Наличные на руках|Qo'ldagi naqd pul)$/"], ["risk", "text=/^(Сотрудники по индексу риска|Xodimlar xavf indeksi bo'yicha)$/"], ["disputes", "text=/^(Спорные доставки|Nizoli yetkazishlar)$/"]] },
+    { name: "control", path: "/control", marks: [["money", "text=/^(Наличные на руках|Qo'ldagi naqd pul)$/"], ["risk", "text=/^(Сотрудники по индексу риска|Xodimlar xavf indeksi bo'yicha)$/"], ["disputes", "text=/^(Спорных доставок|Nizoli yetkazishlar)$/ >> nth=0"]] },
     { name: "settings", path: "/settings" },
     { name: "billing", path: "/billing" },
     { name: "notifications", path: "/notifications" },
