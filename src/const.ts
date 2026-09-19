@@ -22,7 +22,7 @@ export const ROLE_ROUTES: Record<string, string> = {
   Форма записи `role: [ { path: "…" } ]` читается тестами как текст
   (route-guards, bottom-nav-roles) — не менять.
 */
-export type NavGroupKey = "sales" | "warehouse" | "team" | "finance" | "settings";
+export type NavGroupKey = "sales" | "warehouse" | "team" | "finance";
 export type NavItem = { labelKey: string; path: string; icon: string; group?: NavGroupKey };
 
 export const NAV_GROUPS: Record<NavGroupKey, { labelKey: string; icon: string }> = {
@@ -30,7 +30,6 @@ export const NAV_GROUPS: Record<NavGroupKey, { labelKey: string; icon: string }>
   warehouse: { labelKey: "nav.warehouse",    icon: "Warehouse" },
   team:      { labelKey: "nav.groupTeam",    icon: "Users" },
   finance:   { labelKey: "nav.groupFinance", icon: "TrendingUp" },
-  settings:  { labelKey: "nav.settings",     icon: "Settings" },
 };
 
 // Sidebar nav — ключи для i18n, label берётся через t() в Layout
@@ -39,13 +38,14 @@ export const NAV_ITEMS: Record<string, NavItem[]> = {
     { labelKey: "nav.superAdmin", path: "/super-admin", icon: "Zap" },
     { labelKey: "nav.monitoring", path: "/monitoring", icon: "Activity" },
   ],
-  // Директор: шесть разделов — Главная и пять групп. «Отчёты склада» пунктом
-  // больше нет: это вкладка на странице «Склад» (/warehouse?tab=reports).
+  // Директор: Главная, четыре группы и четыре пункта, которые владелец велел
+  // оставить снаружи (19.09.2026): «Магазины», «Настройки», «Биллинг», «Журнал
+  // действий». «Отчёты склада» пунктом больше нет: это вкладка на «Складе».
   ceo: [
     { labelKey: "nav.dashboard",  path: "/",          icon: "LayoutDashboard" },
     { labelKey: "nav.orders",     path: "/orders",    icon: "ClipboardList",  group: "sales" },
     { labelKey: "nav.returns",    path: "/returns",   icon: "RotateCcw",      group: "sales" },
-    { labelKey: "nav.shops",      path: "/shops",     icon: "Store",          group: "sales" },
+    { labelKey: "nav.shops",      path: "/shops",     icon: "Store"           },
     { labelKey: "nav.stock",      path: "/warehouse", icon: "Warehouse",      group: "warehouse" },
     { labelKey: "nav.arrivals",   path: "/arrivals",  icon: "Truck",          group: "warehouse" },
     { labelKey: "nav.products",   path: "/products",  icon: "Package",        group: "warehouse" },
@@ -64,17 +64,17 @@ export const NAV_ITEMS: Record<string, NavItem[]> = {
     { labelKey: "nav.reports",    path: "/reports",   icon: "Activity",       group: "finance" },
     { labelKey: "nav.pnl",        path: "/pnl",       icon: "TrendingUp",     group: "finance" },
     { labelKey: "nav.control",    path: "/control",   icon: "ShieldCheck",    group: "finance" },
-    { labelKey: "nav.organization", path: "/settings", icon: "Settings",      group: "settings" },
-    { labelKey: "nav.billing",    path: "/billing",   icon: "CreditCard",     group: "settings" },
-    { labelKey: "nav.auditLog",   path: "/audit-log",  icon: "Shield",        group: "settings" },
+    { labelKey: "nav.settings",   path: "/settings",  icon: "Settings"        },
+    { labelKey: "nav.billing",    path: "/billing",   icon: "CreditCard"      },
+    { labelKey: "nav.auditLog",   path: "/audit-log",  icon: "Shield"         },
   ],
-  // Оператор: шесть — Главная, две группы, Отчёты, KPI, Настройки. Группа
+  // Оператор: Главная, две группы, Магазины, Отчёты, KPI, Настройки. Группа
   // «Отчёты» с единственным вложенным «Отчёты» звалась бы дважды одним словом.
   operator: [
     { labelKey: "nav.dashboard",  path: "/",          icon: "LayoutDashboard" },
     { labelKey: "nav.orders",     path: "/orders",    icon: "ClipboardList",  group: "sales" },
     { labelKey: "nav.returns",    path: "/returns",   icon: "RotateCcw",      group: "sales" },
-    { labelKey: "nav.shops",      path: "/shops",     icon: "Store",          group: "sales" },
+    { labelKey: "nav.shops",      path: "/shops",     icon: "Store"           },
     { labelKey: "nav.stock",      path: "/warehouse", icon: "Warehouse",      group: "warehouse" },
     { labelKey: "nav.arrivals",   path: "/arrivals",  icon: "Truck",          group: "warehouse" },
     { labelKey: "nav.products",   path: "/products",  icon: "Package",        group: "warehouse" },

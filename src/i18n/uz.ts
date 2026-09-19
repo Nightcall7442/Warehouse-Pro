@@ -20,7 +20,6 @@ export const uz = {
     groupSales:  "Sotuvlar",
     groupTeam:   "Jamoa",
     groupFinance: "Moliya",
-    organization: "Tashkilot",
     auditLog:    "Harakatlar jurnali",
     control:     "Nazorat",
     arrivals:    "Kirim",
