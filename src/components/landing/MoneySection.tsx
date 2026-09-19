@@ -1,7 +1,7 @@
 import { useTranslate } from "@/i18n";
 import { LX, MONO } from "./landing-tokens";
 import { SectionHead } from "./landing-shared";
-import { Browser, DemoTag, Ledger, Split, Sheet, Stage, STAGE_ASPECT } from "./landing-frames";
+import { Browser, DemoTag, Ledger, Monument, Split, Sheet, Stage, STAGE_ASPECT } from "./landing-frames";
 import { useAnime } from "./landing-anime";
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -82,6 +82,16 @@ export default function MoneySection() {
           index="08"
           label={tr("Деньги", "Pul")}
           title={tr("Долги, прибыль и зарплата — по факту, а не по обещаниям", "Qarz, foyda va ish haqi — va'da bo'yicha emas, haqiqat bo'yicha")}
+        />
+
+        {/* Одно число главы: что заработали — из заказов и приходов, без ручных таблиц. */}
+        <Monument
+          className="mt-14"
+          parts={[
+            { value: 24_653_066, suffix: tr("сум", "so'm"), label: tr("Заработали за 12 месяцев", "12 oyda ishlab topildi"), brass: true },
+            { value: 27, suffix: "%", label: tr("Чистая маржа", "Sof marja") },
+          ]}
+          note={tr("демо-данные · P&L считается из заказов и приходов сам", "demo-ma'lumotlar · P&L buyurtma va kirimlardan o'zi hisoblanadi")}
         />
 
         {/* A. Долги: живой блок слева, реестр справа */}

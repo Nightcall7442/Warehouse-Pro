@@ -1,7 +1,7 @@
 import { useTranslate } from "@/i18n";
 import { LX, MONO } from "./landing-tokens";
 import { SectionHead } from "./landing-shared";
-import { Browser, Ledger, Sheet, Stage, STAGE_ASPECT } from "./landing-frames";
+import { Browser, Ledger, Monument, Sheet, Stage, STAGE_ASPECT } from "./landing-frames";
 import { useAnime } from "./landing-anime";
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -66,6 +66,17 @@ export default function WarehouseSection() {
           label={tr("Склад", "Ombor")}
           title={tr("Склад, который сходится с полкой", "Javon bilan mos keladigan ombor")}
           lead={tr("Остаток не пишут руками — он выводится из приходов, отгрузок, приёмок и возвратов. Программа отгружает то, что портится раньше.", "Qoldiq qo'lda yozilmaydi — u kirim, jo'natish, qabul va qaytarishlardan chiqariladi. Dastur avval buziladigan mahsulotni birinchi jo'natadi.")}
+        />
+
+        {/* Одно число главы: остаток — три числа, а не одно; доступно — то, что можно продать. */}
+        <Monument
+          className="mt-14"
+          parts={[
+            { value: 126, label: tr("Всего на складе", "Omborda jami") },
+            { value: 11, label: tr("Резерв под заказы", "Buyurtmalar zaxirasi") },
+            { value: 115, label: tr("Доступно к продаже", "Sotuvga tayyor"), brass: true },
+          ]}
+          note={tr("демо-данные · остаток выводится из приходов, отгрузок и возвратов, а не пишется руками", "demo-ma'lumotlar · qoldiq kirim, jo'natish va qaytarishlardan chiqariladi, qo'lda yozilmaydi")}
         />
 
         <Stage
