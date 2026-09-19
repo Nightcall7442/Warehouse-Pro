@@ -291,7 +291,7 @@ export default function Warehouse() {
                 className="neo-btn flex items-center gap-2 text-sm py-2 px-4"
                 style={{ opacity: backfillMutation.isPending ? 0.5 : 1 }}>
                 {backfillMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <Package size={14} />}
-                {t("Добить стоки", "Stoklarni to'ldirish")}
+                {t("Завести строки остатков", "Qoldiq satrlarini yaratish")}
               </button>
               <button onClick={async () => await exportToExcel(formatWarehouseForExport(stock ?? []), "warehouse-stock", "Склад", t("Остатки склада", "Ombor qoldiqlari"))}
                 className="neo-btn-primary flex items-center gap-2 text-sm py-2 px-5">
@@ -322,11 +322,15 @@ export default function Warehouse() {
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
         {kpis.map((k, i) => {
           const Icon = k.icon;
-          const Wrapper = k.onClick ? 'button' : 'div';
+          // Одна и та же плитка, а не button/div: у кнопки свои отступы и
+          // базовая линия, и «Мало стока» стояла ниже соседей на восемь точек.
           return (
-            <Wrapper key={k.label}
+            <div key={k.label}
               className="kpi-hero"
-              style={{ animationDelay: `${i * 0.05}s`, cursor: k.onClick ? "pointer" : "default", border: 'none', textAlign: 'left', width: '100%' }}
+              role={k.onClick ? "button" : undefined}
+              tabIndex={k.onClick ? 0 : undefined}
+              onKeyDown={k.onClick ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); k.onClick?.(); } } : undefined}
+              style={{ animationDelay: `${i * 0.05}s`, cursor: k.onClick ? "pointer" : "default" }}
               onClick={k.onClick}>
               <div className="flex justify-between items-start mb-4">
                 <span className="text-[10px] font-semibold tracking-wider uppercase" style={{ color: "var(--color-text-tertiary, #6b6760)", fontFamily: "'Manrope', sans-serif" }}>
@@ -343,7 +347,7 @@ export default function Warehouse() {
                   the default once the grid gives each card more room. */}
               <div className="kpi-hero-value animate-count-up text-[22px] sm:text-[32px]">{k.value}</div>
               <div className="kpi-hero-label mt-1">{k.sub}</div>
-            </Wrapper>
+            </div>
           );
         })}
       </div>

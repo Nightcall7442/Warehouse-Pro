@@ -17,7 +17,7 @@ import { trpc } from "@/providers/trpc";
 import {
   LayoutDashboard, Store, Package, ClipboardList, Truck,
   Warehouse, BarChart3, Users, Settings, PlusCircle, MapPin,
-  Calendar, LogOut, X, Moon, Sun, WifiOff, Scan, Activity,
+  Calendar, LogOut, X, Moon, Sun, WifiOff, Scan, Activity, RotateCcw,
   TrendingUp, CreditCard, ChevronLeft, Bell, Zap, Wallet, LifeBuoy, BookOpen, Landmark, Shield, ShieldCheck,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -26,6 +26,8 @@ const iconMap: Record<string, LucideIcon> = {
   LayoutDashboard, Store, Package, ClipboardList, Truck,
   Warehouse, BarChart3, Users, Settings, PlusCircle, MapPin,
   Calendar, WifiOff, Scan, Activity, TrendingUp, CreditCard, Zap, Wallet, LifeBuoy, Landmark, Shield, ShieldCheck,
+  // «Возвраты» стояли в меню без значка: RotateCcw объявлен в const.ts, а сюда не попал.
+  RotateCcw,
 };
 
 /*

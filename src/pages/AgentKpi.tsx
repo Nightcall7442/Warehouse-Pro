@@ -471,7 +471,7 @@ function SupervisorView({ kpi, period, selectedKpi, selectedSalary, detailLoadin
   detailLoading: boolean;
   onSelect: (id: number | null) => void;
   selectedAgentId: number | null;
-  fmt: (v: number) => string;
+  fmt: (v: number, compact?: boolean) => string;
   t: (r: string, u: string) => string;
   lang: Lang;
 }) {
@@ -580,14 +580,14 @@ function SupervisorView({ kpi, period, selectedKpi, selectedSalary, detailLoadin
           <KpiHero label={t("Довезено", "Yetkazildi")} value={String(courierTotals.delivered)} color="var(--color-primary-text)" progress={Math.min(1, courierTotals.delivered / 200)} icon={<PackageCheck size={20} color="var(--color-primary-text)" />} />
           <KpiHero label={t("Сорвано", "Bajarilmadi")} value={String(courierTotals.failed)} color={courierTotals.failed > 0 ? "var(--color-danger-text)" : "var(--color-text-tertiary)"} progress={Math.min(1, courierTotals.failed / 50)} icon={<PackageX size={20} color={courierTotals.failed > 0 ? "var(--color-danger-text)" : "var(--color-text-tertiary)"} />} />
           <KpiHero label={t("Доля успешных", "Muvaffaqiyat")} value={courierTotals.assigned > 0 ? `${courierTotals.rate}%` : "—"} sub={courierTotals.assigned > 0 ? undefined : t("нечего мерить", "o'lchash uchun narsa yo'q")} color="var(--color-primary-text)" progress={courierTotals.rate / 100} icon={<Target size={20} color="var(--color-primary-text)" />} />
-          <KpiHero label={t("Сумма довезённого", "Yetkazilgan summa")} value={fmt(courierTotals.deliveredAmount)} color="var(--color-primary-text)" progress={Math.min(1, courierTotals.deliveredAmount / 10_000_000)} icon={<Package size={20} color="var(--color-primary-text)" />} />
-          <KpiHero label={t("Привезено денег", "Pul olib kelindi")} value={fmt(courierTotals.cash)} color="var(--color-primary-text)" progress={Math.min(1, courierTotals.cash / 10_000_000)} icon={<DollarSign size={20} color="var(--color-primary-text)" />} />
+          <KpiHero label={t("Сумма довезённого", "Yetkazilgan summa")} value={fmt(courierTotals.deliveredAmount, true)} color="var(--color-primary-text)" progress={Math.min(1, courierTotals.deliveredAmount / 10_000_000)} icon={<Package size={20} color="var(--color-primary-text)" />} />
+          <KpiHero label={t("Привезено денег", "Pul olib kelindi")} value={fmt(courierTotals.cash, true)} color="var(--color-primary-text)" progress={Math.min(1, courierTotals.cash / 10_000_000)} icon={<DollarSign size={20} color="var(--color-primary-text)" />} />
         </div>
       ) : (
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 stagger-children">
         <KpiHero label={t("Агентов", "Agentlar")} value={String(filteredKpi.length)} color="var(--color-primary-text)" progress={1} icon={<Users size={20} color="var(--color-primary-text)" />} />
         <KpiHero label={t("Средний балл", "O'rtacha")} value={String(avgScore)} color="var(--color-primary-text)" progress={avgScore / 100} icon={<Star size={20} color="var(--color-primary-text)" />} />
-        <KpiHero label={t("Выручка", "Tushum")} value={fmt(totalRevenue)} color="var(--color-success-text)" progress={Math.min(1, totalRevenue / 10_000_000)} icon={<DollarSign size={20} color="var(--color-success-text)" />} />
+        <KpiHero label={t("Выручка", "Tushum")} value={fmt(totalRevenue, true)} color="var(--color-success-text)" progress={Math.min(1, totalRevenue / 10_000_000)} icon={<DollarSign size={20} color="var(--color-success-text)" />} />
         <KpiHero label={t("Заказы", "Buyurtma")} value={String(totalOrders)} color="var(--color-primary-text)" progress={Math.min(1, totalOrders / 500)} icon={<ShoppingCart size={20} color="var(--color-primary-text)" />} />
         <KpiHero label={t("Визиты", "Tashrif")} value={String(totalVisits)} color="var(--color-warning-text)" progress={Math.min(1, totalVisits / 200)} icon={<MapPin size={20} color="var(--color-warning-text)" />} />
         {/*
@@ -1349,9 +1349,10 @@ function KpiHero({ label, value, sub, color, progress, icon }: {
         <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: color, opacity: 0.3, boxShadow: "var(--shadow-xs)" }} />
       </div>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <div style={{ flex: 1 }}>
+        {/* minWidth 0 — иначе «26 526 115 сум» не переносился и уезжал под кольцо со значком. */}
+        <div style={{ flex: 1, minWidth: 0 }}>
           <p className="kpi-hero-label">{label}</p>
-          <p className="kpi-hero-value" style={{ fontSize: "24px", marginTop: "8px" }}>{value}</p>
+          <p className="kpi-hero-value" style={{ fontSize: "24px", marginTop: "8px", overflowWrap: "anywhere" }}>{value}</p>
           {sub && <p style={{ fontSize: "12px", color: "var(--color-text-secondary)", marginTop: "4px" }}>{sub}</p>}
         </div>
         <div className="neo-progress-ring" style={{ width: "56px", height: "56px", flexShrink: 0 }}>
