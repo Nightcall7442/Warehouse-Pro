@@ -87,7 +87,7 @@ const T = {
   saveComplete: "role=button:/Сохранить и завершить|Saqlash va yakunlash/",
   month: "role=tab:/^(Месяц|Oy)$/",
   openOrder: "css=table tbody tr td >> nth=1",
-  tab: name => `role=button:/^(${name})/`, // вкладки «Склада» — кнопки со счётчиком после подписи
+  tab: name => `role=tab:/^(${name})/`, // вкладки «Склада» — role=tab, счётчик после подписи
 };
 
 const WEB_SCENARIOS = {

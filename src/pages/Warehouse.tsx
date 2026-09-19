@@ -7,25 +7,27 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { useLang, useTranslate } from "@/i18n";
 import { format } from "date-fns";
 import {
-  AlertTriangle, Package, FileDown, Trash2,
-  Loader2, Boxes, Scale, AlertCircle, DollarSign,
-  Clock, ShoppingCart,
+  AlertTriangle, Package, FileDown, Trash2, Loader2, Boxes, Banknote, Clock,
+  ShoppingCart, Layers, TrendingUp, Columns3, ArrowLeftRight, ClipboardCheck, SlidersHorizontal,
 } from "lucide-react";
 import { exportToExcel, formatWarehouseForExport, formatStockValuationForExport, formatDeadStockForExport, formatReorderForExport } from "@/lib/excel";
 import { useCurrency } from "@/hooks/useCurrency";
 import { notify } from "@/lib/toast";
-import { AdjustModal, LowStockModal, unitLabel, toKg } from "@/components/warehouse";
+import { AdjustModal, unitLabel, toKg } from "@/components/warehouse";
 import { useConfirm } from "@/components/ConfirmDialog";
 import { QueryErrorFallback } from "@/components/QueryErrorFallback";
 import { formatQty } from "@/lib/format";
 import { colorMix } from "@/lib/color-mix";
-
 import { SearchInput } from "@/components/SearchInput";
+import { PremiumSelect } from "@/components/PremiumSelect";
+import { KpiCard } from "@/components/reports/ReportKpiCards";
+// Те же токены, что у страницы заказов: у отчётов нет warningText/onPrimary.
+import { F, COLORS, SHADOW } from "@/components/orders/theme-tokens";
 import { StockTransfers } from "@/components/warehouse/StockTransfers";
 import { WarehouseCompare } from "@/components/warehouse/WarehouseCompare";
 import { StockCounts } from "@/components/warehouse/StockCounts";
 import { DemandForecast } from "@/components/warehouse/DemandForecast";
-import { kpiAccent } from "@/lib/kpi-accent";
+
 // warehouseMulti.getStock is raw SQL behind db.execute, so tRPC infers its rows
 // as `unknown` — these two mirror the SELECT lists in that procedure. Decimal
 // columns arrive from mysql2 as strings, COUNT() as numbers.
@@ -52,7 +54,67 @@ type StockSummary = {
   lowStockCount: number;
 };
 
+type Tab = "stock" | "reorder" | "deadstock" | "forecast" | "compare" | "transfers" | "counts";
+
+/** Порог — тот же, что у сервера (lowStockCondition): свободный остаток не выше порога, порог задан. */
+const isLow = (r: StockRow) => Number(r.reorderPoint ?? 0) > 0 && Number(r.available ?? 0) <= Number(r.reorderPoint ?? 0);
+
+/** Карточка-обёртка таблицы — та же, что у заказов: поверхность, радиус 24, мягкая тень. */
+const TABLE_CARD: React.CSSProperties = { background: COLORS.surface, borderRadius: "24px", overflow: "hidden", boxShadow: SHADOW };
+/** Карточка фильтров — та же, что у заказов и товаров. */
+const FILTER_CARD: React.CSSProperties = { background: COLORS.surface, borderRadius: "16px", padding: "14px 18px", boxShadow: SHADOW, display: "flex", gap: "12px", flexWrap: "wrap", alignItems: "center" };
+
+/**
+ * Пустое состояние вкладки — одно на три списка. Значок в бледном круге
+ * успешного цвета: «пусто» здесь — хорошая новость.
+ */
+function EmptyTab({ icon, title, hint }: { icon: React.ReactNode; title: string; hint: string }) {
+  return (
+    <div style={{ ...TABLE_CARD, padding: "56px 24px", textAlign: "center" }}>
+      <div style={{ width: "56px", height: "56px", borderRadius: "50%", margin: "0 auto 14px", display: "flex", alignItems: "center", justifyContent: "center", background: "var(--kpi-green-track)", color: COLORS.successText }}>
+        {icon}
+      </div>
+      <p style={{ fontSize: "14px", fontWeight: 600, color: COLORS.textPrimary, margin: 0, fontFamily: F.display }}>{title}</p>
+      <p style={{ fontSize: "12px", color: COLORS.textTertiary, margin: "4px 0 0" }}>{hint}</p>
+    </div>
+  );
+}
+
+/** Ряд-заглушка таблицы, пока грузится список. */
+function SkeletonRows({ cols, n }: { cols: number; n: number }) {
+  return (
+    <>
+      {Array.from({ length: n }).map((_, i) => (
+        <tr key={i}><td colSpan={cols}>
+          <div className="animate-pulse" style={{ height: "18px", borderRadius: "8px", background: COLORS.surfaceLight }} />
+        </td></tr>
+      ))}
+    </>
+  );
+}
+
+/** Подпись срочности: «12 дн» красным, жёлтым или обычным. */
+function DaysBadge({ color, children }: { color: string; children: React.ReactNode }) {
+  return (
+    <span style={{ display: "inline-block", padding: "3px 10px", borderRadius: "999px", fontSize: "12px", fontWeight: 600, background: colorMix(color, 10), color, fontVariantNumeric: "tabular-nums" }}>
+      {children}
+    </span>
+  );
+}
+
 // ── Main warehouse page ───────────────────────────────────────────────────────
+/*
+  Страница собрана по той же схеме, что «Заказы» и «Отчёты»: заголовок с
+  действиями справа → четыре плитки одной формы → лента разделов → карточка
+  фильтров → карточка таблицы. До этого здесь было пять плиток разной высоты,
+  лента на всю ширину со счётчиками, красная полоса «ниже порога» поверх
+  таблицы (третье место с тем же числом) и поиск, висящий сам по себе.
+
+  Плитки «Ниже порога» и «Без продаж» — вход в соответствующий раздел, а не
+  просто число: отсюда и пропала полоса с кнопкой «Показать», и отдельное окно
+  «мало стока» — в разделе «Дозаказ» тот же список, только с рекомендацией,
+  сколько заказать.
+*/
 export default function Warehouse() {
   const { fmt } = useCurrency();
   const { lang } = useLang();
@@ -69,16 +131,14 @@ export default function Warehouse() {
   // Строка живёт в SearchInput: страница на 700+ строк не должна
   // перерисовываться на каждую набранную букву.
   const [debouncedSearch, setDebouncedSearch] = useState("");
-  // Поле ввода остаётся мгновенным, а в запрос уходит придержанное
-  // значение: иначе каждая буква — это новый ключ запроса, у которого
-  // ещё нет данных, и страница успевает смениться скелетоном.
   // `unit` is captured for the adjust dialog, which today renders quantities
   // without a unit label — AdjustModal takes no unit prop yet.
   const [adjusting, setAdjusting] = useState<{ id: number; name: string; stock: number; unit: string; unitWeight: number } | null>(null);
-  const [activeTab, setActiveTab] = useState<"stock" | "deadstock" | "reorder" | "forecast" | "transfers" | "compare" | "counts">("stock");
+  const [activeTab, setActiveTab] = useState<Tab>("stock");
   const [deadStockDays, setDeadStockDays] = useState(30);
-  const [showLowStock, setShowLowStock] = useState(false);
-
+  // Фильтры таблицы остатков — на клиенте: список и так приходит целиком.
+  const [category, setCategory] = useState("");
+  const [lowOnly, setLowOnly] = useState(false);
 
   const { data, isLoading, isLoadingError, refetch } = trpc.warehouseMulti.getStock.useQuery({ warehouseId: warehouseId ?? undefined, search: debouncedSearch || undefined, pageSize: 10000 }, {
     // Прошлый список остаётся на экране, пока грузится новый: без этого
@@ -149,6 +209,11 @@ export default function Warehouse() {
     onError: (e) => notify.error(e.message),
   });
 
+  /*
+    Строки остатков для товаров, у которых их нет. Товар получает строку при
+    создании, так что это починка старых каталогов, а не ежедневное действие —
+    ей место в пустом состоянии и в подвале таблицы, а не среди главных кнопок.
+  */
   const backfillMutation = trpc.warehouse.backfillStock.useMutation({
     onSuccess: (result) => {
       utils.warehouseMulti.getStock.invalidate();
@@ -161,8 +226,21 @@ export default function Warehouse() {
     onError: (e) => notify.error(e.message),
   });
 
-  const stock = data?.data as StockRow[] | undefined;
+  const stockAll = data?.data as StockRow[] | undefined;
   const summary = data?.summary as StockSummary | undefined;
+
+  // Категории — из самих строк: отдельного справочника странице не нужно.
+  const categories = useMemo(() => {
+    const set = new Set<string>();
+    for (const r of stockAll ?? []) if (r.category) set.add(r.category);
+    return [...set].sort((a, b) => a.localeCompare(b, "ru"));
+  }, [stockAll]);
+
+  const stock = useMemo(() => {
+    if (!stockAll) return stockAll;
+    if (!category && !lowOnly) return stockAll;
+    return stockAll.filter(r => (!category || r.category === category) && (!lowOnly || isLow(r)));
+  }, [stockAll, category, lowOnly]);
 
   /*
     Окно строк. Сервер отдаёт до 10 000 позиций, и все они рисовались разом:
@@ -171,8 +249,8 @@ export default function Warehouse() {
     начинает с начала.
   */
   const PAGE = 200;
-  // Окно сбрасывается на новый поиск/склад прямо при отрисовке — без эффекта.
-  const windowKey = `${debouncedSearch}|${warehouseId ?? ""}`;
+  // Окно сбрасывается на новый поиск/склад/фильтр прямо при отрисовке — без эффекта.
+  const windowKey = `${debouncedSearch}|${warehouseId ?? ""}|${category}|${lowOnly ? 1 : 0}`;
   const [win, setWin] = useState({ key: windowKey, rows: PAGE });
   if (win.key !== windowKey) setWin({ key: windowKey, rows: PAGE });
   const visibleRows = win.key === windowKey ? win.rows : PAGE;
@@ -180,14 +258,10 @@ export default function Warehouse() {
   const shown = stock?.slice(0, visibleRows);
   const hidden = Math.max(0, (stock?.length ?? 0) - visibleRows);
   const lowCount = Number(summary?.lowStockCount ?? 0);
-
-  const kpis = useMemo(() => [
-    { label: t("ПОЗИЦИЙ", "POZITSIYALAR"), value: summary?.totalSKUs ?? "—", icon: Boxes, gradient: "var(--color-primary)", sub: t("уникальных товаров", "noyob mahsulotlar") },
-    { label: t("ВСЕГО КГ", "JAMI KG"), value: Number(summary?.totalWeight ?? 0).toLocaleString("ru-RU", { maximumFractionDigits: 0 }), icon: Scale, gradient: "linear-gradient(135deg, #60a5fa, #22d3ee)", sub: t("общий вес на складе", "ombordagi umumiy") },
-    { label: t("СТОИМОСТЬ СКЛАДА", "OMBOR QIYMATI"), value: valLoading ? "—" : fmt(Number(valuation?.totalCostValue ?? 0), true), icon: DollarSign, gradient: "linear-gradient(135deg, var(--color-warning), #fb923c)", sub: valLoading ? t("себестоимость остатков", "qoldiq tannarx") : `${t("себестоимость остатков", "qoldiq tannarx")} · ${fmt(Number(valuation?.totalCostValue ?? 0).toFixed(0))}` },
-    { label: t("МЕРТВЫЙ СТОК", "O'LIK STOK"), value: deadStockItems?.length ?? "—", icon: Clock, gradient: deadStockItems && deadStockItems.length > 0 ? "var(--color-primary)" : "linear-gradient(135deg, var(--color-success), var(--color-success))", sub: t("товаров без продаж", "sotilmasdan mahsulotlar") },
-    { label: t("МАЛО СТОКА", "KAM STOK"), value: lowCount, icon: lowCount > 0 ? AlertCircle : Package, gradient: lowCount > 0 ? "linear-gradient(135deg, var(--color-danger), var(--color-danger))" : "linear-gradient(135deg, var(--color-success), var(--color-success))", sub: lowCount > 0 ? t("товаров ниже порога", "mahsulot chegaradan past") : t("все в норме", "hammasi yaxshi"), onClick: lowCount > 0 ? () => setShowLowStock(true) : undefined },
-  ], [summary, valuation, valLoading, deadStockItems, lowCount, t, fmt]);
+  const deadCount = deadStockItems?.length ?? 0;
+  const deadValue = (deadStockItems ?? []).reduce((acc, r) => acc + Number(r.value ?? 0), 0);
+  const costValue = Number(valuation?.totalCostValue ?? 0);
+  const totalKg = Number(summary?.totalWeight ?? 0).toLocaleString("ru-RU", { maximumFractionDigits: 0 });
 
   /*
     Склады и перемещения в пути — для вкладки «Перемещения».
@@ -198,32 +272,69 @@ export default function Warehouse() {
   const pendingQ = trpc.warehouseMulti.listTransfers.useQuery({ status: "pending", limit: 100 }, { enabled: multi });
   const pendingTransfers = pendingQ.data?.length ?? 0;
 
+  /*
+    Лента разделов — тот же .range-pills, что на «Отчётах» и главной. Счётчик
+    стоит только там, где число зовёт что-то сделать: ниже порога, без
+    продаж, в пути. У «Прогноза» и «Инвентаризации» счётчика нет — это не
+    список дел.
+  */
   const tabs = useMemo(() => [
-    { key: "stock" as const, label: t("Остатки", "Qoldiqlar"), count: summary?.totalSKUs ?? 0 },
-    { key: "deadstock" as const, label: t("Мёртвый сток", "O'lik stok"), count: deadStockItems?.length ?? 0 },
-    { key: "reorder" as const, label: t("Дозаказ", "Qayta buyurtma"), count: reorderSuggestions?.length ?? 0 },
-    /*
-      Перемещения между складами. Счётчик — только «в пути»: проведённые
-      никого не ждут, а число на вкладке зовёт что-то сделать.
-    */
-    /*
-      Прогноз. Соседняя вкладка «Дозаказ» отвечает «что УЖЕ ниже порога» —
-      состояние на сегодня. Здесь другой вопрос: КОГДА кончится и сколько
-      заказать с учётом времени доставки. Счётчика нет: это не список дел, а
-      взгляд вперёд.
-    */
-    { key: "forecast" as const, label: t("Прогноз", "Prognoz"), count: 0 },
+    { key: "stock" as const, label: t("Остатки", "Qoldiqlar"), icon: <Layers size={15} />, count: 0, warn: false },
+    // «Дозаказ» отвечает «что УЖЕ ниже порога» — состояние на сегодня.
+    { key: "reorder" as const, label: t("Дозаказ", "Qayta buyurtma"), icon: <ShoppingCart size={15} />, count: reorderSuggestions?.length ?? 0, warn: true },
+    { key: "deadstock" as const, label: t("Мёртвый сток", "O'lik stok"), icon: <Clock size={15} />, count: deadCount, warn: false },
+    // «Прогноз» — другой вопрос: КОГДА кончится и сколько заказать с учётом доставки.
+    { key: "forecast" as const, label: t("Прогноз", "Prognoz"), icon: <TrendingUp size={15} />, count: 0, warn: false },
     // Сравнение и перемещения — только когда складов больше одного: одному
     // складу не с чем сравниваться и некуда перемещать.
     ...(multi ? [
-      { key: "compare" as const, label: t("Сравнение", "Taqqoslash"), count: 0 },
-      { key: "transfers" as const, label: t("Перемещения", "Ko'chirishlar"), count: pendingTransfers },
+      { key: "compare" as const, label: t("Сравнение", "Taqqoslash"), icon: <Columns3 size={15} />, count: 0, warn: false },
+      { key: "transfers" as const, label: t("Перемещения", "Ko'chirishlar"), icon: <ArrowLeftRight size={15} />, count: pendingTransfers, warn: false },
     ] : []),
     // Инвентаризация — документ: снимок, счёт (в т. ч. сканером), применение разом.
-    { key: "counts" as const, label: t("Инвентаризация", "Inventarizatsiya"), count: 0 },
-  ], [summary, deadStockItems, reorderSuggestions, pendingTransfers, multi, t]);
+    ...(canAdjust ? [{ key: "counts" as const, label: t("Инвентаризация", "Inventarizatsiya"), icon: <ClipboardCheck size={15} />, count: 0, warn: false }] : []),
+  ], [deadCount, reorderSuggestions, pendingTransfers, multi, canAdjust, t]);
 
   if (isLoadingError) return <QueryErrorFallback onRetry={refetch} />;
+
+  const excel = (
+    activeTab === "stock" ? (
+      <>
+        <button type="button" className="neo-btn neo-btn-sm tap"
+          onClick={async () => await exportToExcel(formatWarehouseForExport(stock ?? []), "warehouse-stock", "Склад", t("Остатки склада", "Ombor qoldiqlari"))}>
+          <FileDown size={14} /> Excel
+        </button>
+        {/* Оценка — с себестоимостью; строки без неё приходят у ролей, которым закупочную цену не показывают. */}
+        {stock?.some(r => r.costPrice !== undefined) && (
+          <button type="button" className="neo-btn neo-btn-sm tap"
+            onClick={async () => await exportToExcel(formatStockValuationForExport(stock ?? []), "stock-valuation", "Оценка склада", t("Оценка стоимости склада", "Ombor qiymati"))}>
+            <Banknote size={14} /> {t("Оценка", "Qiymat")}
+          </button>
+        )}
+      </>
+    ) : activeTab === "deadstock" ? (
+      <button type="button" className="neo-btn neo-btn-sm tap"
+        onClick={async () => await exportToExcel(formatDeadStockForExport(deadStockItems ?? []), "dead-stock", "Мёртвый сток", t("Мёртвый сток — товары без продаж", "O'lik stok — sotilmasdan mahsulotlar"))}>
+        <FileDown size={14} /> Excel
+      </button>
+    ) : activeTab === "reorder" ? (
+      <button type="button" className="neo-btn neo-btn-sm tap"
+        onClick={async () => await exportToExcel(formatReorderForExport(reorderSuggestions ?? []), "reorder-suggestions", "Дозаказ", t("Рекомендации по дозаказу", "Qayta buyurtma tavsiyalari"))}>
+        <FileDown size={14} /> Excel
+      </button>
+    ) : null
+  );
+
+  const backfillButton = (kind: "button" | "link") => (
+    <button type="button" onClick={() => backfillMutation.mutate()} disabled={backfillMutation.isPending} data-testid="stock-backfill"
+      className={kind === "button" ? "neo-btn neo-btn-sm tap" : "tap"}
+      style={kind === "link" ? { display: "inline-flex", alignItems: "center", gap: "5px", border: "none", background: "transparent", cursor: "pointer", padding: "4px 6px", fontSize: "12px", fontFamily: F.body, color: COLORS.textTertiary } : undefined}>
+      {backfillMutation.isPending ? <Loader2 size={13} className="animate-spin" /> : <Package size={13} />}
+      {t("Завести строки остатков", "Qoldiq satrlarini yaratish")}
+    </button>
+  );
+
+  const adjustArgs = (item: StockRow) => ({ id: item.productId, name: item.productName ?? "", stock: Number(item.currentStock ?? 0), unit: item.unit ?? "pcs", unitWeight: Number(item.unitWeight ?? 0) });
 
   return (
     <>
@@ -243,25 +354,14 @@ export default function Warehouse() {
         )}
       </div>
 
-      {/* Low Stock Modal */}
-      <div key="low-stock-modal">
-      {showLowStock && (
-        <LowStockModal
-          lowCount={lowCount}
-          reorderSuggestions={reorderSuggestions ?? []}
-          onClose={() => setShowLowStock(false)}
-        />
-      )}
-      </div>
-
-      {/* Header */}
-      <div className="flex items-center justify-between flex-wrap gap-3">
+      {/* ─── Header ─── */}
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", flexWrap: "wrap", gap: "12px" }}>
         <div>
-          <h1 className="text-3xl font-bold tracking-tight" style={{ color: "var(--color-text-primary, #2b2a28)", fontFamily: "'Manrope', sans-serif" }}>
+          <h1 style={{ fontFamily: F.display, fontSize: "24px", fontWeight: 700, color: COLORS.textPrimary, letterSpacing: "-0.025em", margin: 0 }}>
             {t("Склад", "Ombor")}
           </h1>
-          <p className="text-sm mt-1" style={{ color: "var(--color-text-tertiary, #6b6760)" }}>
-            {t("Управление остатками товаров", "Mahsulot zaxiralarini boshqarish")}
+          <p style={{ fontSize: "13px", color: COLORS.textSecondary, margin: "4px 0 0" }}>
+            {t("Остатки, дозаказ и движение товара", "Qoldiqlar, qayta buyurtma va tovar harakati")}
           </p>
           {multi && activeTab !== "compare" && activeTab !== "transfers" && (
             <div className="flex flex-wrap gap-2 mt-3" role="tablist" aria-label={t("Склад", "Ombor")} data-testid="warehouse-chips">
@@ -281,92 +381,57 @@ export default function Warehouse() {
             </div>
           )}
         </div>
-        {/* flexWrap here, not just on the parent row: with four buttons this
-            group is wider than a phone screen on its own, and a nested flex
-            container doesn't inherit wrapping from its parent — each level
-            that can overflow needs to say so itself. */}
-        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-          {activeTab === "stock" && (
-            <>
-              <button onClick={() => backfillMutation.mutate()} disabled={backfillMutation.isPending}
-                className="neo-btn flex items-center gap-2 text-sm py-2 px-4"
-                style={{ opacity: backfillMutation.isPending ? 0.5 : 1 }}>
-                {backfillMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <Package size={14} />}
-                {t("Завести строки остатков", "Qoldiq satrlarini yaratish")}
-              </button>
-              <button onClick={async () => await exportToExcel(formatWarehouseForExport(stock ?? []), "warehouse-stock", "Склад", t("Остатки склада", "Ombor qoldiqlari"))}
-                className="neo-btn-primary flex items-center gap-2 text-sm py-2 px-5">
-                <FileDown size={16} /> {t("Остатки", "Qoldiqlar")}
-              </button>
-              <button onClick={async () => await exportToExcel(formatStockValuationForExport(stock ?? []), "stock-valuation", "Оценка склада", t("Оценка стоимости склада", "Ombor qiymati"))}
-                className="neo-btn flex items-center gap-2 text-sm py-2 px-5">
-                <FileDown size={16} /> {t("Оценка", "Qiymat")}
-              </button>
-            </>
-          )}
-          {activeTab === "deadstock" && (
-            <button onClick={async () => await exportToExcel(formatDeadStockForExport(deadStockItems ?? []), "dead-stock", "Мёртвый сток", t("Мёртвый сток — товары без продаж", "O'lik stok — sotilmasdan mahsulotlar"))}
-              className="neo-btn-primary flex items-center gap-2 text-sm py-2.5 px-5">
-              <FileDown size={16} /> {t("Экспорт", "Eksport")}
-            </button>
-          )}
-          {activeTab === "reorder" && (
-            <button onClick={async () => await exportToExcel(formatReorderForExport(reorderSuggestions ?? []), "reorder-suggestions", "Дозаказ", t("Рекомендации по дозаказу", "Qayta buyurtma tavsiyalari"))}
-              className="neo-btn-primary flex items-center gap-2 text-sm py-2 px-5">
-              <FileDown size={16} /> {t("Экспорт", "Eksport")}
-            </button>
-          )}
+        {/* Справа — только выгрузки текущего раздела; документы (инвентаризация,
+            перемещение) заводятся в своих разделах, где видно, что уже есть. */}
+        <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+          {excel}
         </div>
       </div>
 
-      {/* KPI Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
-        {kpis.map((k, i) => {
-          const Icon = k.icon;
-          // Одна и та же плитка, а не button/div: у кнопки свои отступы и
-          // базовая линия, и «Мало стока» стояла ниже соседей на восемь точек.
-          return (
-            <div key={k.label}
-              className="kpi-hero"
-              role={k.onClick ? "button" : undefined}
-              tabIndex={k.onClick ? 0 : undefined}
-              onKeyDown={k.onClick ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); k.onClick?.(); } } : undefined}
-              style={{ animationDelay: `${i * 0.05}s`, cursor: k.onClick ? "pointer" : "default" }}
-              onClick={k.onClick}>
-              <div className="flex justify-between items-start mb-4">
-                <span className="text-[10px] font-semibold tracking-wider uppercase" style={{ color: "var(--color-text-tertiary, #6b6760)", fontFamily: "'Manrope', sans-serif" }}>
-                  {k.label}
-                </span>
-                <div className="kpi-hero-icon" style={{ color: kpiAccent(k.gradient) }}>
-                  <Icon size={22} />
-                </div>
-              </div>
-              {/* .kpi-hero-value defaults to 32px, sized for the 5-column desktop
-                  row. At the 2-column mobile width a 9-digit sum ("60 411 400")
-                  doesn't fit — measured: 32px needs 158px, the card gives 115px.
-                  22px needs 106px, so it clears with room to spare; sm: restores
-                  the default once the grid gives each card more room. */}
-              <div className="kpi-hero-value animate-count-up text-[22px] sm:text-[32px]">{k.value}</div>
-              <div className="kpi-hero-label mt-1">{k.sub}</div>
-            </div>
-          );
-        })}
+      {/* ─── KPI: четыре плитки одной формы, две из них — вход в раздел ─── */}
+      <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
+        <KpiCard
+          tone="blue"
+          label={t("ПОЗИЦИЙ", "POZITSIYALAR")}
+          value={summary ? String(summary.totalSKUs) : "—"}
+          icon={<Boxes size={17} />}
+          note={summary ? `${totalKg} ${t("кг на складе", "kg omborda")}` : t("считаем…", "hisoblanmoqda…")}
+        />
+        <KpiCard
+          tone="green"
+          label={t("СТОИМОСТЬ ОСТАТКОВ", "QOLDIQ QIYMATI")}
+          value={valLoading ? "—" : fmt(costValue, true)}
+          icon={<Banknote size={17} />}
+          note={valLoading ? t("по себестоимости", "tannarx bo'yicha") : `${t("по себестоимости", "tannarx bo'yicha")} · ${fmt(costValue.toFixed(0))}`}
+        />
+        <KpiCard
+          tone={lowCount > 0 ? "red" : "green"}
+          label={t("НИЖЕ ПОРОГА", "CHEGARADAN PAST")}
+          value={summary ? String(lowCount) : "—"}
+          icon={<AlertTriangle size={17} />}
+          note={lowCount > 0 ? t("к списку дозаказа →", "qayta buyurtma ro'yxatiga →") : t("все товары выше порога", "barcha mahsulotlar chegaradan yuqori")}
+          onClick={lowCount > 0 ? () => setActiveTab("reorder") : undefined}
+        />
+        <KpiCard
+          tone={deadCount > 0 ? "amber" : "green"}
+          label={`${t("БЕЗ ПРОДАЖ", "SOTUVSIZ")} · ${deadStockDays} ${t("ДН", "KUN")}`}
+          value={deadStockItems ? String(deadCount) : "—"}
+          icon={<Clock size={17} />}
+          note={deadCount > 0 ? `${fmt(deadValue, true)} · ${t("к списку →", "ro'yxatga →")}` : t("всё продаётся", "hammasi sotilmoqda")}
+          onClick={deadCount > 0 ? () => setActiveTab("deadstock") : undefined}
+        />
       </div>
 
-      {/* Tabs */}
-      <div className="flex gap-1 p-1 rounded-xl" style={{ background: "var(--color-surface-light, #f6f4f0)" }}>
+      {/* ─── Tabs ─── */}
+      <div role="tablist" className="range-pills" style={{ flexWrap: "wrap" }}>
         {tabs.map(tab => (
-          <button key={tab.key} onClick={() => setActiveTab(tab.key)}
-            className="flex-1 py-2.5 px-4 rounded-lg text-sm font-medium transition-all"
-            style={{
-              background: activeTab === tab.key ? "var(--color-surface, #efedea)" : "transparent",
-              color: activeTab === tab.key ? "var(--color-text-primary, #2b2a28)" : "var(--color-text-tertiary, #6b6760)",
-              boxShadow: activeTab === tab.key ? "0 1px 3px rgba(0,0,0,.06)" : "none",
-            }}>
+          <button key={tab.key} type="button" role="tab" aria-selected={activeTab === tab.key} onClick={() => setActiveTab(tab.key)}
+            className={"range-pill tap" + (activeTab === tab.key ? " active" : "")}
+            style={{ display: "flex", alignItems: "center", gap: "7px", whiteSpace: "nowrap" }}>
+            {tab.icon}
             {tab.label}
             {tab.count > 0 && (
-              <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded-full font-semibold"
-                style={{ background: activeTab === tab.key ? "var(--color-primary)" : "var(--color-border, #d8d5cd)", color: activeTab === tab.key ? "#fff" : "var(--color-text-tertiary, #6b6760)" }}>
+              <span className="font-data" style={{ fontSize: "11px", fontWeight: 700, fontVariantNumeric: "tabular-nums", color: tab.warn ? COLORS.dangerText : COLORS.textTertiary }}>
                 {tab.count}
               </span>
             )}
@@ -377,80 +442,68 @@ export default function Warehouse() {
       {/* ── STOCK TAB ───────────────────────────────────────────────────────── */}
       {activeTab === "stock" && (
         <>
-          {/* Low stock warning */}
-          {lowCount > 0 && (
-            <div className="flex items-center gap-3 px-5 py-4 rounded-2xl cursor-pointer neo-card-sm"
-              onClick={() => setShowLowStock(true)}>
-              <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
-                style={{ background: "var(--color-danger)" }}>
-                <AlertTriangle size={18} color="#fff" />
-              </div>
-              <p className="text-sm flex-1 font-medium" style={{ color: "var(--color-text-primary)" }}>
-                <b style={{ color: "var(--color-danger-text)" }}>{lowCount}</b> {t("товаров ниже порога — отмечены красным", "ta mahsulot chegaradan past")}
-              </p>
-              <span className="text-xs font-semibold px-3 py-1.5 rounded-lg" style={{ background: "var(--color-danger-subtle, rgba(232,80,80,0.12))", color: "var(--color-danger-text)" }}>
-                {t("Показать", "Ko'rish")} →
-              </span>
-            </div>
-          )}
-
-          {/* Search */}
-          <SearchInput
-            placeholder={t("Поиск товаров…", "Mahsulot qidirish…")}
-            onSearch={setDebouncedSearch}
-            iconSize={16}
-            focusRing
-            inputClassName="w-full py-3 pl-10 pr-4 rounded-xl text-sm outline-none transition-all"
-            inputStyle={{ background: "var(--color-surface-light, #f6f4f0)", color: "var(--color-text-primary, #2b2a28)", border: "2px solid transparent", fontFamily: "'Manrope', sans-serif" }}
-          />
+          {/* Фильтры — карточкой, как у заказов и товаров. */}
+          <div style={FILTER_CARD}>
+            <SearchInput
+              placeholder={t("Поиск товаров…", "Mahsulot qidirish…")}
+              onSearch={setDebouncedSearch}
+              style={{ flex: "1 1 200px" }}
+            />
+            {categories.length > 1 && (
+              <PremiumSelect value={category} onChange={setCategory} width="180px"
+                aria-label={t("Категория", "Kategoriya")}
+                options={[{ value: "", label: t("Все категории", "Barcha kategoriyalar") }, ...categories.map(c => ({ value: c, label: c }))]} />
+            )}
+            <button type="button" onClick={() => setLowOnly(v => !v)} aria-pressed={lowOnly} className="neo-btn neo-btn-sm tap" data-testid="stock-low-only"
+              style={{ gap: "6px", color: lowOnly ? COLORS.onPrimary : lowCount > 0 ? COLORS.dangerText : COLORS.textSecondary, background: lowOnly ? COLORS.danger : undefined }}>
+              <AlertTriangle size={13} />
+              {t("Ниже порога", "Chegaradan past")}
+              {lowCount > 0 && <span className="font-data" style={{ fontWeight: 700 }}>{lowCount}</span>}
+            </button>
+          </div>
 
           {/* Table */}
           {isMobile ? (
             <div className="space-y-3">
               {isLoading
                 ? Array.from({ length: 4 }).map((_, i) => (
-                    <div key={i} className="h-28 rounded-2xl animate-pulse" style={{ background: "var(--color-surface-light, #f6f4f0)" }} />
+                    <div key={i} className="h-28 rounded-2xl animate-pulse" style={{ background: COLORS.surfaceLight }} />
                   ))
                 : shown?.map((item) => {
-                    const low = Number(item.available ?? 0) < Number(item.reorderPoint ?? 0);
+                    const low = isLow(item);
                     return (
-                      <div key={item.id} className="rounded-2xl overflow-hidden"
-                        style={{ background: "var(--color-surface, #efedea)", boxShadow: "var(--shadow-sm, 0 1px 3px rgba(0,0,0,.06))" }}>
-                        <div className="flex">
-                          {low && <div className="w-1.5 flex-shrink-0" style={{ background: "var(--color-danger)" }} />}
-                          <div className="flex-1 p-5">
-                            <div className="flex items-center justify-between mb-3">
-                              <div className="flex items-center gap-2">
-                                {low && <AlertTriangle size={14} color="var(--color-danger-text)" />}
-                                <p className="text-sm font-semibold" style={{ color: "var(--color-text-primary, #2b2a28)" }}>{item.productName}</p>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                {canAdjust && <button onClick={() => handleAdjust({ id: item.productId, name: item.productName ?? "", stock: Number(item.currentStock ?? 0), unit: item.unit ?? "pcs", unitWeight: Number(item.unitWeight ?? 0) })}
-                                  className="text-xs py-1.5 px-3 rounded-lg transition-colors" style={{ color: "var(--color-primary)", background: "color-mix(in srgb, var(--color-primary) 8%, transparent)" }}>
-                                  {t("Скорр.", "Tuzatish")}
-                                </button>}
-                                {canDeleteProduct && <button onClick={() => handleDelete(item.productId, item.productName ?? undefined)}
-                                  disabled={deleteMutation.isPending}
-                                  className="text-xs py-1.5 px-2 rounded-lg transition-all"
-                                  style={{ color: "var(--color-danger-text)", background: "rgba(232,80,80,0.08)" }}>
-                                  <Trash2 size={12} />
-                                </button>}
-                              </div>
+                      <div key={item.id} style={{ ...TABLE_CARD, borderRadius: "16px", display: "flex" }}>
+                        {low && <div style={{ width: "4px", flexShrink: 0, background: COLORS.danger }} />}
+                        <div style={{ flex: 1, padding: "16px" }}>
+                          <div className="flex items-center justify-between mb-3 gap-2">
+                            <div className="flex items-center gap-2" style={{ minWidth: 0 }}>
+                              {low && <AlertTriangle size={14} color={COLORS.dangerText} />}
+                              <p className="text-sm font-semibold truncate" style={{ color: COLORS.textPrimary }}>{item.productName}</p>
                             </div>
-                            <div className="grid grid-cols-3 gap-3">
-                              {[
-                                { label: t("Доступно", "Mavjud"), val: item.available, unit: item.unit, danger: low },
-                                { label: t("Резерв", "Zahira"), val: item.reserved, unit: item.unit, danger: false },
-                                { label: t("Всего", "Jami"), val: item.currentStock, unit: item.unit, danger: false },
-                              ].map(col => (
-                                <div key={col.label}>
-                                  <p className="text-lg font-bold" style={{ color: col.danger ? "var(--color-danger-text)" : "var(--color-text-primary, #2b2a28)", fontFamily: "'Manrope', sans-serif" }}>
-                                    {formatQty(col.val)}
-                                  </p>
-                                  <p className="text-[10px] mt-0.5" style={{ color: "var(--color-text-tertiary, #6b6760)" }}>{col.label}</p>
-                                </div>
-                              ))}
+                            <div className="flex items-center gap-1" style={{ flexShrink: 0 }}>
+                              {canAdjust && <button type="button" onClick={() => handleAdjust(adjustArgs(item))} className="neo-btn neo-btn-xs tap" style={{ color: COLORS.primaryText }}>
+                                {t("Скорр.", "Tuzatish")}
+                              </button>}
+                              {canDeleteProduct && <button type="button" onClick={() => handleDelete(item.productId, item.productName ?? undefined)}
+                                disabled={deleteMutation.isPending} aria-label={t("Удалить товар", "Mahsulotni o'chirish")}
+                                className="neo-btn neo-btn-xs tap" style={{ color: COLORS.dangerText }}>
+                                <Trash2 size={12} />
+                              </button>}
                             </div>
+                          </div>
+                          <div className="grid grid-cols-3 gap-3">
+                            {[
+                              { label: t("Доступно", "Mavjud"), val: item.available, danger: low },
+                              { label: t("Резерв", "Zahira"), val: item.reserved, danger: false },
+                              { label: t("Всего", "Jami"), val: item.currentStock, danger: false },
+                            ].map(col => (
+                              <div key={col.label}>
+                                <p className="text-lg font-bold" style={{ color: col.danger ? COLORS.dangerText : COLORS.textPrimary, fontFamily: F.display, fontVariantNumeric: "tabular-nums" }}>
+                                  {formatQty(col.val)}
+                                </p>
+                                <p className="text-[10px] mt-0.5" style={{ color: COLORS.textTertiary }}>{col.label}</p>
+                              </div>
+                            ))}
                           </div>
                         </div>
                       </div>
@@ -463,75 +516,63 @@ export default function Warehouse() {
               )}
             </div>
           ) : (
-            <div className="rounded-2xl"
-              style={{ background: "var(--color-surface, #efedea)", boxShadow: "var(--shadow-sm, 0 1px 3px rgba(0,0,0,.06))", overflowX: "auto" }}>
-              <table className="w-full" style={{ borderCollapse: "separate", borderSpacing: 0 }}>
+            <div style={TABLE_CARD}>
+              <div style={{ overflowX: "auto" }}>
+              <table className="data-table">
                 <thead>
                   <tr>
                     {[t("ТОВАР","MAHSULOT"), t("КОД","KOD"), t("КАТЕГОРИЯ","KATEGORIYA"),
                       t("ДОСТУПНО","MAVJUD"), t("ВЕС","OG'IRLIK"), t("РЕЗЕРВ","ZAHIRA"), t("ВСЕГО","JAMI"),
-                      t("ПОРОГ","CHEGARA"), ""].map(h => (
-                      <th key={h} className="text-left px-5 py-3 text-[10px] font-semibold tracking-wider uppercase"
-                        style={{ color: "var(--color-text-tertiary, #6b6760)", fontFamily: "'Manrope', sans-serif", borderBottom: "1px solid var(--color-border, #d8d5cd)" }}>
-                        {h}
-                      </th>
+                      t("ПОРОГ","CHEGARA"), ""].map((h, i) => (
+                      <th key={h || "actions"} style={i >= 3 && i <= 7 ? { textAlign: "right" } : undefined}>{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
                   {isLoading
-                    ? Array.from({ length: 5 }).map((_, i) => (
-                        <tr key={i}><td colSpan={9} className="px-5 py-4">
-                          <div className="h-5 rounded-lg animate-pulse" style={{ background: "var(--color-surface-light, #f6f4f0)" }} />
-                        </td></tr>
-                      ))
+                    ? <SkeletonRows cols={9} n={6} />
                     : stock?.length === 0
-                    ? <tr><td colSpan={9} className="text-center py-16 text-sm" style={{ color: "var(--color-text-tertiary, #6b6760)" }}>
-                        {t("Нет товаров на складе","Omborda mahsulot yo'q")}
+                    ? <tr><td colSpan={9} style={{ textAlign: "center", padding: "48px 16px", color: COLORS.textTertiary, fontSize: "13px" }}>
+                        {stockAll?.length === 0 && !debouncedSearch
+                          ? <>
+                              <div style={{ fontWeight: 600, color: COLORS.textPrimary }}>{t("Нет товаров на складе", "Omborda mahsulot yo'q")}</div>
+                              <div style={{ marginTop: "4px" }}>{t("Товары каталога без строки остатка появятся здесь после одного нажатия.", "Qoldiq satrisiz katalog mahsulotlari bir bosishdan keyin shu yerda paydo bo'ladi.")}</div>
+                              {canAdjust && <div style={{ marginTop: "14px" }}>{backfillButton("button")}</div>}
+                            </>
+                          : t("Ничего не найдено", "Hech narsa topilmadi")}
                       </td></tr>
                     : shown?.map((item) => {
-                        const low = Number(item.available ?? 0) < Number(item.reorderPoint ?? 0);
+                        const low = isLow(item);
+                        const num: React.CSSProperties = { textAlign: "right", fontFamily: F.display, fontVariantNumeric: "tabular-nums" };
                         return (
-                          <tr key={item.id} style={low ? { background: "rgba(232,80,80,0.03)" } : undefined}>
-                            <td className="px-5 py-3.5" style={{ borderBottom: "1px solid var(--color-border, #d8d5cd)" }}>
+                          <tr key={item.id} style={low ? { background: colorMix(COLORS.danger, 4) } : undefined}>
+                            <td>
                               <div className="flex items-center gap-2.5">
-                                {low && <AlertTriangle size={13} color="var(--color-danger-text)" />}
-                                <span className="text-sm font-medium" style={{ color: "var(--color-text-primary, #2b2a28)" }}>{item.productName}</span>
+                                {low && <AlertTriangle size={13} color={COLORS.dangerText} />}
+                                <span style={{ fontWeight: 500 }}>{item.productName}</span>
                               </div>
                             </td>
-                            <td className="px-5 py-3.5 text-xs" style={{ color: "var(--color-text-tertiary, #6b6760)", fontFamily: "'Manrope', sans-serif", borderBottom: "1px solid var(--color-border, #d8d5cd)" }}>
-                              {item.productCode}
-                            </td>
-                            <td className="px-5 py-3.5 text-sm" style={{ color: "var(--color-text-secondary, #5e5b54)", borderBottom: "1px solid var(--color-border, #d8d5cd)" }}>
-                              {item.category ?? "—"}
-                            </td>
-                            <td className="px-5 py-3.5 text-sm font-bold" style={{ color: low ? "var(--color-danger-text)" : "var(--color-text-primary, #2b2a28)", fontFamily: "'Manrope', sans-serif", borderBottom: "1px solid var(--color-border, #d8d5cd)" }}>
-                              {formatQty(item.available)}
-                            </td>
-                            <td className="px-5 py-3.5 text-sm" style={{ color: "var(--color-text-secondary, #5e5b54)", fontFamily: "'Manrope', sans-serif", borderBottom: "1px solid var(--color-border, #d8d5cd)" }}>
-                              {formatQty(toKg(item.available, item.unitWeight))} кг
-                            </td>
-                            <td className="px-5 py-3.5 text-sm" style={{ color: "var(--color-text-secondary, #5e5b54)", fontFamily: "'Manrope', sans-serif", borderBottom: "1px solid var(--color-border, #d8d5cd)" }}>
-                              {formatQty(item.reserved)}
-                            </td>
-                            <td className="px-5 py-3.5 text-sm" style={{ color: "var(--color-text-primary, #2b2a28)", fontFamily: "'Manrope', sans-serif", borderBottom: "1px solid var(--color-border, #d8d5cd)" }}>
-                              {formatQty(item.currentStock)}
-                            </td>
-                            <td className="px-5 py-3.5 text-sm" style={{ color: "var(--color-text-tertiary, #6b6760)", fontFamily: "'Manrope', sans-serif", borderBottom: "1px solid var(--color-border, #d8d5cd)" }}>
-                              {formatQty(item.reorderPoint, 0)}
-                            </td>
-                            <td className="px-5 py-3.5" style={{ borderBottom: "1px solid var(--color-border, #d8d5cd)" }}>
-                              <div className="flex items-center gap-2">
-                                {canAdjust && <button onClick={() => handleAdjust({ id: item.productId, name: item.productName ?? "", stock: Number(item.currentStock ?? 0), unit: item.unit ?? "pcs", unitWeight: Number(item.unitWeight ?? 0) })}
-                                  className="text-xs py-1.5 px-3 rounded-lg transition-all"
-                                  style={{ color: "var(--color-primary)", background: "color-mix(in srgb, var(--color-primary) 8%, transparent)" }}>
-                                  {t("Скорректировать", "Tuzatish")}
+                            <td style={{ fontSize: "12px", color: COLORS.textTertiary, fontFamily: F.display }}>{item.productCode}</td>
+                            <td style={{ color: COLORS.textSecondary }}>{item.category ?? "—"}</td>
+                            <td style={{ ...num, fontWeight: 700, color: low ? COLORS.dangerText : COLORS.textPrimary }}>{formatQty(item.available)}</td>
+                            <td style={{ ...num, color: COLORS.textSecondary }}>{formatQty(toKg(item.available, item.unitWeight))} {t("кг", "kg")}</td>
+                            <td style={{ ...num, color: COLORS.textSecondary }}>{formatQty(item.reserved)}</td>
+                            <td style={num}>{formatQty(item.currentStock)}</td>
+                            <td style={{ ...num, color: COLORS.textTertiary }}>{Number(item.reorderPoint) > 0 ? formatQty(item.reorderPoint, 0) : "—"}</td>
+                            <td style={{ padding: "6px 12px" }}>
+                              {/* Действия — тихие: тридцать красных квадратов в столбце перекрикивали сами числа. */}
+                              <div className="flex items-center justify-end gap-1">
+                                {canAdjust && <button type="button" onClick={() => handleAdjust(adjustArgs(item))}
+                                  className="tap" title={t("Скорректировать остаток", "Qoldiqni tuzatish")}
+                                  style={{ display: "inline-flex", alignItems: "center", gap: "5px", padding: "6px 10px", borderRadius: "8px", border: "none", background: "transparent", cursor: "pointer", fontSize: "12px", fontWeight: 600, fontFamily: F.body, color: COLORS.primaryText }}>
+                                  <SlidersHorizontal size={13} /> {t("Скорректировать", "Tuzatish")}
                                 </button>}
-                                {canDeleteProduct && <button onClick={() => handleDelete(item.productId, item.productName ?? undefined)}
-                                  disabled={deleteMutation.isPending}
-                                  className="text-xs py-1.5 px-3 rounded-lg transition-all"
-                                  style={{ color: "var(--color-danger-text)", background: "rgba(232,80,80,0.08)" }}>
-                                  <Trash2 size={12} />
+                                {canDeleteProduct && <button type="button" onClick={() => handleDelete(item.productId, item.productName ?? undefined)}
+                                  disabled={deleteMutation.isPending} className="tap" aria-label={t("Удалить товар", "Mahsulotni o'chirish")} title={t("Удалить товар", "Mahsulotni o'chirish")}
+                                  style={{ display: "inline-flex", alignItems: "center", padding: "6px", borderRadius: "8px", border: "none", background: "transparent", cursor: "pointer", color: COLORS.textTertiary }}
+                                  onMouseEnter={e => { e.currentTarget.style.color = COLORS.dangerText; }}
+                                  onMouseLeave={e => { e.currentTarget.style.color = COLORS.textTertiary; }}>
+                                  <Trash2 size={13} />
                                 </button>}
                               </div>
                             </td>
@@ -540,11 +581,23 @@ export default function Warehouse() {
                       })}
                 </tbody>
               </table>
-              {hidden > 0 && (
-                <div className="flex justify-center py-3" style={{ borderTop: "1px solid var(--color-border)" }}>
-                  <button type="button" className="neo-btn tap" onClick={() => setVisibleRows(v => v + PAGE)} data-testid="stock-show-more">
-                    {t(`Показать ещё ${Math.min(PAGE, hidden)} (осталось ${hidden})`, `Yana ${Math.min(PAGE, hidden)} ko'rsatish (qoldi ${hidden})`)}
-                  </button>
+              </div>
+              {/* Подвал: сколько показано, «ещё», и починка старых каталогов — тихой ссылкой. */}
+              {!isLoading && (stock?.length ?? 0) > 0 && (
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px", flexWrap: "wrap", padding: "10px 16px", borderTop: `1px solid ${COLORS.border}`, fontSize: "12px", color: COLORS.textTertiary }}>
+                  <span>
+                    {hidden > 0
+                      ? t(`Показано ${shown?.length ?? 0} из ${stock?.length ?? 0}`, `${shown?.length ?? 0} / ${stock?.length ?? 0} ko'rsatilgan`)
+                      : `${stock?.length ?? 0} ${t("позиций", "pozitsiya")}`}
+                  </span>
+                  <span style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                    {canAdjust && backfillButton("link")}
+                    {hidden > 0 && (
+                      <button type="button" className="neo-btn neo-btn-sm tap" onClick={() => setVisibleRows(v => v + PAGE)} data-testid="stock-show-more">
+                        {t(`Показать ещё ${Math.min(PAGE, hidden)}`, `Yana ${Math.min(PAGE, hidden)} ko'rsatish`)}
+                      </button>
+                    )}
+                  </span>
                 </div>
               )}
             </div>
@@ -552,12 +605,7 @@ export default function Warehouse() {
         </>
       )}
 
-      {/* ── DEAD STOCK TAB ─────────────────────────────────────────────────── */}
-      {/*
-        Перемещения. Сервер это умел давно — три ручки с блокировками и
-        защитой от двойного проведения, — а кнопки не было ни одной: попасть в
-        них было нельзя ни с одного экрана.
-      */}
+      {/* ── FORECAST / TRANSFERS / COMPARE / COUNTS ───────────────────────── */}
       {activeTab === "forecast" && <DemandForecast />}
 
       {activeTab === "transfers" && multi && (
@@ -572,135 +620,85 @@ export default function Warehouse() {
         <StockCounts warehouses={warehouses} />
       )}
 
+      {/* ── DEAD STOCK TAB ─────────────────────────────────────────────────── */}
       {activeTab === "deadstock" && (
         <>
-          <div className="flex items-center gap-3 flex-wrap">
-            <span className="text-xs font-medium" style={{ color: "var(--color-text-tertiary, #6b6760)" }}>
+          <div style={FILTER_CARD}>
+            <span style={{ fontSize: "12px", fontWeight: 600, color: COLORS.textTertiary }}>
               {t("Без продаж более", "Sotilmasdan ko'proq")}:
             </span>
-            {[7, 14, 30, 60, 90].map(d => (
-              <button key={d} onClick={() => setDeadStockDays(d)}
-                className="text-xs py-1.5 px-3 rounded-lg font-medium transition-all"
-                style={{
-                  background: deadStockDays === d ? "var(--color-primary)" : "var(--color-surface-light, #f6f4f0)",
-                  color: deadStockDays === d ? "#fff" : "var(--color-text-tertiary, #6b6760)",
-                }}>
-                {d} {t("дн", "kun")}
-              </button>
-            ))}
+            <div className="range-pills" role="tablist">
+              {[7, 14, 30, 60, 90].map(d => (
+                <button key={d} type="button" role="tab" aria-selected={deadStockDays === d} onClick={() => setDeadStockDays(d)}
+                  className={"range-pill tap" + (deadStockDays === d ? " active" : "")}>
+                  {d} {t("дн", "kun")}
+                </button>
+              ))}
+            </div>
+            {deadCount > 0 && (
+              <span style={{ marginLeft: "auto", fontSize: "12px", color: COLORS.textSecondary }}>
+                {deadCount} {t("товаров", "mahsulot")} · <b style={{ color: COLORS.textPrimary }}>{fmt(deadValue.toFixed(0))}</b>
+              </span>
+            )}
           </div>
 
           {deadStockLoading ? (
-            <div className="space-y-3">
-              {Array.from({ length: 3 }).map((_, i) => (
-                <div key={i} className="h-16 rounded-xl animate-pulse" style={{ background: "var(--color-surface-light, #f6f4f0)" }} />
-              ))}
-            </div>
+            <div style={TABLE_CARD}><table className="data-table"><tbody><SkeletonRows cols={1} n={4} /></tbody></table></div>
           ) : !deadStockItems?.length ? (
-            <div className="text-center py-16">
-              <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4" style={{ background: "rgba(74,222,128,0.1)" }}>
-                <Package size={28} color="var(--color-success-text)" />
-              </div>
-              <p className="text-sm font-medium" style={{ color: "var(--color-text-primary, #2b2a28)" }}>
-                {t("Нет мёртвого стока", "O'lik stok yo'q")}
-              </p>
-              <p className="text-xs mt-1" style={{ color: "var(--color-text-tertiary, #6b6760)" }}>
-                {t("Все товары продаются в течение", "Barcha mahsulotlar sotilmoqda")} {deadStockDays} {t("дней", "kun")}.
-              </p>
-            </div>
+            <EmptyTab icon={<Package size={24} />} title={t("Нет мёртвого стока", "O'lik stok yo'q")}
+              hint={`${t("Все товары продаются в течение", "Barcha mahsulotlar sotilmoqda")} ${deadStockDays} ${t("дней", "kun")}.`} />
           ) : isMobile ? (
             <div className="space-y-3">
-              {deadStockItems.map((item, i) => {
+              {deadStockItems.map((item) => {
                 const days = Number(item.daysSinceOrder ?? 99999);
-                const isUrgent = days > 90;
-                const isWarning = days > 30;
-                const bgColor = isUrgent ? "rgba(232,80,80,0.06)" : isWarning ? "rgba(251,191,36,0.06)" : "var(--color-surface, #efedea)";
-                const borderColor = isUrgent ? "rgba(232,80,80,0.15)" : isWarning ? "rgba(251,191,36,0.15)" : "var(--color-border, #d8d5cd)";
-                const badgeColor = isUrgent ? "var(--color-danger)" : isWarning ? "var(--color-warning)" : "var(--color-primary)";
+                const badgeColor = days > 90 ? COLORS.dangerText : days > 30 ? COLORS.warningText : COLORS.textSecondary;
                 return (
-                  <div key={item.productId} className="rounded-2xl p-4" style={{ background: bgColor, boxShadow: `inset 0 0 0 1px ${borderColor}`, animation: `slideUp ${0.3 + i * 0.05}s ease` }}>
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center gap-2">
-                        <Clock size={14} color={badgeColor} />
-                        <span className="text-sm font-semibold" style={{ color: "var(--color-text-primary, #2b2a28)" }}>{item.productName}</span>
-                      </div>
-                      <span className="text-xs px-2 py-0.5 rounded-full font-semibold" style={{ background: colorMix(badgeColor, 8), color: badgeColor }}>
-                        {days === 99999 ? t("Никогда", "Hech qachon") : `${days} ${t("дн", "kun")}`}
-                      </span>
+                  <div key={item.productId} style={{ ...TABLE_CARD, borderRadius: "16px", padding: "14px 16px" }}>
+                    <div className="flex items-center justify-between gap-2 mb-2">
+                      <span className="text-sm font-semibold truncate" style={{ color: COLORS.textPrimary }}>{item.productName}</span>
+                      <DaysBadge color={badgeColor}>{days === 99999 ? t("Никогда", "Hech qachon") : `${days} ${t("дн", "kun")}`}</DaysBadge>
                     </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs" style={{ color: "var(--color-text-tertiary, #6b6760)" }}>
-                        {t("Остаток:", "Qoldiq:")} {formatQty(item.currentStock)}
-                      </span>
-                      <span className="text-sm font-bold" style={{ color: badgeColor, fontFamily: "'Manrope', sans-serif" }}>
-                        {fmt(Number(item.value ?? 0).toFixed(0))}
-                      </span>
+                    <div className="flex items-center justify-between text-xs" style={{ color: COLORS.textTertiary }}>
+                      <span>{t("Остаток:", "Qoldiq:")} {formatQty(item.currentStock)}</span>
+                      <span className="font-bold" style={{ color: COLORS.textPrimary, fontFamily: F.display }}>{fmt(Number(item.value ?? 0).toFixed(0))}</span>
                     </div>
                   </div>
                 );
               })}
             </div>
           ) : (
-            <div className="rounded-2xl" style={{ background: "var(--color-surface, #efedea)", boxShadow: "var(--shadow-sm, 0 1px 3px rgba(0,0,0,.06))", overflowX: "auto" }}>
-              <table className="w-full" style={{ borderCollapse: "separate", borderSpacing: 0 }}>
+            <div style={TABLE_CARD}>
+              <div style={{ overflowX: "auto" }}>
+              <table className="data-table">
                 <thead>
                   <tr>
-                    {[t("ТОВАР","MAHSULOT"), t("КОД","KOD"), t("КАТЕГОРИЯ","KATEGORIYA"), t("ОСТАТОК","QOLDIQ"), t("СТОИМОСТЬ","QIYMAT"), t("ПОСЛ. ЗАКАЗ","OXIRGI BUYURTMA"), t("ДНЕЙ БЕЗ ПРОДАЖ","SOTISHSIZ KUN")].map(h => (
-                      <th key={h} className="text-left px-5 py-3 text-[10px] font-semibold tracking-wider uppercase cursor-pointer select-none"
-                        style={{ color: "var(--color-text-tertiary, #6b6760)", fontFamily: "'Manrope', sans-serif", borderBottom: "1px solid var(--color-border, #d8d5cd)" }}>
-                        <span className="flex items-center gap-1">{h}</span>
-                      </th>
+                    {[t("ТОВАР","MAHSULOT"), t("КОД","KOD"), t("КАТЕГОРИЯ","KATEGORIYA"), t("ОСТАТОК","QOLDIQ"), t("СТОИМОСТЬ","QIYMAT"), t("ПОСЛ. ЗАКАЗ","OXIRGI BUYURTMA"), t("ДНЕЙ БЕЗ ПРОДАЖ","SOTISHSIZ KUN")].map((h, i) => (
+                      <th key={h} style={i === 3 || i === 4 ? { textAlign: "right" } : undefined}>{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
                   {deadStockItems.map((item) => {
                     const days = Number(item.daysSinceOrder ?? 99999);
-                    const isUrgent = days > 90;
-                    const isWarning = days > 30;
-                    const rowBg = isUrgent ? "rgba(232,80,80,0.04)" : isWarning ? "rgba(251,191,36,0.04)" : undefined;
-                    const badgeColor = isUrgent ? "var(--color-danger)" : isWarning ? "var(--color-warning)" : "var(--color-primary)";
+                    const badgeColor = days > 90 ? COLORS.dangerText : days > 30 ? COLORS.warningText : COLORS.textSecondary;
+                    const num: React.CSSProperties = { textAlign: "right", fontFamily: F.display, fontVariantNumeric: "tabular-nums" };
                     return (
-                      <tr key={item.productId} style={{ background: rowBg }}>
-                        <td className="px-5 py-3.5 text-sm font-medium" style={{ color: "var(--color-text-primary, #2b2a28)", borderBottom: "1px solid var(--color-border, #d8d5cd)" }}>
-                          <div className="flex items-center gap-2">
-                            <Clock size={13} color={badgeColor} />
-                            {item.productName}
-                          </div>
-                        </td>
-                        <td className="px-5 py-3.5 text-xs" style={{ color: "var(--color-text-tertiary, #6b6760)", fontFamily: "'Manrope', sans-serif", borderBottom: "1px solid var(--color-border, #d8d5cd)" }}>
-                          {item.productCode}
-                        </td>
-                        <td className="px-5 py-3.5 text-sm" style={{ color: "var(--color-text-secondary, #5e5b54)", borderBottom: "1px solid var(--color-border, #d8d5cd)" }}>
-                          {item.category ?? "—"}
-                        </td>
-                        <td className="px-5 py-3.5 text-sm font-bold" style={{ color: "var(--color-text-primary, #2b2a28)", fontFamily: "'Manrope', sans-serif", borderBottom: "1px solid var(--color-border, #d8d5cd)" }}>
-                          {formatQty(item.currentStock)}
-                        </td>
-                        <td className="px-5 py-3.5 text-sm font-bold" style={{ color: badgeColor, fontFamily: "'Manrope', sans-serif", borderBottom: "1px solid var(--color-border, #d8d5cd)" }}>
-                          {fmt(Number(item.value ?? 0).toFixed(0))}
-                        </td>
-                        <td className="px-5 py-3.5 text-xs" style={{ color: "var(--color-text-tertiary, #6b6760)", fontFamily: "'Manrope', sans-serif", borderBottom: "1px solid var(--color-border, #d8d5cd)" }}>
+                      <tr key={item.productId}>
+                        <td style={{ fontWeight: 500 }}>{item.productName}</td>
+                        <td style={{ fontSize: "12px", color: COLORS.textTertiary, fontFamily: F.display }}>{item.productCode}</td>
+                        <td style={{ color: COLORS.textSecondary }}>{item.category ?? "—"}</td>
+                        <td style={{ ...num, fontWeight: 700 }}>{formatQty(item.currentStock)}</td>
+                        <td style={{ ...num, fontWeight: 700 }}>{fmt(Number(item.value ?? 0).toFixed(0))}</td>
+                        <td style={{ fontSize: "12px", color: COLORS.textTertiary, fontFamily: F.display }}>
                           {item.lastOrderDate ? format(new Date(item.lastOrderDate), "dd.MM.yyyy") : t("Никогда", "Hech qachon")}
                         </td>
-                        <td className="px-5 py-3.5" style={{ borderBottom: "1px solid var(--color-border, #d8d5cd)" }}>
-                          <span className="text-xs px-2.5 py-1 rounded-full font-semibold"
-                            style={{ background: colorMix(badgeColor, 8), color: badgeColor }}>
-                            {days === 99999 ? t("∞", "∞") : `${days} ${t("дн", "kun")}`}
-                          </span>
-                        </td>
+                        <td><DaysBadge color={badgeColor}>{days === 99999 ? "∞" : `${days} ${t("дн", "kun")}`}</DaysBadge></td>
                       </tr>
                     );
                   })}
                 </tbody>
               </table>
-            </div>
-          )}
-
-          {deadStockItems && deadStockItems.length > 0 && (
-            <div className="flex items-center justify-between text-xs px-2" style={{ color: "var(--color-text-tertiary, #6b6760)" }}>
-              <span>{deadStockItems.length} {t("товаров", "mahsulot")}</span>
-              <span>{t("Общая стоимость:", "Umumiy qiymat:")} {fmt(deadStockItems.reduce((acc, r) => acc + Number(r.value ?? 0), 0).toFixed(0))}</span>
+              </div>
             </div>
           )}
         </>
@@ -710,39 +708,24 @@ export default function Warehouse() {
       {activeTab === "reorder" && (
         <>
           {!reorderSuggestions?.length ? (
-            <div className="text-center py-16">
-              <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4" style={{ background: "rgba(74,222,128,0.1)" }}>
-                <ShoppingCart size={28} color="var(--color-success-text)" />
-              </div>
-              <p className="text-sm font-medium" style={{ color: "var(--color-text-primary, #2b2a28)" }}>
-                {t("Все товары в наличии", "Barcha mahsulotlar mavjud")}
-              </p>
-              <p className="text-xs mt-1" style={{ color: "var(--color-text-tertiary, #6b6760)" }}>
-                {t("Нет товаров, требующих дозаказа", "Qayta buyurtma kerak bo'lgan mahsulot yo'q")}
-              </p>
-            </div>
+            <EmptyTab icon={<ShoppingCart size={24} />} title={t("Все товары в наличии", "Barcha mahsulotlar mavjud")}
+              hint={t("Нет товаров, требующих дозаказа", "Qayta buyurtma kerak bo'lgan mahsulot yo'q")} />
           ) : isMobile ? (
             <div className="space-y-3">
-              {reorderSuggestions.map((item, i) => {
+              {reorderSuggestions.map((item) => {
                 const daysLeft = Number(item.daysUntilStockout ?? 999);
-                const isUrgent = daysLeft <= 3;
-                const isWarning = daysLeft <= 7;
-                const badgeColor = isUrgent ? "var(--color-danger)" : isWarning ? "var(--color-warning)" : "var(--color-primary)";
+                const badgeColor = daysLeft <= 3 ? COLORS.dangerText : daysLeft <= 7 ? COLORS.warningText : COLORS.textSecondary;
                 return (
-                  <div key={item.productId} className="rounded-2xl overflow-hidden" style={{ animation: `slideUp ${0.3 + i * 0.05}s ease` }}>
-                    <div className="flex">
-                      <div className="w-1.5 flex-shrink-0" style={{ background: badgeColor }} />
-                      <div className="flex-1 p-4">
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="text-sm font-semibold" style={{ color: "var(--color-text-primary, #2b2a28)" }}>{item.productName}</span>
-                          <span className="text-xs px-2 py-0.5 rounded-full font-semibold" style={{ background: colorMix(badgeColor, 8), color: badgeColor }}>
-                            {daysLeft} {t("дн до конца", "kun qoldi")}
-                          </span>
-                        </div>
-                        <div className="flex items-center justify-between text-xs" style={{ color: "var(--color-text-tertiary, #6b6760)" }}>
-                          <span>{t("Остаток:", "Qoldiq:")} {formatQty(item.currentStock)} / {formatQty(item.reorderPoint, 0)} {unitLabel(item.unit ?? undefined, lang)}</span>
-                          <span className="font-semibold" style={{ color: badgeColor }}>+{item.suggestedQty} {unitLabel(item.unit ?? undefined, lang)}</span>
-                        </div>
+                  <div key={item.productId} style={{ ...TABLE_CARD, borderRadius: "16px", display: "flex" }}>
+                    <div style={{ width: "4px", flexShrink: 0, background: badgeColor }} />
+                    <div style={{ flex: 1, padding: "14px 16px" }}>
+                      <div className="flex items-center justify-between gap-2 mb-2">
+                        <span className="text-sm font-semibold truncate" style={{ color: COLORS.textPrimary }}>{item.productName}</span>
+                        <DaysBadge color={badgeColor}>{daysLeft} {t("дн до конца", "kun qoldi")}</DaysBadge>
+                      </div>
+                      <div className="flex items-center justify-between text-xs" style={{ color: COLORS.textTertiary }}>
+                        <span>{t("Остаток:", "Qoldiq:")} {formatQty(item.currentStock)} / {formatQty(item.reorderPoint, 0)} {unitLabel(item.unit ?? undefined, lang)}</span>
+                        <span className="font-semibold" style={{ color: badgeColor }}>+{item.suggestedQty} {unitLabel(item.unit ?? undefined, lang)}</span>
                       </div>
                     </div>
                   </div>
@@ -750,15 +733,13 @@ export default function Warehouse() {
               })}
             </div>
           ) : (
-            <div className="rounded-2xl" style={{ background: "var(--color-surface, #efedea)", boxShadow: "var(--shadow-sm, 0 1px 3px rgba(0,0,0,.06))", overflowX: "auto" }}>
-              <table className="w-full" style={{ borderCollapse: "separate", borderSpacing: 0 }}>
+            <div style={TABLE_CARD}>
+              <div style={{ overflowX: "auto" }}>
+              <table className="data-table">
                 <thead>
                   <tr>
-                    {[t("ТОВАР","MAHSULOT"), t("ОСТАТОК","QOLDIQ"), t("ПОРОГ","CHEGARA"), t("ПРОДАЖИ/ДЕНЬ","SOTISH/KUN"), t("ДНЕЙ ДО КОНЦА","KUN QOLDI"), t("ЗАКАЗАТЬ","BUYURTMA BERISH"), t("СТОИМОСТЬ","NARX")].map(h => (
-                      <th key={h} className="text-left px-5 py-3 text-[10px] font-semibold tracking-wider uppercase"
-                        style={{ color: "var(--color-text-tertiary, #6b6760)", fontFamily: "'Manrope', sans-serif", borderBottom: "1px solid var(--color-border, #d8d5cd)" }}>
-                        {h}
-                      </th>
+                    {[t("ТОВАР","MAHSULOT"), t("ОСТАТОК","QOLDIQ"), t("ПОРОГ","CHEGARA"), t("ПРОДАЖИ/ДЕНЬ","SOTISH/KUN"), t("ДНЕЙ ДО КОНЦА","KUN QOLDI"), t("ЗАКАЗАТЬ","BUYURTMA BERISH"), t("СТОИМОСТЬ","NARX")].map((h, i) => (
+                      <th key={h} style={i >= 1 && i !== 4 ? { textAlign: "right" } : undefined}>{h}</th>
                     ))}
                   </tr>
                 </thead>
@@ -766,50 +747,33 @@ export default function Warehouse() {
                   {reorderSuggestions.map((item) => {
                     const daysLeft = Number(item.daysUntilStockout ?? 999);
                     const isUrgent = daysLeft <= 3;
-                    const isWarning = daysLeft <= 7;
-                    const badgeColor = isUrgent ? "var(--color-danger)" : isWarning ? "var(--color-warning)" : "var(--color-primary)";
-                    const rowBg = isUrgent ? "rgba(232,80,80,0.04)" : isWarning ? "rgba(251,191,36,0.04)" : undefined;
+                    const badgeColor = isUrgent ? COLORS.dangerText : daysLeft <= 7 ? COLORS.warningText : COLORS.textSecondary;
+                    const u = unitLabel(item.unit ?? undefined, lang);
+                    const num: React.CSSProperties = { textAlign: "right", fontFamily: F.display, fontVariantNumeric: "tabular-nums" };
                     return (
-                      <tr key={item.productId} style={{ background: rowBg }}>
-                        <td className="px-5 py-3.5 text-sm font-medium" style={{ color: "var(--color-text-primary, #2b2a28)", borderBottom: "1px solid var(--color-border, #d8d5cd)" }}>
+                      <tr key={item.productId} style={isUrgent ? { background: colorMix(COLORS.danger, 4) } : undefined}>
+                        <td>
                           <div className="flex items-center gap-2">
-                            {isUrgent && <AlertTriangle size={13} color="var(--color-danger-text)" />}
-                            {item.productName}
+                            {isUrgent && <AlertTriangle size={13} color={COLORS.dangerText} />}
+                            <span style={{ fontWeight: 500 }}>{item.productName}</span>
                           </div>
                         </td>
-                        <td className="px-5 py-3.5 text-sm font-bold" style={{ color: badgeColor, fontFamily: "'Manrope', sans-serif", borderBottom: "1px solid var(--color-border, #d8d5cd)" }}>
-                          {formatQty(item.currentStock)} {unitLabel(item.unit ?? undefined, lang)}
-                        </td>
-                        <td className="px-5 py-3.5 text-sm" style={{ color: "var(--color-text-tertiary, #6b6760)", fontFamily: "'Manrope', sans-serif", borderBottom: "1px solid var(--color-border, #d8d5cd)" }}>
-                          {formatQty(item.reorderPoint, 0)} {unitLabel(item.unit ?? undefined, lang)}
-                        </td>
-                        <td className="px-5 py-3.5 text-sm" style={{ color: "var(--color-text-secondary, #5e5b54)", fontFamily: "'Manrope', sans-serif", borderBottom: "1px solid var(--color-border, #d8d5cd)" }}>
-                          {item.avgDailySales}
-                        </td>
-                        <td className="px-5 py-3.5" style={{ borderBottom: "1px solid var(--color-border, #d8d5cd)" }}>
-                          <span className="text-xs px-2.5 py-1 rounded-full font-semibold"
-                            style={{ background: colorMix(badgeColor, 8), color: badgeColor }}>
-                            {daysLeft} {t("дн", "kun")}
-                          </span>
-                        </td>
-                        <td className="px-5 py-3.5 text-sm font-bold" style={{ color: badgeColor, fontFamily: "'Manrope', sans-serif", borderBottom: "1px solid var(--color-border, #d8d5cd)" }}>
-                          +{item.suggestedQty} {unitLabel(item.unit ?? undefined, lang)}
-                        </td>
-                        <td className="px-5 py-3.5 text-sm font-bold" style={{ color: "var(--color-text-primary, #2b2a28)", fontFamily: "'Manrope', sans-serif", borderBottom: "1px solid var(--color-border, #d8d5cd)" }}>
-                          {fmt(Number(item.suggestedCost ?? 0).toFixed(0))}
-                        </td>
+                        <td style={{ ...num, fontWeight: 700, color: badgeColor }}>{formatQty(item.currentStock)} {u}</td>
+                        <td style={{ ...num, color: COLORS.textTertiary }}>{formatQty(item.reorderPoint, 0)} {u}</td>
+                        <td style={{ ...num, color: COLORS.textSecondary }}>{item.avgDailySales}</td>
+                        <td><DaysBadge color={badgeColor}>{daysLeft} {t("дн", "kun")}</DaysBadge></td>
+                        <td style={{ ...num, fontWeight: 700, color: COLORS.primaryText }}>+{item.suggestedQty} {u}</td>
+                        <td style={{ ...num, fontWeight: 700 }}>{fmt(Number(item.suggestedCost ?? 0).toFixed(0))}</td>
                       </tr>
                     );
                   })}
                 </tbody>
               </table>
-            </div>
-          )}
-
-          {reorderSuggestions && reorderSuggestions.length > 0 && (
-            <div className="flex items-center justify-between text-xs px-2" style={{ color: "var(--color-text-tertiary, #6b6760)" }}>
-              <span>{reorderSuggestions.length} {t("товаров", "mahsulot")}</span>
-              <span>{t("Общая стоимость дозаказа:", "Umumiy buyurtma qiymati:")} {fmt(reorderSuggestions.reduce((acc, r) => acc + Number(r.suggestedCost ?? 0), 0).toFixed(0))}</span>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px", flexWrap: "wrap", padding: "10px 16px", borderTop: `1px solid ${COLORS.border}`, fontSize: "12px", color: COLORS.textTertiary }}>
+                <span>{reorderSuggestions.length} {t("товаров", "mahsulot")}</span>
+                <span>{t("Общая стоимость дозаказа:", "Umumiy buyurtma qiymati:")} <b style={{ color: COLORS.textPrimary }}>{fmt(reorderSuggestions.reduce((acc, r) => acc + Number(r.suggestedCost ?? 0), 0).toFixed(0))}</b></span>
+              </div>
             </div>
           )}
         </>
