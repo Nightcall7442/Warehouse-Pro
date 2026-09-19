@@ -4,7 +4,7 @@ import { LX } from "./landing-tokens";
 import { reducedMotion } from "./landing-anime";
 import { useScrollScrub, captionOpacity } from "./scroll-scrub";
 import { SequenceCanvas } from "./SequenceCanvas";
-import { FILM } from "./film";
+import { FILM, pickFilmWidth } from "./film";
 
 /* ═══════════════════════════════════════════════════════════════════════════
    ПЛЁНКА / СКЛАД НА РАССВЕТЕ
@@ -18,10 +18,16 @@ import { FILM } from "./film";
 
    Кадры лежат в public/landing/film/<name>/NNN.webp; сколько их — в
    film.ts, который пишет скрипт резки. Первый кадр — постер под холстом.
+
+   Второй заход (19.09.2026, владелец: «качественнее и красивее»): ролик
+   Kling 3.0 pro, 8 с, кадры 1920 px вместо 1280 (на большом экране прежние
+   давали мыло), без затухания между кадрами (оно двоило движение) и 240vh
+   вместо 260 — за экран прокрутки камера проходит заметный путь.
    ═══════════════════════════════════════════════════════════════════════════ */
 
-const LENGTH_VH = 260;
+const LENGTH_VH = 240;
 const FILM_NAME = "warehouse";
+
 
 export default function FilmScroll() {
   const tr = useTranslate();
@@ -29,12 +35,15 @@ export default function FilmScroll() {
   const { subscribe } = useScrollScrub(section);
   const [still] = useState(() => reducedMotion());
   const film = FILM[FILM_NAME];
-  const frames = useMemo(() => Array.from({ length: film.count }, (_, i) => `/landing/film/${FILM_NAME}/${String(i + 1).padStart(3, "0")}.webp`), [film.count]);
+  // Ширина кадров — по экрану, один раз: телефону 960, ноутбуку и монитору 1920.
+  const [width] = useState(() => pickFilmWidth(film.widths, typeof window === "undefined" ? 0 : window.innerWidth * Math.min(2, window.devicePixelRatio || 1)));
+  const frames = useMemo(() => Array.from({ length: film.count }, (_, i) => `/landing/film/${FILM_NAME}/w${width}/${String(i + 1).padStart(3, "0")}.webp`), [film.count, width]);
 
   const lines = [
     { title: tr("Каждое утро товар уезжает со склада.", "Har kuni ertalab tovar ombordan ketadi."), text: tr("Сотни коробок, десятки точек, один рабочий день.", "Yuzlab quti, o'nlab nuqta, bitta ish kuni.") },
     { title: tr("Warehouse Pro ведёт его до магазина.", "Warehouse Pro uni do'kongacha olib boradi."), text: tr("Заказ, комплектация, рейс, приёмка — каждый шаг записан.", "Buyurtma, komplektatsiya, reys, qabul — har qadam yozilgan.") },
-    { title: tr("И деньги — обратно в кассу.", "Va pul — kassaga qaytadi."), text: tr("Наличные, карта, долг: вечером всё сходится до сума.", "Naqd, karta, qarz: kechqurun hammasi so'migacha to'g'ri keladi.") },
+    // Кассы в продукте больше нет (расчёт живёт в заказе) — и в строке её нет.
+    { title: tr("И деньги возвращаются.", "Va pul qaytadi."), text: tr("Наличные, карта, долг: вечером каждый заказ рассчитан до сума.", "Naqd, karta, qarz: kechqurun har bir buyurtma so'migacha hisoblangan.") },
   ];
 
   const captions = useRef<Array<HTMLDivElement | null>>([]);
@@ -62,6 +71,7 @@ export default function FilmScroll() {
           alt={tr("Склад на рассвете: стеллажи с товаром, машина у рампы", "Tongdagi ombor: tovarli javonlar, rampadagi mashina")}
           fit="cover"
           anchor="center"
+          blend={false}
           className={still ? "relative w-full" : "absolute inset-0"}
           style={still ? { aspectRatio: `${film.width} / ${film.height}` } : undefined}
         />

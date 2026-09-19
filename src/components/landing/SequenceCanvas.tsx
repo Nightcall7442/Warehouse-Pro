@@ -16,7 +16,7 @@ import { frameAt, type Listener } from "./scroll-scrub";
    ═══════════════════════════════════════════════════════════════════════════ */
 
 export function SequenceCanvas({
-  frames, subscribe, alt = "", fit = "cover", anchor = "top", className = "", style,
+  frames, subscribe, alt = "", fit = "cover", anchor = "top", blend = true, className = "", style,
 }: {
   frames: string[];
   subscribe: (fn: Listener) => () => void;
@@ -25,6 +25,13 @@ export function SequenceCanvas({
   fit?: "cover" | "contain";
   /** Откуда обрезать при cover: сверху (экраны приложения) или по центру. */
   anchor?: "top" | "center";
+  /**
+   * Перекрёстное затухание между соседними кадрами. Нужно четырём снимкам
+   * программы, чтобы читаться как один переход; плёнке из видео — нет:
+   * два кадра с движением камеры, наложенные с полупрозрачностью, дают
+   * двоение и мыло. У плёнки рисуется ближайший кадр, как у Apple.
+   */
+  blend?: boolean;
   className?: string;
   style?: CSSProperties;
 }) {
@@ -57,10 +64,15 @@ export function SequenceCanvas({
     };
     const render = (p: number) => {
       const [i, t] = frameAt(p, frames.length);
-      const a = nearest(i), b = images[i + 1] ?? null;
-      if (!a) return;
       ctx.globalAlpha = 1;
       ctx.clearRect(0, 0, canvas.width, canvas.height);
+      if (!blend) {
+        const a = nearest(t < 0.5 ? i : i + 1);
+        if (a) draw(a, 1);
+        return;
+      }
+      const a = nearest(i), b = images[i + 1] ?? null;
+      if (!a) return;
       draw(a, 1);
       if (b && b !== a && t > 0) draw(b, t);
       ctx.globalAlpha = 1;
@@ -69,7 +81,12 @@ export function SequenceCanvas({
       const dpr = Math.min(2, window.devicePixelRatio || 1);
       const r = canvas.getBoundingClientRect();
       const w = Math.max(1, Math.round(r.width * dpr)), h = Math.max(1, Math.round(r.height * dpr));
-      if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; render(last < 0 ? 0 : last); }
+      if (canvas.width !== w || canvas.height !== h) {
+        canvas.width = w; canvas.height = h;
+        // Смена размера сбрасывает состояние контекста — качество сглаживания задаётся заново.
+        ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = "high";
+        render(last < 0 ? 0 : last);
+      }
     };
     // Плёнка грузится, когда секция в полутора экранах от читателя, а не при
     // открытии страницы: у сотни кадров есть вес, у покупателя — 3G.
@@ -93,7 +110,7 @@ export function SequenceCanvas({
     const off = subscribe(p => { if (p !== last) { last = p; render(p); } });
     return () => { alive = false; off(); ro?.disconnect(); io?.disconnect(); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [framesKey, subscribe, fit, anchor]);
+  }, [framesKey, subscribe, fit, anchor, blend]);
 
   return (
     <div className={`overflow-hidden ${className}`} style={style}>
