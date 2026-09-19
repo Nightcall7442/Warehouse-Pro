@@ -26,9 +26,9 @@ const label = (r: Row) => r.kind === "group" ? r.labelKey : r.item.labelKey;
 const groupsOf = (rows: Row[]) => rows.filter((r): r is GroupRow => r.kind === "group");
 
 describe("строки меню", () => {
-  it("директор на складе: шесть строк снаружи, раскрыт только «Склад», в нём — Остатки · Приходы · Товары", () => {
+  it("директор на складе: девять строк снаружи — Магазины, Настройки, Биллинг и Журнал отдельно (владелец, 19.09); раскрыт только «Склад»", () => {
     const rows = navRows(NAV_ITEMS.ceo, "/warehouse", undefined);
-    expect(top(rows).map(label)).toEqual(["nav.dashboard", "nav.groupSales", "nav.warehouse", "nav.groupTeam", "nav.groupFinance", "nav.settings"]);
+    expect(top(rows).map(label)).toEqual(["nav.dashboard", "nav.groupSales", "nav.shops", "nav.warehouse", "nav.groupTeam", "nav.groupFinance", "nav.settings", "nav.billing", "nav.auditLog"]);
     const groups = groupsOf(rows);
     expect(groups.filter(g => g.open).map(g => g.key)).toEqual(["warehouse"]);
     expect(groups.find(g => g.key === "warehouse")!.active).toBe(true);
@@ -36,9 +36,9 @@ describe("строки меню", () => {
     expect(nested).toEqual([["nav.stock", true], ["nav.arrivals", false], ["nav.products", false]]);
   });
 
-  it("оператор: шесть строк — Главная, Продажи, Склад, Отчёты, KPI, Настройки", () => {
+  it("оператор: семь строк — Главная, Продажи, Магазины, Склад, Отчёты, KPI, Настройки", () => {
     expect(top(navRows(NAV_ITEMS.operator, "/orders", undefined)).map(label))
-      .toEqual(["nav.dashboard", "nav.groupSales", "nav.warehouse", "nav.reports", "nav.kpi", "nav.settings"]);
+      .toEqual(["nav.dashboard", "nav.groupSales", "nav.shops", "nav.warehouse", "nav.reports", "nav.kpi", "nav.settings"]);
   });
 
   it("вложенный адрес подсвечивает самый длинный пункт, а не оба: /supervisor/plans — «План визитов», не «Карта»", () => {
@@ -65,6 +65,10 @@ describe("строки меню", () => {
     expect(closed.find(g => g.key === "warehouse")!.active).toBe(true);
     // Другая страница — правило «где я, там раскрыто» действует снова.
     expect(groupsOf(navRows(NAV_ITEMS.ceo, "/pnl", undefined)).filter(g => g.open).map(g => g.key)).toEqual(["finance"]);
+    // Пункты, оставленные снаружи, — не в группе и подсвечиваются сами.
+    const billing = navRows(NAV_ITEMS.ceo, "/billing", undefined);
+    expect(groupsOf(billing).some(g => g.open)).toBe(false);
+    expect(billing.find(r => r.kind === "item" && r.item.path === "/billing")).toMatchObject({ active: true, nested: false });
   });
 
   it("роли без групп (агент, супервайзер, курьер) — как были: плоский список", () => {

@@ -16,7 +16,6 @@ export const ru = {
     groupSales:  "Продажи",
     groupTeam:   "Команда",
     groupFinance: "Финансы",
-    organization: "Организация",
     auditLog:    "Журнал действий",
     control:     "Контроль",
     arrivals:    "Приходы",
