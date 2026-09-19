@@ -21,16 +21,19 @@ export async function uploadBase64ToS3(dataUrl: string, folder: string, tenantId
   if (!match) return dataUrl;
 
   const ext = match[1].toLowerCase() === "jpeg" ? "jpg" : match[1].toLowerCase();
-  const buffer = Buffer.from(match[2], "base64");
-  const key = `${folder}/${tenantId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+  return uploadImageToS3(Buffer.from(match[2], "base64"), `image/${ext === "jpg" ? "jpeg" : ext}`, ext, folder, tenantId);
+}
 
+/** Байты картинки — в хранилище под свежим ключом; обратно — её адрес. Общее для data:-строк и копий с чужих сайтов. */
+export async function uploadImageToS3(buffer: Buffer, contentType: string, ext: string, folder: string, tenantId: number): Promise<string> {
+  const key = `${folder}/${tenantId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
   const { PutObjectCommand } = await import("@aws-sdk/client-s3");
   const s3 = await s3Client();
   await s3.send(new PutObjectCommand({
     Bucket: env.s3Bucket!,
     Key: key,
     Body: buffer,
-    ContentType: `image/${ext === "jpg" ? "jpeg" : ext}`,
+    ContentType: contentType,
     ...serverSideEncryption(),
   }));
   return publicUrl(key);
