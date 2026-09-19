@@ -49,6 +49,23 @@ describe("ключ по ссылке", () => {
     expect(storageKeyOf("https://evil.example/products/7/a.jpg")).toBeNull();
     expect(storageKeyOf("https://minio.example/wp-photos/")).toBeNull();
   });
+  it("ссылка, записанная при прежних настройках, — тоже своя: по http, без бакета в пути, с бакетом на другом домене", async () => {
+    /*
+      Второй вечер 19.09.2026: после выкладки #74 заглушки остались. Ручка
+      узнавала ссылку только по сегодняшнему S3_PUBLIC_URL, а в базе лежит
+      то, что publicUrl построил в ту ночь, когда фото переносили.
+    */
+    const { storageKeyOf, storageUrlPatterns } = await import("../lib/s3");
+    expect(storageKeyOf("http://minio.example/wp-photos/products/7/a.jpg")).toBe("products/7/a.jpg");
+    expect(storageKeyOf("https://minio.example/products/7/a.jpg?v=1")).toBe("products/7/a.jpg");
+    expect(storageKeyOf("https://cdn.other.example/wp-photos/products/7/a%20b.jpg")).toBe("products/7/a b.jpg");
+    expect(storageKeyOf("https://evil.example/products/7/a.jpg")).toBeNull();
+    expect(storageKeyOf("not a url")).toBeNull();
+    expect(storageUrlPatterns()).toEqual([
+      "https://minio.example/wp-photos/%", "https://wp-photos.s3.eu-north-1.amazonaws.com/%",
+      "https://minio.example/%", "http://minio.example/%", "%/wp-photos/%",
+    ]);
+  });
 });
 
 describe("photoRef", () => {
@@ -60,13 +77,16 @@ describe("photoRef", () => {
     const any = q.sql.indexOf("LIKE 'https://%' THEN `products`.`photo_url`");
     expect(ours).toBeGreaterThan(0);
     expect(ours).toBeLessThan(any);
-    expect(q.params).toEqual(expect.arrayContaining(["/api/photos/product/", "https://minio.example/wp-photos/%", "https://wp-photos.s3.eu-north-1.amazonaws.com/%"]));
-    expect((q.sql.match(/CONCAT\(\?, `products`\.`id`, '\?v=', UNIX_TIMESTAMP/g) ?? []).length).toBe(3);
+    expect(q.params).toEqual(expect.arrayContaining(["/api/photos/product/", "https://minio.example/wp-photos/%", "https://wp-photos.s3.eu-north-1.amazonaws.com/%", "http://minio.example/%", "%/wp-photos/%"]));
+    // Строка данных + пять образцов своего хранилища — шесть ленивых ссылок.
+    expect((q.sql.match(/CONCAT\(\?, `products`\.`id`, '\?v=', UNIX_TIMESTAMP/g) ?? []).length).toBe(6);
   });
 });
 
 describe("ручка /api/photos", () => {
   async function app(photoUrl: string | null, obj: { body: Uint8Array; contentType: string } | null) {
+    // Несколько стендов в одной проверке: без сброса второй получил бы ручку первого.
+    vi.resetModules();
     vi.doMock("../queries/connection", () => ({ getDb: () => ({ select: () => ({ from: () => ({ where: () => ({ limit: async () => [{ photoUrl }] }) }) }) }) }));
     vi.doMock("../auth", () => ({ authenticateRequest: async () => ({ tenant: { id: 1 }, user: { id: 1 } }) }));
     const real = await vi.importActual<typeof import("../lib/s3")>("../lib/s3");
@@ -87,19 +107,24 @@ describe("ручка /api/photos", () => {
     expect(readObject).toHaveBeenCalledWith("products/7/a.jpg");
   });
 
-  it("объекта нет или это не картинка — 404, а не редирект в бакет", async () => {
+  it("объект не прочёлся своими ключами — последний шанс, переадресация на разрешённый хост; не картинка — 404", async () => {
     const { photos } = await app("https://minio.example/wp-photos/products/7/a.jpg", null);
-    expect((await photos.request("/product/7")).status).toBe(404);
+    const r = await photos.request("/product/7");
+    expect(r.status).toBe(302);
+    expect(r.headers.get("location")).toBe("https://minio.example/wp-photos/products/7/a.jpg");
     const { photos: p2 } = await app("https://minio.example/wp-photos/products/7/a.svg", { body: new Uint8Array([1]), contentType: "image/svg+xml" });
     expect((await p2.request("/product/7")).status).toBe(404);
+    // Не прочлось, и хост чужой — 404, наружу не отправляем.
+    const { photos: p3 } = await app("https://cdn.other.example/wp-photos/products/7/a.jpg", null);
+    expect((await p3.request("/product/7")).status).toBe(404);
   });
 
-  it("чужая https-ссылка на разрешённый хост — переадресация, как раньше", async () => {
+  it("ссылка на наш хост в другом бакете — сначала своими ключами, потом переадресация, как раньше", async () => {
     const { photos, readObject } = await app("https://minio.example/other-bucket/a.jpg", null);
     const r = await photos.request("/product/7");
     expect(r.status).toBe(302);
     expect(r.headers.get("location")).toBe("https://minio.example/other-bucket/a.jpg");
-    expect(readObject).not.toHaveBeenCalled();
+    expect(readObject).toHaveBeenCalledWith("other-bucket/a.jpg");
   });
 });
 

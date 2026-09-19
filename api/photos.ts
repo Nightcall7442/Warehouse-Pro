@@ -8,6 +8,7 @@ import { isAppError } from "@contracts/errors";
 import { SAFE_IMAGE_TYPES } from "./lib/photo-value";
 import { legacyPhotoTokenTotal } from "./prometheus-metrics";
 import { clientVersionOf } from "./lib/client-version";
+import { logger } from "./lib/logger";
 
 /**
  * Photo delivery for entities whose photo is stored in the database as a base64
@@ -132,13 +133,20 @@ async function serve(
     const key = storageKeyOf(photoUrl);
     if (key) {
       const obj = await readObject(key);
-      if (!obj || !SAFE_IMAGE_TYPES.has(obj.contentType)) return c.json({ error: "Not Found" }, 404);
-      return c.body(Buffer.from(obj.body), 200, {
-        "Content-Type":  obj.contentType,
-        "Cache-Control": CACHE_HEADER,
-        "X-Content-Type-Options": "nosniff",
-        "Content-Security-Policy": "default-src 'none'; sandbox",
-      });
+      if (obj && !SAFE_IMAGE_TYPES.has(obj.contentType)) return c.json({ error: "Not Found" }, 404);
+      if (obj) {
+        return c.body(Buffer.from(obj.body), 200, {
+          "Content-Type":  obj.contentType,
+          "Cache-Control": CACHE_HEADER,
+          "X-Content-Type-Options": "nosniff",
+          "Content-Security-Policy": "default-src 'none'; sandbox",
+        });
+      }
+      // В журнал — какой формы ссылка и какой ключ не прочёлся: без этого
+      // «фото пропали» разбирается вслепую (19.09.2026, дважды за вечер).
+      // Дальше — последний шанс: переадресация на разрешённый хост; если
+      // бакет открыт на чтение, браузер откроет картинку и без наших ключей.
+      logger.warn("photo object not readable", { path: c.req.path, key, host: photoUrl.split("/")[2] ?? "" });
     }
     if (!isAllowedPhotoTarget(photoUrl)) return c.json({ error: "Not Found" }, 404);
     return c.redirect(photoUrl, 302);
