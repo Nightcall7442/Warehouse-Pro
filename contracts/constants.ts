@@ -301,3 +301,12 @@ export const OPEN_ORDER_STATUSES = ["new", "processing", "shipped", "pending"] a
 
 /** Товар из игры вышел, чем бы дело ни кончилось. */
 export const CLOSED_ORDER_STATUSES = ["delivered", "cancelled", "returned"] as const;
+
+/**
+ * Версия продукта — одна для сервера (/health) и экрана входа.
+ *
+ * На входе стояло «v2.5.0» из головы, сервер отвечал «1.0.0». Отпечаток
+ * коммита (VITE_APP_VERSION / SENTRY_RELEASE) остаётся для Sentry и поддержки;
+ * человеку показывают это число.
+ */
+export const APP_VERSION = "1.0.0";

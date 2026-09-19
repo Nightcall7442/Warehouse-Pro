@@ -23,7 +23,8 @@ describe("прибыль", () => {
     const body = src.slice(at, src.indexOf("const delta = (curr", at));
     expect(body).toContain("revRowP, cogsRowP, expenseRowP, payrollRowP, returnsInPeriod(db, tid, dateFrom, dateTo),");
     expect(body).not.toMatch(/const (revRow|cogsRow|expenseRow|payrollRow) = await db\.select/);
-    expect(body).toMatch(/const \[current, previous\] = await Promise\.all\(\[/);
+    // previousRaw: пустой прошлый период превращается в null строкой ниже, но читается разом.
+    expect(body).toMatch(/const \[current, previousRaw\] = await Promise\.all\(\[/);
   });
 });
 

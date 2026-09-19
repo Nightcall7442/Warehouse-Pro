@@ -25,6 +25,7 @@ import { StockTransfers } from "@/components/warehouse/StockTransfers";
 import { WarehouseCompare } from "@/components/warehouse/WarehouseCompare";
 import { StockCounts } from "@/components/warehouse/StockCounts";
 import { DemandForecast } from "@/components/warehouse/DemandForecast";
+import { kpiAccent } from "@/lib/kpi-accent";
 // warehouseMulti.getStock is raw SQL behind db.execute, so tRPC infers its rows
 // as `unknown` — these two mirror the SELECT lists in that procedure. Decimal
 // columns arrive from mysql2 as strings, COUNT() as numbers.
@@ -336,8 +337,8 @@ export default function Warehouse() {
                 <span className="text-[10px] font-semibold tracking-wider uppercase" style={{ color: "var(--color-text-tertiary, #6b6760)", fontFamily: "'Manrope', sans-serif" }}>
                   {k.label}
                 </span>
-                <div className="kpi-hero-icon" style={{ background: k.gradient }}>
-                  <Icon size={22} color="#fff" />
+                <div className="kpi-hero-icon" style={{ color: kpiAccent(k.gradient) }}>
+                  <Icon size={22} />
                 </div>
               </div>
               {/* .kpi-hero-value defaults to 32px, sized for the 5-column desktop

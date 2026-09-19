@@ -1343,11 +1343,6 @@ function KpiHero({ label, value, sub, color, progress, icon }: {
 }) {
   return (
     <div className="kpi-hero stagger-children">
-      <div style={{ display: "flex", gap: "6px", marginBottom: "12px" }}>
-        <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: color, boxShadow: "var(--shadow-xs)" }} />
-        <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: color, opacity: 0.5, boxShadow: "var(--shadow-xs)" }} />
-        <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: color, opacity: 0.3, boxShadow: "var(--shadow-xs)" }} />
-      </div>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         {/* minWidth 0 — иначе «26 526 115 сум» не переносился и уезжал под кольцо со значком. */}
         <div style={{ flex: 1, minWidth: 0 }}>

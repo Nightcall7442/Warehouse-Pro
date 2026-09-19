@@ -23,6 +23,35 @@ describe("боковое меню", () => {
   });
 });
 
+describe("подпись референса и плитки", () => {
+  it("три точки — одна на страницу, у заголовка; на плитках их нет", () => {
+    const dash = read("pages/Dashboard.tsx");
+    expect(dash.match(/<CardDots \/>/g)?.length).toBe(1);
+    expect(read("pages/AgentKpi.tsx")).not.toContain('borderRadius: "50%", background: color, opacity: 0.5');
+    expect(read("components/DashboardLayout.tsx")).not.toMatch(/kpi-hero stagger-children[^\n]*\n\s*<CardDots/);
+  });
+
+  it("значок плитки — мягкий круг, цвет в глифе, а не заливка (один язык со страницей KPI)", () => {
+    const css = read("index.css");
+    const rule = css.slice(css.indexOf(".kpi-hero-icon {"), css.indexOf("}", css.indexOf(".kpi-hero-icon {")));
+    expect(rule).toContain("border-radius: 50%");
+    expect(rule).toContain("box-shadow: var(--shadow-raised)");
+    expect(read("components/DashboardLayout.tsx")).toContain('style={{ color: kpiAccent(gradient) }}');
+    expect(read("pages/Warehouse.tsx")).toContain('style={{ color: kpiAccent(k.gradient) }}');
+  });
+
+  it("версия на входе — та же, что у сборки, не число из головы", () => {
+    const auth = read("components/auth/AuthShell.tsx");
+    expect(auth).not.toContain("v2.5.0");
+    expect(auth).toContain("v{APP_VERSION}");
+    expect(read("../api/boot.ts")).toContain('import { APP_VERSION as SHARED_APP_VERSION } from "@contracts/constants";');
+  });
+
+  it("«Заказы»: счётчик под заголовком — за период, чтобы не спорить с чипом «Всего»", () => {
+    expect(read("pages/Orders.tsx")).toContain('{data.total} {t("за период", "davr uchun")}');
+  });
+});
+
 describe("числа и подписи", () => {
   it("товары: «↘ 100 %» у низкого остатка снято; масса «1 кг = 1 кг» не показывается", () => {
     expect(read("pages/Products.tsx")).not.toContain("delta={lowStockCount > 0 ? -100 : 0}");

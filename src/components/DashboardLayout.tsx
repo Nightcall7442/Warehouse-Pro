@@ -1,5 +1,6 @@
 import { memo } from "react";
 import { useTranslate } from "@/i18n";
+import { kpiAccent } from "@/lib/kpi-accent";
 
 /* ─── Three colored dots — reference signature ─── */
 export const CardDots = memo(function CardDots({ style }: { style?: React.CSSProperties }) {
@@ -31,7 +32,10 @@ export const SectionTitle = memo(function SectionTitle({ title, subtitle }: { ti
   );
 });
 
-/* ─── KPI Card with icon ─── */
+/* ─── KPI Card with icon ───
+   Значок — в мягком круге, как кольцо на KPI агентов; цвет живёт в глифе, а
+   не заливкой: шесть насыщенных квадратов в ряд перекрикивали числа, и на
+   соседних экранах (склад, товары, пользователи против KPI) было два языка. */
 export const KpiCard = memo(function KpiCard({ label, value, icon, gradient, children, onClick }: {
   label: string; value: string | number; icon?: React.ReactNode; gradient?: string; children?: React.ReactNode; onClick?: () => void;
 }) {
@@ -39,7 +43,7 @@ export const KpiCard = memo(function KpiCard({ label, value, icon, gradient, chi
     <Card onClick={onClick} style={onClick ? { cursor: "pointer" } : undefined}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "14px" }}>
         <span className="kpi-hero-label">{label}</span>
-        {icon && <div className="kpi-hero-icon" style={{ background: gradient ?? "var(--color-primary-subtle, #e8edfd)" }}>{icon}</div>}
+        {icon && <div className="kpi-hero-icon" style={{ color: kpiAccent(gradient) }}>{icon}</div>}
       </div>
       <div className="kpi-hero-value">{value}</div>
       {children}
