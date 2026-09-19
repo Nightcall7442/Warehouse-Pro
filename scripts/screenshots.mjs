@@ -98,8 +98,9 @@ const WEB_SCENARIOS = {
     */
     { name: "orders", path: "/orders", do: [["click", "text=/^(Этот месяц|Bu oy)$/"], ["wait", 1200]], after: [],
       marks: [["summary", T.pending], ["search", "ph=/Поиск заказов|Buyurtma/"], ["lists", T.lists], ["new", T.newOrder], ["status", "css=table tbody tr [role=combobox] >> nth=0"], ["complete", "text=/^(Выполнен|Bajarildi)$/ >> nth=0"]] },
-    { name: "order-panel", path: "/orders", do: [["click", "css=table tbody tr td >> nth=1"], ["wait", 1500]],
-      marks: [["status", "css=[role=dialog] [role=combobox] >> nth=0"], ["tabs", "text=/^(Детали|Tafsilotlar)$/"], ["sum", "text=/Сумма заказа|Buyurtma summasi/"]] },
+    // Карточка заказа — страница /orders/:id (панель справа снята 18.09.2026); имя сценария оставлено ради книги.
+    { name: "order-panel", path: "/orders", do: [["click", "css=table tbody tr td >> nth=1"], ["wait", 1800]],
+      marks: [["status", "testid=order-status"], ["docs", "testid=order-print"], ["money", "testid=order-money"], ["courier", "testid=order-courier"], ["debt", "text=/Долг:|Qarz:/ >> nth=0"]] },
     { name: "quick-order", path: "/orders", do: [["click", T.newOrder], ["wait", 1200]],
       marks: [["shop", "css=[role=dialog] input >> nth=0"]] },
     { name: "loading-list-create", path: "/orders",
@@ -122,9 +123,7 @@ const WEB_SCENARIOS = {
     { name: "shops", path: "/shops", marks: [["search", "ph=/Название|Nomi|Поиск|Qidir/"]] },
     { name: "barcode", path: "/barcode" },
     /* ── вторая волна: вкладки панели заказа, завершение, детали ───────── */
-    { name: "order-history", path: "/orders", do: [["click", T.openOrder], ["wait", 1500], ["click", "role=tab:/^(История|Tarix)$/"], ["wait", 900]] },
-    { name: "order-documents", path: "/orders", do: [["click", T.openOrder], ["wait", 1500], ["click", "role=tab:/^(Документы|Hujjatlar)$/"], ["wait", 900]] },
-    { name: "order-payments", path: "/orders", do: [["click", T.openOrder], ["wait", 1500], ["click", "role=tab:/^(Оплаты|To'lovlar)$/"], ["wait", 900]] },
+    { name: "order-documents", path: "/orders", do: [["click", T.openOrder], ["wait", 1800], ["click", "testid=order-print"], ["wait", 700]] },
     { name: "order-complete", path: "/orders", do: [["click", "text=/^(Этот месяц|Bu oy)$/"], ["wait", 1200], ["click", "text=/^(Выполнен|Bajarildi)$/ >> nth=0"], ["wait", 1200]],
       marks: [["submit", "role=button:/Завершить заказ|Buyurtmani tugatish/"]] },
     { name: "arrival-detail", path: "/arrivals", do: [["click", "css=table tbody tr >> nth=0"], ["wait", 1800]], marks: [["labels", "testid=arrival-print-labels"]] },
@@ -162,6 +161,7 @@ const WEB_SCENARIOS = {
     { name: "salaries", path: "/salaries", marks: [["payAll", "text=/Выдать всем|Hammaga berish/ >> nth=0"]] },
     { name: "users", path: "/users" },
     { name: "audit-log", path: "/audit-log" },
+    { name: "control", path: "/control", marks: [["money", "text=/^(Наличные на руках|Qo'ldagi naqd pul)$/"], ["risk", "text=/^(Сотрудники по индексу риска|Xodimlar xavf indeksi bo'yicha)$/"], ["disputes", "text=/^(Спорных доставок|Nizoli yetkazishlar)$/ >> nth=0"]] },
     { name: "settings", path: "/settings" },
     { name: "billing", path: "/billing" },
     { name: "notifications", path: "/notifications" },
@@ -171,6 +171,7 @@ const WEB_SCENARIOS = {
     { name: "salaries-payouts", path: "/salaries", do: [["click", "testid=salaries-tab-payouts"], ["wait", 1200]], after: [] },
     { name: "users-invite", path: "/users", do: [["click", "role=button:/^(Создать|Yaratish)$/"], ["wait", 1000]] },
     { name: "settings-company", path: "/settings?section=company" },
+    { name: "settings-invoices", path: "/settings?section=invoices", marks: [["templates", "testid=invoice-template-compact"], ["toggles", "testid=invoice-showShopPhone"], ["preview", "testid=invoice-preview"]] },
     { name: "settings-branding", path: "/settings?section=branding" },
     { name: "settings-warehouses", path: "/settings?section=warehouses" },
     { name: "settings-prices", path: "/settings?section=prices" },

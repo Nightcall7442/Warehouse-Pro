@@ -395,7 +395,7 @@ export default function OrderDetail() {
           </div>
           {isOperatorOrCeo && !order.deletedAt ? (
             <Select value={order.status} onValueChange={handleStatusChange}>
-              <SelectTrigger className="h-8 text-xs rounded-full w-auto px-3"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="h-8 text-xs rounded-full w-auto px-3" data-testid="order-status"><SelectValue /></SelectTrigger>
               <SelectContent>
                 {Object.entries(ORDER_STATUS_LABEL).map(([key, labels]) => (
                   <SelectItem key={key} value={key} className="text-xs">{lang === "uz" ? labels.uz : labels.ru}</SelectItem>
@@ -420,7 +420,7 @@ export default function OrderDetail() {
           {!order.deletedAt && <OneCExport orderId={order.id} orderNumber={order.orderNumber} />}
           <button onClick={handleExport} className="neo-btn tap text-sm"><FileDown size={15}/> Excel</button>
           <div className="relative">
-            <button onClick={() => setPrintMenu(v => !v)} className="neo-btn tap text-sm">
+            <button onClick={() => setPrintMenu(v => !v)} className="neo-btn tap text-sm" data-testid="order-print">
               <Printer size={15}/> {lang === "uz" ? "Chop etish" : "Печать"} <ChevronDown size={13}/>
             </button>
             {printMenu && (
@@ -716,7 +716,7 @@ export default function OrderDetail() {
 
             {/* Курьера назначают, пока заказ открыт, — как на сервере: после сборки в лист (статус «отгружен») заказ как раз и отдают курьеру. */}
             {isOperatorOrCeo && OPEN_STATUSES.includes(order.status) && (
-              <div className="neo-card p-4">
+              <div className="neo-card p-4" data-testid="order-courier">
                 <p className="font-label text-secondary text-xs tracking-wider mb-3 flex items-center gap-2 uppercase"><Truck size={14}/> {lang === "uz" ? "Kuryer" : "Курьер"}</p>
                 <PremiumSelect
                   value={order.courierId ? String(order.courierId) : ""}

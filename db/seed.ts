@@ -86,6 +86,9 @@ async function seed() {
     companyBank: "\"Капитал Банк\" Чирчиқ филиали",
     companyBankAccount: "20206000800123456789",
     companyMfo: "00742",
+    // Контроль включён: на снимках для справки страница «Контроль» должна
+    // показывать индекс риска и слово магазина, а не «включите в Настройках».
+    controlEnabled: true,
   });
 
   await db.insert(schema.subscriptions).values({
@@ -545,6 +548,11 @@ async function seed() {
       courierId,
       deliveryStatus: dStatus,
       deliveredAt: dStatus === "delivered" ? new Date(createdAt.getTime() + 3600000 * (2 + Math.floor(rnd() * 6))) : null,
+      // Слово магазина (контроль): каждая третья доставка подтверждена по QR
+      // из чека, одна из тринадцати — оспорена с заметкой.
+      shopConfirmedAt: dStatus === "delivered" && i % 3 === 0 ? new Date(createdAt.getTime() + 3600000 * 9) : null,
+      shopDisputedAt: dStatus === "delivered" && i % 13 === 5 ? new Date(createdAt.getTime() + 3600000 * 10) : null,
+      shopDisputeNote: dStatus === "delivered" && i % 13 === 5 ? "Не хватает двух ящиков воды, накладная на 12" : null,
       createdAt,
       updatedAt: createdAt,
       notes: i % 11 === 0 ? "Срочный заказ" : null,
