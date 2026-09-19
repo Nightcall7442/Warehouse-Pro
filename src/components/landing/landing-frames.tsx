@@ -287,6 +287,51 @@ export function Stage({ frame, card, caption, flip = false, className = "" }: {
   );
 }
 
+/* ── Монумент: одно число главы ────────────────────────────────────────────
+   «Монументальный реестр», глава 3 (20.09.2026): иерархия масштабом, а не
+   жирностью — одно огромное число (или цепочка чисел со стрелками) и
+   булавочная моно-подпись под каждым, ничего среднего. Число считается от
+   нуля при появлении (data-count, lib/landing-motion). Последнее звено
+   цепочки — латунью: это то, ради чего глава.                               */
+export function Monument({ parts, note, dark = false, className = "" }: {
+  parts: Array<{ value: number; label: string; suffix?: string; brass?: boolean }>;
+  /** Подпись-метка под числами: «демо-данные · …». */
+  note?: string;
+  dark?: boolean;
+  className?: string;
+}) {
+  const ink = dark ? LX.paperOnInk : LX.ink;
+  const brass = dark ? LX.brassOnNight : LX.brass;
+  const faint = dark ? LX.softOnInk : LX.inkFaint;
+  return (
+    <div className={className}>
+      <div className="flex flex-wrap items-center gap-x-6 gap-y-6 md:gap-x-10">
+        {parts.map((p, i) => (
+          <div key={p.label} className="flex items-center gap-x-6 md:gap-x-10">
+            {/* Стрелка — на оптической середине цифр (блок центрирован вместе с подписью, поэтому поднята на её высоту); на телефоне числа стоят столбиком без стрелок. */}
+            {i > 0 && (
+              <span aria-hidden="true" className="relative hidden md:block w-16 h-px mb-[26px]" style={{ background: dark ? LX.softOnInk : LX.ruleStrong }}>
+                <span className="absolute right-0 top-1/2 w-2.5 h-2.5 -translate-y-1/2 rotate-45 border-t border-r" style={{ borderColor: dark ? LX.softOnInk : LX.ruleStrong }} />
+              </span>
+            )}
+            <div>
+              <div
+                className="font-extrabold leading-none"
+                style={{ fontSize: "clamp(3rem, 6.4vw, 6.5rem)", letterSpacing: "-0.045em", color: p.brass ? brass : ink, fontVariantNumeric: "tabular-nums" }}
+              >
+                <span data-count={p.value}>{p.value.toLocaleString("ru-RU").replace(/[\u00a0\u202f]/g, " ")}</span>
+                {p.suffix && <span className="ml-2 font-medium" style={{ fontSize: "0.32em", letterSpacing: "0", color: faint }}>{p.suffix}</span>}
+              </div>
+              <div className="mt-3 text-[11px] uppercase" style={{ ...MONO, fontWeight: 500, letterSpacing: "0.1em", color: p.brass ? (dark ? LX.brassOnNight : LX.brassText) : faint }}>{p.label}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+      {note && <p className="mt-5 text-[11px]" style={{ ...MONO, color: faint, letterSpacing: "0.02em" }}>{note}</p>}
+    </div>
+  );
+}
+
 /* ── Подпись «демо-данные» ───────────────────────────────────────────────── */
 export function DemoTag({ dark = false, children }: { dark?: boolean; children: ReactNode }) {
   return (
