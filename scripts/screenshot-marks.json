@@ -615,24 +615,6 @@
      "role=button:/^(В работу|Jarayonga)$/ >> nth=0"
     ]
    ],
-   "order-panel": [
-    [
-     "adjustments",
-     "text=/^(Корректировки|Tuzatmalar)$/"
-    ],
-    [
-     "payments",
-     "text=/^(Оплаты|To'lovlar)$/"
-    ],
-    [
-     "courier",
-     "text=/^(КУРЬЕР|KURYER)$/"
-    ],
-    [
-     "debt",
-     "text=/Задолженность магазина|Do'kon qarzi/"
-    ]
-   ],
    "quick-order": [
     [
      "products",

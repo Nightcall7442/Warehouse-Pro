@@ -26,7 +26,7 @@ const extra = JSON.parse(read("scripts/screenshot-marks.json")) as Record<string
 type Fig = { kind: string; role: string; screen: string; callouts: string[]; line: number };
 const figs: Fig[] = [];
 {
-  const lines = content.split("\n");
+  const lines = content.split(/\r?\n/); // CRLF у Windows-checkout не должен ломать разбор выносок
   const rx = /"fig": \("(\w+)", "(\w+)", "([\w-]+)"\)/;
   for (let i = 0; i < lines.length; i++) {
     const m = rx.exec(lines[i]);
@@ -94,7 +94,8 @@ describe("фигуры руководства обеспечены сценар�
       const html = read(`docs/manual/manual.${lang}.html`);
       const missing: string[] = [];
       for (const f of figs) {
-        const img = `img/${f.kind}-${lang}-${f.role}-${f.screen}.webp`;
+        // Имя файла несёт набор выносок: один снимок в разных главах — разные картинки.
+        const img = `img/${f.kind}-${lang}-${f.role}-${f.screen}${f.callouts.length ? "-" + f.callouts.join("-") : ""}.webp`;
         if (!html.includes(`src='${img}'`) || !existsSync(path.join(ROOT, "docs/manual", img))) missing.push(img);
       }
       const uniq = [...new Set(missing)];
