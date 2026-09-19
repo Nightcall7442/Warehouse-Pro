@@ -104,8 +104,8 @@ export default function FilmScroll() {
   }
 
   return (
-    <section ref={section} id="film" data-film aria-label={tr("Один день товара", "Tovarning bir kuni")} style={{ background: LX.night, height: `${LENGTH_VH}vh` }}>
-      <div className="sticky top-0 h-screen overflow-hidden">
+    <section ref={section} id="film" data-film aria-label={tr("Один день товара", "Tovarning bir kuni")} style={{ background: LX.night, height: `calc(${LENGTH_VH}vh / var(--lx-zoom, 1))` }}>
+      <div className="sticky top-0 overflow-hidden" style={{ height: "calc(100vh / var(--lx-zoom, 1))" }}>
         {/* Кадр: въезжает листом с полями и скруглением, раскрывается на весь экран. */}
         <div ref={frame} className="absolute inset-0 overflow-hidden" style={{ willChange: "transform", transformOrigin: "50% 50%" }}>
           <SequenceCanvas
