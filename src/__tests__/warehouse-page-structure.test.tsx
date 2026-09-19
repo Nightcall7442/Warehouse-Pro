@@ -184,11 +184,12 @@ describe("раздел «Остатки»", () => {
     stub.state.rows.push({ ...row(6, "Мука", "0", "30"), currentStock: "50", reserved: "50" });
     mount();
     fireEvent.click(screen.getByTestId("stock-low-only"));
-    const names = within(screen.getByRole("table")).getAllByRole("row").slice(1).map(r => r.cells[0].textContent);
+    const rows = () => within(screen.getByRole("table")).getAllByRole("row") as HTMLTableRowElement[];
+    const names = rows().slice(1).map(r => r.cells[0].textContent);
     expect(names).toEqual(["Баранина", "Вода", "Сахар", "Мука"]);
     // Порог «—», когда не задан, а не «0».
     fireEvent.click(screen.getByTestId("stock-low-only"));
-    const salt = within(screen.getByRole("table")).getAllByRole("row").find(r => r.textContent?.includes("Соль"))!;
+    const salt = rows().find(r => r.textContent?.includes("Соль"))!;
     expect(salt.cells[7].textContent).toBe("—");
   });
 
