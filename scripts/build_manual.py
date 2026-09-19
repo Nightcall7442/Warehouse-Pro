@@ -10,7 +10,7 @@ docs/manual/img/*.webp с нарисованными цифрами выносо
 
 Запуск: SHOTS=<распакованный артефакт> python scripts/build_manual.py
 """
-import os, sys, json, html, base64, hashlib
+import os, sys, json, html, base64, hashlib, re
 from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont
 
@@ -43,7 +43,12 @@ def render_image(kind, lang, role, screen, callouts):
     src = SHOTS / kind / lang / role / f"{screen}.png"
     if not src.exists():
         return None, []
-    rel = Path("img") / f"{kind}-{lang}-{role}-{screen}.webp"
+    # Один снимок может стоять в нескольких главах с разными выносками
+    # (карточка заказа: пять цифр у оператора, одна — в «Расчёте»). Имя файла
+    # несёт набор выносок, иначе последняя фигура затирала бы картинку первой
+    # и под пятью подписями оставалась одна цифра (20.09.2026).
+    suffix = ("-" + "-".join(key for key, _ in callouts)) if callouts else ""
+    rel = Path("img") / f"{kind}-{lang}-{role}-{screen}{suffix}.webp"
     dst = OUT / rel
     dst.parent.mkdir(parents=True, exist_ok=True)
     entry = shot_entry(kind, lang, role, screen) or {}
@@ -568,5 +573,13 @@ if __name__ == "__main__":
     for lang in LANGS:
         build(lang)
     build_reader()
+    # Картинки, на которые книга больше не ссылается (сменился набор выносок,
+    # ушла фигура), — убрать: иначе они копятся в git без дела.
+    used = set()
+    for lang in LANGS:
+        used.update(re.findall(r"src='img/([^']+)'", (OUT / f"manual.{lang}.html").read_text(encoding="utf-8")))
+    stale = [f for f in IMG.glob("*.webp") if f.name not in used] if IMG.exists() else []
+    for f in stale:
+        f.unlink()
     n = len(list(IMG.glob("*.webp"))) if IMG.exists() else 0
-    print(f"{OUT}: manual.ru.html, manual.uz.html, index.html, images {n}")
+    print(f"{OUT}: manual.ru.html, manual.uz.html, index.html, images {n}" + (f", убрано устаревших {len(stale)}" if stale else ""))
