@@ -699,7 +699,7 @@ function OperatorOrders() {
             {t("Управление заказами и отслеживание статусов", "Buyurtmalarni boshqarish va holatni kuzatish")}
             {data && (
               <span style={{ marginLeft: "8px", fontSize: "12px", color: COLORS.textTertiary }}>
-                {data.total} {t("всего", "jami")}
+                {data.total} {t("за период", "davr uchun")}
               </span>
             )}
           </p>

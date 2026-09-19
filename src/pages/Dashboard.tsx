@@ -22,6 +22,7 @@ type Range = "7d" | "30d" | "month";
 const CHART_COLORS = ["var(--color-primary)", "var(--color-success)", "var(--color-warning)", "var(--color-danger)", "#7a6db5", "#3a9a8a", "#c06080", "#c49530"];
 
 /* ── Decorative dots ─────────────────────────────────────────────────────── */
+/** Три точки — подпись референса. Одна на страницу, у заголовка; на плитках это был шум. */
 const CardDots = memo(function CardDots() {
   return (
     <div style={{ display: "flex", gap: "6px", marginBottom: "12px" }}>
@@ -183,7 +184,6 @@ export default function Dashboard() {
       {/* Header */}
       <div className="stagger-children" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "12px" }}>
         <div>
-          <CardDots />
           <h1 style={{ fontFamily: "'Manrope', sans-serif", fontSize: "26px", fontWeight: 700, color: "var(--color-text-primary, #2b2a28)", letterSpacing: "-0.025em", margin: 0 }}>
             {t("Главная", "Bosh sahifa")}
           </h1>
@@ -209,7 +209,6 @@ export default function Dashboard() {
       <div className="stagger-children dashboard-kpi-grid">
         {/* Revenue */}
         <div className="kpi-hero" style={{ cursor: "pointer" }} onClick={() => navigate("/reports")}>
-          <CardDots />
           <p className="kpi-hero-label">{t("ВЫРУЧКА · СЕГОДНЯ", "TUSHUM · BUGUN")}</p>
           <p className="kpi-hero-value" style={{ fontSize: "28px", marginTop: "8px" }}>{fmt(kpis.todayRevenue, true)}</p>
           {revenueDelta !== 0 && (
@@ -228,7 +227,6 @@ export default function Dashboard() {
 
         {/* Orders */}
         <div className="kpi-hero" style={{ cursor: "pointer" }} onClick={() => navigate("/orders")}>
-          <CardDots />
           <p className="kpi-hero-label">{t("ЗАКАЗЫ · СЕГОДНЯ", "BUYURTMALAR · BUGUN")}</p>
           <p className="kpi-hero-value" style={{ fontSize: "28px", marginTop: "8px" }}>{kpis.todayOrders}</p>
           {/* Оформили — одно, довезли — другое; второе директор раньше узнавал по звонку. */}
@@ -261,8 +259,7 @@ export default function Dashboard() {
         {/* Gross Margin */}
         <div className="kpi-hero" style={{ cursor: "pointer", display: "flex", alignItems: "center", gap: "16px" }} onClick={() => navigate("/reports")}>
           <div style={{ flex: 1 }}>
-            <CardDots />
-            <p className="kpi-hero-label">{t("ВАЛОВАЯ ПРИБЫЛЬ", "SOF FOYDA")}</p>
+              <p className="kpi-hero-label">{t("ВАЛОВАЯ ПРИБЫЛЬ", "SOF FOYDA")}</p>
             <p className="kpi-hero-value" style={{ fontSize: "28px", marginTop: "8px" }}>{(kpis.grossMargin ?? 0).toFixed(1)}%</p>
           </div>
           <div className="neo-progress-ring" style={{ width: "80px", height: "80px" }}>

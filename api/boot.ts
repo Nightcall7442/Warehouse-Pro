@@ -51,10 +51,11 @@ import { cronDenied } from "./http/cron-guard";
 import authRoutes from "./http/auth";
 import trpcAdapter from "./http/trpc-adapter";
 
-const APP_VERSION = "1.0.0";
+const APP_VERSION = SHARED_APP_VERSION;
 
 // Разбор x-client-version — в lib/client-version.ts: нужен и здесь, и ручке фото.
 import { clientVersionOf } from "./lib/client-version";
+import { APP_VERSION as SHARED_APP_VERSION } from "@contracts/constants";
 export { clientVersionOf };
 
 

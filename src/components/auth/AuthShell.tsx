@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { AppBrand } from "@/components/brand/AppBrand";
 import { recallBrand } from "@/lib/remembered-brand";
 import { useLang } from "@/i18n";
+import { APP_VERSION } from "@contracts/constants";
 
 /**
  * Разворот входа: тёмная половина слева, карточка справа.
@@ -104,7 +105,7 @@ export function AuthShell({ title, subtitle, children, footer }: {
           <span>{brand?.footerText?.trim() || `© ${new Date().getFullYear()} Warehouse Pro`}</span>
           <span style={{ display: "flex", alignItems: "center", gap: "6px" }}>
             <span style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--color-success)" }} />
-            v2.5.0
+            v{APP_VERSION}
           </span>
         </div>
       </div>

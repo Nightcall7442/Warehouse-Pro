@@ -791,11 +791,21 @@
     font-variant-numeric: tabular-nums;
   }
 
+  /* Значок метрики: мягкий круг цвета поверхности, оттенок метрики — в глифе.
+     Раньше это была заливка градиентом (синий/оранжевый/зелёный квадраты) —
+     другой язык, чем кольца на KPI агентов; call sites ещё передают lucide
+     color="#fff", правило ниже перекрывает. */
   .kpi-hero-icon {
     width: 48px; height: 48px;
-    border-radius: 14px;
+    border-radius: 50%;
     display: flex; align-items: center; justify-content: center;
-    box-shadow: var(--shadow-sm);
+    background: var(--color-surface-raised);
+    box-shadow: var(--shadow-raised);
+    color: var(--color-primary);
+  }
+  .kpi-hero-icon svg {
+    stroke: currentColor;
+    color: currentColor;
   }
 
   /* The hue identifies the metric, so it lives in the glyph rather than in a

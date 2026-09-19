@@ -3,6 +3,9 @@ import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Legend,
 } from "recharts";
+
+/** «2026-08-21» на оси читалось как код; человеку — «21.08». */
+const shortDate = (iso: string) => (/^\d{4}-\d{2}-\d{2}/.test(iso) ? `${iso.slice(8, 10)}.${iso.slice(5, 7)}` : iso);
 import type { inferRouterOutputs } from "@trpc/server";
 import { Users, ClipboardList, TrendingUp, Activity, Package, Store, Award, Receipt, Wallet } from "lucide-react";
 import { ProgressRing } from "@/components/ProgressRing";
@@ -194,9 +197,9 @@ export const OverviewTab = memo(function OverviewTab({
           <ResponsiveContainer width="100%" height={260}>
             <LineChart data={chart ?? []}>
               <CartesianGrid strokeDasharray="3 3" stroke={COLORS.border} />
-              <XAxis dataKey="date" tick={{ fill: COLORS.textTertiary, fontSize: 11, fontFamily: F.body }} axisLine={{ stroke: COLORS.border }} tickLine={false} />
+              <XAxis dataKey="date" tickFormatter={shortDate} tick={{ fill: COLORS.textTertiary, fontSize: 11, fontFamily: F.body }} axisLine={{ stroke: COLORS.border }} tickLine={false} />
               <YAxis tick={{ fill: COLORS.textTertiary, fontSize: 11, fontFamily: F.body }} axisLine={false} tickLine={false} />
-              <Tooltip contentStyle={{ background: COLORS.surface, border: "none", borderRadius: 12, boxShadow: "0 4px 24px rgba(0,0,0,0.08)" }} />
+              <Tooltip labelFormatter={(v) => shortDate(String(v))} contentStyle={{ background: COLORS.surface, border: "none", borderRadius: 12, boxShadow: "0 4px 24px rgba(0,0,0,0.08)" }} />
               <Legend wrapperStyle={{ fontSize: 12 }} />
               <Line type="monotone" dataKey="visits" stroke="var(--color-primary)" strokeWidth={2.5} dot={false} name={t("Визиты", "Tashriflar")} />
               <Line type="monotone" dataKey="orders" stroke="var(--color-success)" strokeWidth={2.5} dot={false} name={t("Заказы", "Buyurtmalar")} />
@@ -256,7 +259,8 @@ export const OverviewTab = memo(function OverviewTab({
               // «шт» здесь стояло жёстко, хотя единица у каждого товара своя и
               // topProducts её вовсе не отдаёт. Единицы нет — значит и писать
               // нечего: число объёма говорит само за себя.
-              hint: `${fmt(p.totalQty)} ${t("продано", "sotildi")}`,
+              // Количество, не деньги: fmt приписывал «сум» — «88 сум продано».
+              hint: `${Number(p.totalQty).toLocaleString("ru-RU", { maximumFractionDigits: 1 })} ${t("продано", "sotildi")}`,
             }))}
           />
           )}

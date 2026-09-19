@@ -94,7 +94,8 @@ export const ProductCard = memo(function ProductCard({ p, onClick, onDelete, sel
               <Boxes size={11} />1 {String(p.packLabel || t("упаковка", "qadoq"))} = {formatQty(packSize)} {u}
             </span>
           )}
-          {Number(p.unitWeight) > 0 && (
+          {/* «1 кг = 1 кг» ничего не говорит: масса показывается, только когда единица — не килограмм или вес не единичный. */}
+          {Number(p.unitWeight) > 0 && !(p.unit === "kg" && Number(p.unitWeight) === 1) && (
             <span style={{ display: "inline-flex", alignItems: "center", gap: "4px", fontSize: "11.5px", color: COLORS.textTertiary, fontVariantNumeric: "tabular-nums" }}>
               <Scale size={11} />1 {u} = {formatQty(p.unitWeight as number)} {t("кг", "kg")}
             </span>
@@ -105,11 +106,11 @@ export const ProductCard = memo(function ProductCard({ p, onClick, onDelete, sel
       {/* ИТОГ — один правый край */}
       <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "4px", flexShrink: 0 }}>
         <p style={{ fontFamily: F.display, fontSize: "18px", fontWeight: 700, color: COLORS.primaryText, margin: 0, whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }}>
-          {fmt(String(p.unitPrice), { decimals: 2 })}
+          {fmt(String(p.unitPrice), { decimals: Number(p.unitPrice) % 1 ? 2 : 0 })}
         </p>
         {Number(p.costPrice) > 0 && (
           <p style={{ fontSize: "11.5px", color: COLORS.textTertiary, margin: 0, whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }}>
-            {t("себест.", "tannarx")} {fmt(String(p.costPrice), { decimals: 2 })}
+            {t("себест.", "tannarx")} {fmt(String(p.costPrice), { decimals: Number(p.costPrice) % 1 ? 2 : 0 })}
           </p>
         )}
         {empty || low ? (

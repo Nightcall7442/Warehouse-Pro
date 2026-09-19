@@ -243,7 +243,7 @@ export default function Products() {
         <KpiCard
           label={t("НИЗКИЙ ОСТАТОК", "KAM QOLDIQ")}
           value={String(lowStockCount)}
-          delta={lowStockCount > 0 ? -100 : 0}
+          delta={null}
           icon={<AlertTriangle size={20} color="#fff" />}
           gradient="linear-gradient(135deg, #fb923c, #f97316)"
           delay={0.1}

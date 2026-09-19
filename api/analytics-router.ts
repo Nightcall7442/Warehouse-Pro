@@ -462,10 +462,16 @@ export const analyticsRouter = createRouter({
       }
 
       // Текущий и прошлый период — тоже разом.
-      const [current, previous] = await Promise.all([
+      const [current, previousRaw] = await Promise.all([
         calcPeriod(from, to),
         input.compareWithPrev ? calcPeriod(prevFrom, prevTo) : Promise.resolve(null),
       ]);
+      // Пустой прошлый период — это «не с чем сравнивать», а не «было ноль»:
+      // с нулём маржа давала «+26.7 п.п.» и «было: 0 сум» под каждым числом,
+      // хотя над ними же написано, что данных за прошлый период нет.
+      const previous = previousRaw && (previousRaw.orderCount > 0 || previousRaw.operatingExpenses > 0 || previousRaw.purchaseExpenses > 0 || previousRaw.payrollExpenses > 0)
+        ? previousRaw
+        : null;
 
       const delta = (curr: number, prev: number | null) => {
         if (prev === null || prev === 0) return null;
