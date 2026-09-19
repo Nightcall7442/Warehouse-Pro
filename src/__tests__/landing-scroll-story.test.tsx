@@ -119,23 +119,35 @@ describe("плёнка из видео (Higgsfield → кадры → прокр
 
   it("манифест film.ts сходится с кадрами на диске: столько же файлов, нумерация без дыр, первый кадр есть", () => {
     for (const [name, f] of Object.entries(FILM)) {
-      const dir = join(ROOT, "public", "landing", "film", name);
-      expect(existsSync(dir), `нет папки кадров ${name}`).toBe(true);
-      const files = readdirSync(dir).filter(x => /^\d{3}\.webp$/.test(x)).sort();
-      expect(files.length, `кадров ${name} на диске не столько, сколько в film.ts`).toBe(f.count);
-      expect(files[0]).toBe("001.webp");
-      expect(files.at(-1)).toBe(`${String(f.count).padStart(3, "0")}.webp`);
+      expect(f.widths.length).toBeGreaterThanOrEqual(2);
+      for (const w of f.widths) {
+        const dir = join(ROOT, "public", "landing", "film", name, `w${w}`);
+        expect(existsSync(dir), `нет папки кадров ${name}/w${w}`).toBe(true);
+        const files = readdirSync(dir).filter(x => /^\d{3}\.webp$/.test(x)).sort();
+        expect(files.length, `кадров ${name}/w${w} на диске не столько, сколько в film.ts`).toBe(f.count);
+        expect(files[0]).toBe("001.webp");
+        expect(files.at(-1)).toBe(`${String(f.count).padStart(3, "0")}.webp`);
+      }
       expect(f.count).toBeGreaterThanOrEqual(24);
+      expect(f.width).toBe(Math.max(...f.widths));
       expect(f.width / f.height).toBeCloseTo(16 / 9, 1);
     }
   });
-  it("сцена: секция в 260vh, кадры из манифеста по порядку, постер — первый кадр, три строки не спрятаны разметкой", async () => {
+  it("сцена: секция в 240vh, кадры из манифеста по порядку и по ширине экрана, постер — первый кадр, три строки не спрятаны разметкой", async () => {
     const { default: FilmScroll } = await import("@/components/landing/FilmScroll");
+    const { pickFilmWidth } = await import("@/components/landing/film");
+    // jsdom: окно 1024 точки → хватает 960? нет — 1920. Телефон 390×3 = 1170 → 1920; 375×2 = 750 → 960.
+    expect(pickFilmWidth([960, 1920], 750)).toBe(960);
+    expect(pickFilmWidth([960, 1920], 1170)).toBe(1920);
+    expect(pickFilmWidth([960, 1920], 5000)).toBe(1920);
     const { container } = render(<LangProvider><FilmScroll /></LangProvider>);
     const section = container.querySelector("#film") as HTMLElement;
-    expect(section.style.height).toBe("260vh");
+    expect(section.style.height).toBe("240vh");
     expect(section.querySelector(".sticky")).toBeTruthy();
-    expect(section.querySelector("img")?.getAttribute("src")).toBe("/landing/film/warehouse/001.webp");
+    expect(section.querySelector("img")?.getAttribute("src")).toMatch(/^\/landing\/film\/warehouse\/w(960|1920)\/001\.webp$/);
+    // Плёнка без затухания между кадрами: два кадра с движением камеры, наложенные полупрозрачно, двоят.
+    expect(read("src/components/landing/FilmScroll.tsx")).toContain("blend={false}");
+    expect(read("src/components/landing/SequenceCanvas.tsx")).toContain("const a = nearest(t < 0.5 ? i : i + 1);");
     const lines = Array.from(section.querySelectorAll("[data-film-line]")) as HTMLElement[];
     expect(lines.length).toBe(3);
     expect(lines.map(l => l.style.opacity).sort()).toEqual(["0", "0", "1"]);
