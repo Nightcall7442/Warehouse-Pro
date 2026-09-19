@@ -26,9 +26,9 @@ const label = (r: Row) => r.kind === "group" ? r.labelKey : r.item.labelKey;
 const groupsOf = (rows: Row[]) => rows.filter((r): r is GroupRow => r.kind === "group");
 
 describe("строки меню", () => {
-  it("директор на складе: девять строк снаружи — Магазины, Настройки, Биллинг и Журнал отдельно (владелец, 19.09); раскрыт только «Склад»", () => {
+  it("директор на складе: девять строк снаружи — Магазины выше Продаж (владелец, 20.09), Настройки, Биллинг и Журнал отдельно (19.09); раскрыт только «Склад»", () => {
     const rows = navRows(NAV_ITEMS.ceo, "/warehouse", undefined);
-    expect(top(rows).map(label)).toEqual(["nav.dashboard", "nav.groupSales", "nav.shops", "nav.warehouse", "nav.groupTeam", "nav.groupFinance", "nav.settings", "nav.billing", "nav.auditLog"]);
+    expect(top(rows).map(label)).toEqual(["nav.dashboard", "nav.shops", "nav.groupSales", "nav.warehouse", "nav.groupTeam", "nav.groupFinance", "nav.settings", "nav.billing", "nav.auditLog"]);
     const groups = groupsOf(rows);
     expect(groups.filter(g => g.open).map(g => g.key)).toEqual(["warehouse"]);
     expect(groups.find(g => g.key === "warehouse")!.active).toBe(true);
@@ -36,9 +36,9 @@ describe("строки меню", () => {
     expect(nested).toEqual([["nav.stock", true], ["nav.arrivals", false], ["nav.products", false]]);
   });
 
-  it("оператор: семь строк — Главная, Продажи, Магазины, Склад, Отчёты, KPI, Настройки", () => {
+  it("оператор: семь строк — Главная, Магазины, Продажи, Склад, Отчёты, KPI, Настройки", () => {
     expect(top(navRows(NAV_ITEMS.operator, "/orders", undefined)).map(label))
-      .toEqual(["nav.dashboard", "nav.groupSales", "nav.shops", "nav.warehouse", "nav.reports", "nav.kpi", "nav.settings"]);
+      .toEqual(["nav.dashboard", "nav.shops", "nav.groupSales", "nav.warehouse", "nav.reports", "nav.kpi", "nav.settings"]);
   });
 
   it("вложенный адрес подсвечивает самый длинный пункт, а не оба: /supervisor/plans — «План визитов», не «Карта»", () => {

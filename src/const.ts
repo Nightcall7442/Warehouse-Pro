@@ -40,12 +40,14 @@ export const NAV_ITEMS: Record<string, NavItem[]> = {
   ],
   // Директор: Главная, четыре группы и четыре пункта, которые владелец велел
   // оставить снаружи (19.09.2026): «Магазины», «Настройки», «Биллинг», «Журнал
-  // действий». «Отчёты склада» пунктом больше нет: это вкладка на «Складе».
+  // действий». «Магазины» — выше «Продаж» (владелец, 20.09.2026: «продажа
+  // внизу должна магазина»). «Отчёты склада» пунктом больше нет: это вкладка
+  // на «Складе».
   ceo: [
     { labelKey: "nav.dashboard",  path: "/",          icon: "LayoutDashboard" },
+    { labelKey: "nav.shops",      path: "/shops",     icon: "Store"           },
     { labelKey: "nav.orders",     path: "/orders",    icon: "ClipboardList",  group: "sales" },
     { labelKey: "nav.returns",    path: "/returns",   icon: "RotateCcw",      group: "sales" },
-    { labelKey: "nav.shops",      path: "/shops",     icon: "Store"           },
     { labelKey: "nav.stock",      path: "/warehouse", icon: "Warehouse",      group: "warehouse" },
     { labelKey: "nav.arrivals",   path: "/arrivals",  icon: "Truck",          group: "warehouse" },
     { labelKey: "nav.products",   path: "/products",  icon: "Package",        group: "warehouse" },
@@ -68,13 +70,13 @@ export const NAV_ITEMS: Record<string, NavItem[]> = {
     { labelKey: "nav.billing",    path: "/billing",   icon: "CreditCard"      },
     { labelKey: "nav.auditLog",   path: "/audit-log",  icon: "Shield"         },
   ],
-  // Оператор: Главная, две группы, Магазины, Отчёты, KPI, Настройки. Группа
+  // Оператор: Главная, Магазины, две группы, Отчёты, KPI, Настройки. Группа
   // «Отчёты» с единственным вложенным «Отчёты» звалась бы дважды одним словом.
   operator: [
     { labelKey: "nav.dashboard",  path: "/",          icon: "LayoutDashboard" },
+    { labelKey: "nav.shops",      path: "/shops",     icon: "Store"           },
     { labelKey: "nav.orders",     path: "/orders",    icon: "ClipboardList",  group: "sales" },
     { labelKey: "nav.returns",    path: "/returns",   icon: "RotateCcw",      group: "sales" },
-    { labelKey: "nav.shops",      path: "/shops",     icon: "Store"           },
     { labelKey: "nav.stock",      path: "/warehouse", icon: "Warehouse",      group: "warehouse" },
     { labelKey: "nav.arrivals",   path: "/arrivals",  icon: "Truck",          group: "warehouse" },
     { labelKey: "nav.products",   path: "/products",  icon: "Package",        group: "warehouse" },
