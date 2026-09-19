@@ -231,8 +231,8 @@ READER_LBL = {
          "of": "/", "nothing": "Hech narsa topilmadi", "menu": "Menyu", "toTop": "Yuqoriga", "doc": "qo'llanma"},
 }
 GRP = {
-  "ru": {"grp:rollout": "Внедрение", "grp:roles": "Рабочий день роли", "grp:money": "Как система считает", "grp:help": "Помощь"},
-  "uz": {"grp:rollout": "Joriy etish", "grp:roles": "Rolning ish kuni", "grp:money": "Tizim qanday hisoblaydi", "grp:help": "Yordam"},
+  "ru": {"grp:rollout": "Внедрение", "grp:roles": "Рабочий день роли", "grp:howto": "Как сделать", "grp:money": "Как система считает", "grp:help": "Помощь"},
+  "uz": {"grp:rollout": "Joriy etish", "grp:roles": "Rolning ish kuni", "grp:howto": "Qanday qilish", "grp:money": "Tizim qanday hisoblaydi", "grp:help": "Yordam"},
 }
 
 READER_CSS = """
@@ -498,6 +498,7 @@ READER_JS = r"""
 def group_of(cid):
     if cid == "rollout": return "grp:rollout"
     if cid == "roles" or cid.startswith("role-"): return "grp:roles"
+    if cid == "howto" or cid.startswith("howto-"): return "grp:howto"
     if cid == "money": return "grp:money"
     if cid in ("faq", "glossary"): return "grp:help"
     return None
