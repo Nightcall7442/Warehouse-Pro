@@ -126,11 +126,55 @@ export function storageUrlPrefixes(): string[] {
   return out;
 }
 
-/** Ключ объекта по ссылке на наше хранилище; чужая ссылка — null. */
+/** Хосты нашего хранилища: адрес входа (S3_ENDPOINT) и публичный домен. */
+function storageHosts(): string[] {
+  const out: string[] = [];
+  for (const u of [env.s3Endpoint, env.s3PublicUrl]) {
+    try { if (u) out.push(new URL(u).hostname); } catch { /* кривой адрес в настройке — не хост */ }
+  }
+  return [...new Set(out)];
+}
+
+/**
+ * Образцы LIKE для ссылок на наше хранилище — всё, чем ссылка могла быть
+ * записана за время жизни настроек, а не только сегодняшний publicUrl:
+ *
+ *   · сегодняшние префиксы (публичный домен и амазоновская форма);
+ *   · любой из наших хостов по https и по http — S3_PUBLIC_URL менялся, и
+ *     ссылка, записанная при прежнем значении (без бакета в пути, по http),
+ *     ушла на экран как «чужая https» и не открылась: владелец второй раз
+ *     за вечер 19.09.2026 показал заглушки вместо товаров;
+ *   · «/<бакет>/» в любом месте — имя бакета своё, с чужими не совпадёт.
+ */
+export function storageUrlPatterns(): string[] {
+  if (!env.s3Bucket) return [];
+  const out = storageUrlPrefixes().map(p => `${p}%`);
+  for (const h of storageHosts()) out.push(`https://${h}/%`, `http://${h}/%`);
+  out.push(`%/${env.s3Bucket}/%`);
+  return [...new Set(out)];
+}
+
+/**
+ * Ключ объекта по ссылке на наше хранилище; чужая ссылка — null.
+ *
+ * Сначала точные префиксы, потом разбор адреса: ключ — всё после «/<бакет>/»,
+ * а если бакета в пути нет, но хост наш, — весь путь (ссылка, записанная,
+ * когда S3_PUBLIC_URL был без бакета).
+ */
 export function storageKeyOf(url: string): string | null {
   for (const prefix of storageUrlPrefixes()) {
     if (url.startsWith(prefix) && url.length > prefix.length) return decodeURIComponent(url.slice(prefix.length).split("?")[0]);
   }
+  if (!env.s3Bucket) return null;
+  let u: URL;
+  try { u = new URL(url); } catch { return null; }
+  if (u.protocol !== "https:" && u.protocol !== "http:") return null;
+  let path: string;
+  try { path = decodeURIComponent(u.pathname); } catch { return null; }
+  const marker = `/${env.s3Bucket}/`;
+  const at = path.indexOf(marker);
+  if (at >= 0) return path.slice(at + marker.length) || null;
+  if (storageHosts().includes(u.hostname)) return path.replace(/^\/+/, "") || null;
   return null;
 }
 

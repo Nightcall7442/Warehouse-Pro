@@ -1,6 +1,6 @@
 import { sql, type SQL } from "drizzle-orm";
 import type { AnyMySqlColumn } from "drizzle-orm/mysql-core";
-import { storageUrlPrefixes } from "./s3";
+import { storageUrlPatterns } from "./s3";
 
 /**
  * Photo reference for list queries.
@@ -51,15 +51,15 @@ export function photoRef(
     видно, а после ночного переноса фото в S3 экран показывал заглушки
     (19.09.2026). Чужая https-ссылка — как есть: её ручка отдать не сможет.
   */
-  // Префиксов не больше двух (свой домен и амазоновская форма) — ветви пишутся
-  // явно, а не sql.join: тесты роутеров подменяют drizzle одной функцией sql.
-  const [p1, p2] = storageUrlPrefixes();
-  const own1 = p1 ? sql`WHEN ${photoCol} LIKE ${p1 + "%"} THEN ${lazy}` : sql``;
-  const own2 = p2 ? sql`WHEN ${photoCol} LIKE ${p2 + "%"} THEN ${lazy}` : sql``;
+  // Ветви — вложением, а не sql.join: тесты роутеров подменяют drizzle одной
+  // функцией sql. Образцы — все формы, какими ссылка на наше хранилище могла
+  // быть записана (storageUrlPatterns), включая http и адрес без бакета.
+  let own = sql``;
+  for (const pattern of storageUrlPatterns()) own = sql`${own} WHEN ${photoCol} LIKE ${pattern} THEN ${lazy}`;
   return sql<string | null>`CASE
     WHEN ${photoCol} IS NULL OR ${photoCol} = '' THEN NULL
     WHEN ${photoCol} LIKE 'data:%' THEN ${lazy}
-    ${own1} ${own2}
+    ${own}
     WHEN ${photoCol} LIKE 'https://%' THEN ${photoCol}
     ELSE NULL
   END`;
