@@ -632,6 +632,21 @@ describe("analytics.pnl: себестоимость считается по те
     expect(res.current.revenue).toBe(14_000_000);
     expect(res.current.cogs).toBe(9_000_000);
   });
+
+  it("пустой прошлый период — «не с чем сравнивать», а не «было ноль» с дельтой маржи +N п.п.", async () => {
+    // Все заказы — в текущей неделе; за прошлую ничего. Раньше previous был
+    // объектом из нулей: маржа получала «+26.7 п.п.», карточки — «было: 0 сум».
+    seedPnl();
+    data.orders[0].deletedAt = null;
+    const { analyticsRouter } = await import("../analytics-router");
+    const res: any = await analyticsRouter.createCaller(ctxFor("ceo")).pnl({
+      from: ymd(day(-7)), to: ymd(day(0)), compareWithPrev: true,
+    });
+    expect(res.previous).toBeNull();
+    expect(res.deltas.grossMarginPct).toBeNull();
+    expect(res.deltas.netMarginPct).toBeNull();
+    expect(res.deltas.revenue).toBeNull();
+  });
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
