@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import { Routes, Route, Navigate, Outlet } from "react-router";
+import { ScrollToTop } from "@/components/ScrollToTop";
 import { useAuth, hadSession } from "@/hooks/useAuth";
 import { useHotkeys } from "@/hooks/useHotkeys";
 import Layout from "@/components/Layout";
@@ -159,6 +160,7 @@ export default function App() {
     <Suspense fallback={<PageLoader />}>
       <ErrorBoundary>
       <AppShortcuts />
+      <ScrollToTop />
       <Routes>
         {/* Public */}
         <Route path="/login"              element={<Login />} />
