@@ -1,7 +1,7 @@
 import { useTranslate } from "@/i18n";
 import { LX, MONO } from "./landing-tokens";
 import { SectionHead } from "./landing-shared";
-import { Browser, DemoTag, Ledger, Split, Sheet } from "./landing-frames";
+import { Browser, DemoTag, Ledger, Sheet, Stage, STAGE_ASPECT } from "./landing-frames";
 import { useAnime } from "./landing-anime";
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -92,9 +92,11 @@ export default function OrdersSection() {
           </ol>
         </div>
 
-        <Split
+        <Stage
           className="mt-14"
-          left={
+          frame={<div data-reveal="order-shots"><Browser shot="orders" content aspect={STAGE_ASPECT} alt={tr("Экран заказов оператора: таблица, фильтры, статусы", "Operator buyurtmalar ekrani: jadval, filtrlar, holatlar")} /></div>}
+          caption={tr("Экран оператора · заказы за день · демо-данные", "Operator ekrani · kunlik buyurtmalar · demo-ma'lumotlar")}
+          card={
             <Sheet
               title={tr("Заказ № 981", "Buyurtma № 981")}
               aside={<span data-tag className="text-[11px] rounded-full px-2.5 py-1" style={{ ...MONO, background: LX.brassSoft, color: LX.brassDeep }}>{tr("принят частично", "qisman qabul")}</span>}
@@ -122,7 +124,6 @@ export default function OrdersSection() {
               <DemoTag>{tr("демо-данные", "demo-ma'lumotlar")}</DemoTag>
             </Sheet>
           }
-          right={<div data-reveal="order-shots"><Browser shot="orders" content alt={tr("Экран заказов оператора: таблица, фильтры, статусы", "Operator buyurtmalar ekrani: jadval, filtrlar, holatlar")} /></div>}
         />
 
         {/* Возможности — реестром, как в главе 04 */}
