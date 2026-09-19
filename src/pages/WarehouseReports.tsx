@@ -3,12 +3,7 @@ import { formatChartValue, truncateMiddle } from "@/lib/chart-value";
 import { trpc } from "@/providers/trpc";
 import { useLang } from "@/i18n";
 import { useCurrency } from "@/hooks/useCurrency";
-import {
-  TrendingUp, Package,
-  ArrowUpRight, ArrowDownRight, Minus, Layers,
-  FileSpreadsheet, FileText,
-  AlertTriangle,
-} from "lucide-react";
+import { ArrowUpRight, ArrowDownRight, Minus, FileSpreadsheet, FileText } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   CartesianGrid, Legend, LineChart, Line, PieChart, Pie, Cell,
@@ -91,42 +86,6 @@ function CategoryTick(props: { x?: number; y?: number; payload?: { value?: strin
   );
 }
 
-function KpiCard({ label, value, delta, icon, gradient }: {
-  label: string; value: string; delta?: number | null;
-  icon: React.ReactNode; gradient: string; delay: number;
-}) {
-  const isPositive = delta !== null && delta !== undefined && delta > 0;
-  const isNegative = delta !== null && delta !== undefined && delta < 0;
-  return (
-    <div className="kpi-hero" style={{
-      padding: "22px",
-      position: "relative", overflow: "hidden",
-    }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "16px" }}>
-        <span style={{ fontFamily: F.display, fontSize: "10px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", color: THEME.textTertiary }}>
-          {label}
-        </span>
-        <div style={{ width: "40px", height: "40px", borderRadius: "12px", background: gradient, display: "flex", alignItems: "center", justifyContent: "center" }}>
-          {icon}
-        </div>
-      </div>
-      <div style={{ fontFamily: F.display, fontSize: "28px", fontWeight: 700, color: THEME.textPrimary, lineHeight: 1, letterSpacing: "-0.03em" }}>
-        {value}
-      </div>
-      {delta !== null && delta !== undefined && (
-        <div style={{
-          display: "flex", alignItems: "center", gap: "4px", marginTop: "10px",
-          fontSize: "12px", fontWeight: 600, fontFamily: F.body,
-          color: isPositive ? "var(--color-success-text)" : isNegative ? "var(--color-danger-text)" : THEME.textTertiary,
-        }}>
-          {isPositive ? <ArrowUpRight size={14} /> : isNegative ? <ArrowDownRight size={14} /> : <Minus size={14} />}
-          {Math.abs(delta).toFixed(1)}%
-        </div>
-      )}
-    </div>
-  );
-}
-
 function ChartPanel({ title, children, delay: _delay = 0 }: { title: string; children: React.ReactNode; delay?: number }) {
   return (
     <div style={{
@@ -158,6 +117,14 @@ function PanelBody({ error, empty, onRetry, errorText, emptyText, children }: {
   return <>{children}</>;
 }
 
+/*
+  Раздел «Отчёты» на странице «Склад» (раньше — своя страница
+  /warehouse-reports; адрес остался и ведёт сюда). Владелец (19.09.2026):
+  отчёты склада — вкладкой. Плиток «стоимость / наименований / низкие остатки»
+  здесь больше нет: они стоят над лентой разделов. Осталось то, чего наверху
+  нет, — розничная оценка и маржа, — строкой, как «оперативная строка» на
+  отчётах.
+*/
 export default function WarehouseReports() {
   const { lang } = useLang();
   const { fmt, symbol } = useCurrency();
@@ -226,10 +193,7 @@ export default function WarehouseReports() {
   if (cat.isLoading) {
     return (
       <div className="space-y-4">
-        <div className="h-8 w-48 bg-surface-light animate-pulse rounded" />
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-          {[1, 2, 3, 4].map(i => <div key={i} className="h-24 bg-surface-light animate-pulse rounded-xl" />)}
-        </div>
+        <div className="h-14 bg-surface-light animate-pulse rounded-xl" />
         <div className="h-72 bg-surface-light animate-pulse rounded-xl" />
       </div>
     );
@@ -295,69 +259,48 @@ export default function WarehouseReports() {
   };
 
   return (
-    <div className="space-y-5 animate-fade-up">
-      {/* Header */}
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <div>
-          <h1 className="font-display text-2xl font-bold text-primary tracking-tight">
-            {t("Отчёты по складу", "Ombor hisobotlari")}
-          </h1>
-          <p className="text-xs mt-0.5" style={{ color: "var(--color-text-secondary, #5e5b54)" }}>
-            {t("Аналитика остатков, движения и логистики", "Qoldiq, harakat va logistika tahlili")}
-          </p>
-          {multi && (
-            <div className="flex flex-wrap gap-2 mt-3" role="tablist" data-testid="report-warehouse-chips">
-              {[...warehouses.map(w => ({ id: w.id as number | null, label: `${w.name}${w.isDefault ? " ★" : ""}` })), { id: null, label: t("Все склады вместе", "Barcha omborlar birga") }].map(c => {
-                const active = c.id === whId;
-                return (
-                  <button key={String(c.id)} type="button" role="tab" aria-selected={active} onClick={() => setReportWarehouse(c.id)}
-                    className="tap text-xs font-semibold px-3 py-1.5 rounded-full transition-all"
-                    style={{ background: active ? "var(--color-primary)" : "var(--color-surface-light)", color: active ? "var(--color-on-primary)" : "var(--color-text-secondary)" }}>
-                    {c.label}
-                  </button>
-                );
-              })}
-            </div>
-          )}
-        </div>
-        <div className="flex items-center gap-2">
-          <PremiumSelect
-            value={String(days)}
-            onChange={v => setDays(Number(v))}
-            width="120px"
-            aria-label={t("Период", "Davr")}
-            options={[
-              { value: "7",  label: t("7 дней", "7 kun") },
-              { value: "14", label: t("14 дней", "14 kun") },
-              { value: "30", label: t("30 дней", "30 kun") },
-              { value: "90", label: t("90 дней", "90 kun") },
-            ]}
-          />
-          <button
-            onClick={handleExcelExport}
-            disabled={isLoading}
-            className="neo-btn flex items-center gap-1.5 text-xs py-1.5 px-3"
-            title="Excel"
-          >
-            <FileSpreadsheet size={14} />
-            <span className="hidden sm:inline">Excel</span>
+    <div className="space-y-5">
+      {/* Фильтры — карточкой, как у остатков: склад (при нескольких), период, выгрузки. */}
+      <div style={{ background: THEME.surface, borderRadius: "16px", padding: "14px 18px", boxShadow: SHADOW, display: "flex", gap: "12px", flexWrap: "wrap", alignItems: "center" }}>
+        {multi && (
+          <div className="flex flex-wrap gap-2" role="tablist" data-testid="report-warehouse-chips">
+            {[...warehouses.map(w => ({ id: w.id as number | null, label: `${w.name}${w.isDefault ? " ★" : ""}` })), { id: null, label: t("Все склады вместе", "Barcha omborlar birga") }].map(c => {
+              const active = c.id === whId;
+              return (
+                <button key={String(c.id)} type="button" role="tab" aria-selected={active} onClick={() => setReportWarehouse(c.id)}
+                  className="tap text-xs font-semibold px-3 py-1.5 rounded-full transition-all"
+                  style={{ background: active ? "var(--color-primary)" : "var(--color-surface-light)", color: active ? "var(--color-on-primary)" : "var(--color-text-secondary)" }}>
+                  {c.label}
+                </button>
+              );
+            })}
+          </div>
+        )}
+        <PremiumSelect
+          value={String(days)}
+          onChange={v => setDays(Number(v))}
+          width="120px"
+          aria-label={t("Период", "Davr")}
+          options={[
+            { value: "7",  label: t("7 дней", "7 kun") },
+            { value: "14", label: t("14 дней", "14 kun") },
+            { value: "30", label: t("30 дней", "30 kun") },
+            { value: "90", label: t("90 дней", "90 kun") },
+          ]}
+        />
+        <div style={{ marginLeft: "auto", display: "flex", gap: "8px" }}>
+          <button onClick={handleExcelExport} disabled={isLoading} className="neo-btn neo-btn-sm tap" title="Excel">
+            <FileSpreadsheet size={14} /> Excel
           </button>
-          <button
-            onClick={handlePDFExport}
-            disabled={isLoading}
-            className="neo-btn flex items-center gap-1.5 text-xs py-1.5 px-3"
-            title="PDF"
-          >
-            <FileText size={14} />
-            <span className="hidden sm:inline">PDF</span>
+          <button onClick={handlePDFExport} disabled={isLoading} className="neo-btn neo-btn-sm tap" title="PDF">
+            <FileText size={14} /> PDF
           </button>
         </div>
       </div>
 
       {/*
-        Плитки строятся из одного запроса — если он не ответил, показывать
-        вместо них нули нельзя: «Общая стоимость 0» читается как «склад пуст»,
-        а не как «сервер молчит».
+        Строка оценки — из одного запроса; если он не ответил, нули показывать
+        нельзя: «Маржа 0» читается как «склад без наценки», а не «сервер молчит».
       */}
       {cat.isLoadingError ? (
         <div className="neo-card-sm">
@@ -369,22 +312,21 @@ export default function WarehouseReports() {
           />
         </div>
       ) : (
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-        <KpiCard label={t("Общая стоимость", "Umumiy qiymat")} value={fmt(totalValue)} icon={<Package size={20} color="#fff" />} gradient="linear-gradient(135deg, var(--kpi-indigo), var(--kpi-indigo))" delay={0} />
-        <KpiCard label={t("Розничная", "Chakana")} value={fmt(totalRetail)} icon={<TrendingUp size={20} color="#fff" />} gradient="linear-gradient(135deg, var(--kpi-green), var(--kpi-green))" delay={0.1} />
-        <KpiCard label={t("Маржа", "Marja")} value={fmt(margin)} delta={totalValue > 0 ? (margin / totalValue) * 100 : null} icon={<ArrowUpRight size={20} color="#fff" />} gradient={margin >= 0 ? "linear-gradient(135deg, var(--kpi-green), var(--kpi-green))" : "linear-gradient(135deg, var(--kpi-red), var(--kpi-red))"} delay={0.2} />
-        {/*
-          Здесь стояли «Единицы» — сумма totalUnits по всем категориям. Склад
-          хранит штуки, ящики, литры и килограммы, и складывать их в одно число
-          нельзя: «12 480» не значит ничего и ни на один вопрос не отвечает.
-
-          Наименования складываются законно: это счёт карточек товара, и он
-          отвечает на понятное «сколько у меня позиций». Разбивка по единицам
-          осталась там, где она осмысленна, — в таблицах по товарам.
-        */}
-        <KpiCard label={t("Наименований", "Nomlar")} value={totalProducts.toLocaleString("ru")} icon={<Layers size={20} color="#fff" />} gradient="linear-gradient(135deg, var(--kpi-amber), var(--kpi-amber))" delay={0.3} />
-        <KpiCard label={t("Низкие остатки", "Kam qoldiq")} value={String(lowStockTotal)} icon={<AlertTriangle size={20} color="#fff" />} gradient={lowStockTotal > 0 ? "linear-gradient(135deg, var(--kpi-red), var(--kpi-red))" : "linear-gradient(135deg, var(--kpi-green), var(--kpi-green))"} delay={0.4} />
-      </div>
+        <div className="neo-card-sm" data-testid="valuation-strip" style={{ display: "flex", alignItems: "center", gap: "20px", flexWrap: "wrap", padding: "14px 18px", fontSize: "13px", fontFamily: F.body, color: THEME.textSecondary }}>
+          <span>{t("Розничная оценка", "Chakana baho")}: <b style={{ color: THEME.textPrimary, fontVariantNumeric: "tabular-nums" }}>{fmt(totalRetail)}</b></span>
+          <span style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
+            {t("Маржа", "Marja")}: <b style={{ color: margin >= 0 ? "var(--color-success-text)" : "var(--color-danger-text)", fontVariantNumeric: "tabular-nums" }}>{fmt(margin)}</b>
+            {totalValue > 0 && (
+              <span style={{ display: "inline-flex", alignItems: "center", gap: "2px", fontSize: "12px", fontWeight: 600, color: margin > 0 ? "var(--color-success-text)" : margin < 0 ? "var(--color-danger-text)" : THEME.textTertiary }}>
+                {margin > 0 ? <ArrowUpRight size={13} /> : margin < 0 ? <ArrowDownRight size={13} /> : <Minus size={13} />}
+                {Math.abs((margin / totalValue) * 100).toFixed(1)}%
+              </span>
+            )}
+          </span>
+          <span style={{ color: THEME.textTertiary, fontSize: "12px" }}>
+            {t("по себестоимости", "tannarx bo'yicha")} {fmt(totalValue)} · {totalProducts.toLocaleString("ru")} {t("наименований", "nom")} · {lowStockTotal} {t("ниже порога", "chegaradan past")}
+          </span>
+        </div>
       )}
 
       {/*

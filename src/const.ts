@@ -10,16 +10,47 @@ export const ROLE_ROUTES: Record<string, string> = {
   courier:      "/deliveries",
 };
 
+/*
+  Разделы бокового меню.
+
+  Владелец (19.09.2026): «в сайдбаре поменьше разделов — только главные,
+  остальные внутри». У директора было девятнадцать пунктов подряд, нижние —
+  за краем экрана. Теперь пункт может стоять в группе (`group`): в меню
+  видна группа, её пункты раскрываются внутри — только у той группы, где
+  человек сейчас (или которую он открыл рукой). Маршруты не менялись.
+
+  Форма записи `role: [ { path: "…" } ]` читается тестами как текст
+  (route-guards, bottom-nav-roles) — не менять.
+*/
+export type NavGroupKey = "sales" | "warehouse" | "team" | "finance" | "settings";
+export type NavItem = { labelKey: string; path: string; icon: string; group?: NavGroupKey };
+
+export const NAV_GROUPS: Record<NavGroupKey, { labelKey: string; icon: string }> = {
+  sales:     { labelKey: "nav.groupSales",   icon: "ShoppingCart" },
+  warehouse: { labelKey: "nav.warehouse",    icon: "Warehouse" },
+  team:      { labelKey: "nav.groupTeam",    icon: "Users" },
+  finance:   { labelKey: "nav.groupFinance", icon: "TrendingUp" },
+  settings:  { labelKey: "nav.settings",     icon: "Settings" },
+};
+
 // Sidebar nav — ключи для i18n, label берётся через t() в Layout
-export const NAV_ITEMS: Record<string, Array<{ labelKey: string; path: string; icon: string }>> = {
+export const NAV_ITEMS: Record<string, NavItem[]> = {
   superadmin: [
     { labelKey: "nav.superAdmin", path: "/super-admin", icon: "Zap" },
     { labelKey: "nav.monitoring", path: "/monitoring", icon: "Activity" },
   ],
+  // Директор: шесть разделов — Главная и пять групп. «Отчёты склада» пунктом
+  // больше нет: это вкладка на странице «Склад» (/warehouse?tab=reports).
   ceo: [
     { labelKey: "nav.dashboard",  path: "/",          icon: "LayoutDashboard" },
-    { labelKey: "nav.kpi",        path: "/agent/kpi",  icon: "BarChart3"        },
-    { labelKey: "nav.tracking",   path: "/supervisor", icon: "MapPin"          },
+    { labelKey: "nav.orders",     path: "/orders",    icon: "ClipboardList",  group: "sales" },
+    { labelKey: "nav.returns",    path: "/returns",   icon: "RotateCcw",      group: "sales" },
+    { labelKey: "nav.shops",      path: "/shops",     icon: "Store",          group: "sales" },
+    { labelKey: "nav.stock",      path: "/warehouse", icon: "Warehouse",      group: "warehouse" },
+    { labelKey: "nav.arrivals",   path: "/arrivals",  icon: "Truck",          group: "warehouse" },
+    { labelKey: "nav.products",   path: "/products",  icon: "Package",        group: "warehouse" },
+    { labelKey: "nav.kpi",        path: "/agent/kpi",  icon: "BarChart3",     group: "team" },
+    { labelKey: "nav.tracking",   path: "/supervisor", icon: "MapPin",        group: "team" },
     /*
       План визитов был открыт директору маршрутом (RoleGuard пускает ceo), но
       ссылки на него не было нигде: ни здесь, ни в нижней панели. То есть
@@ -27,33 +58,28 @@ export const NAV_ITEMS: Record<string, Array<{ labelKey: string; path: string; i
       Ставится рядом со слежением: сначала расставить месяц, потом смотреть,
       как он идёт.
     */
-    { labelKey: "nav.plans",      path: "/supervisor/plans", icon: "Calendar"  },
-    { labelKey: "nav.reports",    path: "/reports",   icon: "Activity"        },
-    { labelKey: "nav.shops",      path: "/shops",     icon: "Store"           },
-    { labelKey: "nav.products",   path: "/products",  icon: "Package"         },
-    { labelKey: "nav.orders",     path: "/orders",    icon: "ClipboardList"   },
-    { labelKey: "nav.arrivals",   path: "/arrivals",  icon: "Truck"           },
-    { labelKey: "nav.returns",    path: "/returns",   icon: "RotateCcw"       },
-    { labelKey: "nav.warehouse",  path: "/warehouse", icon: "Warehouse"       },
-    { labelKey: "nav.warehouseReports", path: "/warehouse-reports", icon: "BarChart3" },
-    { labelKey: "nav.control",    path: "/control",   icon: "ShieldCheck"     },
-    { labelKey: "nav.auditLog",   path: "/audit-log",  icon: "Shield"       },
-    { labelKey: "nav.pnl",        path: "/pnl",       icon: "TrendingUp"      },
-    { labelKey: "nav.salaries",   path: "/salaries",  icon: "Wallet"          },
-    { labelKey: "nav.users",      path: "/users",     icon: "Users"           },
-    { labelKey: "nav.billing",    path: "/billing",   icon: "CreditCard"      },
-    { labelKey: "nav.settings",   path: "/settings",  icon: "Settings"        },
+    { labelKey: "nav.plans",      path: "/supervisor/plans", icon: "Calendar", group: "team" },
+    { labelKey: "nav.salaries",   path: "/salaries",  icon: "Wallet",         group: "team" },
+    { labelKey: "nav.users",      path: "/users",     icon: "Users",          group: "team" },
+    { labelKey: "nav.reports",    path: "/reports",   icon: "Activity",       group: "finance" },
+    { labelKey: "nav.pnl",        path: "/pnl",       icon: "TrendingUp",     group: "finance" },
+    { labelKey: "nav.control",    path: "/control",   icon: "ShieldCheck",    group: "finance" },
+    { labelKey: "nav.organization", path: "/settings", icon: "Settings",      group: "settings" },
+    { labelKey: "nav.billing",    path: "/billing",   icon: "CreditCard",     group: "settings" },
+    { labelKey: "nav.auditLog",   path: "/audit-log",  icon: "Shield",        group: "settings" },
   ],
+  // Оператор: шесть — Главная, две группы, Отчёты, KPI, Настройки. Группа
+  // «Отчёты» с единственным вложенным «Отчёты» звалась бы дважды одним словом.
   operator: [
     { labelKey: "nav.dashboard",  path: "/",          icon: "LayoutDashboard" },
-    { labelKey: "nav.kpi",        path: "/agent/kpi",  icon: "BarChart3"       },
+    { labelKey: "nav.orders",     path: "/orders",    icon: "ClipboardList",  group: "sales" },
+    { labelKey: "nav.returns",    path: "/returns",   icon: "RotateCcw",      group: "sales" },
+    { labelKey: "nav.shops",      path: "/shops",     icon: "Store",          group: "sales" },
+    { labelKey: "nav.stock",      path: "/warehouse", icon: "Warehouse",      group: "warehouse" },
+    { labelKey: "nav.arrivals",   path: "/arrivals",  icon: "Truck",          group: "warehouse" },
+    { labelKey: "nav.products",   path: "/products",  icon: "Package",        group: "warehouse" },
     { labelKey: "nav.reports",    path: "/reports",   icon: "Activity"       },
-    { labelKey: "nav.orders",     path: "/orders",    icon: "ClipboardList"   },
-    { labelKey: "nav.products",   path: "/products",  icon: "Package"         },
-    { labelKey: "nav.shops",      path: "/shops",     icon: "Store"           },
-    { labelKey: "nav.arrivals",   path: "/arrivals",  icon: "Truck"           },
-    { labelKey: "nav.returns",    path: "/returns",   icon: "RotateCcw"       },
-    { labelKey: "nav.warehouse",  path: "/warehouse", icon: "Warehouse"       },
+    { labelKey: "nav.kpi",        path: "/agent/kpi",  icon: "BarChart3"       },
     { labelKey: "nav.settings",   path: "/settings",  icon: "Settings"        },
   ],
   // Боковое меню держит полный набор, нижняя панель — только шесть самых
@@ -104,6 +130,36 @@ export const NAV_ITEMS: Record<string, Array<{ labelKey: string; path: string; i
     { labelKey: "nav.settings",   path: "/settings",    icon: "Settings"        },
   ],
 };
+
+export type NavRow =
+  | { kind: "item"; item: NavItem; active: boolean; nested: boolean }
+  | { kind: "group"; key: NavGroupKey; labelKey: string; icon: string; open: boolean; active: boolean };
+
+/**
+ * Строки бокового меню: пункты и заголовки групп в порядке первого
+ * появления. Пункты группы видны, только когда она раскрыта; раскрыта та,
+ * где человек сейчас, или та, что он открыл рукой (`openGroup`). У заголовка
+ * группы `active`, если внутри — текущая страница: свёрнутая группа не должна
+ * терять след того, где вы.
+ */
+export function navRows(items: NavItem[], pathname: string, openGroup: NavGroupKey | null | undefined): NavRow[] {
+  const activePath = pickActivePath(items.map(i => ({ path: i.path, exact: i.path === "/" })), pathname);
+  const activeGroup = items.find(i => i.path === activePath)?.group ?? null;
+  const open = openGroup === undefined ? activeGroup : openGroup;
+  const rows: NavRow[] = [];
+  const seen = new Set<NavGroupKey>();
+  for (const item of items) {
+    if (!item.group) { rows.push({ kind: "item", item, active: item.path === activePath, nested: false }); continue; }
+    if (seen.has(item.group)) continue;
+    seen.add(item.group);
+    const g = NAV_GROUPS[item.group];
+    rows.push({ kind: "group", key: item.group, labelKey: g.labelKey, icon: g.icon, open: open === item.group, active: activeGroup === item.group });
+    if (open === item.group) {
+      for (const child of items) if (child.group === item.group) rows.push({ kind: "item", item: child, active: child.path === activePath, nested: true });
+    }
+  }
+  return rows;
+}
 
 /**
  * Какой пункт навигации подсветить: тот, чей путь совпал ДЛИННЕЕ прочих.

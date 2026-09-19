@@ -22,6 +22,7 @@ import { render, screen, within, fireEvent, cleanup } from "@testing-library/rea
 import fs from "node:fs";
 import path from "node:path";
 import { LangProvider } from "@/i18n";
+import { MemoryRouter } from "react-router";
 
 const read = (p: string) => fs.readFileSync(path.resolve(process.cwd(), p), "utf8").replace(/\r\n/g, "\n");
 
@@ -77,6 +78,7 @@ vi.mock("@/components/warehouse/DemandForecast", () => ({ DemandForecast: () => 
 vi.mock("@/components/warehouse/StockCounts", () => ({ StockCounts: () => <div data-testid="tab-counts" /> }));
 vi.mock("@/components/warehouse/StockTransfers", () => ({ StockTransfers: () => <div data-testid="tab-transfers" /> }));
 vi.mock("@/components/warehouse/WarehouseCompare", () => ({ WarehouseCompare: () => <div data-testid="tab-compare" /> }));
+vi.mock("@/pages/WarehouseReports", () => ({ default: () => <div data-testid="tab-reports" /> }));
 
 const { default: Warehouse } = await import("@/pages/Warehouse");
 
@@ -97,7 +99,7 @@ beforeEach(() => {
 });
 afterEach(cleanup);
 
-const mount = () => render(<LangProvider><Warehouse /></LangProvider>);
+const mount = (url = "/warehouse") => render(<MemoryRouter initialEntries={[url]}><LangProvider><Warehouse /></LangProvider></MemoryRouter>);
 
 describe("каркас страницы", () => {
   it("на странице нет полосы «ниже порога» и окна «мало стока»; файл окна удалён", () => {
@@ -145,7 +147,7 @@ describe("каркас страницы", () => {
   it("лента разделов: счётчик только там, где число зовёт действовать; «Инвентаризация» — только с правом", () => {
     mount();
     const tabs = screen.getAllByRole("tab").map(el => el.textContent);
-    expect(tabs).toEqual(["Остатки", "Дозаказ1", "Мёртвый сток1", "Прогноз", "Инвентаризация"]);
+    expect(tabs).toEqual(["Остатки", "Дозаказ1", "Мёртвый сток1", "Прогноз", "Отчёты", "Инвентаризация"]);
     cleanup();
     stub.state.canAdjust = false;
     mount();
@@ -158,6 +160,19 @@ describe("каркас страницы", () => {
     expect(screen.getByRole("tab", { name: /^Сравнение/ })).toBeTruthy();
     expect(screen.getByRole("tab", { name: /^Перемещения/ })).toBeTruthy();
     expect(screen.getByTestId("warehouse-chips")).toBeTruthy();
+    // У «Отчётов» свой переключатель с «Все склады вместе» — фишки страницы прячутся.
+    fireEvent.click(screen.getByRole("tab", { name: /^Отчёты/ }));
+    expect(screen.queryByTestId("warehouse-chips")).toBeNull();
+    expect(screen.getByTestId("tab-reports")).toBeTruthy();
+  });
+
+  it("раздел из адреса: /warehouse?tab=reports открывает «Отчёты» (сюда ведут главная и прежний /warehouse-reports); чужое значение — «Остатки»", () => {
+    mount("/warehouse?tab=reports");
+    expect(screen.getByRole("tab", { name: /^Отчёты/ }).getAttribute("aria-selected")).toBe("true");
+    expect(screen.getByTestId("tab-reports")).toBeTruthy();
+    cleanup();
+    mount("/warehouse?tab=nonsense");
+    expect(screen.getByRole("tab", { name: /^Остатки/ }).getAttribute("aria-selected")).toBe("true");
   });
 });
 

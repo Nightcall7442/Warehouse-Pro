@@ -88,7 +88,7 @@ describe("A — один склад: ничего лишнего", () => {
 
   it("страница склада: фишки, «Сравнение» и «Перемещения» — только при multi", () => {
     const page = read("src/pages/Warehouse.tsx");
-    expect(page).toContain("{multi && activeTab !== \"compare\" && activeTab !== \"transfers\" && (");
+    expect(page).toContain("{multi && activeTab !== \"compare\" && activeTab !== \"transfers\" && activeTab !== \"reports\" && (");
     expect(page).toContain("...(multi ? [");
     expect(page).toContain('{ key: "compare" as const');
     expect(page).toContain('{activeTab === "transfers" && multi && (');

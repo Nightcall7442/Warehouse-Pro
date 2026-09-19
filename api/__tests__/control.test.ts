@@ -142,7 +142,8 @@ describe("права, экраны и хозяйство", () => {
     }
   });
   it("меню директора, маршрут, заголовок, раздел настроек — на месте; страница под тумблером", () => {
-    expect(read("src/const.ts")).toContain('{ labelKey: "nav.control",    path: "/control",   icon: "ShieldCheck"     },');
+    // В группе «Финансы» бокового меню (19.09.2026 — меню собрано группами).
+    expect(read("src/const.ts")).toContain('{ labelKey: "nav.control",    path: "/control",   icon: "ShieldCheck",    group: "finance" },');
     expect(read("src/App.tsx")).toContain('<Route path="/control" element={<RoleGuard roles={["ceo"]}><Control /></RoleGuard>} />');
     expect(read("src/components/Layout.tsx")).toContain('"/control":           { title: { ru: "Контроль", uz: "Nazorat" } },');
     expect(read("src/i18n/ru.ts")).toContain('control:     "Контроль",');

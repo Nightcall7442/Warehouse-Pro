@@ -83,8 +83,10 @@ function countColours(): { total: number; byFile: Array<[string, number]> } {
  * и оправ телефона объявлены токенами в landing-tokens.ts.
  * 868 — 19.09.2026, склад: страница собрана заново на токенах заказов и
  * .data-table; сотня rgba() в стилях ячеек ушла вместе с ячейками.
+ * 862 — 19.09.2026, отчёты склада стали вкладкой: пять плиток с белым значком
+ * на заливке ушли, осталась строка оценки.
  */
-const BASELINE = 868;
+const BASELINE = 862;
 
 describe("цвет числом", () => {
   const { total, byFile } = countColours();

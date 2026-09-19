@@ -6,7 +6,7 @@ import { useLocation, useNavigate } from "react-router";
 import { useAuth, hadSession } from "@/hooks/useAuth";
 import { useLocationPing } from "@/hooks/useLocationPing";
 import { useNotifications } from "@/hooks/useNotifications";
-import { NAV_ITEMS, pickActivePath, pageKey } from "@/const";
+import { NAV_ITEMS, navRows, pickActivePath, pageKey, type NavGroupKey } from "@/const";
 import { GlobalSearch } from "@/components/GlobalSearch";
 import { TrialBanner } from "@/components/TrialBanner";
 import { OfflineQueueBadge } from "@/components/OfflineQueueBadge";
@@ -18,7 +18,8 @@ import {
   LayoutDashboard, Store, Package, ClipboardList, Truck,
   Warehouse, BarChart3, Users, Settings, PlusCircle, MapPin,
   Calendar, LogOut, X, Moon, Sun, WifiOff, Scan, Activity, RotateCcw,
-  TrendingUp, CreditCard, ChevronLeft, Bell, Zap, Wallet, LifeBuoy, BookOpen, Landmark, Shield, ShieldCheck,
+  TrendingUp, CreditCard, ChevronLeft, ChevronDown, ChevronRight, Bell, Zap, Wallet, LifeBuoy, BookOpen, Landmark, Shield, ShieldCheck,
+  ShoppingCart,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -28,6 +29,8 @@ const iconMap: Record<string, LucideIcon> = {
   Calendar, WifiOff, Scan, Activity, TrendingUp, CreditCard, Zap, Wallet, LifeBuoy, Landmark, Shield, ShieldCheck,
   // «Возвраты» стояли в меню без значка: RotateCcw объявлен в const.ts, а сюда не попал.
   RotateCcw,
+  // Группа «Продажи» (NAV_GROUPS).
+  ShoppingCart,
 };
 
 /*
@@ -56,7 +59,6 @@ const PAGE_META: Record<string, { title: PageTitle; parent?: PageTitle; parentPa
   "/orders/new":        { title: { ru: "Новый заказ",   uz: "Yangi buyurtma" }, parent: { ru: "Заказы", uz: "Buyurtmalar" }, parentPath: "/orders" },
   "/warehouse":         { title: { ru: "Склад",         uz: "Ombor" } },
   "/returns": { title: { ru: "Возвраты", uz: "Qaytarishlar" } },
-  "/warehouse-reports": { title: { ru: "Отчёты склада", uz: "Ombor hisobotlari" } },
   "/audit-log":         { title: { ru: "Журнал действий", uz: "Harakatlar jurnali" } },
   "/control":           { title: { ru: "Контроль", uz: "Nazorat" } },
   "/arrivals":          { title: { ru: "Приходы",       uz: "Kirim" } },
@@ -137,6 +139,17 @@ const Sidebar = memo(function Sidebar({ onClose, unreadCount = 0 }: { onClose?: 
   const { data: manual } = trpc.tenant.manualAccess.useQuery(undefined, { staleTime: 5 * 60_000 });
   const manualHref = `/manual/#${lang}/${MANUAL_CHAPTER[role] ?? "about"}`;
   const items = useMemo(() => NAV_ITEMS[role] ?? [], [role]);
+  /*
+    Группы меню. undefined — раскрыта та группа, где человек сейчас; клик по
+    заголовку открывает другую или сворачивает текущую. Переход на другую
+    страницу возвращает правило «где я — там раскрыто».
+  */
+  // Сброс — прямо при отрисовке по смене адреса, без эффекта (как окно строк на складе).
+  const [open, setOpen] = useState<{ path: string; group: NavGroupKey | null | undefined }>({ path: location.pathname, group: undefined });
+  if (open.path !== location.pathname) setOpen({ path: location.pathname, group: undefined });
+  const openGroup = open.path === location.pathname ? open.group : undefined;
+  const setOpenGroup = (group: NavGroupKey | null) => setOpen({ path: location.pathname, group });
+  const rows = useMemo(() => navRows(items, location.pathname, openGroup), [items, location.pathname, openGroup]);
 
   return (
     <div className="flex flex-col h-full sidebar-collapse-transition" style={{ background: "var(--color-surface, #efedea)" }}>
@@ -198,17 +211,34 @@ const Sidebar = memo(function Sidebar({ onClose, unreadCount = 0 }: { onClose?: 
       */}
       {/* Navigation */}
       <nav className="flex-1 py-2 overflow-y-auto premium-scrollbar">
-        {items.map(item => {
-          const Icon     = iconMap[item.icon];
-          const isActive = location.pathname === item.path ||
-            (item.path !== "/" && location.pathname.startsWith(item.path));
+        {rows.map(row => {
+          if (row.kind === "group") {
+            const Icon = iconMap[row.icon];
+            const Chevron = row.open ? ChevronDown : ChevronRight;
+            return (
+              <button
+                key={`group:${row.key}`}
+                type="button"
+                aria-expanded={row.open}
+                onClick={() => setOpenGroup(row.open ? null : row.key)}
+                className={`sidebar-nav-item ${row.active ? "active" : ""}`}
+                data-testid={`nav-group-${row.key}`}
+              >
+                {Icon && <Icon size={18} strokeWidth={row.active ? 2.5 : 1.5} />}
+                <span>{t(row.labelKey)}</span>
+                <Chevron size={14} style={{ marginLeft: "auto", opacity: 0.55 }} aria-hidden />
+              </button>
+            );
+          }
+          const { item, active, nested } = row;
+          const Icon = iconMap[item.icon];
           return (
             <button
               key={item.path}
               onClick={() => { navigate(item.path); onClose?.(); }}
-              className={`sidebar-nav-item ${isActive ? "active" : ""}`}
+              className={`sidebar-nav-item ${active ? "active" : ""}${nested ? " nested" : ""}`}
             >
-              {Icon && <Icon size={18} strokeWidth={isActive ? 2.5 : 1.5} />}
+              {!nested && Icon && <Icon size={18} strokeWidth={active ? 2.5 : 1.5} />}
               <span>{t(item.labelKey)}</span>
             </button>
           );

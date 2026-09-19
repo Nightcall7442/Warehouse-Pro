@@ -57,7 +57,6 @@ const OfflineOrders        = lazyWithRecovery(() => import("./pages/OfflineOrder
 const Notifications        = lazyWithRecovery(() => import("./pages/Notifications"));
 const Monitoring           = lazyWithRecovery(() => import("./pages/Monitoring"));
 const Support              = lazyWithRecovery(() => import("./pages/Support"));
-const WarehouseReports     = lazyWithRecovery(() => import("./pages/WarehouseReports"));
 const Returns              = lazyWithRecovery(() => import("./pages/Returns"));
 const AuditLog             = lazyWithRecovery(() => import("./pages/AuditLog"));
 const Control              = lazyWithRecovery(() => import("./pages/Control"));
@@ -237,7 +236,8 @@ export default function App() {
           {/* SuperAdmin only */}
           <Route path="/super-admin" element={<RoleGuard roles={["superadmin"]}><SuperAdmin /></RoleGuard>} />
           <Route path="/monitoring" element={<RoleGuard roles={["superadmin"]}><Monitoring /></RoleGuard>} />
-          <Route path="/warehouse-reports" element={<RoleGuard roles={["ceo","operator"]}><WarehouseReports /></RoleGuard>} />
+          {/* «Отчёты склада» — вкладка на странице склада; прежний адрес живёт в справке и закладках. */}
+          <Route path="/warehouse-reports" element={<Navigate to="/warehouse?tab=reports" replace />} />
           {/*
             Возвраты разбирает офис: агент их только заводит из мобилки.
             Роли те же, что у ручки returns.updateStatus (operatorQuery).
