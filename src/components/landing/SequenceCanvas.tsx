@@ -79,8 +79,9 @@ export function SequenceCanvas({
     };
     const resize = () => {
       const dpr = Math.min(2, window.devicePixelRatio || 1);
-      const r = canvas.getBoundingClientRect();
-      const w = Math.max(1, Math.round(r.width * dpr)), h = Math.max(1, Math.round(r.height * dpr));
+      // Размер раскладки, не прямоугольник на экране: кадр плёнки въезжает
+      // вставкой через transform: scale, а холст должен быть в полном разрешении.
+      const w = Math.max(1, Math.round(canvas.clientWidth * dpr)), h = Math.max(1, Math.round(canvas.clientHeight * dpr));
       if (canvas.width !== w || canvas.height !== h) {
         canvas.width = w; canvas.height = h;
         // Смена размера сбрасывает состояние контекста — качество сглаживания задаётся заново.
