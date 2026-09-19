@@ -5,7 +5,7 @@ import { readFileSync, readdirSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { LangProvider } from "@/i18n";
 import { scrubProgress, frameAt, captionOpacity } from "@/components/landing/scroll-scrub";
-import { FILM } from "@/components/landing/film";
+import { FILM, WAREHOUSE_ACTS, windowOpacity, frameInset } from "@/components/landing/film";
 
 /**
  * Плёнка «от заказа до денег» (Apple-style scroll scrub).
@@ -133,7 +133,35 @@ describe("плёнка из видео (Higgsfield → кадры → прокр
       expect(f.width / f.height).toBeCloseTo(16 / 9, 1);
     }
   });
-  it("сцена: секция в 240vh, кадры из манифеста по порядку и по ширине экрана, постер — первый кадр, три строки не спрятаны разметкой", async () => {
+  it("три акта: границы — внутри плёнки, по порядку, и на каждый акт хватает кадров на строку", () => {
+    /*
+      Третий заход (19.09.2026): владелец назвал плёнку короткой и сделанной
+      наспех. Теперь три ролика склеены наплывом; границы актов — индексы
+      кадров из cuts.txt песочницы. Акт короче 24 кадров — строка мелькнёт.
+    */
+    expect(WAREHOUSE_ACTS[0]).toBe(0);
+    for (let i = 1; i < WAREHOUSE_ACTS.length; i++) {
+      expect(WAREHOUSE_ACTS[i]).toBeGreaterThan(WAREHOUSE_ACTS[i - 1] + 23);
+      expect(WAREHOUSE_ACTS[i]).toBeLessThan(FILM.warehouse.count - 24);
+    }
+    expect(WAREHOUSE_ACTS.length).toBe(3);
+    expect(FILM.warehouse.count).toBeGreaterThanOrEqual(120);
+  });
+  it("строка видна на своём отрезке и гаснет по краям; кадр въезжает вставкой и раскрывается", () => {
+    expect(windowOpacity(0.5, 0.3, 0.7, 0.05)).toBe(1);
+    expect(windowOpacity(0.3, 0.3, 0.7, 0.05)).toBe(0);
+    expect(windowOpacity(0.325, 0.3, 0.7, 0.05)).toBeCloseTo(0.5);
+    expect(windowOpacity(0.7, 0.3, 0.7, 0.05)).toBe(0);
+    expect(windowOpacity(0, 0.3, 0.7, 0.05)).toBe(0);
+    // В самом начале — вставка целиком, к lead — во весь экран, в конце — снова вставка.
+    expect(frameInset(0, 0.07)).toBe(1);
+    expect(frameInset(0.07, 0.07)).toBe(0);
+    expect(frameInset(0.5, 0.07)).toBe(0);
+    expect(frameInset(1, 0.07)).toBe(1);
+    expect(frameInset(0.035, 0.07)).toBeGreaterThan(0);
+    expect(frameInset(0.035, 0.07)).toBeLessThan(0.5); // ease-out: раскрывается быстро
+  });
+  it("сцена: секция в 520vh, кадры из манифеста по порядку и по ширине экрана, постер — первый кадр, строки не спрятаны разметкой и появляются после раскрытия кадра", async () => {
     const { default: FilmScroll } = await import("@/components/landing/FilmScroll");
     const { pickFilmWidth } = await import("@/components/landing/film");
     // jsdom: окно 1024 точки → хватает 960? нет — 1920. Телефон 390×3 = 1170 → 1920; 375×2 = 750 → 960.
@@ -142,7 +170,7 @@ describe("плёнка из видео (Higgsfield → кадры → прокр
     expect(pickFilmWidth([960, 1920], 5000)).toBe(1920);
     const { container } = render(<LangProvider><FilmScroll /></LangProvider>);
     const section = container.querySelector("#film") as HTMLElement;
-    expect(section.style.height).toBe("240vh");
+    expect(section.style.height).toBe("520vh");
     expect(section.querySelector(".sticky")).toBeTruthy();
     expect(section.querySelector("img")?.getAttribute("src")).toMatch(/^\/landing\/film\/warehouse\/w(960|1920)\/001\.webp$/);
     // Плёнка без затухания между кадрами: два кадра с движением камеры, наложенные полупрозрачно, двоят.
@@ -150,8 +178,23 @@ describe("плёнка из видео (Higgsfield → кадры → прокр
     expect(read("src/components/landing/SequenceCanvas.tsx")).toContain("const a = nearest(t < 0.5 ? i : i + 1);");
     const lines = Array.from(section.querySelectorAll("[data-film-line]")) as HTMLElement[];
     expect(lines.length).toBe(3);
-    expect(lines.map(l => l.style.opacity).sort()).toEqual(["0", "0", "1"]);
+    // При p = 0 кадр ещё вставка — строк нет; они появляются после раскрытия
+    // (иначе первая резалась краем окна, пока секция въезжала — снимок владельца).
+    expect(lines.map(l => l.style.opacity)).toEqual(["0", "0", "0"]);
     expect(read("src/components/landing/FilmScroll.tsx")).not.toMatch(/opacity:\s*0\b/);
+    expect(section.querySelector("[data-film-line='1']")?.textContent).toContain("Каждое утро");
+    // Первая строка начинается не раньше, чем кадр раскрылся (LEAD), последняя гаснет до сворачивания.
+    const scene = read("src/components/landing/FilmScroll.tsx");
+    expect(scene).toContain("from: i === 0 ? LEAD + GAP : b + GAP,");
+    expect(scene).toContain("to: i === BOUNDS.length - 1 ? 1 - LEAD - GAP : BOUNDS[i + 1] - GAP,");
+    expect(scene).toMatch(/const LEAD = 0\.0[5-9];/);
+    // Без движения — постер и все три строки списком, ничего не спрятано.
+    vi.stubGlobal("matchMedia", (q: string) => ({ matches: q.includes("reduce"), media: q, onchange: null, addListener: vi.fn(), removeListener: vi.fn(), addEventListener: vi.fn(), removeEventListener: vi.fn(), dispatchEvent: vi.fn() }));
+    cleanup();
+    const stillRender = render(<LangProvider><FilmScroll /></LangProvider>);
+    const still = stillRender.container.querySelector("#film") as HTMLElement;
+    expect(still.querySelector(".sticky")).toBeNull();
+    expect(Array.from(still.querySelectorAll("[data-film-line]")).every(l => (l as HTMLElement).style.opacity === "")).toBe(true);
     expect(read("src/components/landing/FilmScroll.tsx")).toContain("String(i + 1).padStart(3, \"0\")}.webp");
   });
   it("плёнка грузится не при открытии страницы, а в полутора экранах от читателя; стоит в ночной полосе между «потерями» и окном продукта", () => {
