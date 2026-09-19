@@ -112,6 +112,51 @@ export function publicUrl(key: string): string {
  *
  * Хранилище не настроено — переадресации нет вовсе.
  */
+/**
+ * Адреса, с которых начинаются ссылки на НАШИ файлы: заданный публичный домен
+ * и амазоновская форма (её publicUrl строит, когда домен не задан). Ночной
+ * перенос фото в хранилище (photos-to-s3) оставил в базе именно такие ссылки.
+ */
+export function storageUrlPrefixes(): string[] {
+  if (!env.s3Bucket) return [];
+  const out: string[] = [];
+  const base = env.s3PublicUrl.replace(/\/+$/, "");
+  if (base) out.push(`${base}/`);
+  out.push(`https://${env.s3Bucket}.s3.${env.s3Region || "us-east-1"}.amazonaws.com/`);
+  return out;
+}
+
+/** Ключ объекта по ссылке на наше хранилище; чужая ссылка — null. */
+export function storageKeyOf(url: string): string | null {
+  for (const prefix of storageUrlPrefixes()) {
+    if (url.startsWith(prefix) && url.length > prefix.length) return decodeURIComponent(url.slice(prefix.length).split("?")[0]);
+  }
+  return null;
+}
+
+/**
+ * Прочитать объект из хранилища — для раздачи фото через /api/photos.
+ *
+ * Фото после ночного переноса лежат в хранилище, а ссылка на него в базе
+ * ведёт на бакет напрямую. Открыт ли бакет на чтение (scripts/init-storage.mjs)
+ * и верен ли S3_PUBLIC_URL — этого приложение не знает, а владелец видит
+ * только заглушку вместо товара (19.09.2026). Поэтому наружу уходит наша же
+ * ручка, а байты она берёт своими ключами: бакет может оставаться закрытым.
+ */
+export async function readObject(key: string): Promise<{ body: Uint8Array; contentType: string } | null> {
+  if (!isS3Configured()) return null;
+  const { GetObjectCommand } = await import("@aws-sdk/client-s3");
+  const client = await s3Client();
+  try {
+    const r = await client.send(new GetObjectCommand({ Bucket: env.s3Bucket, Key: key }));
+    const body = await r.Body?.transformToByteArray();
+    if (!body) return null;
+    return { body, contentType: (r.ContentType ?? "application/octet-stream").toLowerCase() };
+  } catch {
+    return null;
+  }
+}
+
 export function allowedPhotoHost(): string | null {
   if (!env.s3Bucket) return null;
   if (env.s3PublicUrl) {

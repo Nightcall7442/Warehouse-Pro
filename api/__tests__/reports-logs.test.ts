@@ -170,15 +170,20 @@ function makeMockDb() {
                     отдавать число вместо адреса: проверка сломалась на типе, а
                     могла бы и не сломаться.
 
-                    photoRef узнаётся по четвёртой подстановке: там лежит
-                    приставка пути «/api/photos/<вид>/» — единственная строка
-                    среди колонок. Значения идут так: колонка снимка, она же,
-                    она же, приставка пути, колонка идентификатора, колонка
-                    времени правки, снова колонка снимка.
+                    photoRef узнаётся по приставке пути «/api/photos/<вид>/» —
+                    единственной строке среди подстановок. С 19.09.2026 ветвь
+                    «ссылка через ручку» вынесена во вложенное sql (lazy), и
+                    ветвей с ней три: строка данных и два префикса своего
+                    хранилища; подстановки разворачиваются вглубь, сразу за
+                    приставкой идёт колонка идентификатора.
                   */
                   const parts = ((def as any).strings as string[]).join("");
                   const vals = (def as any).values as unknown[];
-                  const prefixVal = vals[3];
+                  const flatten = (v: unknown[]): unknown[] => v.flatMap(x =>
+                    x && typeof x === "object" && (x as any).__kind === "sql" ? flatten((x as any).values as unknown[]) : [x]);
+                  const flat = flatten(vals);
+                  const prefixAt = flat.findIndex(x => typeof x === "string" && x.startsWith("/api/photos/"));
+                  const prefixVal = prefixAt >= 0 ? flat[prefixAt] : undefined;
                   if (parts.includes("order_number FROM orders")) {
                     /*
                       Номер документа за движением (api/lib/movement-reference.ts):
@@ -194,7 +199,7 @@ function makeMockDb() {
                   } else if (typeof prefixVal === "string" && prefixVal.startsWith("/api/photos/")) {
                     const photo = at(row, vals[0]);
                     const prefix = prefixVal;
-                    const id = at(row, vals[4]);
+                    const id = at(row, flat[prefixAt + 1]);
                     out[alias] = photo === null || photo === undefined || photo === ""
                       ? null
                       : String(photo).startsWith("data:") ? `${prefix}${id}?v=0` : String(photo);

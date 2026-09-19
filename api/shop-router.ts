@@ -300,7 +300,7 @@ export const shopRouter = createRouter({
       const [shop]   = await db.select({
         id: shops.id, name: shops.name, ownerName: shops.ownerName, phone: shops.phone,
         address: shops.address, city: shops.city, district: shops.district,
-        photoUrl: shops.photoUrl, gpsLat: shops.gpsLat, gpsLng: shops.gpsLng,
+        photoUrl: photoRef("shop", shops.id, shops.photoUrl, shops.updatedAt), gpsLat: shops.gpsLat, gpsLng: shops.gpsLng,
         debt: shops.debt, status: shops.status, agentId: shops.agentId,
         notes: shops.notes, createdAt: shops.createdAt,
       }).from(shops)
