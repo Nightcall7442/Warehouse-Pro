@@ -4,12 +4,13 @@ import { useSearchParams } from "react-router";
 import { useLang } from "@/i18n";
 import { useAuth } from "@/hooks/useAuth";
 import {
-  User, Bell, Building2, SunMoon, Database, Warehouse, Palette, ShieldCheck, Tags, KeyRound,
+  User, Bell, Building2, SunMoon, Database, Warehouse, Palette, ShieldCheck, Tags, KeyRound, FileText,
 } from "lucide-react";
 import { ProfileSettings } from "@/components/settings/ProfileSettings";
 import { CompanySettings } from "@/components/settings/CompanySettings";
 import { WarehouseSettings } from "@/components/settings/WarehouseSettings";
 import { ControlSettings } from "@/components/settings/ControlSettings";
+import { InvoiceSettings } from "@/components/settings/InvoiceSettings";
 import { PriceListSettings } from "@/components/settings/PriceListSettings";
 import { ApiKeySettings } from "@/components/settings/ApiKeySettings";
 import { TelegramSettings } from "@/components/settings/TelegramSettings";
@@ -78,6 +79,14 @@ const SECTIONS: Section[] = [
     descRu: "Логотип и цвета, которыми приложение показывается вашим сотрудникам и на экране входа.",
     descUz: "Logotip va ranglar — ilova xodimlaringizga va kirish ekranida shunday ko'rinadi.",
     Comp: BrandingSettings,
+  },
+  {
+    // Накладные — рядом с брендингом: это тоже оформление, а не реквизит.
+    key: "invoices", Icon: FileText, roles: ["ceo"],
+    titleRu: "Накладные", titleUz: "Yuk xatlari",
+    descRu: "Шаблон накладной и что на ней печатать: телефон магазина, агент, долг, штрих-код, экземпляры.",
+    descUz: "Yuk xati shabloni va unda nimani chop etish: do'kon telefoni, agent, qarz, shtrix-kod, nusxalar.",
+    Comp: InvoiceSettings,
   },
   {
     key: "warehouses", Icon: Warehouse, roles: ["ceo"],

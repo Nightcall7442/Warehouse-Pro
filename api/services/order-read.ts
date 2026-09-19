@@ -170,7 +170,7 @@ export async function getById(db: Db, tenantId: number, orderId: number, viewer:
       .leftJoin(territories, eq(shops.territoryId, territories.id))
       .where(and(eq(shops.id, order.shopId), eq(shops.tenantId, tenantId))).limit(1),
     order.agentId
-      ? db.select({ id: users.id, name: users.name }).from(users).where(eq(users.id, order.agentId)).limit(1)
+      ? db.select({ id: users.id, name: users.name, phone: users.phone }).from(users).where(eq(users.id, order.agentId)).limit(1)
       : Promise.resolve([]),
     order.courierId
       ? db.select({ id: users.id, name: users.name }).from(users).where(eq(users.id, order.courierId)).limit(1)
@@ -215,6 +215,8 @@ export async function batchGetOrdersForPrint(db: Db, tenantId: number, orderIds:
     shopName: shops.name, shopAddress: shops.address, shopCity: shops.city,
     shopPhone: shops.phone, shopDebt: shops.debt,
     agentName: users.name,
+    // Телефон агента печатается на «Компактной» накладной (образец владельца).
+    agentPhone: users.phone,
     territoryName: territories.name,
     courierName: couriers.name,
   }).from(orders)

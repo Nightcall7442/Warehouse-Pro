@@ -44,7 +44,7 @@ export function InvoicePrintModal({ open, onOpenChange, orderIds, onDone }: Prop
 
   const batchMutation = trpc.order.batchPrintInvoices.useMutation();
 
-  const { company, currency, footerNote, isReady } = useSellerCompany();
+  const { company, currency, footerNote, isReady, invoice } = useSellerCompany();
 
   const [result, setResult] = useState<{ orders: BatchOrderData[] } | null>(null);
 
@@ -78,7 +78,7 @@ export function InvoicePrintModal({ open, onOpenChange, orderIds, onDone }: Prop
 
   const handlePrint = () => {
     if (!result) return;
-    printBatchInvoices(result.orders, { ...PRINT_OPTIONS, footerNote }, company, currency, docType);
+    printBatchInvoices(result.orders, { ...PRINT_OPTIONS, footerNote }, company, currency, docType, invoice.template ?? "detailed", invoice.options);
     onDone();
     onOpenChange(false);
   };

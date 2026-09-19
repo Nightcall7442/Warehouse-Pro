@@ -41,6 +41,7 @@ const strip = (code: string) =>
 const ALLOWED = [
   path.join("src", "lib", "documents.ts"),
   path.join("src", "lib", "print.ts"),
+  path.join("src", "lib", "invoice-templates.ts"),
   path.join("src", "components", "landing", "landing-tokens.ts"),
   // Цветовая математика бренда: фон карточек обеих тем нужен числом — из него считается контраст.
   path.join("src", "lib", "brand-palette.ts"),

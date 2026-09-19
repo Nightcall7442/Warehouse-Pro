@@ -4,6 +4,10 @@
  * Styles are embedded inline for maximum print compatibility.
  */
 import { colorMix } from "@/lib/color-mix";
+import { PAYMENT_METHOD_LABEL } from "@contracts/entity-labels";
+import { resolveInvoiceOptions, type InvoiceOptions, type InvoiceTemplateId } from "@contracts/invoice-template";
+import { COPY_LABELS, debtBlock, renderInvoiceDocument, type InvoiceView } from "./invoice-templates";
+export { COPY_LABELS };
 
 /**
  * Правила печати, общие для всех документов.
@@ -241,11 +245,6 @@ const GRID_STYLES = `
   семь позиций занимает меньше половины А4, а печатают их по полсотни в день.
   Если позиций много, второй экземпляр сам уйдёт на следующий лист.
 */
-export const COPY_LABELS = [
-  "ЭКЗЕМПЛЯР 1 ИЗ 2 — ПОКУПАТЕЛЮ",
-  "ЭКЗЕМПЛЯР 2 ИЗ 2 — ВОЗВРАЩАЕТСЯ ПОСТАВЩИКУ С ПОДПИСЬЮ ПОКУПАТЕЛЯ",
-] as const;
-
 const CUT_LINE = `
     <div class="cut-line" style="margin:4mm 0;border-top:1px dashed #999;position:relative">
       <span style="position:absolute;top:-7px;left:0;background:#fff;padding-right:6px;font-size:8pt;color:#999">✂ линия отреза</span>
@@ -263,7 +262,7 @@ function twoCopies(body: string): string {
     <div style="page-break-inside:avoid">${copyLabel(1)}${body}</div>`;
 }
 
-function openPrintWindow(html: string, title: string, customStyles?: string) {
+function openPrintWindow(html: string, title: string, customStyles?: string, bodyClass = "") {
   /*
     Заблокированное окно объясняется словами, а не печатает экран.
 
@@ -274,7 +273,7 @@ function openPrintWindow(html: string, title: string, customStyles?: string) {
   const w = openPrintWindowOrExplain();
   if (!w) return;
   const styles = customStyles ?? BASE_STYLES;
-  w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${title}</title><style>${styles}</style></head><body>${html}</body></html>`);
+  w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${title}</title><style>${styles}</style></head><body class="${bodyClass}">${html}</body></html>`);
   w.document.close();
 
   /*
@@ -358,6 +357,11 @@ export type OrderDocData = {
   shopOwner?: string;
   shopPhone?: string;
   territoryName?: string;
+  agentName?: string;
+  agentPhone?: string;
+  courierName?: string;
+  /** Долг магазина на момент печати — для «Подробной». */
+  shopDebt?: number;
   /** Текст в подвале — из «Брендинга» арендатора. Пусто — подписи нет. */
   footerNote?: string;
 };
@@ -431,106 +435,54 @@ function partialNote(item: DocItem, size = "8pt"): string {
 }
 
 // ── 1. РАСХОДНАЯ НАКЛАДНАЯ (Uzbekistan standard) — 2 копии на листе ──────────
-export function printUzWaybill(data: OrderDocData) {
-  const itemRows = data.items.map((item, i) => `
-    <tr>
-      <td class="center">${i + 1}</td>
-      <td>${escapeHtml(item.name)}${item.code ? ` (${escapeHtml(item.code)})` : ""}${partialNote(item)}</td>
-      <td class="center">${unitLabel(item.unit)}</td>
-      <td class="center">${cleanNum(item.qty)}</td>
-      <td class="right">${item.price.toLocaleString("ru-RU")}</td>
-      <td class="right">${item.total.toLocaleString("ru-RU")}</td>
-    </tr>`).join("");
+const stamp = () => new Date().toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
 
-  function buildCopy() {
-    return `
-      <table class="no-border" style="margin-bottom:4px">
-        <tr>
-          <td style="width:50%">
-            <div class="meta">
-              ${metaRow("Поставщик:", data.seller.name, true)}
-              ${metaRow("ИНН / СТИР:", data.seller.inn)}
-              ${metaRow("Адрес:", data.seller.address)}
-              ${metaRow("Банк:", data.seller.bank)}
-              ${metaRow("Р/с:", data.seller.account)}
-              ${metaRow("МФО:", data.seller.mfo)}
-            </div>
-          </td>
-          <td style="width:50%">
-            <div class="meta">
-              ${metaRow("Покупатель:", data.buyer.name, true)}
-              ${metaRow("ИНН / СТИР:", data.buyer.inn)}
-              ${metaRow("Адрес:", data.buyer.address)}
-            </div>
-          </td>
-        </tr>
-      </table>
+/** Карточка заказа → общая форма для шаблонов. */
+export function invoiceViewFromOrderDoc(d: OrderDocData): InvoiceView {
+  return {
+    number: d.number, date: d.date, printedAt: stamp(), currency: d.currency,
+    company: { name: d.seller.name, inn: d.seller.inn, address: d.seller.address, phone: d.seller.phone, bank: d.seller.bank, account: d.seller.account, mfo: d.seller.mfo, director: d.seller.director, logoUrl: d.seller.logoUrl },
+    shop: { name: d.buyer.name, inn: d.buyer.inn, address: d.buyer.address, phone: d.shopPhone, owner: d.shopOwner },
+    agent: d.agentName ? { name: d.agentName, phone: d.agentPhone } : undefined,
+    courier: d.courierName ? { name: d.courierName } : undefined,
+    territory: d.territoryName,
+    items: d.items.map(i => ({ code: i.code, name: i.name, unit: i.unit, qty: i.qty, orderedQty: i.orderedQty, price: i.price, total: i.total, returnReason: i.returnReason })),
+    subtotal: d.subtotal, discount: d.discount ?? 0, total: d.total, paymentLabel: d.paymentMethodLabel,
+    isPartial: d.items.some(i => i.orderedQty != null && i.deliveredQty != null && i.deliveredQty < i.orderedQty),
+    notes: d.notes, debt: d.shopDebt != null ? { current: d.shopDebt } : undefined, footerNote: d.footerNote,
+  };
+}
 
-      <div class="title">РАСХОДНАЯ НАКЛАДНАЯ</div>
-      <div class="subtitle">№ ${escapeHtml(data.number)} от ${escapeHtml(data.date)}</div>
+/** Пачка из «Заказов» → общая форма для шаблонов. */
+export function invoiceViewFromBatch(o: BatchOrderData, company: CompanyInfo, currency: string, footerNote?: string): InvoiceView {
+  const last = o.paymentHistory[0];
+  return {
+    number: o.orderNumber, date: new Date(o.createdAt).toLocaleDateString("ru-RU"), printedAt: stamp(), currency,
+    company: { ...company },
+    shop: { name: o.shopName ?? "", phone: o.shopPhone ?? undefined, address: o.shopAddress ?? undefined },
+    agent: o.agentName ? { name: o.agentName, phone: o.agentPhone ?? undefined } : undefined,
+    courier: o.courierName ? { name: o.courierName } : undefined,
+    territory: o.territoryName ?? undefined,
+    items: (o.items ?? []).map(i => ({
+      code: i.productCode ?? undefined, name: i.productName, unit: i.unit,
+      qty: Number(i.deliveredQuantity ?? i.quantity), orderedQty: Number(i.quantity),
+      price: Number(i.unitPrice), total: Number(i.subtotal),
+    })),
+    subtotal: Number(o.subtotal), discount: Number(o.discount), total: Number(o.total),
+    paymentLabel: PAYMENT_METHOD_LABEL[o.paymentMethod as keyof typeof PAYMENT_METHOD_LABEL]?.ru,
+    isPartial: Boolean(o.isPartial), notes: o.notes ?? undefined,
+    debt: { current: o.shopDebtAmount, lastPayment: last ? { amount: Number(last.amount), date: new Date(last.createdAt).toLocaleDateString("ru-RU") } : undefined },
+    footerNote,
+  };
+}
 
-      <table>
-        <thead>
-          <tr>
-            <th style="width:4%">№</th>
-            <th>Наименование товара</th>
-            <th style="width:7%">Ед.</th>
-            <th style="width:8%">Кол-во</th>
-            <th style="width:12%">Цена (${escapeHtml(data.currency)})</th>
-            <th style="width:15%">Сумма (${escapeHtml(data.currency)})</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${itemRows}
-          <tr>
-            <td colspan="3" class="right bold">ИТОГО:</td>
-            <td class="center bold">${cleanNum(data.items.reduce((s,i) => s+i.qty, 0))}</td>
-            <td></td>
-            <td class="right bold">${data.subtotal.toLocaleString("ru-RU")} ${escapeHtml(data.currency)}</td>
-          </tr>
-          ${data.discount && data.discount > 0 ? `
-          <tr>
-            <td colspan="5" class="right">Скидка:</td>
-            <td class="right">−${data.discount.toLocaleString("ru-RU")} ${escapeHtml(data.currency)}</td>
-          </tr>` : ""}
-          <tr>
-            <td colspan="5" class="right bold">К ОПЛАТЕ:</td>
-            <td class="right bold">${data.total.toLocaleString("ru-RU")} ${escapeHtml(data.currency)}</td>
-          </tr>
-        </tbody>
-      </table>
-
-      ${data.notes ? `<p style="margin-top:8px;font-size:10pt"><b>Примечание:</b> ${escapeHtml(data.notes)}</p>` : ""}
-
-      <div class="signature-block">
-        <div class="sig-row">
-          <div class="sig-col">
-            <div class="sig-label">Отпустил (Сдал)</div>
-            <div class="sig-line"></div>
-            <div class="sig-label">${data.seller.director ? `Директор: ${escapeHtml(data.seller.director)}` : "___________________________"}</div>
-          </div>
-          <div class="sig-col">
-            <div class="sig-label">Получил (Принял)</div>
-            <div class="sig-line"></div>
-            <div class="sig-label">___________________________</div>
-          </div>
-          <div class="sig-col">
-            <div class="sig-label">Дата</div>
-            <div class="sig-line"></div>
-            <div class="sig-label">"____" ____________ 20___ г.</div>
-          </div>
-        </div>
-      </div>
-    `;
-  }
-
-  const html = `
-    ${twoCopies(buildCopy())}
-
-    ${docFooter(data.footerNote, "9pt", "#555")}
-  `;
-
-  openPrintWindow(html, `Расходная накладная № ${escapeHtml(data.number)}`);
+/**
+ * Расходная накладная из карточки заказа — по шаблону арендатора.
+ * Без шаблона — «Классическая» с её умолчаниями: так печаталось всегда.
+ */
+export function printUzWaybill(data: OrderDocData, template: InvoiceTemplateId = "classic", options?: Partial<InvoiceOptions> | null) {
+  const doc = renderInvoiceDocument([invoiceViewFromOrderDoc(data)], template, resolveInvoiceOptions(template, options));
+  openPrintWindow(doc.html, doc.title, doc.styles, doc.bodyClass);
 }
 
 // ── 2. ПРИХОДНАЯ НАКЛАДНАЯ (Goods Receipt) ────────────────────────────────────
@@ -1002,6 +954,7 @@ export type BatchOrderData = {
   shopDebt: string;
   shopDebtAmount: number;
   agentName: string | null;
+  agentPhone?: string | null;
   territoryName: string | null;
   courierName: string | null;
   paymentMethod: string;
@@ -1037,147 +990,6 @@ export type BatchPrintOptions = {
   pageBreakPerOrder: boolean;
   sortBy: "orderNumber" | "shop" | "agentRoute" | "territory";
 };
-
-/**
- * Долг магазина в накладной — числом, без окриков.
- *
- * ── Что здесь было ──────────────────────────────────────────────────────────
- *
- * Долг раскрашивался и подписывался по трём порогам в абсолютных суммах:
- * 500 000 — «Небольшая задолженность», миллион — «Крупная задолженность!
- * Обратите внимание», выше — «КРИТИЧЕСКИЙ ДОЛГ! Требуется срочная оплата».
- *
- * Пороги ничего не значат без валюты: полмиллиона сумов и полмиллиона тенге
- * различаются на порядок, а валюта у каждого арендатора своя (она тут же,
- * параметром). К тому же две верхние ветки красили одним цветом — третья
- * ступень не существовала.
- *
- * И главное: эту бумагу экспедитор отдаёт в магазин. Крик капслоком в чужом
- * документе — не про деньги, а про тон; сумма и без него читается.
- *
- * Остаётся то, ради чего блок и нужен экспедитору: сколько магазин должен,
- * сколько забрать с учётом этой поставки и когда платили в последний раз.
- */
-const DEBT_ACCENT = "#b45309";
-
-function buildDebtBlock(order: BatchOrderData, currency: string): string {
-  const debt = order.shopDebtAmount;
-  if (debt <= 0) return ""; // Долга нет — блока нет.
-
-  const recommended = debt + Number(order.total);
-
-  // История платежей приходит за последние 30 дней (batchGetOrdersForPrint).
-  const lastPayment = order.paymentHistory[0];
-  const paymentLine = lastPayment
-    ? `Последний платёж: ${new Date(lastPayment.createdAt).toLocaleDateString("ru-RU")} — ${Number(lastPayment.amount).toLocaleString("ru-RU")} ${escapeHtml(currency)}`
-    : "Платежей за 30 дней нет";
-
-  return `
-    <div style="margin:4px 0;padding:4px 8px;border:1px solid ${colorMix(DEBT_ACCENT, 25)};background:${colorMix(DEBT_ACCENT, 3)};font-size:8pt">
-      <b style="color:${DEBT_ACCENT}">Долг магазина: ${debt.toLocaleString("ru-RU")} ${escapeHtml(currency)}</b>
-      ${Number(order.total) > 0 ? `<span style="margin-left:8px">К оплате с этой поставкой: <b>${recommended.toLocaleString("ru-RU")} ${escapeHtml(currency)}</b></span>` : ""}
-      <span style="margin-left:8px;color:#666">${paymentLine}</span>
-    </div>`;
-}
-
-function buildSingleInvoice(order: BatchOrderData, opts: BatchPrintOptions, company: CompanyInfo, currency: string): string {
-  const itemRows = (order.items ?? []).map((item, i) => {
-    const costCol = opts.includeCostPrice ? `<td class="right">${Number(item.costPrice).toLocaleString("ru-RU")}</td>` : "";
-    /*
-      ── Заказано и отпущено ───────────────────────────────────────────────────
-
-      В обеих колонках стояло item.quantity: заказанное количество, зачёркнутое,
-      и рядом оно же — как «отдали». Документ показывал недостачу, которой по
-      его же числам не было.
-
-      Отпущенное лежит в order_items.delivered_quantity: частичная доставка
-      пишет его туда и пересчитывает subtotal строки, а quantity оставляет
-      заказанным (applyPartialDelivery в api/services/order.ts). Без него
-      строка не сходилась и в обычной накладной: цена × количество давала одно,
-      а в графе «Сумма» стояло другое.
-    */
-    const delivered = item.deliveredQuantity != null ? Number(item.deliveredQuantity) : null;
-    const qtyCol = order.isPartial
-      ? `<td class="right" style="text-decoration:line-through;color:#999">${cleanNum(item.quantity)}</td>
-         <td class="right bold">${cleanNum(delivered ?? item.quantity)}</td>`
-      : `<td class="right">${cleanNum(delivered ?? item.quantity)}</td>`;
-    return `
-      <tr>
-        <td class="center">${i + 1}</td>
-        <td>${escapeHtml(item.productName)}${item.productCode ? ` <span style="color:#666;font-size:8pt">(${escapeHtml(item.productCode)})</span>` : ""}</td>
-        <td class="center">${unitLabel(item.unit)}</td>
-        ${qtyCol}
-        <td class="right">${Number(item.unitPrice).toLocaleString("ru-RU")}</td>
-        ${costCol}
-        <td class="right bold">${Number(item.subtotal).toLocaleString("ru-RU")}</td>
-      </tr>`;
-  }).join("");
-
-  const costHeader = opts.includeCostPrice ? '<th style="width:10%">Себест.</th>' : "";
-
-  // Show ordered vs delivered columns if partial delivery
-  const qtyHeader = order.isPartial
-    ? '<th style="width:9%">Заказ</th><th style="width:9%">Отдали</th>'
-    : '<th style="width:9%">Кол-во</th>';
-
-  const partialBanner = order.isPartial
-    ? `<div style="margin-bottom:10px;padding:8px 12px;background:#fffbeb;border:1px solid #fde68a;border-radius:6px;font-size:9pt;color:#92400e;font-weight:600">
-        ⚠️ СКОРРЕКТИРОВАНА: частичная доставка
-      </div>`
-    : "";
-
-  return `
-      ${partialBanner}
-      <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px;padding-bottom:4px;border-bottom:2px solid #333">
-        <div style="font-size:10pt;font-weight:700">${escapeHtml(company.name)}${company.inn ? ` (ИНН: ${escapeHtml(company.inn)})` : ""}</div>
-        <div style="text-align:right">
-          <span style="font-size:10pt;font-weight:700">Накладная № ${escapeHtml(order.orderNumber)}</span>
-          <span style="font-size:8pt;color:#666;margin-left:8px">от ${new Date(order.createdAt).toLocaleDateString("ru-RU")}</span>
-          ${opts.includeBarcodes ? `<div style="display:flex;justify-content:flex-end;margin-top:2px">${barcodeCell(order.orderNumber)}</div>` : ""}
-        </div>
-      </div>
-      <div style="display:flex;gap:16px;font-size:8pt;color:#666;margin-bottom:4px">
-        ${order.shopName ? `<span>Магазин: <b>${escapeHtml(order.shopName)}</b></span>` : ""}
-        ${order.agentName ? `<span>Агент: ${escapeHtml(order.agentName)}</span>` : ""}
-        ${order.territoryName ? `<span>Территория: ${escapeHtml(order.territoryName)}</span>` : ""}
-        ${order.shopAddress ? `<span>Адрес: ${escapeHtml(order.shopAddress)}</span>` : ""}
-      </div>
-
-      ${buildDebtBlock(order, currency)}
-
-      <table>
-        <thead>
-          <tr>
-            <th style="width:4%">№</th>
-            <th style="text-align:left">Наименование</th>
-            <th style="width:7%">Ед.</th>
-            ${qtyHeader}
-            <th style="width:12%">Цена</th>
-            ${costHeader}
-            <th style="width:14%">Сумма</th>
-          </tr>
-        </thead>
-        <tbody>${itemRows}</tbody>
-      </table>
-
-      <div class="totals-box">
-        <table>
-          <tr><td>Итого позиций:</td><td class="right">${(order.items ?? []).length}</td></tr>
-          <tr><td>Сумма:</td><td class="right">${Number(order.subtotal).toLocaleString("ru-RU")} ${escapeHtml(currency)}</td></tr>
-          ${Number(order.discount) > 0 ? `<tr><td>Скидка:</td><td class="right" style="color:#16a34a">−${Number(order.discount).toLocaleString("ru-RU")} ${escapeHtml(currency)}</td></tr>` : ""}
-          <tr class="total-row"><td>ИТОГО:</td><td class="right">${Number(order.total).toLocaleString("ru-RU")} ${escapeHtml(currency)}</td></tr>
-        </table>
-      </div>
-
-      ${opts.includeNotes && order.notes ? `<div style="margin-top:10px;padding:8px 10px;background:#fffbeb;border:1px solid #fde68a;font-size:8pt"><b>Примечание:</b> ${escapeHtml(order.notes)}</div>` : ""}
-
-      ${opts.includeSignature ? `
-      <div style="display:flex;gap:20px;margin-top:8px;font-size:8pt">
-        <div style="flex:1">Отпустил: _______________</div>
-        <div style="flex:1">Получил: _______________</div>
-        <div style="flex:1">Дата: _______________</div>
-      </div>` : ""}`;
-}
 
 /*
   ТТН — товарно-транспортная накладная.
@@ -1239,7 +1051,7 @@ function buildTTNInvoice(order: BatchOrderData, company: CompanyInfo, currency: 
         </tr>
       </table>
 
-      ${buildDebtBlock(order, currency)}
+      ${debtBlock(invoiceViewFromBatch(order, company, currency))}
 
       <table style="font-size:9pt">
         <thead>
@@ -1270,7 +1082,7 @@ function buildTTNInvoice(order: BatchOrderData, company: CompanyInfo, currency: 
 
 // Валюта — параметр без запасного значения: стояло «сум», и забытый аргумент
 // напечатал бы узбекскую валюту в документе казахстанского арендатора молча.
-export function printBatchInvoices(orders: BatchOrderData[], opts: BatchPrintOptions, company: CompanyInfo, currency: string, docType: "simple" | "ttn" = "simple") {
+export function printBatchInvoices(orders: BatchOrderData[], opts: BatchPrintOptions, company: CompanyInfo, currency: string, docType: "simple" | "ttn" = "simple", template: InvoiceTemplateId = "detailed", invoiceOptions?: Partial<InvoiceOptions> | null) {
   // Sort orders
   const sorted = [...orders];
   if (opts.sortBy === "shop") sorted.sort((a, b) => (a.shopName ?? "").localeCompare(b.shopName ?? ""));
@@ -1285,10 +1097,14 @@ export function printBatchInvoices(orders: BatchOrderData[], opts: BatchPrintOpt
     на том же листе ушла бы не в те руки. Настройка pageBreakPerOrder поэтому
     больше не читается — разрыв обязателен.
   */
-  const pages = sorted.map(o => `<div class="invoice-container">${twoCopies(docType === "ttn" ? buildTTNInvoice(o, company, currency) : buildSingleInvoice(o, opts, company, currency))}</div>`);
-  const html = pages.join('<div style="page-break-before:always"></div>');
-
-  openPrintWindow(html, `Накладные — ${orders.length} заказ(ов)`, GRID_STYLES);
+  if (docType === "ttn") {
+    const pages = sorted.map(o => `<div class="invoice-container">${twoCopies(buildTTNInvoice(o, company, currency))}</div>`);
+    openPrintWindow(pages.join('<div style="page-break-before:always"></div>'), `Накладные — ${orders.length} заказ(ов)`, GRID_STYLES);
+    return;
+  }
+  // Накладная — по шаблону арендатора; без выбора пачка печатается «Подробной», как и раньше.
+  const doc = renderInvoiceDocument(sorted.map(o => invoiceViewFromBatch(o, company, currency, opts.footerNote)), template, resolveInvoiceOptions(template, invoiceOptions));
+  openPrintWindow(doc.html, `Накладные — ${orders.length} заказ(ов)`, doc.styles, doc.bodyClass);
 }
 
 // ── 6. LOADING LIST — for warehouse workers ────────────────────────────────
