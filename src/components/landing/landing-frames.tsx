@@ -32,13 +32,15 @@ export const R = { sheet: 14, window: 18 } as const;
    одинаковом на каждом снимке. Хром окна — тонкая полоса с тремя точками и
    адресом; тень длинная и мягкая, как у листа на столе.                      */
 export function Browser({
-  shot, alt, children, tone = "paper", fade = true, content = false, className = "", style,
+  shot, alt, children, tone = "paper", fade = true, content = false, aspect, className = "", style,
 }: {
   shot?: WebShotKey;
   alt?: string;
   children?: ReactNode;
   /** dark — окно стоит на ночной полосе. */
   tone?: "paper" | "dark";
+  /** Своя пропорция окна: кадр во весь горизонт режется снизу под затухание, чтобы уместиться в экран. */
+  aspect?: number;
   /** Затухание нижнего края к фону — кадр не обрывается линией. */
   fade?: boolean;
   /** Кадр без бокового меню приложения. */
@@ -68,7 +70,7 @@ export function Browser({
         </span>
         <span className="text-[10.5px]" style={{ ...MONO, color: dark ? LX.softOnInk : LX.inkFaint, letterSpacing: "0.02em" }}>app.warehouse-pro.uz</span>
       </div>
-      <div className="relative" style={{ aspectRatio: content ? WEB_CONTENT_ASPECT : WEB_ASPECT, background: dark ? LX.ink : LX.appCanvas }}>
+      <div className="relative" style={{ aspectRatio: aspect ?? (content ? WEB_CONTENT_ASPECT : WEB_ASPECT), background: dark ? LX.ink : LX.appCanvas }}>
         {shot && (
           <img
             src={content ? webContent(shot, lang) : webShot(shot, lang)}
@@ -243,6 +245,44 @@ export function Split({ left, right, className = "", flip = false }: { left: Rea
     <div className={`grid lg:grid-cols-12 gap-10 lg:gap-x-16 items-start ${className}`}>
       <div className={`lg:col-span-5 ${flip ? "lg:order-2" : ""}`}>{left}</div>
       <div className={`lg:col-span-7 ${flip ? "lg:order-1" : ""}`}>{right}</div>
+    </div>
+  );
+}
+
+/* ── Сцена: кадр во весь горизонт, карточка поверх нижнего края ─────────────
+   «Монументальный реестр», глава 2 (20.09.2026). Раньше кадр программы стоял
+   в 7/12 колонки — окно-открытка, на 2K нечитаемое. Теперь кадр занимает всю
+   колонку страницы (снимки лежат в ×2, на 2K они по-прежнему резкие), а
+   живая карточка главы — одна — лежит поверх его нижней кромки, как лист на
+   столе поверх экрана. Подпись под сценой — моно, как у фигуры в реестре.
+   На телефоне карточка становится под кадр.                                  */
+/** Пропорция кадра на сцене: шире окна содержания, чтобы сцена умещалась в экран на 2K. */
+export const STAGE_ASPECT = 1174 / 700;
+
+export function Stage({ frame, card, caption, flip = false, className = "" }: {
+  frame: ReactNode;
+  /** Живая карточка главы: слева (или справа при flip) поверх нижней кромки кадра. */
+  card?: ReactNode;
+  caption?: ReactNode;
+  flip?: boolean;
+  className?: string;
+}) {
+  return (
+    <div className={className}>
+      <div className={`relative ${card ? "lg:pb-14" : ""}`}>
+        {frame}
+        {card && (
+          <div
+            className={`mt-6 lg:mt-0 lg:absolute lg:bottom-0 lg:w-[420px] ${flip ? "lg:right-8" : "lg:left-8"}`}
+            style={{ boxShadow: WARM_SHADOW, borderRadius: R.sheet }}
+          >
+            {card}
+          </div>
+        )}
+      </div>
+      {caption && (
+        <p className="mt-4 text-[11px] uppercase" style={{ ...MONO, color: LX.inkFaint, letterSpacing: "0.08em" }}>{caption}</p>
+      )}
     </div>
   );
 }

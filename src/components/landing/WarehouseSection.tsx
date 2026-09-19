@@ -1,7 +1,7 @@
 import { useTranslate } from "@/i18n";
 import { LX, MONO } from "./landing-tokens";
 import { SectionHead } from "./landing-shared";
-import { Browser, Ledger, Split, Sheet } from "./landing-frames";
+import { Browser, Ledger, Sheet, Stage, STAGE_ASPECT } from "./landing-frames";
 import { useAnime } from "./landing-anime";
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -68,9 +68,11 @@ export default function WarehouseSection() {
           lead={tr("Остаток не пишут руками — он выводится из приходов, отгрузок, приёмок и возвратов. Программа отгружает то, что портится раньше.", "Qoldiq qo'lda yozilmaydi — u kirim, jo'natish, qabul va qaytarishlardan chiqariladi. Dastur avval buziladigan mahsulotni birinchi jo'natadi.")}
         />
 
-        <Split
+        <Stage
           className="mt-14"
-          left={
+          frame={<div data-reveal="wh-shot"><Browser shot="warehouse" content aspect={STAGE_ASPECT} alt={tr("Экран склада: остатки, резерв, доступно, движения", "Ombor ekrani: qoldiq, zaxira, bo'sh, harakatlar")} /></div>}
+          caption={tr("Экран склада · остатки, резерв, доступно · демо-данные", "Ombor ekrani · qoldiq, zaxira, bo'sh · demo-ma'lumotlar")}
+          card={
             <Sheet title={tr("Вода «Орол» 1,5 л · партии", "«Orol» suvi 1,5 l · partiyalar")} aside={<span className="text-[11px]" style={{ ...MONO, color: LX.inkFaint }}>FEFO</span>}>
               <div data-reveal="fefo" className="space-y-2 relative">
                 {BATCHES.map(b => (
@@ -96,7 +98,6 @@ export default function WarehouseSection() {
               </div>
             </Sheet>
           }
-          right={<div data-reveal="wh-shot"><Browser shot="warehouse" content alt={tr("Экран склада: остатки, резерв, доступно, движения", "Ombor ekrani: qoldiq, zaxira, bo'sh, harakatlar")} /></div>}
         />
 
         <div className="mt-20 md:mt-24">
