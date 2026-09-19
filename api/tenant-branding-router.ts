@@ -9,6 +9,7 @@ import { isSafePhotoValue, PHOTO_VALUE_ERROR } from "./lib/photo-value";
 // Пределы длины — там же, где объяснено, откуда они взялись: это ёмкость
 // столбца, а не пожелание к качеству. Клиент жмёт под те же числа.
 import { LOGO_MAX_CHARS, FAVICON_MAX_CHARS } from "@contracts/image-limits";
+import { INVOICE_TEMPLATES, type InvoiceTemplateId, type InvoiceOptions } from "@contracts/invoice-template";
 
 /*
   Брендинг — то, КАК приложение выглядит: знак, цвета, название, тексты входа.
@@ -72,6 +73,19 @@ const brandingInput = z.object({
   loginSubtitle:  optionalText(255, "Подзаголовок на входе"),
   footerText:     optionalText(500, "Текст в подвале"),
   mobileTheme:    z.enum(["light", "dark", "auto"]).optional(),
+  // Накладная: шаблон и галочки поверх его умолчаний (contracts/invoice-template.ts).
+  // Хранятся только отличия — null стирает галочки, и шаблон печатается как задуман.
+  invoiceTemplate: z.enum(INVOICE_TEMPLATES).optional(),
+  invoiceOptions: z.object({
+    logo: z.enum(["none", "company", "warehouse-pro"]),
+    copies: z.union([z.literal(1), z.literal(2)]),
+    copiesLayout: z.enum(["stack", "side"]),
+    showShopPhone: z.boolean(), showShopAddress: z.boolean(), showAgent: z.boolean(), showAgentPhone: z.boolean(),
+    showCourier: z.boolean(), showProductCode: z.boolean(), showUnit: z.boolean(), showDiscount: z.boolean(),
+    showDebt: z.boolean(), showBarcode: z.boolean(), showPaymentMethod: z.boolean(), showSignatures: z.boolean(),
+    showNotes: z.boolean(), showPrintedAt: z.boolean(),
+    fontSize: z.enum(["small", "normal"]),
+  }).partial().strict().nullable().optional(),
 });
 
 /**
@@ -99,6 +113,8 @@ const NOTHING_SET = {
   loginSubtitle:  null,
   footerText:     null,
   mobileTheme:    "auto" as const,
+  invoiceTemplate: null as InvoiceTemplateId | null,
+  invoiceOptions:  null as Partial<InvoiceOptions> | null,
 };
 
 export const tenantBrandingRouter = createRouter({
@@ -138,6 +154,8 @@ export const tenantBrandingRouter = createRouter({
         footerText:     row.footerText,
         // Колонка — varchar; на входе стоит z.enum, так что сузить безопасно.
         mobileTheme:    (row.mobileTheme ?? "auto") as "light" | "dark" | "auto",
+        invoiceTemplate: (INVOICE_TEMPLATES as readonly string[]).includes(row.invoiceTemplate ?? "") ? row.invoiceTemplate as InvoiceTemplateId : null,
+        invoiceOptions:  (row.invoiceOptions ?? null) as Partial<InvoiceOptions> | null,
       };
     });
   }),

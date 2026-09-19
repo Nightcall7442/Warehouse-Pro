@@ -407,6 +407,13 @@
       "when": 1789758721559,
       "tag": "0057_order_warehouse_return_requested_price",
       "breakpoints": true
+    },
+    {
+      "idx": 58,
+      "version": "5",
+      "when": 1789826775525,
+      "tag": "0058_invoice_templates",
+      "breakpoints": true
     }
   ]
 }

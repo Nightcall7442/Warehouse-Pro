@@ -85,6 +85,9 @@ const SAMPLE: Record<string, unknown> = {
   loginSubtitle:  "Вход для сотрудников",
   footerText:     "© 2026 Акме",
   mobileTheme:    "dark",
+  // Накладные (19.09.2026): шаблон и галочки поверх его умолчаний.
+  invoiceTemplate: "compact",
+  invoiceOptions:  { showShopPhone: false, copies: 1 },
 };
 
 beforeEach(() => { inserted = null; updated = null; hasRow = false; });

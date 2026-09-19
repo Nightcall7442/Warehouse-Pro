@@ -1575,6 +1575,13 @@ export const tenantBranding = mysqlTable("tenant_branding", {
   footerText:    varchar("footer_text", { length: 500 }),
   mobileTheme:   varchar("mobile_theme", { length: 10 }).default("auto"),
   /*
+    Накладная: шаблон (classic / compact / detailed) и галочки поверх его
+    умолчаний (contracts/invoice-template.ts). Пусто — «Классическая» как
+    печаталось всегда. Оформление, поэтому здесь, а не в settings.
+  */
+  invoiceTemplate: varchar("invoice_template", { length: 24 }),
+  invoiceOptions:  json("invoice_options").$type<Record<string, unknown>>(),
+  /*
     Реквизиты живут в settings и правятся в разделе «Компания» — там же адрес,
     директор и банк, которые печатаются на счёте. Эти два столбца остались от
     прежнего замысла: не читаются и не пишутся, второе место для того же ИНН

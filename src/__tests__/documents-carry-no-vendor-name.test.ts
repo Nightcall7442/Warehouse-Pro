@@ -38,6 +38,14 @@ const DOCUMENT_MAKERS = [
   "src/lib/print.ts",
 ];
 
+/*
+  Единственное исключение — по слову владельца (19.09.2026): на «Компактной»
+  накладной знак Warehouse Pro печатается, когда арендатор САМ выбрал его в
+  «Настройки» → «Накладные» → «Логотип». Имя стоит в одном месте и только
+  внутри ветки этого выбора; остальные шаблоны и умолчания «Классической» и
+  «Подробной» по-прежнему без него.
+*/
+
 /** Экраны, которые собирают документ и зовут печать. */
 const DOCUMENT_CALLERS = [
   "src/components/orders/InvoicePrintModal.tsx",
@@ -50,6 +58,16 @@ const DOCUMENT_CALLERS = [
 /** Комментарий вправе рассказывать о прошлом — падать на объяснении глупо. */
 const stripComments = (src: string) =>
   src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "").replace(/\{\/\*[\s\S]*?\*\/\}/g, "");
+
+describe("знак Warehouse Pro на накладной — только по выбору арендатора", () => {
+  it("в шаблонах имя встречается один раз, внутри ветки logo === \"warehouse-pro\"", () => {
+    const code = stripComments(read("src/lib/invoice-templates.ts"));
+    const hits = [...code.matchAll(/Warehouse Pro/g)].map(m => m.index ?? 0);
+    expect(hits).toHaveLength(1);
+    const before = code.slice(Math.max(0, hits[0] - 400), hits[0]);
+    expect(before).toContain('opts.logo === "warehouse-pro"');
+  });
+});
 
 describe("документы не подписаны именем системы", () => {
   for (const file of [...DOCUMENT_MAKERS, ...DOCUMENT_CALLERS]) {

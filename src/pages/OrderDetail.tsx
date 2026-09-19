@@ -103,7 +103,7 @@ export default function OrderDetail() {
   // Чек — по нажатию, не при открытии: HTML с QR нужен только для печати.
   const receipt = trpc.order.receipt.useQuery({ id: Number(id) }, { enabled: false });
 
-  const { company: seller, footerNote } = useSellerCompany();
+  const { company: seller, footerNote, invoice } = useSellerCompany();
 
   /*
     Курьера назначают, пока заказ открыт, — как в панели списка и на сервере.
@@ -295,6 +295,10 @@ export default function OrderDetail() {
       shopOwner:  order.shop?.ownerName ?? undefined,
       shopPhone:  order.shop?.phone ?? undefined,
       territoryName: order.shop?.territoryName ?? undefined,
+      agentName:  order.agent?.name ?? undefined,
+      agentPhone: order.agent?.phone ?? undefined,
+      courierName: order.courier?.name ?? undefined,
+      shopDebt:   order.shop?.debt != null ? Number(order.shop.debt) : undefined,
       footerNote,
     };
   };
@@ -423,7 +427,7 @@ export default function OrderDetail() {
               <div className="absolute right-0 top-full mt-1 w-64 panel py-1 z-20 shadow-lg rounded-lg border">
                 <p className="px-4 py-1.5 text-[10px] font-label text-secondary tracking-wider uppercase">{lang === "uz" ? "Hujjatlar" : "Документы"}</p>
                 {[
-                  { label: lang === "uz" ? "Chiqim nakladnaya (O'Z)" : "Расходная накладная (УЗ)", fn: () => { const d = buildDocData(); if(d) printUzWaybill(d); } },
+                  { label: lang === "uz" ? "Chiqim nakladnaya (O'Z)" : "Расходная накладная (УЗ)", fn: () => { const d = buildDocData(); if(d) printUzWaybill(d, invoice.template ?? "classic", invoice.options); } },
                   { label: lang === "uz" ? "Hisob-faktura" : "Счёт на оплату",                   fn: () => { const d = buildDocData(); if(d) printInvoice(d);  } },
                   { label: lang === "uz" ? "TORg-12 (RF)" : "ТОРГ-12 (РФ)",                     fn: () => { const d = buildDocData(); if(d) printTorg12(d);   } },
                   // Чек с QR — у доставленного заказа: по QR открывается та же продажа из учёта.

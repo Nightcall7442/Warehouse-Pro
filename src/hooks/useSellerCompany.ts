@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { trpc } from "@/providers/trpc";
 import type { CompanyInfo } from "@/lib/documents";
+import type { InvoiceOptions, InvoiceTemplateId } from "@contracts/invoice-template";
 
 /**
  * Кто продавец на бумаге.
@@ -49,6 +50,15 @@ export function useSellerCompany() {
     company,
     currency:   settings.data?.currencySymbol ?? "сум",
     footerNote: branding.data?.footerText ?? undefined,
+    /**
+     * Шаблон накладной и галочки арендатора («Настройки» → «Накладные»).
+     * template null — арендатор не выбирал: карточка заказа печатает
+     * «Классическую», пачка из «Заказов» — «Подробную», как и до выбора.
+     */
+    invoice: {
+      template: (branding.data?.invoiceTemplate ?? null) as InvoiceTemplateId | null,
+      options:  (branding.data?.invoiceOptions ?? null) as Partial<InvoiceOptions> | null,
+    },
     /** Реквизиты ещё не прочитаны — печатать нечего. */
     isReady:    company.name.trim().length > 0,
   };
