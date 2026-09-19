@@ -22,7 +22,7 @@ import { useEffect, useEffectEvent } from "react";
 */
 
 let depth = 0;
-let saved: { y: number; style: Partial<Record<"position" | "top" | "left" | "right" | "width" | "overflow" | "paddingRight", string>> } | null = null;
+let saved: { y: number; path: string; style: Partial<Record<"position" | "top" | "left" | "right" | "width" | "overflow" | "paddingRight", string>> } | null = null;
 
 /** Прибить страницу под окном. Возвращает снятие; повторное снятие — ничего. */
 export function lockScroll(): () => void {
@@ -31,7 +31,7 @@ export function lockScroll(): () => void {
   if (depth++ === 0) {
     const y = window.scrollY || 0;
     const gutter = window.innerWidth - document.documentElement.clientWidth;
-    saved = { y, style: { position: s.position, top: s.top, left: s.left, right: s.right, width: s.width, overflow: s.overflow, paddingRight: s.paddingRight } };
+    saved = { y, path: window.location.pathname, style: { position: s.position, top: s.top, left: s.left, right: s.right, width: s.width, overflow: s.overflow, paddingRight: s.paddingRight } };
     s.position = "fixed"; s.top = `-${y}px`; s.left = "0"; s.right = "0"; s.width = "100%"; s.overflow = "hidden";
     if (gutter > 0) s.paddingRight = `${gutter}px`;
   }
@@ -45,7 +45,15 @@ export function lockScroll(): () => void {
     released = true;
     if (--depth > 0 || !saved) return;
     for (const [k, v] of Object.entries(saved.style)) (s as unknown as Record<string, string>)[k] = v ?? "";
-    const y = saved.y; saved = null;
+    const { y, path } = saved; saved = null;
+    /*
+      Возвращать прокрутку есть куда только на ТОЙ ЖЕ странице. Поиск и
+      палитра команд переводят на другую страницу и закрываются уже после
+      перехода: снятие замка возвращало прокрутку прошлой страницы на новую —
+      «Настройки» открывались низом (владелец, 20.09.2026). Страница
+      сменилась — новая начинается с начала, как её и оставил ScrollToTop.
+    */
+    if (path !== window.location.pathname) return;
     if (typeof window.scrollTo === "function") { try { window.scrollTo(0, y); } catch { /* jsdom */ } }
   };
 }
