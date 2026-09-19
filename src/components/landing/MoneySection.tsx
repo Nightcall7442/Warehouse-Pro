@@ -1,7 +1,7 @@
 import { useTranslate } from "@/i18n";
 import { LX, MONO } from "./landing-tokens";
 import { SectionHead } from "./landing-shared";
-import { Browser, DemoTag, Ledger, Split, Sheet } from "./landing-frames";
+import { Browser, DemoTag, Ledger, Monument, Split, Sheet, Stage, STAGE_ASPECT } from "./landing-frames";
 import { useAnime } from "./landing-anime";
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -84,6 +84,16 @@ export default function MoneySection() {
           title={tr("Долги, прибыль и зарплата — по факту, а не по обещаниям", "Qarz, foyda va ish haqi — va'da bo'yicha emas, haqiqat bo'yicha")}
         />
 
+        {/* Одно число главы: что заработали — из заказов и приходов, без ручных таблиц. */}
+        <Monument
+          className="mt-14"
+          parts={[
+            { value: 24_653_066, suffix: tr("сум", "so'm"), label: tr("Заработали за 12 месяцев", "12 oyda ishlab topildi"), brass: true },
+            { value: 27, suffix: "%", label: tr("Чистая маржа", "Sof marja") },
+          ]}
+          note={tr("демо-данные · P&L считается из заказов и приходов сам", "demo-ma'lumotlar · P&L buyurtma va kirimlardan o'zi hisoblanadi")}
+        />
+
         {/* A. Долги: живой блок слева, реестр справа */}
         <Split
           className="mt-14"
@@ -117,17 +127,21 @@ export default function MoneySection() {
           right={<div>{label(tr("Долги", "Qarzlar"))}<Ledger items={debtCaps} /></div>}
         />
 
-        {/* B. P&L: реестр слева, окно справа */}
-        <Split
+        {/* B. P&L: кадр во весь горизонт, реестр под ним */}
+        <Stage
           className="mt-20 md:mt-24"
-          left={<div>{label(tr("P&L и отчётность", "P&L va hisobot"))}<Ledger items={pnlCaps} start={7} columns={1} /></div>}
-          right={<Browser shot="pnl" content alt={tr("Прибыль и убытки: выручка, себестоимость, прибыль, динамика по месяцам", "Foyda va zarar: tushum, tannarx, foyda, oylar dinamikasi")} />}
+          frame={<Browser shot="pnl" content aspect={STAGE_ASPECT} alt={tr("Прибыль и убытки: выручка, себестоимость, прибыль, динамика по месяцам", "Foyda va zarar: tushum, tannarx, foyda, oylar dinamikasi")} />}
+          caption={tr("Прибыль и убытки · выручка, себестоимость, прибыль по месяцам · демо-данные", "Foyda va zarar · tushum, tannarx, oylik foyda · demo-ma'lumotlar")}
         />
+        <div className="mt-10">{label(tr("P&L и отчётность", "P&L va hisobot"))}<Ledger items={pnlCaps} start={7} /></div>
 
-        {/* C. Зарплата: формула слева, окно справа, реестр под ними */}
-        <Split
+        {/* C. Зарплата: кадр во весь горизонт, формула карточкой поверх правого края, реестр под ними */}
+        <Stage
           className="mt-20 md:mt-24"
-          left={
+          flip
+          frame={<Browser shot="salaries" content aspect={STAGE_ASPECT} alt={tr("Ведомость зарплат: оклад, комиссия, доставки, обед, выплаты", "Ish haqi vedomosti: oklad, komissiya, yetkazish, tushlik, to'lovlar")} />}
+          caption={tr("Ведомость зарплат · оклад, комиссия, доставки, выплаты · демо-данные", "Ish haqi vedomosti · oklad, komissiya, yetkazish, to'lovlar · demo-ma'lumotlar")}
+          card={
             <Sheet title={tr("Зарплата агента · сентябрь", "Agent ish haqi · sentyabr")}>
               <dl className="text-[14px]">
                 {salary.map(s => (
@@ -145,7 +159,6 @@ export default function MoneySection() {
               <DemoTag>{tr("демо-данные", "demo-ma'lumotlar")}</DemoTag>
             </Sheet>
           }
-          right={<Browser shot="salaries" content alt={tr("Ведомость зарплат: оклад, комиссия, доставки, обед, выплаты", "Ish haqi vedomosti: oklad, komissiya, yetkazish, tushlik, to'lovlar")} />}
         />
         <div className="mt-10">
           {label(tr("Зарплата и KPI", "Ish haqi va KPI"))}

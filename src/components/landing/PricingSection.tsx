@@ -38,6 +38,15 @@ import { PLANS, PLAN_PRICES_UZS, PLAN_ADDS, FEATURES, EXTRA_PRICES_UZS } from "@
    акцент) и приподнятость, цена набирается счётчиком anime.js при появлении,
    пределы — одной строкой с тонкими разделителями, а не тремя плитками.
    Числа по-прежнему только из contracts/constants.ts.
+
+   ── Прайс-лист, а не три коробки (20.09.2026, «Монументальный реестр») ──
+
+   Три карточки с тенями и свечением — та самая «сетка коробочек», по которой
+   владелец узнаёт «дёшево». Тарифы теперь — один прайс-лист на ночной
+   полосе: три колонки, разделённые волосяными линиями, без плашек и теней;
+   цена — монументальными цифрами, подписи — булавочным моно; Pro отмечен
+   латунной кромкой сверху и латунной ценой, печать осталась одна. Данные,
+   счётчик цены и кнопки — прежние.
    ═══════════════════════════════════════════════════════════════════════════ */
 
 function Btn({ kind, onClick, href, children }: { kind: "brass" | "paper"; onClick?: () => void; href?: string; children: ReactNode }) {
@@ -161,23 +170,21 @@ export default function PricingSection() {
           )}
         />
 
-        <div className="mt-14 grid md:grid-cols-3 gap-5 items-stretch">
-          {plans.map(plan => (
+        <div className="mt-14 grid md:grid-cols-3" style={{ borderTop: `1px solid ${LX.ruleOnInk}`, borderBottom: `1px solid ${LX.ruleOnInk}` }}>
+          {plans.map((plan, idx) => (
             <div
               key={plan.name}
               data-plan
-              className={`relative rounded-2xl flex flex-col transition-transform duration-300 hover:-translate-y-1 ${plan.hl ? "md:-mt-6 md:mb-2" : ""}`}
+              className={`relative flex flex-col px-0 py-8 md:px-8 md:py-10 ${idx ? "border-t md:border-t-0 md:border-l" : ""}`}
               style={{
-                padding: plan.hl ? "36px 30px" : "30px 26px",
-                background: plan.hl ? `linear-gradient(180deg, ${LX.brassGlow10}, ${LX.brassGlow02} 40%, transparent), ${LX.ink}` : LX.ink,
-                border: plan.hl ? `1px solid ${LX.brassOnNight}` : `1px solid ${LX.ruleOnInk}`,
-                boxShadow: plan.hl
-                  ? `0 0 0 6px ${LX.brassGlow08}, 0 50px 90px -50px ${LX.black90}`
-                  : `0 30px 60px -40px ${LX.black80}`,
+                borderColor: LX.ruleOnInk,
+                // Pro — латунная кромка сверху: единственный акцент, как латунная линейка на листе.
+                boxShadow: plan.hl ? `inset 0 2px 0 ${LX.brassOnNight}` : undefined,
+                background: plan.hl ? LX.brassGlow02 : undefined,
               }}
             >
               {plan.hl && (
-                <div className="absolute -top-12 -right-4" style={{ filter: "brightness(1.45) saturate(1.1)" }}>
+                <div className="absolute -top-12 right-2" style={{ filter: "brightness(1.45) saturate(1.1)" }}>
                   <Stamp
                     ring={tr("РЕКОМЕНДУЕМ · TAVSIYA ETILADI · РЕКОМЕНДУЕМ · ", "TAVSIYA ETILADI · РЕКОМЕНДУЕМ · TAVSIYA · ")}
                     center="PRO"
@@ -189,25 +196,25 @@ export default function PricingSection() {
               <div className="text-[11px] uppercase" style={{ ...MONO, color: LX.brassOnNight, letterSpacing: "0.1em" }}>{plan.name}</div>
               <p className="text-[13.5px] mt-2" style={{ color: LX.softOnInk }}>{plan.fit}</p>
 
-              <div className="mt-6 flex items-baseline gap-2">
-                <span className="font-medium tracking-tight" style={{ ...MONO, fontSize: plan.hl ? 40 : 34, lineHeight: 1, color: LX.paperOnInk }}>
+              <div className="mt-7 flex items-baseline gap-2.5">
+                <span className="font-extrabold leading-none" style={{ fontSize: "clamp(2.5rem, 3.2vw, 3.5rem)", letterSpacing: "-0.04em", fontVariantNumeric: "tabular-nums", color: plan.hl ? LX.brassOnNight : LX.paperOnInk }}>
                   <span data-price={plan.priceNumber}>{plan.price}</span>
                 </span>
-                <span className="text-[12px]" style={{ color: LX.softOnInk }}>{tr("сум/мес", "so'm/oy")}</span>
+                <span className="text-[11px] uppercase" style={{ ...MONO, color: LX.softOnInk, letterSpacing: "0.08em" }}>{tr("сум/мес", "so'm/oy")}</span>
               </div>
               <p className="text-[12px] mt-2" style={{ ...MONO, color: LX.brassOnNight }}>{plan.anchor}</p>
 
               {/* Пределы — одной строкой с тонкими разделителями. */}
-              <div className="mt-6 flex items-stretch rounded-lg overflow-hidden" style={{ border: `1px solid ${LX.ruleOnInk}` }}>
+              <div className="mt-7 flex items-stretch" style={{ borderTop: `1px solid ${LX.ruleOnInk}`, borderBottom: `1px solid ${LX.ruleOnInk}` }}>
                 {plan.limits.map((l, i) => (
-                  <div key={l.label} className="flex-1 px-2 py-3 text-center" style={{ borderLeft: i ? `1px solid ${LX.ruleOnInk}` : undefined }}>
-                    <div className="text-[15px] font-semibold leading-none" style={{ ...MONO, color: LX.paperOnInk }}>{l.v}</div>
-                    <div className="text-[10.5px] mt-1.5 leading-tight" style={{ color: LX.softOnInk }}>{l.label}</div>
+                  <div key={l.label} className="flex-1 py-3.5" style={{ borderLeft: i ? `1px solid ${LX.ruleOnInk}` : undefined, paddingLeft: i ? 12 : 0 }}>
+                    <div className="text-[17px] font-semibold leading-none" style={{ ...MONO, color: LX.paperOnInk }}>{l.v}</div>
+                    <div className="text-[10.5px] mt-1.5 leading-tight uppercase" style={{ ...MONO, color: LX.softOnInk, letterSpacing: "0.06em" }}>{l.label}</div>
                   </div>
                 ))}
               </div>
               {plan.extra && (
-                <p className="mt-2.5 text-center text-[11px] leading-snug" style={{ color: LX.softOnInk }}>{plan.extra}</p>
+                <p className="mt-2.5 text-[11px] leading-snug" style={{ ...MONO, color: LX.softOnInk }}>{plan.extra}</p>
               )}
 
               <ul className="mt-6 space-y-2.5 flex-1">
@@ -235,11 +242,11 @@ export default function PricingSection() {
           ))}
         </div>
 
-        <div className="mt-10 grid md:grid-cols-2 gap-4 text-[13px]" style={{ color: LX.softOnInk }}>
-          <p className="rounded-lg px-4 py-3" style={{ border: `1px solid ${LX.ruleOnInk}` }}>
+        <div className="mt-8 grid md:grid-cols-2 gap-x-10 gap-y-3 text-[13px]" style={{ color: LX.softOnInk }}>
+          <p className="py-1">
             {tr("Предел ничего не удаляет: всё заведённое работает, нельзя лишь добавить сверх — а сверх можно докупить поштучно.", "Chegara hech narsani o'chirmaydi: kiritilgan hamma narsa ishlaydi, faqat ustiga qo'shib bo'lmaydi — ustini esa donalab sotib olish mumkin.")}
           </p>
-          <p className="rounded-lg px-4 py-3" style={{ border: `1px solid ${LX.ruleOnInk}` }}>
+          <p className="py-1">
             {tr("Оплата: Payme, Click или по счёту для юрлиц — с договором и закрывающими документами.", "To'lov: Payme, Click yoki yuridik shaxslar uchun hisob orqali — shartnoma va yopuvchi hujjatlar bilan.")}
           </p>
         </div>

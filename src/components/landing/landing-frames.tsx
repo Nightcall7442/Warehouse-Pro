@@ -32,13 +32,15 @@ export const R = { sheet: 14, window: 18 } as const;
    одинаковом на каждом снимке. Хром окна — тонкая полоса с тремя точками и
    адресом; тень длинная и мягкая, как у листа на столе.                      */
 export function Browser({
-  shot, alt, children, tone = "paper", fade = true, content = false, className = "", style,
+  shot, alt, children, tone = "paper", fade = true, content = false, aspect, className = "", style,
 }: {
   shot?: WebShotKey;
   alt?: string;
   children?: ReactNode;
   /** dark — окно стоит на ночной полосе. */
   tone?: "paper" | "dark";
+  /** Своя пропорция окна: кадр во весь горизонт режется снизу под затухание, чтобы уместиться в экран. */
+  aspect?: number;
   /** Затухание нижнего края к фону — кадр не обрывается линией. */
   fade?: boolean;
   /** Кадр без бокового меню приложения. */
@@ -68,7 +70,7 @@ export function Browser({
         </span>
         <span className="text-[10.5px]" style={{ ...MONO, color: dark ? LX.softOnInk : LX.inkFaint, letterSpacing: "0.02em" }}>app.warehouse-pro.uz</span>
       </div>
-      <div className="relative" style={{ aspectRatio: content ? WEB_CONTENT_ASPECT : WEB_ASPECT, background: dark ? LX.ink : LX.appCanvas }}>
+      <div className="relative" style={{ aspectRatio: aspect ?? (content ? WEB_CONTENT_ASPECT : WEB_ASPECT), background: dark ? LX.ink : LX.appCanvas }}>
         {shot && (
           <img
             src={content ? webContent(shot, lang) : webShot(shot, lang)}
@@ -243,6 +245,89 @@ export function Split({ left, right, className = "", flip = false }: { left: Rea
     <div className={`grid lg:grid-cols-12 gap-10 lg:gap-x-16 items-start ${className}`}>
       <div className={`lg:col-span-5 ${flip ? "lg:order-2" : ""}`}>{left}</div>
       <div className={`lg:col-span-7 ${flip ? "lg:order-1" : ""}`}>{right}</div>
+    </div>
+  );
+}
+
+/* ── Сцена: кадр во весь горизонт, карточка поверх нижнего края ─────────────
+   «Монументальный реестр», глава 2 (20.09.2026). Раньше кадр программы стоял
+   в 7/12 колонки — окно-открытка, на 2K нечитаемое. Теперь кадр занимает всю
+   колонку страницы (снимки лежат в ×2, на 2K они по-прежнему резкие), а
+   живая карточка главы — одна — лежит поверх его нижней кромки, как лист на
+   столе поверх экрана. Подпись под сценой — моно, как у фигуры в реестре.
+   На телефоне карточка становится под кадр.                                  */
+/** Пропорция кадра на сцене: шире окна содержания, чтобы сцена умещалась в экран на 2K. */
+export const STAGE_ASPECT = 1174 / 700;
+
+export function Stage({ frame, card, caption, flip = false, className = "" }: {
+  frame: ReactNode;
+  /** Живая карточка главы: слева (или справа при flip) поверх нижней кромки кадра. */
+  card?: ReactNode;
+  caption?: ReactNode;
+  flip?: boolean;
+  className?: string;
+}) {
+  return (
+    <div className={className}>
+      <div className={`relative ${card ? "lg:pb-14" : ""}`}>
+        {frame}
+        {card && (
+          <div
+            className={`mt-6 lg:mt-0 lg:absolute lg:bottom-0 lg:w-[420px] ${flip ? "lg:right-8" : "lg:left-8"}`}
+            style={{ boxShadow: WARM_SHADOW, borderRadius: R.sheet }}
+          >
+            {card}
+          </div>
+        )}
+      </div>
+      {caption && (
+        <p className="mt-4 text-[11px] uppercase" style={{ ...MONO, color: LX.inkFaint, letterSpacing: "0.08em" }}>{caption}</p>
+      )}
+    </div>
+  );
+}
+
+/* ── Монумент: одно число главы ────────────────────────────────────────────
+   «Монументальный реестр», глава 3 (20.09.2026): иерархия масштабом, а не
+   жирностью — одно огромное число (или цепочка чисел со стрелками) и
+   булавочная моно-подпись под каждым, ничего среднего. Число считается от
+   нуля при появлении (data-count, lib/landing-motion). Последнее звено
+   цепочки — латунью: это то, ради чего глава.                               */
+export function Monument({ parts, note, dark = false, className = "" }: {
+  parts: Array<{ value: number; label: string; suffix?: string; brass?: boolean }>;
+  /** Подпись-метка под числами: «демо-данные · …». */
+  note?: string;
+  dark?: boolean;
+  className?: string;
+}) {
+  const ink = dark ? LX.paperOnInk : LX.ink;
+  const brass = dark ? LX.brassOnNight : LX.brass;
+  const faint = dark ? LX.softOnInk : LX.inkFaint;
+  return (
+    <div className={className}>
+      <div className="flex flex-wrap items-center gap-x-6 gap-y-6 md:gap-x-10">
+        {parts.map((p, i) => (
+          <div key={p.label} className="flex items-center gap-x-6 md:gap-x-10">
+            {/* Стрелка — на оптической середине цифр (блок центрирован вместе с подписью, поэтому поднята на её высоту); на телефоне числа стоят столбиком без стрелок. */}
+            {i > 0 && (
+              <span aria-hidden="true" className="relative hidden md:block w-16 h-px mb-[26px]" style={{ background: dark ? LX.softOnInk : LX.ruleStrong }}>
+                <span className="absolute right-0 top-1/2 w-2.5 h-2.5 -translate-y-1/2 rotate-45 border-t border-r" style={{ borderColor: dark ? LX.softOnInk : LX.ruleStrong }} />
+              </span>
+            )}
+            <div>
+              <div
+                className="font-extrabold leading-none"
+                style={{ fontSize: "clamp(3rem, 6.4vw, 6.5rem)", letterSpacing: "-0.045em", color: p.brass ? brass : ink, fontVariantNumeric: "tabular-nums" }}
+              >
+                <span data-count={p.value}>{p.value.toLocaleString("ru-RU").replace(/[\u00a0\u202f]/g, " ")}</span>
+                {p.suffix && <span className="ml-2 font-medium" style={{ fontSize: "0.32em", letterSpacing: "0", color: faint }}>{p.suffix}</span>}
+              </div>
+              <div className="mt-3 text-[11px] uppercase" style={{ ...MONO, fontWeight: 500, letterSpacing: "0.1em", color: p.brass ? (dark ? LX.brassOnNight : LX.brassText) : faint }}>{p.label}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+      {note && <p className="mt-5 text-[11px]" style={{ ...MONO, color: faint, letterSpacing: "0.02em" }}>{note}</p>}
     </div>
   );
 }

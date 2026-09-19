@@ -1,7 +1,7 @@
 import { useTranslate } from "@/i18n";
 import { LX, MONO } from "./landing-tokens";
 import { SectionHead } from "./landing-shared";
-import { Browser, DemoTag, Ledger, Split, Sheet } from "./landing-frames";
+import { Browser, DemoTag, Ledger, Monument, Sheet, Stage, STAGE_ASPECT } from "./landing-frames";
 import { useAnime } from "./landing-anime";
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -72,6 +72,17 @@ export default function OrdersSection() {
           lead={tr("Заказ живёт статусами, а не устными обещаниями. Что магазин принял на самом деле, записывает курьер в точке — и от этой цифры считается всё остальное.", "Buyurtma og'zaki va'da bilan emas, holatlar bilan yashaydi. Do'kon aslida nima qabul qilganini kuryer nuqtada yozadi — qolgan hamma narsa shu raqamdan hisoblanadi.")}
         />
 
+        {/* Одно число главы: что отгрузили, что приняли, что вернулось — долг считается от среднего. */}
+        <Monument
+          className="mt-14"
+          parts={[
+            { value: 100, label: tr("Отгружено", "Jo'natildi") },
+            { value: 80, label: tr("Магазин принял", "Do'kon qabul qildi") },
+            { value: 20, label: tr("Вернулось на склад", "Omborga qaytdi"), brass: true },
+          ]}
+          note={tr("демо-данные · долг магазина считается от принятого, а не от отгруженного", "demo-ma'lumotlar · do'kon qarzi jo'natilgandan emas, qabul qilingandan hisoblanadi")}
+        />
+
         {/* Лента статусов */}
         <div className="mt-14 overflow-x-auto pb-2 -mx-6 px-6">
           <ol className="flex items-center gap-0 min-w-[640px]">
@@ -92,9 +103,11 @@ export default function OrdersSection() {
           </ol>
         </div>
 
-        <Split
+        <Stage
           className="mt-14"
-          left={
+          frame={<div data-reveal="order-shots"><Browser shot="orders" content aspect={STAGE_ASPECT} alt={tr("Экран заказов оператора: таблица, фильтры, статусы", "Operator buyurtmalar ekrani: jadval, filtrlar, holatlar")} /></div>}
+          caption={tr("Экран оператора · заказы за день · демо-данные", "Operator ekrani · kunlik buyurtmalar · demo-ma'lumotlar")}
+          card={
             <Sheet
               title={tr("Заказ № 981", "Buyurtma № 981")}
               aside={<span data-tag className="text-[11px] rounded-full px-2.5 py-1" style={{ ...MONO, background: LX.brassSoft, color: LX.brassDeep }}>{tr("принят частично", "qisman qabul")}</span>}
@@ -122,7 +135,6 @@ export default function OrdersSection() {
               <DemoTag>{tr("демо-данные", "demo-ma'lumotlar")}</DemoTag>
             </Sheet>
           }
-          right={<div data-reveal="order-shots"><Browser shot="orders" content alt={tr("Экран заказов оператора: таблица, фильтры, статусы", "Operator buyurtmalar ekrani: jadval, filtrlar, holatlar")} /></div>}
         />
 
         {/* Возможности — реестром, как в главе 04 */}
