@@ -151,7 +151,7 @@ export async function getById(db: Db, tenantId: number, orderId: number, viewer:
     shopConfirmedAt: orders.shopConfirmedAt, shopDisputedAt: orders.shopDisputedAt, shopDisputeNote: orders.shopDisputeNote,
     closedAt: orders.closedAt,
     priceListId: orders.priceListId, priceListName: priceLists.name,
-  }).from(orders).leftJoin(priceLists, eq(priceLists.id, orders.priceListId))
+  }).from(orders).leftJoin(priceLists, and(eq(priceLists.id, orders.priceListId), eq(priceLists.tenantId, tenantId)))
     .where(and(eq(orders.id, orderId), eq(orders.tenantId, tenantId), isNull(orders.deletedAt), ...scope)).limit(1);
   if (!order) return null;
 

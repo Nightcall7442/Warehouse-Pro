@@ -1,6 +1,6 @@
 import { eq, and, sql } from "drizzle-orm";
 import { expiredByProduct, reserveStock } from "./stock-ledger";
-import { orders, orderItems, warehouseStock, shops, users, products } from "@db/schema";
+import { orders, orderItems, warehouseStock, shops, users, products, priceLists } from "@db/schema";
 import { resolvePrices } from "./price-resolver";
 import { recalcShopDebt } from "./shop-debt";
 import { NotificationService } from "./NotificationService";
@@ -75,6 +75,14 @@ export async function create(db: Db, tenantId: number, agentId: number, input: {
       if (!priceMap.has(item.productId)) {
         throw new Error(`Товар #${item.productId} не найден или неактивен`);
       }
+    }
+
+    // Прайс-лист — только свой: чужой id записывался в заказ как есть, а
+    // order.getById через JOIN без tenant отдавал его название (аудит 20.09.2026).
+    if (input.priceListId != null) {
+      const [pl] = await tx.select({ id: priceLists.id }).from(priceLists)
+        .where(and(eq(priceLists.id, input.priceListId), eq(priceLists.tenantId, tenantId))).limit(1);
+      if (!pl) throw new Error("Прайс-лист не найден");
     }
 
     // Цена магазина поверх цены карточки: прайс-листы, привязанные к
