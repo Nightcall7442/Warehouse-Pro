@@ -196,8 +196,8 @@ function OperatorOrders() {
     onError: (e) => notify.error(e.message),
   });
   // Оба списка нужны только панели массовых действий, а user.list открыт
-  // одному руководителю: у супервайзера эти два запроса уходили в отказ на
-  // каждом открытии страницы.
+  // руководителю и оператору: у супервайзера эти два запроса уходили в отказ
+  // на каждом открытии страницы.
   const { data: agentsData } = trpc.user.list.useQuery({ role: "agent", pageSize: 200 }, { enabled: isOperatorOrCeo });
   const { data: couriersData } = trpc.user.list.useQuery({ role: "courier", pageSize: 100 }, { enabled: isOperatorOrCeo });
 

@@ -657,7 +657,10 @@ export const shopRouter = createRouter({
       return { success: true };
     }),
 
-  cities: supervisorQuery.query(async ({ ctx }) => {
+  // Города и районы — фильтры списка магазинов, открыты тем же, кому открыт
+  // shop.list (руководитель, оператор, супервайзер). Стояли под supervisorQuery,
+  // и у оператора список районов на «Магазинах» приходил отказом.
+  cities: managementQuery.query(async ({ ctx }) => {
     const tenantId = ctx.tenant.id;
     const cacheKey = CacheKeys.shopCities(tenantId);
     const cached = cache.get<string[]>(cacheKey);
@@ -670,7 +673,7 @@ export const shopRouter = createRouter({
     return cities;
   }),
 
-  districts: supervisorQuery
+  districts: managementQuery
     .input(z.object({ city: z.string().optional() }).optional())
     .query(async ({ input, ctx }) => {
       const tenantId = ctx.tenant.id;
@@ -688,7 +691,10 @@ export const shopRouter = createRouter({
     }),
 
   // ── Debt Details (for invoice printing) ─────────────────────────────────────
-  getDebtDetails: supervisorQuery
+  // Долг и история оплат магазина — тем же, кому открыт сам магазин
+  // (руководитель, оператор, супервайзер): оператор принимает оплату по
+  // магазину, а блок «Деньги» у него приходил отказом (прогон 20.09.2026).
+  getDebtDetails: managementQuery
     .input(z.object({ shopId: z.number() }))
     .query(async ({ input, ctx }) => {
       const db = getDb();

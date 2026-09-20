@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { trpc } from "@/providers/trpc";
 import { useLang } from "@/i18n";
+import { useAuth } from "@/hooks/useAuth";
 import { useConfirm } from "@/components/ConfirmDialog";
 import { notify } from "@/lib/toast";
 import { Loader2, Upload } from "lucide-react";
@@ -42,10 +43,13 @@ export function OneCExport({ orderId, orderNumber }: { orderId: number; orderNum
   const t = (ru: string, uz: string) => (lang === "uz" ? uz : ru);
   const { confirm, dialog } = useConfirm();
   const [needsNewDocument, setNeedsNewDocument] = useState(false);
+  const { user } = useAuth();
 
   const statusQ = trpc.onec.status.useQuery(undefined, {
-    // Отказ прав — обычное дело: ручка директорская, а заказ смотрят и
-    // оператор с супервайзером. Молчим и блока не показываем.
+    // Ручка директорская (adminQuery), как и сама выгрузка: у оператора и
+    // супервайзера блока нет — и спрашивать нечего. Раньше запрос уходил у
+    // всех и отвечал отказом на каждом открытии заказа.
+    enabled: user?.role === "ceo",
     retry: false,
   });
 

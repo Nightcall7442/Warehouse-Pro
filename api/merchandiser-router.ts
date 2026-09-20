@@ -21,7 +21,10 @@ export const merchandiserRouter = createRouter({
       return MerchandiserService.submitReport(ctx.db, ctx.tenant.id, ctx.user.id, input);
     }),
 
-  getReportsByShop: merchQuery
+  // Отчёты о визитах по магазину — читают все, кому открыты отчёты
+  // (руководитель, оператор, супервайзер, мерчендайзер): блок стоит на
+  // карточке магазина, а у оператора приходил отказом (прогон 20.09.2026).
+  getReportsByShop: reportsQuery
     .input(z.object({
       shopId: z.number().int().positive(),
       page: z.number().int().min(1).default(1),
@@ -48,7 +51,7 @@ export const merchandiserRouter = createRouter({
       });
     }),
 
-  getReportById: merchQuery
+  getReportById: reportsQuery
     .input(z.object({ id: z.number().int().positive() }))
     .query(async ({ input, ctx }) => {
       return MerchandiserService.getReportById(ctx.db, ctx.tenant.id, input.id);
