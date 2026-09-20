@@ -75,7 +75,9 @@ describe("проводка", () => {
   it("оплата офиса получена сразу и закрывает расчёт; полевые наличные открывают его заново", () => {
     expect(shared).toContain('const inOffice = input.method === "cash" && office;');
     expect(shared).toContain("receivedAt: inOffice ? new Date() : null,");
-    expect(shared).toContain('...(office ? { closedAt: new Date(), closedBy: userId } : input.method === "cash" ? { closedAt: null, closedBy: null } : {}),');
+    // С 20.09.2026 закрытие трогается только у доставленного заказа: оплата не отмечает доставку.
+    expect(shared).toContain('const closing = office ? { closedAt: new Date(), closedBy: userId } : input.method === "cash" ? { closedAt: null, closedBy: null } : null;');
+    expect(shared).toContain('if (order.status === "delivered") {');
   });
   it("второй круг заказа снимает закрытие; недостача остаётся", () => {
     const reopen = read("api/services/order-reopen.ts");

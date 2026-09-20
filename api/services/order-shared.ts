@@ -840,22 +840,29 @@ export async function applyPartialPayment(
     });
   }
 
-  // Update order status — goods were delivered; remaining debt lives on
-  // payments.status / shops.debt, not on this status field.
-  //
-  // Отметка доставки — вместе со статусом: см. updateStatus о том, почему без
-  // неё показатели курьера меряли экран, а не работу.
-  //
-  // Расчёт (services/order-close.ts): оплата, записанная офисом, — это и есть
-  // решение по деньгам (сколько получено, остаток — долг), заказ закрыт.
-  // Полевые наличные — на руках, расчёт открыт, даже по уже закрытому заказу
-  // (агент собрал старый долг): эти деньги офису ещё предстоит принять.
-  await tx.update(orders).set({
-    status: "delivered",
-    deliveryStatus: "delivered",
-    deliveredAt: new Date(),
-    ...(office ? { closedAt: new Date(), closedBy: userId } : input.method === "cash" ? { closedAt: null, closedBy: null } : {}),
-  }).where(and(eq(orders.id, order.id), eq(orders.tenantId, tenantId)));
+  /*
+    Оплата — про деньги, не про товар.
+
+    Здесь безусловно ставился статус «доставлен» и дата доставки = сейчас.
+    Две беды (аудит 20.09.2026):
+      • заказ «в долг» в статусе new/pending стоит в «Моих долгах» с момента
+        оформления — агент вносил 1 сум, и заказ становился «доставленным»
+        без списания склада: резерв висел навсегда, а заказ на удержании
+        (скидка выше порога) «доставлялся» самим агентом, минуя офис;
+      • сбор старого долга по давно доставленному заказу переписывал
+        deliveredAt — KPI и зарплата курьера считали доставку второй раз.
+    Доставку отмечают доставочные пути (applyPartialDelivery, курьер,
+    updateStatus) — они и двигают склад. Оплата не меняет ни статус, ни дату.
+
+    Расчёт (services/order-close.ts) — только у доставленного: оплата,
+    записанная офисом, — решение по деньгам, заказ закрыт; полевые наличные —
+    на руках, расчёт открыт, даже по уже закрытому заказу (агент собрал
+    старый долг): эти деньги офису ещё предстоит принять.
+  */
+  if (order.status === "delivered") {
+    const closing = office ? { closedAt: new Date(), closedBy: userId } : input.method === "cash" ? { closedAt: null, closedBy: null } : null;
+    if (closing) await tx.update(orders).set(closing).where(and(eq(orders.id, order.id), eq(orders.tenantId, tenantId)));
+  }
 
   // Log adjustment
   await tx.insert(orderAdjustments).values({
@@ -864,7 +871,7 @@ export async function applyPartialPayment(
     adjustedBy: userId,
     type: "partial_payment",
     oldValue: { status: order.status, total: order.total },
-    newValue: { status: "delivered", paid: paid.toFixed(2), debt: Math.max(0, debt).toFixed(2) },
+    newValue: { status: order.status, paid: paid.toFixed(2), debt: Math.max(0, debt).toFixed(2) },
     reason: input.notes ?? null,
   });
 
