@@ -22,6 +22,7 @@ import {
 } from "./styles";
 import { ChartTooltip } from "./ChartTooltip";
 import { SectionNotice } from "@/components/SectionNotice";
+import { CardTable } from "@/components/CardTable";
 import type { Lang } from "@/i18n";
 
 interface PaymentBreakdownRow {
@@ -111,7 +112,7 @@ export function PnLPaymentBreakdown({
         />
       ) : (
         <>
-          <div style={{ overflowX: "auto", marginBottom: "24px" }}>
+          <CardTable style={{ overflowX: "auto", marginBottom: "24px" }}>
             <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0 }}>
               <thead>
                 <tr>
@@ -231,7 +232,7 @@ export function PnLPaymentBreakdown({
                 </tr>
               </tbody>
             </table>
-          </div>
+          </CardTable>
 
           {trendError ? (
             <SectionNotice

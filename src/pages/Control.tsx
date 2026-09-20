@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router";
 import { trpc } from "@/providers/trpc";
+import { CardTable } from "@/components/CardTable";
 import { useLang } from "@/i18n";
 import { useCurrency } from "@/hooks/useCurrency";
 import { SectionNotice } from "@/components/SectionNotice";
@@ -106,7 +107,7 @@ export default function Control() {
           {(money.data?.onHands.length ?? 0) > 0 && (
             <div className="neo-card neo-card-static" style={{ borderRadius: "20px", padding: "8px" }} data-testid="control-on-hands">
               <div style={{ padding: "6px 10px", fontFamily: F.display, fontSize: "13px", fontWeight: 700, color: COLORS.textPrimary }}>{t("Наличные на руках", "Qo'ldagi naqd pul")}</div>
-              <div style={{ overflowX: "auto" }}>
+              <CardTable style={{ overflowX: "auto" }}>
                 <table style={{ width: "100%", borderCollapse: "collapse", minWidth: "560px" }}>
                   <thead><tr><th style={thStyle}>{t("Сотрудник", "Xodim")}</th><th style={{ ...thStyle, textAlign: "right" }}>{t("На руках", "Qo'lda")}</th><th style={{ ...thStyle, textAlign: "right" }}>{t("Заказов", "Buyurtma")}</th><th style={thStyle}>{t("С какого часа", "Qaysi soatdan")}</th></tr></thead>
                   <tbody>{money.data!.onHands.map(h => (
@@ -118,7 +119,7 @@ export default function Control() {
                     </tr>
                   ))}</tbody>
                 </table>
-              </div>
+              </CardTable>
             </div>
           )}
 
@@ -141,21 +142,21 @@ export default function Control() {
             <div style={{ padding: "6px 10px", fontFamily: F.display, fontSize: "13px", fontWeight: 700, color: COLORS.textPrimary }}>{t("Сотрудники по индексу риска", "Xodimlar xavf indeksi bo'yicha")}</div>
             {overview.isLoading ? <div className="p-4 text-sm" style={{ color: COLORS.textTertiary }}>{t("Считаю…", "Hisoblayapman…")}</div>
             : (d?.employees.length ?? 0) === 0 ? <SectionNotice kind="empty" message={t("Полевых сотрудников нет", "Dala xodimlari yo'q")} /> : (
-              <div style={{ overflowX: "auto" }}>
+              <CardTable style={{ overflowX: "auto" }}>
                 <table style={{ width: "100%", borderCollapse: "collapse", minWidth: "760px" }}>
                   <thead><tr><th style={thStyle}></th><th style={thStyle}>{t("Сотрудник", "Xodim")}</th><th style={{ ...thStyle, textAlign: "right" }}>{t("Баллы", "Ball")}</th><th style={thStyle}>{t("Уровень", "Daraja")}</th><th style={thStyle}>{t("Почему", "Nima uchun")}</th><th style={{ ...thStyle, textAlign: "right" }}>{t("Доставлено · подтверждено", "Yetkazildi · tasdiqlandi")}</th><th style={{ ...thStyle, textAlign: "right" }}>{t("На руках", "Qo'lda")}</th></tr></thead>
                   <tbody>{d!.employees.map(e => (
                     <EmployeeRows key={e.id} e={e} open={!!open[e.id]} toggle={() => setOpen({ ...open, [e.id]: !open[e.id] })} roleOf={roleOf} factorText={factorText} fmt={fmt} lang={lang} />
                   ))}</tbody>
                 </table>
-              </div>
+              </CardTable>
             )}
           </div>
 
           <div className="neo-card neo-card-static" style={{ borderRadius: "20px", padding: "8px" }} data-testid="control-shortages">
             <div style={{ padding: "6px 10px", fontFamily: F.display, fontSize: "13px", fontWeight: 700, color: COLORS.textPrimary }}>{t("Недостачи при расчёте", "Hisob-kitobdagi kamomadlar")} · {shortages.data?.length ?? 0}</div>
             {(shortages.data?.length ?? 0) === 0 ? <SectionNotice kind="empty" message={t("Недостач за период нет", "Davrda kamomad yo'q")} /> : (
-              <div style={{ overflowX: "auto" }}>
+              <CardTable style={{ overflowX: "auto" }}>
                 <table style={{ width: "100%", borderCollapse: "collapse", minWidth: "720px" }}>
                   <thead><tr><th style={thStyle}>{t("Заказ", "Buyurtma")}</th><th style={thStyle}>{t("Магазин", "Do'kon")}</th><th style={thStyle}>{t("На ком", "Kimda")}</th><th style={thStyle}>{t("Когда", "Qachon")}</th><th style={{ ...thStyle, textAlign: "right" }}>{t("Недостача", "Kamomad")}</th><th style={thStyle}>{t("Заметка", "Izoh")}</th><th style={thStyle}>{t("Принял", "Qabul qildi")}</th></tr></thead>
                   <tbody>{(shortages.data ?? []).map(x => (
@@ -170,14 +171,14 @@ export default function Control() {
                     </tr>
                   ))}</tbody>
                 </table>
-              </div>
+              </CardTable>
             )}
           </div>
 
           <div className="neo-card neo-card-static" style={{ borderRadius: "20px", padding: "8px" }}>
             <div style={{ padding: "6px 10px", fontFamily: F.display, fontSize: "13px", fontWeight: 700, color: COLORS.textPrimary }}>{t("Спорные доставки", "Nizoli yetkazishlar")} · {disputes.data?.length ?? 0}</div>
             {(disputes.data?.length ?? 0) === 0 ? <SectionNotice kind="empty" message={t("Магазины ничего не оспаривали", "Do'konlar hech narsani rad etmagan")} /> : (
-              <div style={{ overflowX: "auto" }}>
+              <CardTable style={{ overflowX: "auto" }}>
                 <table style={{ width: "100%", borderCollapse: "collapse", minWidth: "720px" }}>
                   <thead><tr><th style={thStyle}>{t("Заказ", "Buyurtma")}</th><th style={thStyle}>{t("Магазин", "Do'kon")}</th><th style={thStyle}>{t("Кто вёз", "Kim olib bordi")}</th><th style={thStyle}>{t("Когда", "Qachon")}</th><th style={thStyle}>{t("Что не сходится", "Nima to'g'ri kelmaydi")}</th><th style={{ ...thStyle, textAlign: "right" }}>{t("Сумма", "Summa")}</th></tr></thead>
                   <tbody>{(disputes.data ?? []).map(x => (
@@ -191,7 +192,7 @@ export default function Control() {
                     </tr>
                   ))}</tbody>
                 </table>
-              </div>
+              </CardTable>
             )}
           </div>
         </>

@@ -72,6 +72,19 @@ test.describe("телефон", () => {
     await expect.poll(() => page.evaluate(() => window.scrollY), { message: "настройки открылись не с начала" }).toBe(0);
   });
 
+  test("таблицы на телефоне — карточками: все колонки на экране, ничего не режется справа", async ({ page }) => {
+    await login(page, "ceo");
+    for (const path of ["/users", "/arrivals", "/agent/kpi", "/control", "/pnl"]) {
+      await page.goto(path);
+      const labelled = page.locator(".card-table td[data-label]");
+      await expect(labelled.first(), `${path}: таблица не стала карточками`).toBeVisible();
+      expect(await sidewaysOverflow(page), `${path} шире экрана`).toBeLessThanOrEqual(0);
+      // Ни одна ячейка не уходит за правый край экрана.
+      const over = await page.evaluate(() => Array.from(document.querySelectorAll(".card-table td")).filter(td => td.getBoundingClientRect().right > window.innerWidth + 1).length);
+      expect(over, `${path}: ячеек за краем экрана — ${over}`).toBe(0);
+    }
+  });
+
   test("страницы директора не шире экрана", async ({ page }) => {
     await login(page, "ceo");
     for (const path of ["/shops", "/warehouse", "/settings", "/reports", "/agent/kpi"]) {

@@ -1,5 +1,6 @@
 import { COLORS, SHADOW, thStyle, type User, type Lang } from "./types";
 import { UserRow } from "./UserRow";
+import { CardTable } from "@/components/CardTable";
 
 interface UserTableProps {
   users: User[];
@@ -24,7 +25,7 @@ export function UserTable({ users, isLoading, page, total, lang, onResetPassword
         background: COLORS.surface, borderRadius: "24px", padding: "0",
         boxShadow: SHADOW, overflow: "hidden",
       }}>
-        <div style={{ overflowX: "auto" }}>
+        <CardTable style={{ overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0 }}>
             <thead>
               <tr>
@@ -72,7 +73,7 @@ export function UserTable({ users, isLoading, page, total, lang, onResetPassword
                   ))}
             </tbody>
           </table>
-        </div>
+        </CardTable>
       </div>
 
       {/* Pagination */}

@@ -1,6 +1,7 @@
 import { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import { useCan } from "@/hooks/useCan";
 import { trpc } from "@/providers/trpc";
+import { CardTable } from "@/components/CardTable";
 import { useLang, type Lang } from "@/i18n";
 import { useCurrency } from "@/hooks/useCurrency";
 import { notify } from "@/lib/toast";
@@ -650,7 +651,7 @@ function SupervisorView({ kpi, period, selectedKpi, selectedSalary, detailLoadin
             t={t}
           />
         ) : (
-        <div className="overflow-x-auto">
+        <CardTable className="overflow-x-auto">
           <table className="w-full text-sm" style={{ tableLayout: "fixed" }}>
             <colgroup>
               {/*
@@ -756,7 +757,7 @@ function SupervisorView({ kpi, period, selectedKpi, selectedSalary, detailLoadin
               })}
             </tbody>
           </table>
-        </div>
+        </CardTable>
         )}
       </div>
 
@@ -844,7 +845,7 @@ function CourierTable({ rows, loading, selectedId, onSelect, fmt, t }: {
   }
 
   return (
-    <div className="overflow-x-auto">
+    <CardTable className="overflow-x-auto">
       <table className="w-full text-sm" style={{ tableLayout: "fixed" }}>
         <colgroup>
           <col />
@@ -922,7 +923,7 @@ function CourierTable({ rows, loading, selectedId, onSelect, fmt, t }: {
           })}
         </tbody>
       </table>
-    </div>
+    </CardTable>
   );
 }
 

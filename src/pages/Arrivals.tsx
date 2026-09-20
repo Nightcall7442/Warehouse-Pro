@@ -11,6 +11,7 @@ import { useCurrency } from "@/hooks/useCurrency";
 import { useLang } from "@/i18n";
 import { labelled, ARRIVAL_STATUS_LABEL, PAYMENT_METHOD_LABEL } from "@/lib/entity-labels";
 import { format } from "date-fns";
+import { CardTable } from "@/components/CardTable";
 import {
   Plus, X, FileDown, Loader2, Printer,
   ArrowUpRight, ArrowDownRight, Minus, Truck, Package, CheckCircle2, Clock,
@@ -854,7 +855,7 @@ function ArrivalDetail({ arrivalId, onClose }: { arrivalId: number; onClose: () 
             <div>
               <p style={{ fontSize: "12px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--color-text-tertiary)", marginBottom: "12px" }}>{t("Товары", "Mahsulotlar")} ({detail.items.length})</p>
               {/* Та же беда, что у таблицы выше: обрезалось вместо прокрутки. */}
-              <div style={{ borderRadius: "12px", overflowX: "auto", overflowY: "hidden", WebkitOverflowScrolling: "touch", border: "1px solid var(--color-border)" }}>
+              <CardTable style={{ borderRadius: "12px", overflowX: "auto", overflowY: "hidden", WebkitOverflowScrolling: "touch", border: "1px solid var(--color-border)" }}>
                 <table style={{ width: "100%", minWidth: "520px", borderCollapse: "separate", borderSpacing: 0 }}>
                   <thead>
                     <tr>
@@ -910,7 +911,7 @@ function ArrivalDetail({ arrivalId, onClose }: { arrivalId: number; onClose: () 
                     ))}
                   </tbody>
                 </table>
-              </div>
+              </CardTable>
             </div>
           )}
 
@@ -1164,7 +1165,7 @@ export default function Arrivals() {
         min-width у самой таблицы: без него колонки сжимаются в нечитаемые
         полоски, и прокрутка теряет смысл — честнее оставить её шире экрана.
       */}
-      <div style={{ background: COLORS.surface, borderRadius: "24px", boxShadow: SHADOW, overflowX: "auto", overflowY: "hidden", WebkitOverflowScrolling: "touch", animation: "slideUp 0.5s ease" }}>
+      <CardTable style={{ background: COLORS.surface, borderRadius: "24px", boxShadow: SHADOW, overflowX: "auto", overflowY: "hidden", WebkitOverflowScrolling: "touch", animation: "slideUp 0.5s ease" }}>
         <table style={{ width: "100%", minWidth: "760px", borderCollapse: "separate", borderSpacing: 0 }}>
           <thead>
             <tr>
@@ -1213,7 +1214,7 @@ export default function Arrivals() {
             ))}
           </tbody>
         </table>
-      </div>
+      </CardTable>
 
       {/* Pagination */}
       {data && data.total > 25 && (
