@@ -456,7 +456,7 @@ export default function OrderDetail() {
               {/* Единственная заливка на открытом заказе: товар отдан — заказ завершён.
                   У доставленного её место занимает «Закрыть расчёт» в блоке денег. */}
               {OPEN_STATUSES.includes(order.status) && (
-                <button onClick={() => handleStatusChange("delivered")} className="neo-btn-primary tap">
+                <button onClick={() => handleStatusChange("delivered")} className="neo-btn-primary tap" data-testid="order-finish">
                   <CheckCircle2 size={16} /> {lang === "uz" ? "Buyurtmani yakunlash" : "Завершить заказ"}
                 </button>
               )}
