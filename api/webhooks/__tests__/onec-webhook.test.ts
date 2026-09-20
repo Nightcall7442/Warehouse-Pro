@@ -38,7 +38,8 @@ vi.mock("../../queries/connection", () => {
       from: vi.fn().mockReturnValue({
         where: vi.fn().mockReturnValue({
           limit: vi.fn().mockResolvedValue([
-            { tenantId: 1, secretHash: h.SECRET_HASH, id: 7, debt: "5000" },
+            // Одна строка на все выборки: секрет организации, склад, магазин, статус организации.
+            { tenantId: 1, secretHash: h.SECRET_HASH, id: 7, debt: "5000", status: "active" },
           ]),
         }),
       }),
@@ -94,6 +95,8 @@ vi.mock("../../services/onec-mapper", () => ({
   },
 }));
 
+// Подписка проверяется до обработчиков (20.09.2026); здесь она в порядке.
+vi.mock("../../lib/feature-gating", () => ({ hasSubscriptionAccess: async () => true }));
 vi.mock("../../lib/logger", () => ({
   logger: {
     info: vi.fn(),

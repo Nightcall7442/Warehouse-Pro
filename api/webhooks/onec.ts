@@ -1,11 +1,12 @@
 import { Hono } from "hono";
 import { getDb } from "../queries/connection";
-import { payments, shops, warehouses, onecConfig } from "@db/schema";
+import { payments, shops, warehouses, onecConfig, tenants } from "@db/schema";
 import { eq, and } from "drizzle-orm";
 import { OneCMapper } from "../services/onec-mapper";
 import { logger } from "../lib/logger";
 import { createHash } from "crypto";
 import { safeEqual } from "../lib/safe-compare";
+import { hasSubscriptionAccess } from "../lib/feature-gating";
 import { recalcShopDebt } from "../services/shop-debt";
 import { recordStockMovement, setStock } from "../services/stock-ledger";
 import { invalidateReports } from "../lib/report-cache";
@@ -67,6 +68,11 @@ app.use("/*", async (c, next) => {
     return c.json({ error: "tenantId does not match the secret owner" }, 403);
   }
 
+  // Подписка и статус — как у людей: приостановленная или неоплаченная
+  // организация не проводит платежи и остатки и через 1С (аудит 20.09.2026).
+  const [tenant] = await db.select({ status: tenants.status }).from(tenants).where(eq(tenants.id, config.tenantId)).limit(1);
+  if (!tenant || tenant.status !== "active") return c.json({ error: "Organisation is suspended" }, 403);
+  if (!(await hasSubscriptionAccess(config.tenantId))) return c.json({ error: "Subscription inactive" }, 402);
   // Обработчики ниже читают организацию отсюда, а не из тела.
   c.set("validatedBody", { ...body, tenantId: config.tenantId });
   return next();

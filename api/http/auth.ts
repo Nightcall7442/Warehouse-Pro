@@ -149,9 +149,9 @@ routes.post("/api/login", async (c) => {
       if (!totpFromBody) {
         return c.json({ error: "Введите код из приложения-аутентификатора", code: "TOTP_REQUIRED" }, 401);
       }
-      const { verifyTotp } = await import("../lib/totp");
+      const { verifyTotpOnce } = await import("../lib/totp");
       const { open } = await import("../lib/secret-box");
-      if (!verifyTotp(open(user.totpSecret), String(totpFromBody))) {
+      if (!verifyTotpOnce(user.id, open(user.totpSecret), String(totpFromBody))) {
         return c.json({ error: "Неверный код подтверждения", code: "TOTP_INVALID" }, 401);
       }
     }
