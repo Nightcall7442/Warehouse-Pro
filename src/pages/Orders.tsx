@@ -1002,8 +1002,8 @@ function OperatorOrders() {
                           </span>
                           <StatusBadge status={o.status} lang={lang} />
                         </div>
-                        <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between" }}>
-                          <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
+                        <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: "8px" }}>
+                          <div style={{ display: "flex", flexDirection: "column", gap: "2px", minWidth: 0 }}>
                             <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
                               <Store size={12} style={{ color: COLORS.textSecondary, flexShrink: 0 }} />
                               <span style={{ fontSize: "13px", color: COLORS.textPrimary, maxWidth: "160px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
@@ -1027,8 +1027,8 @@ function OperatorOrders() {
                               </span>
                             )}
                           </div>
-                          <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                            <span style={{ fontFamily: F.display, fontSize: "16px", fontWeight: 700, color: COLORS.textPrimary }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: "6px", flexShrink: 0 }}>
+                            <span data-testid="order-card-total" style={{ fontFamily: F.display, fontSize: "16px", fontWeight: 700, color: COLORS.textPrimary, whiteSpace: "nowrap" }}>
                               {fmt(o.total)}
                             </span>
                             <ChevronRight size={15} style={{ color: COLORS.textSecondary }} />

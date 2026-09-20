@@ -42,3 +42,7 @@ coverage/
 .tmp-e2e-url
 __pycache__/
 docs/manual/*.pdf
+
+# Playwright: отчёты и разборы падений
+test-results/
+playwright-report/
