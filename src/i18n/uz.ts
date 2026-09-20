@@ -26,6 +26,7 @@ export const uz = {
     analytics:   "Tahlil",
     users:       "Foydalanuvchilar",
     settings:    "Sozlamalar",
+    general:     "Umumiy",
     agent:       "Mening kunim",
     myShops:     "Do'konlar",
     newOrder:    "Yangi buyurtma",

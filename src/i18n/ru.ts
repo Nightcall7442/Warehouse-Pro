@@ -22,6 +22,7 @@ export const ru = {
     analytics:   "Аналитика",
     users:       "Пользователи",
     settings:    "Настройки",
+    general:     "Общие",
     agent:       "Мой день",
     myShops:     "Магазины",
     newOrder:    "Новый заказ",

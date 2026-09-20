@@ -58,6 +58,7 @@ test.describe("телефон", () => {
   });
 
   test("пункт меню повторно открывает настройки с начала", async ({ page }) => {
+    // «Настройки» — группа; её страница внутри зовётся «Общие» и видна, пока человек в настройках.
     await login(page, "ceo");
     await page.goto("/settings?section=invoices");
     await expect(page.getByTestId("invoice-preview")).toBeVisible();
@@ -66,7 +67,7 @@ test.describe("телефон", () => {
     expect(before, "страница накладных не прокрутилась — проверка не о чём").toBeGreaterThan(200);
     await page.getByRole("button", { name: /^(Меню|Menyu)$/ }).click();
     // Меню есть и настольное (скрыто), и в шторке — нажимаем видимое.
-    await page.locator(".sidebar-nav-item:visible", { hasText: /^(Настройки|Sozlamalar)$/ }).first().click();
+    await page.locator(".sidebar-nav-item:visible", { hasText: /^(Общие|Umumiy)$/ }).first().click();
     await expect(page).toHaveURL(/\/settings$/);
     await expect.poll(() => page.evaluate(() => window.scrollY), { message: "настройки открылись не с начала" }).toBe(0);
   });
