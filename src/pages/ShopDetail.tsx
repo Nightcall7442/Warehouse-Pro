@@ -174,7 +174,7 @@ export default function ShopDetail() {
   const canTakeMoney  = canEdit && can("payments.accept");
 
   // Список агентов нужен только форме правки, и полный user.list открыт
-  // одному руководителю — поэтому спрашиваем его лишь у тех, кто правит.
+  // руководителю и оператору — поэтому спрашиваем его лишь у тех, кто правит.
   const { data: usersData } = trpc.user.list.useQuery({ page: 1, pageSize: 100 }, { enabled: canEdit });
   const agents = useMemo(() => (usersData?.data ?? []).filter((u: { role: string }) => u.role === "agent"), [usersData?.data]);
 

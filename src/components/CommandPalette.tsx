@@ -56,18 +56,19 @@ export function CommandPalette() {
     { enabled: open && query.length > 1 }
   );
 
-  // Search users (admin-only endpoint; silently returns nothing for non-admins)
-  const { data: usersData } = trpc.user.list.useQuery(
-    { page: 1, pageSize: 5, search: query.length > 1 ? query : undefined },
-    { enabled: open && query.length > 1 }
-  );
-
-  const t = useCallback((ru: string, uz: string) => lang === "uz" ? uz : ru, [lang]);
-
   // Роль решает, что показывать: палитра — второй вход в те же разделы, и
   // предлагать закрытые значит вести в «не для вашей роли».
   const { user } = useAuth();
   const role = user?.role;
+
+  // Люди — только тем, кому открыт user.list (руководитель, оператор); у
+  // остальных каждый поиск уходил в отказ в консоль.
+  const { data: usersData } = trpc.user.list.useQuery(
+    { page: 1, pageSize: 5, search: query.length > 1 ? query : undefined },
+    { enabled: open && query.length > 1 && (role === "ceo" || role === "operator") }
+  );
+
+  const t = useCallback((ru: string, uz: string) => lang === "uz" ? uz : ru, [lang]);
 
   // Navigation items
   const navItems: CommandItem[] = useMemo(() => ([

@@ -95,7 +95,7 @@ export default function Shops() {
   const { data: realTerritories } = trpc.territory.list.useQuery();
   /*
     agent.listAgents, а не user.list: полный список пользователей открыт
-    только руководителю, и фильтр «по агенту» у супервайзера с оператором
+    только руководителю и оператору, и фильтр «по агенту» у супервайзера
     молча оставался пустым.
   */
   const { data: agentList } = trpc.agent.listAgents.useQuery();

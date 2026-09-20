@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { createRouter, adminQuery, authedQuery } from "./middleware";
+import { createRouter, adminQuery, operatorQuery, authedQuery } from "./middleware";
 import { getDb } from "./queries/connection";
 import { users } from "@db/schema";
 import { eq, ne, like, and, sql, desc } from "drizzle-orm";
@@ -14,7 +14,17 @@ import { ROLES } from "@contracts/types";
 import { invalidateAuthUser } from "./auth";
 
 export const userRouter = createRouter({
-  list: adminQuery
+  /*
+    Список людей — руководителю и оператору. Стоял adminQuery (один
+    руководитель), а экраны оператора звали его четырежды: назначить курьера
+    (карточка заказа, панель массовых действий, погрузочные листы), закрепить
+    агента за магазином, ставки ЗП. Отказ выглядел не ошибкой, а пустым
+    списком: оператор не мог назначить курьера и считал, что курьеров нет
+    (прогон 20.09.2026: «Insufficient permissions» на главной, магазинах,
+    заказах). Супервайзеру и полю по-прежнему закрыт — им хватает
+    agent.listAgents.
+  */
+  list: operatorQuery
     .input(z.object({
       page:     z.number().default(1),
       pageSize: z.number().int().min(1).max(10000).default(25),
