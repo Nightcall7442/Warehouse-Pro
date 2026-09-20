@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { createRouter, operatorQuery } from "./middleware";
+import { createRouter, operatorQuery, can } from "./middleware";
 import { createArrival, updateArrival, deleteArrival } from "./services/arrival";
 import { arrivals } from "@db/schema";
 import { eq, and, sql, desc } from "drizzle-orm";
@@ -117,7 +117,10 @@ export const arrivalRouter = createRouter({
       return { ...arrival, items };
     }),
 
-  create: operatorQuery
+  // Приход — поставка: под «Поставщики, поставки и оплаты им». Без этого
+  // оператор с выключенной настройкой заводил поставщика, долг перед ним,
+  // принимал остаток и переписывал цены карточек (аудит 20.09.2026).
+  create: operatorQuery.use(can("suppliers.manage"))
     .input(z.object({
       truckId:     z.string().optional(),
       driverName:  z.string().optional(),
@@ -165,7 +168,7 @@ export const arrivalRouter = createRouter({
     }))
     .mutation(({ input, ctx }) => createArrival(ctx.db, ctx.tenant.id, ctx.user.id, input)),
 
-  update: operatorQuery
+  update: operatorQuery.use(can("suppliers.manage"))
     .input(z.object({
       id:          z.number(),
       truckId:     z.string().optional(),
@@ -180,7 +183,7 @@ export const arrivalRouter = createRouter({
     }))
     .mutation(({ input, ctx }) => updateArrival(ctx.db, ctx.tenant.id, input, { id: ctx.user.id, name: ctx.user.name, ip: auditActor(ctx).ip })),
 
-  delete: operatorQuery
+  delete: operatorQuery.use(can("suppliers.manage"))
     .input(z.object({ id: z.number() }))
     .mutation(({ input, ctx }) => deleteArrival(ctx.db, ctx.tenant.id, input.id)),
 });

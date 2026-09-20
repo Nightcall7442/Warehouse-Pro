@@ -163,6 +163,15 @@ describe("переключатель закрывает настоящие ру�
     expect(has("restore", "orders.delete") || has("restore", "shops.delete")).toBe(true);
     expect(has("addPayment", "payments.accept")).toBe(true);
     expect(has("adjustStock", "warehouse.adjust")).toBe(true);
+    // Аудит 20.09.2026: три денежные ручки заказа, смена статуса и приходы обходили настройку.
+    expect(has("recordPartialPayment", "payments.accept"), "платёж через окно завершения мимо настройки").toBe(true);
+    expect(has("recordDeliveryAndPayment", "payments.accept")).toBe(true);
+    expect(has("recordPartialDelivery", "orders.edit")).toBe(true);
+    expect(has("updateStatus", "orders.edit"), "смена статуса мимо настройки").toBe(true);
+    expect(has("bulkUpdateStatus", "orders.edit")).toBe(true);
+    for (const proc of ["create", "update", "delete"]) {
+      expect(guarded.some(g => g.file.includes("arrival") && g.proc === proc && g.cap === "suppliers.manage"), `arrival.${proc} мимо настройки`).toBe(true);
+    }
   });
 });
 
