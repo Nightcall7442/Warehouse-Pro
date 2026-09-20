@@ -51,13 +51,37 @@ export function totpCode(secret: string, atMs = Date.now(), step = TOTP_STEP_SEC
  * расходятся на секунды, а человек набирает код не мгновенно.
  */
 export function verifyTotp(secret: string, code: string, atMs = Date.now()): boolean {
+  return matchTotp(secret, code, atMs) !== null;
+}
+
+/** Какому шагу (счётчику) отвечает код; null — никакому из ±1. */
+export function matchTotp(secret: string, code: string, atMs = Date.now()): number | null {
   const given = String(code ?? "").replace(/\s+/g, "");
-  if (!/^\d{6}$/.test(given)) return false;
+  if (!/^\d{6}$/.test(given)) return null;
   for (const k of [-1, 0, 1]) {
-    const expected = totpCode(secret, atMs + k * TOTP_STEP_SECONDS * 1000);
-    if (timingSafeEqual(Buffer.from(expected), Buffer.from(given))) return true;
+    const at = atMs + k * TOTP_STEP_SECONDS * 1000;
+    const expected = totpCode(secret, at);
+    if (timingSafeEqual(Buffer.from(expected), Buffer.from(given))) return Math.floor(at / 1000 / TOTP_STEP_SECONDS);
   }
-  return false;
+  return null;
+}
+
+/*
+  Код принимается один раз. Окно ±30 с нужно из-за часов, но в нём один и
+  тот же код подходил повторно: подсмотренный через плечо код входил ещё
+  минуту (аудит 20.09.2026). Последний принятый счётчик держится по
+  человеку; код того же или более раннего шага — отказ. Память на процесс:
+  при нескольких репликах защита слабее, но не хуже прежней.
+*/
+const usedCounters = new Map<number, { counter: number; at: number }>();
+const USED_TTL_MS = 3 * TOTP_STEP_SECONDS * 1000;
+export function verifyTotpOnce(userId: number, secret: string, code: string, atMs = Date.now()): boolean {
+  const counter = matchTotp(secret, code, atMs);
+  if (counter === null) return false;
+  const last = usedCounters.get(userId);
+  if (last && atMs - last.at < USED_TTL_MS && counter <= last.counter) return false;
+  usedCounters.set(userId, { counter, at: atMs });
+  return true;
 }
 
 /** Ссылка для QR-кода: её понимает любое приложение-аутентификатор. */

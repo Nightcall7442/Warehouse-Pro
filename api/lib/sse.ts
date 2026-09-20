@@ -22,6 +22,8 @@ export type SSEEvent = {
   timestamp: number;
 };
 
+export const SSE_MAX_PER_USER = 10;
+
 type SSEListener = {
   userId: number;
   tenantId: number;
@@ -153,6 +155,18 @@ export class SSEBus {
       controller,
       lastPing: Date.now(),
     };
+    /*
+      Потолок на человека: каждое подключение — слушатель и таймер сердцебиения,
+      числа их не было (аудит 20.09.2026). Десять вкладок — предел; сверх него
+      самое старое подключение того же человека закрывается: вкладка
+      переподключится, а расти без конца процессу не даст.
+    */
+    const mine = [...this.listeners.get(channel)!].filter(l => l.userId === userId);
+    if (mine.length >= SSE_MAX_PER_USER) {
+      const oldest = mine[0];
+      this.listeners.get(channel)!.delete(oldest);
+      try { oldest.controller.close(); } catch { /* уже закрыт */ }
+    }
     this.listeners.get(channel)!.add(listener);
 
     return () => {

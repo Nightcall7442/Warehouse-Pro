@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import { users } from "@db/schema";
-import { verifyTotp } from "../lib/totp";
+import { verifyTotpOnce } from "../lib/totp";
 import { open } from "../lib/secret-box";
 
 /*
@@ -31,6 +31,6 @@ export async function checkTotpStepUp(db: Db, userId: number, code: string | und
   const fail = (c: StepUpFailure): StepUp => ({ ok: false, code: c, message: STEP_UP_MESSAGES[c] });
   if (!row?.totpSecret || !row.totpEnabledAt) return fail("TOTP_NOT_ENROLLED");
   if (!code?.trim()) return fail("TOTP_REQUIRED");
-  if (!verifyTotp(open(row.totpSecret), code.trim())) return fail("TOTP_INVALID");
+  if (!verifyTotpOnce(userId, open(row.totpSecret), code.trim())) return fail("TOTP_INVALID");
   return { ok: true };
 }

@@ -65,8 +65,8 @@ vi.mock("../../queries/connection", () => {
           // циклические ссылки на таблицу, и сериализация на нём падает.
           limit: vi.fn().mockImplementation(() => {
             const found = h.configs.find(cfg => h.containsValue(cond, cfg.secretHash));
-            // Не поиск конфигурации (склад, магазин) — общая строка-заглушка.
-            return Promise.resolve(found ? [found] : [{ id: 7, debt: "5000" }]);
+            // Не поиск конфигурации (склад, магазин, организация) — общая строка-заглушка.
+            return Promise.resolve(found ? [found] : [{ id: 7, debt: "5000", status: "active" }]);
           }),
         })),
       }),
@@ -96,6 +96,8 @@ vi.mock("../../services/onec-mapper", () => ({
   OneCMapper: { getInternalId: vi.fn().mockResolvedValue(555), getExternalId: vi.fn(), upsert: vi.fn() },
 }));
 vi.mock("../../lib/logger", () => ({ logger: { info: vi.fn(), error: vi.fn(), warn: vi.fn() } }));
+// Подписка проверяется до обработчиков (20.09.2026); здесь она в порядке.
+vi.mock("../../lib/feature-gating", () => ({ hasSubscriptionAccess: async () => true }));
 
 import app from "../onec";
 

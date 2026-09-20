@@ -40,7 +40,8 @@ vi.mock("../services/db-dump", () => ({
 vi.mock("../queries/connection", () => ({
   getDb: () => ({ select: () => ({ from: () => ({ where: () => ({ limit: async () => (h.totpRow ? [h.totpRow] : []) }) }) }) }),
 }));
-vi.mock("../lib/totp", () => ({ verifyTotp: h.verifyTotp }));
+// Step-up с 20.09.2026 принимает код один раз — verifyTotpOnce; стенд подменяет обе двери одной функцией.
+vi.mock("../lib/totp", () => ({ verifyTotp: h.verifyTotp, verifyTotpOnce: h.verifyTotp }));
 vi.mock("../lib/secret-box", () => ({ open: (v: string) => v, seal: (v: string) => v, isSealed: () => true }));
 vi.mock("../lib/logger", () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },

@@ -9,7 +9,7 @@ import { checkRateLimit, getClientIp, rateLimitSubject } from "./lib/rate-limit"
 import { sanitizeSearch } from "./lib/sanitize";
 import { isSafePhotoValue, PHOTO_VALUE_ERROR } from "./lib/photo-value";
 import { recordAudit } from "./services/audit-log";
-import { generateTotpSecret, verifyTotp, otpauthUrl } from "./lib/totp";
+import { generateTotpSecret, verifyTotpOnce, otpauthUrl } from "./lib/totp";
 import { seal, open as unseal } from "./lib/secret-box";
 import { ROLES } from "@contracts/types";
 import { invalidateAuthUser } from "./auth";
@@ -327,7 +327,7 @@ export const userRouter = createRouter({
       const db = getDb();
       const [row] = await db.select({ totpSecret: users.totpSecret }).from(users).where(eq(users.id, ctx.user.id)).limit(1);
       if (!row?.totpSecret) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Сначала получите секрет (totpSetup)" });
-      if (!verifyTotp(unseal(row.totpSecret), input.code)) throw new TRPCError({ code: "BAD_REQUEST", message: "Неверный код — проверьте время на телефоне" });
+      if (!verifyTotpOnce(ctx.user.id, unseal(row.totpSecret), input.code)) throw new TRPCError({ code: "BAD_REQUEST", message: "Неверный код — проверьте время на телефоне" });
       await db.update(users).set({ totpEnabledAt: new Date() }).where(eq(users.id, ctx.user.id));
       await recordAudit(db, { tenantId: ctx.tenant.id, actorId: ctx.user.id, actorName: ctx.user.name, action: "user.totp_enable", targetType: "user", targetId: ctx.user.id });
       return { success: true };
@@ -338,7 +338,7 @@ export const userRouter = createRouter({
     .mutation(async ({ input, ctx }) => {
       const db = getDb();
       const [row] = await db.select({ totpSecret: users.totpSecret }).from(users).where(eq(users.id, ctx.user.id)).limit(1);
-      if (!row?.totpSecret || !verifyTotp(unseal(row.totpSecret), input.code)) {
+      if (!row?.totpSecret || !verifyTotpOnce(ctx.user.id, unseal(row.totpSecret), input.code)) {
         throw new TRPCError({ code: "BAD_REQUEST", message: "Неверный код" });
       }
       await db.update(users).set({ totpSecret: null, totpEnabledAt: null }).where(eq(users.id, ctx.user.id));

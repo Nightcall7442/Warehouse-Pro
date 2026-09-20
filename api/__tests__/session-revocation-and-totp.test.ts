@@ -94,7 +94,8 @@ describe("TOTP", () => {
     // после проверки пароля и до выдачи токена
     expect(login.indexOf("TOTP_REQUIRED")).toBeGreaterThan(login.indexOf("matched.length === 0"));
     expect(login.indexOf("TOTP_REQUIRED")).toBeLessThan(login.indexOf("signSessionToken({"));
-    expect(login).toContain("verifyTotp(open(user.totpSecret)");
+    // С 20.09.2026 код принимается один раз (verifyTotpOnce) — повтор в окне отказ.
+    expect(login).toContain("verifyTotpOnce(user.id, open(user.totpSecret)");
 
     const users = readFileSync("api/queries/users.ts", "utf-8");
     const proj = users.slice(users.indexOf("export async function findUserById"), users.indexOf("export async function findUserByIdWithPassword"));
@@ -105,7 +106,7 @@ describe("TOTP", () => {
 
     const router = readFileSync("api/user-router.ts", "utf-8");
     expect(router).toContain("totpSecret: seal(secret)");
-    expect(router).toContain("verifyTotp(unseal(row.totpSecret), input.code)");
+    expect(router).toContain("verifyTotpOnce(ctx.user.id, unseal(row.totpSecret), input.code)");
   });
 
   it("веб: поле кода на входе и раздел в профиле", () => {
