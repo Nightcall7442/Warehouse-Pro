@@ -294,8 +294,21 @@ export const userRouter = createRouter({
   */
   totpSetup: authedQuery
     .mutation(async ({ ctx }) => {
+      const db = getDb();
+      /*
+        Включённый второй фактор перевыпускается только через выключение
+        кодом (totpDisable). Аудит 20.09.2026 (критично): setup молча
+        перезаписывал секрет и снимал totpEnabledAt любому вошедшему —
+        украденной куки (30 дней) хватало, чтобы завести свой аутентификатор
+        и пройти step-up на выгрузку базы и снятие организации. Экран это и
+        не предлагал: при включённом факторе он показывает только «выключить».
+      */
+      const [row] = await db.select({ totpEnabledAt: users.totpEnabledAt }).from(users).where(eq(users.id, ctx.user.id)).limit(1);
+      if (row?.totpEnabledAt) {
+        throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Второй фактор уже включён. Чтобы перевыпустить, сначала выключите его кодом из приложения." });
+      }
       const secret = generateTotpSecret();
-      await getDb().update(users)
+      await db.update(users)
         .set({ totpSecret: seal(secret), totpEnabledAt: null })
         .where(eq(users.id, ctx.user.id));
       return { secret, url: otpauthUrl("Warehouse Pro", ctx.user.email, secret) };
