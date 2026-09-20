@@ -236,7 +236,7 @@ export function CompletionFlowModal({
 
   const footer = (
     <>
-      <button type="button" onClick={handleSave} disabled={saving} className="neo-btn-primary flex-1 h-12 text-sm">
+      <button type="button" onClick={handleSave} disabled={saving} className="neo-btn-primary flex-1 h-12 text-sm" data-testid="completion-save">
         {saving ? t("Сохранение...", "Saqlanmoqda...") : t("Завершить заказ", "Buyurtmani tugatish")}
       </button>
       <button type="button" onClick={onClose} disabled={saving} className="neo-btn flex-1 h-12 text-sm">
@@ -383,6 +383,7 @@ export function CompletionFlowModal({
             <div className="flex items-center gap-2">
               <Input
                 id="paid-amount"
+                data-testid="completion-paid"
                 type="number" min={0} max={total}
                 value={paidAmount}
                 onChange={e => { setPaidAmount(e.target.value); setError(null); }}
