@@ -1420,6 +1420,10 @@ export const notifications = mysqlTable("notifications", {
   type:      mysqlEnum("type", ["order", "payment", "stock", "system"]).notNull(),
   title:     varchar("title", { length: 255 }).notNull(),
   message:   text("message"),
+  // Узбекский текст того же события: экран выбирает по языку интерфейса.
+  // Пусто у старых записей и у служебных (мониторинг) — показывается русский.
+  titleUz:   varchar("title_uz", { length: 255 }),
+  messageUz: text("message_uz"),
   isRead:    boolean("is_read").default(false).notNull(),
   link:      varchar("link", { length: 500 }),
   createdAt: timestamp("created_at").defaultNow().notNull(),

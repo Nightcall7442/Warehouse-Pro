@@ -125,8 +125,8 @@ export const courierRouter = createRouter({
         tenantId: ctx.tenant.id,
         userId: input.courierId,
         type: "order",
-        title: "Назначен заказ на доставку",
-        message: `Заказ ${order.orderNumber} → ${shop?.name ?? "Магазин"}`,
+        title: { ru: "Назначен заказ на доставку", uz: "Yetkazishga buyurtma tayinlandi" },
+        message: { ru: `Заказ ${order.orderNumber} → ${shop?.name ?? "Магазин"}`, uz: `Buyurtma ${order.orderNumber} → ${shop?.name ?? "Do'kon"}` },
       });
 
       // Push курьеру — после ответа: оператор не ждёт Expo.

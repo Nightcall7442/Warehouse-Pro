@@ -40,11 +40,27 @@ export const UNREAD_RETENTION_DAYS = 90;
 
 const DAY_MS = 86_400_000;
 
+/*
+  Текст уведомления — на обоих языках интерфейса.
+
+  До 20.09.2026 сервер записывал одну русскую строку в момент события, и в
+  узбекском интерфейсе «Магазин оплатил 850 000 сум» оставалось последней
+  русской надписью. Теперь событие приходит парой { ru, uz }: русский — в
+  title/message (их читает и мобилка, и старые записи), узбекский — рядом, и
+  экран выбирает по языку. Одна строка без пары допустима только у служебного
+  (мониторинг суперадмина остаётся русским по решению владельца).
+*/
+export type NotificationText = string | { ru: string; uz: string };
+const textRu = (t: NotificationText | undefined) => (t == null ? null : typeof t === "string" ? t : t.ru);
+const textUz = (t: NotificationText | undefined) => (t == null || typeof t === "string" ? null : t.uz);
+
 export interface NotificationRow {
   id: number;
   type: NotificationType;
   title: string;
   message: string | null;
+  titleUz: string | null;
+  messageUz: string | null;
   isRead: boolean;
   link: string | null;
   createdAt: Date;
@@ -61,8 +77,8 @@ export const NotificationService = {
       tenantId: number;
       userId: number;
       type: NotificationType;
-      title: string;
-      message?: string;
+      title: NotificationText;
+      message?: NotificationText;
       link?: string;
     },
   ): Promise<void> {
@@ -71,8 +87,10 @@ export const NotificationService = {
         tenantId: opts.tenantId,
         userId: opts.userId,
         type: opts.type,
-        title: opts.title,
-        message: opts.message ?? null,
+        title: textRu(opts.title)!,
+        message: textRu(opts.message),
+        titleUz: textUz(opts.title),
+        messageUz: textUz(opts.message),
         link: opts.link ?? null,
       });
 
@@ -84,8 +102,10 @@ export const NotificationService = {
         data: {
           id: Number(result.insertId),
           type: opts.type,
-          title: opts.title,
-          message: opts.message,
+          title: textRu(opts.title),
+          message: textRu(opts.message) ?? undefined,
+          titleUz: textUz(opts.title),
+          messageUz: textUz(opts.message),
           link: opts.link,
         },
       });
@@ -107,8 +127,8 @@ export const NotificationService = {
       tenantId: number;
       userIds: number[];
       type: NotificationType;
-      title: string;
-      message?: string;
+      title: NotificationText;
+      message?: NotificationText;
       link?: string;
     },
   ): Promise<void> {
@@ -121,8 +141,10 @@ export const NotificationService = {
           tenantId: opts.tenantId,
           userId,
           type: opts.type,
-          title: opts.title,
-          message: opts.message ?? null,
+          title: textRu(opts.title)!,
+          message: textRu(opts.message),
+          titleUz: textUz(opts.title),
+          messageUz: textUz(opts.message),
           link: opts.link ?? null,
           createdAt: now,
         })),
@@ -136,8 +158,10 @@ export const NotificationService = {
           userId,
           data: {
             type: opts.type,
-            title: opts.title,
-            message: opts.message,
+            title: textRu(opts.title),
+            message: textRu(opts.message) ?? undefined,
+            titleUz: textUz(opts.title),
+            messageUz: textUz(opts.message),
             link: opts.link,
           },
         });
@@ -176,7 +200,7 @@ export const NotificationService = {
 
     const rows = await db.select({
       id: notifications.id, type: notifications.type, title: notifications.title,
-      message: notifications.message, isRead: notifications.isRead,
+      message: notifications.message, titleUz: notifications.titleUz, messageUz: notifications.messageUz, isRead: notifications.isRead,
       link: notifications.link, createdAt: notifications.createdAt,
     }).from(notifications)
       .where(and(

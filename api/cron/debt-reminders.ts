@@ -194,8 +194,11 @@ export async function runDebtReminders() {
           tenantId: reminder.tenantId,
           userIds: operators.map(op => op.id),
           type: "system",
-          title: "Напоминание о долге",
-          message: `Завтра срок погашения долга ${upcomingNames.money(reminder.tenantId, reminder.amount)} — ${upcomingNames.shop(reminder.shopId)}`,
+          title: { ru: "Напоминание о долге", uz: "Qarz haqida eslatma" },
+          message: {
+            ru: `Завтра срок погашения долга ${upcomingNames.money(reminder.tenantId, reminder.amount)} — ${upcomingNames.shop(reminder.shopId)}`,
+            uz: `Ertaga ${upcomingNames.money(reminder.tenantId, reminder.amount)} qarzni to'lash muddati — ${upcomingNames.shop(reminder.shopId)}`,
+          },
           link: reminder.orderId ? `/orders/${reminder.orderId}` : undefined,
         });
       }
@@ -241,8 +244,11 @@ export async function runDebtReminders() {
           tenantId: reminder.tenantId,
           userIds: ceos.map(ceo => ceo.id),
           type: "system",
-          title: "ПРОСРОЧЕННЫЙ ДОЛГ",
-          message: `Долг ${overdueNames.money(reminder.tenantId, reminder.amount)} просрочен на ${daysOverdue} дн. — ${overdueNames.shop(reminder.shopId)}`,
+          title: { ru: "ПРОСРОЧЕННЫЙ ДОЛГ", uz: "MUDDATI O'TGAN QARZ" },
+          message: {
+            ru: `Долг ${overdueNames.money(reminder.tenantId, reminder.amount)} просрочен на ${daysOverdue} дн. — ${overdueNames.shop(reminder.shopId)}`,
+            uz: `${overdueNames.money(reminder.tenantId, reminder.amount)} qarz ${daysOverdue} kun kechikdi — ${overdueNames.shop(reminder.shopId)}`,
+          },
           link: reminder.orderId ? `/orders/${reminder.orderId}` : undefined,
         });
       }

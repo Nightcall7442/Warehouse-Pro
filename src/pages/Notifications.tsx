@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { useNavigate } from "react-router";
 import { trpc } from "@/providers/trpc";
 import { useLang } from "@/i18n";
+import { notificationText } from "@/lib/notification-text";
 import { format, isToday, isYesterday } from "date-fns";
 import { dateLocale } from "@/lib/date-locale";
 import {
@@ -298,6 +299,7 @@ function Row({ n, lang, t, onOpen, onRead }: {
   const style = TYPES[(n.type as TypeKey)] ?? TYPES.system;
   const Icon = style.icon;
   const clickable = Boolean(n.link);
+  const text = notificationText(n, lang);
 
   return (
     <div
@@ -330,11 +332,11 @@ function Row({ n, lang, t, onOpen, onRead }: {
           fontSize: "13.5px", lineHeight: 1.4, color: "var(--color-text-primary)",
           fontWeight: n.isRead ? 500 : 700,
         }}>
-          {n.title}
+          {text.title}
         </p>
-        {n.message && (
+        {text.message && (
           <p style={{ fontSize: "12px", lineHeight: 1.5, color: "var(--color-text-secondary)", marginTop: "3px" }}>
-            {n.message}
+            {text.message}
           </p>
         )}
         <div style={{ display: "flex", alignItems: "center", gap: "8px", marginTop: "6px" }}>

@@ -149,8 +149,13 @@ async function notifyTenant(db: Db, tenantId: number, rows: LowStockRow[]): Prom
     .where(and(eq(users.tenantId, tenantId), inArray(users.role, ["ceo", "operator"]), eq(users.status, "active")));
   if (office.length > 0) {
     const { NotificationService } = await import("./NotificationService");
-    const title = rows.length === 1 ? `Заканчивается: ${rows[0].productName}` : `Заканчиваются ${rows.length} товара(ов)`;
-    const message = rows.slice(0, TG_LIMIT).map(r => `${r.productName} — ${Number(r.available).toFixed(0)} ${r.unit} (порог ${Number(r.reorderPoint).toFixed(0)})`).join("; ");
+    const title = rows.length === 1
+      ? { ru: `Заканчивается: ${rows[0].productName}`, uz: `Tugayapti: ${rows[0].productName}` }
+      : { ru: `Заканчиваются ${rows.length} товара(ов)`, uz: `${rows.length} ta mahsulot tugayapti` };
+    const message = {
+      ru: rows.slice(0, TG_LIMIT).map(r => `${r.productName} — ${Number(r.available).toFixed(0)} ${r.unit} (порог ${Number(r.reorderPoint).toFixed(0)})`).join("; "),
+      uz: rows.slice(0, TG_LIMIT).map(r => `${r.productName} — ${Number(r.available).toFixed(0)} ${r.unit} (chegara ${Number(r.reorderPoint).toFixed(0)})`).join("; "),
+    };
     await NotificationService.createBulk(db, { tenantId, userIds: office.map(u => u.id), type: "stock", title, message, link: "/warehouse" });
   }
 
