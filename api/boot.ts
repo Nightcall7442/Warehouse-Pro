@@ -12,6 +12,7 @@ import { cors } from "hono/cors";
 import { compress } from "hono/compress";
 import { secureHeaders } from "hono/secure-headers";
 import { bodyLimit } from "hono/body-limit";
+import { HTTPException } from "hono/http-exception";
 import { logger as honoLogger } from "hono/logger";
 import type { HttpBindings } from "@hono/node-server";
 import { env } from "./lib/env";
@@ -212,6 +213,9 @@ app.use("*", async (c, next) => {
   try {
     await next();
   } catch (err) {
+    // HTTPException несёт свой код (413 от bodyLimit, 401/403 из middleware):
+    // это не сбой сервера — ни в Sentry как 500, ни в Telegram.
+    if (err instanceof HTTPException) throw err;
     const status = c.res?.status ?? 500;
     const method = c.req.method;
     const path = c.req.path;
@@ -273,6 +277,10 @@ app.use("*", async (c, next) => {
 
 // ── Global JSON error handler (catches unhandled throws) ─────────────────────
 app.onError((err, c) => {
+  // Ответ с кодом, который бросили нарочно (413 «слишком большое тело»,
+  // 401, 403), отдаётся как есть; без этого bodyLimit отвечал 500 и будил
+  // дежурного на каждый крупный запрос.
+  if (err instanceof HTTPException) return err.getResponse();
   const message = err instanceof Error ? err.message : String(err);
   const stack = err instanceof Error ? err.stack : undefined;
   logger.error("Unhandled error", { error: message, stack });
@@ -369,7 +377,19 @@ app.use("/api/*", async (c, next) => {
   await next();
 });
 
-// ── Stripe webhook (must be BEFORE bodyLimit — needs raw body) ───────────────
+/*
+  Предел на тело запроса — ДО всех маршрутов.
+
+  Стоял после Stripe-вебхука, /r/:token/word, alertmanager, Telegram,
+  /api/v1, /api/photos, справки и бэкапа — «Stripe нужно сырое тело». Это
+  заблуждение: bodyLimit тело не потребляет, он считает байты и отдаёт поток
+  дальше как есть. А маршруты, смонтированные раньше него, в Hono им не
+  накрываются: аноним клал инстанс телом в гигабайты на /r/x/word или
+  /api/webhooks/stripe (аудит 20.09.2026, критично). У 1С свой предел ниже.
+*/
+app.use(bodyLimit({ maxSize: 10 * 1024 * 1024 }));
+
+// ── Stripe webhook ───────────────────────────────────────────────────────────
 registerStripeWebhook(app);
 
 // ── 1C webhook (receives payments & stock updates) ───────────────────────────
@@ -458,8 +478,6 @@ app.get("/api/cron/telegram-digest", async (c) => {
   const { runTelegramDigest } = await import("./cron/telegram-digest");
   return c.json(await runTelegramDigest());
 });
-
-app.use(bodyLimit({ maxSize: 10 * 1024 * 1024 }));
 
 // ── SSE endpoint ─────────────────────────────────────────────────────────────
 app.get("/api/events", async (c) => {
