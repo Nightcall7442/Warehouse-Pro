@@ -2,6 +2,9 @@ import nodemailer from "nodemailer";
 import { env } from "./env";
 import { logger } from "./logger";
 
+/** Имя организации и приглашающего задаёт арендатор — в письме это текст, не разметка (аудит 20.09.2026). */
+export const escapeHtml = (s: string) => s.replace(/[&<>"']/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch] as string));
+
 function getTransporter() {
   const isProd = process.env.NODE_ENV === "production";
   if (!env.smtpHost || env.smtpHost.startsWith("dev-insecure")) {
@@ -67,7 +70,7 @@ export async function sendInviteEmail(
     html: `
       <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:24px">
         <h2 style="color:#111">Приглашение в Warehouse Pro</h2>
-        <p><b>${inviterName}</b> приглашает вас присоединиться к <b>${orgName}</b> в роли <b>${role}</b>.</p>
+        <p><b>${escapeHtml(inviterName)}</b> приглашает вас присоединиться к <b>${escapeHtml(orgName)}</b> в роли <b>${escapeHtml(role)}</b>.</p>
         <a href="${acceptUrl}"
            style="display:inline-block;margin:20px 0;padding:12px 24px;background:#4f46e5;color:#fff;border-radius:6px;text-decoration:none;font-weight:bold">
           Принять приглашение

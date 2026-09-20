@@ -2,7 +2,7 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { desc, eq, isNull } from "drizzle-orm";
 import { createRouter, publicQuery, superAdminQuery } from "./middleware";
-import { checkRateLimit, rateLimitSubject } from "./lib/rate-limit";
+import { checkRateLimit, rateLimitSubject, getClientIp } from "./lib/rate-limit";
 import { leads } from "@db/schema";
 import { recordLead } from "./services/leads";
 
@@ -47,6 +47,13 @@ export const leadRouter = createRouter({
           code: "TOO_MANY_REQUESTS",
           message: "Заявка уже отправлена. Мы свяжемся с вами в ближайшее время.",
         });
+      }
+      // И по адресу: меняя цифру номера, аноним писал заявки без счёта и
+      // слал по сообщению в Telegram на каждую (аудит 20.09.2026). Адрес
+      // известен только за доверенным прокси (TRUSTED_PROXY_COUNT).
+      const ip = getClientIp(ctx.req);
+      if (ip && !(await checkRateLimit(`ip:${ip}`, { windowMs: 3_600_000, limit: 10, namespace: "lead-ip" }))) {
+        throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: "Слишком много заявок. Попробуйте позже." });
       }
 
       // Порядок «запись → уведомление → отметка» живёт в services/leads.ts:

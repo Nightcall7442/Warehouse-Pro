@@ -7,6 +7,7 @@ import { hashPassword, verifyPassword } from "./auth/password";
 import { TRPCError } from "@trpc/server";
 import { checkRateLimit, getClientIp, rateLimitSubject } from "./lib/rate-limit";
 import { sanitizeSearch } from "./lib/sanitize";
+import { isSafePhotoValue, PHOTO_VALUE_ERROR } from "./lib/photo-value";
 import { recordAudit } from "./services/audit-log";
 import { generateTotpSecret, verifyTotp, otpauthUrl } from "./lib/totp";
 import { seal, open as unseal } from "./lib/secret-box";
@@ -72,7 +73,10 @@ export const userRouter = createRouter({
     .input(z.object({
       name:   z.string().min(2).max(100).optional(),
       phone:  z.string().optional(),
-      avatar: z.string().max(5000000).optional(), // base64 data URL, max 5MB
+      // Картинка до 1 МБ и только картинка (isSafePhotoValue): аватар едет в
+      // каждом auth.me и в списке сотрудников — 5 МБ любого содержимого на
+      // человека стоили памяти кэша и трафика (аудит 20.09.2026).
+      avatar: z.string().max(1_400_000, "Аватар не больше 1 МБ").refine(v => v === "" || isSafePhotoValue(v), PHOTO_VALUE_ERROR).optional(),
     }))
     .mutation(async ({ input, ctx }) => {
       await getDb().update(users).set(input).where(eq(users.id, ctx.user.id));
