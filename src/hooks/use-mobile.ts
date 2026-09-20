@@ -9,6 +9,8 @@ export function useIsMobile() {
   })
 
   React.useEffect(() => {
+    // jsdom (тесты страниц) matchMedia не знает — остаётся ширина окна из useState.
+    if (typeof window.matchMedia !== "function") return
     const mql = window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT - 1}px)`)
     const onChange = (e: MediaQueryListEvent | MediaQueryList) => {
       setIsMobile(e.matches)
