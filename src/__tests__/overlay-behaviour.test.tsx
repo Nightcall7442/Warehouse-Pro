@@ -54,6 +54,17 @@ describe("замок прокрутки", () => {
     expect(document.body.style.top).toBe("");
     expect(scrollTo).toHaveBeenCalledWith(0, 480);
   });
+  it("страница сменилась, пока замок держал, — прокрутка прошлой страницы на новую не возвращается", () => {
+    // Поиск или палитра: navigate() и закрытие окна — замок снимается уже на новой странице.
+    const scrollTo = vi.fn(); Object.defineProperty(window, "scrollTo", { value: scrollTo, configurable: true, writable: true });
+    const from = window.location.pathname;
+    const off = lockScroll();
+    window.history.pushState({}, "", "/settings");
+    off();
+    expect(document.body.style.position).toBe("");
+    expect(scrollTo).not.toHaveBeenCalled();
+    window.history.pushState({}, "", from);
+  });
   it("снимает залипший pointer-events с body", () => {
     document.body.style.pointerEvents = "none";
     const off = lockScroll();

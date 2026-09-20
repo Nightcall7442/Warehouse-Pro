@@ -19,17 +19,15 @@ export function GlobalSearch() {
   const { user }          = useAuth();
   const role              = user?.role;
 
-  // Cmd+K / Ctrl+K to open
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
-        e.preventDefault();
-        setOpen(v => !v);
-      }
-    };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, []);
+  /*
+    Ctrl+K здесь больше не слушается: на то же сочетание открывается палитра
+    команд (CommandPalette в App), и оба окна вставали друг на друга — ввод
+    уходил не туда, щелчок по строке палитры упирался в подложку поиска
+    (владелец, 20.09.2026: «навигация неправильная»). Кнопка-триггер этого
+    поиска и так спрятана (display: none) — открыть его теперь нечем; сам
+    поиск оставлен до переноса ролевой логики (агент → новый заказ по
+    магазину) в палитру.
+  */
 
   useEffect(() => {
     if (open) {

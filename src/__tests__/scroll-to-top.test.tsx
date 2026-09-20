@@ -6,9 +6,9 @@
  * Владелец (19.09.2026): «некоторые страницы, если зайти, выйти назад и зайти
  * ещё раз, начинаются в конце, а настройки всегда открываются снизу».
  *
- * Нарочная поломка: в ScrollToTop убери `if (type === "POP") return;` —
- * упадёт «назад»; убери проверку `changed` — упадёт «вкладка»; убери
- * ScrollToTop из App — упадёт последняя проверка.
+ * Нарочная поломка: в ScrollToTop замени `type !== "PUSH"` на `type === "POP"`
+ * — упадёт «вкладка (replace)»; убери `key` из зависимостей — упадёт «тот же
+ * путь пунктом меню»; убери ScrollToTop из App — упадёт последняя проверка.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, cleanup, act } from "@testing-library/react";
@@ -52,6 +52,14 @@ describe("ScrollToTop", () => {
     // Зашёл ещё раз — снова с начала, а не там, где кончился список.
     await act(async () => { nav("/settings"); });
     expect(scrollTo).toHaveBeenCalledTimes(2);
+    // Тот же путь пунктом меню (push) — с начала: из «Накладных» внизу страницы в «Профиль».
+    await act(async () => { nav("/settings?section=invoices", { replace: true }); });
+    expect(scrollTo).toHaveBeenCalledTimes(2);
+    await act(async () => { nav("/settings"); });
+    expect(scrollTo).toHaveBeenCalledTimes(3);
+    // И сразу ещё раз тот же пункт — тоже с начала (меняется только ключ перехода).
+    await act(async () => { nav("/settings"); });
+    expect(scrollTo).toHaveBeenCalledTimes(4);
   });
 
   it("стоит в приложении внутри маршрутов", () => {

@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef } from "react";
+import { useLayoutEffect } from "react";
 import { useLocation, useNavigationType } from "react-router";
 
 /*
@@ -10,21 +10,24 @@ import { useLocation, useNavigationType } from "react-router";
   страницы открываются в конце, а настройки всегда снизу»).
 
   Кнопка «назад» — исключение: там браузер сам возвращает место, где человек
-  был, и это правильно (вернулся в список — туда, откуда ушёл). Смена только
-  запроса (?tab=, ?section=) — это вкладка на той же странице, прокрутку не
-  трогаем.
+  был, и это правильно (вернулся в список — туда, откуда ушёл). Замена адреса
+  (replace: вкладки ?tab=, разделы ?section=, редиректы) — это та же страница,
+  прокрутку не трогаем.
+
+  Считается каждый push, даже на тот же путь. Первая версия сравнивала только
+  pathname — и пункт меню «Настройки», нажатый из «Настройки → Накладные»
+  внизу страницы, оставлял прокрутку: раздел сменился на короткий «Профиль»,
+  а окно показывало его низ (владелец, 20.09.2026: «настройки всё ещё
+  начинаются снизу»).
 */
 export function ScrollToTop() {
-  const { pathname } = useLocation();
+  // Ключ меняется на каждый переход, даже на тот же адрес. Первая загрузка
+  // приходит как POP — ею занимается браузер.
+  const { key } = useLocation();
   const type = useNavigationType();
-  // Прежний путь — чтобы смена одного лишь запроса или способа перехода
-  // (replace вместо push) не считалась новой страницей.
-  const last = useRef(pathname);
   useLayoutEffect(() => {
-    const changed = last.current !== pathname;
-    last.current = pathname;
-    if (!changed || type === "POP") return;
+    if (type !== "PUSH") return;
     window.scrollTo(0, 0);
-  }, [pathname, type]);
+  }, [key, type]);
   return null;
 }
