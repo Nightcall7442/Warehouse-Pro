@@ -19,6 +19,7 @@ import {
   RefreshCw, Truck, ClipboardList,
 } from "lucide-react";
 import { format, startOfMonth } from "date-fns";
+import { dateLocale } from "@/lib/date-locale";
 import { exportToExcel, formatOrdersForExport } from "@/lib/excel";
 import { QueryErrorFallback } from "@/components/QueryErrorFallback";
 import { exportToPDF, escapeHtml } from "@/lib/export";
@@ -1013,7 +1014,7 @@ function OperatorOrders() {
                             <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
                               <User size={12} style={{ color: COLORS.textSecondary, flexShrink: 0 }} />
                               <span style={{ fontSize: "12px", color: COLORS.textSecondary }}>
-                                {o.agentName ?? "—"} · {o.createdAt ? format(new Date(o.createdAt), "d MMM") : ""}
+                                {o.agentName ?? "—"} · {o.createdAt ? format(new Date(o.createdAt), "d MMM", { locale: dateLocale(lang) }) : ""}
                               </span>
                             </div>
                             {o.paymentMethod && PAYMENT[o.paymentMethod] && (

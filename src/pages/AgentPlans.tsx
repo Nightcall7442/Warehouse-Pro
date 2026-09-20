@@ -4,7 +4,7 @@ import { useLang } from "@/i18n";
 import { useAuth } from "@/hooks/useAuth";
 import { trpc } from "@/providers/trpc";
 import { format, addDays, subDays } from "date-fns";
-import { ru as dateRu } from "date-fns/locale";
+import { dateLocale } from "@/lib/date-locale";
 import {
   ChevronLeft, ChevronRight, CheckCircle2,
   Clock, Calendar, MapPin, AlertCircle, PlusCircle, ClipboardList,
@@ -123,10 +123,10 @@ export default function AgentPlans() {
         </button>
         <div className="flex-1 panel p-3 text-center">
           <p className="font-semibold text-primary capitalize">
-            {format(date, "EEEE", { locale: lang === "ru" ? dateRu : undefined })}
+            {format(date, "EEEE", { locale: dateLocale(lang) })}
           </p>
           <p className="font-label text-[11px] tracking-wider mt-0.5" style={{ color: "var(--color-text-tertiary, #6b6760)" }}>
-            {format(date, "d MMMM yyyy", { locale: lang === "ru" ? dateRu : undefined })}
+            {format(date, "d MMMM yyyy", { locale: dateLocale(lang) })}
           </p>
         </div>
         <button

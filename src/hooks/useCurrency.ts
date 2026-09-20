@@ -8,13 +8,28 @@ interface SettingsData {
   symbolPosition?: "before" | "after";
 }
 
+/*
+  Символ валюты хранится у арендатора одним словом («сум»), а интерфейс
+  двуязычный: в узбекском «52 000 сум» — русское слово посреди узбекского
+  экрана (прогон 20.09.2026: на каждой странице). Слово той же валюты на
+  другом языке подставляется здесь; чужие символы ($, €) не трогаются.
+*/
+const SUM: Record<string, { ru: string; uz: string }> = {
+  "сум": { ru: "сум", uz: "so'm" }, "сўм": { ru: "сум", uz: "so'm" },
+  "so'm": { ru: "сум", uz: "so'm" }, "soʻm": { ru: "сум", uz: "so'm" }, "so‘m": { ru: "сум", uz: "so'm" },
+};
+export function currencySymbolFor(stored: string | null | undefined, lang: "ru" | "uz"): string {
+  if (!stored) return SUM["сум"][lang];
+  return SUM[stored.trim().toLowerCase()]?.[lang] ?? stored;
+}
+
 export function useCurrency() {
   const { lang } = useLang();
   const { data: settings } = trpc.settings.get.useQuery(undefined, {
     staleTime: 1000 * 60 * 10,
   }) as { data: SettingsData | null };
 
-  const symbol   = settings?.currencySymbol ?? (lang === "uz" ? "so'm" : "сум");
+  const symbol   = currencySymbolFor(settings?.currencySymbol, lang);
   const currency = settings?.currency       ?? "UZS";
   const position = settings?.symbolPosition ?? "after";
 

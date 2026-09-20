@@ -425,6 +425,23 @@ describe("notification.smartAlerts", () => {
     expect(result.some((a: unknown) => (a as Record<string, unknown>).type === "pending_orders")).toBe(true);
   });
 
+  it("на языке экрана: uz даёт узбекские подсказки, ru — русские, кэш по языку", async () => {
+    const { notificationRouter } = await import("../notification-router");
+    const caller = notificationRouter.createCaller(makeCtx(1, 10));
+    const uz = (await caller.smartAlerts({ lang: "uz" })) as Array<{ type: string; title: string; message: string }>;
+    const ru = (await caller.smartAlerts()) as Array<{ type: string; title: string; message: string }>;
+    const low = uz.find(a => a.type === "low_stock")!;
+    expect(low.title).toMatch(/^Kam qoldiq: /);
+    expect(low.message).toMatch(/^Qoldi /);
+    expect(uz.find(a => a.type === "pending_orders")!.message).toBe("Ishlov berishni kutmoqda");
+    expect(ru.find(a => a.type === "low_stock")!.title).toMatch(/^Низкий остаток: /);
+    // Ни одной русской буквы в узбекских подсказках, кроме названий из данных.
+    for (const a of uz) expect(a.message.replace(/Картофель|Товар \d+/g, "")).not.toMatch(/[А-Яа-яЁё]/);
+    // Кэш здесь подменён; ключ проверяется у настоящего модуля.
+    const { CacheKeys } = await vi.importActual<typeof import("../lib/cache")>("../lib/cache");
+    expect(CacheKeys.smartAlerts(1, 10, "uz")).not.toBe(CacheKeys.smartAlerts(1, 10, "ru"));
+  });
+
   it("empty when no issues", async () => {
     stockTable = [
       { id: 1, productId: 1, tenantId: 1, currentStock: "100.00", reserved: "0.00", available: "100.00" },

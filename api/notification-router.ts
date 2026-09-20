@@ -58,7 +58,9 @@ export const notificationRouter = createRouter({
     return NotificationService.markAllRead(ctx.db, ctx.tenant.id, ctx.user.id);
   }),
 
-  smartAlerts: authedQuery.query(async ({ ctx }) => {
-    return NotificationService.getSmartAlerts(ctx.db, ctx.tenant.id, ctx.user.id);
-  }),
+  smartAlerts: authedQuery
+    .input(z.object({ lang: z.enum(["ru", "uz"]).default("ru") }).optional())
+    .query(async ({ ctx, input }) => {
+      return NotificationService.getSmartAlerts(ctx.db, ctx.tenant.id, ctx.user.id, input?.lang ?? "ru");
+    }),
 });

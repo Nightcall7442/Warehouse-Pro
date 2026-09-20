@@ -14,7 +14,7 @@ import { useLang } from "@/i18n";
 import { PAYMENT } from "@/components/orders/theme-tokens";
 import { labelled, ORDER_STATUS_LABEL, ADJUSTMENT_TYPE_LABEL } from "@/lib/entity-labels";
 import { format } from "date-fns";
-import { ru as dateRu } from "date-fns/locale";
+import { dateLocale } from "@/lib/date-locale";
 import {
   ArrowLeft, Printer, FileDown, CheckCircle2,
   ChevronDown, Truck, Trash2, Edit3, CreditCard,
@@ -270,7 +270,7 @@ export default function OrderDetail() {
     return {
       number:   order.orderNumber,
       date:     order.createdAt
-        ? format(new Date(order.createdAt), "dd.MM.yyyy", { locale: dateRu })
+        ? format(new Date(order.createdAt), "dd.MM.yyyy", { locale: dateLocale(lang) })
         : "",
       seller,
       buyer,
@@ -383,14 +383,14 @@ export default function OrderDetail() {
               {lang === "uz" ? "Buyurtma" : "Заказ"} {order.orderNumber}
             </h1>
             <p className="text-xs text-secondary mt-0.5">
-              {order.createdAt ? format(new Date(order.createdAt), "d MMMM yyyy, HH:mm", { locale: dateRu }) : ""}
+              {order.createdAt ? format(new Date(order.createdAt), "d MMMM yyyy, HH:mm", { locale: dateLocale(lang) }) : ""}
               {/*
                 Заказ возвращали из архива в работу: дата выше — дата текущего
                 круга, её двигает order-reopen, чтобы выручка второго круга не
                 падала в месяц первого. Без этой строки карточка выглядела бы
                 так, будто январский заказ оформили сегодня.
               */}
-              {order.firstOrderedAt && <> · {lang === "uz" ? "birinchi rasmiylashtirish" : "первое оформление"} {format(new Date(order.firstOrderedAt), "d MMMM yyyy", { locale: dateRu })}</>}
+              {order.firstOrderedAt && <> · {lang === "uz" ? "birinchi rasmiylashtirish" : "первое оформление"} {format(new Date(order.firstOrderedAt), "d MMMM yyyy", { locale: dateLocale(lang) })}</>}
             </p>
           </div>
           {isOperatorOrCeo && !order.deletedAt ? (

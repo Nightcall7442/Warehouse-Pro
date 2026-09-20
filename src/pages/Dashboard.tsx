@@ -7,7 +7,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useNavigate } from "react-router";
 import { getGreeting } from "@/lib/utils";
 import { format } from "date-fns";
-import { ru } from "date-fns/locale";
+import { dateLocale } from "@/lib/date-locale";
 import { ClipboardList, TrendingUp, TrendingDown, Plus, AlertCircle, ArrowRight, PieChart, Activity } from "lucide-react";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart as RePieChart, Pie, Cell, BarChart, Bar } from "recharts";
 import { ProgressRing } from "@/components/ProgressRing";
@@ -131,7 +131,7 @@ export default function Dashboard() {
   const { data: trends } = trpc.dashboard.trends.useQuery({ range });
   const { data: statusData } = trpc.dashboard.statusBreakdown.useQuery();
   const { data: activity } = trpc.dashboard.activity.useQuery();
-  const { data: alerts } = trpc.notification.smartAlerts.useQuery();
+  const { data: alerts } = trpc.notification.smartAlerts.useQuery({ lang });
 
   const chartData = useMemo(() => trends?.map(tr => ({ date: format(new Date(tr.date), "dd/MM"), orders: tr.orderCount, revenue: Number(tr.revenue) })) ?? [], [trends]);
   const revenueTrend = useMemo(() => (trends ?? []).slice(-7).map(tr => Number(tr.revenue)), [trends]);
@@ -188,7 +188,7 @@ export default function Dashboard() {
             {t("Главная", "Bosh sahifa")}
           </h1>
           <p style={{ fontSize: "13px", color: "var(--color-text-secondary, #5e5b54)", margin: "4px 0 0" }}>
-            {greeting}, {user?.name?.split(" ")[0] ?? ""} — {format(new Date(), "EEEE, d MMMM yyyy", { locale: ru })}
+            {greeting}, {user?.name?.split(" ")[0] ?? ""} — {format(new Date(), "EEEE, d MMMM yyyy", { locale: dateLocale(lang) })}
           </p>
         </div>
         {/* Плюс, а не «искры»: кнопка создаёт заказ, а не колдует. Sparkles —
@@ -322,7 +322,7 @@ export default function Dashboard() {
               </p>
             </div>
             <div className="range-pills">
-              {([{ key: "7d" as const, label: "7д" }, { key: "30d" as const, label: "30д" }, { key: "month" as const, label: t("Месяц", "Oy") }]).map(r => (
+              {([{ key: "7d" as const, label: t("7д", "7 kun") }, { key: "30d" as const, label: t("30д", "30 kun") }, { key: "month" as const, label: t("Месяц", "Oy") }]).map(r => (
                 <button key={r.key} onClick={() => setRange(r.key)} className={`range-pill ${range === r.key ? "active" : ""}`}>{r.label}</button>
               ))}
             </div>
