@@ -1,5 +1,4 @@
 import { ru, uz } from "date-fns/locale";
-import type { Lang } from "@/i18n";
 
 /*
   Язык дат — тот же, что у экрана.
@@ -13,6 +12,7 @@ import type { Lang } from "@/i18n";
 
   Бумага (печать, Excel) сюда не ходит — она остаётся русской.
 */
-export function dateLocale(lang: Lang) {
+// Принимает string: часть экранов держит язык как string из старых сигнатур.
+export function dateLocale(lang: string) {
   return lang === "uz" ? uz : ru;
 }
