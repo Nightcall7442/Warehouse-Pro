@@ -464,7 +464,9 @@ export const orderRouter = createRouter({
       });
     }),
 
-  updateStatus: operatorQuery
+  // Смена статуса — самый частый денежный переход (доставка списывает склад
+  // и считает долг): под той же настройкой, что правка состава.
+  updateStatus: operatorQuery.use(can("orders.edit"))
     .input(z.object({ id: z.number().int().positive(), status: z.enum(["new", "processing", "shipped", "pending", "delivered", "cancelled", "returned"]) }))
     .mutation(async ({ input, ctx }) => {
       return OrderService.updateStatus(ctx.db, ctx.tenant.id, input.id, input.status, { id: ctx.user.id, role: ctx.user.role });
@@ -627,7 +629,7 @@ export const orderRouter = createRouter({
     }),
 
   // ── Bulk Status Update ──────────────────────────────────────────────────────
-  bulkUpdateStatus: operatorQuery
+  bulkUpdateStatus: operatorQuery.use(can("orders.edit"))
     .input(z.object({
       orderIds: z.array(z.number().int().positive()).min(1).max(100),
       status: z.enum(["new", "processing", "shipped", "pending", "delivered", "cancelled", "returned"]),
@@ -925,7 +927,14 @@ export const orderRouter = createRouter({
     }),
 
   // ── Partial Payment ────────────────────────────────────────────────────────
-  recordPartialPayment: fieldSalesQuery
+  /*
+    Право «Принимать оплату» — на всех трёх денежных ручках, а не только на
+    shop.addPayment и order.close: аудит 20.09.2026 — оператор с выключенной
+    настройкой записывал платёж через окно завершения и «Мои долги».
+    Отметка доставки без денег — правка состава (orders.edit). can()
+    ограничивает только оператора; полевые роли — свои границы внутри.
+  */
+  recordPartialPayment: fieldSalesQuery.use(can("payments.accept"))
     .input(z.object({
       orderId: z.number().int().positive(),
       paidAmount: z.string().refine(v => Number(v) > 0, "Сумма должна быть положительной"),
@@ -939,7 +948,7 @@ export const orderRouter = createRouter({
     }),
 
   // ── Partial Delivery ───────────────────────────────────────────────────────
-  recordPartialDelivery: fieldSalesQuery
+  recordPartialDelivery: fieldSalesQuery.use(can("orders.edit"))
     .input(z.object({
       orderId: z.number().int().positive(),
       items: z.array(z.object({
@@ -954,7 +963,7 @@ export const orderRouter = createRouter({
     }),
 
   // ── Combined Delivery + Payment ────────────────────────────────────────────
-  recordDeliveryAndPayment: fieldSalesQuery
+  recordDeliveryAndPayment: fieldSalesQuery.use(can("payments.accept"))
     .input(z.object({
       orderId: z.number().int().positive(),
       deliveredItems: z.array(z.object({
