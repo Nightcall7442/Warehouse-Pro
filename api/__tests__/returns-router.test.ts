@@ -412,6 +412,23 @@ describe("returnsRouter", () => {
       expect(result.data[0].returnNumber).toBe("RET-001");
     });
 
+    it("полю — только свои возвраты, офису — все (аудит 20.09.2026)", async () => {
+      returnsTable.push(
+        { id: 1, tenantId: 1, orderId: null, shopId: 1, agentId: 10, returnNumber: "RET-MINE", reason: "defect", notes: null, status: "pending", totalAmount: "100.00", createdAt: new Date() } as never,
+        { id: 2, tenantId: 1, orderId: null, shopId: 1, agentId: 12, returnNumber: "RET-OTHER", reason: "defect", notes: null, status: "pending", totalAmount: "500.00", createdAt: new Date() } as never,
+      );
+      shopsTable.push({ id: 1, tenantId: 1, name: "Shop 1", debt: "0" });
+      usersTable.push({ id: 10, tenantId: 1, name: "Agent One", role: "agent" }, { id: 12, tenantId: 1, name: "Agent Three", role: "agent" });
+
+      const asAgent = await returnsRouter.createCaller(buildCtx()).list({});
+      expect(asAgent.data.map(r => r.returnNumber)).toEqual(["RET-MINE"]);
+      expect(await returnsRouter.createCaller(buildCtx()).getById({ id: 2 }), "чужой возврат открылся агенту").toBeNull();
+
+      const office = buildCtx({ user: { id: 1, tenantId: 1, role: "operator" as const, status: "active" as const, name: "Оператор", email: "o@t.com", passwordHash: "x", avatar: null, phone: null, createdAt: new Date(), updatedAt: new Date() } });
+      const asOperator = await returnsRouter.createCaller(office).list({});
+      expect(asOperator.data.map(r => r.returnNumber).sort()).toEqual(["RET-MINE", "RET-OTHER"]);
+    });
+
     it("filters by status", async () => {
       returnsTable.push(
         { id: 1, tenantId: 1, orderId: null, shopId: 1, agentId: 10, returnNumber: "RET-001", reason: "defect", notes: null, status: "pending", totalAmount: "100.00", createdBy: 10 },

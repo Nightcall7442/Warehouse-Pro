@@ -1,4 +1,5 @@
 import { sql, eq, and, gte, lte, inArray, isNull, isNotNull, desc } from "drizzle-orm";
+import { TRPCError } from "@trpc/server";
 import { dayKey } from "../lib/period";
 import { REVENUE_ORDER_STATUSES, revenueOrderConditions } from "../lib/order-status";
 import { orders, dailyPlans, shops, salesTargets, commissions, agentLocations, visitReports, users, payments } from "@db/schema";
@@ -246,8 +247,11 @@ export async function calculateCourierStats(
       lte(payments.createdAt, periodEnd),
     ));
 
+  // Только своей организации: без tenantId имя любого пользователя платформы
+  // читалось перебором courierId (аудит 20.09.2026).
   const [who] = await db.select({ name: users.name })
-    .from(users).where(eq(users.id, courierId)).limit(1);
+    .from(users).where(and(eq(users.id, courierId), eq(users.tenantId, tenantId))).limit(1);
+  if (!who) throw new TRPCError({ code: "NOT_FOUND", message: "Курьер не найден" });
 
   const delivered = Number(counts?.delivered ?? 0);
   const failed = Number(counts?.failed ?? 0);

@@ -998,11 +998,22 @@ export const agentRouter = createRouter({
   */
 
   // Мобильное приложение: агент смотрит детали любого магазина в тенанте
+  /*
+    Карточка магазина для телефона — те же колонки, что у shop.getById:
+    select() целиком отдавал кредитный лимит, сырой адрес фото (в обход
+    /api/photos), ключ идемпотентности и след архивации (аудит 20.09.2026).
+  */
   getShopById: fieldSalesQuery
     .input(z.object({ id: z.number() }))
     .query(async ({ input, ctx }) => {
       const db = getDb();
-      const [shop] = await db.select().from(shops)
+      const [shop] = await db.select({
+        id: shops.id, name: shops.name, ownerName: shops.ownerName, phone: shops.phone,
+        address: shops.address, city: shops.city, district: shops.district,
+        photoUrl: photoRef("shop", shops.id, shops.photoUrl, shops.updatedAt), gpsLat: shops.gpsLat, gpsLng: shops.gpsLng,
+        debt: shops.debt, status: shops.status, agentId: shops.agentId, territoryId: shops.territoryId,
+        notes: shops.notes, createdAt: shops.createdAt,
+      }).from(shops)
         .where(and(eq(shops.id, input.id), eq(shops.tenantId, ctx.tenant.id)))
         .limit(1);
       if (!shop) return null;
@@ -1014,7 +1025,13 @@ export const agentRouter = createRouter({
     .input(z.object({ id: z.number() }))
     .query(async ({ input, ctx }) => {
       const db = getDb();
-      const [shop] = await db.select().from(shops)
+      const [shop] = await db.select({
+        id: shops.id, name: shops.name, ownerName: shops.ownerName, phone: shops.phone,
+        address: shops.address, city: shops.city, district: shops.district,
+        photoUrl: photoRef("shop", shops.id, shops.photoUrl, shops.updatedAt), gpsLat: shops.gpsLat, gpsLng: shops.gpsLng,
+        debt: shops.debt, status: shops.status, agentId: shops.agentId, territoryId: shops.territoryId,
+        notes: shops.notes, createdAt: shops.createdAt,
+      }).from(shops)
         .where(and(eq(shops.id, input.id), eq(shops.tenantId, ctx.tenant.id)))
         .limit(1);
       if (!shop) return null;

@@ -6,6 +6,9 @@ import { getDb } from "./queries/connection";
 import { assertProductsBelongToTenant } from "./lib/tenant-refs";
 import { returns, returnItems, orderItems, shops, users, products, orders, warehouseStock, warehouses } from "@db/schema";
 import { ORDER_STATUS_LABELS, RETURN_STATUS_LABELS } from "./lib/order-status";
+
+/** Офис видит все возвраты организации, поле — только свои. */
+const isOffice = (role: string) => role === "ceo" || role === "operator";
 import { eq, and, desc, sql, ne, inArray, notInArray, isNull } from "drizzle-orm";
 import { reportCached, invalidateReports, ReportTTL } from "./lib/report-cache";
 import { sanitizeString } from "./lib/sanitize";
@@ -64,6 +67,9 @@ export const returnsRouter = createRouter({
     .query(async ({ input, ctx }) => {
       const db = getDb();
       const conditions = [eq(returns.tenantId, ctx.tenant.id)];
+      // Полю — только свои возвраты: агент видел все возвраты организации с
+      // ценами и чужими именами (аудит 20.09.2026). Офису — все.
+      if (!isOffice(ctx.user.role)) conditions.push(eq(returns.agentId, ctx.user.id));
       if (input?.status) conditions.push(eq(returns.status, input.status));
       if (input?.shopId) conditions.push(eq(returns.shopId, input.shopId));
       if (input?.orderId) conditions.push(eq(returns.orderId, input.orderId));
@@ -115,7 +121,7 @@ export const returnsRouter = createRouter({
       }).from(returns)
         .leftJoin(shops, and(eq(returns.shopId, shops.id), eq(shops.tenantId, ctx.tenant.id)))
         .leftJoin(users, and(eq(returns.agentId, users.id), eq(users.tenantId, ctx.tenant.id)))
-        .where(and(eq(returns.id, input.id), eq(returns.tenantId, ctx.tenant.id)))
+        .where(and(eq(returns.id, input.id), eq(returns.tenantId, ctx.tenant.id), ...(isOffice(ctx.user.role) ? [] : [eq(returns.agentId, ctx.user.id)])))
         .limit(1);
 
       if (!ret) return null;

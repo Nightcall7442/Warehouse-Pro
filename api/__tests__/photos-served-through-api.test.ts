@@ -136,5 +136,11 @@ describe("карточки берут фото той же ссылкой, чт�
     const shop = read("api/shop-router.ts");
     expect(shop).toContain('photoUrl: photoRef("shop", shops.id, shops.photoUrl, shops.updatedAt)');
     expect(shop).not.toMatch(/photoUrl:\s*shops\.photoUrl,/);
+    // Карточка магазина для телефона (agent.getShopById, …Supervisor) — те же
+    // колонки: select() целиком отдавал сырой photoUrl, кредитный лимит и
+    // ключ идемпотентности (аудит 20.09.2026).
+    const agent = read("api/agent-router.ts");
+    expect(agent.match(/\.select\(\)\.from\(shops\)/g), "agent-router отдаёт строку магазина целиком").toBeNull();
+    expect(agent.match(/photoUrl: photoRef\("shop", shops\.id, shops\.photoUrl, shops\.updatedAt\)/g)?.length ?? 0).toBeGreaterThanOrEqual(2);
   });
 });

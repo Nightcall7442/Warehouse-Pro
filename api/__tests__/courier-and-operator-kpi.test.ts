@@ -165,6 +165,19 @@ describe("зарплата курьера", () => {
     );
     expect(stats).toContain("payments.createdBy");
   });
+
+  it("имя курьера — только своей организации; чужой id — «не найден»", () => {
+    /*
+      Аудит 20.09.2026: имя читалось по одному users.id — директор перебором
+      courierId получал ФИО сотрудников всех организаций платформы.
+    */
+    const stats = SERVICE.slice(
+      SERVICE.indexOf("export async function calculateCourierStats"),
+      SERVICE.indexOf("export interface AgentListEntry"),
+    );
+    expect(stats).toContain("and(eq(users.id, courierId), eq(users.tenantId, tenantId))");
+    expect(stats).toContain('throw new TRPCError({ code: "NOT_FOUND", message: "Курьер не найден" })');
+  });
 });
 
 describe("оператор наравне с директором", () => {
