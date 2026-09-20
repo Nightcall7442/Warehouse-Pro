@@ -39,10 +39,11 @@ export const NAV_ITEMS: Record<string, NavItem[]> = {
     { labelKey: "nav.monitoring", path: "/monitoring", icon: "Activity" },
   ],
   // Директор: Главная, четыре группы и четыре пункта, которые владелец велел
-  // оставить снаружи (19.09.2026): «Магазины», «Настройки», «Биллинг», «Журнал
-  // действий». «Магазины» — выше «Продаж» (владелец, 20.09.2026: «продажа
-  // внизу должна магазина»). «Отчёты склада» пунктом больше нет: это вкладка
-  // на «Складе».
+  // оставить снаружи (19.09.2026): «Магазины», «Биллинг», «Журнал действий»,
+  // «Настройки». «Магазины» — выше «Продаж» (владелец, 20.09.2026: «продажа
+  // внизу должна магазина»), «Настройки» — самый нижний пункт (владелец,
+  // 20.09.2026, стрелкой на снимке меню). «Отчёты склада» пунктом больше нет:
+  // это вкладка на «Складе».
   ceo: [
     { labelKey: "nav.dashboard",  path: "/",          icon: "LayoutDashboard" },
     { labelKey: "nav.shops",      path: "/shops",     icon: "Store"           },
@@ -66,9 +67,9 @@ export const NAV_ITEMS: Record<string, NavItem[]> = {
     { labelKey: "nav.reports",    path: "/reports",   icon: "Activity",       group: "finance" },
     { labelKey: "nav.pnl",        path: "/pnl",       icon: "TrendingUp",     group: "finance" },
     { labelKey: "nav.control",    path: "/control",   icon: "ShieldCheck",    group: "finance" },
-    { labelKey: "nav.settings",   path: "/settings",  icon: "Settings"        },
     { labelKey: "nav.billing",    path: "/billing",   icon: "CreditCard"      },
     { labelKey: "nav.auditLog",   path: "/audit-log",  icon: "Shield"         },
+    { labelKey: "nav.settings",   path: "/settings",  icon: "Settings"        },
   ],
   // Оператор: Главная, Магазины, две группы, Отчёты, KPI, Настройки. Группа
   // «Отчёты» с единственным вложенным «Отчёты» звалась бы дважды одним словом.

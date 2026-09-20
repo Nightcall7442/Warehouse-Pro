@@ -26,9 +26,9 @@ const label = (r: Row) => r.kind === "group" ? r.labelKey : r.item.labelKey;
 const groupsOf = (rows: Row[]) => rows.filter((r): r is GroupRow => r.kind === "group");
 
 describe("строки меню", () => {
-  it("директор на складе: девять строк снаружи — Магазины выше Продаж (владелец, 20.09), Настройки, Биллинг и Журнал отдельно (19.09); раскрыт только «Склад»", () => {
+  it("директор на складе: девять строк снаружи — Магазины выше Продаж (владелец, 20.09), Биллинг и Журнал отдельно (19.09), Настройки самым нижним (20.09); раскрыт только «Склад»", () => {
     const rows = navRows(NAV_ITEMS.ceo, "/warehouse", undefined);
-    expect(top(rows).map(label)).toEqual(["nav.dashboard", "nav.shops", "nav.groupSales", "nav.warehouse", "nav.groupTeam", "nav.groupFinance", "nav.settings", "nav.billing", "nav.auditLog"]);
+    expect(top(rows).map(label)).toEqual(["nav.dashboard", "nav.shops", "nav.groupSales", "nav.warehouse", "nav.groupTeam", "nav.groupFinance", "nav.billing", "nav.auditLog", "nav.settings"]);
     const groups = groupsOf(rows);
     expect(groups.filter(g => g.open).map(g => g.key)).toEqual(["warehouse"]);
     expect(groups.find(g => g.key === "warehouse")!.active).toBe(true);
