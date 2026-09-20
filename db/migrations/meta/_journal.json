@@ -421,6 +421,20 @@
       "when": 1789917660598,
       "tag": "0059_notifications_uz",
       "breakpoints": true
+    },
+    {
+      "idx": 60,
+      "version": "5",
+      "when": 1789923887843,
+      "tag": "0060_shortage_at",
+      "breakpoints": true
+    },
+    {
+      "idx": 61,
+      "version": "5",
+      "when": 1789923995043,
+      "tag": "0061_shortage_at_history",
+      "breakpoints": true
     }
   ]
 }

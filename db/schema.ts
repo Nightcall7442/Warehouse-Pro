@@ -418,6 +418,9 @@ export const orders = mysqlTable("orders", {
   courierShortage:  decimal("courier_shortage", { precision: 12, scale: 2 }).default("0.00").notNull(),
   shortageUserId:   bigint("shortage_user_id", { mode: "number", unsigned: true }).references(() => users.id, { onDelete: "set null" }),
   shortageNote:     varchar("shortage_note", { length: 300 }),
+  // Когда недостача записана: период в «Контроле» — по ней, а не по closedAt
+  // (второй круг закрытия не удерживает ту же недостачу дважды).
+  shortageAt:       timestamp("shortage_at"),
   priority:    mysqlEnum("priority", ["low", "normal", "high"]).default("normal").notNull(),
   deletedAt:   timestamp("deleted_at"),
   createdAt:   timestamp("created_at").defaultNow().notNull(),
