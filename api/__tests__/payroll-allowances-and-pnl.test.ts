@@ -169,7 +169,10 @@ describe("подтверждение получения", () => {
     expect(body, "человек не узнаёт, что деньги выданы").toContain("NotificationService.create(db, {");
     // Аванс и полный расчёт различаются в заголовке: иначе человек читает
     // «выдана зарплата» на авансе и считает месяц закрытым.
-    expect(body).toContain('input.kind === "advance" ? "Выдан аванс" : "Выдана зарплата"');
+    // С 20.09.2026 заголовок — пара языков (уведомления на языке экрана).
+    expect(body).toContain('input.kind === "advance"');
+    expect(body).toContain('{ ru: "Выдан аванс", uz: "Avans berildi" }');
+    expect(body).toContain('{ ru: "Выдана зарплата", uz: "Ish haqi berildi" }');
   });
 
   it("уведомление доходит и до телефона", () => {
