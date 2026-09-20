@@ -51,6 +51,16 @@ describe("копия справочников на устройстве", () => 
     expect(loadOfflineCopy("catalog", 22)).toBeNull();
   });
 
+  it("выход стирает и черновики прихода и заказа — в них закупочные цены (аудит 20.09.2026)", () => {
+    localStorage.setItem("warehouse_pro_arrival_draft:11", JSON.stringify({ items: [{ costPrice: "8500" }] }));
+    localStorage.setItem("warehouse_pro_order_draft:11", JSON.stringify({ items: [{ unitPrice: "12000" }] }));
+    localStorage.setItem("lang", "uz"); // язык — не про сессию, остаётся
+    clearOfflineCopies();
+    expect(localStorage.getItem("warehouse_pro_arrival_draft:11")).toBeNull();
+    expect(localStorage.getItem("warehouse_pro_order_draft:11")).toBeNull();
+    expect(localStorage.getItem("lang")).toBe("uz");
+  });
+
   it("испорченная запись не роняет экран", () => {
     localStorage.setItem("wp.offline.catalog.11", "{не json");
     expect(loadOfflineCopy("catalog", 11)).toBeNull();

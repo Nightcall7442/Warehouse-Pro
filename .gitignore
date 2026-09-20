@@ -46,3 +46,6 @@ docs/manual/*.pdf
 # Playwright: отчёты и разборы падений
 test-results/
 playwright-report/
+
+# Черновые пробы сессий — не для репозитория
+scratch-*

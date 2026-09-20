@@ -206,12 +206,15 @@ describe("invite.send", () => {
     expect(invitesTable[0].tenantId).toBe(1);
   });
 
-  it("rejects if email already registered as user", async () => {
+  it("rejects if email already registered as user — in this organisation; another organisation's user is not an oracle", async () => {
     usersTable.push({ id: 99, tenantId: 1, email: "existing@user.com", name: "X", role: "agent" });
+    usersTable.push({ id: 98, tenantId: 2, email: "elsewhere@user.com", name: "Y", role: "agent" });
     const { inviteRouter } = await import("../invite-router");
     const caller = inviteRouter.createCaller(buildCtx());
     await expect(caller.send({ email: "existing@user.com", role: "agent" }))
-      .rejects.toThrow(/already registered|уже зарегистрирован/i);
+      .rejects.toThrow(/уже есть среди сотрудников/i);
+    // Адрес занят в ЧУЖОЙ организации — приглашение уходит, отказа нет (аудит 20.09.2026).
+    await expect(caller.send({ email: "elsewhere@user.com", role: "agent" })).resolves.toMatchObject({ success: true });
   });
 
   it("sends email via sendInviteEmail", async () => {
