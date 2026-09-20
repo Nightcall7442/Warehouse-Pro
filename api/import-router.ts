@@ -9,6 +9,7 @@ import { eq, and, sql } from "drizzle-orm";
 import { cache } from "./lib/cache";
 import { recordStockMovement, setStock } from "./services/stock-ledger";
 import { isSafePhotoValue } from "./lib/photo-value";
+import { zipDeclaredSize } from "./lib/zip-declared-size";
 // Type-only: exceljs itself stays behind the dynamic imports below so it never
 // lands in the boot bundle.
 import type { CellValue } from "exceljs";
@@ -100,6 +101,17 @@ function parseRow(cells: CellValue[], colMap: Record<string, number>): ParsedRow
   return row;
 }
 
+/*
+  Пределы импорта. Файл — не больше 6 МБ (base64 ~8 МБ; прайс на десять
+  тысяч строк весит сотни килобайт); xlsx перед разбором сверяется с
+  собственным оглавлением: обещает распаковаться больше чем в 60 МБ —
+  отказ до распаковки (zip-бомба, аудит 20.09.2026); строк — не больше
+  20 000: остальное режется с предупреждением, а не перемалывается часами.
+*/
+export const IMPORT_MAX_BASE64 = 8 * 1024 * 1024;
+export const IMPORT_MAX_UNZIPPED = 60 * 1024 * 1024;
+export const IMPORT_MAX_ROWS = 20_000;
+
 /** Parse file (CSV or XLSX) into headers + rows */
 async function parseFile(base64: string, filename: string): Promise<{ headers: string[]; rows: CellValue[][] }> {
   const isXlsx = filename.toLowerCase().endsWith(".xlsx") || filename.toLowerCase().endsWith(".xls");
@@ -108,6 +120,10 @@ async function parseFile(base64: string, filename: string): Promise<{ headers: s
     const ExcelJS = await import("exceljs");
     const workbook = new ExcelJS.Workbook();
     const bytes = Buffer.from(base64, "base64");
+    const declared = zipDeclaredSize(bytes);
+    if (declared === null || declared > IMPORT_MAX_UNZIPPED) {
+      throw new TRPCError({ code: "BAD_REQUEST", message: declared === null ? "Файл не похож на xlsx" : "Файл слишком большой для импорта: разбейте его на части" });
+    }
     // exceljs declares its own `Buffer extends ArrayBuffer`, so it wants the
     // bytes themselves rather than a Node view over a pooled allocation.
     await workbook.xlsx.load(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength));
@@ -129,6 +145,7 @@ async function parseFile(base64: string, filename: string): Promise<{ headers: s
       }
     });
     if (headers.length === 0) throw new TRPCError({ code: "BAD_REQUEST", message: "Файл пуст" });
+    if (rows.length > IMPORT_MAX_ROWS) throw new TRPCError({ code: "BAD_REQUEST", message: `Слишком много строк: ${rows.length}, предел ${IMPORT_MAX_ROWS}. Разбейте файл на части` });
     return { headers, rows };
   }
 
@@ -164,6 +181,7 @@ async function parseFile(base64: string, filename: string): Promise<{ headers: s
   const firstLine = lines[0].replace(/^\uFEFF/, "");
   const headers = parseCsvLine(firstLine).map(h => h.replace(/^"|"$/g, ""));
   const rows = lines.slice(1).map(line => parseCsvLine(line).map(c => c.replace(/^"|"$/g, "")));
+  if (rows.length > IMPORT_MAX_ROWS) throw new TRPCError({ code: "BAD_REQUEST", message: `Слишком много строк: ${rows.length}, предел ${IMPORT_MAX_ROWS}. Разбейте файл на части` });
   return { headers, rows };
 }
 
@@ -286,7 +304,7 @@ export const importRouter = createRouter({
   previewImport: operatorQuery
     .input(z.object({
       type: z.enum(["products", "shops"]),
-      base64: z.string(),
+      base64: z.string().max(IMPORT_MAX_BASE64),
       filename: z.string(),
     }))
     .mutation(async ({ input }) => {
@@ -308,7 +326,7 @@ export const importRouter = createRouter({
   executeImport: operatorQuery.use(can("import.run"))
     .input(z.object({
       type: z.enum(["products", "shops"]),
-      base64: z.string(),
+      base64: z.string().max(IMPORT_MAX_BASE64),
       filename: z.string(),
     }))
     .mutation(async ({ input, ctx }) => {
