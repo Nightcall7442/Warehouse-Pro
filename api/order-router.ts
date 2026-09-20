@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
+import { monthlyOrderRoom } from "./lib/plan-limits";
 import { createRouter, operatorQuery, fieldSalesQuery, orderReaderQuery, can } from "./middleware";
 import { OrderService, assertOrderVisible, assertItemsEditableBy } from "./services/order";
 import { OrderCloseService } from "./services/order-close";
@@ -404,6 +405,19 @@ export const orderRouter = createRouter({
           }
         }
 
+        /*
+          Предел тарифа по заказам за месяц (пробный — 50). Считался и
+          рисовался на странице биллинга, но при создании не проверялся
+          нигде: пробная организация оформляла тысячи заказов (аудит
+          20.09.2026). Отказ называет числа — как у товаров.
+        */
+        const limits = await monthlyOrderRoom(ctx.db, ctx.tenant.id, ctx.tenant.plan);
+        if (!limits.allowed) {
+          throw new TRPCError({
+            code: "PRECONDITION_FAILED",
+            message: `Достигнут предел тарифа по заказам за месяц (${limits.current} из ${limits.limit}). Перейдите на старший тариф.`,
+          });
+        }
         const created = await OrderService.create(ctx.db, ctx.tenant.id, agentId, {
           ...input,
           promisedDeliveryAt: input.promisedDeliveryAt ? new Date(input.promisedDeliveryAt) : null,

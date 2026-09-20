@@ -77,3 +77,27 @@ export async function checkPlanLimits(
 
   return { allowed: limit === null || current < limit, current, limit };
 }
+
+/*
+  Заказов в этом месяце — против предела тарифа, по уже известному плану.
+
+  Отдельно от checkPlanLimits: там сначала читается организация, а
+  order.create уже держит её план в ctx.tenant — лишний запрос на каждый
+  заказ ни к чему. Безлимитный тариф (null) не считает вовсе.
+*/
+export async function monthlyOrderRoom(
+  db: DbInstance,
+  tenantId: number,
+  plan: string,
+): Promise<{ allowed: boolean; current: number; limit: number | null }> {
+  const limit = PLANS[plan as keyof typeof PLANS]?.maxOrdersMonth ?? null;
+  if (limit === null) return { allowed: true, current: 0, limit: null };
+  const now = new Date();
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const [row] = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(orders)
+    .where(and(eq(orders.tenantId, tenantId), sql`${orders.createdAt} >= ${monthStart}`));
+  const current = Number(row?.count ?? 0);
+  return { allowed: !(current >= limit), current, limit };
+}

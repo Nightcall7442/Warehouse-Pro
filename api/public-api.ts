@@ -3,6 +3,9 @@
  * Only accessible to Exclusive tier tenants.
  */
 import { Hono } from "hono";
+
+/** Размер страницы: целое от 1 до 200; мусор («abc», отрицательное) — 50, а не NaN в LIMIT и 500 дежурному (аудит 20.09.2026). */
+export const pageLimit = (q: string | undefined) => { const n = parseInt(q ?? "", 10); return Number.isFinite(n) && n > 0 ? Math.min(n, 200) : 50; };
 import { getDb } from "./queries/connection";
 import { apiKeys, tenants, products, orders, orderItems, warehouseStock, shops } from "../db/schema";
 import { eq, and, desc, sql } from "drizzle-orm";
@@ -155,7 +158,7 @@ app.get("/products", async (c) => {
   if (!requireScope(scopes, "products")) return c.json({ error: "Scope 'products' required" }, 403);
 
   const db = getDb();
-  const limit = Math.min(Number(c.req.query("limit") ?? 50), 200);
+  const limit = pageLimit(c.req.query("limit"));
   const offset = Number(c.req.query("offset") ?? 0);
 
   const rows = await db.select().from(products)
@@ -233,7 +236,7 @@ app.get("/stock", async (c) => {
   if (!requireScope(scopes, "stock")) return c.json({ error: "Scope 'stock' required" }, 403);
 
   const db = getDb();
-  const limit = Math.min(Number(c.req.query("limit") ?? 50), 200);
+  const limit = pageLimit(c.req.query("limit"));
   const offset = Number(c.req.query("offset") ?? 0);
 
   const rows = await db.select().from(warehouseStock)
@@ -257,7 +260,7 @@ app.get("/shops", async (c) => {
   if (!requireScope(scopes, "shops")) return c.json({ error: "Scope 'shops' required" }, 403);
 
   const db = getDb();
-  const limit = Math.min(Number(c.req.query("limit") ?? 50), 200);
+  const limit = pageLimit(c.req.query("limit"));
   const offset = Number(c.req.query("offset") ?? 0);
 
   const rows = await db.select().from(shops)
