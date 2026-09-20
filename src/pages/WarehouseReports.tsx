@@ -159,7 +159,7 @@ export default function WarehouseReports() {
   const trendsQ  = trpc.warehouseReports.movementTrends.useQuery({ days, ...whArg });
   const topQ     = trpc.warehouseReports.topByValue.useQuery({ limit: 10, ...whArg });
   const arrivalQ = trpc.warehouseReports.arrivalCosts.useQuery({ days });
-  const turnQ    = trpc.warehouseReports.turnover.useQuery({ days });
+  const turnQ    = trpc.warehouseReports.turnover.useQuery({ days, ...whArg });
 
   const byCategory   = cat.data;
   const trends       = trendsQ.data;

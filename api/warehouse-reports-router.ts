@@ -125,7 +125,15 @@ export const warehouseReportsRouter = createRouter({
       return result;
     })),
 
-  /** Top products by inventory value */
+  /*
+    Топ товаров по стоимости остатка — ОДНА строка на товар.
+
+    warehouseStock хранит строку на каждый склад, и без фильтра по складу
+    («все вместе») товар выходил трижды — по разу на склад, с частью остатка в
+    каждой строке; React жаловался на одинаковые ключи, а «топ-10» был топом
+    по строкам склада, а не по товарам (прогон 20.09.2026). Остаток
+    суммируется по складам, стоимость считается от суммы.
+  */
   topByValue: operatorQuery
     .input(z.object({ limit: z.number().int().min(1).max(1000).default(10), warehouseId: z.number().int().positive().optional() }).optional())
     .query(({ input, ctx }) => reportCached(ctx.tenant.id, "warehouse.topByValue", { limit: input?.limit ?? 10, warehouseId: input?.warehouseId ?? null }, ReportTTL.minute, async () => {
@@ -138,18 +146,19 @@ export const warehouseReportsRouter = createRouter({
         productCode: products.code,
         category: products.category,
         unit: products.unit,
-        currentStock: warehouseStock.currentStock,
-        available: warehouseStock.available,
+        currentStock: sql<string>`SUM(${warehouseStock.currentStock})`,
+        available: sql<string>`SUM(${warehouseStock.available})`,
         costPrice: products.costPrice,
         unitPrice: products.unitPrice,
-        costValue: sql<number>`COALESCE(${warehouseStock.currentStock} * COALESCE(${products.costPrice}, 0), 0)`,
-        retailValue: sql<number>`COALESCE(${warehouseStock.currentStock} * COALESCE(${products.unitPrice}, 0), 0)`,
-        margin: sql<number>`COALESCE(${warehouseStock.currentStock} * (COALESCE(${products.unitPrice}, 0) - COALESCE(${products.costPrice}, 0)), 0)`,
+        costValue: sql<number>`COALESCE(SUM(${warehouseStock.currentStock}) * COALESCE(${products.costPrice}, 0), 0)`,
+        retailValue: sql<number>`COALESCE(SUM(${warehouseStock.currentStock}) * COALESCE(${products.unitPrice}, 0), 0)`,
+        margin: sql<number>`COALESCE(SUM(${warehouseStock.currentStock}) * (COALESCE(${products.unitPrice}, 0) - COALESCE(${products.costPrice}, 0)), 0)`,
       })
         .from(warehouseStock)
         .leftJoin(products, and(eq(warehouseStock.productId, products.id), eq(products.tenantId, ctx.tenant.id)))
         .where(and(eq(warehouseStock.tenantId, tenantId), ...(input?.warehouseId ? [eq(warehouseStock.warehouseId, input.warehouseId)] : []), sql`${warehouseStock.currentStock} > 0`))
-        .orderBy(desc(sql`COALESCE(${warehouseStock.currentStock} * COALESCE(${products.costPrice}, 0), 0)`))
+        .groupBy(products.id, products.name, products.code, products.category, products.unit, products.costPrice, products.unitPrice)
+        .orderBy(desc(sql`COALESCE(SUM(${warehouseStock.currentStock}) * COALESCE(${products.costPrice}, 0), 0)`))
         .limit(input?.limit ?? 10);
     })),
 
@@ -195,10 +204,10 @@ export const warehouseReportsRouter = createRouter({
       return { summary, daily };
     })),
 
-  /** Stock turnover — products sold vs avg inventory over period */
+  /** Оборачиваемость: продано за период против остатка — одна строка на товар (остаток суммируется по складам, см. topByValue). */
   turnover: operatorQuery
-    .input(z.object({ days: z.number().default(30) }).optional())
-    .query(({ input, ctx }) => reportCached(ctx.tenant.id, "warehouse.turnover", { days: input?.days ?? 30 }, ReportTTL.fiveMin, async () => {
+    .input(z.object({ days: z.number().default(30), warehouseId: z.number().int().positive().optional() }).optional())
+    .query(({ input, ctx }) => reportCached(ctx.tenant.id, "warehouse.turnover", { days: input?.days ?? 30, warehouseId: input?.warehouseId ?? null }, ReportTTL.fiveMin, async () => {
       const db = getDb();
       const tenantId = ctx.tenant.id;
       const days = input?.days ?? 30;
@@ -215,13 +224,14 @@ export const warehouseReportsRouter = createRouter({
         productName: products.name,
         productCode: products.code,
         unit: products.unit,
-        currentStock: warehouseStock.currentStock,
+        currentStock: sql<string>`SUM(${warehouseStock.currentStock})`,
         soldQty: sql<number>`COALESCE(${soldByProduct.sold}, 0)`,
       })
         .from(warehouseStock)
         .leftJoin(products, and(eq(warehouseStock.productId, products.id), eq(products.tenantId, ctx.tenant.id)))
         .leftJoin(soldByProduct, eq(soldByProduct.productId, warehouseStock.productId))
-        .where(and(eq(warehouseStock.tenantId, tenantId), sql`${warehouseStock.currentStock} > 0`))
+        .where(and(eq(warehouseStock.tenantId, tenantId), ...(input?.warehouseId ? [eq(warehouseStock.warehouseId, input.warehouseId)] : []), sql`${warehouseStock.currentStock} > 0`))
+        .groupBy(products.id, products.name, products.code, products.unit, soldByProduct.sold)
         .orderBy(desc(sql`COALESCE(${soldByProduct.sold}, 0)`))
         .limit(20);
 

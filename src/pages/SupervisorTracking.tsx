@@ -243,7 +243,20 @@ export default function SupervisorTracking() {
 
     if (window.ymaps) { start(); return () => { cancelled = true; }; }
 
+    /*
+      Скрипт грузится один раз на страницу. Второй <script> с тем же API —
+      «api is already enabled on this page with same namespace» в консоли:
+      так бывало при повторном монтировании, пока первый ещё не загрузился
+      (StrictMode в разработке, быстрый уход и возврат на карту). Если тег
+      уже есть — ждём его загрузки.
+    */
+    const existing = document.querySelector<HTMLScriptElement>("script[data-ymaps]");
+    if (existing) {
+      existing.addEventListener("load", start, { once: true });
+      return () => { cancelled = true; existing.removeEventListener("load", start); };
+    }
     const script = document.createElement("script");
+    script.dataset.ymaps = "1";
     script.src = `https://api-maps.yandex.ru/2.1/?apikey=${YANDEX_MAPS_API_KEY}&lang=ru_RU`;
     script.onload  = () => start();
     // Отказ загрузки и ненастроенный ключ — разные беды с разным лечением, а
