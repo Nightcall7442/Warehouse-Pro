@@ -16,10 +16,9 @@ import { login } from "./harness";
  */
 test.use({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
 
-/** Страница не шире экрана: горизонтальной прокрутки на телефоне быть не должно. */
-async function expectNoSidewaysScroll(page: Page, where: string) {
-  const over = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
-  expect(over, `${where}: страница шире экрана на ${over}px`).toBeLessThanOrEqual(0);
+/** На сколько страница шире экрана; горизонтальной прокрутки на телефоне быть не должно. */
+function sidewaysOverflow(page: Page) {
+  return page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
 }
 
 test.describe("телефон", () => {
@@ -28,7 +27,7 @@ test.describe("телефон", () => {
     await page.goto("/");
     const ring = page.locator(".neo-progress-ring").first();
     await expect(ring).toBeVisible();
-    await expectNoSidewaysScroll(page, "главная");
+    expect(await sidewaysOverflow(page), "главная шире экрана").toBeLessThanOrEqual(0);
     const box = await ring.evaluate(el => {
       const r = el.getBoundingClientRect();
       const card = el.closest(".kpi-hero")!.getBoundingClientRect();
@@ -46,7 +45,7 @@ test.describe("телефон", () => {
     const r = await amount.evaluate(el => { const b = el.getBoundingClientRect(); return { h: b.height, right: b.right, screen: window.innerWidth }; });
     expect(r.h, "сумма переносится на вторую строку").toBeLessThan(28);
     expect(r.right, "сумма за краем экрана").toBeLessThanOrEqual(r.screen);
-    await expectNoSidewaysScroll(page, "заказы");
+    expect(await sidewaysOverflow(page), "заказы шире экрана").toBeLessThanOrEqual(0);
   });
 
   test("товары: карточки-показатели на телефоне компактные", async ({ page }) => {
@@ -77,7 +76,7 @@ test.describe("телефон", () => {
     for (const path of ["/shops", "/warehouse", "/settings", "/reports", "/agent/kpi"]) {
       await page.goto(path);
       await page.waitForLoadState("load");
-      await expectNoSidewaysScroll(page, path);
+      expect(await sidewaysOverflow(page), `${path} шире экрана`).toBeLessThanOrEqual(0);
     }
   });
 });
