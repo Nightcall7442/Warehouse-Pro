@@ -1,5 +1,6 @@
 import { F, COLORS, thStyle, tdStyle, numeric, marginTone } from "./styles";
 import { SectionNotice } from "@/components/SectionNotice";
+import { CardTable } from "@/components/CardTable";
 
 // SUM()/COALESCE() come back from MySQL as decimal strings, and the product
 // name is null-able through the LEFT JOIN — see analytics.cogsByProduct.
@@ -131,7 +132,7 @@ export function PnLExpenseBreakdown({
           message={t("За выбранный период товары не продавались.", "Tanlangan davrda mahsulot sotilmagan.")}
         />
       ) : (
-        <div style={{ overflowX: "auto" }}>
+        <CardTable style={{ overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0 }}>
             <thead>
               <tr>
@@ -224,7 +225,7 @@ export function PnLExpenseBreakdown({
               </tr>
             </tbody>
           </table>
-        </div>
+        </CardTable>
       )}
     </div>
   );

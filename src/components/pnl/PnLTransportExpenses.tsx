@@ -1,4 +1,5 @@
 import { format } from "date-fns";
+import { CardTable } from "@/components/CardTable";
 import { F, COLORS, thStyle, tdStyle, numeric } from "./styles";
 import { SectionNotice } from "@/components/SectionNotice";
 
@@ -107,7 +108,7 @@ export function PnLTransportExpenses({
           )}
         />
       ) : (
-        <div style={{ overflowX: "auto" }}>
+        <CardTable style={{ overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0 }}>
             <thead>
               <tr>
@@ -176,7 +177,7 @@ export function PnLTransportExpenses({
               </tr>
             </tbody>
           </table>
-        </div>
+        </CardTable>
       )}
     </div>
   );
