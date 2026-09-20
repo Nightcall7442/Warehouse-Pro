@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { randomBytes } from "crypto";
 import { and, eq, gt, isNull } from "drizzle-orm";
+import { affectedRows } from "./lib/db-rows";
 import { TRPCError } from "@trpc/server";
 import { createRouter, adminQuery, publicQuery } from "./middleware";
 import { getDb } from "./queries/connection";
@@ -26,11 +27,14 @@ export const inviteRouter = createRouter({
       const db       = getDb();
       const tenantId = ctx.tenant.id;
 
-      // Check not already a user
-      const [exists] = await db.select().from(users)
-        .where(eq(users.email, input.email)).limit(1);
+      // Занятость адреса — внутри своей организации (uq_user_email_tenant):
+      // проверка по всей платформе была оракулом — директор узнавал, есть ли
+      // адрес в чужой организации, и не мог пригласить человека, у которого
+      // там уже есть аккаунт (аудит 20.09.2026).
+      const [exists] = await db.select({ id: users.id }).from(users)
+        .where(and(eq(users.email, input.email), eq(users.tenantId, tenantId))).limit(1);
       if (exists) {
-        throw new TRPCError({ code: "CONFLICT", message: "Email уже зарегистрирован." });
+        throw new TRPCError({ code: "CONFLICT", message: "Этот адрес уже есть среди сотрудников вашей организации." });
       }
 
       const token     = randomBytes(32).toString("hex");
@@ -156,9 +160,12 @@ export const inviteRouter = createRouter({
           lastSignInAt: new Date(),
         });
 
-        await tx.update(invites)
+        // Приглашение закрывается условно: второй параллельный accept того же
+        // токена не должен завести второго пользователя (аудит 20.09.2026).
+        const closed = await tx.update(invites)
           .set({ acceptedAt: now })
-          .where(eq(invites.token, input.token));
+          .where(and(eq(invites.token, input.token), isNull(invites.acceptedAt)));
+        if (affectedRows(closed) === 0) throw new TRPCError({ code: "CONFLICT", message: "Приглашение уже использовано." });
       });
 
       return { success: true };

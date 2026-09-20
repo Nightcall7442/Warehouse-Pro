@@ -175,8 +175,11 @@ export const userRouter = createRouter({
     .mutation(async ({ input, ctx }) => {
       const db = getDb();
       const newHash = await hashPassword(input.newPassword);
-      await db.update(users).set({ passwordHash: newHash })
+      // Сессии уволенного по старому паролю гаснут (tokenVersion): сброс
+      // пароля без этого оставлял чужой телефон в системе (аудит 20.09.2026).
+      await db.update(users).set({ passwordHash: newHash, tokenVersion: sql`COALESCE(${users.tokenVersion}, 0) + 1` })
         .where(and(eq(users.id, input.id), eq(users.tenantId, ctx.tenant.id)));
+      invalidateAuthUser(input.id);
 
       await recordAudit(db, {
         tenantId: ctx.tenant.id,

@@ -113,12 +113,19 @@ export function loadOfflineCopy<T>(kind: OfflineKind, ownerId: number): { data: 
  * тем, чьи копии лежат (сессия истекла, вошли под другим), и оставлять чужое
  * на общем устройстве — ровно та утечка, от которой здесь защищаются.
  */
+/*
+  Что уходит с сессией: копии справочников и черновики прихода/заказа —
+  в черновиках закупочные цены и скидки, а ключ по владельцу не мешает
+  прочитать их через DevTools следующему на общем компьютере (аудит 20.09.2026).
+*/
+const SESSION_BOUND = [PREFIX + ".", "warehouse_pro_arrival_draft:", "warehouse_pro_order_draft:"];
+
 export function clearOfflineCopies(): void {
   try {
     const doomed: string[] = [];
     for (let i = 0; i < localStorage.length; i++) {
       const k = localStorage.key(i);
-      if (k && k.startsWith(PREFIX + ".")) doomed.push(k);
+      if (k && SESSION_BOUND.some(p => k.startsWith(p))) doomed.push(k);
     }
     for (const k of doomed) localStorage.removeItem(k);
   } catch { /* нет хранилища — нечего и стирать */ }

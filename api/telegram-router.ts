@@ -25,6 +25,11 @@ export const telegramRouter = createRouter({
     .input(z.object({ chatId: z.string().regex(/^\d+$/, "chat_id должен быть числом") }))
     .mutation(async ({ input, ctx }) => {
       const db = getDb();
+      // Один чат — один человек, как в setUserChatId: иначе сотрудник
+      // привязывал чужой chat_id, и кто из двух ответит боту — случайно.
+      const [taken] = await db.select({ id: users.id }).from(users)
+        .where(and(eq(users.telegramChatId, input.chatId), ne(users.id, ctx.user.id))).limit(1);
+      if (taken) throw new TRPCError({ code: "CONFLICT", message: "Этот Telegram уже привязан к другому сотруднику." });
       await db.update(users)
         .set({ telegramChatId: input.chatId })
         .where(eq(users.id, ctx.user.id));

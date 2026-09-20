@@ -478,7 +478,7 @@ describe("tenant.inviteUser", () => {
     const { tenantRouter } = await import("../tenant-router");
     const caller = tenantRouter.createCaller(buildCtx());
     await expect(caller.inviteUser({ name: "Agent Two", email: "ceo@acme.com", password: "password123", role: "agent" }))
-      .rejects.toThrow(/already registered/i);
+      .rejects.toThrow(/уже есть среди сотрудников/i);
   });
 
   it("checks plan user limit", async () => {

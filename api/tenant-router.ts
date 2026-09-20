@@ -193,9 +193,10 @@ export const tenantRouter = createRouter({
     }))
     .mutation(async ({ input, ctx }) => {
       const db = getDb();
+      // Внутри своей организации, не по всей платформе (оракул — аудит 20.09.2026).
       const existing = await db.select({ id: users.id }).from(users)
-        .where(eq(users.email, input.email)).limit(1);
-      if (existing.length) throw new TRPCError({ code: "CONFLICT", message: "Email already registered." });
+        .where(and(eq(users.email, input.email), eq(users.tenantId, ctx.tenant.id))).limit(1);
+      if (existing.length) throw new TRPCError({ code: "CONFLICT", message: "Этот адрес уже есть среди сотрудников вашей организации." });
 
       const limits = await checkPlanLimits(db, ctx.tenant.id, 'users');
       if (!limits.allowed) {
@@ -693,12 +694,20 @@ export const tenantRouter = createRouter({
       userId:      z.number(),
       newPassword: z.string().min(8),
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       const db           = getDb();
       const passwordHash = await hashPassword(input.newPassword);
+      // Сессии по старому паролю гаснут (tokenVersion) — как при смене
+      // пароля самим человеком; и след в журнале организации (аудит 20.09.2026).
       await db.update(users)
-        .set({ passwordHash, updatedAt: new Date() })
+        .set({ passwordHash, updatedAt: new Date(), tokenVersion: sql`COALESCE(${users.tokenVersion}, 0) + 1` })
         .where(and(eq(users.id, input.userId), eq(users.tenantId, input.tenantId)));
+      invalidateAuthUser(input.userId);
+      await recordAudit(db, {
+        tenantId: input.tenantId, actorId: ctx.user.id, actorName: ctx.user.name,
+        action: "user.password_reset_by_admin", targetType: "user", targetId: input.userId,
+        meta: { by: "superadmin" },
+      });
       return { success: true };
     }),
 
