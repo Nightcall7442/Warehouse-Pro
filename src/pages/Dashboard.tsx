@@ -257,12 +257,14 @@ export default function Dashboard() {
         />
 
         {/* Gross Margin */}
-        <div className="kpi-hero" style={{ cursor: "pointer", display: "flex", alignItems: "center", gap: "16px" }} onClick={() => navigate("/reports")}>
+        {/* На телефоне карточка в два раза уже: кольцо не сжимается и при нехватке
+            места уходит под число, а не за край карточки (прогон 390×844, 20.09.2026). */}
+        <div className="kpi-hero" style={{ cursor: "pointer", display: "flex", alignItems: "center", flexWrap: "wrap", gap: "16px" }} onClick={() => navigate("/reports")}>
           <div style={{ flex: 1 }}>
               <p className="kpi-hero-label">{t("ВАЛОВАЯ ПРИБЫЛЬ", "SOF FOYDA")}</p>
             <p className="kpi-hero-value" style={{ fontSize: "28px", marginTop: "8px" }}>{(kpis.grossMargin ?? 0).toFixed(1)}%</p>
           </div>
-          <div className="neo-progress-ring" style={{ width: "80px", height: "80px" }}>
+          <div className="neo-progress-ring" style={{ width: "80px", height: "80px", flexShrink: 0 }}>
             <ProgressRing value={Math.max(0, Math.min(100, kpis.grossMargin ?? 0))} color="var(--color-primary-text)" size={72} strokeWidth={6} label={`${(kpis.grossMargin ?? 0).toFixed(0)}%`} />
           </div>
         </div>

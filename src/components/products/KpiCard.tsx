@@ -1,5 +1,6 @@
 import { ArrowUpRight, ArrowDownRight, Minus } from "lucide-react";
 import { F, COLORS } from "./constants";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 export interface KpiCardProps {
   label: string;
@@ -13,6 +14,33 @@ export interface KpiCardProps {
 export function KpiCard({ label, value, delta, icon, gradient, delay }: KpiCardProps) {
   const isPositive = delta !== null && delta > 0;
   const isNegative = delta !== null && delta < 0;
+  const isMobile = useIsMobile();
+  /*
+    Телефон: сетка страниц (minmax(200px, 1fr)) ставит карточки в столбик, и три
+    «героя» по 150px отодвигали поиск и список за полтора экрана (прогон 390×844,
+    20.09.2026). Здесь та же карточка в одну строку: значок, подпись, число.
+  */
+  if (isMobile) {
+    return (
+      <div className="kpi-hero" data-kpi-compact style={{ borderRadius: "16px", padding: "12px 14px", display: "flex", alignItems: "center", gap: "12px", animation: `slideUp ${0.5 + delay}s ease` }}>
+        <div style={{ width: "36px", height: "36px", borderRadius: "10px", background: gradient, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+          {icon}
+        </div>
+        <span style={{ fontFamily: F.display, fontSize: "10px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", color: COLORS.textTertiary, flex: 1, minWidth: 0 }}>
+          {label}
+        </span>
+        <span style={{ fontFamily: F.display, fontSize: "22px", fontWeight: 700, color: COLORS.textPrimary, lineHeight: 1, letterSpacing: "-0.02em", whiteSpace: "nowrap" }}>
+          {value}
+        </span>
+        {delta !== null && (
+          <span style={{ display: "flex", alignItems: "center", gap: "2px", fontSize: "11px", fontWeight: 600, fontFamily: F.body, color: isPositive ? "var(--color-success-text)" : isNegative ? "var(--color-danger-text)" : COLORS.textTertiary }}>
+            {isPositive ? <ArrowUpRight size={12} /> : isNegative ? <ArrowDownRight size={12} /> : <Minus size={12} />}
+            {Math.abs(delta).toFixed(1)}%
+          </span>
+        )}
+      </div>
+    );
+  }
   return (
     <div className="kpi-hero" style={{
       borderRadius: "24px", padding: "24px",

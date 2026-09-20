@@ -348,7 +348,7 @@ export default function AgentShops() {
                 {shop.phone && (
                   <div className="flex items-center gap-1.5 mt-1">
                     <Phone size={11} className="text-secondary flex-shrink-0" />
-                    <a href={`tel:${shop.phone}`} className="text-xs text-primary" onClick={e => e.stopPropagation()}>
+                    <a href={`tel:${shop.phone}`} className="text-xs text-primary inline-flex items-center min-h-[32px]" onClick={e => e.stopPropagation()}>
                       {shop.phone}
                     </a>
                   </div>
