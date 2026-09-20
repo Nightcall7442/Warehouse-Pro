@@ -3,7 +3,7 @@ import { useScrollTopOnChange } from "@/hooks/useScrollTopOnChange";
 import { trpc } from "@/providers/trpc";
 import { useLang } from "@/i18n";
 import { format } from "date-fns";
-import { ru as dateRu } from "date-fns/locale";
+import { dateLocale } from "@/lib/date-locale";
 import {
   Shield, Filter, ChevronLeft, ChevronRight, Search, BookOpen,
   User, Package, Settings, AlertTriangle, Key,
@@ -169,7 +169,7 @@ const ACTION_FILTERS = [
 ];
 
 function formatTime(date: Date | string, lang: string): string {
-  return format(new Date(date), "dd MMM yyyy, HH:mm", { locale: lang === "ru" ? dateRu : undefined });
+  return format(new Date(date), "dd MMM yyyy, HH:mm", { locale: dateLocale(lang) });
 }
 
 /** Начало периода по кнопке: сегодня / 7 дней / 30 дней — по местному времени. */

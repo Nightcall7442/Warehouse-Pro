@@ -334,7 +334,7 @@ export const CacheKeys = {
     `shops:${tenantId}:${page}:${pageSize}:${search ?? ""}:${city ?? ""}:${district ?? ""}:${agentId ?? ""}:${territoryId ?? ""}:${onlyDebtors ?? ""}:${sortBy ?? ""}:${archived ?? ""}`,
   shopCities: (tenantId: number) => `shop_cities:${tenantId}`,
   shopDistricts: (tenantId: number, city?: string) => `shop_districts:${tenantId}:${city ?? ""}`,
-  smartAlerts: (tenantId: number, userId: number) => `alerts:${tenantId}:${userId}`,
+  smartAlerts: (tenantId: number, userId: number, lang = "ru") => `alerts:${tenantId}:${userId}:${lang}`,
   salesTargets: (tenantId: number) => `sales_targets:${tenantId}`,
   commissions: (tenantId: number) => `commissions:${tenantId}`,
   priceLists: (tenantId: number) => `price_lists:${tenantId}`,

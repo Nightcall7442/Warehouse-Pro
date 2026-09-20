@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { useSellerCompany } from "@/hooks/useSellerCompany";
 import { keepPreviousData } from "@tanstack/react-query";
 import { format, parseISO } from "date-fns";
-import { ru as ruLocale } from "date-fns/locale";
+import { dateLocale } from "@/lib/date-locale";
 import {
   Wallet, HandCoins,
   ChevronLeft, ChevronRight, ChevronDown, Search, FileDown, Printer, SlidersHorizontal, Loader2,
@@ -119,7 +119,7 @@ const initials = (name: string) =>
  */
 function periodLabel(period: PeriodKind, offset: number, lang: string): string {
   const now = new Date();
-  const loc = lang === "uz" ? undefined : { locale: ruLocale };
+  const loc = { locale: dateLocale(lang) };
   if (period === "month") {
     return format(new Date(now.getFullYear(), now.getMonth() - offset, 1), "LLLL yyyy", loc);
   }
@@ -792,7 +792,7 @@ export default function Salaries() {
                                 style={{ fontSize: "12px", color: COLORS.textTertiary }}
                               >
                                 <span className="min-w-0" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                                  {payoutNo(p)} · {format(asDate(p.paidAt), "d MMMM", lang === "uz" ? undefined : { locale: ruLocale })}
+                                  {payoutNo(p)} · {format(asDate(p.paidAt), "d MMMM", { locale: dateLocale(lang) })}
                                   {" · "}
                                   {p.kind === "advance" ? t("аванс", "avans") : t("выплата", "to'lov")}
                                 </span>
@@ -847,7 +847,7 @@ export default function Salaries() {
                       data-testid={`payout-row-${p.id}`}
                     >
                       <td style={{ ...tdStyle, fontVariantNumeric: "tabular-nums", color: COLORS.primaryText, fontWeight: 600 }}>{payoutNo(p)}</td>
-                      <td style={tdStyle}>{format(asDate(p.paidAt), "d MMMM, HH:mm", lang === "uz" ? undefined : { locale: ruLocale })}</td>
+                      <td style={tdStyle}>{format(asDate(p.paidAt), "d MMMM, HH:mm", { locale: dateLocale(lang) })}</td>
                       <td style={tdStyle}>{p.userName}</td>
                       <td style={tdStyle}><KindBadge kind={p.kind} lang={lang} /></td>
                       <td style={{ ...tdStyle, color: COLORS.textSecondary }}>{p.paidByName ?? "—"}</td>
@@ -859,7 +859,7 @@ export default function Salaries() {
                       */}
                       <td style={{ ...tdStyle, color: p.confirmedAt ? "var(--color-success-text)" : COLORS.textTertiary }}>
                         {p.confirmedAt
-                          ? format(asDate(p.confirmedAt), "d MMM", lang === "uz" ? undefined : { locale: ruLocale })
+                          ? format(asDate(p.confirmedAt), "d MMM", { locale: dateLocale(lang) })
                           : t("ждём", "kutamiz")}
                       </td>
                       <td style={{ ...tdStyle, textAlign: "right", fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>{fmt(Number(p.amount))}</td>
@@ -1288,7 +1288,7 @@ function PayoutDetail({ payout, onClose }: { payout: Payout; onClose: () => void
 
   const rows: [string, string][] = [
     [t("Номер", "Raqam"), payoutNo(payout)],
-    [t("Дата выдачи", "Berilgan sana"), format(asDate(payout.paidAt), "d MMMM yyyy, HH:mm", lang === "uz" ? undefined : { locale: ruLocale })],
+    [t("Дата выдачи", "Berilgan sana"), format(asDate(payout.paidAt), "d MMMM yyyy, HH:mm", { locale: dateLocale(lang) })],
     [t("Кому", "Kimga"), payout.userName],
     [t("Вид", "Turi"), payout.kind === "advance" ? t("Аванс", "Avans") : t("Выплата", "To'lov")],
     [t("Сумма", "Summa"), fmt(Number(payout.amount))],

@@ -302,8 +302,12 @@ export const NotificationService = {
     return { success: true };
   },
 
-  async getSmartAlerts(db: Db, tenantId: number, userId: number) {
-    const cacheKey = CacheKeys.smartAlerts(tenantId, userId);
+  async getSmartAlerts(db: Db, tenantId: number, userId: number, lang: "ru" | "uz" = "ru") {
+    const cacheKey = CacheKeys.smartAlerts(tenantId, userId, lang);
+    // Подсказки — экран, не бумага: строятся на языке интерфейса, который
+    // прислал клиент. Кэш — по языку, иначе узбекский экран получал бы
+    // русские подсказки из кэша русского.
+    const T = (ru: string, uz: string) => (lang === "uz" ? uz : ru);
     return withCache(cacheKey, CacheTTL.alerts, async () => {
     const today = new Date().toISOString().split("T")[0];
     const alerts: Array<{ type: string; title: string; message: string; severity: "info" | "warning" | "danger" }> = [];
@@ -360,15 +364,17 @@ export const NotificationService = {
     if (expiredN > 0) {
       alerts.push({
         type: "expired_stock",
-        title: `Просрочено партий: ${expiredN}`,
-        message: expiredValue > 0 ? `На ${expiredValue.toLocaleString("ru")} по себестоимости — списать` : "Списать, в отгрузку не уйдут",
+        title: T(`Просрочено партий: ${expiredN}`, `Muddati o'tgan partiyalar: ${expiredN}`),
+        message: expiredValue > 0
+          ? T(`На ${expiredValue.toLocaleString("ru")} по себестоимости — списать`, `Tannarx bo'yicha ${expiredValue.toLocaleString("ru")} — hisobdan chiqarish`)
+          : T("Списать, в отгрузку не уйдут", "Hisobdan chiqarish, jo'natishga chiqmaydi"),
         severity: "danger",
       });
     } else if (urgentN > 0) {
       alerts.push({
         type: "expiring_stock",
-        title: `Сгорает за неделю: ${urgentN} парт.`,
-        message: "Продать первыми — FEFO уже отдаёт их первыми",
+        title: T(`Сгорает за неделю: ${urgentN} парт.`, `Bir haftada tugaydi: ${urgentN} partiya`),
+        message: T("Продать первыми — FEFO уже отдаёт их первыми", "Birinchi sotish — FEFO ularni birinchi beradi"),
         severity: "warning",
       });
     }
@@ -376,8 +382,8 @@ export const NotificationService = {
     lowStock.forEach(s => {
       alerts.push({
         type: "low_stock",
-        title: `Низкий остаток: ${s.productName}`,
-        message: `Осталось ${Number(s.available ?? 0).toFixed(1)} (порог: ${Number(s.reorderPoint ?? 0).toFixed(0)})`,
+        title: T(`Низкий остаток: ${s.productName}`, `Kam qoldiq: ${s.productName}`),
+        message: T(`Осталось ${Number(s.available ?? 0).toFixed(1)} (порог: ${Number(s.reorderPoint ?? 0).toFixed(0)})`, `Qoldi ${Number(s.available ?? 0).toFixed(1)} (chegara: ${Number(s.reorderPoint ?? 0).toFixed(0)})`),
         severity: "warning",
       });
     });
@@ -386,8 +392,8 @@ export const NotificationService = {
     if (pendingCount > 0) {
       alerts.push({
         type: "pending_orders",
-        title: `${pendingCount} новых заказов`,
-        message: "Ожидают обработки",
+        title: T(`${pendingCount} новых заказов`, `${pendingCount} ta yangi buyurtma`),
+        message: T("Ожидают обработки", "Ishlov berishni kutmoqda"),
         severity: "info",
       });
     }
@@ -397,8 +403,10 @@ export const NotificationService = {
       const pct = Math.round((Number(planData.visited) / Number(planData.total)) * 100);
       alerts.push({
         type: "plan_summary",
-        title: `План: ${planData.visited}/${planData.total} (${pct}%)`,
-        message: pct === 100 ? "Все визиты выполнены!" : `${Number(planData.total) - Number(planData.visited)} визитов осталось`,
+        title: T(`План: ${planData.visited}/${planData.total} (${pct}%)`, `Reja: ${planData.visited}/${planData.total} (${pct}%)`),
+        message: pct === 100
+          ? T("Все визиты выполнены!", "Barcha tashriflar bajarildi!")
+          : T(`${Number(planData.total) - Number(planData.visited)} визитов осталось`, `${Number(planData.total) - Number(planData.visited)} ta tashrif qoldi`),
         severity: pct === 100 ? "info" : pct >= 50 ? "warning" : "danger",
       });
     }
@@ -406,8 +414,8 @@ export const NotificationService = {
     highDebt.forEach(s => {
       alerts.push({
         type: "high_debt",
-        title: `Долг: ${s.shopName}`,
-        message: `${Number(s.debt ?? 0).toLocaleString("ru")} сум`,
+        title: T(`Долг: ${s.shopName}`, `Qarz: ${s.shopName}`),
+        message: `${Number(s.debt ?? 0).toLocaleString("ru")} ${T("сум", "so'm")}`,
         severity: "danger",
       });
     });

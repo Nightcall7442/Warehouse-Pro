@@ -6,7 +6,7 @@ import { trpc } from "@/providers/trpc";
 import { notify } from "@/lib/toast";
 import { useConfirm } from "@/components/ConfirmDialog";
 import { format, addDays, subDays } from "date-fns";
-import { ru as dateRu } from "date-fns/locale";
+import { dateLocale } from "@/lib/date-locale";
 import {
   ChevronLeft, ChevronRight, Plus, X,
   Loader2, CheckCircle2, Calendar, Clock,
@@ -125,7 +125,7 @@ function CreatePlanForm({ date, onDone, lang }: { date: string; onDone: () => vo
     <div className="neo-card" style={{ padding: "24px" }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "20px" }}>
         <h3 style={{ fontSize: "16px", fontWeight: 700, color: "var(--color-text-primary)", margin: 0, letterSpacing: "-0.01em" }}>
-          {t("Новый план визита", "Yangi tashrif rejası")} — {format(new Date(date), "dd MMMM yyyy", { locale: lang === "ru" ? dateRu : undefined })}
+          {t("Новый план визита", "Yangi tashrif rejası")} — {format(new Date(date), "dd MMMM yyyy", { locale: dateLocale(lang) })}
         </h3>
         <button onClick={onDone} style={{
           width: "32px", height: "32px", borderRadius: "10px",
@@ -381,10 +381,10 @@ export default function SupervisorPlans() {
         </button>
         <div className="flex-1 panel p-3 text-center">
           <p className="font-semibold text-primary capitalize">
-            {format(date, "EEEE", { locale: lang === "ru" ? dateRu : undefined })}
+            {format(date, "EEEE", { locale: dateLocale(lang) })}
           </p>
           <p className="font-label text-[11px] tracking-wider mt-0.5" style={{ color: "var(--color-text-tertiary, #6b6760)" }}>
-            {format(date, "d MMMM yyyy", { locale: lang === "ru" ? dateRu : undefined })}
+            {format(date, "d MMMM yyyy", { locale: dateLocale(lang) })}
           </p>
         </div>
         <button onClick={() => setDate(d => addDays(d, 1))}

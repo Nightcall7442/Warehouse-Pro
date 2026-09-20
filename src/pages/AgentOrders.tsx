@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router";
 import { format, parseISO, isToday, isYesterday } from "date-fns";
-import { ru as ruLocale } from "date-fns/locale";
+import { dateLocale } from "@/lib/date-locale";
 import { ChevronRight, ClipboardList, RefreshCw, Plus } from "lucide-react";
 import { trpc } from "@/providers/trpc";
 import { useLang } from "@/i18n";
@@ -39,7 +39,7 @@ function dayLabel(value: string | Date, uz: boolean): string {
   const d = typeof value === "string" ? parseISO(value) : value;
   if (isToday(d)) return uz ? "Bugun" : "Сегодня";
   if (isYesterday(d)) return uz ? "Kecha" : "Вчера";
-  return format(d, "d MMMM", uz ? undefined : { locale: ruLocale });
+  return format(d, "d MMMM", { locale: dateLocale(uz ? "uz" : "ru") });
 }
 
 export default function AgentOrders() {

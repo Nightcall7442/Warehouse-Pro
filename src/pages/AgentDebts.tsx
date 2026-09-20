@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { format, parseISO } from "date-fns";
-import { ru as ruLocale } from "date-fns/locale";
+import { dateLocale } from "@/lib/date-locale";
 import { Wallet, Phone, MapPin, Loader2, CheckCircle2 } from "lucide-react";
 import { trpc } from "@/providers/trpc";
 import { useLang } from "@/i18n";
@@ -104,7 +104,7 @@ export default function AgentDebts() {
               <div className="min-w-0">
                 <p style={{ margin: 0, fontWeight: 600, color: "var(--color-text-primary)" }}>{d.shopName}</p>
                 <p style={{ margin: "2px 0 0", fontSize: "12px", color: "var(--color-text-tertiary)" }}>
-                  {d.orderNumber} · {format(typeof d.createdAt === "string" ? parseISO(d.createdAt) : d.createdAt, "d MMMM", lang === "uz" ? undefined : { locale: ruLocale })}
+                  {d.orderNumber} · {format(typeof d.createdAt === "string" ? parseISO(d.createdAt) : d.createdAt, "d MMMM", { locale: dateLocale(lang) })}
                 </p>
               </div>
               <p style={{ margin: 0, fontSize: "18px", fontWeight: 700, color: "var(--color-danger-text)", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>

@@ -5,7 +5,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useNavigate } from "react-router";
 import { getGreeting } from "@/lib/utils";
 import { format } from "date-fns";
-import { ru as dateRu } from "date-fns/locale";
+import { dateLocale } from "@/lib/date-locale";
 import {
   ClipboardList, Store, PlusCircle,
   CheckCircle2, Clock, Calendar, MapPin,
@@ -208,7 +208,7 @@ export default function AgentDashboard() {
             {t("Мой день", "Mening kunim")}
           </h1>
           <p className="text-xs mt-0.5 capitalize" style={{ color: "var(--color-text-tertiary, #6b6760)" }}>
-            {format(new Date(), "EEEE, d MMMM", { locale: lang === "ru" ? dateRu : undefined })}
+            {format(new Date(), "EEEE, d MMMM", { locale: dateLocale(lang) })}
           </p>
         </div>
         {/* GPS кнопка */}

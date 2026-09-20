@@ -3,7 +3,7 @@ import { useNavigate } from "react-router";
 import { trpc } from "@/providers/trpc";
 import { useLang } from "@/i18n";
 import { format, isToday, isYesterday } from "date-fns";
-import { ru as dateRu } from "date-fns/locale";
+import { dateLocale } from "@/lib/date-locale";
 import {
   Bell, BellOff, Check, CheckCheck, ChevronRight, CreditCard,
   Loader2, Settings, ShoppingCart, Warehouse,
@@ -64,13 +64,13 @@ function ago(date: Date, lang: string): string {
   if (sec < 60) return lang === "uz" ? "Hozirgina" : "только что";
   if (sec < 3600) return `${Math.floor(sec / 60)} ${lang === "uz" ? "daq" : "мин"}`;
   if (sec < 86400) return `${Math.floor(sec / 3600)} ${lang === "uz" ? "soat" : "ч"}`;
-  return format(date, "d MMM, HH:mm", { locale: lang === "ru" ? dateRu : undefined });
+  return format(date, "d MMM, HH:mm", { locale: dateLocale(lang) });
 }
 
 function dayTitle(date: Date, lang: string): string {
   if (isToday(date)) return lang === "uz" ? "Bugun" : "Сегодня";
   if (isYesterday(date)) return lang === "uz" ? "Kecha" : "Вчера";
-  return format(date, "d MMMM yyyy", { locale: lang === "ru" ? dateRu : undefined });
+  return format(date, "d MMMM yyyy", { locale: dateLocale(lang) });
 }
 
 export default function Notifications() {
