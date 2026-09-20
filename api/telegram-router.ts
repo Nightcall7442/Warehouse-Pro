@@ -160,8 +160,8 @@ export const telegramRouter = createRouter({
         tenantId: ctx.tenant.id,
         userId: Number(u.id),
         type: "system",
-        title: "Подключите Telegram",
-        message: "Настройки → Telegram. Так вы будете получать заказы и задачи в телефон.",
+        title: { ru: "Подключите Telegram", uz: "Telegramni ulang" },
+        message: { ru: "Настройки → Telegram. Так вы будете получать заказы и задачи в телефон.", uz: "Sozlamalar → Telegram. Shunda buyurtma va vazifalar telefoningizga keladi." },
         link: "/settings",
       });
     }

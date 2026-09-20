@@ -208,8 +208,11 @@ export async function markDelivered(db: Db, tenantId: number, courierId: number,
       tenantId: tenantId,
       userId: ceo.id,
       type: "order",
-      title: "Заказ доставлен",
-      message: `Заказ ${order.orderNumber} доставлен${input.cashAmount ? `, наличные: ${input.cashAmount}` : ""}`,
+      title: { ru: "Заказ доставлен", uz: "Buyurtma yetkazildi" },
+      message: {
+        ru: `Заказ ${order.orderNumber} доставлен${input.cashAmount ? `, наличные: ${input.cashAmount}` : ""}`,
+        uz: `Buyurtma ${order.orderNumber} yetkazildi${input.cashAmount ? `, naqd: ${input.cashAmount}` : ""}`,
+      },
     });
 
     // Push notification to CEO
@@ -626,6 +629,16 @@ export async function completeDelivery(db: Db, tenantId: number, courierId: numb
     returned: "возврат",
     partial_returned: "частичный возврат",
   };
+  const resultLabelsUz: Record<string, string> = {
+    paid: "100% to'langan",
+    partial_paid: `qisman to'langan (${orderTotal.toLocaleString("ru")} dan ${paidAmount.toLocaleString("ru")})`,
+    returned: "qaytarish",
+    partial_returned: "qisman qaytarish",
+  };
+  const delivered = {
+    title: { ru: "Заказ доставлен", uz: "Buyurtma yetkazildi" },
+    message: { ru: `Заказ ${order.orderNumber} — ${resultLabels[input.result]}`, uz: `Buyurtma ${order.orderNumber} — ${resultLabelsUz[input.result]}` },
+  };
 
   // Notify agent
   if (order.agentId) {
@@ -633,8 +646,8 @@ export async function completeDelivery(db: Db, tenantId: number, courierId: numb
       tenantId: tenantId,
       userId: order.agentId,
       type: "order",
-      title: "Заказ доставлен",
-      message: `Заказ ${order.orderNumber} — ${resultLabels[input.result]}`,
+      title: delivered.title,
+      message: delivered.message,
     });
     sendPushToUser(order.agentId, {
       title: "Заказ доставлен",
@@ -651,8 +664,8 @@ export async function completeDelivery(db: Db, tenantId: number, courierId: numb
       tenantId: tenantId,
       userId: ceo.id,
       type: "order",
-      title: "Заказ доставлен",
-      message: `Заказ ${order.orderNumber} — ${resultLabels[input.result]}`,
+      title: delivered.title,
+      message: delivered.message,
     });
   }
 
@@ -741,8 +754,8 @@ export async function markFailed(db: Db, tenantId: number, courierId: number, in
       tenantId: tenantId,
       userId: ceo.id,
       type: "order",
-      title: "Доставка не состоялась",
-      message: `Заказ ${order.orderNumber}${safeReason ? ` — ${safeReason}` : ""}`,
+      title: { ru: "Доставка не состоялась", uz: "Yetkazish amalga oshmadi" },
+      message: { ru: `Заказ ${order.orderNumber}${safeReason ? ` — ${safeReason}` : ""}`, uz: `Buyurtma ${order.orderNumber}${safeReason ? ` — ${safeReason}` : ""}` },
     });
 
     // Push notification to CEO

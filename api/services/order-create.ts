@@ -309,8 +309,8 @@ async function notifyAboutNewOrder(db: Db, o: {
         tenantId,
         userIds: operators.map(op => op.id),
         type: "order",
-        title: `Новый заказ ${orderNumber}`,
-        message: `${shop?.name ?? "Магазин"} — ${orderTotal.toLocaleString("ru")} сум`,
+        title: { ru: `Новый заказ ${orderNumber}`, uz: `Yangi buyurtma ${orderNumber}` },
+        message: { ru: `${shop?.name ?? "Магазин"} — ${orderTotal.toLocaleString("ru")} сум`, uz: `${shop?.name ?? "Do'kon"} — ${orderTotal.toLocaleString("ru")} so'm` },
         link: `/orders/${orderId}`,
       });
     }

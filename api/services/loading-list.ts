@@ -620,8 +620,11 @@ export const LoadingListService = {
       const { NotificationService } = await import("./NotificationService");
       await NotificationService.createBulk(db, {
         tenantId, userIds: office.map(u => u.id), type: "stock",
-        title: `Недостача при сборке ${list.listNumber}`,
-        message: shortages.map(s => `${s.name}: нужно ${s.required}, собрано ${s.picked}`).join("; ").slice(0, 500),
+        title: { ru: `Недостача при сборке ${list.listNumber}`, uz: `${list.listNumber} yig'ishda kamomad` },
+        message: {
+          ru: shortages.map(s => `${s.name}: нужно ${s.required}, собрано ${s.picked}`).join("; ").slice(0, 500),
+          uz: shortages.map(s => `${s.name}: kerak ${s.required}, yig'ildi ${s.picked}`).join("; ").slice(0, 500),
+        },
         link: "/orders",
       });
     }

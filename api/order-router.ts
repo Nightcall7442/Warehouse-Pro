@@ -418,8 +418,11 @@ export const orderRouter = createRouter({
             tenantId: ctx.tenant.id,
             userIds: office.map(u => u.id),
             type: "order",
-            title: `Заказ ${created.orderNumber} ждёт подтверждения`,
-            message: `${ctx.user.name}: ${holdReason}. Подтвердите переводом в «новый» или отмените.`,
+            title: { ru: `Заказ ${created.orderNumber} ждёт подтверждения`, uz: `Buyurtma ${created.orderNumber} tasdiqlashni kutmoqda` },
+            message: {
+              ru: `${ctx.user.name}: ${holdReason}. Подтвердите переводом в «новый» или отмените.`,
+              uz: `${ctx.user.name}: ${holdReason}. «Yangi»ga o'tkazib tasdiqlang yoki bekor qiling.`,
+            },
             link: `/orders/${created.id}`,
           });
         }

@@ -507,14 +507,16 @@ export const kpiRouter = createRouter({
         сделана, и потерять её из-за недоступного уведомления нельзя. Внутри
         NotificationService ошибки и так гасятся.
       */
-      const title = input.kind === "advance" ? "Выдан аванс" : "Выдана зарплата";
+      const title = input.kind === "advance"
+        ? { ru: "Выдан аванс", uz: "Avans berildi" }
+        : { ru: "Выдана зарплата", uz: "Ish haqi berildi" };
 
       await NotificationService.create(db, {
         tenantId: ctx.tenant.id,
         userId:   person.id,
         type:     "payment",
         title,
-        message:  `${input.amount} — подтвердите получение`,
+        message:  { ru: `${input.amount} — подтвердите получение`, uz: `${input.amount} — olganingizni tasdiqlang` },
         link:     "/agent-kpi",
       });
 
@@ -534,8 +536,9 @@ export const kpiRouter = createRouter({
         из-за недоступного Expo нельзя. Нет токена — sendPushToUser молча
         выходит.
       */
+      // Push — по-русски: язык телефона сотрудника серверу неизвестен.
       sendPushToUser(person.id, {
-        title,
+        title: title.ru,
         body: `${input.amount} — подтвердите получение`,
         data: { type: "salary.paid", kind: input.kind },
       }).catch(() => {});

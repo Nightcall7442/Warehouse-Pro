@@ -709,12 +709,14 @@ export async function traceDebtChange(
     if (office.length === 0) return;
 
     const money = entry.amount.toLocaleString("ru");
-    const title = entry.action === "order.payment_recorded"
-      ? `Агент собрал долг: ${money} сум`
-      : `Агент отменил долговый заказ ${entry.orderNumber}`;
-    const message = entry.action === "order.payment_recorded"
-      ? `${entry.shopName} · заказ ${entry.orderNumber}` + (entry.remaining != null ? ` · остаток ${entry.remaining.toLocaleString("ru")} сум` : "")
-      : `${entry.shopName} · долг ${money} сум списан отменой`;
+    const collected = entry.action === "order.payment_recorded";
+    const title = collected
+      ? { ru: `Агент собрал долг: ${money} сум`, uz: `Agent qarzni yig'di: ${money} so'm` }
+      : { ru: `Агент отменил долговый заказ ${entry.orderNumber}`, uz: `Agent qarzga berilgan ${entry.orderNumber} buyurtmani bekor qildi` };
+    const remaining = entry.remaining != null ? entry.remaining.toLocaleString("ru") : null;
+    const message = collected
+      ? { ru: `${entry.shopName} · заказ ${entry.orderNumber}` + (remaining ? ` · остаток ${remaining} сум` : ""), uz: `${entry.shopName} · buyurtma ${entry.orderNumber}` + (remaining ? ` · qoldiq ${remaining} so'm` : "") }
+      : { ru: `${entry.shopName} · долг ${money} сум списан отменой`, uz: `${entry.shopName} · ${money} so'm qarz bekor qilish bilan hisobdan chiqarildi` };
 
     await NotificationService.createBulk(db, {
       tenantId,
