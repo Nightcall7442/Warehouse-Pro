@@ -75,7 +75,8 @@ describe("след правок заказа", () => {
   it("delete, restore, update и updateItems получают актора", () => {
     expect(ROUTER).toContain("OrderService.delete(ctx.db, ctx.tenant.id, input.id, actorOf(ctx))");
     expect(ROUTER).toContain("OrderService.restore(ctx.db, ctx.tenant.id, input.id, actorOf(ctx))");
-    expect(ROUTER).toContain("OrderService.updateItems(ctx.db, ctx.tenant.id, input.id, { items: input.items }, actorOf(ctx))");
+    // С 20.09.2026 роутер отсекает цену у поля (items без unitPrice), актор — тот же.
+    expect(ROUTER).toContain("OrderService.updateItems(ctx.db, ctx.tenant.id, input.id, { items }, actorOf(ctx))");
     // Оба вызова update заканчиваются актором.
     const updates = ROUTER.split("OrderService.update(").slice(1);
     expect(updates.length).toBe(2);
