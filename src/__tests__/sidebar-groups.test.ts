@@ -3,17 +3,14 @@
  *
  * Владелец (19.09.2026): «в сайдбаре поменьше разделов — только главные,
  * остальные внутри». У директора было девятнадцать пунктов, нижние за краем
- * экрана. Теперь семь: Главная, Магазины и пять групп; пункты группы
- * раскрываются только у той группы, где человек сейчас (или которую открыл
- * рукой). 20.09.2026 владелец стрелками на снимке меню убрал «Биллинг» и
- * «Журнал действий» внутрь «Настроек»; страница настроек в группе — «Общие».
+ * экрана. Теперь шесть: Главная и пять групп; пункты группы раскрываются
+ * только у той группы, где человек сейчас (или которую открыл рукой).
  * «Отчёты склада» пунктом больше нет — это вкладка на странице склада.
  *
  * Нарочная поломка: убери `group: "sales"` у «Возвратов» — упадёт «у директора
- * семь строк»; убери `group: "settings"` у «Биллинга» — упадёт там же и в
- * «Биллинг внутри Настроек»; верни `/warehouse-reports` в NAV_ITEMS — упадёт
- * «отчёты склада — вкладка»; сделай в navRows `open === item.group` всегда
- * true — упадёт «раскрыта одна группа».
+ * шесть строк»; верни `/warehouse-reports` в NAV_ITEMS — упадёт «отчёты склада
+ * — вкладка»; сделай в navRows `open === item.group` всегда true — упадёт
+ * «раскрыта одна группа».
  */
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
@@ -29,9 +26,9 @@ const label = (r: Row) => r.kind === "group" ? r.labelKey : r.item.labelKey;
 const groupsOf = (rows: Row[]) => rows.filter((r): r is GroupRow => r.kind === "group");
 
 describe("строки меню", () => {
-  it("директор на складе: семь строк снаружи — Магазины выше Продаж (владелец, 20.09), Настройки группой (Биллинг и Журнал внутри, 20.09); раскрыт только «Склад»", () => {
+  it("директор на складе: девять строк снаружи — Магазины выше Продаж (владелец, 20.09), Настройки, Биллинг и Журнал отдельно (19.09); раскрыт только «Склад»", () => {
     const rows = navRows(NAV_ITEMS.ceo, "/warehouse", undefined);
-    expect(top(rows).map(label)).toEqual(["nav.dashboard", "nav.shops", "nav.groupSales", "nav.warehouse", "nav.groupTeam", "nav.groupFinance", "nav.settings"]);
+    expect(top(rows).map(label)).toEqual(["nav.dashboard", "nav.shops", "nav.groupSales", "nav.warehouse", "nav.groupTeam", "nav.groupFinance", "nav.settings", "nav.billing", "nav.auditLog"]);
     const groups = groupsOf(rows);
     expect(groups.filter(g => g.open).map(g => g.key)).toEqual(["warehouse"]);
     expect(groups.find(g => g.key === "warehouse")!.active).toBe(true);
@@ -68,20 +65,10 @@ describe("строки меню", () => {
     expect(closed.find(g => g.key === "warehouse")!.active).toBe(true);
     // Другая страница — правило «где я, там раскрыто» действует снова.
     expect(groupsOf(navRows(NAV_ITEMS.ceo, "/pnl", undefined)).filter(g => g.open).map(g => g.key)).toEqual(["finance"]);
-    // «Магазины» снаружи — не в группе и подсвечиваются сами.
-    const shops = navRows(NAV_ITEMS.ceo, "/shops", undefined);
-    expect(groupsOf(shops).some(g => g.open)).toBe(false);
-    expect(shops.find(r => r.kind === "item" && r.item.path === "/shops")).toMatchObject({ active: true, nested: false });
-  });
-
-  it("Биллинг и Журнал действий — внутри Настроек: Общие, Биллинг, Журнал (владелец, 20.09)", () => {
-    const rows = navRows(NAV_ITEMS.ceo, "/billing", undefined);
-    expect(groupsOf(rows).filter(g => g.open).map(g => g.key)).toEqual(["settings"]);
-    const nested = rows.flatMap(r => r.kind === "item" && r.nested ? [[r.item.labelKey, r.active]] : []);
-    expect(nested).toEqual([["nav.general", false], ["nav.billing", true], ["nav.auditLog", false]]);
-    // Группа и её первый пункт не зовутся одним словом (как «Склад» → «Остатки»).
-    expect(t("ru", "nav.general")).not.toBe(t("ru", "nav.settings"));
-    expect(t("uz", "nav.general")).not.toBe(t("uz", "nav.settings"));
+    // Пункты, оставленные снаружи, — не в группе и подсвечиваются сами.
+    const billing = navRows(NAV_ITEMS.ceo, "/billing", undefined);
+    expect(groupsOf(billing).some(g => g.open)).toBe(false);
+    expect(billing.find(r => r.kind === "item" && r.item.path === "/billing")).toMatchObject({ active: true, nested: false });
   });
 
   it("роли без групп (агент, супервайзер, курьер) — как были: плоский список", () => {
