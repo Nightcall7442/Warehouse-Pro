@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { trpc } from "@/providers/trpc";
 import { useLang } from "@/i18n";
+import { useAuth } from "@/hooks/useAuth";
 import { useCurrency } from "@/hooks/useCurrency";
 import { notify } from "@/lib/toast";
 import { unitShort } from "@/lib/units";
@@ -48,6 +49,9 @@ export function OrderItemsEditor({ orderId, shopId, priceListId, items, onSaved 
   const { lang } = useLang();
   const t = (ru: string, uz: string) => (lang === "uz" ? uz : ru);
   const { fmt } = useCurrency();
+  // Цену меняет офис; поле видит её, но не правит — сервер её и не примет.
+  const { user } = useAuth();
+  const canEditPrice = user?.role === "ceo" || user?.role === "operator";
 
   const [open, setOpen] = useState(false);
   const [lines, setLines] = useState<EditLine[]>([]);
@@ -161,14 +165,20 @@ export function OrderItemsEditor({ orderId, shopId, priceListId, items, onSaved 
             <span className="text-xs text-tertiary shrink-0" style={{ width: "34px" }}>
               {unitShort(unitOf.get(l.productId), lang)}
             </span>
-            <DecimalInput
-              value={l.unitPrice}
-              onValueChange={v => patch(l.key, { unitPrice: normalizeDecimalInput(v) })}
-              inputMode="decimal"
-              aria-label={t(`Цена: ${l.productName}`, `Narx: ${l.productName}`)}
-              className="neo-input text-right"
-              style={{ width: "112px", fontVariantNumeric: "tabular-nums" }}
-            />
+            {canEditPrice ? (
+              <DecimalInput
+                value={l.unitPrice}
+                onValueChange={v => patch(l.key, { unitPrice: normalizeDecimalInput(v) })}
+                inputMode="decimal"
+                aria-label={t(`Цена: ${l.productName}`, `Narx: ${l.productName}`)}
+                className="neo-input text-right"
+                style={{ width: "112px", fontVariantNumeric: "tabular-nums" }}
+              />
+            ) : (
+              <span className="text-right text-sm text-secondary font-data" style={{ width: "112px", fontVariantNumeric: "tabular-nums" }} aria-label={t(`Цена: ${l.productName}`, `Narx: ${l.productName}`)}>
+                {fmt(l.unitPrice)}
+              </span>
+            )}
             <button
               onClick={() => drop(l.key)}
               aria-label={t(`Убрать ${l.productName}`, `${l.productName} olib tashlash`)}

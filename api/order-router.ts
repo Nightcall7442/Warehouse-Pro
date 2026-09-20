@@ -567,7 +567,17 @@ export const orderRouter = createRouter({
       const actor = { id: ctx.user.id, role: ctx.user.role };
       await assertOrderVisible(ctx.db, ctx.tenant.id, input.id, actor, "Менять состав");
       await assertItemsEditableBy(ctx.db, ctx.tenant.id, input.id, actor);
-      return OrderService.updateItems(ctx.db, ctx.tenant.id, input.id, { items: input.items }, actorOf(ctx));
+      /*
+        Цену назначает сервер, а не поле (аудит 20.09.2026, критично):
+        unitPrice с клиента записывался как есть любой ролью — агент правил
+        свой заказ 1 000 000 → 10, минуя порог скидки и кредитный лимит.
+        Полевые роли меняют только количество: существующая строка держит
+        свою цену, новая берёт цену магазина (прайс-лист) или карточки.
+        Офис (руководитель, оператор) цену задаёт — как на бумаге.
+      */
+      const office = ctx.user.role === "ceo" || ctx.user.role === "operator";
+      const items = office ? input.items : input.items.map(({ unitPrice: _fromField, ...rest }) => rest);
+      return OrderService.updateItems(ctx.db, ctx.tenant.id, input.id, { items }, actorOf(ctx));
     }),
 
   delete: operatorQuery.use(can("orders.delete"))
