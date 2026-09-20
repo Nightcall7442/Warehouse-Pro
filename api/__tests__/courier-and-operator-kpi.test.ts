@@ -486,9 +486,15 @@ describe("веб-закрытие оставляет след доставки",
     expect(order).toContain('deliveryStatus: "delivered" as const, deliveredAt: new Date()');
   });
 
-  it("выполнение с оплатой — тоже", () => {
-    const at = order.indexOf("// Update order status — goods were delivered");
-    expect(order.slice(at, at + 900)).toContain('deliveryStatus: "delivered"');
+  it("выполнение с оплатой — тоже: отметку ставит доставка, а не платёж", () => {
+    // Отметка живёт в applyPartialDelivery (товар отдан). Платёж её не ставит:
+    // до 20.09.2026 applyPartialPayment «доставлял» заказ без списания склада
+    // и переписывал дату доставки при сборе старого долга (аудит).
+    const delivery = order.indexOf("export async function applyPartialDelivery");
+    expect(order.slice(delivery)).toContain('deliveryStatus: "delivered"');
+    const payment = order.slice(order.indexOf("export async function applyPartialPayment"), delivery);
+    expect(payment, "платёж снова отмечает доставку").not.toContain('status: "delivered"');
+    expect(payment, "платёж снова переписывает дату доставки").not.toContain("deliveredAt: new Date()");
   });
 
   it("частичная доставка — тоже доставка", () => {
