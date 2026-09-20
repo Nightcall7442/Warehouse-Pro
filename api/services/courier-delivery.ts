@@ -239,6 +239,10 @@ export async function completeDelivery(db: Db, tenantId: number, courierId: numb
       eq(orders.id, input.orderId),
       eq(orders.tenantId, tenantId),
       eq(orders.courierId, courierId),
+      // Удалённый заказ: резерв уже возвращён, деньги по нему в долге не
+      // видны — офлайн-очередь телефона доезжала сюда и списывала товар
+      // второй раз (аудит 20.09.2026; в markDelivered фильтр уже стоял).
+      isNull(orders.deletedAt),
       sql`${orders.deliveryStatus} IN ('assigned', 'out_for_delivery')`,
     )).limit(1);
   if (!order) {
@@ -328,6 +332,7 @@ export async function completeDelivery(db: Db, tenantId: number, courierId: numb
         eq(orders.id, input.orderId),
         eq(orders.tenantId, tenantId),
         eq(orders.courierId, courierId),
+        isNull(orders.deletedAt),
       ))
       .for("update")
       .limit(1);

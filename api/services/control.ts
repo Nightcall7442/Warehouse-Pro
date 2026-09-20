@@ -157,7 +157,7 @@ export const ControlService = {
         .where(and(eq(auditLog.tenantId, tenantId), inArray(auditLog.action, ["order.reopened", "order.revenue_reversed"]), gte(auditLog.createdAt, input.from), lt(auditLog.createdAt, input.to), isNotNull(auditLog.actorId)))
         .groupBy(auditLog.actorId),
       db.select({ userId: orders.shortageUserId, n: sql<number>`count(*)`, s: sql<number>`coalesce(sum(${orders.courierShortage}), 0)` }).from(orders)
-        .where(and(eq(orders.tenantId, tenantId), sql`${orders.courierShortage} > 0`, isNotNull(orders.closedAt), gte(orders.closedAt, input.from), lt(orders.closedAt, input.to)))
+        .where(and(eq(orders.tenantId, tenantId), sql`${orders.courierShortage} > 0`, isNotNull(orders.shortageAt), gte(orders.shortageAt, input.from), lt(orders.shortageAt, input.to)))
         .groupBy(orders.shortageUserId),
     ]);
     const holder = new Map(hands.map(h => [h.userId, h]));
@@ -236,7 +236,7 @@ export const ControlService = {
       .innerJoin(shops, eq(shops.id, orders.shopId))
       .leftJoin(users, eq(users.id, orders.shortageUserId))
       .leftJoin(closer, eq(closer.id, orders.closedBy))
-      .where(and(eq(orders.tenantId, tenantId), sql`${orders.courierShortage} > 0`, isNotNull(orders.closedAt), gte(orders.closedAt, input.from), lt(orders.closedAt, input.to)))
+      .where(and(eq(orders.tenantId, tenantId), sql`${orders.courierShortage} > 0`, isNotNull(orders.shortageAt), gte(orders.shortageAt, input.from), lt(orders.shortageAt, input.to)))
       .orderBy(desc(orders.closedAt))
       .then(rows => rows.map(r => ({ ...r, amount: Number(r.amount), total: Number(r.total) })));
   },

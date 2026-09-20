@@ -199,10 +199,18 @@ export const OrderCloseService = {
         });
       }
 
-      shortageUser = m.shortage > 0 ? (o.courierId ?? onHands[0]?.createdBy ?? null) : null;
+      /*
+        Недостача — на том, у кого были наличные: заявил их тот, кто записал
+        полевой платёж (курьер при доставке или агент при сборе долга).
+        Раньше бралась с курьера заказа, даже когда деньги держал агент
+        (аудит 20.09.2026). Дата недостачи — своя (shortageAt): «Контроль»
+        считал её по closedAt, и заказ, закрытый заново через месяц,
+        удерживал ту же недостачу во втором периоде.
+      */
+      shortageUser = m.shortage > 0 ? (onHands[0]?.createdBy ?? o.courierId ?? null) : null;
       await tx.update(orders).set({
         closedAt: now, closedBy: actor.id,
-        ...(m.shortage > 0 ? { courierShortage: m.shortage.toFixed(2), shortageUserId: shortageUser, shortageNote: input.note ? sanitizeString(input.note).slice(0, 300) : null } : {}),
+        ...(m.shortage > 0 ? { courierShortage: m.shortage.toFixed(2), shortageUserId: shortageUser, shortageAt: now, shortageNote: input.note ? sanitizeString(input.note).slice(0, 300) : null } : {}),
       }).where(and(eq(orders.tenantId, tenantId), eq(orders.id, o.id)));
       if (added.length) await recalcShopDebt(tx, tenantId, o.shopId);
 
