@@ -12,9 +12,18 @@ import { hashPassword } from "../api/auth/password";
 const PLACEHOLDER_PHOTO =
   "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUAAScY42YAAAAASUVORK5CYII=";
 
+/**
+ * Дата «n дней назад, в hourOffset часов от восьми утра» — и никогда в
+ * будущем. Засев — история, а не план: сегодняшний заказ, датированный
+ * вечером, при утреннем прогоне встаёт в списке ВЫШЕ только что
+ * оформленного, и e2e «жизнь заказа» не находит свой заказ на первой
+ * странице (оба PR 21.09.2026 упали в 12:46 UTC, вечерний прогон проходил).
+ * Заодно «выручка сегодня» на главной не считает то, чего ещё не было.
+ */
 function daysAgo(n: number, hourOffset = 0): Date {
   const d = new Date(Date.now() - n * 86_400_000);
   d.setHours(8 + hourOffset, Math.floor(Math.random() * 60), 0, 0);
+  if (d.getTime() > Date.now()) d.setTime(Date.now() - (1 + Math.floor(Math.random() * 30)) * 60_000);
   return d;
 }
 
@@ -495,7 +504,7 @@ async function seed() {
         этих заказов, а «случайно» сегодня могло не выпасть ни одного.
       */
       : (["shipped", "shipped", "processing", "delivered", "delivered"] as const)[i] ?? "new";
-    const createdAt = daysAgo(daysBack, 8 + Math.floor(rnd() * 10));
+    const createdAt = daysAgo(daysBack, Math.floor(rnd() * 10));
 
     const numItems = 1 + Math.floor(rnd() * 5);
     let subtotal = 0;
