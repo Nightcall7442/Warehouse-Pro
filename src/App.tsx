@@ -14,6 +14,7 @@ import Landing              from "./pages/Landing";
 const Privacy              = lazyWithRecovery(() => import("./pages/Privacy"));
 import ForgotPassword       from "./pages/ForgotPassword";
 import ResetPassword        from "./pages/ResetPassword";
+import VerifyEmail          from "./pages/VerifyEmail";
 import NotFound             from "./pages/NotFound";
 import Home                 from "./pages/Home";
 import SubscriptionBlocked  from "./pages/SubscriptionBlocked";
@@ -167,6 +168,7 @@ export default function App() {
         <Route path="/register"           element={<Register />} />
         <Route path="/forgot-password"    element={<ForgotPassword />} />
         <Route path="/reset-password"     element={<ResetPassword />} />
+        <Route path="/verify-email"       element={<VerifyEmail />} />
         <Route path="/invite/:token"      element={<AcceptInvite />} />
         <Route path="/subscription-blocked" element={<SubscriptionBlocked />} />
         {/* Первый запуск организации: заводит склад, товары и приглашает

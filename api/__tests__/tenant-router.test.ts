@@ -63,6 +63,15 @@ vi.mock("../lib/plan-limits", () => ({
   checkPlanLimits: vi.fn(async () => ({ allowed: true, current: 0, limit: 10 })),
 }));
 
+vi.mock("../lib/mailer", () => ({
+  sendEmail: vi.fn(async () => {}),
+  sendVerifyEmail: vi.fn(async () => {}),
+}));
+
+vi.mock("../lib/env", () => ({
+  env: { appUrl: "https://wp.test", appSecret: "test-secret-0123456789abcdef0123456789", isProduction: false },
+}));
+
 let mockDb: any;
 vi.mock("../queries/connection", () => ({ getDb: () => mockDb }));
 
@@ -129,7 +138,7 @@ reg(tenants, "ownerEmail"); reg(tenants, "ownerPhone");
 reg(tenants, "maxUsers"); reg(tenants, "maxProducts"); reg(tenants, "maxOrdersMonth");
 reg(tenants, "createdAt"); reg(tenants, "updatedAt");
 reg(users, "id"); reg(users, "tenantId"); reg(users, "name"); reg(users, "email");
-reg(users, "passwordHash"); reg(users, "role"); reg(users, "status");
+reg(users, "passwordHash"); reg(users, "role"); reg(users, "status"); reg(users, "emailVerifiedAt");
 reg(users, "lastSignInAt"); reg(users, "createdAt"); reg(users, "updatedAt");
 reg(settings, "id"); reg(settings, "tenantId"); reg(settings, "companyName");
 reg(orders, "id"); reg(orders, "tenantId"); reg(orders, "status"); reg(orders, "total"); reg(orders, "createdAt");
@@ -375,8 +384,45 @@ describe("tenant.register", () => {
     const caller = tenantRouter.createCaller(buildCtx({ user: undefined, tenant: undefined }));
     const result = await caller.register({ orgName: "NewCo", name: "Admin", email: "admin@newco.com", password: "password123" });
     expect(result.slug).toBe("newco");
-    expect(result.message).toContain("created");
+    expect(result.message).toContain("Письмо отправлено");
     expect(tenantsTable.some(t => t.slug === "newco" && t.plan === "trial")).toBe(true);
+  });
+
+  it("директор заведён с неподтверждённым адресом, письмо со ссылкой ушло ему и ведёт на его id", async () => {
+    /*
+      Адрес с публичной формы никто не проверял — директором чужого адреса
+      становился любой. Вход закрыт до ссылки из письма (решение владельца
+      21.09.2026). Ссылка — подписанный токен на id человека: читаем его
+      той же функцией, что и подтверждение.
+    */
+    const { sendVerifyEmail } = await import("../lib/mailer");
+    const { readEmailVerifyToken } = await import("../services/email-verification");
+    vi.mocked(sendVerifyEmail).mockClear();
+    const { tenantRouter } = await import("../tenant-router");
+    const caller = tenantRouter.createCaller(buildCtx({ user: undefined, tenant: undefined }));
+    await caller.register({ orgName: "MailCo", name: "Ольга", email: "olga@mailco.uz", password: "password123" });
+
+    const user = usersTable.find(u => u.email === "olga@mailco.uz");
+    expect(user, "директор не заведён").toBeDefined();
+    expect(user!.emailVerifiedAt, "адрес с формы засчитан подтверждённым").toBeNull();
+
+    expect(sendVerifyEmail).toHaveBeenCalledTimes(1);
+    const [to, name, orgName, url] = vi.mocked(sendVerifyEmail).mock.calls[0];
+    expect([to, name, orgName]).toEqual(["olga@mailco.uz", "Ольга", "MailCo"]);
+    expect(url.startsWith("https://wp.test/verify-email?token=")).toBe(true);
+    const token = new URL(url).searchParams.get("token")!;
+    expect(readEmailVerifyToken(token)).toEqual({ ok: true, userId: user!.id });
+  });
+
+  it("занятому адресу письмо со ссылкой не уходит — только «аккаунт уже есть»", async () => {
+    const { sendVerifyEmail, sendEmail } = await import("../lib/mailer");
+    vi.mocked(sendVerifyEmail).mockClear(); vi.mocked(sendEmail).mockClear();
+    const { tenantRouter } = await import("../tenant-router");
+    const caller = tenantRouter.createCaller(buildCtx({ user: undefined, tenant: undefined }));
+    await caller.register({ orgName: "Whatever", name: "Кто-то", email: "ceo@acme.com", password: "password123" });
+    expect(sendVerifyEmail).not.toHaveBeenCalled();
+    expect(sendEmail).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(sendEmail).mock.calls[0][0].subject).toMatch(/уже есть аккаунт/);
   });
 
   it("creates ceo user and settings in transaction", async () => {

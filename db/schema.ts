@@ -110,6 +110,16 @@ export const users = mysqlTable("users", {
   */
   totpSecret:    varchar("totp_secret", { length: 255 }),
   totpEnabledAt: timestamp("totp_enabled_at"),
+  /*
+    Адрес подтверждён по ссылке из письма. Пусто — вход закрыт.
+
+    Умолчание «сейчас» нарочно: подтверждения требует только регистрация с
+    сайта, и она ставит NULL явно. Всех остальных — приглашённых, заведённых
+    директором или суперадмином, засеянных в песочницу — создаёт кто-то,
+    кто уже внутри, и адрес им называет он. Новый путь создания человека
+    не запрёт его снаружи по недосмотру.
+  */
+  emailVerifiedAt: timestamp("email_verified_at").defaultNow(),
   pushToken:    text("push_token"),
   createdAt:    timestamp("createdAt").defaultNow().notNull(),
   updatedAt:    timestamp("updatedAt").defaultNow().notNull().$onUpdate(() => new Date()),

@@ -21,6 +21,7 @@ import { checkTotpStepUp } from "./auth/step-up";
 import { countTenantRows, offboardTenant, TenantNotSuspendedError } from "./services/tenant-offboard";
 import { setManualAccessFor } from "./services/manual-access";
 import { invalidateAuthTenant, invalidateAuthUser } from "./auth";
+import { sendVerification } from "./services/email-verification";
 /**
  * Ограничения на публичную регистрацию.
  *
@@ -41,6 +42,10 @@ const REGISTER_ORG_RATE_LIMIT   = { windowMs: 60 * 60 * 1000, limit: 5,  namespa
 /**
  * Ответ на заявку о регистрации — один и тот же, занят адрес или нет.
  *
+ * С 21.09.2026 обе ветки честно говорят «письмо ушло»: свободному адресу —
+ * ссылка подтверждения, занятому — «на этот адрес уже есть аккаунт». Вход
+ * до подтверждения закрыт (services/email-verification.ts).
+ *
  * Это не косметика, а сама суть правки: пока на занятый адрес приходил
  * CONFLICT «Email already registered», а на свободный — успех, неаутентифи-
  * цированный скрипт превращал форму регистрации в справочник «у кого на
@@ -52,7 +57,7 @@ const REGISTER_ORG_RATE_LIMIT   = { windowMs: 60 * 60 * 1000, limit: 5,  namespa
  * правке: разойдись они хоть текстом сообщения, различие вернётся.
  */
 function registrationAccepted(slug: string) {
-  return { slug, message: "Organisation created. You can now sign in." };
+  return { slug, message: "Письмо отправлено. Откройте ссылку из него, чтобы подтвердить адрес и войти." };
 }
 
 /**
@@ -143,15 +148,19 @@ export const tenantRouter = createRouter({
 
       const trialEnds = new Date(Date.now() + 14 * 86_400_000);
 
-      await db.transaction(async (tx) => {
+      const userId = await db.transaction(async (tx) => {
         const [tenantResult] = await tx.insert(tenants).values({
           slug, name: input.orgName, plan: "trial", status: "active",
           trialEndsAt: trialEnds,
         });
         const tenantId = Number(tenantResult.insertId);
-        await tx.insert(users).values({
+        // Адрес с публичной формы никто не проверял — вход закрыт до ссылки
+        // из письма. Все прочие пути создания человека берут умолчание
+        // «подтверждён» (см. схему).
+        const [userResult] = await tx.insert(users).values({
           tenantId, name: input.name, email: input.email,
           passwordHash, role: "ceo", status: "active", lastSignInAt: new Date(),
+          emailVerifiedAt: null,
         });
         await tx.insert(settings).values({ tenantId, companyName: input.orgName });
         // Create default warehouse so products get stock rows
@@ -167,7 +176,10 @@ export const tenantRouter = createRouter({
           trialEndsAt: trialEnds,
           currentPeriodEnds: trialEnds,
         });
+        return Number(userResult.insertId);
       });
+
+      await sendVerification(input.email, input.name, input.orgName, env.appUrl ?? "http://localhost:3000", userId);
 
       // Суперадмину — сразу, а не в вечерней сводке: новую организацию
       // встречают в первый день, потом она либо работает, либо ушла.

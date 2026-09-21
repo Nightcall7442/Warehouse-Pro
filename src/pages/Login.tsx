@@ -3,7 +3,8 @@ import { useNavigate, Link } from "react-router";
 import { safeNextPath } from "@/lib/safe-next";
 import { useAuth } from "@/hooks/useAuth";
 import { Eye, EyeOff, Loader2, Mail, Lock, AlertCircle, Building2 } from "lucide-react";
-import { useLang } from "@/i18n";
+import { useLang, useTranslate } from "@/i18n";
+import { trpc } from "@/providers/trpc";
 import { ROLE_ROUTES } from "@/const";
 import { AuthShell, AuthError } from "@/components/auth/AuthShell";
 
@@ -30,6 +31,7 @@ type Organization = { tenantId: number; name: string };
  */
 export default function Login() {
   const { t } = useLang();
+  const tr = useTranslate();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -43,6 +45,9 @@ export default function Login() {
   // Второй фактор: сервер попросил код — показываем поле и шлём тот же вход с кодом.
   const [needCode, setNeedCode] = useState(false);
   const [code, setCode] = useState("");
+  // Адрес ещё не подтверждён по ссылке из письма — предлагаем выслать письмо ещё раз.
+  const [unverified, setUnverified] = useState(false);
+  const resend = trpc.auth.resendVerification.useMutation();
 
   const { user, isLoading } = useAuth();
   const navigate = useNavigate();
@@ -62,6 +67,7 @@ export default function Login() {
 
   const submit = async (tenantId?: number) => {
     setError("");
+    setUnverified(false);
     if (!email || !password) { setError(t("auth.login.fillAll")); return; }
 
     setIsPending(true);
@@ -84,6 +90,10 @@ export default function Login() {
       if (res.status === 401 && data.code === "TOTP_REQUIRED") {
         setNeedCode(true);
         return;
+      }
+      if (res.status === 403 && data.code === "EMAIL_UNVERIFIED") {
+        setUnverified(true);
+        resend.reset();
       }
       if (!res.ok) throw new Error(data.error || "Login failed");
       window.location.replace("/");
@@ -215,6 +225,21 @@ export default function Login() {
             <AlertCircle size={15} style={{ flexShrink: 0, marginTop: "1px" }} />
             <span>{error}</span>
           </AuthError>
+        )}
+
+        {unverified && (
+          <button
+            data-testid="login-resend-verification"
+            type="button"
+            className="neo-btn"
+            disabled={resend.isPending || resend.isSuccess}
+            onClick={() => resend.mutate({ email })}
+            style={{ width: "100%", fontSize: "13px", padding: "11px 14px" }}
+          >
+            {resend.isSuccess
+              ? tr("Письмо отправлено ещё раз", "Xat qayta yuborildi")
+              : tr("Отправить письмо ещё раз", "Xatni qayta yuborish")}
+          </button>
         )}
 
         <button

@@ -17,6 +17,7 @@ export async function findUserById(id: number) {
       tokenVersion: schema.users.tokenVersion,
       // Секрет второго фактора наружу не идёт — только факт, что он включён.
       totpEnabledAt: schema.users.totpEnabledAt,
+      emailVerifiedAt: schema.users.emailVerifiedAt,
       pushToken: schema.users.pushToken,
       createdAt: schema.users.createdAt,
       updatedAt: schema.users.updatedAt,

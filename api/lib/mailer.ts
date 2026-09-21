@@ -81,6 +81,31 @@ export async function sendInviteEmail(
   });
 }
 
+/** Подтверждение адреса после регистрации с сайта. Имя и организация — с публичной формы, поэтому экранируются. */
+export async function sendVerifyEmail(
+  to: string,
+  name: string,
+  orgName: string,
+  verifyUrl: string,
+): Promise<void> {
+  await sendEmail({
+    to,
+    subject: "Подтвердите адрес — Warehouse Pro",
+    html: `
+      <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:24px">
+        <h2 style="color:#111">Подтвердите адрес почты</h2>
+        <p>Здравствуйте, ${escapeHtml(name)}.</p>
+        <p>Организация <b>${escapeHtml(orgName)}</b> зарегистрирована в Warehouse Pro на этот адрес. Чтобы войти, подтвердите его:</p>
+        <a href="${verifyUrl}"
+           style="display:inline-block;margin:20px 0;padding:12px 24px;background:#4f46e5;color:#fff;border-radius:6px;text-decoration:none;font-weight:bold">
+          Подтвердить адрес
+        </a>
+        <p style="color:#666;font-size:12px">Ссылка действительна 3 дня. Если вы не регистрировались — просто проигнорируйте это письмо: без подтверждения вход в организацию закрыт.</p>
+      </div>
+    `,
+  });
+}
+
 export async function sendTrialEndingEmail(
   to: string,
   orgName: string,
