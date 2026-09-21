@@ -168,12 +168,23 @@ describe.skipIf(!hasRealDb)("дверь для остатка: setStock заво
     expect(await countOf("warehouse_stock", `product_id = ${s.productId}`)).toBe(1);
   });
 
-  it("строка есть — ставит итог и обрезает резерв по нему", async () => {
+  it("строка есть — ставит итог, резерв остаётся", async () => {
     await db.execute(sql`UPDATE warehouse_stock SET reserved = 6, available = 4 WHERE product_id = ${s.productId}`);
-    await set(3);
+    await set(8);
     const st = await stockOf(s.productId);
-    expect(st.current).toBe(3);
-    expect(st.reserved).toBe(3);
-    expect(st.available).toBe(0);
+    expect(st.current).toBe(8);
+    expect(st.reserved).toBe(6);
+    expect(st.available).toBe(2);
+  });
+
+  it("ниже резерва — отказ с числами, строка не тронута", async () => {
+    // Стояло LEAST: пересчёт «на полке 3» при резерве 6 молча снимал три
+    // единицы с открытых заказов. Решение владельца 21.09.2026 — отказывать.
+    await db.execute(sql`UPDATE warehouse_stock SET reserved = 6, available = 4 WHERE product_id = ${s.productId}`);
+    await expect(set(3)).rejects.toMatchObject({ productId: s.productId, reserved: 6, quantity: 3 });
+    const st = await stockOf(s.productId);
+    expect(st.current).toBe(10);
+    expect(st.reserved).toBe(6);
+    expect(st.available).toBe(4);
   });
 });

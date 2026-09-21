@@ -162,12 +162,42 @@ describe("форма запроса", () => {
       .toContain("available     = current_stock - reserved");
   });
 
-  it("установка числом обрезает резерв по новому остатку", async () => {
-    // Зарезервировать больше, чем лежит на полке, нельзя.
+  it("установка числом: резерв читается под замком, а не обрезается по новому остатку", async () => {
+    /*
+      Стояло `reserved = LEAST(reserved, q)`: пересчёт «на полке 3» при
+      резерве 6 молча снимал три единицы с открытых заказов, и первым это
+      замечал курьер у прилавка. Решение владельца 21.09.2026 — отказывать.
+      Резерв в записи не упоминается вовсе: трогать его установке числом
+      незачем.
+    */
     const { tx, queries } = spyTx();
     await setStock(tx, { tenantId: 1, warehouseId: 2, productId: 7, quantity: 4 });
-    expect(queries[0].text).toContain("LEAST(reserved,");
-    expect(queries[0].text).toContain("available     = current_stock - reserved");
+    expect(queries[0].text).toMatch(/SELECT reserved FROM warehouse_stock[\s\S]*FOR UPDATE/);
+    const write = queries.find(q => q.text.includes("INSERT INTO warehouse_stock"));
+    expect(write, "установка числом не дошла до записи").toBeDefined();
+    expect(write!.text).not.toContain("LEAST");
+    expect(write!.text).not.toMatch(/reserved\s*=/);
+    expect(write!.text).toContain("available     = current_stock - reserved");
+  });
+
+  it("установка числом ниже резерва — отказ до записи, с числами", async () => {
+    const { tx, queries } = spyTx();
+    (tx as unknown as { execute: ReturnType<typeof vi.fn> }).execute.mockImplementationOnce(async (q: SQL) => {
+      const built = new MySqlDialect().sqlToQuery(q);
+      queries.push({ text: built.sql, values: built.params });
+      return [[{ reserved: "6.00" }], []];
+    });
+    await expect(setStock(tx, { tenantId: 1, warehouseId: 2, productId: 7, quantity: 3 }))
+      .rejects.toMatchObject({ productId: 7, reserved: 6, quantity: 3 });
+    expect(queries.some(q => q.text.includes("INSERT INTO warehouse_stock")), "запись ушла несмотря на отказ").toBe(false);
+  });
+
+  it("установка числом ровно в резерв — проходит", async () => {
+    // Граница: отложено 6, на полке насчитали 6 — свободного ноль, но заказы целы.
+    const { tx, queries } = spyTx();
+    (tx as unknown as { execute: ReturnType<typeof vi.fn> }).execute.mockImplementationOnce(async () => [[{ reserved: "6.00" }], []]);
+    await setStock(tx, { tenantId: 1, warehouseId: 2, productId: 7, quantity: 6 });
+    expect(queries.some(q => q.text.includes("INSERT INTO warehouse_stock"))).toBe(true);
   });
 });
 
