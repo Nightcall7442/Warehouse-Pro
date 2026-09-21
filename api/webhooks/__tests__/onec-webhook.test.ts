@@ -24,7 +24,9 @@ const h = vi.hoisted(() => {
   // набор с «Cannot access __vi_import_0__ before initialization».
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const SECRET_HASH = require("crypto").createHash("sha256").update(SECRET).digest("hex");
-  return { txInsertValues: vi.fn(okChain), okChain, SECRET, SECRET_HASH };
+  // Резерв, который дверь читает под замком перед установкой остатка числом.
+  const reserved = { value: "0.00" };
+  return { txInsertValues: vi.fn(okChain), okChain, SECRET, SECRET_HASH, reserved };
 });
 
 vi.mock("../../queries/connection", () => {
@@ -62,7 +64,8 @@ vi.mock("../../queries/connection", () => {
         // Пересчёт долга идёт сырым UPDATE. Без него запрос падал бы с
         // TypeError, а обработчик возвращал 500 — что и произошло, когда тест
         // впервые дошёл до настоящей вставки.
-        execute: vi.fn().mockResolvedValue(undefined),
+        execute: vi.fn().mockImplementation(async (q: { queryChunks?: unknown[] }) =>
+          JSON.stringify(q?.queryChunks ?? "").includes("SELECT reserved") ? [[{ reserved: h.reserved.value }], []] : undefined),
         select: vi.fn().mockReturnValue({
           from: vi.fn().mockReturnValue({
             where: vi.fn().mockReturnValue({
@@ -124,6 +127,7 @@ describe("1C Webhooks", () => {
   beforeEach(() => {
     h.txInsertValues.mockReset();
     h.txInsertValues.mockImplementation(h.okChain);
+    h.reserved.value = "0.00";
   });
 
   describe("POST /payment", () => {
@@ -270,6 +274,21 @@ describe("1C Webhooks", () => {
       expect(res.status).toBe(200);
       const body = await res.json() as Record<string, unknown>;
       expect(body.success).toBe(true);
+    });
+
+    it("остаток ниже отложенного под заказы — 409 с числами, движение не пишется", async () => {
+      // Прежде дверь молча обрезала резерв по числу из 1С (LEAST), и 1С
+      // слышала success. Решение владельца 21.09.2026 — отказывать.
+      vi.mocked(OneCMapper.getInternalId).mockResolvedValueOnce(5);
+      h.reserved.value = "60.00";
+      const res = await app.request("/stock", {
+        method: "POST",
+        headers: AUTH_HEADERS,
+        body: JSON.stringify({ tenantId: 1, productExternalId: "prod-uuid", quantity: 50 }),
+      });
+      expect(res.status).toBe(409);
+      expect(await res.json()).toEqual({ success: false, error: "Stock below reserved", reserved: 60, quantity: 50 });
+      expect(h.txInsertValues, "движение записано несмотря на отказ").not.toHaveBeenCalled();
     });
   });
 });

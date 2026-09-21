@@ -49,8 +49,11 @@ interface ExecuteMockOptions {
 /** Пакетный сдвиг: shiftStock. Два числа задаются, третье выводится. */
 const DOOR_SHIFT = /SET current_stock = current_stock \+ CASE ELSE 0 END, reserved = GREATEST\(0, reserved \+ CASE ELSE 0 END\), available = current_stock - reserved/;
 
-/** Установка абсолютным числом: setStock. Заводит строку, если её нет. */
-const DOOR_SET = /INSERT INTO warehouse_stock .*ON DUPLICATE KEY UPDATE current_stock = , reserved = LEAST\(reserved, \), available = current_stock - reserved/;
+/** Установка абсолютным числом: setStock. Заводит строку, если её нет; резерв не трогает. */
+const DOOR_SET = /INSERT INTO warehouse_stock .*ON DUPLICATE KEY UPDATE current_stock = , available = current_stock - reserved/;
+
+/** Дверь читает резерв под замком перед установкой числом — и отказывает, если новое число ниже. */
+const DOOR_SET_READ = /^SELECT reserved FROM warehouse_stock WHERE tenant_id = AND warehouse_id = AND product_id = FOR UPDATE$/;
 
 /** Приход: заводит строку, если её нет. */
 const DOOR_RECEIVE = /INSERT INTO warehouse_stock .*ON DUPLICATE KEY UPDATE current_stock = current_stock \+ , available = current_stock - reserved/;
@@ -128,6 +131,12 @@ export function createExecuteMock<T extends StockRow>(stockTable: T[], options: 
     if (!fullSql.includes("warehouse_stock")) return Promise.resolve();
     const norm = fullSql.replace(/\s+/g, " ").trim();
 
+    if (DOOR_SET_READ.test(norm)) {
+      // Подстановки: [орг., склад, товар]. Ответ той же формы, что у mysql2: [строки, поля].
+      const [tenantId, , productId] = s.values.map(Number);
+      return Promise.resolve([rowsFor(stockTable, tenantId, productId).map(r => ({ reserved: r.reserved })), []]);
+    }
+
     if (DOOR_SHIFT.test(norm)) {
       const [onHandJoin, heldJoin] = s.values.filter(isJoin);
       const shifts = new Map<number, { onHand: number; held: number }>();
@@ -142,7 +151,7 @@ export function createExecuteMock<T extends StockRow>(stockTable: T[], options: 
     }
 
     if (DOOR_SET.test(norm)) {
-      // Подстановки: [орг., склад, товар, кол-во, кол-во (available), кол-во, кол-во (LEAST)].
+      // Подстановки: [орг., склад, товар, кол-во, кол-во (available), кол-во].
       const [tenantId, , productId, quantity] = s.values.map(Number);
       return applyAbsolute(tenantId, productId, quantity, stockTable);
     }
@@ -259,10 +268,9 @@ function applyAbsolute<T extends StockRow>(tenantId: number, productId: number, 
     return Promise.resolve();
   }
   for (const row of rows) {
-    const nowReserved = Math.min(Number(row.reserved), quantity);
+    // Резерв не трогается: ниже него дверь не пускает ещё до этой записи.
     row.currentStock = money(quantity);
-    row.reserved = money(nowReserved);
-    row.available = money(quantity - nowReserved);
+    row.available = money(quantity - Number(row.reserved));
   }
   return Promise.resolve();
 }

@@ -8,7 +8,7 @@ import { createHash } from "crypto";
 import { safeEqual } from "../lib/safe-compare";
 import { hasSubscriptionAccess } from "../lib/feature-gating";
 import { recalcShopDebt } from "../services/shop-debt";
-import { recordStockMovement, setStock } from "../services/stock-ledger";
+import { recordStockMovement, setStock, StockBelowReserveError } from "../services/stock-ledger";
 import { invalidateReports } from "../lib/report-cache";
 
 const app = new Hono<{ Variables: { validatedBody: Record<string, unknown> } }>();
@@ -217,21 +217,29 @@ app.post("/stock", async (c) => {
       return c.json({ success: false, error: "No default warehouse" }, 400);
     }
 
-    await db.transaction(async (tx) => {
-      // 1С называет итог. Дверь ставит его, обрезает резерв по нему,
-      // выводит available и подрезает партии — раньше всё это считалось
-      // здесь руками, а партии не трогались вовсе.
-      await setStock(tx, { tenantId, warehouseId: defaultWarehouse.id, productId, quantity: parsedQty });
+    try {
+      await db.transaction(async (tx) => {
+        // 1С называет итог. Дверь ставит его, выводит available и подрезает
+        // партии — раньше всё это считалось здесь руками, а партии не
+        // трогались вовсе.
+        await setStock(tx, { tenantId, warehouseId: defaultWarehouse.id, productId, quantity: parsedQty });
 
-      // 1C states the count outright rather than a delta, so the ledger records
-      // an adjustment to that figure — the size of the correction is whatever
-      // the count moved by.
-      await recordStockMovement(tx, {
-        tenantId, warehouseId: defaultWarehouse.id, productId,
-        type: "adjustment", quantity: parsedQty,
-        reason: "onec_sync", notes: `1C: остаток установлен в ${parsedQty}`,
+        // 1C states the count outright rather than a delta, so the ledger records
+        // an adjustment to that figure — the size of the correction is whatever
+        // the count moved by.
+        await recordStockMovement(tx, {
+          tenantId, warehouseId: defaultWarehouse.id, productId,
+          type: "adjustment", quantity: parsedQty,
+          reason: "onec_sync", notes: `1C: остаток установлен в ${parsedQty}`,
+        });
       });
-    });
+    } catch (e) {
+      // 1С назвала число меньше отложенного под заказы. Прежде резерв
+      // обрезался молча; теперь 1С слышит отказ и остаток не трогается.
+      if (!(e instanceof StockBelowReserveError)) throw e;
+      logger.warn("1C stock below reserve", { tenantId, productId, quantity: parsedQty, reserved: e.reserved });
+      return c.json({ success: false, error: "Stock below reserved", reserved: e.reserved, quantity: parsedQty }, 409);
+    }
     await invalidateReports(tenantId, "onec.stock");
 
     logger.info("Stock update received from 1C", { tenantId, productId, quantity: parsedQty });

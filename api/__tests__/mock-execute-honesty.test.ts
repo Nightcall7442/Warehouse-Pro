@@ -154,8 +154,14 @@ describe("подделка склада: арифметика двери", () =>
     expect(stock[0].available).toBe("97.00");
   });
 
-  it("установка числом обрезает резерв по новому остатку", async () => {
-    stock[0] = { productId: 1, tenantId: 1, currentStock: "100.00", reserved: "40.00", available: "60.00" };
+  it("установка числом резерв не трогает — ниже него дверь отказывает раньше", async () => {
+    /*
+      Прежняя форма обрезала резерв по новому числу (LEAST) — и стенд честно
+      это повторял. С 21.09.2026 дверь читает резерв под замком и отказывает,
+      если новое число ниже; сама запись резерв не упоминает. Отказ живёт в
+      двери (stock-door-shape), стенд лишь повторяет запись.
+    */
+    stock[0] = { productId: 1, tenantId: 1, currentStock: "100.00", reserved: "10.00", available: "90.00" };
     const execute = createExecuteMock(stock);
 
     // Форма setStock: INSERT … ON DUPLICATE KEY UPDATE — строку заводит сама.
@@ -164,15 +170,27 @@ describe("подделка склада: арифметика двери", () =>
         "\n    INSERT INTO warehouse_stock (tenant_id, warehouse_id, product_id, current_stock, reserved, available)\n    VALUES (",
         ", ", ", ", ", ", ", 0, ",
         ")\n    ON DUPLICATE KEY UPDATE\n      current_stock = ",
-        ",\n      reserved      = LEAST(reserved, ",
-        "),\n      available     = current_stock - reserved\n  ",
+        ",\n      available     = current_stock - reserved\n  ",
       ],
-      1, 1, 1, 25, 25, 25, 25,
+      1, 1, 1, 25, 25, 25,
     ));
 
     expect(stock[0].currentStock).toBe("25.00");
-    expect(stock[0].reserved, "резерв остался больше физического остатка").toBe("25.00");
-    expect(stock[0].available).toBe("0.00");
+    expect(stock[0].reserved, "установка числом тронула резерв").toBe("10.00");
+    expect(stock[0].available).toBe("15.00");
+  });
+
+  it("чтение резерва под замком отвечает строками той организации и товара", async () => {
+    stock[0] = { productId: 1, tenantId: 1, currentStock: "100.00", reserved: "6.00", available: "94.00" };
+    stock.push({ productId: 1, tenantId: 2, currentStock: "5.00", reserved: "1.00", available: "4.00" });
+    const execute = createExecuteMock(stock);
+    const read = (tenantId: number, productId: number) => execute(raw(
+      ["\n    SELECT reserved FROM warehouse_stock\n    WHERE tenant_id = ", " AND warehouse_id = ", " AND product_id = ", "\n    FOR UPDATE\n  "],
+      tenantId, 1, productId,
+    ));
+    expect(await read(1, 1)).toEqual([[{ reserved: "6.00" }], []]);
+    expect(await read(2, 1)).toEqual([[{ reserved: "1.00" }], []]);
+    expect(await read(1, 9), "чужой товар ответил строкой").toEqual([[], []]);
   });
 
   it("приход заводит строку, если её нет", async () => {

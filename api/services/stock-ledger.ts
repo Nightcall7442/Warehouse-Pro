@@ -633,11 +633,29 @@ export async function applyStockEffect(
 }
 
 /**
- * Назначить остаток числом — импорт из файла и обмен, где приходит не движение,
- * а итог.
+ * Новое число меньше отложенного под заказы. Дверь товар по имени не знает —
+ * вызывающий переводит в свой отказ и называет товар сам.
+ */
+export class StockBelowReserveError extends Error {
+  readonly productId: number;
+  readonly reserved: number;
+  readonly quantity: number;
+  constructor(productId: number, reserved: number, quantity: number) {
+    super(`Остаток ${quantity} меньше зарезервированного под заказы (${reserved}) у товара ${productId}`);
+    this.productId = productId;
+    this.reserved = reserved;
+    this.quantity = quantity;
+  }
+}
+
+/**
+ * Назначить остаток числом — инвентаризация, импорт из файла и обмен, где
+ * приходит не движение, а итог.
  *
- * Резерв обрезается по новому остатку: зарезервировать больше, чем лежит на
- * полке, нельзя. available, как и везде, выводится.
+ * Ниже резерва опускать нельзя: отложенное уже обещано открытым заказам.
+ * Прежде резерв молча обрезался по новому числу (LEAST) — заказ терял единицы
+ * без следа, и первым это замечал курьер у прилавка. Решение владельца
+ * 21.09.2026: отказывать, назвав резерв. available, как и везде, выводится.
  */
 export async function setStock(
   tx: LedgerWriter,
@@ -647,6 +665,15 @@ export async function setStock(
   if (!Number.isFinite(q) || q < 0) {
     throw new Error(`установка остатка: негодное количество ${String(entry.quantity)} у товара ${entry.productId}`);
   }
+  // Под замком: между чтением резерва и записью числа заказ не должен успеть
+  // отложить ещё. Вызывающие все в транзакции.
+  const held = resultRows<{ reserved: unknown }>(await tx.execute(sql`
+    SELECT reserved FROM warehouse_stock
+    WHERE tenant_id = ${entry.tenantId} AND warehouse_id = ${entry.warehouseId} AND product_id = ${entry.productId}
+    FOR UPDATE
+  `));
+  const reserved = Number(held[0]?.reserved ?? 0);
+  if (reserved > q) throw new StockBelowReserveError(entry.productId, reserved, q);
   /*
     Строки может не быть: импорт и обмен с 1С называют остаток товара, у
     которого на этом складе ещё нет записи. Раньше каждый из них заводил её
@@ -657,7 +684,6 @@ export async function setStock(
     VALUES (${entry.tenantId}, ${entry.warehouseId}, ${entry.productId}, ${q}, 0, ${q})
     ON DUPLICATE KEY UPDATE
       current_stock = ${q},
-      reserved      = LEAST(reserved, ${q}),
       available     = current_stock - reserved
   `);
 

@@ -3,7 +3,7 @@ import { TRPCError } from "@trpc/server";
 import { and, desc, eq, sql } from "drizzle-orm";
 import { createRouter, operatorQuery, can } from "./middleware";
 import { products, stockCountItems, stockCounts, warehouseStock, warehouses, users } from "@db/schema";
-import { recordStockMovement, setStock } from "./services/stock-ledger";
+import { recordStockMovement, setStock, StockBelowReserveError } from "./services/stock-ledger";
 import { recordAudit } from "./services/audit-log";
 import { cache } from "./lib/cache";
 import { invalidateReports } from "./lib/report-cache";
@@ -167,7 +167,19 @@ export const stockCountRouter = createRouter({
           const current = Number(row?.current ?? 0);
           const diff = counted - current;
           if (Math.abs(diff) < 0.005) continue;
-          await setStock(tx, { tenantId: ctx.tenant.id, warehouseId: count.warehouseId, productId: it.productId, quantity: counted });
+          try {
+            await setStock(tx, { tenantId: ctx.tenant.id, warehouseId: count.warehouseId, productId: it.productId, quantity: counted });
+          } catch (e) {
+            // На полке насчитали меньше, чем отложено под заказы. Дверь
+            // отказывает числом — здесь называем товар: без имени отказ
+            // читается как придирка к цифре. Акт не применяется целиком.
+            if (!(e instanceof StockBelowReserveError)) throw e;
+            const [p] = await tx.select({ name: products.name }).from(products).where(eq(products.id, it.productId)).limit(1);
+            throw new TRPCError({
+              code: "PRECONDITION_FAILED",
+              message: `«${p?.name ?? `товар #${it.productId}`}»: на полке ${money2(counted)}, а под заказы отложено ${money2(e.reserved)}. Сначала проведите или отмените заказы, занявшие резерв, — потом примените акт.`,
+            });
+          }
           await recordStockMovement(tx, {
             tenantId: ctx.tenant.id, warehouseId: count.warehouseId, productId: it.productId,
             type: diff > 0 ? "in" : "out", quantity: Math.abs(diff), reason: "inventory", referenceId: count.id,

@@ -500,8 +500,9 @@ export const importRouter = createRouter({
                     photoUrl: photos.get(row.rowNum), status: "active",
                   });
                   const productId = Number(r.insertId);
-                  // Начальный остаток — через дверь: строку заводит она сама, а
-                  // при повторном импорте ставит итог и обрезает резерв по нему.
+                  // Начальный остаток — через дверь: строку заводит она сама.
+                  // Товар только что заведён, резерва у него нет — отказ двери
+                  // «ниже резерва» здесь невозможен.
                   await setStock(tx, {
                     tenantId, warehouseId: defaultWarehouse.id,
                     productId, quantity: row.initialStock,

@@ -61,6 +61,31 @@ describe.skipIf(!hasRealDb)("инвентаризация на настояще�
     await expect(c.setCounted({ id, productId: s.productId, counted: 1 })).rejects.toThrow(/уже применён/);
   });
 
+  it("насчитали меньше, чем отложено под заказы — акт не применяется, товар назван, остаток цел", async () => {
+    /*
+      Стояло LEAST в двери: «на полке 3» при резерве 4 молча снимало единицу
+      с открытого заказа. Решение владельца 21.09.2026 — отказывать. Акт —
+      целиком: второй товар посчитан верно, но и он не применяется, иначе
+      повторное применение уже невозможно, а первый товар так и не исправлен.
+    */
+    const c = await caller();
+    const { id } = await c.create({ warehouseId: s.warehouseId });
+    await db.execute(sql`UPDATE warehouse_stock SET reserved = 4, available = 6 WHERE product_id = ${s.productId}`);
+    await c.setCounted({ id, productId: s.productId, counted: 3 });
+    await c.setCounted({ id, productId: s.secondProductId, counted: 9 });
+
+    const [[p]] = await db.execute(sql`SELECT name FROM products WHERE id = ${s.productId}`) as unknown as [Array<{ name: string }>];
+    await expect(c.applyCount({ id })).rejects.toMatchObject({
+      code: "PRECONDITION_FAILED",
+      message: expect.stringContaining(`«${p.name}»: на полке 3.00, а под заказы отложено 4.00`),
+    });
+
+    expect(await stockOf(s.productId)).toMatchObject({ current: 10, reserved: 4, available: 6 });
+    expect((await stockOf(s.secondProductId)).current, "второй товар применился, хотя акт отказан").toBe(10);
+    expect((await c.get({ id })).status).toBe("draft");
+    expect(await countOf("stock_movements", `reference_type = 'inventory' AND reference_id = ${id}`)).toBe(0);
+  });
+
   it("сканер прибавляет по единице; пересчёт «нашёл больше» — движение in", async () => {
     const c = await caller();
     const { id } = await c.create({ warehouseId: s.warehouseId });
