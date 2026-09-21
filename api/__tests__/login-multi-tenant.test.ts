@@ -63,7 +63,7 @@ import { pbkdf2Sync } from "node:crypto";
 import { updateUserPasswordHash } from "../queries/users";
 import { Session } from "@contracts/constants";
 
-type Row = { id: number; tenantId: number; email: string; password: string; status?: string };
+type Row = { id: number; tenantId: number; email: string; password: string; status?: string; emailVerifiedAt?: Date | null };
 
 /** Пароли хешируются по-настоящему: с подменённым verifyPassword тест проверял бы подмену. */
 async function seed(rows: Row[], orgs: Array<{ id: number; name: string; status?: string }>) {
@@ -75,6 +75,8 @@ async function seed(rows: Row[], orgs: Array<{ id: number; name: string; status?
     role: "admin",
     status: r.status ?? "active",
     tokenVersion: 0,
+    // Подтверждённый адрес — умолчание: так заводит всех, кроме регистрации с сайта.
+    emailVerifiedAt: r.emailVerifiedAt === undefined ? new Date() : r.emailVerifiedAt,
     passwordHash: await hashPassword(r.password),
   })));
   tenants.rows = orgs.map(o => ({ ...o, slug: `org-${o.id}`, status: o.status ?? "active" }));
@@ -198,6 +200,35 @@ describe("вход при одном адресе в нескольких орг
 
     expect(res.status).toBe(200);
     expect(res.body.user.id).toBe(10);
+  });
+});
+
+describe("адрес не подтверждён по ссылке из письма", () => {
+  it("пароль подошёл, но вход закрыт: 403 с кодом, без куки", async () => {
+    // Регистрация с сайта заводит директора с пустым email_verified_at.
+    // Код нужен клиенту: по нему он предлагает выслать письмо ещё раз.
+    await seed([{ id: 1, tenantId: 1, email: "new@x.uz", password: "пароль-один", emailVerifiedAt: null }], [{ id: 1, name: "Новая" }]);
+    const r = await login({ email: "new@x.uz", password: "пароль-один" });
+    expect(r.status).toBe(403);
+    expect(r.body.code).toBe("EMAIL_UNVERIFIED");
+    expect(r.body.error).toMatch(/Подтвердите адрес почты/);
+    // csrf-куки ставится всем; сессионной быть не должно.
+    expect(r.cookie ?? "").not.toContain(Session.cookieName);
+  });
+
+  it("неверный пароль к неподтверждённому адресу — обычный отказ, факт регистрации не выдаётся", async () => {
+    await seed([{ id: 1, tenantId: 1, email: "new@x.uz", password: "пароль-один", emailVerifiedAt: null }], [{ id: 1, name: "Новая" }]);
+    const r = await login({ email: "new@x.uz", password: "не-тот" });
+    expect(r.status).toBe(401);
+    expect(r.body.code).toBeUndefined();
+    expect(r.body.error).toBe("Неверный email или пароль");
+  });
+
+  it("после подтверждения тот же пароль пускает", async () => {
+    await seed([{ id: 1, tenantId: 1, email: "new@x.uz", password: "пароль-один", emailVerifiedAt: new Date() }], [{ id: 1, name: "Новая" }]);
+    const r = await login({ email: "new@x.uz", password: "пароль-один" });
+    expect(r.status).toBe(200);
+    expect(r.cookie).toContain(Session.cookieName);
   });
 });
 

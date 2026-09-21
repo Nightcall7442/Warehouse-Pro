@@ -1,9 +1,8 @@
 import { useState } from "react";
 import { LogoMark } from "@/components/brand/Logo";
-import { useNavigate, Link } from "react-router";
+import { Link } from "react-router";
 import { trpc } from "@/providers/trpc";
-import { useAuth } from "@/hooks/useAuth";
-import { Eye, EyeOff, Loader2, CheckCircle2 } from "lucide-react";
+import { Eye, EyeOff, Loader2, CheckCircle2, MailCheck } from "lucide-react";
 import { useLang, useTranslate } from "@/i18n";
 
 function PasswordStrength({ password }: { password: string }) {
@@ -46,13 +45,15 @@ export default function Register() {
   const [form, setForm] = useState({ name: "", companyName: "", email: "", password: "" });
   const [showPw, setShowPw] = useState(false);
   const [error,  setError]  = useState("");
-  const navigate = useNavigate();
-  const { refresh } = useAuth();
+  // Адрес, на который ушло письмо. Вход закрыт до ссылки из него, поэтому
+  // вместо перехода на «/» — экран «проверьте почту».
+  const [sentTo, setSentTo] = useState("");
 
   const registerMutation = trpc.tenant.register.useMutation({
-    onSuccess: async () => { await refresh(); navigate("/"); },
-    onError:   (e)       => setError(e.message || t("auth.register.error")),
+    onSuccess: () => setSentTo(form.email),
+    onError:   (e) => setError(e.message || t("auth.register.error")),
   });
+  const resend = trpc.auth.resendVerification.useMutation();
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -136,6 +137,27 @@ export default function Register() {
           <span className="font-display text-sm text-primary">Warehouse Pro</span>
         </div>
 
+        {sentTo ? (
+          <div className="w-full max-w-[380px] text-center" data-testid="register-check-mail">
+            <div className="w-14 h-14 rounded-2xl mx-auto mb-5 flex items-center justify-center"
+              style={{ background: "var(--color-success-subtle)", color: "var(--color-success-text, var(--color-success))", boxShadow: "var(--shadow-sm)" }}>
+              <MailCheck size={26} />
+            </div>
+            <h2 className="font-display text-2xl text-primary mb-2">{tr("Проверьте почту", "Pochtangizni tekshiring")}</h2>
+            <p className="text-sm mb-6" style={{ color: "var(--color-text-secondary)" }}>
+              {tr("Письмо со ссылкой отправлено на", "Havolali xat yuborildi:")} <b className="text-primary">{sentTo}</b>.{" "}
+              {tr("Откройте ссылку — и можно входить. Ссылка действует 3 дня.", "Havolani oching — keyin kirishingiz mumkin. Havola 3 kun amal qiladi.")}
+            </p>
+            <button type="button" className="neo-btn w-full py-2.5 text-sm mb-3"
+              disabled={resend.isPending || resend.isSuccess}
+              onClick={() => resend.mutate({ email: sentTo })}>
+              {resend.isSuccess
+                ? tr("Письмо отправлено ещё раз", "Xat qayta yuborildi")
+                : tr("Отправить письмо ещё раз", "Xatni qayta yuborish")}
+            </button>
+            <Link to="/login" className="text-sm font-medium hover:underline" style={{ color: "var(--color-primary-text)" }}>{tr("К входу", "Kirishga")}</Link>
+          </div>
+        ) : (
         <div className="w-full max-w-[380px]">
           <div className="mb-8">
             <h2 className="font-display text-2xl text-primary mb-1.5">{tr("Создайте аккаунт", "Hisob yarating")}</h2>
@@ -199,6 +221,7 @@ export default function Register() {
             </p>
           </form>
         </div>
+        )}
       </div>
     </div>
   );

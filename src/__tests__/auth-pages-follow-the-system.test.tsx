@@ -90,6 +90,11 @@ vi.mock("@/i18n", () => ({
       "auth.login.createAccount": "Создать",
     }[key] ?? key),
   }),
+  useTranslate: () => (ru: string) => ru,
+}));
+// Кнопка «письмо ещё раз» после EMAIL_UNVERIFIED — tRPC-мутация; здесь она не нажимается.
+vi.mock("@/providers/trpc", () => ({
+  trpc: { auth: { resendVerification: { useMutation: () => ({ mutate: () => {}, reset: () => {}, isPending: false, isSuccess: false }) } } },
 }));
 vi.mock("react-router", () => ({
   useNavigate: () => () => {},

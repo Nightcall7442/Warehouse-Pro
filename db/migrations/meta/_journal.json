@@ -435,6 +435,20 @@
       "when": 1789923995043,
       "tag": "0061_shortage_at_history",
       "breakpoints": true
+    },
+    {
+      "idx": 62,
+      "version": "5",
+      "when": 1789994681296,
+      "tag": "0062_email_verified_at",
+      "breakpoints": true
+    },
+    {
+      "idx": 63,
+      "version": "5",
+      "when": 1789994682608,
+      "tag": "0063_email_verified_backfill",
+      "breakpoints": true
     }
   ]
 }

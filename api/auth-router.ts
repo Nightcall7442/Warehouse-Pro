@@ -2,6 +2,7 @@ import { z } from "zod";
 import { capabilitiesOf } from "./lib/role-permissions";
 import { createRouter, publicQuery, authedQuery } from "./middleware";
 import { requestPasswordReset, confirmPasswordReset } from "./services/password-reset";
+import { confirmEmail, resendVerification } from "./services/email-verification";
 import { checkRateLimit, rateLimitSubject } from "./lib/rate-limit";
 import { TRPCError } from "@trpc/server";
 import { env } from "./lib/env";
@@ -55,5 +56,30 @@ export const authRouter = createRouter({
         throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: "Слишком много запросов. Попробуйте позже." });
       }
       return confirmPasswordReset(ctx.db, input.token, input.newPassword);
+    }),
+
+  /** Подтвердить адрес по ссылке из письма после регистрации. Повтор безвреден. */
+  verifyEmail: publicQuery
+    .input(z.object({ token: z.string().min(20).max(200) }))
+    .mutation(async ({ input, ctx }) => {
+      // По токену: подбор подписи — единственное, от чего здесь защищаться.
+      const subject = rateLimitSubject(ctx.req, `token:${input.token.slice(0, 24)}`);
+      if (!(await checkRateLimit(subject, { windowMs: 15 * 60_000, limit: 10, namespace: "verifyEmail" }))) {
+        throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: "Слишком много запросов. Попробуйте позже." });
+      }
+      return confirmEmail(ctx.db, input.token);
+    }),
+
+  /** Письмо с подтверждением ещё раз. Ответ одинаковый — адреса не перечисляются. */
+  resendVerification: publicQuery
+    .input(z.object({ email: z.string().email() }))
+    .mutation(async ({ input, ctx }) => {
+      const email = input.email.trim().toLowerCase();
+      const subject = rateLimitSubject(ctx.req, `email:${email}`);
+      if (!(await checkRateLimit(subject, { windowMs: 60 * 60_000, limit: 3, namespace: "resendVerify" }))) {
+        throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: "Слишком много запросов. Попробуйте позже." });
+      }
+      await resendVerification(ctx.db, input.email.trim(), env.appUrl ?? "http://localhost:3000");
+      return { success: true };
     }),
 });
