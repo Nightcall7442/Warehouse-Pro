@@ -371,7 +371,8 @@ export type ArrivalDocData = {
   date:      string;
   supplier:  CompanyInfo;
   receiver:  CompanyInfo;
-  items:     DocItem[];
+  /** expectedQty — по накладной поставщика; нет ни у одной строки — графы нет. */
+  items:     Array<DocItem & { expectedQty?: number | null }>;
   totalQty:  number;
   expenses?: { fuel?: number; toll?: number; other?: number; total?: number };
   notes?:    string;
@@ -487,14 +488,29 @@ export function printUzWaybill(data: OrderDocData, template: InvoiceTemplateId =
 
 // ── 2. ПРИХОДНАЯ НАКЛАДНАЯ (Goods Receipt) ────────────────────────────────────
 export function printArrivalReceipt(data: ArrivalDocData) {
-  const itemRows = data.items.map((item, i) => `
+  /*
+    Накладная прихода — то, что подписывают при разгрузке: сколько было по
+    бумаге поставщика, сколько приняли, разница и деньги по строке. Раньше
+    печаталось только «кол-во», и расхождение с накладной приходилось
+    выписывать на полях от руки.
+  */
+  const withExpected = data.items.some(i => i.expectedQty != null);
+  const withMoney = data.items.some(i => i.price > 0);
+  const moneyTotal = data.items.reduce((s, i) => s + (i.total || 0), 0);
+  const itemRows = data.items.map((item, i) => {
+    const d = item.expectedQty == null ? null : Math.round((item.qty - item.expectedQty) * 100) / 100;
+    return `
     <tr>
       <td class="center">${i + 1}</td>
       <td>${escapeHtml(item.name)}${item.code ? ` (${escapeHtml(item.code)})` : ""}</td>
       <td class="center">${unitLabel(item.unit)}</td>
-      <td class="center">${cleanNum(item.qty)}</td>
+      ${withExpected ? `<td class="right">${item.expectedQty == null ? "" : cleanNum(item.expectedQty)}</td>` : ""}
+      <td class="right bold">${cleanNum(item.qty)}</td>
+      ${withExpected ? `<td class="right">${d == null || d === 0 ? "" : `${d > 0 ? "+" : ""}${cleanNum(d)}`}</td>` : ""}
+      ${withMoney ? `<td class="right">${item.price > 0 ? item.price.toLocaleString("ru-RU") : ""}</td><td class="right">${item.total > 0 ? item.total.toLocaleString("ru-RU") : ""}</td>` : ""}
       <td></td>
-    </tr>`).join("");
+    </tr>`;
+  }).join("");
 
   const html = `
     <table class="no-border" style="margin-bottom:8px">
@@ -524,8 +540,11 @@ export function printArrivalReceipt(data: ArrivalDocData) {
         <tr>
           <th style="width:4%">№</th>
           <th>Наименование товара</th>
-          <th style="width:8%">Ед.изм.</th>
-          <th style="width:12%">Кол-во</th>
+          <th style="width:7%">Ед.изм.</th>
+          ${withExpected ? `<th style="width:10%">По накладной</th>` : ""}
+          <th style="width:10%">Принято</th>
+          ${withExpected ? `<th style="width:8%">Разница</th>` : ""}
+          ${withMoney ? `<th style="width:11%">Цена</th><th style="width:12%">Сумма</th>` : ""}
           <!--
             Колонка состояния заполняется рукой при приёмке.
 
@@ -535,7 +554,7 @@ export function printArrivalReceipt(data: ArrivalDocData) {
             весь груз пришёл целым, ещё до того, как кладовщик на него
             посмотрел, — а подписывает он именно эту графу.
           -->
-          <th style="width:16%">Состояние</th>
+          <th style="width:12%">Отметка</th>
         </tr>
       </thead>
       <tbody>
@@ -546,8 +565,10 @@ export function printArrivalReceipt(data: ArrivalDocData) {
             штуками, ящиками и литрами тоже, а общее количество по разным
             единицам всё равно складывается только как число позиций товара.
           -->
-          <td colspan="3" class="right bold">ИТОГО:</td>
-          <td class="center bold">${cleanNum(data.totalQty)}</td>
+          <td colspan="${withExpected ? 4 : 3}" class="right bold">ИТОГО:</td>
+          <td class="right bold">${cleanNum(data.totalQty)}</td>
+          ${withExpected ? "<td></td>" : ""}
+          ${withMoney ? `<td></td><td class="right bold">${moneyTotal.toLocaleString("ru-RU")} ${escapeHtml(data.currency)}</td>` : ""}
           <td></td>
         </tr>
       </tbody>

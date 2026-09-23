@@ -98,7 +98,7 @@ describe("сканер-клавиатура: код + Enter", () => {
   });
 
   it("на приёмке есть поле «штрих-код + Enter»", () => {
-    const src = readFileSync("src/pages/Arrivals.tsx", "utf-8");
+    const src = readFileSync("src/pages/ArrivalEditor.tsx", "utf-8");
     expect(src).toContain('data-testid="arrival-wedge"');
     expect(src).toContain('if (e.key === "Enter" && wedge.trim()) { e.preventDefault(); onScanned(wedge); setWedge(""); }');
   });
@@ -106,10 +106,12 @@ describe("сканер-клавиатура: код + Enter", () => {
 
 describe("сканер на приёмке и режим «много подряд»", () => {
   it("приёмка: кнопка, поиск по штрих-коду и коду, +1 к строке", () => {
-    const src = readFileSync("src/pages/Arrivals.tsx", "utf-8");
+    const src = readFileSync("src/pages/ArrivalEditor.tsx", "utf-8");
     expect(src).toContain('data-testid="arrival-scan"');
-    expect(src).toContain("(p.barcode ?? \"\").toLowerCase() === norm || (p.code ?? \"\").toLowerCase() === norm");
-    expect(src).toContain("quantity: String(Number(it.quantity || 0) + 1)");
+    expect(src).toContain("(x.barcode ?? \"\").toLowerCase() === norm || (x.code ?? \"\").toLowerCase() === norm");
+    expect(src).toContain("setRows(applyScan(rows, p));");
+    // +1 к строке — в логике листа (arrival-sheet.test.ts проверяет поведение).
+    expect(readFileSync("src/lib/arrival-sheet.ts", "utf-8")).toContain("quantity: String(num(r.quantity) + 1)");
     expect(src).toMatch(/<BarcodeScanner\s+continuous/);
   });
 

@@ -188,7 +188,7 @@ describe("страж: сервисы записи сбрасывают отчё�
     ["services/courier-delivery.ts", 3],   // довёз, завершил, не довёз
     ["services/payment.ts", 2],            // платёж, сторно
     ["returns-router.ts", 1],              // проведение возврата
-    ["services/arrival.ts", 4],            // создан, завершён, расходы, удалён
+    ["services/arrival.ts", 5],            // создан, строки заменены, завершён, расходы, удалён
     ["services/stock.ts", 1],              // ручная корректировка
     ["stock-count-router.ts", 1],          // инвентаризация
     ["warehouse-multi-router.ts", 1],      // перемещение

@@ -55,7 +55,7 @@ describe("этикетки по приходу", () => {
     const docs = readFileSync("src/lib/documents.ts", "utf-8");
     expect(docs).toContain("export function printLabels(items: LabelItem[])");
     expect(docs).toContain("labels.length < MAX_LABELS");
-    expect(readFileSync("src/pages/Arrivals.tsx", "utf-8")).toContain('data-testid="arrival-print-labels"');
+    expect(readFileSync("src/pages/ArrivalEditor.tsx", "utf-8")).toContain('data-testid="arrival-print-labels"');
     expect(readFileSync("api/arrival-router.ts", "utf-8")).toContain("p.barcode AS barcode");
     // одна разметка этикетки на весь продукт: страница «Штрих-коды» печатает тем же
     const page = readFileSync("src/pages/Barcode.tsx", "utf-8");
@@ -71,7 +71,7 @@ describe("упаковка: коробки там, где считают кор�
     const router = readFileSync("api/product-router.ts", "utf-8");
     expect((router.match(/packSize:\s+products\.packSize/g) ?? []).length).toBeGreaterThanOrEqual(3);
     expect(readFileSync("src/components/orders/ProductSelector.tsx", "utf-8")).toContain("updateQuantity(product.id, Number(product.packSize))");
-    expect(readFileSync("src/pages/Arrivals.tsx", "utf-8")).toContain('updateItem(i, "quantity", n === 0 ? "" : String(n * pack))');
+    expect(readFileSync("src/components/arrivals/ArrivalSheet.tsx", "utf-8")).toContain("onValueChange={v => set(i, { quantity: boxesToQuantity(v, r.packSize) })}");
     const docs = readFileSync("src/lib/documents.ts", "utf-8");
     expect(docs).toContain("function packBreakdown(");
     expect(docs).toContain("${cleanNum(item.totalQty)}${packBreakdown(item)}");
