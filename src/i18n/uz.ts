@@ -43,6 +43,7 @@ export const uz = {
     deliveries:  "Yetkazishlar",
     barcode:     "Skaner",
     myOrders:    "Mening buyurtmalarim",
+    offline:     "Oflayn buyurtmalar",
   },
   common: {
     save:        "Saqlash",

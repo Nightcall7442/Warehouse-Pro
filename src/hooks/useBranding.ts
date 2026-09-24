@@ -53,6 +53,10 @@ export function brandCss(primary: string): string {
       `--color-primary-muted: ${p.muted};`,
       `--color-on-primary: ${p.onPrimary};`,
       `--color-primary-text: ${p.text};`,
+      // Главное действие — цветом арендатора. На телефоне без этой строки
+      // светлая тема красила бы его запасным жёлтым мобилки v8 поверх чужого бренда.
+      `--color-cta: ${p.primary};`,
+      `--color-on-cta: ${p.onPrimary};`,
       `--primary: ${hexToHsl(p.primary)};`,
       `--primary-foreground: ${hexToHsl(p.onPrimary)};`,
       `--ring: ${hexToHsl(p.primary)};`,

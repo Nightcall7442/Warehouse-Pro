@@ -247,7 +247,9 @@ export default function Login() {
           type="submit"
           disabled={isPending}
           className="neo-btn-primary"
-          style={{ width: "100%", height: "48px", borderRadius: "14px", fontSize: "14px", marginTop: "4px" }}
+          // «Войти» — главное действие экрана (--color-cta): на телефоне жёлтое,
+          // как в мобилке v8; на большом экране cta и есть фирменный цвет.
+          style={{ width: "100%", height: "48px", borderRadius: "14px", fontSize: "14px", marginTop: "4px", background: "var(--color-cta)", color: "var(--color-on-cta)" }}
         >
           {isPending
             ? <><Loader2 size={16} style={{ animation: "spin 1s linear infinite" }} />{t("auth.login.submitting")}</>

@@ -39,6 +39,7 @@ export const ru = {
     deliveries:  "Доставки",
     barcode:     "Сканер",
     myOrders:    "Мои заказы",
+    offline:     "Офлайн-заказы",
   },
   // Common
   common: {
