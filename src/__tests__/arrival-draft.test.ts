@@ -54,7 +54,8 @@ describe("черновик прихода", () => {
   });
 
   it("страница восстанавливает при открытии, пишет на каждое изменение, стирает по «Отмене» и после сохранения", () => {
-    const src = readFileSync("src/pages/ArrivalEditor.tsx", "utf-8");
+    // Переводы строк — как в репозитории: на Windows рабочая копия бывает с CRLF.
+    const src = readFileSync("src/pages/ArrivalEditor.tsx", "utf-8").replace(/\r\n/g, "\n");
     expect(src).toContain("useState<ArrivalDraft>(() => (isNew && user ? loadArrivalDraft(user.id) : null) ?? emptyDraft())");
     expect(src).toContain("if (arrivalDraftHasWork(draft)) saveArrivalDraft(user.id, draft); else clearArrivalDraft(user.id);");
     expect(src).toContain("if (isNew) { if (user) clearArrivalDraft(user.id); setDraft(emptyDraft()); }");

@@ -338,39 +338,8 @@ describe("priceList.removeItem", () => {
   });
 });
 
-describe("priceList.assignShop", () => {
-  it("assigns a price list to a shop", async () => {
-    const { priceListRouter } = await import("../price-list-router");
-    const caller = priceListRouter.createCaller(buildCtx());
-    const result = await caller.assignShop({ priceListId: 2, shopId: 2 });
-    expect(result.success).toBe(true);
-    expect(priceListAssignmentsTable.some(a => a.priceListId === 2 && a.shopId === 2)).toBe(true);
-  });
-
-  it("rejects nonexistent price list", async () => {
-    const { priceListRouter } = await import("../price-list-router");
-    const caller = priceListRouter.createCaller(buildCtx());
-    await expect(caller.assignShop({ priceListId: 999, shopId: 1 }))
-      .rejects.toThrow(/не найден/i);
-  });
-
-  it("rejects nonexistent shop", async () => {
-    const { priceListRouter } = await import("../price-list-router");
-    const caller = priceListRouter.createCaller(buildCtx());
-    await expect(caller.assignShop({ priceListId: 1, shopId: 999 }))
-      .rejects.toThrow(/не найден/i);
-  });
-});
-
-describe("priceList.unassignShop", () => {
-  it("removes assignment", async () => {
-    const { priceListRouter } = await import("../price-list-router");
-    const caller = priceListRouter.createCaller(buildCtx());
-    const result = await caller.unassignShop({ priceListId: 1, shopId: 1 });
-    expect(result.success).toBe(true);
-    expect(priceListAssignmentsTable.some(a => a.priceListId === 1 && a.shopId === 1)).toBe(false);
-  });
-});
+// assignShop/unassignShop заменены на setShops (магазины списка — одним
+// сохранением, магазин в одном списке): поведение — real-db/price-list-grid.test.ts.
 
 describe("priceList.getPrice", () => {
   it("returns default price when no price list assigned", async () => {

@@ -1,7 +1,7 @@
 import { useState } from "react";
+import { useNavigate } from "react-router";
 import { trpc } from "@/providers/trpc";
 import { useLang } from "@/i18n";
-import { useCurrency } from "@/hooks/useCurrency";
 import { useConfirm } from "@/components/ConfirmDialog";
 import { PremiumSelect } from "@/components/PremiumSelect";
 import { SectionNotice } from "@/components/SectionNotice";
@@ -9,7 +9,7 @@ import { DecimalInput } from "@/components/ui/DecimalInput";
 import { notify } from "@/lib/toast";
 import { F, COLORS } from "@/components/users/types";
 import { FieldGroup, FieldRow } from "@/components/settings/ui";
-import { ArrowLeft, Plus, Store, Tag, Trash2, X } from "lucide-react";
+import { Plus, Trash2 } from "lucide-react";
 
 /**
  * Прайс-листы: свои цены для магазина, категории или объёма.
@@ -31,8 +31,6 @@ import { ArrowLeft, Plus, Store, Tag, Trash2, X } from "lucide-react";
  * в заказе не та цена, которую он только что вписал.
  */
 
-type Detail = { id: number; name: string } | null;
-
 const TYPE_KEYS = ["shop", "tier", "volume"] as const;
 type ListType = (typeof TYPE_KEYS)[number];
 
@@ -42,7 +40,7 @@ export function PriceListSettings() {
   const { confirm, dialog } = useConfirm();
   const utils = trpc.useUtils();
 
-  const [open, setOpen] = useState<Detail>(null);
+  const navigate = useNavigate();
   const [creating, setCreating] = useState(false);
   const [form, setForm] = useState<{ name: string; type: ListType; priority: string; description: string; markupPct: string }>(
     { name: "", type: "shop", priority: "0", description: "", markupPct: "" },
@@ -57,11 +55,13 @@ export function PriceListSettings() {
   const listQ = trpc.priceList.list.useQuery();
 
   const create = trpc.priceList.create.useMutation({
-    onSuccess: () => {
+    // Созданный список — сразу в его страницу: следующий шаг всегда «цены и магазины».
+    onSuccess: (r) => {
       notify.success(t("Прайс-лист создан", "Narx ro'yxati yaratildi"));
       utils.priceList.list.invalidate();
       setCreating(false);
       setForm({ name: "", type: "shop", priority: "0", description: "", markupPct: "" });
+      navigate(`/price-lists/${r.id}`);
     },
     onError: e => notify.error(e.message),
   });
@@ -75,7 +75,6 @@ export function PriceListSettings() {
     onSuccess: () => {
       notify.success(t("Прайс-лист удалён", "Narx ro'yxati o'chirildi"));
       utils.priceList.list.invalidate();
-      setOpen(null);
     },
     onError: e => notify.error(e.message),
   });
@@ -92,8 +91,6 @@ export function PriceListSettings() {
     });
     if (ok) remove.mutate({ id });
   };
-
-  if (open) return <PriceListDetail list={open} onBack={() => setOpen(null)} onDelete={onDelete} />;
 
   const lists = listQ.data ?? [];
 
@@ -182,7 +179,7 @@ export function PriceListSettings() {
           {lists.map(l => (
             <div key={l.id} className="rounded-2xl p-3.5" style={{ background: COLORS.surfaceLight }}>
               <div className="flex items-start justify-between gap-3">
-                <button className="text-left" style={{ minWidth: 0 }} onClick={() => setOpen({ id: l.id, name: l.name })}>
+                <button className="text-left" style={{ minWidth: 0 }} onClick={() => navigate(`/price-lists/${l.id}`)} data-testid={`price-list-open-${l.id}`}>
                   <div style={{ fontFamily: F.display, fontWeight: 600, color: COLORS.textPrimary }}>
                     {l.name}
                     {!l.isActive && (
@@ -218,206 +215,6 @@ export function PriceListSettings() {
           ))}
         </div>
       )}
-    </div>
-  );
-}
-
-/** Содержимое одного прайс-листа: товары с ценами и магазины, которым он назначен. */
-function PriceListDetail({ list, onBack, onDelete }: {
-  list: { id: number; name: string };
-  onBack: () => void;
-  onDelete: (id: number, name: string) => void;
-}) {
-  const { lang } = useLang();
-  const { fmt } = useCurrency();
-  const t = (ru: string, uz: string) => (lang === "uz" ? uz : ru);
-  const utils = trpc.useUtils();
-
-  const [productSearch, setProductSearch] = useState("");
-  const [picked, setPicked] = useState<{ id: number; name: string } | null>(null);
-  const [price, setPrice] = useState("");
-  const [minQuantity, setMinQuantity] = useState("1");
-  const [shopId, setShopId] = useState("");
-
-  const detailQ = trpc.priceList.getById.useQuery({ id: list.id });
-  const productsQ = trpc.product.list.useQuery(
-    { page: 1, pageSize: 20, search: productSearch || undefined },
-    { enabled: productSearch.length >= 2 },
-  );
-  const shopsQ = trpc.shop.list.useQuery({ page: 1, pageSize: 500 });
-
-  const refresh = () => {
-    utils.priceList.getById.invalidate({ id: list.id });
-    utils.priceList.list.invalidate();
-  };
-
-  const upsert = trpc.priceList.upsertItem.useMutation({
-    onSuccess: () => {
-      notify.success(t("Цена сохранена", "Narx saqlandi"));
-      refresh();
-      setPicked(null); setProductSearch(""); setPrice(""); setMinQuantity("1");
-    },
-    onError: e => notify.error(e.message),
-  });
-  const removeItem = trpc.priceList.removeItem.useMutation({
-    onSuccess: () => { refresh(); }, onError: e => notify.error(e.message),
-  });
-  const assign = trpc.priceList.assignShop.useMutation({
-    onSuccess: () => { notify.success(t("Магазин привязан", "Do'kon bog'landi")); refresh(); setShopId(""); },
-    onError: e => notify.error(e.message),
-  });
-  const unassign = trpc.priceList.unassignShop.useMutation({
-    onSuccess: () => { refresh(); }, onError: e => notify.error(e.message),
-  });
-
-  const items = detailQ.data?.items ?? [];
-  const assignments = detailQ.data?.assignments ?? [];
-  const assignedIds = new Set(assignments.map(a => a.shopId));
-  const shopOptions = (shopsQ.data?.data ?? [])
-    .filter(s => !assignedIds.has(s.id))
-    .map(s => ({ value: String(s.id), label: s.name }));
-
-  return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between gap-3">
-        <button className="neo-btn" onClick={onBack} style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-          <ArrowLeft size={15} />{t("Назад", "Orqaga")}
-        </button>
-        <span style={{ fontFamily: F.display, fontWeight: 700, color: COLORS.textPrimary }}>{list.name}</span>
-        <button className="neo-btn text-danger" onClick={() => onDelete(list.id, list.name)}
-          style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-          <Trash2 size={14} />{t("Удалить", "O'chirish")}
-        </button>
-      </div>
-
-      {/* ── Товары и цены ──────────────────────────────────────────────────── */}
-      <FieldGroup first>
-        <div className="flex items-center gap-2 mb-3">
-          <Tag size={15} style={{ color: COLORS.textTertiary }} />
-          <span style={{ fontFamily: F.display, fontSize: "13px", fontWeight: 600, color: COLORS.textPrimary }}>
-            {t("Товары и цены", "Mahsulot va narxlar")}
-          </span>
-        </div>
-
-        <div className="grid gap-3 grid-cols-[repeat(auto-fit,minmax(180px,1fr))]">
-          <div className="space-y-1">
-            <input className="neo-input w-full"
-              placeholder={t("Найти товар…", "Mahsulot qidirish…")}
-              value={picked ? picked.name : productSearch}
-              onChange={e => { setProductSearch(e.target.value); setPicked(null); }} />
-            {!picked && productSearch.length >= 2 && (productsQ.data?.data?.length ?? 0) > 0 && (
-              <div className="max-h-36 overflow-y-auto space-y-1">
-                {productsQ.data!.data.map(p => (
-                  <button key={p.id} className="neo-btn w-full text-left"
-                    style={{ fontSize: "13px", padding: "6px 10px" }}
-                    onClick={() => { setPicked({ id: p.id, name: p.name }); setPrice(String(p.unitPrice ?? "")); }}>
-                    {p.name} <span style={{ color: COLORS.textTertiary }}>· {p.code}</span>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-          <DecimalInput className="neo-input" value={price} onValueChange={setPrice}
-            placeholder={t("Цена", "Narx")} />
-          <div className="flex gap-2">
-            <DecimalInput className="neo-input flex-1" value={minQuantity} onValueChange={setMinQuantity}
-              placeholder={t("От количества", "Miqdordan")} />
-            <button className="neo-btn-primary" disabled={upsert.isPending}
-              onClick={() => {
-                if (!picked) return notify.error(t("Выберите товар", "Mahsulotni tanlang"));
-                const value = Number(price);
-                if (!(value >= 0)) return notify.error(t("Укажите цену", "Narxni kiriting"));
-                upsert.mutate({
-                  priceListId: list.id, productId: picked.id,
-                  price: value, minQuantity: Number(minQuantity) || 1,
-                });
-              }}>
-              <Plus size={15} />
-            </button>
-          </div>
-        </div>
-
-        {detailQ.isLoading ? (
-          <div className="h-10 bg-surface-light animate-pulse rounded mt-3" />
-        ) : items.length === 0 ? (
-          <p style={{ fontSize: "13px", color: COLORS.textTertiary, marginTop: "12px" }}>
-            {t("Пока пусто — цены берутся из карточки товара", "Hozircha bo'sh — narxlar mahsulot kartasidan olinadi")}
-          </p>
-        ) : (
-          <div className="mt-3 space-y-1">
-            {items.map(i => (
-              <div key={i.id} className="flex items-center justify-between" style={{ fontSize: "13px" }}>
-                <span style={{ color: COLORS.textSecondary, minWidth: 0 }} className="truncate">
-                  {i.productName ?? "—"}
-                  {Number(i.minQuantity) > 1 && (
-                    <span style={{ color: COLORS.textTertiary }}> · {t("от", "dan")} {Number(i.minQuantity)}</span>
-                  )}
-                </span>
-                <span className="flex items-center gap-3 shrink-0">
-                  {/* Обычная цена рядом: без неё не видно, скидка это или наценка. */}
-                  <span style={{ color: COLORS.textTertiary, textDecoration: "line-through" }}>
-                    {fmt(Number(i.unitPrice ?? 0))}
-                  </span>
-                  <b style={{ color: COLORS.textPrimary, fontVariantNumeric: "tabular-nums" }}>
-                    {fmt(Number(i.price))}
-                  </b>
-                  <button aria-label={t("Убрать", "Olib tashlash")} className="text-danger"
-                    onClick={() => removeItem.mutate({ id: i.id })}>
-                    <X size={14} />
-                  </button>
-                </span>
-              </div>
-            ))}
-          </div>
-        )}
-      </FieldGroup>
-
-      {/* ── Магазины ───────────────────────────────────────────────────────── */}
-      <FieldGroup>
-        <div className="flex items-center gap-2 mb-3">
-          <Store size={15} style={{ color: COLORS.textTertiary }} />
-          <span style={{ fontFamily: F.display, fontSize: "13px", fontWeight: 600, color: COLORS.textPrimary }}>
-            {t("Кому назначен", "Kimga tayinlangan")}
-          </span>
-        </div>
-
-        <div className="flex gap-2">
-          <div className="flex-1">
-            <PremiumSelect
-              value={shopId}
-              onChange={setShopId}
-              options={shopOptions}
-              placeholder={t("Выберите магазин…", "Do'konni tanlang…")}
-            />
-          </div>
-          <button className="neo-btn-primary" disabled={assign.isPending}
-            onClick={() => {
-              if (!shopId) return notify.error(t("Выберите магазин", "Do'konni tanlang"));
-              assign.mutate({ priceListId: list.id, shopId: Number(shopId) });
-            }}>
-            <Plus size={15} />
-          </button>
-        </div>
-
-        {assignments.length === 0 ? (
-          <p style={{ fontSize: "13px", color: COLORS.textTertiary, marginTop: "12px" }}>
-            {t("Никому не назначен — список ни на что не влияет", "Hech kimga tayinlanmagan — ro'yxat ta'sir qilmaydi")}
-          </p>
-        ) : (
-          <div className="flex flex-wrap gap-2 mt-3">
-            {assignments.map(a => (
-              <span key={a.id} className="inline-flex items-center gap-2 px-2.5 py-1 rounded-lg"
-                style={{ background: COLORS.surfaceLight, fontSize: "13px", color: COLORS.textPrimary }}>
-                {a.shopName ?? `№${a.shopId}`}
-                <button aria-label={t("Отвязать", "Uzish")} className="text-danger"
-                  onClick={() => unassign.mutate({ priceListId: list.id, shopId: a.shopId })}>
-                  <X size={13} />
-                </button>
-              </span>
-            ))}
-          </div>
-        )}
-      </FieldGroup>
     </div>
   );
 }
