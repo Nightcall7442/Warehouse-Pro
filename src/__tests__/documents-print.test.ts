@@ -103,6 +103,43 @@ describe("печатные документы: числа", () => {
     expect(t).toContain("65 000");
   });
 
+  /*
+    Графы приходной включаются по делу: «по накладной» и «разница» — если
+    накладная сверялась, «цена» и «сумма» — если цены есть. Шапка, строки и
+    итог обязаны быть одной ширины при любом наборе — иначе «Сумма» уезжает
+    под «Отметку».
+  */
+  it("приходная: по накладной, разница, цена и сумма; шапка, строки и итог одной ширины", () => {
+    const cols = (row: string) => (row.match(/<t[hd][\s\S]*?<\/t[hd]>/g) ?? [])
+      .reduce((s, c) => s + Number(/colspan="(\d+)"/.exec(c)?.[1] ?? 1), 0);
+    const widths = () => {
+      const table = written.slice(written.indexOf("<thead"), written.indexOf("</tbody>"));
+      return (table.match(/<tr[\s\S]*?<\/tr>/g) ?? []).map(cols);
+    };
+    const base: ArrivalDocData = {
+      number: "ARR-002", date: "24.09.2026", supplier: { name: "Завод" }, receiver: COMPANY, totalQty: 30, currency: "сум",
+      items: [
+        { name: "Сок", unit: "pcs", qty: 22, price: 9000, total: 198000, expectedQty: 24 },
+        { name: "Вода", unit: "pcs", qty: 8, price: 2000, total: 16000, expectedQty: null },
+      ],
+    };
+    printArrivalReceipt(base);
+    const full = widths();
+    expect(new Set(full).size, `графы: ${full.join(", ")}`).toBe(1);
+    expect(full[0]).toBe(9);
+    const t = text();
+    expect(t).toContain("По накладной");
+    expect(t).toContain("-2");
+    expect(t).toContain("214 000 сум");
+
+    written = "";
+    printArrivalReceipt({ ...base, items: base.items.map(i => ({ ...i, expectedQty: undefined, price: 0, total: 0 })) });
+    const bare = widths();
+    expect(new Set(bare).size, `графы: ${bare.join(", ")}`).toBe(1);
+    expect(bare[0]).toBe(5);
+    expect(text()).not.toContain("По накладной");
+  });
+
   it("недовезённое видно в документе, а не только в системе", () => {
     /*
       При частичной доставке quantity строки остаётся заказанным, а subtotal

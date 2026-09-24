@@ -107,7 +107,8 @@ describe("сколько дней осталось", () => {
 describe("данные доходят от формы до базы и обратно", () => {
   // Роутеру остался zod и чтение; проведение прихода живёт в services/arrival.ts.
   const ROUTER = read("api/arrival-router.ts") + read("api/services/arrival.ts");
-  const PAGE = read("src/pages/Arrivals.tsx");
+  // Экран прихода — страница, лист и логика листа (что уходит на сервер).
+  const PAGE = read("src/pages/ArrivalEditor.tsx") + read("src/components/arrivals/ArrivalSheet.tsx") + read("src/lib/arrival-sheet.ts");
 
   it("вход принимает партию и срок", () => {
     expect(ROUTER).toContain("batchNumber: z.string().max(64).optional()");
@@ -140,18 +141,18 @@ describe("данные доходят от формы до базы и обра�
   it("карточка прихода их читает и показывает", () => {
     expect(ROUTER).toContain("ai.batch_number AS batchNumber");
     expect(ROUTER).toContain("DATE_FORMAT(ai.expires_at");
-    expect(PAGE).toContain("item.batchNumber");
-    expect(PAGE).toContain("item.expiresAt");
+    expect(PAGE).toContain("batchNumber: i.batchNumber ?? \"\", expiresAt: i.expiresAt ?? \"\"");
+    expect(PAGE).toContain("r.expiresAt.split(\"-\").reverse().join(\".\")");
   });
 
   it("форма отправляет отсутствие, а не пустую строку", () => {
     // Иначе у половины партий появился бы номер «».
-    expect(PAGE).toContain("i.batchNumber.trim() || undefined");
-    expect(PAGE).toContain("i.expiresAt || undefined");
+    expect(PAGE).toContain("batchNumber: r.batchNumber.trim() || undefined");
+    expect(PAGE).toContain("expiresAt: r.expiresAt || undefined");
   });
 
   it("просроченное на экране называется словом, а не только цветом", () => {
-    expect(PAGE).toContain("просрочен");
+    expect(PAGE).toContain('t("просрочен", "muddati o\'tgan")');
   });
 
   it("экранный счёт дней не ходит через toISOString", () => {
@@ -286,9 +287,8 @@ describe("ожидалось по накладной поставщика", () =
     expect(router).toMatch(/expectedQuantity: z\.string\(\)\.regex\(/);
     expect(readFileSync("api/services/arrival.ts", "utf-8")).toContain("expectedQuantity: item.expectedQuantity ?? null,");
     expect(router).toContain("ai.expected_quantity AS expectedQuantity");
-    const page = readFileSync("src/pages/Arrivals.tsx", "utf-8");
-    expect(page).toContain('expectedQuantity: i.expected.trim() === "" ? undefined : i.expected.trim(),');
-    expect(page).toContain("data-testid={`arrival-detail-expected-${i}`}");
+    expect(readFileSync("src/lib/arrival-sheet.ts", "utf-8")).toContain('expectedQuantity: r.expected.trim() === "" ? undefined : fixed2(r.expected),');
+    expect(readFileSync("src/components/arrivals/ArrivalSheet.tsx", "utf-8")).toContain("data-testid={`arrival-diff-${i}`}");
     expect(readFileSync("db/migrations/0033_arrival_items_expected.sql", "utf-8").trim()).toBe("ALTER TABLE `arrival_items` ADD `expected_quantity` decimal(12,2);");
   });
 });

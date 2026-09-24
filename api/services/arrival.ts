@@ -65,43 +65,72 @@ export interface UpdateArrivalInput {
   notes?: string;
 }
 
-export async function createArrival(db: Db, tenantId: number, userId: number, input: CreateArrivalInput) {
-  /*
-    Срок годности раньше дня прихода — это опечатка, а не товар.
-
-    Проверка здесь, а не в схеме входа: zod видит поля по одному, а сравнить
-    надо с датой самого прихода. Принять такую строку значит завести партию,
-    которая просрочена в момент приёмки, и объяснять потом, откуда она.
-  */
-  for (const item of input.items ?? []) {
-    if (item.expiresAt && item.expiresAt < input.arrivalDate) {
+/**
+ * Проверка строк до записи — одна для создания и для правки.
+ *
+ * Срок годности раньше дня прихода — опечатка, а не товар: zod видит поля
+ * по одному, а сравнить надо с датой самого прихода. Товар — свой: иначе
+ * устаревший productId упирается во внешний ключ arrival_items и уходит
+ * наружу сырой 500 вместо понятного отказа. Один товар — одна строка:
+ * две строки одного товара при проведении дважды двигают остаток и цену,
+ * а разницу с накладной не посчитать.
+ */
+async function assertItems(db: Db, tenantId: number, arrivalDate: string, items: ArrivalItemInput[]): Promise<void> {
+  const seen = new Set<number>();
+  for (const item of items) {
+    if (item.expiresAt && item.expiresAt < arrivalDate) {
       throw new TRPCError({
         code: "BAD_REQUEST",
-        message: `Срок годности ${item.expiresAt} раньше даты прихода ${input.arrivalDate}`,
+        message: `Срок годности ${item.expiresAt} раньше даты прихода ${arrivalDate}`,
       });
     }
+    if (seen.has(item.productId)) {
+      throw new TRPCError({ code: "BAD_REQUEST", message: `Товар #${item.productId} встречается в приходе дважды — объедините строки` });
+    }
+    seen.add(item.productId);
   }
+  if (items.length === 0) return;
+  const existing = await db.select({ id: products.id }).from(products)
+    .where(and(
+      sql`${products.id} IN (${sql.join(items.map(i => sql`${i.productId}`), sql`, `)})`,
+      eq(products.tenantId, tenantId),
+    ));
+  const existingIds = new Set(existing.map(p => p.id));
+  for (const item of items) {
+    if (!existingIds.has(item.productId)) {
+      throw new Error(`Товар #${item.productId} не найден в вашей организации`);
+    }
+  }
+}
+
+type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
+
+async function insertItems(tx: Tx, arrivalId: number, items: ArrivalItemInput[]): Promise<void> {
+  for (const item of items) {
+    await tx.insert(arrivalItems).values({
+      arrivalId,
+      productId: item.productId,
+      quantity: item.quantity,
+      expectedQuantity: item.expectedQuantity ?? null,
+      costPrice: item.costPrice ?? "0.00",
+      sellingPrice: item.sellingPrice ?? "0.00",
+      condition: item.condition ? sanitizeString(item.condition) : undefined,
+      batchNumber: item.batchNumber ? sanitizeString(item.batchNumber) : null,
+      /*
+        Дата уходит строкой, а не Date: колонка DATE времени не хранит,
+        а Date драйвер развернул бы в поясе сервера и мог сдвинуть день.
+        Тот же случай, что с ключом месяца в api/lib/period.ts.
+      */
+      expiresAt: item.expiresAt ? sql`${item.expiresAt}` : null,
+    });
+  }
+}
+
+export async function createArrival(db: Db, tenantId: number, userId: number, input: CreateArrivalInput) {
+  await assertItems(db, tenantId, input.arrivalDate, input.items ?? []);
   const raw = crypto.randomUUID().replace(/-/g, "");
   const arrivalNumber = `ARR-${raw.slice(0, 12).toUpperCase()}`;
   const totalExpense  = (Number(input.fuelCost) + Number(input.tollCost) + Number(input.otherCost)).toFixed(2);
-
-  // Validate every item's product exists in this tenant before inserting —
-  // otherwise a stale/deleted productId hits arrival_items' FK constraint
-  // and surfaces as a raw, unhandled 500 instead of a clear error.
-  if (input.items && input.items.length > 0) {
-    const productIds = input.items.map(i => i.productId);
-    const existing = await db.select({ id: products.id }).from(products)
-      .where(and(
-        sql`${products.id} IN (${sql.join(productIds.map(id => sql`${id}`), sql`, `)})`,
-        eq(products.tenantId, tenantId),
-      ));
-    const existingIds = new Set(existing.map(p => p.id));
-    for (const item of input.items) {
-      if (!existingIds.has(item.productId)) {
-        throw new Error(`Товар #${item.productId} не найден в вашей организации`);
-      }
-    }
-  }
 
   if (input.supplier) {
     // Курс обязателен для долларовой поставки: без него закупку нельзя
@@ -176,32 +205,43 @@ export async function createArrival(db: Db, tenantId: number, userId: number, in
       });
     }
 
-    if (input.items && input.items.length > 0) {
-      for (const item of input.items) {
-        await tx.insert(arrivalItems).values({
-          arrivalId,
-          productId: item.productId,
-          quantity: item.quantity,
-          expectedQuantity: item.expectedQuantity ?? null,
-          costPrice: item.costPrice ?? "0.00",
-          sellingPrice: item.sellingPrice ?? "0.00",
-          condition: item.condition ? sanitizeString(item.condition) : undefined,
-          batchNumber: item.batchNumber ? sanitizeString(item.batchNumber) : null,
-          /*
-            Дата уходит строкой, а не Date: колонка DATE времени не хранит,
-            а Date драйвер развернул бы в поясе сервера и мог сдвинуть день.
-            Тот же случай, что с ключом месяца в api/lib/period.ts.
-          */
-          expiresAt: item.expiresAt ? sql`${item.expiresAt}` : null,
-        });
-      }
-    }
+    await insertItems(tx, arrivalId, input.items ?? []);
 
     return { id: arrivalId, arrivalNumber };
   });
   // «Расходы прихода» считают по дате создания без статуса — сброс уже на создании.
   await invalidateReports(tenantId, "arrival");
   return created;
+}
+
+/**
+ * Строки непроведённого прихода — заменить целиком.
+ *
+ * Замок на строке прихода: проведение (updateArrival → completed) берёт
+ * тот же замок, поэтому правка и проведение не пересекаются — либо строки
+ * заменены до проведения и оно примет новые, либо приход уже проведён, и
+ * правка получает отказ, а не молча меняет документ, по которому остаток
+ * уже принят.
+ */
+export async function setArrivalItems(db: Db, tenantId: number, arrivalId: number, items: ArrivalItemInput[]) {
+  const [head] = await db.select({ arrivalDate: arrivals.arrivalDate }).from(arrivals)
+    .where(and(eq(arrivals.id, arrivalId), eq(arrivals.tenantId, tenantId))).limit(1);
+  if (!head) throw new TRPCError({ code: "NOT_FOUND", message: "Приход не найден" });
+  await assertItems(db, tenantId, dateColumnDay(head.arrivalDate), items);
+
+  await db.transaction(async (tx) => {
+    const [locked] = await tx.select({ status: arrivals.status }).from(arrivals)
+      .where(and(eq(arrivals.id, arrivalId), eq(arrivals.tenantId, tenantId)))
+      .for("update").limit(1);
+    if (!locked) throw new TRPCError({ code: "NOT_FOUND", message: "Приход не найден" });
+    if (locked.status === "completed") {
+      throw new TRPCError({ code: "BAD_REQUEST", message: "Приход уже проведён — остаток по нему принят, строки не правятся" });
+    }
+    await tx.delete(arrivalItems).where(eq(arrivalItems.arrivalId, arrivalId));
+    await insertItems(tx, arrivalId, items);
+  });
+  await invalidateReports(tenantId, "arrival");
+  return { success: true, count: items.length };
 }
 
 export async function updateArrival(db: Db, tenantId: number, input: UpdateArrivalInput, actor?: { id: number; name: string; ip?: string }) {
@@ -298,6 +338,9 @@ export async function updateArrival(db: Db, tenantId: number, input: UpdateArriv
       // Batch update: for each product, update stock in one query
       for (const item of items) {
         const qty = Number(item.quantity);
+        // Строка по накладной, по которой ничего не приехало: остаток не
+        // трогается, цены карточки — тоже (не по чему их менять).
+        if (!(qty > 0)) continue;
         // Остаток по всем складам ДО приёмки и текущая себестоимость — для средней.
         let onHandBefore = 0, oldCost = 0;
         if (costMethod === "average" && Number(item.costPrice ?? 0) > 0) {

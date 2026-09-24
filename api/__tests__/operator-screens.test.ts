@@ -86,7 +86,8 @@ function queriesOf(file: string): Array<{ call: string; args: string }> {
     на странице. «Главная» оператора — не Dashboard: Home уводит его на «Заказы». */
 const OPERATOR_SCREENS = [
   "src/pages/Shops.tsx", "src/pages/ShopDetail.tsx", "src/pages/Orders.tsx", "src/pages/OrderDetail.tsx",
-  "src/pages/Returns.tsx", "src/pages/Warehouse.tsx", "src/pages/Arrivals.tsx", "src/pages/Products.tsx", "src/pages/ProductDetail.tsx",
+  "src/pages/Returns.tsx", "src/pages/Warehouse.tsx", "src/pages/Arrivals.tsx", "src/pages/ArrivalEditor.tsx", "src/pages/Products.tsx", "src/pages/ProductDetail.tsx",
+  "src/components/arrivals/SupplierDebtSection.tsx",
   "src/pages/Reports.tsx", "src/pages/AgentKpi.tsx", "src/pages/Settings.tsx",
   "src/components/reports/ReportFilters.tsx", "src/components/orders/LoadingListsModal.tsx", "src/components/orders/OrderBulkActions.tsx",
   "src/components/orders/OneCExport.tsx", "src/components/orders/OrderMoney.tsx", "src/components/orders/OrderComments.tsx",

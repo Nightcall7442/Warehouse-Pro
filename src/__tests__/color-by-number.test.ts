@@ -87,7 +87,7 @@ function countColours(): { total: number; byFile: Array<[string, number]> } {
  * 862 — 19.09.2026, отчёты склада стали вкладкой: пять плиток с белым значком
  * на заливке ушли, осталась строка оценки.
  */
-const BASELINE = 862;
+const BASELINE = 835;
 
 describe("цвет числом", () => {
   const { total, byFile } = countColours();
