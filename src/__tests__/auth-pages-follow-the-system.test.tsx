@@ -127,7 +127,14 @@ describe("экран входа", () => {
 
   it("слева говорит о системе, а не повторяет приветствие", () => {
     render(<Login />);
-    expect(screen.getByText(/Склад, заказы и долги/)).toBeTruthy();
+    // Надпись о системе стоит дважды в разметке, но видна одна: левая половина
+    // большого экрана и плашка телефона (как вход мобилки v8) — CSS прячет чужую.
+    const about = screen.getAllByText(/Склад, заказы и долги/);
+    expect(about).toHaveLength(2);
+    expect(about.filter(el => el.closest(".auth-hero"))).toHaveLength(1);
+    expect(about.filter(el => el.closest("[data-testid='auth-phone-hero']"))).toHaveLength(1);
+    // Приветствие — только в карточке, ни в одной из плашек.
+    expect(screen.getAllByText(/Добро пожаловать/)).toHaveLength(1);
   });
 
   it("поля вдавлены общим классом, а не своей обводкой", () => {

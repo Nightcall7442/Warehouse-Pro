@@ -18,8 +18,8 @@ import {
   LayoutDashboard, Store, Package, ClipboardList, Truck,
   Warehouse, BarChart3, Users, Settings, PlusCircle, MapPin,
   Calendar, LogOut, X, Moon, Sun, WifiOff, Scan, Activity, RotateCcw,
-  TrendingUp, CreditCard, ChevronLeft, ChevronDown, ChevronRight, Bell, Zap, Wallet, LifeBuoy, BookOpen, Landmark, Shield, ShieldCheck,
-  ShoppingCart,
+  TrendingUp, CreditCard, ChevronDown, ChevronRight, Bell, Zap, Wallet, LifeBuoy, BookOpen, Landmark, Shield, ShieldCheck,
+  ShoppingCart, House, ShoppingBag, LayoutGrid, Clipboard, User, Map as MapIcon, Target, ArrowLeft,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -31,6 +31,9 @@ const iconMap: Record<string, LucideIcon> = {
   RotateCcw,
   // Группа «Продажи» (NAV_GROUPS).
   ShoppingCart,
+  // Значки нижней панели — те же, что у вкладок мобилки (Feather: home,
+  // shopping-bag, grid, clipboard, user, map, target); Lucide — его ветка.
+  House, ShoppingBag, LayoutGrid, Clipboard, User, Map: MapIcon, Target,
 };
 
 /*
@@ -353,38 +356,45 @@ const MobileHeader = memo(function MobileHeader({ onMenuClick, unreadCount }: { 
    * установленном приложении криво». Агентов бьёт сильнее прочих ролей:
    * именно их подталкивают ставить приложение на экран ради офлайн-режима
    * (см. InstallPrompt.tsx), то есть именно они чаще всего в standalone.
+   *
+   * Вид — как PageHeader мобилки v8 (владелец, 24.09.2026: «PWA точно как
+   * мобайл»): заголовок слева жирным, круглые кнопки 36 на поверхности,
+   * холст под шапкой и линия снизу. Заголовок по центру тонким шрифтом
+   * читался как чужой сайт в браузере, а не как приложение.
    */
+  const roundBtn = "neo-btn-icon flex-shrink-0 relative";
+  const roundSize = { width: 36, height: 36, borderRadius: 999 };
   return (
-    <header className="md:hidden flex items-center px-2 sticky top-0 z-40 gap-1 mobile-header-premium h-[calc(56px+env(safe-area-inset-top,0px))] pt-[env(safe-area-inset-top,0px)]">
+    <header className="md:hidden flex items-center px-3 sticky top-0 z-40 gap-2.5 mobile-header-premium h-[calc(56px+env(safe-area-inset-top,0px))] pt-[env(safe-area-inset-top,0px)]">
       {hasParent ? (
-        <button onClick={() => navigate(meta.parentPath!)} className="btn-ghost p-2 flex items-center gap-1">
-          <ChevronLeft size={20} />
+        <button onClick={() => navigate(meta.parentPath!)} className={roundBtn} style={roundSize} aria-label={lang === "uz" ? "Orqaga" : "Назад"}>
+          <ArrowLeft size={18} color="var(--color-text-primary)" />
         </button>
       ) : (
-        <button onClick={onMenuClick} className="btn-ghost p-2" aria-label={lang === "uz" ? "Menyu" : "Меню"}>
-          <div className="flex flex-col gap-[5px]">
-            <span className="block w-[18px] h-[1.5px] rounded" style={{ background: "var(--color-text-primary, #2b2a28)" }} />
-            <span className="block w-[18px] h-[1.5px] rounded" style={{ background: "var(--color-text-primary, #2b2a28)" }} />
-            <span className="block w-[14px] h-[1.5px] rounded" style={{ background: "var(--color-text-primary, #2b2a28)" }} />
+        <button onClick={onMenuClick} className={roundBtn} style={roundSize} aria-label={lang === "uz" ? "Menyu" : "Меню"}>
+          <div className="flex flex-col gap-[4px]">
+            <span className="block w-[16px] h-[1.75px] rounded" style={{ background: "var(--color-text-primary)" }} />
+            <span className="block w-[16px] h-[1.75px] rounded" style={{ background: "var(--color-text-primary)" }} />
+            <span className="block w-[12px] h-[1.75px] rounded" style={{ background: "var(--color-text-primary)" }} />
           </div>
         </button>
       )}
 
-      <div className="flex-1 flex flex-col items-center">
-        <span style={{ fontSize: "15px", fontWeight: 600, color: "var(--color-text-primary, #2b2a28)", letterSpacing: "-0.01em" }}>
+      <div className="flex-1 min-w-0">
+        <p className="truncate" style={{ fontSize: "20px", fontWeight: 800, lineHeight: 1.2, letterSpacing: "-0.02em", color: "var(--color-text-primary)", margin: 0 }}>
           {meta.title || appName}
-        </span>
+        </p>
         {hasParent && (
-          <span style={{ fontSize: "11px", color: "var(--color-text-tertiary, #6b6760)" }}>{meta.parent}</span>
+          <p className="truncate" style={{ fontSize: "11px", lineHeight: 1.3, color: "var(--color-text-tertiary)", margin: 0 }}>{meta.parent}</p>
         )}
       </div>
 
       <OfflineQueueBadge />
 
-      <button onClick={() => navigate("/notifications")} className="btn-ghost p-2 relative">
-        <Bell size={18} />
+      <button onClick={() => navigate("/notifications")} className={roundBtn} style={roundSize} aria-label={lang === "uz" ? "Bildirishnomalar" : "Уведомления"}>
+        <Bell size={17} />
         {unreadCount > 0 && (
-          <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] rounded-full text-white text-[10px] font-bold flex items-center justify-center px-1 shadow-sm" style={{ background: "var(--color-danger-strong)" }}>
+          <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] rounded-full text-white text-[10px] font-bold flex items-center justify-center px-1" style={{ background: "var(--color-danger-strong)" }}>
             {unreadCount > 99 ? "99+" : unreadCount}
           </span>
         )}
@@ -399,68 +409,71 @@ const BOTTOM_NAV: Record<string, Array<{ ru: string; uz: string; path: string; i
     { ru: "Платформа", uz: "Platforma", path: "/super-admin", icon: "Zap", exact: true },
   ],
   ceo: [
-    { ru: "Главная",   uz: "Bosh",      path: "/",          icon: "LayoutDashboard", exact: true },
+    { ru: "Главная",   uz: "Bosh",      path: "/",          icon: "House", exact: true },
     { ru: "KPI",       uz: "KPI",       path: "/agent/kpi",  icon: "BarChart3" },
-    { ru: "Заказы",    uz: "Buyurtma",  path: "/orders",    icon: "ClipboardList" },
-    { ru: "Магазины",  uz: "Do'konlar", path: "/shops",     icon: "Store" },
+    { ru: "Заказы",    uz: "Buyurtma",  path: "/orders",    icon: "Clipboard" },
+    { ru: "Магазины",  uz: "Do'konlar", path: "/shops",     icon: "ShoppingBag" },
     { ru: "Склад",     uz: "Ombor",     path: "/warehouse", icon: "Warehouse" },
-    { ru: "Отчёты",    uz: "Hisobot",   path: "/reports",   icon: "BarChart3" },
+    { ru: "Отчёты",    uz: "Hisobot",   path: "/reports",   icon: "Activity" },
   ],
   operator: [
-    { ru: "Главная",  uz: "Bosh",      path: "/",          icon: "LayoutDashboard", exact: true },
+    { ru: "Главная",  uz: "Bosh",      path: "/",          icon: "House", exact: true },
     { ru: "KPI",      uz: "KPI",       path: "/agent/kpi",  icon: "BarChart3" },
-    { ru: "Заказы",   uz: "Buyurtma",  path: "/orders",    icon: "ClipboardList" },
-    { ru: "Магазины", uz: "Do'konlar", path: "/shops",     icon: "Store" },
+    { ru: "Заказы",   uz: "Buyurtma",  path: "/orders",    icon: "Clipboard" },
+    { ru: "Магазины", uz: "Do'konlar", path: "/shops",     icon: "ShoppingBag" },
     { ru: "Приходы",  uz: "Kirimlar",  path: "/arrivals",  icon: "Truck" },
     { ru: "Склад",    uz: "Ombor",     path: "/warehouse", icon: "Warehouse" },
   ],
-  // Панель агента повторяет мобильное приложение: там у него Главная,
-  // Магазины, Каталог, Заказы, Профиль (app/(tabs)/_layout.tsx в репозитории
-  // Warehouse-Pro-Mobile). «Каталога» и списка своих заказов в вебе не было ни
-  // в панели, ни в боковом меню: цены и остатки агент мог посмотреть только
-  // начав оформлять заказ, а увидеть уже оформленные — вообще никак. KPI убран
-  // по просьбе владельца; экран остаётся доступен по /agent/kpi и по ссылке из
-  // бокового меню.
+  // Панель агента — ровно вкладки мобильного приложения (владелец, 24.09.2026:
+  // «PWA точно как мобайл»): Главная, Магазины, Каталог, Заказы, Профиль —
+  // app/(tabs)/_layout.tsx и src/lib/tabs.ts в репозитории Warehouse-Pro-Mobile.
   //
-  // «Мои заказы» ведут на общий /orders, и это безопасно: OrderService.list
+  // «Заказ» (/orders/new) и «Офлайн» из панели ушли туда же, где они в
+  // мобилке: новый заказ — жёлтая плитка на главной (и пункт бокового меню),
+  // очередь неотправленного — значок в шапке (OfflineQueueBadge), он
+  // появляется сам, как только есть что отправлять или пропала связь.
+  // Сканер и KPI — в боковом меню, как и были.
+  //
+  // «Заказы» ведут на общий /orders, и это безопасно: OrderService.list
   // сам сужает выборку до своих заказов для всех, кроме ceo, operator,
   // supervisor и superadmin (api/services/order.ts), а на самой странице
   // удаление, массовые действия и фильтры по агентам уже закрыты проверкой
   // isOperatorOrCeo. То есть агент видит там только своё и без чужих кнопок.
-  //
-  // «Сканер» уступил ему место и переехал в боковое меню: в мобильном
-  // приложении штрихкод тоже не вкладка, а вызывается с экрана заказа.
   agent: [
-    { ru: "День",       uz: "Kun",        path: "/agent",          icon: "LayoutDashboard", exact: true },
-    { ru: "Магазины",   uz: "Do'konlar",  path: "/agent/shops",    icon: "Store" },
-    { ru: "Каталог",    uz: "Katalog",    path: "/catalog",        icon: "Package" },
-    { ru: "Заказ",      uz: "Buyurtma",   path: "/orders/new",     icon: "PlusCircle" },
-    { ru: "Мои заказы", uz: "Buyurtmalar", path: "/orders",        icon: "ClipboardList" },
-    { ru: "Офлайн",     uz: "Oflayn",     path: "/offline-orders", icon: "WifiOff" },
+    { ru: "Главная",    uz: "Bosh sahifa", path: "/agent",       icon: "House", exact: true },
+    { ru: "Магазины",   uz: "Do'konlar",   path: "/agent/shops", icon: "ShoppingBag" },
+    { ru: "Каталог",    uz: "Katalog",     path: "/catalog",     icon: "LayoutGrid" },
+    { ru: "Заказы",     uz: "Buyurtmalar", path: "/orders",      icon: "Clipboard" },
+    { ru: "Профиль",    uz: "Profil",      path: "/settings",    icon: "User" },
   ],
   // Настройки уехали в боковое меню, как у руководителя: внизу шесть мест, и
   // магазины с заказами нужны в работе чаще, чем смена языка.
   supervisor: [
     { ru: "KPI",       uz: "KPI",       path: "/agent/kpi",       icon: "BarChart3" },
-    { ru: "Карта",     uz: "Xarita",    path: "/supervisor",       icon: "MapPin", exact: true },
+    { ru: "Карта",     uz: "Xarita",    path: "/supervisor",       icon: "Map", exact: true },
     { ru: "Планы",     uz: "Rejalar",   path: "/supervisor/plans", icon: "Calendar" },
-    { ru: "Магазины",  uz: "Do'konlar", path: "/shops",            icon: "Store" },
-    { ru: "Заказы",    uz: "Buyurtma",  path: "/orders",           icon: "ClipboardList" },
-    { ru: "Отчёты",    uz: "Hisobot",   path: "/reports",          icon: "BarChart3" },
+    { ru: "Магазины",  uz: "Do'konlar", path: "/shops",            icon: "ShoppingBag" },
+    { ru: "Заказы",    uz: "Buyurtma",  path: "/orders",           icon: "Clipboard" },
+    { ru: "Отчёты",    uz: "Hisobot",   path: "/reports",          icon: "Activity" },
   ],
+  // Как у мерчендайзера в мобилке: Главная, Магазины, План, Профиль. План
+  // визитов — его работа (отчёт о визите открывается оттуда), прятать её за
+  // боковым меню нельзя.
   merchandiser: [
-    { ru: "День",     uz: "Kun",       path: "/agent",       icon: "LayoutDashboard", exact: true },
-    { ru: "Магазины", uz: "Do'konlar", path: "/agent/shops", icon: "Store" },
-    { ru: "Настройки",uz: "Sozlamalar",path: "/settings",    icon: "Settings" },
+    { ru: "Главная",  uz: "Bosh sahifa", path: "/agent",       icon: "House", exact: true },
+    { ru: "Магазины", uz: "Do'konlar",   path: "/agent/shops", icon: "ShoppingBag" },
+    { ru: "План",     uz: "Reja",        path: "/agent/plans", icon: "Target" },
+    { ru: "Профиль",  uz: "Profil",      path: "/settings",    icon: "User" },
   ],
   // Доставщика тут не было вовсе. Панель при этом всё равно рисовалась — с
   // пустым списком: внизу экрана оставалась глухая полоса в 60 точек, которая
   // закрывала содержимое и никуда не вела. Пункты те же, что в боковом меню
-  // (src/const.ts), чтобы на телефоне и на большом экране было одно и то же.
+  // (src/const.ts), чтобы на телефоне и на большом экране было одно и то же;
+  // «Настройки» названы «Профилем», как вкладка курьера в мобилке.
   courier: [
     { ru: "Доставки",  uz: "Yetkazish",  path: "/deliveries", icon: "Truck", exact: true },
     { ru: "KPI",       uz: "KPI",        path: "/agent/kpi",  icon: "BarChart3" },
-    { ru: "Настройки", uz: "Sozlamalar", path: "/settings",   icon: "Settings" },
+    { ru: "Профиль",   uz: "Profil",     path: "/settings",   icon: "User" },
   ],
 };
 
@@ -496,25 +509,39 @@ const BottomNav = memo(function BottomNav() {
   // строка списка, до которой нельзя дотянуться.
   if (items.length === 0) return null;
 
+  /*
+    Вид — панель вкладок мобилки v8 (app/(tabs)/_layout.tsx): ровная полоса
+    на поверхности с линией сверху, значок 22 на мягкой «подушке» цвета
+    бренда у активной вкладки, подпись 11 — чернилами у активной, тихим
+    цветом у остальных. Была полоска-чёрточка над значком и подписи в 10.
+  */
   return (
     <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bottom-nav-premium" style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
-      <div className="flex h-[60px]">
+      <div className="flex h-[60px] px-1 pt-1">
         {items.map(item => {
           const Icon     = iconMap[item.icon];
           const isActive = item.path === activePath;
+          const label    = lang === "uz" ? item.uz : item.ru;
           return (
             <button
               key={item.path}
+              type="button"
               onClick={() => navigate(item.path)}
-              className="flex-1 flex flex-col items-center justify-center gap-[3px] relative"
-              style={{ color: isActive ? "var(--color-primary-text)" : "var(--color-text-tertiary, #6b6760)" }}
+              aria-current={isActive ? "page" : undefined}
+              aria-label={label}
+              className="flex-1 min-w-0 flex flex-col items-center justify-center active:opacity-60"
             >
-              {isActive && (
-                <span className="absolute top-1.5 left-1/2 -translate-x-1/2 w-5 h-[3px] rounded-full" style={{ background: "var(--color-primary)" }} />
-              )}
-              {Icon && <Icon size={22} />}
-              <span style={{ fontSize: "10px", fontWeight: 500, letterSpacing: "-0.01em" }}>
-                {lang === "uz" ? item.uz : item.ru}
+              <span
+                className="flex items-center justify-center rounded-full"
+                style={{ width: 52, height: 30, background: isActive ? "var(--color-primary-subtle)" : "transparent" }}
+              >
+                {Icon && <Icon size={22} strokeWidth={isActive ? 2.25 : 1.75} color={isActive ? "var(--color-primary-text)" : "var(--color-text-tertiary)"} />}
+              </span>
+              <span
+                className="max-w-full truncate"
+                style={{ fontSize: "11px", lineHeight: "14px", marginTop: 3, fontWeight: isActive ? 600 : 500, color: isActive ? "var(--color-text-primary)" : "var(--color-text-tertiary)" }}
+              >
+                {label}
               </span>
             </button>
           );

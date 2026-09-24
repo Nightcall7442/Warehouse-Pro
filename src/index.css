@@ -119,6 +119,17 @@
        on a raised card, a hair under the minimum. */
     --color-primary-text:    #53637d;  /* 5.21:1 on #efedea */
 
+    /* Главное действие и плашка главной цифры — те же роли, что brand.cta и
+       hero в мобилке v8. На большом экране это просто фирменный цвет; на
+       телефоне светлая тема красит действие жёлтым (блок «Телефон» ниже). */
+    --color-cta:             var(--color-primary);
+    --color-on-cta:          var(--color-on-primary);
+    --color-hero:            var(--color-primary);
+    --color-on-hero:         var(--color-on-primary);
+    --color-on-hero-soft:    color-mix(in srgb, var(--color-on-primary) 78%, transparent);
+    /* Заливка поля ввода: на бумаге — холст (поле «вдавлено»). */
+    --color-field:           var(--color-canvas);
+
     --accent-pink:    #c06080;
     --accent-orange:  #c49530;
     --accent-teal:    #3a9a8a;
@@ -284,6 +295,14 @@
     --color-danger-text:     var(--color-danger);
     --color-primary-text:    var(--color-primary);  /* 6.78:1 on a card */
 
+    /* Тёмная плашка цифры — карточка, а не золото: как hero тёмной мобилки. */
+    --color-cta:             var(--color-primary);
+    --color-on-cta:          var(--color-on-primary);
+    --color-hero:            var(--color-surface);
+    --color-on-hero:         var(--color-text-primary);
+    --color-on-hero-soft:    var(--color-text-secondary);
+    --color-field:           var(--color-canvas);
+
     /* KPI colors — dark mode */
     --kpi-indigo:  #7b94f8;
     --kpi-blue:    #58a8f0;
@@ -402,6 +421,135 @@
   ::selection {
     background: var(--color-primary);
     color: var(--color-text-inverse);
+  }
+
+  /* ══════════════════════════════════════════════════════════════════════
+     ТЕЛЕФОН (PWA) = МОБИЛКА v8
+
+     Владелец, 24.09.2026: «PWA тоже точно как мобайл должен быть». Узкая
+     раскладка — та самая, что ставят на экран как приложение, — берёт
+     палитру мобилки v8 (Warehouse-Pro-Mobile, src/theme.ts):
+
+       · светлая «Финтех»: прохладный холст, белые карточки с мягкой
+         вертикальной тенью, бирюза знака, жёлтое главное действие;
+       · тёмная «Полевой» — это и есть тёмная тема веба; от мобилки ей нужны
+         приглушённые статусы (неон читался дешёвым) и линии вместо теней.
+
+     Большой экран не трогаем: у настольного веба своя тёплая бумага.
+
+     Цвет арендатора по-прежнему сильнее: правило бренда (useBranding) стоит
+     вне слоёв, а всё здесь — внутри @layer base. Поэтому бирюза и жёлтый —
+     только запасные цвета, пока арендатор не выбрал свой.
+
+     Значения повторяют мобилку буквально; сторож — pwa-matches-mobile.test.ts.
+     ══════════════════════════════════════════════════════════════════════ */
+  @media (max-width: 767.98px) {
+    :root:not(.dark) {
+      --background:            160 12% 95%;  /* --color-canvas  #f1f4f3 */
+      --foreground:            171 25% 10%;  /* --color-text-primary #13201e */
+      --card:                  0 0% 100%;
+      --card-foreground:       171 25% 10%;
+      --popover:               0 0% 100%;
+      --popover-foreground:    171 25% 10%;
+      --primary:               174 70% 18%;  /* --color-primary #0e4f49 */
+      --primary-foreground:    0 0% 100%;
+      --secondary:             150 12% 97%;
+      --secondary-foreground:  168 9% 32%;
+      --muted:                 150 12% 97%;
+      --muted-foreground:      168 9% 32%;
+      --accent:                150 12% 97%;
+      --accent-foreground:     168 9% 32%;
+      --destructive:           358 75% 59%;
+      --border:                163 12% 89%;
+      --input:                 163 12% 89%;
+      --ring:                  174 70% 18%;
+
+      --color-canvas:          #f1f4f3;
+      --color-canvas-alt:      #e9eeec;
+      --color-surface:         #ffffff;
+      --color-surface-raised:  #ffffff;
+      --color-surface-light:   #f6f8f7;
+      --color-surface-hover:   #eef2f1;
+
+      --color-border:          #dfe6e4;
+      --color-border-subtle:   #e8eeec;
+      --color-border-custom:   #dfe6e4;
+      --color-border-strong:   #c6d1ce;
+
+      --color-text-primary:    #13201e;  /* 16.8:1 на белом */
+      --color-text-secondary:  #4b5a57;  /* 7.2:1 */
+      --color-text-tertiary:   #5f6d6a;  /* 5.4:1 на белом, 4.9:1 на холсте */
+
+      --color-primary:         #0e4f49;
+      --color-primary-hover:   #16665e;
+      --color-primary-subtle:  rgba(14,79,73,.09);
+      --color-primary-muted:   #8fb5b0;
+      --color-on-primary:      #ffffff;
+      --color-primary-text:    #0e4f49;  /* 9.4:1 на белом */
+
+      --color-cta:             #f5c518;
+      --color-on-cta:          #13201e;  /* 10.3:1 */
+      --color-field:           #ffffff;
+
+      --color-success:         #2bb673;
+      --color-success-subtle:  rgba(43,182,115,.10);
+      --color-warning:         #e0a01a;
+      --color-warning-subtle:  rgba(224,160,26,.12);
+      --color-danger:          #e5484d;
+      --color-danger-subtle:   rgba(229,72,77,.10);
+      --color-info:            #3b82c4;
+      --color-info-subtle:     rgba(59,130,196,.10);
+      --color-info-text:       #2f6ea8;  /* 5.4:1 на белом */
+
+      /* Мягкая вертикальная тень с оттенком бирюзы — drop() мобилки. Пара
+         «блик сверху-слева + тень снизу-справа» здесь не живёт: белая
+         карточка на холсте и так видна. */
+      --shadow-xs:      0 1px 2px rgba(14,79,73,.05);
+      --shadow-sm:      0 2px 6px rgba(14,79,73,.07), 0 1px 2px rgba(14,79,73,.05);
+      --shadow-raised:  0 6px 18px rgba(14,79,73,.08), 0 1px 2px rgba(14,79,73,.05);
+      --shadow-md:      0 8px 22px rgba(14,79,73,.085), 0 1px 2px rgba(14,79,73,.05);
+      --shadow-lg:      0 10px 26px rgba(14,79,73,.09), 0 1px 2px rgba(14,79,73,.05);
+      --shadow-xl:      0 14px 30px rgba(14,79,73,.10), 0 1px 2px rgba(14,79,73,.05);
+      --shadow-pressed: inset 0 0 0 1px #dfe6e4;
+      --shadow-ring:    drop-shadow(0 4px 10px rgba(14,79,73,.12));
+      --shadow-popover: 0 12px 32px rgba(14,79,73,.14), 0 2px 8px rgba(14,79,73,.08);
+    }
+
+    .dark {
+      --destructive:           0 100% 74%;
+
+      --color-success:         #3ddc97;
+      --color-success-subtle:  rgba(61,220,151,.12);
+      --color-warning:         #f0b545;
+      --color-warning-subtle:  rgba(240,181,69,.12);
+      --color-danger:          #ff7a7a;
+      --color-danger-subtle:   rgba(255,122,122,.12);
+      --color-info:            #7cb8e6;
+      --color-info-subtle:     rgba(124,184,230,.12);
+
+      --chart-blue:     #7cb8e6;
+      --chart-cyan:     #7cc6d6;
+      --chart-teal:     #3ddc97;
+      --chart-green:    #3ddc97;
+      --chart-amber:    #f0b545;
+      --chart-orange:   #e8955a;
+      --chart-red:      #ff7a7a;
+      --chart-pink:     #e38fb0;
+      --chart-purple:   #b3a4e8;
+
+      /* Тень на угольном холсте не видна — поверхность отделяет линия цвета
+         рамки. Кольцо в одну точку вместо border: разметка не сдвигается. */
+      --shadow-xs:      0 0 0 1px #322e28;
+      --shadow-sm:      0 0 0 1px #322e28;
+      --shadow-raised:  0 0 0 1px #322e28;
+      --shadow-md:      0 0 0 1px #322e28;
+      --shadow-lg:      0 0 0 1px #322e28;
+      --shadow-xl:      0 0 0 1px #322e28;
+      --shadow-pressed: inset 0 0 0 1px #322e28;
+    }
+
+    /* Цветные пятна за страницей — приём бумажного веба; в приложении их нет. */
+    body::before, body::after { display: none; }
   }
 }
 
@@ -2222,4 +2370,45 @@ select:autofill {
   .card-table td[colspan] { justify-content: center; text-align: center !important; }
   .card-table td > * { min-width: 0; }
   .card-table colgroup { display: none; }
+}
+
+/* ── Телефон (PWA) = мобилка v8: поверхности ─────────────────────────────
+   Токены выше уже перекрасили всё; здесь снимается то, что жило помимо них:
+   блик по верхней грани карточки, диагональный перелив тёмной карточки,
+   ореол под главной кнопкой и «подпрыгивание» от наведения — на телефоне
+   наведение залипает после касания, и карточка так и висит приподнятой.
+   Поле ввода — белое с рамкой, как Input мобилки, а не вдавленное в холст.
+   Шапка и нижняя панель — ровные, как PageHeader и панель вкладок мобилки. */
+@layer components {
+  @media (max-width: 767.98px) {
+    .neo-card, .dark .neo-card,
+    .neo-card-sm, .dark .neo-card-sm,
+    .kpi-hero, .dark .kpi-hero,
+    .kpi-card, .dark .kpi-card {
+      background: var(--color-surface);
+      border-color: transparent;
+    }
+    .neo-card::before, .dark .neo-card::before,
+    .kpi-hero::before, .dark .kpi-hero::before { display: none; }
+
+    .neo-card:not(.neo-card-static):hover, .neo-card-sm:hover,
+    .kpi-hero:hover, .kpi-card:hover,
+    .neo-btn:hover, .neo-btn-icon:hover, .neo-btn-primary:hover { transform: none; }
+
+    .neo-btn-primary, .neo-btn-primary:hover, .dark .neo-btn-primary { box-shadow: none; }
+    .dark .neo-btn { background: var(--color-surface-light); }
+
+    .neo-input, .neo-field { background: var(--color-field); }
+
+    .bottom-nav-premium, .dark .bottom-nav-premium {
+      background: var(--color-surface);
+      box-shadow: none;
+      border-top: 1px solid var(--color-border-subtle);
+    }
+    .mobile-header-premium, .dark .mobile-header-premium {
+      background: var(--color-canvas);
+      box-shadow: none;
+      border-bottom: 1px solid var(--color-border);
+    }
+  }
 }

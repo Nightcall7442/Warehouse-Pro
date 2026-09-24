@@ -111,17 +111,34 @@ export function AuthShell({ title, subtitle, children, footer }: {
       </div>
 
       {/* ── Правая половина ──────────────────────────────────────────────── */}
-      <div style={{
-        flex: 1, display: "flex", flexDirection: "column", alignItems: "center",
-        justifyContent: "center", padding: "40px 24px", minWidth: 0,
-      }}>
-        <div className="animate-fade-up" style={{ width: "100%", maxWidth: "412px" }}>
-          {/* Вывеска над карточкой — только там, где левой половины нет. */}
-          <div className="lg:hidden" style={{ display: "flex", justifyContent: "center", marginBottom: "28px" }}>
+      <div className="flex-1 min-w-0 flex flex-col items-center justify-start md:justify-center pb-8 md:py-10 md:px-6">
+        {/*
+          Телефон — как вход мобилки v8 (app/(auth)/login.tsx): плашка hero во
+          всю ширину (бирюза в светлой теме, карточка в тёмной) с вывеской и
+          крупной надписью, форма наезжает на неё снизу. Владелец, 24.09.2026:
+          «PWA точно как мобайл».
+        */}
+        <div
+          className="md:hidden w-full"
+          style={{ background: "var(--color-hero)", color: "var(--color-on-hero)", padding: "calc(env(safe-area-inset-top, 0px) + 36px) 24px 60px" }}
+          data-testid="auth-phone-hero"
+        >
+          <AppBrand size={32} onDark signedIn={false} color="var(--color-on-hero)" />
+          <h1 style={{ fontSize: "30px", fontWeight: 800, lineHeight: 1.15, letterSpacing: "-0.03em", color: "var(--color-on-hero)", margin: "28px 0 0", whiteSpace: "pre-line" }}>
+            {heroTitle}
+          </h1>
+          <p style={{ fontSize: "14px", lineHeight: 1.55, color: "var(--color-on-hero-soft)", margin: "12px 0 0" }}>
+            {heroSubtitle}
+          </p>
+        </div>
+
+        <div className="animate-fade-up w-full px-4 md:px-0 -mt-8 md:mt-0" style={{ maxWidth: "412px" }}>
+          {/* Вывеска над карточкой — только там, где левой половины нет, а на телефоне она в плашке. */}
+          <div className="hidden md:flex lg:hidden" style={{ justifyContent: "center", marginBottom: "28px" }}>
             <AppBrand size={34} signedIn={false} color="var(--color-text-primary)" />
           </div>
 
-          <div className="neo-card neo-card-static" style={{ padding: "36px 32px" }}>
+          <div className="neo-card neo-card-static px-6 py-7 md:px-8 md:py-9">
             <h2 style={{
               fontSize: "25px", fontWeight: 700, letterSpacing: "-0.025em",
               color: "var(--color-text-primary)", margin: "0 0 6px",

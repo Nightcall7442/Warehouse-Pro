@@ -17,7 +17,12 @@ const read = (p: string) => fs.readFileSync(path.resolve(process.cwd(), p), "utf
 
 describe("акцент арендатора", () => {
   it("в таблице объявлен для светлой и тёмной темы", () => {
-    const css = read("src/index.css");
+    const full = read("src/index.css");
+    // Телефонный блок (PWA = мобилка v8) — отдельный разговор, его сторожит
+    // pwa-matches-mobile.test.ts; здесь — темы большого экрана.
+    const phoneAt = full.indexOf("ТЕЛЕФОН (PWA) = МОБИЛКА v8");
+    expect(phoneAt, "телефонный блок не найден — разбор ниже считал бы не то").toBeGreaterThan(0);
+    const css = full.slice(0, phoneAt);
     const at = [...css.matchAll(/--color-primary:\s*(#[0-9a-fA-F]{6})/g)].map((m) => m[1]);
     // Ровно два значения: одно в :root, другое в .dark. Если останется одно —
     // одна из тем потеряла свой акцент.

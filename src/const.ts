@@ -95,6 +95,10 @@ export const NAV_ITEMS: Record<string, NavItem[]> = {
     { labelKey: "nav.products",   path: "/products",       icon: "Package"         },
     { labelKey: "nav.newOrder",   path: "/orders/new",     icon: "PlusCircle"      },
     { labelKey: "nav.myOrders",   path: "/orders",         icon: "ClipboardList"   },
+    // Очередь неотправленного: вкладкой внизу она больше не стоит (панель —
+    // как в мобилке), значок в шапке появляется только при деле. Здесь —
+    // постоянная дверь.
+    { labelKey: "nav.offline",    path: "/offline-orders", icon: "WifiOff"         },
     { labelKey: "nav.barcode",    path: "/barcode",        icon: "Scan"            },
     { labelKey: "nav.gps",        path: "/agent/gps",      icon: "MapPin"          },
     { labelKey: "nav.settings",   path: "/settings",       icon: "Settings"        },
