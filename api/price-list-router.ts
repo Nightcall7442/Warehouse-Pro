@@ -204,6 +204,63 @@ export const priceListRouter = createRouter({
       return { success: true };
     }),
 
+  /*
+    Цены списка — пачкой из сетки: товар → цена от одной штуки или null
+    (убрать, товар снова по правилу списка или карточке). Ступени «от N
+    штук» сетка не трогает — они правятся по одной (upsertItem/removeItem).
+    Один журнальный след на сохранение: был, стал — по каждому товару.
+  */
+  setItems: operatorQuery.use(can("prices.manage"))
+    .input(z.object({
+      priceListId: z.number(),
+      items: z.array(z.object({ productId: z.number(), price: z.number().min(0, "Цена не может быть отрицательной").nullable() })).max(20000),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const db = getDb();
+      const tenantId = ctx.tenant.id;
+      const [list] = await db.select({ id: priceLists.id }).from(priceLists)
+        .where(and(eq(priceLists.id, input.priceListId), eq(priceLists.tenantId, tenantId))).limit(1);
+      if (!list) throw new Error("Прайс-лист не найден");
+      const ids = [...new Set(input.items.map(i => i.productId))];
+      if (ids.length !== input.items.length) throw new Error("Товар встречается дважды");
+      if (ids.length === 0) return { success: true, set: 0, cleared: 0 };
+      await assertProductsBelongToTenant(db, tenantId, ids);
+
+      const changes = await db.transaction(async (tx) => {
+        const current = await tx.select({ id: priceListItems.id, productId: priceListItems.productId, price: priceListItems.price })
+          .from(priceListItems)
+          .where(and(eq(priceListItems.priceListId, input.priceListId), inArray(priceListItems.productId, ids), sql`${priceListItems.minQuantity} <= 1`));
+        const byProduct = new Map(current.map(r => [Number(r.productId), r]));
+        const log: Array<{ productId: number; was: string | null; now: string | null }> = [];
+        for (const item of input.items) {
+          const was = byProduct.get(item.productId);
+          if (item.price == null) {
+            if (!was) continue;
+            await tx.delete(priceListItems).where(eq(priceListItems.id, was.id));
+            log.push({ productId: item.productId, was: was.price, now: null });
+            continue;
+          }
+          const now = item.price.toFixed(2);
+          if (was) {
+            if (Number(was.price).toFixed(2) === now) continue;
+            await tx.update(priceListItems).set({ price: now }).where(eq(priceListItems.id, was.id));
+          } else {
+            await tx.insert(priceListItems).values({ priceListId: input.priceListId, productId: item.productId, price: now, minQuantity: "1.00" });
+          }
+          log.push({ productId: item.productId, was: was?.price ?? null, now });
+        }
+        return log;
+      });
+      if (changes.length > 0) {
+        await recordAudit(db, {
+          ...auditActor(ctx), action: "price_list.items_set", targetType: "price_list", targetId: input.priceListId,
+          // Журнал — не выгрузка: первые двести строк, счёт — полный.
+          meta: { count: changes.length, changes: changes.slice(0, 200) },
+        });
+      }
+      return { success: true, set: changes.filter(c => c.now != null).length, cleared: changes.filter(c => c.now == null).length };
+    }),
+
   // Remove item from price list
   removeItem: operatorQuery.use(can("prices.manage"))
     .input(z.object({ id: z.number() }))
@@ -223,68 +280,66 @@ export const priceListRouter = createRouter({
       return { success: true };
     }),
 
-  // Assign price list to shop
-  assignShop: operatorQuery.use(can("prices.manage"))
-    .input(z.object({
-      priceListId: z.number(),
-      shopId: z.number(),
-    }))
+  /*
+    Магазины списка — одним сохранением, а не по одному.
+
+    Магазин живёт в одном списке (как в карточке магазина, setForShop):
+    отмеченный здесь уходит из прежнего, снятый — остаётся без списка и
+    получает цены карточки. Раньше магазины привязывались по одному
+    выпадающим списком, и сто магазинов оптового канала — это сто кликов.
+  */
+  setShops: operatorQuery.use(can("prices.manage"))
+    .input(z.object({ priceListId: z.number(), shopIds: z.array(z.number().int().positive()).max(20000) }))
     .mutation(async ({ input, ctx }) => {
       const db = getDb();
       const tenantId = ctx.tenant.id;
-
-      // Verify price list belongs to tenant
-      const [priceList] = await db.select({ id: priceLists.id })
-        .from(priceLists)
-        .where(and(eq(priceLists.id, input.priceListId), eq(priceLists.tenantId, tenantId)))
-        .limit(1);
-      if (!priceList) throw new Error("Прайс-лист не найден");
-
-      // Verify shop belongs to tenant
-      const [shop] = await db.select({ id: shops.id })
-        .from(shops)
-        .where(and(eq(shops.id, input.shopId), eq(shops.tenantId, tenantId)))
-        .limit(1);
-      if (!shop) throw new Error("Магазин не найден");
-
-      await db.insert(priceListAssignments).values({
-        priceListId: input.priceListId,
-        shopId: input.shopId,
+      const [list] = await db.select({ id: priceLists.id }).from(priceLists)
+        .where(and(eq(priceLists.id, input.priceListId), eq(priceLists.tenantId, tenantId))).limit(1);
+      if (!list) throw new Error("Прайс-лист не найден");
+      const wanted = [...new Set(input.shopIds)];
+      if (wanted.length > 0) {
+        const own = await db.select({ id: shops.id }).from(shops)
+          .where(and(eq(shops.tenantId, tenantId), inArray(shops.id, wanted)));
+        if (own.length !== wanted.length) throw new Error("Магазин не найден");
+      }
+      const tenantLists = db.select({ id: priceLists.id }).from(priceLists).where(eq(priceLists.tenantId, tenantId));
+      const result = await db.transaction(async (tx) => {
+        const before = await tx.select({ shopId: priceListAssignments.shopId }).from(priceListAssignments)
+          .where(eq(priceListAssignments.priceListId, input.priceListId));
+        const had = new Set(before.map(r => Number(r.shopId)));
+        // Снятые — вон из этого списка.
+        const removed = [...had].filter(id => !wanted.includes(id));
+        if (removed.length > 0) {
+          await tx.delete(priceListAssignments).where(and(
+            eq(priceListAssignments.priceListId, input.priceListId), inArray(priceListAssignments.shopId, removed)));
+        }
+        // Отмеченные — из прежних списков организации сюда.
+        const added = wanted.filter(id => !had.has(id));
+        let moved = 0;
+        if (added.length > 0) {
+          const elsewhere = await tx.select({ shopId: priceListAssignments.shopId }).from(priceListAssignments)
+            .where(and(inArray(priceListAssignments.shopId, added), inArray(priceListAssignments.priceListId, tenantLists)));
+          moved = new Set(elsewhere.map(r => Number(r.shopId))).size;
+          await tx.delete(priceListAssignments).where(and(inArray(priceListAssignments.shopId, added), inArray(priceListAssignments.priceListId, tenantLists)));
+          await tx.insert(priceListAssignments).values(added.map(shopId => ({ priceListId: input.priceListId, shopId })));
+        }
+        return { added: added.length, removed: removed.length, moved };
       });
-      return { success: true };
+      await recordAudit(db, {
+        ...auditActor(ctx), action: "price_list.shops_set", targetType: "price_list", targetId: input.priceListId,
+        meta: { total: wanted.length, ...result },
+      });
+      return { success: true, ...result };
     }),
 
-  // Unassign price list from shop
-  unassignShop: operatorQuery.use(can("prices.manage"))
-    .input(z.object({
-      priceListId: z.number(),
-      shopId: z.number(),
-    }))
-    .mutation(async ({ input, ctx }) => {
-      const db = getDb();
-      const tenantId = ctx.tenant.id;
-
-      // Verify price list belongs to tenant
-      const [priceList] = await db.select({ id: priceLists.id })
-        .from(priceLists)
-        .where(and(eq(priceLists.id, input.priceListId), eq(priceLists.tenantId, tenantId)))
-        .limit(1);
-      if (!priceList) throw new Error("Прайс-лист не найден");
-
-      // Verify shop belongs to tenant
-      const [shop] = await db.select({ id: shops.id })
-        .from(shops)
-        .where(and(eq(shops.id, input.shopId), eq(shops.tenantId, tenantId)))
-        .limit(1);
-      if (!shop) throw new Error("Магазин не найден");
-
-      await db.delete(priceListAssignments)
-        .where(and(
-          eq(priceListAssignments.priceListId, input.priceListId),
-          eq(priceListAssignments.shopId, input.shopId),
-        ));
-      return { success: true };
-    }),
+  /** Какой список у какого магазина — чтобы при назначении видеть, откуда магазин уйдёт. */
+  shopMap: supervisorQuery.query(async ({ ctx }) => {
+    const db = getDb();
+    return db.select({ shopId: priceListAssignments.shopId, priceListId: priceListAssignments.priceListId })
+      .from(priceListAssignments)
+      .innerJoin(priceLists, eq(priceListAssignments.priceListId, priceLists.id))
+      .where(eq(priceLists.tenantId, ctx.tenant.id));
+  }),
 
   // Get price for product in shop (checks all applicable price lists)
   getPrice: authedQuery

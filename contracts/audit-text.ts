@@ -93,6 +93,8 @@ export const AUDIT_ACTION_LABEL: Record<string, Label> = {
   "payment.reverse": { ru: "Оплата отменена", uz: "To'lov bekor qilindi" },
   "order.closed": { ru: "Расчёт по заказу закрыт", uz: "Buyurtma hisob-kitobi yopildi" },
   "price_list.shop_set": { ru: "Магазину назначен прайс-лист", uz: "Do'konga narxlar ro'yxati belgilandi" },
+  "price_list.shops_set": { ru: "Магазины прайс-листа", uz: "Narxlar ro'yxati do'konlari" },
+  "price_list.items_set": { ru: "Цены прайс-листа", uz: "Narxlar ro'yxati narxlari" },
   "payment.bank_confirm": { ru: "Безнал подтверждён выпиской", uz: "Naqdsiz to'lov ko'chirma bilan tasdiqlandi" },
   "return.status": { ru: "Возврат: смена статуса", uz: "Qaytarish: holat o'zgardi" },
   "shop.credit_limit_changed": { ru: "Изменён кредитный лимит магазина", uz: "Do'kon kredit limiti o'zgartirildi" },

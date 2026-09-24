@@ -37,6 +37,7 @@ const NewOrderReviewStep   = lazyWithRecovery(() => import("./pages/NewOrder").t
 const OrderDetail          = lazyWithRecovery(() => import("./pages/OrderDetail"));
 const Warehouse            = lazyWithRecovery(() => import("./pages/Warehouse"));
 const Arrivals             = lazyWithRecovery(() => import("./pages/Arrivals"));
+const PriceListEditor      = lazyWithRecovery(() => import("./pages/PriceListEditor"));
 const Reports              = lazyWithRecovery(() => import("./pages/Reports"));
 const Users                = lazyWithRecovery(() => import("./pages/Users"));
 const AgentDashboard       = lazyWithRecovery(() => import("./pages/AgentDashboard"));
@@ -216,6 +217,7 @@ export default function App() {
           <Route path="/orders/:id"     element={<RoleGuard roles={["ceo","operator","supervisor","agent","merchandiser"]}><OrderDetail /></RoleGuard>} />
           <Route path="/warehouse"      element={<RoleGuard roles={["ceo","operator"]}><Warehouse /></RoleGuard>} />
           <Route path="/arrivals"       element={<RoleGuard roles={["ceo","operator"]}><Arrivals /></RoleGuard>} />
+          <Route path="/price-lists/:id" element={<RoleGuard roles={["ceo","operator"]}><PriceListEditor /></RoleGuard>} />
           {/* Настройки открыты всем: внутри каждый видит только свои разделы
               (см. SECTIONS в pages/Settings.tsx). Раньше маршрут был закрыт
               для всех, кроме ceo и operator, а пункт «Настройки» показывался
