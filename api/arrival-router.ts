@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { createRouter, operatorQuery, can } from "./middleware";
-import { createArrival, updateArrival, deleteArrival } from "./services/arrival";
+import { createArrival, updateArrival, deleteArrival, setArrivalItems } from "./services/arrival";
 import { arrivals } from "@db/schema";
 import { eq, and, sql, desc } from "drizzle-orm";
 import { decimalOrDefault } from "./lib/zod-decimal";
@@ -21,7 +21,32 @@ type ArrivalItemRow = {
   expectedQuantity: string | null;
   batchNumber:  string | null;
   expiresAt:    string | null;
+  unit:         string | null;
+  unitWeight:   string | null;
+  packSize:     string | null;
+  packLabel:    string | null;
 };
+
+/*
+  Строка прихода — одна схема на создание и на правку.
+
+  Количество может быть нулём, если заполнено «по накладной»: приход
+  заводят по бумаге поставщика до разгрузки, а сколько приехало на самом
+  деле, вписывают потом, в документе. Строка без того и другого смысла не
+  имеет и отвергается. При проведении строки с нулём пропускаются —
+  ничего не приехало, остаток не трогается.
+*/
+const arrivalItemInput = z.object({
+  productId: z.number(),
+  quantity: z.string().regex(/^\d+(\.\d{1,2})?$/, "Количество — неотрицательное число"),
+  // По накладной поставщика; необязательно. Ноль допустим: ждали, не приехало вовсе.
+  expectedQuantity: z.string().regex(/^\d+(\.\d{1,2})?$/, "Ожидалось — число").optional(),
+  costPrice: decimalOrDefault("0.00").optional(),
+  sellingPrice: decimalOrDefault("0.00").optional(),
+  condition: z.string().optional(),
+  batchNumber: z.string().max(64).optional(),
+  expiresAt: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Срок годности задаётся как ГГГГ-ММ-ДД").optional(),
+}).refine(i => Number(i.quantity) > 0 || i.expectedQuantity != null, "В строке нет ни количества, ни «по накладной»");
 
 export const arrivalRouter = createRouter({
   list: operatorQuery
@@ -88,10 +113,10 @@ export const arrivalRouter = createRouter({
       if (!arrival) return null;
 
       // Always use raw SQL for items — avoids Drizzle referencing non-existent columns
-      let items: Array<{ id: number; productId: number; quantity: number; expectedQuantity: number | null; condition: string; notes: string; productName: string; productCode: string; barcode: string | null; costPrice: string; sellingPrice: string; batchNumber: string | null; expiresAt: string | null }>;
+      let items: Array<{ id: number; productId: number; quantity: number; expectedQuantity: number | null; condition: string; notes: string; productName: string; productCode: string; barcode: string | null; costPrice: string; sellingPrice: string; batchNumber: string | null; expiresAt: string | null; unit: string | null; unitWeight: string | null; packSize: string | null; packLabel: string | null }>;
       try {
         // p.barcode — для печати этикеток по приходу: на них штрих-код поставщика, если есть.
-        const result = await db.execute(sql`SELECT ai.id, ai.product_id AS productId, ai.quantity, ai.expected_quantity AS expectedQuantity, ai.condition, ai.notes, ai.cost_price AS costPrice, ai.selling_price AS sellingPrice, ai.batch_number AS batchNumber, DATE_FORMAT(ai.expires_at, '%Y-%m-%d') AS expiresAt, p.name AS productName, p.code AS productCode, p.barcode AS barcode FROM arrival_items ai LEFT JOIN products p ON ai.product_id = p.id WHERE ai.arrival_id = ${arrival.id}`);
+        const result = await db.execute(sql`SELECT ai.id, ai.product_id AS productId, ai.quantity, ai.expected_quantity AS expectedQuantity, ai.condition, ai.notes, ai.cost_price AS costPrice, ai.selling_price AS sellingPrice, ai.batch_number AS batchNumber, DATE_FORMAT(ai.expires_at, '%Y-%m-%d') AS expiresAt, p.name AS productName, p.code AS productCode, p.barcode AS barcode, p.unit AS unit, p.unit_weight AS unitWeight, p.pack_size AS packSize, p.pack_label AS packLabel FROM arrival_items ai LEFT JOIN products p ON ai.product_id = p.id WHERE ai.arrival_id = ${arrival.id} ORDER BY ai.id`);
         const [rows] = result as unknown as [ArrivalItemRow[], unknown];
         items = Array.isArray(rows) ? rows.map(r => ({
           id: Number(r.id),
@@ -109,6 +134,11 @@ export const arrivalRouter = createRouter({
           // срока годности нет вовсе, и экран должен различать эти два случая.
           batchNumber: r.batchNumber ?? null,
           expiresAt: r.expiresAt ?? null,
+          // Для сетки документа: единица, вес и упаковка товара.
+          unit: r.unit ?? null,
+          unitWeight: r.unitWeight == null ? null : String(r.unitWeight),
+          packSize: r.packSize == null ? null : String(r.packSize),
+          packLabel: r.packLabel ?? null,
         })) : [];
       } catch {
         items = [];
@@ -138,17 +168,7 @@ export const arrivalRouter = createRouter({
         единственный момент, когда его вообще можно записать: на остатке лежит
         одно число на товар, без памяти о том, какими партиями оно набралось.
       */
-      items:       z.array(z.object({
-        productId: z.number(),
-        quantity: z.string().refine(v => Number(v) > 0, "Количество должно быть положительным"),
-        // По накладной поставщика; необязательно. Ноль допустим: ждали, не приехало вовсе.
-        expectedQuantity: z.string().regex(/^\d+(\.\d{1,2})?$/, "Ожидалось — число").optional(),
-        costPrice: decimalOrDefault("0.00").optional(),
-        sellingPrice: decimalOrDefault("0.00").optional(),
-        condition: z.string().optional(),
-        batchNumber: z.string().max(64).optional(),
-        expiresAt: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Срок годности задаётся как ГГГГ-ММ-ДД").optional(),
-      })).optional(),
+      items:       z.array(arrivalItemInput).max(2000).optional(),
       // Долг перед поставщиком, привязанный к этому приходу. Опционален
       // целиком: обычный приход без учёта задолженности не заполняет это
       // поле вовсе. Ровно один способ назвать поставщика — supplierId ИЛИ
@@ -182,6 +202,15 @@ export const arrivalRouter = createRouter({
       notes:       z.string().optional(),
     }))
     .mutation(({ input, ctx }) => updateArrival(ctx.db, ctx.tenant.id, input, { id: ctx.user.id, name: ctx.user.name, ip: auditActor(ctx).ip })),
+
+  /*
+    Строки документа целиком — пока приход не проведён. Так вписывают
+    «сколько пришло» при разгрузке, добавляют забытую позицию, правят
+    цену. Проведённый приход не правится: остаток по нему уже принят.
+  */
+  setItems: operatorQuery.use(can("suppliers.manage"))
+    .input(z.object({ id: z.number(), items: z.array(arrivalItemInput).max(2000) }))
+    .mutation(({ input, ctx }) => setArrivalItems(ctx.db, ctx.tenant.id, input.id, input.items)),
 
   delete: operatorQuery.use(can("suppliers.manage"))
     .input(z.object({ id: z.number() }))

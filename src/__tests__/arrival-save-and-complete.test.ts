@@ -6,29 +6,43 @@ import { join } from "node:path";
  * Приход: «Сохранить и завершить» и честная подпись про остаток.
  *
  * «Сохранить» заводит приход ожидающим, и остаток не меняется, пока его не
- * завершат в списке. Нигде это сказано не было — оператор искал, куда делся
- * товар. Теперь под формой подпись, а вторая кнопка делает оба шага теми же
- * двумя ручками, что и руками: arrival.create, затем arrival.update со
- * статусом completed. Новых ручек нет — страж мёртвой поверхности держит ноль.
+ * завершат. Вторая кнопка делает оба шага теми же двумя ручками, что и
+ * руками: arrival.create, затем arrival.update со статусом completed.
+ * Сохранённый приход открывается документом (/arrivals/:id), а не окном.
  */
 const read = (p: string) => readFileSync(join(process.cwd(), p), "utf8").replace(/\r\n/g, "\n");
 const strip = (code: string) =>
   code.replace(/\/\*[\s\S]*?\*\//g, " ").replace(/(^|[^:])\/\/.*$/gm, "$1");
 
-const PAGE = strip(read("src/pages/Arrivals.tsx"));
+const PAGE = strip(read("src/pages/ArrivalEditor.tsx"));
 
-describe("форма прихода", () => {
+describe("новый приход", () => {
   it("две кнопки: сохранить и сохранить-и-завершить, обе двуязычные", () => {
-    expect(PAGE).toContain('{ complete: false, label: t("Сохранить", "Saqlash")');
-    expect(PAGE).toContain('{ complete: true,  label: t("Сохранить и завершить", "Saqlash va yakunlash")');
-    expect(PAGE, "признак завершения не доходит до onSave").toContain("}, b.complete)}");
+    expect(PAGE).toContain('onClick={() => void saveNew(false)}');
+    expect(PAGE).toContain('onClick={() => void saveNew(true)}');
+    expect(PAGE).toContain('t("Сохранить", "Saqlash")');
+    expect(PAGE).toContain('t("Сохранить и завершить", "Saqlash va yakunlash")');
   });
 
-  it("завершение — тем же update({status: completed}), что и «Завершить» в списке, после create", () => {
-    expect(PAGE).toMatch(/createMutation\.mutate\(d, complete \? \{ onSuccess: \(r\) => updateStatus\.mutate\(\{ id: r\.id, status: "completed" \}\) \} : undefined\)/);
+  it("завершение — тем же update({status: completed}) после create, затем в документ", () => {
+    const at = PAGE.indexOf("const saveNew = async");
+    const body = PAGE.slice(at, PAGE.indexOf("const saveDoc = async"));
+    expect(body).toContain("await createMutation.mutateAsync(");
+    expect(body).toContain('if (complete) await updateStatus.mutateAsync({ id: r.id, status: "completed" });');
+    expect(body.indexOf("createMutation.mutateAsync")).toBeLessThan(body.indexOf('status: "completed"'));
+    expect(body).toContain("navigate(`/arrivals/${r.id}`, { replace: true });");
   });
 
-  it("под формой сказано, что остаток изменится после завершения", () => {
+  it("под кнопками сказано, что остаток изменится после завершения", () => {
     expect(PAGE).toContain('t("Остаток на складе изменится после завершения прихода.", "Ombordagi qoldiq kelish yakunlangandan keyin o\'zgaradi.")');
+  });
+
+  it("список ведёт на страницу, а не в окно", () => {
+    const list = strip(read("src/pages/Arrivals.tsx"));
+    expect(list).toContain('onClick={() => navigate("/arrivals/new")}');
+    expect(list).toContain("onClick={() => navigate(`/arrivals/${a.id}`)}");
+    expect(list).not.toContain("ArrivalForm");
+    expect(list).not.toContain("createPortal");
+    expect(read("src/App.tsx")).toContain('<Route path="/arrivals/:id"   element={<RoleGuard roles={["ceo","operator"]}><ArrivalEditor /></RoleGuard>} />');
   });
 });
