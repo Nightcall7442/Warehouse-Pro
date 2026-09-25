@@ -46,6 +46,11 @@
       "file": "ru/web-operator-products.webp"
     },
     {
+      "key": "web/operator/product-detail",
+      "lang": "ru",
+      "file": "ru/web-operator-product-detail.webp"
+    },
+    {
       "key": "web/supervisor/map",
       "lang": "ru",
       "file": "ru/web-supervisor-map.webp"
@@ -104,6 +109,11 @@
       "key": "web/operator/products",
       "lang": "uz",
       "file": "uz/web-operator-products.webp"
+    },
+    {
+      "key": "web/operator/product-detail",
+      "lang": "uz",
+      "file": "uz/web-operator-product-detail.webp"
     },
     {
       "key": "web/supervisor/map",
