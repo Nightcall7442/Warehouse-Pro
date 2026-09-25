@@ -37,6 +37,27 @@ test.describe("телефон", () => {
     expect(box.right, "кольцо вылезло за экран").toBeLessThanOrEqual(box.screen);
   });
 
+  test("шапка лендинга: «Ру/Uz» и меню — цели в 44 точки и нажимаются", async ({ page }) => {
+    // 25.09.2026: «в браузере телефона эти кнопки не нажимаются, особенно в
+    // айфонах». Строку состояния iPhone здесь не воспроизвести (у Chromium
+    // нет safe-area), её стережёт landing-header-tappable; здесь — размер и
+    // то, что по центру кнопки лежит сама кнопка, а не чужой слой.
+    await page.goto("/");
+    const uz = page.locator("nav button:visible", { hasText: /^uz$/i });
+    const menu = page.locator("nav button:visible[aria-label]");
+    for (const b of [uz, menu]) {
+      const box = (await b.boundingBox())!;
+      expect(box.height, "цель касания ниже 44 точек").toBeGreaterThanOrEqual(44);
+      expect(box.width, "цель касания уже 44 точек").toBeGreaterThanOrEqual(44);
+      const onTop = await b.evaluate(el => { const r = el.getBoundingClientRect(); return el.contains(document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2)); });
+      expect(onTop, "кнопку накрывает другой слой").toBe(true);
+    }
+    await uz.tap();
+    await expect(uz).toHaveAttribute("aria-pressed", "true");
+    await menu.tap();
+    await expect(page.locator("nav button:visible", { hasText: /^(Войти|Kirish)$/ })).toBeVisible();
+  });
+
   test("заказы: сумма в карточке одной строкой и на экране", async ({ page }) => {
     await login(page, "ceo");
     await page.goto("/orders");

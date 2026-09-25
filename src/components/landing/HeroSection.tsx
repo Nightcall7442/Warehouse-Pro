@@ -115,7 +115,7 @@ export default function HeroSection() {
   );
 
   return (
-    <section className="relative flex flex-col pt-24 md:pt-32 pb-14 md:pb-10" style={{ minHeight: "calc(100vh / var(--lx-zoom, 1))" }}>
+    <section className="relative flex flex-col pt-[calc(6rem+env(safe-area-inset-top,0px))] md:pt-[calc(8rem+env(safe-area-inset-top,0px))] pb-14 md:pb-10" style={{ minHeight: "calc(100vh / var(--lx-zoom, 1))" }}>
       <div className="max-w-[1240px] w-full mx-auto px-6 flex-1 flex flex-col">
         <div className="grid gap-x-0 lg:grid-cols-[96px_1fr_400px] flex-1">
 
