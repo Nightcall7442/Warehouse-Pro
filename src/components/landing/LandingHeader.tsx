@@ -19,9 +19,10 @@ function LangSwitch({ className }: { className?: string }) {
           type="button"
           onClick={() => setLang(l)}
           aria-pressed={lang === l}
-          // На касании цель должна быть не меньше 44px: 32×28 попадали мимо
+          // На касании цель должна быть не меньше 44 точек: 32×28 попадали мимо
           // пальца, а язык — первое, что переключает узбекоязычный посетитель.
-          className="px-3.5 h-11 lg:px-2.5 lg:h-8 text-[11px] uppercase cursor-pointer transition-colors"
+          // В точках, а не h-11: при базовом шрифте 14px h-11 — это 38.5.
+          className="px-3.5 h-[44px] min-w-[44px] lg:px-2.5 lg:h-8 lg:min-w-0 text-[11px] uppercase cursor-pointer transition-colors"
           style={{
             ...MONO,
             letterSpacing: "0.08em",
@@ -59,10 +60,18 @@ export default function LandingHeader() {
     [tr],
   );
 
+  /*
+    paddingTop под строку состояния обязателен. В index.html стоит
+    viewport-fit=cover, и на iPhone страница уходит под часы и Dynamic Island.
+    Шапка с top: 0 без отступа ставила «Ру/Uz» и меню прямо под них: касание
+    забирала система, и кнопки «не нажимались» (владелец, 25.09.2026).
+    Шапка приложения (Layout, MobileHeader) делает так же.
+  */
   return (
     <nav
       className={cn("fixed top-0 inset-x-0 z-50 transition-all duration-300 lx-anim", scrolled && "backdrop-blur-md")}
       style={{
+        paddingTop: "env(safe-area-inset-top, 0px)",
         background: scrolled ? "rgba(244,242,237,0.88)" : "transparent",
         borderBottom: `1px solid ${scrolled ? LX.rule : "transparent"}`,
       }}
@@ -135,7 +144,7 @@ export default function LandingHeader() {
         <button
           type="button"
           aria-label={open ? tr("Закрыть меню", "Menyuni yopish") : tr("Открыть меню", "Menyuni ochish")}
-          className="lg:hidden w-11 h-11 rounded-md flex items-center justify-center cursor-pointer"
+          className="lg:hidden w-[44px] h-[44px] rounded-md flex items-center justify-center cursor-pointer"
           style={{ border: `1px solid ${LX.ruleStrong}`, color: LX.ink }}
           onClick={() => setOpen(!open)}
         >
@@ -171,7 +180,7 @@ export default function LandingHeader() {
             <button
               type="button"
               onClick={() => navigate("/login")}
-              className="flex-1 h-11 rounded-[9px] text-[14px] font-medium cursor-pointer"
+              className="flex-1 h-[44px] rounded-[9px] text-[14px] font-medium cursor-pointer"
               style={{ border: `1px solid ${LX.ruleStrong}`, color: LX.ink }}
             >
               {tr("Войти", "Kirish")}
@@ -179,7 +188,7 @@ export default function LandingHeader() {
             <button
               type="button"
               onClick={() => navigate("/register")}
-              className="flex-1 h-11 rounded-[9px] text-[14px] font-semibold cursor-pointer"
+              className="flex-1 h-[44px] rounded-[9px] text-[14px] font-semibold cursor-pointer"
               style={{ background: LX.ink, color: LX.paperOnInk }}
             >
               {tr("Начать", "Boshlash")}
