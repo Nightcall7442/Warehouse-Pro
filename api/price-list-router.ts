@@ -51,8 +51,14 @@ export const priceListRouter = createRouter({
       isActive: priceLists.isActive,
       priority: priceLists.priority,
       markupPct: priceLists.markupPct,
-      itemCount: sql<number>`(SELECT COUNT(*) FROM ${priceListItems} WHERE ${priceListItems.priceListId} = ${priceLists.id})`,
-      shopCount: sql<number>`(SELECT COUNT(*) FROM ${priceListAssignments} WHERE ${priceListAssignments.priceListId} = ${priceLists.id})`,
+      /*
+        Имена таблиц — явно, не через ${…}. В запросе без соединений drizzle
+        пишет колонки без таблицы, и подзапрос выходил «WHERE price_list_id =
+        id», где id — строки самого подзапроса. Список прайс-листов показывал
+        одно и то же число у всех, чаще «0 товаров · 0 магазинов» (25.09.2026).
+      */
+      itemCount: sql<number>`(SELECT COUNT(*) FROM price_list_items pli WHERE pli.price_list_id = price_lists.id)`,
+      shopCount: sql<number>`(SELECT COUNT(*) FROM price_list_assignments pla WHERE pla.price_list_id = price_lists.id)`,
       createdAt: priceLists.createdAt,
     }).from(priceLists)
       .where(eq(priceLists.tenantId, ctx.tenant.id))
