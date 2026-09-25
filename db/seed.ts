@@ -646,7 +646,7 @@ async function seed() {
   */
   console.log("Creating suppliers...");
   const supplierDefs = [
-    { name: "Олтин Дон Савдо МЧЖ", contactName: "Рустамов Олим", phone: "+998 90 555 10 20", inn: "305112233", address: "Ташкент, Чиланзар, 9-квартал" },
+    { name: "Олтин Дон Савдо МЧЖ", contactName: "Рустамов Олим", phone: "+998 90 555 10 20", inn: "305112233", address: "Хива, ул. Полвон Кори, 12" },
     { name: "Хоразм Мева Экспорт", contactName: "Юсупова Дилноза", phone: "+998 91 777 30 40", inn: "307445566", address: "Ургенч, ул. Аль-Хорезми, 14" },
     { name: "Шарк Ёг Импорт", contactName: "Каримов Сардор", phone: "+998 93 222 50 60", inn: "309778899", address: "Самарканд, Промзона, 3" },
   ];
