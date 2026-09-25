@@ -12,6 +12,8 @@
  *
  * Запуск: node scripts/landing-shots-collect.mjs [screenshots] [docs/landing/shots]
  * Пересъёмка после смены засева — тем же прогоном: db/seed.ts стоит в триггерах.
+ * После смены дизайна (мобилка v8 — Warehouse-Pro-Mobile #35, веб — #119) —
+ * тоже: иначе лендинг показывает прежнюю программу (владелец, 25.09.2026).
  * Нужен cwebp (пакет webp).
  */
 import { readFileSync, mkdirSync, writeFileSync, existsSync } from "node:fs";
