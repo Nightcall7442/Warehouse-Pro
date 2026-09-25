@@ -14,6 +14,8 @@ import { compressImage } from "@/lib/compress-image";
 import { notify } from "@/lib/toast";
 import { useNavigate } from "react-router";
 import { QueryErrorFallback } from "@/components/QueryErrorFallback";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { PhonePlan } from "@/components/phone/PhonePlan";
 
 const STATUS_CONFIG = {
   visited: { ru: "Посещён",         uz: "Borildi",              color: "text-success", border: "border-success", dot: "var(--color-success)" },
@@ -27,7 +29,17 @@ const STATUS_ICON = {
   skipped: Clock,
 };
 
+/*
+  На телефоне — «План» мобилки v8 (components/phone/PhonePlan): владелец,
+  25.09.2026, «PWA точно как мобайл». Ниже — страница большого экрана: с
+  переходом по дням и отметкой визита снимком.
+*/
 export default function AgentPlans() {
+  const phone = useIsMobile();
+  return phone ? <PhonePlan /> : <DesktopAgentPlans />;
+}
+
+function DesktopAgentPlans() {
   const [date, setDate] = useState(new Date());
   const { fmt }   = useCurrency();
   const { lang }  = useLang();

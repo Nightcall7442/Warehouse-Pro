@@ -48,6 +48,8 @@ const AgentGps             = lazyWithRecovery(() => import("./pages/AgentGps"));
 const AgentKpi             = lazyWithRecovery(() => import("./pages/AgentKpi"));
 const AgentDebts           = lazyWithRecovery(() => import("./pages/AgentDebts"));
 const CourierDeliveries    = lazyWithRecovery(() => import("./pages/CourierDeliveries"));
+const CourierHome          = lazyWithRecovery(() => import("./pages/CourierHome"));
+const AgentShopDetail      = lazyWithRecovery(() => import("./pages/AgentShopDetail"));
 const SupervisorTracking   = lazyWithRecovery(() => import("./pages/SupervisorTracking"));
 const SupervisorPlans      = lazyWithRecovery(() => import("./pages/SupervisorPlans"));
 const Settings             = lazyWithRecovery(() => import("./pages/Settings"));
@@ -272,6 +274,7 @@ export default function App() {
           {/* Agent */}
           <Route path="/agent"         element={<RoleGuard roles={["ceo","agent","merchandiser"]}><AgentDashboard /></RoleGuard>} />
           <Route path="/agent/shops"   element={<RoleGuard roles={["ceo","agent","merchandiser"]}><AgentShops /></RoleGuard>} />
+          <Route path="/agent/shops/:id" element={<RoleGuard roles={["ceo","agent","merchandiser"]}><AgentShopDetail /></RoleGuard>} />
           <Route path="/agent/plans"   element={<RoleGuard roles={["ceo","agent","merchandiser"]}><AgentPlans /></RoleGuard>} />
           <Route path="/agent/visit/:id" element={<RoleGuard roles={["ceo","agent","merchandiser"]}><MerchandiserVisit /></RoleGuard>} />
           <Route path="/agent/gps"     element={<RoleGuard roles={["ceo","agent"]}><AgentGps /></RoleGuard>} />
@@ -282,6 +285,7 @@ export default function App() {
 
           {/* Courier */}
           <Route path="/deliveries"    element={<RoleGuard roles={["ceo","operator","courier"]}><CourierDeliveries /></RoleGuard>} />
+          <Route path="/courier"       element={<RoleGuard roles={["courier"]}><CourierHome /></RoleGuard>} />
 
           {/* Supervisor */}
           <Route path="/supervisor"        element={<RoleGuard roles={["ceo","supervisor"]}><SupervisorTracking /></RoleGuard>} />

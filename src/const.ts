@@ -7,7 +7,8 @@ export const ROLE_ROUTES: Record<string, string> = {
   agent:        "/agent",
   supervisor:   "/supervisor",
   merchandiser: "/agent",
-  courier:      "/deliveries",
+  // Своя главная, как в мобилке (25.09.2026): день в числах, потом список.
+  courier:      "/courier",
 };
 
 /*
@@ -132,6 +133,7 @@ export const NAV_ITEMS: Record<string, NavItem[]> = {
     { labelKey: "nav.settings",   path: "/settings",        icon: "Settings"        },
   ],
   courier: [
+    { labelKey: "nav.dashboard",  path: "/courier",     icon: "LayoutDashboard" },
     { labelKey: "nav.kpi",        path: "/agent/kpi",  icon: "BarChart3"       },
     { labelKey: "nav.deliveries", path: "/deliveries",  icon: "Truck"           },
     { labelKey: "nav.settings",   path: "/settings",    icon: "Settings"        },

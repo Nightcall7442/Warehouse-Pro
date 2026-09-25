@@ -42,6 +42,7 @@ import { useInvalidateOrderCaches } from "@/hooks/useOrderCacheSync";
 import { useSellerCompany } from "@/hooks/useSellerCompany";
 import { colorMix } from "@/lib/color-mix";
 import { StatusBadge } from "@/components/orders/theme";
+import { OrderPipeline } from "@/components/phone/OrderPipeline";
 
 /** Statuses where the goods have not been handed over yet — these can still be completed. */
 const OPEN_STATUSES = ["new", "processing", "shipped", "pending"];
@@ -375,7 +376,7 @@ export default function OrderDetail() {
       {/* ── Шапка: назад, номер, статус, документы ── */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div className="flex items-center gap-3 flex-wrap min-w-0">
-          <button onClick={() => navigate("/orders")} className="neo-btn tap" aria-label={lang === "uz" ? "Orqaga" : "Назад"}>
+          <button onClick={() => navigate("/orders")} className="neo-btn tap hidden md:inline-flex" aria-label={lang === "uz" ? "Orqaga" : "Назад"}>
             <ArrowLeft size={18}/>
           </button>
           <div className="min-w-0">
@@ -418,7 +419,7 @@ export default function OrderDetail() {
             не выгружаем: в 1С он создал бы проведённый документ.
           */}
           {!order.deletedAt && <OneCExport orderId={order.id} orderNumber={order.orderNumber} />}
-          <button onClick={handleExport} className="neo-btn tap text-sm"><FileDown size={15}/> Excel</button>
+          <button onClick={handleExport} className="neo-btn tap text-sm hidden md:inline-flex"><FileDown size={15}/> Excel</button>
           <div className="relative">
             <button onClick={() => setPrintMenu(v => !v)} className="neo-btn tap text-sm" data-testid="order-print">
               <Printer size={15}/> {lang === "uz" ? "Chop etish" : "Печать"} <ChevronDown size={13}/>
@@ -463,6 +464,12 @@ export default function OrderDetail() {
             </>
           )}
         </div>
+      </div>
+
+      {/* Путь заказа — как PipelineBanner мобилки v8; на большом экране его
+          роль играет список состояний в шапке. */}
+      <div className="md:hidden">
+        <OrderPipeline status={order.status} holdReason={(order as { holdReason?: string | null }).holdReason} />
       </div>
 
       {/* Заказ ждёт офиса: причина — на виду, чтобы директор подтверждал не вслепую. */}

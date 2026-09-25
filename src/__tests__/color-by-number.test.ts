@@ -88,8 +88,9 @@ function countColours(): { total: number; byFile: Array<[string, number]> } {
  * на заливке ушли, осталась строка оценки.
  * 815 — 24.09.2026, PWA как мобилка v8: «Мой день» агента и шапка телефона
  * переписаны на токены, запасные hex в var(..., #…) ушли вместе с ними.
+ * 807 — 25.09.2026, экраны PWA как в мобилке: сканер, долги, GPS, план на токенах.
  */
-const BASELINE = 815;
+const BASELINE = 807;
 
 describe("цвет числом", () => {
   const { total, byFile } = countColours();

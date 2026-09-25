@@ -298,12 +298,13 @@ export default function SupervisorPlans() {
       {/* Заголовок */}
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
-          <div style={{ display: "flex", gap: "6px", marginBottom: "12px" }}>
+          <div className="hidden md:flex" style={{ gap: "6px", marginBottom: "12px" }}>
             <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "var(--accent-pink, #c06080)", boxShadow: "var(--shadow-xs)" }} />
             <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "var(--accent-orange, #c49530)", boxShadow: "var(--shadow-xs)" }} />
             <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "var(--accent-teal, #3a9a8a)", boxShadow: "var(--shadow-xs)" }} />
           </div>
-          <h1 className="font-display text-2xl font-bold text-primary tracking-tight">
+          {/* На телефоне «Планы» уже пишет шапка приложения — второй раз не повторяем. */}
+          <h1 className="hidden md:block font-display text-2xl font-bold text-primary tracking-tight">
             {t("Планы визитов", "Tashrif rejalari")}
           </h1>
           {isToday && tab === "day" && (
@@ -345,7 +346,7 @@ export default function SupervisorPlans() {
         <div className="flex items-center gap-3">
           <button onClick={() => setMonth(m => shiftMonth(m, -1))}
             aria-label={t("Прошлый месяц", "O'tgan oy")}
-            className="neo-btn w-10 h-10 flex items-center justify-center">
+            className="neo-btn-icon flex-shrink-0">
             <ChevronLeft size={18} />
           </button>
           <div className="flex-1 panel p-3 text-center">
@@ -358,7 +359,7 @@ export default function SupervisorPlans() {
           </div>
           <button onClick={() => setMonth(m => shiftMonth(m, 1))}
             aria-label={t("Следующий месяц", "Keyingi oy")}
-            className="neo-btn w-10 h-10 flex items-center justify-center">
+            className="neo-btn-icon flex-shrink-0">
             <ChevronRight size={18} />
           </button>
         </div>
@@ -376,7 +377,7 @@ export default function SupervisorPlans() {
       {/* Навигация по дате */}
       <div className="flex items-center gap-3">
         <button onClick={() => setDate(d => subDays(d, 1))}
-          className="neo-btn w-10 h-10 flex items-center justify-center">
+          className="neo-btn-icon flex-shrink-0">
           <ChevronLeft size={18} />
         </button>
         <div className="flex-1 panel p-3 text-center">
@@ -388,7 +389,7 @@ export default function SupervisorPlans() {
           </p>
         </div>
         <button onClick={() => setDate(d => addDays(d, 1))}
-          className="neo-btn w-10 h-10 flex items-center justify-center">
+          className="neo-btn-icon flex-shrink-0">
           <ChevronRight size={18} />
         </button>
       </div>

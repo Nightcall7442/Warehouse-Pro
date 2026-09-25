@@ -135,7 +135,7 @@ export default function OfflineOrders() {
       </div>
 
       <div className="flex items-center justify-between">
-        <h1 className="font-display text-2xl font-bold text-primary tracking-tight">
+        <h1 className="hidden md:block font-display text-2xl font-bold text-primary tracking-tight">
           {lang === "uz" ? "Offline buyurtmalar" : "Офлайн заказы"}
         </h1>
         <span className="font-data text-secondary text-sm">

@@ -26,6 +26,8 @@ import { TerritoryManager } from "@/components/shops/TerritoryManager";
 import type { ShopKpiStats } from "@/components/shops/ShopStats";
 import { QueryErrorFallback } from "@/components/QueryErrorFallback";
 import { COLORS } from "@/components/shops/constants";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { OversightShops } from "@/components/phone/OversightShops";
 
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useUrlState, urlString, urlMaybeString, urlNumber, urlPage, urlBool, urlEnum } from "@/hooks/useUrlState";
@@ -36,7 +38,17 @@ import { useUrlState, urlString, urlMaybeString, urlNumber, urlPage, urlBool, ur
 const SORT_CODEC = urlEnum(["newest", "debtDesc", "debtAsc"] as const, "newest");
 const VIEW_CODEC = urlEnum(["territories", "list"] as const, "territories");
 const ARCHIVED_CODEC = urlEnum(["hide", "only", "all"] as const, "hide");
+/*
+  На телефоне — «Магазины» мобилки v8 (components/phone/OversightShops):
+  владелец, 25.09.2026, «PWA точно как мобайл». Настольная страница ниже —
+  для большого экрана, её запросы на телефоне не уходят.
+*/
 export default function Shops() {
+  const phone = useIsMobile();
+  return phone ? <OversightShops /> : <DesktopShops />;
+}
+
+function DesktopShops() {
   const { lang } = useLang();
   const { fmt } = useCurrency();
   const navigate = useNavigate();

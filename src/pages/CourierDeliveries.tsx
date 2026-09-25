@@ -5,7 +5,8 @@ import { useAuth } from "@/hooks/useAuth";
 import { useCurrency } from "@/hooks/useCurrency";
 import { cssVar } from "@/lib/css-var";
 import { useState, useRef, useEffect, useMemo } from "react";
-import { Truck, MapPin, CheckCircle2, Package, ArrowRight } from "lucide-react";
+import { Truck, MapPin, CheckCircle2, Package, ArrowRight, ChevronRight } from "lucide-react";
+import { useNavigate } from "react-router";
 import { notify } from "@/lib/toast";
 import { QueryErrorFallback } from "@/components/QueryErrorFallback";
 import { formatQty } from "@/lib/format";
@@ -26,6 +27,42 @@ const DELIVERY_STATUS_STYLES: Record<string, string> = {
   ещё не назначили курьера, показывался словом «not_assigned».
 */
 import { labelled, DELIVERY_STATUS_LABEL } from "@/lib/entity-labels";
+
+/*
+  Итоги месяца — ПОД маршрутом, как в мобилке (MonthTotals, app/(tabs)/
+  deliveries.tsx): строка сверху отвечает «что осталось сегодня», а сколько
+  довёз за месяц — отдельный вопрос. Отказ гасится: блока просто не будет.
+*/
+function MonthTotals() {
+  const t = useTranslate();
+  const navigate = useNavigate();
+  const { data } = trpc.kpi.courierKpi.useQuery({ period: "month" }, { retry: false });
+  if (!data) return null;
+  const cells = [
+    { label: t("Довезено", "Yetkazildi"), value: String(data.delivered) },
+    { label: t("Сорвано", "Bajarilmadi"), value: String(data.failed) },
+    // Ноль назначенных — не «ноль процентов успеха», а «мерить нечего».
+    { label: t("Успешных", "Muvaffaqiyatli"), value: data.delivered + data.failed > 0 ? `${data.successRate}%` : "—" },
+    { label: t("Рабочих дней", "Ish kunlari"), value: String(data.workDays) },
+  ];
+  return (
+    <button type="button" onClick={() => navigate("/agent/kpi")} className="w-full text-left" data-testid="courier-month-totals"
+      style={{ background: "var(--color-surface)", boxShadow: "var(--shadow-raised)", borderRadius: 24, padding: 20 }}>
+      <span className="flex items-center justify-between mb-3">
+        <span style={{ fontSize: 12, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--color-text-tertiary)" }}>{t("Итоги месяца", "Oy yakuni")}</span>
+        <ChevronRight size={16} color="var(--color-text-tertiary)" />
+      </span>
+      <span className="grid grid-cols-2 gap-y-3">
+        {cells.map(c => (
+          <span key={c.label}>
+            <span className="block font-data" style={{ fontSize: 17, fontWeight: 800, color: "var(--color-text-primary)" }}>{c.value}</span>
+            <span className="block" style={{ fontSize: 12, color: "var(--color-text-tertiary)", marginTop: 2 }}>{c.label}</span>
+          </span>
+        ))}
+      </span>
+    </button>
+  );
+}
 
 export default function CourierDeliveries() {
   const { user } = useAuth();
@@ -83,15 +120,15 @@ export default function CourierDeliveries() {
 
   return (
     <div className="max-w-3xl mx-auto space-y-4 p-4">
-      {/* Header */}
-      <div className="flex items-center gap-3">
+      {/* Шапка. На телефоне — как в мобилке: одна строка «ожидают · в пути»
+          вместо двух плиток (они занимали треть экрана и уталкивали первую
+          точку маршрута за край); заголовок уже пишет шапка приложения. */}
+      <p className="md:hidden" style={{ fontSize: 13, fontWeight: 500, color: "var(--color-text-tertiary)", margin: 0 }}>
+        {t(`Ожидают ${assigned.length} · В пути ${inTransit.length}`, `Kutmoqda ${assigned.length} · Yo'lda ${inTransit.length}`)}
+      </p>
+      <div className="hidden md:flex items-center gap-3">
         <Truck size={24} className="text-primary" />
         <div>
-          <div style={{ display: "flex", gap: "6px", marginBottom: "4px" }}>
-            <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "var(--accent-pink, #c06080)", boxShadow: "var(--shadow-xs)" }} />
-            <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "var(--accent-orange, #c49530)", boxShadow: "var(--shadow-xs)" }} />
-            <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "var(--accent-teal, #3a9a8a)", boxShadow: "var(--shadow-xs)" }} />
-          </div>
           <h1 className="text-lg font-bold">{t("Мои доставки", "Mening yetkazishlarim")}</h1>
           <p className="text-sm text-secondary">{user?.name}</p>
         </div>
@@ -99,8 +136,7 @@ export default function CourierDeliveries() {
 
       {/* Наличные на руках: курьер принимает деньги у магазинов и сдаёт вечером. */}
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 gap-3">
+      <div className="hidden md:grid grid-cols-2 gap-3">
         <div className="kpi-hero" style={{ padding: "18px" }}>
           <div className="flex items-center gap-2 text-secondary text-sm mb-1">
             <Package size={16} />
@@ -118,7 +154,7 @@ export default function CourierDeliveries() {
       </div>
 
       {/* Map with delivery locations */}
-      <MapView deliveries={deliveries} />
+      <div className="hidden md:block"><MapView deliveries={deliveries} /></div>
 
       {/* In Transit */}
       {inTransit.length > 0 && (
@@ -153,6 +189,19 @@ export default function CourierDeliveries() {
             <Package size={16} className="text-info" />
             {t("Ожидают доставки", "Yetkazishni kutmoqda")}
           </h2>
+          {assigned.length > 1 && (
+            <button
+              type="button"
+              onClick={() => assigned.forEach(o => markOutForDelivery.mutate({ orderId: o.id }))}
+              disabled={markOutForDelivery.isPending}
+              className="neo-btn-primary w-full flex items-center justify-center gap-2"
+              style={{ minHeight: 48 }}
+              data-testid="courier-take-all"
+            >
+              <Truck size={16} />
+              {t(`Выехал по всем (${assigned.length})`, `Hammasiga yo'lga chiqdim (${assigned.length})`)}
+            </button>
+          )}
           {assigned.map((order) => (
             <div key={order.id} className="neo-card" style={{ padding: "16px" }}>
               <div className="flex items-start justify-between">
@@ -202,6 +251,8 @@ export default function CourierDeliveries() {
           <p>{t("Нет заказов на доставку", "Yetkazish uchun buyurtmalar yo'q")}</p>
         </div>
       )}
+
+      <MonthTotals />
     </div>
   );
 }
