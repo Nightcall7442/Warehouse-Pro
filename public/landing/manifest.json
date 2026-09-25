@@ -80,6 +80,10 @@
    1600,
    1111
   ],
+  "web-operator-product-detail": [
+   1600,
+   1111
+  ],
   "web-operator-products": [
    1600,
    1111
@@ -125,6 +129,10 @@
    1363
   ],
   "web-operator-picking-content": [
+   1600,
+   1363
+  ],
+  "web-operator-product-detail-content": [
    1600,
    1363
   ],
@@ -238,6 +246,10 @@
    1600,
    1111
   ],
+  "web-operator-product-detail": [
+   1600,
+   1111
+  ],
   "web-operator-products": [
    1600,
    1111
@@ -283,6 +295,10 @@
    1363
   ],
   "web-operator-picking-content": [
+   1600,
+   1363
+  ],
+  "web-operator-product-detail-content": [
    1600,
    1363
   ],
