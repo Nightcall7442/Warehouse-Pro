@@ -569,19 +569,25 @@ async function seed() {
     { name: "Ботиров Жамшид", phone: "+998 94 111 22 44" },
     { name: "Каримов Акбар", phone: "+998 94 111 22 55" },
   ];
+  const seededArrivals: Array<{ id: number; status: "completed" | "unloading" | "pending"; sum: number; date: Date }> = [];
   for (let i = 0; i < 8; i++) {
     const driver = drivers[i % drivers.length];
+    const arrivalStatus: "completed" | "unloading" | "pending" = i < 3 ? "completed" : i < 6 ? "unloading" : "pending";
+    // Расходы машины — круглыми тысячами, как в жизни, и «итого» = их сумма.
+    // Было randomPrice (копейки: «Топливо 1839.14») и независимый итог.
+    const thousands = (min: number, max: number) => Math.round((min + Math.random() * (max - min)) / 1000) * 1000;
+    const fuel = thousands(150_000, 400_000), toll = thousands(20_000, 60_000), other = thousands(0, 50_000);
     const [arrR] = await db.insert(schema.arrivals).values({
       tenantId,
       arrivalNumber: `ARR-${String(1001 + i).padStart(4, "0")}`,
       truckId: `H-001-${i + 1} AB`,
       driverName: driver.name,
       driverPhone: driver.phone,
-      status: i < 3 ? "completed" : i < 6 ? "unloading" : "pending",
-      fuelCost: randomPrice(80000, 250000),
-      tollCost: randomPrice(20000, 80000),
-      otherCost: randomPrice(0, 50000),
-      totalExpense: randomPrice(120000, 380000),
+      status: arrivalStatus,
+      fuelCost: fuel.toFixed(2),
+      tollCost: toll.toFixed(2),
+      otherCost: other.toFixed(2),
+      totalExpense: (fuel + toll + other).toFixed(2),
       arrivalDate: daysAgo(i),
       arrivalTime: "08:00",
       unloadingTime: i < 6 ? "09:30" : null,
@@ -593,6 +599,7 @@ async function seed() {
 
     const arrivalItemCount = 3 + Math.floor(Math.random() * 5);
     const usedProd = new Set<number>();
+    let invoiceSum = 0;
     for (let j = 0; j < arrivalItemCount; j++) {
       let pIdx: number;
       do {
@@ -600,17 +607,116 @@ async function seed() {
       } while (usedProd.has(pIdx));
       usedProd.add(pIdx);
 
+      /*
+        Строка — как в сетке прихода: по накладной, пришло, закупка, продажа,
+        партия, срок. Завершённый приход досчитан (одна строка с недостачей),
+        в разгрузке досчитана половина — остальное ещё 0, ожидающий — только
+        накладная. Без этого сетка на снимках справки была пустой (25.09.2026).
+      */
+      const def = productDefs[pIdx];
+      const expected = Math.floor(Math.random() * 100) + 10;
+      const counted = arrivalStatus === "completed" || (arrivalStatus === "unloading" && j < Math.ceil(arrivalItemCount / 2));
+      const quantity = !counted ? 0 : j === 1 ? expected - 2 : expected;
+      const shelfDays = i === 0 && j === 0 ? 6 : 30 + ((i * 7 + j * 13) % 150);
+      invoiceSum += expected * Number(def.costPrice);
       await db.insert(schema.arrivalItems).values({
         arrivalId,
         productId: productIds[pIdx],
-        quantity: String(Math.floor(Math.random() * 100) + 10),
+        quantity: String(quantity),
+        expectedQuantity: String(expected),
+        costPrice: String(def.costPrice),
+        sellingPrice: String(def.unitPrice),
+        batchNumber: `P${String(2609 - i)}-${j + 1}`,
+        expiresAt: new Date(Date.now() + shelfDays * 86_400_000),
         condition: j % 3 === 0 ? "Повреждена упаковка" : "Норма",
         notes: null,
         createdAt: daysAgo(i),
       });
     }
+    seededArrivals.push({ id: arrivalId, status: arrivalStatus, sum: invoiceSum, date: daysAgo(i) });
   }
   console.log("✓ Arrivals created\n");
+
+  // ── Поставщики и долг перед ними ────────────────────────────────────────────
+  /*
+    Вкладка «Приходы → Контрагенты и долги» и плитка «ДОЛГ ПОСТАВЩИКАМ» на
+    демо были пустыми: засев не заводил ни поставщиков, ни поставок.
+    Поставка — долг за приход; одна в долларах, одна просрочена, по первой
+    уже заплачена часть.
+  */
+  console.log("Creating suppliers...");
+  const supplierDefs = [
+    { name: "Олтин Дон Савдо МЧЖ", contactName: "Рустамов Олим", phone: "+998 90 555 10 20", inn: "305112233", address: "Ташкент, Чиланзар, 9-квартал" },
+    { name: "Хоразм Мева Экспорт", contactName: "Юсупова Дилноза", phone: "+998 91 777 30 40", inn: "307445566", address: "Ургенч, ул. Аль-Хорезми, 14" },
+    { name: "Шарк Ёг Импорт", contactName: "Каримов Сардор", phone: "+998 93 222 50 60", inn: "309778899", address: "Самарканд, Промзона, 3" },
+  ];
+  const supplierIds: number[] = [];
+  for (const s of supplierDefs) {
+    const [r] = await db.insert(schema.suppliers).values({ tenantId, ...s, status: "active" });
+    supplierIds.push(Number(r.insertId));
+  }
+  let supplyNo = 1001;
+  for (const [k, a] of seededArrivals.entries()) {
+    if (a.status === "pending") continue;
+    const usd = k === 2;
+    const rate = 12650;
+    const due = new Date(a.date.getTime() + (k === 1 ? -19 : 14) * 86_400_000);
+    const [sr] = await db.insert(schema.supplies).values({
+      tenantId,
+      supplierId: supplierIds[k % supplierIds.length],
+      arrivalId: a.id,
+      supplyNumber: `SUP-${supplyNo++}`,
+      amount: usd ? (a.sum / rate).toFixed(2) : a.sum.toFixed(2),
+      currency: usd ? "USD" : "UZS",
+      rateToUzs: usd ? String(rate) : null,
+      supplyDate: a.date,
+      dueDate: due,
+      createdBy: operator1Id,
+    });
+    if (k === 0) {
+      await db.insert(schema.supplierPayments).values({
+        tenantId,
+        supplierId: supplierIds[0],
+        supplyId: Number(sr.insertId),
+        amount: (a.sum * 0.4).toFixed(2),
+        paidUzs: (a.sum * 0.4).toFixed(2),
+        paymentMethod: "transfer",
+        paidAt: daysAgo(0),
+        createdBy: operator1Id,
+      });
+    }
+  }
+  console.log(`✓ ${supplierIds.length} suppliers, ${supplyNo - 1001} supplies created\n`);
+
+  // ── Прайс-листы ─────────────────────────────────────────────────────────────
+  /*
+    Сетка прайс-листа на снимках: своя цена у ходового товара, правило
+    «к карточке» для остальных, магазины списка; второй — цена от количества.
+  */
+  console.log("Creating price lists...");
+  const [plNet] = await db.insert(schema.priceLists).values({
+    tenantId, name: "Сети — минус 5 %", description: "Крупные магазины: цена ниже карточки на 5 %, на ходовой товар — своя",
+    type: "shop", isActive: true, priority: 10, markupPct: "-5.00",
+  });
+  const plNetId = Number(plNet.insertId);
+  for (const idx of [0, 1, 4, 7]) {
+    const price = Math.round((Number(productDefs[idx].unitPrice) * 0.9) / 100) * 100;
+    await db.insert(schema.priceListItems).values({ priceListId: plNetId, productId: productIds[idx], price: price.toFixed(2), minQuantity: "1" });
+  }
+  for (const s of shopIds.slice(0, 3)) await db.insert(schema.priceListAssignments).values({ priceListId: plNetId, shopId: s });
+  const [plBulk] = await db.insert(schema.priceLists).values({
+    tenantId, name: "Опт — от количества", description: "Скидка за объём: от 10 и от 50 единиц",
+    type: "volume", isActive: true, priority: 5, markupPct: null,
+  });
+  const plBulkId = Number(plBulk.insertId);
+  for (const idx of [2, 3, 5]) {
+    const base = Number(productDefs[idx].unitPrice);
+    for (const [minQ, k] of [[10, 0.95], [50, 0.9]] as const) {
+      await db.insert(schema.priceListItems).values({ priceListId: plBulkId, productId: productIds[idx], price: (Math.round((base * k) / 100) * 100).toFixed(2), minQuantity: String(minQ) });
+    }
+  }
+  for (const s of shopIds.slice(3, 5)) await db.insert(schema.priceListAssignments).values({ priceListId: plBulkId, shopId: s });
+  console.log("✓ 2 price lists created\n");
 
   // ── Stock Movements (20) ────────────────────────────────────────────────────
   console.log("Creating stock movements...");

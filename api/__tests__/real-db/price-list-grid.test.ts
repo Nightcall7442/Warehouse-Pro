@@ -64,6 +64,20 @@ describe.skipIf(!hasRealDb)("прайс-лист сеткой", () => {
     expect(await priceFor(12)).toBe("70.00");
   });
 
+  it("список показывает, сколько в прайс-листе своих цен и магазинов — у каждого своё", async () => {
+    // 25.09.2026: подзапрос счётчика выходил «WHERE price_list_id = id» (id —
+    // строки самого подзапроса), и у всех списков было одно число, чаще 0.
+    // Нарочная поломка: верни ${priceLists.id} в itemCount — тест падает.
+    const c = await caller();
+    const a = await newList("А");
+    const b = await newList("Б");
+    await c.setItems({ priceListId: a, items: [{ productId: s.productId, price: 90 }, { productId: s.secondProductId, price: 240 }] });
+    await c.setShops({ priceListId: a, shopIds: [s.shopId] });
+    const byId = new Map((await c.list()).map(r => [Number(r.id), r]));
+    expect([Number(byId.get(a)!.itemCount), Number(byId.get(a)!.shopCount)]).toEqual([2, 1]);
+    expect([Number(byId.get(b)!.itemCount), Number(byId.get(b)!.shopCount)]).toEqual([0, 0]);
+  });
+
   it("магазины: отмеченный переезжает из прежнего списка, снятый — без списка; чужой — отказ", async () => {
     const c = await caller();
     const a = await newList("А");

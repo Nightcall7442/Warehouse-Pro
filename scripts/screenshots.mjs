@@ -113,8 +113,14 @@ const WEB_SCENARIOS = {
     { name: "picking", path: null, do: [["click", T.pick + " >> nth=0"], ["wait", 1500]],
       marks: [["picked", "text=/^(Собрано|Yig'ildi)$/ >> nth=0"], ["confirm", T.confirmPick]] },
     { name: "arrivals", path: "/arrivals", marks: [["new", T.newArrival + " >> nth=0"]] },
-    { name: "arrival-form", path: "/arrivals", do: [["click", T.newArrival + " >> nth=0"], ["wait", 1500]],
-      marks: [["save", T.saveComplete]] },
+    /* Приход — страница с сеткой (25.09.2026): товары пачкой из «Товары в приход»,
+       «Пришло» и «Закупка» столбцом. Засев даёт приходы всех трёх статусов. */
+    { name: "arrival-picker", path: "/arrivals/new", do: [["click", "testid=arrival-add-products"], ["wait", 1200], ["click", "css=[data-testid^=picker-item-] >> nth=0"], ["click", "css=[data-testid^=picker-item-] >> nth=1"], ["click", "css=[data-testid^=picker-item-] >> nth=2"], ["wait", 400]],
+      marks: [["search", "testid=picker-search"], ["all", "testid=picker-all"], ["add", "testid=picker-add"]] },
+    { name: "arrival-form", path: "/arrivals/new", do: [["click", "testid=arrival-add-products"], ["wait", 1200], ["click", "css=[data-testid^=picker-item-] >> nth=0"], ["click", "css=[data-testid^=picker-item-] >> nth=1"], ["click", "css=[data-testid^=picker-item-] >> nth=2"], ["click", "css=[data-testid^=picker-item-] >> nth=3"], ["click", "testid=picker-add"], ["wait", 900]],
+      marks: [["date", "testid=arrival-date"], ["supplier", "text=/^(Поставщик|Yetkazib beruvchi)$/ >> nth=0"], ["add", "testid=arrival-add-products"], ["scan", "testid=arrival-scan"], ["fill", "testid=arrival-fill-expected"], ["sheet", "testid=arrival-sheet"], ["saveComplete", "testid=arrival-save-complete"]], after: [] },
+    { name: "arrival-unloading", path: "/arrivals", do: [["click", "text=/ARR-1004/ >> nth=0"], ["wait", 1800]],
+      marks: [["diff", "css=[data-testid^=arrival-diff-] >> nth=0"], ["fill", "testid=arrival-fill-expected"], ["complete", "testid=arrival-complete"]], after: [] },
     { name: "returns", path: "/returns" },
     { name: "warehouse", path: "/warehouse" },
     { name: "warehouse-reports", path: "/warehouse?tab=reports" },
@@ -126,7 +132,7 @@ const WEB_SCENARIOS = {
     { name: "order-documents", path: "/orders", do: [["click", T.openOrder], ["wait", 1800], ["click", "testid=order-print"], ["wait", 700]] },
     { name: "order-complete", path: "/orders", do: [["click", "text=/^(Этот месяц|Bu oy)$/"], ["wait", 1200], ["click", "text=/^(Выполнен|Bajarildi)$/ >> nth=0"], ["wait", 1200]],
       marks: [["submit", "role=button:/Завершить заказ|Buyurtmani tugatish/"]] },
-    { name: "arrival-detail", path: "/arrivals", do: [["click", "css=table tbody tr >> nth=0"], ["wait", 1800]], marks: [["labels", "testid=arrival-print-labels"]] },
+    { name: "arrival-detail", path: "/arrivals", do: [["click", "text=/ARR-1001/ >> nth=0"], ["wait", 1800]], marks: [["labels", "testid=arrival-print-labels"], ["invoice", "testid=arrival-print-invoice"]], after: [] },
     { name: "arrivals-suppliers", path: "/arrivals", do: [["click", "testid=arrivals-tab-counterparties"], ["wait", 1500]], after: [] },
     { name: "product-form", path: "/products", do: [["click", "testid=product-new"], ["wait", 1200]] },
     { name: "shop-detail", path: "/shops", do: [["click", "text=/^(Все магазины|Barcha do'konlar)$/ >> nth=0"], ["wait", 1200], ["click", "css=[data-testid=shop-row] >> nth=0"], ["wait", 1800]] },
@@ -175,6 +181,16 @@ const WEB_SCENARIOS = {
     { name: "settings-branding", path: "/settings?section=branding" },
     { name: "settings-warehouses", path: "/settings?section=warehouses" },
     { name: "settings-prices", path: "/settings?section=prices" },
+    /* Прайс-лист — сетка по всему каталогу и вкладка «Магазины» (25.09.2026).
+       Засев: первый список «Сети — минус 5 %», второй «Опт — от количества». */
+    { name: "price-list", path: "/settings?section=prices", do: [["click", "css=[data-testid^=price-list-open-] >> nth=0"], ["wait", 1800]],
+      marks: [["rule", "testid=price-list-rule"], ["grid", "testid=price-grid"], ["own", "testid=price-grid-only-own"], ["bulk", "testid=price-grid-bulk-pct"]], after: [] },
+    { name: "price-list-shops", path: "/settings?section=prices", do: [["click", "css=[data-testid^=price-list-open-] >> nth=0"], ["wait", 1800], ["click", "testid=price-list-tab-shops"], ["wait", 800]],
+      marks: [["search", "testid=price-shops-search"], ["shops", "testid=price-shops"], ["save", "testid=price-shops-save"]], after: [] },
+    // Ступени — свёрнутый блок под сеткой, ниже первого экрана: раскрыть
+    // «Цена от количества», клик в «от, шт» прокручивает к ступеням.
+    { name: "price-list-tiers", path: "/settings?section=prices", do: [["click", "css=[data-testid^=price-list-open-] >> nth=1"], ["wait", 1800], ["click", "text=/^(Цена от количества|Miqdordan narx)/"], ["wait", 400], ["click", "testid=price-tier-min"], ["wait", 500]],
+      marks: [["tiers", "testid=price-tiers"], ["add", "testid=price-tier-add"]], after: [] },
     { name: "settings-apikeys", path: "/settings?section=apikeys" },
     { name: "settings-access", path: "/settings?section=access" },
     { name: "settings-telegram", path: "/settings?section=telegram" },

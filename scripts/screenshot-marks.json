@@ -451,64 +451,6 @@
      "text=/^(НИЗКИЙ ОСТАТОК|KAM QOLDIQ)$/"
     ]
    ],
-   "arrival-form": [
-    [
-     "arSupplier",
-     "text=/^(Без поставщика|Yetkazib beruvchisiz)$/"
-    ],
-    [
-     "arScan",
-     "testid=arrival-scan"
-    ],
-    [
-     "arProduct",
-     "text=/^(Выберите товар…|Mahsulot tanlang…)$/"
-    ],
-    [
-     "arQty",
-     "text=/^(Кол-во|Miqdor)$/ >> nth=0"
-    ],
-    [
-     "arBatch",
-     "ph=/^(необязательно|ixtiyoriy)$/ >> nth=0"
-    ],
-    [
-     "arExpiry",
-     "text=/^(Годен до|Muddati)$/ >> nth=0"
-    ],
-    [
-     "arAdd",
-     "role=button:/^(Добавить товар|Mahsulot qo'shish)$/"
-    ],
-    [
-     "truck",
-     "ph=/Номер машины|Mashina raqami/"
-    ],
-    [
-     "supplier",
-     "text=/Без поставщика|Yetkazib beruvchisiz/"
-    ],
-    [
-     "barcode",
-     "ph=/Штрих-код|Shtrix-kod/"
-    ],
-    [
-     "product",
-     "text=/Выберите товар|Mahsulot tanlang/"
-    ],
-    [
-     "expected",
-     "ph=/по накладной|hujjat bo'yicha/"
-    ],
-    [
-     "batch",
-     "text=/^(Партия|Partiya)$/"
-    ],
-    [
-     "addRow",
-     "role=button:/Добавить товар|Mahsulot qo'shish/"
-    ]
-   ],
    "warehouse": [
     [
      "whAvail",
