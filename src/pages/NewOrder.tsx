@@ -9,6 +9,7 @@ import { useLang } from "@/i18n";
 import { Loader2, WifiOff, ShoppingCart, ChevronUp } from "lucide-react";
 import { savePendingOrder } from "./OfflineOrders.helpers";
 import { saveDraft, loadDraft, clearDraft, draftHasWork } from "./NewOrder.draft";
+import { loadCart, clearCart, cartToItems } from "@/lib/catalog-cart";
 import { Steps, ShopSelector, ProductSelector, OrderReview } from "@/components/orders";
 import type { OrderItem, PaymentMethod } from "@/components/orders";
 import { EMPTY_ITEM } from "@/components/orders";
@@ -215,8 +216,27 @@ export default function NewOrder() {
     человек только что назвал магазин явно, и подменять его прошлым набором
     нельзя.
   */
+  /*
+    Приход из корзины каталога (?fromCart=1) — как «Оформить» в мобилке:
+    товары уже набраны, магазин выбирается первым шагом. Черновик прошлого
+    набора здесь не поднимается — человек только что собрал заказ заново.
+  */
+  const fromCart = searchParams.get("fromCart") === "1";
   useEffect(() => {
-    if (!user || initialShopId > 0) return;
+    if (!user || !fromCart) return;
+    const lines = loadCart(user.id);
+    if (lines.length === 0) return;
+    // То же исключение из правила, что у черновика ниже: корзина привязана к
+    // владельцу, а он известен только после ответа сервера.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setItems(cartToItems(lines));
+    notify.info(t("Товары из корзины — выберите магазин", "Savatdagi tovarlar — do'konni tanlang"));
+    // Только на первый показ.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id, fromCart]);
+
+  useEffect(() => {
+    if (!user || initialShopId > 0 || fromCart) return;
     const draft = loadDraft(user.id);
     if (!draft || !draftHasWork(draft)) return;
     /*
@@ -261,6 +281,8 @@ export default function NewOrder() {
       // Заказ ушёл — черновику конец. Иначе следующий заход на «Заказ»
       // предложил бы продолжить только что отправленный.
       if (user) clearDraft(user.id);
+      // И корзине каталога: её товары только что уехали этим заказом.
+      if (user && fromCart) clearCart(user.id);
       if (created.held) notify.info(t("Заказ оформлен и ждёт подтверждения офиса — скидка выше порога", "Buyurtma rasmiylashtirildi va ofis tasdig'ini kutmoqda — chegirma chegaradan yuqori"));
       else notify.success(t("Заказ создан!", "Buyurtma yaratildi!"));
       const role = user?.role;
@@ -378,9 +400,11 @@ export default function NewOrder() {
           состояния, а системная «назад» уводила со страницы целиком — две
           кнопки с одной стрелкой вели себя по-разному. */}
       <div className="flex items-center gap-3 mb-6">
+        {/* На телефоне шаг назад делает стрелка шапки приложения (Layout,
+            MobileHeader) — вторая рядом не нужна. */}
         <button
           onClick={() => navigate(-1)}
-          className="tap flex items-center justify-center rounded-lg border btn-ghost flex-shrink-0"
+          className="tap hidden md:flex items-center justify-center rounded-lg border btn-ghost flex-shrink-0"
           style={{ borderColor: "var(--color-border, #d8d5cd)" }}
           aria-label={t("Назад", "Orqaga")}
         >

@@ -99,16 +99,16 @@ export default function MerchandiserVisit() {
     <div className="max-w-3xl mx-auto space-y-4 p-4">
       {/* Header */}
       <div className="flex items-center gap-3">
-        <button onClick={() => navigate(-1)} className="p-2 hover:bg-surface-light rounded-lg">
+        <button onClick={() => navigate(-1)} className="p-2 hover:bg-surface-light rounded-lg hidden md:inline-flex">
           <ArrowLeft size={20} />
         </button>
         <div>
-          <div style={{ display: "flex", gap: "6px", marginBottom: "4px" }}>
+          <div className="hidden md:flex" style={{ gap: "6px", marginBottom: "4px" }}>
             <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "var(--accent-pink, #c06080)", boxShadow: "var(--shadow-xs)" }} />
             <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "var(--accent-orange, #c49530)", boxShadow: "var(--shadow-xs)" }} />
             <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "var(--accent-teal, #3a9a8a)", boxShadow: "var(--shadow-xs)" }} />
           </div>
-          <h1 className="text-lg font-bold">{t("Отчёт о визите", "Tashrif hisoboti")}</h1>
+          <h1 className="hidden md:block text-lg font-bold">{t("Отчёт о визите", "Tashrif hisoboti")}</h1>
           <p className="text-sm text-secondary">{shopName}</p>
         </div>
       </div>

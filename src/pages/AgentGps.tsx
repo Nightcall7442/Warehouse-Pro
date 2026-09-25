@@ -1,7 +1,7 @@
 import { useState, useCallback } from "react";
 import { trpc } from "@/providers/trpc";
 import { useTranslate } from "@/i18n";
-import { MapPin, Radio, CheckCircle2, AlertCircle, Loader2, RefreshCw, Navigation } from "lucide-react";
+import { MapPin, Radio, CheckCircle2, AlertCircle, Loader2, Navigation, Info } from "lucide-react";
 import { format } from "date-fns";
 import { plural } from "@/lib/plural";
 import { PING_MIN, useLastPing } from "@/hooks/useLocationPing";
@@ -84,129 +84,102 @@ export default function AgentGps() {
     ? `https://maps.google.com/?q=${coords.lat},${coords.lng}`
     : null;
 
+  /*
+    Вид — «Геолокация» мобилки v8 (Warehouse-Pro-Mobile, app/(tabs)/gps.tsx):
+    карточка состояния, «Поделиться геолокацией», авто-отправка с честной
+    биркой (в браузере — только пока экран открыт), «Последняя отправка»
+    крупным временем и «Как это работает». Владелец, 25.09.2026.
+  */
+  const card: React.CSSProperties = { background: "var(--color-surface)", boxShadow: "var(--shadow-raised)", borderRadius: 24 };
+  const last = lastSent ?? lastPing;
+  const status = {
+    idle:     { icon: <MapPin size={34} color="var(--color-primary-text)" />, bg: "var(--color-primary-subtle)", text: t("Нажмите кнопку, чтобы поделиться геолокацией", "Joylashuvni yuborish uchun tugmani bosing"), color: "var(--color-text-secondary)" },
+    locating: { icon: <Loader2 size={34} className="animate-spin" color="var(--color-primary-text)" />, bg: "var(--color-primary-subtle)", text: t("Определяем местоположение…", "Joylashuv aniqlanmoqda…"), color: "var(--color-text-secondary)" },
+    success:  { icon: <CheckCircle2 size={34} color="var(--color-success-text)" />, bg: "var(--color-success-subtle)", text: t("Геолокация успешно отправлена", "Joylashuv yuborildi"), color: "var(--color-success-text)" },
+    error:    { icon: <AlertCircle size={34} color="var(--color-danger-text)" />, bg: "var(--color-danger-subtle)", text: error, color: "var(--color-danger-text)" },
+  }[state];
+
   return (
-    <div className="space-y-4 max-w-sm mx-auto animate-fade-up">
-      <h1 className="font-display text-2xl font-bold text-primary tracking-tight">
-        {t("GPS Трекер", "GPS Tracker")}
-      </h1>
+    <div className="space-y-3 max-w-sm mx-auto animate-fade-up" data-testid="agent-gps">
+      <div>
+        <h1 className="hidden md:block font-display text-2xl font-bold text-primary tracking-tight">{t("Геолокация", "Geolokatsiya")}</h1>
+        <p style={{ fontSize: 13, color: "var(--color-text-secondary)", margin: 0 }}>{t("координаты уходят сами, пока приложение открыто", "ilova ochiq bo'lganda koordinatalar o'zi ketadi")}</p>
+      </div>
 
-      {/* Статус карточка */}
-      <div className="neo-card p-8 text-center">
-        {state === "idle" && (
-          <div className="space-y-3">
-            <div
-              className="w-20 h-20 rounded-full flex items-center justify-center mx-auto"
-              style={{ background: "var(--color-surface-light, #f6f4f0)" }}
-            >
-              <MapPin size={32} className="text-secondary" />
-            </div>
-            <p className="text-secondary text-sm">
-              {t(
-                "Нажмите кнопку ниже чтобы отправить своё местоположение супервайзеру",
-                "Joylashuvingizni supervisorga yuborish uchun quyidagi tugmani bosing"
-              )}
-            </p>
-          </div>
-        )}
-
-        {state === "locating" && (
-          <div className="space-y-3">
-            <div
-              className="w-20 h-20 rounded-full flex items-center justify-center mx-auto animate-pulse"
-              style={{ background: "color-mix(in srgb, var(--color-primary) 10%, transparent)" }}
-            >
-              <Loader2 size={32} className="text-primary animate-spin" />
-            </div>
-            <p className="text-secondary text-sm">
-              {t("Определяем ваше местоположение…", "Joylashuvingiz aniqlanmoqda…")}
-            </p>
-          </div>
-        )}
-
+      {/* ── Состояние ── */}
+      <div className="flex flex-col items-center text-center" style={{ ...card, padding: "32px 20px" }}>
+        <span className="flex items-center justify-center rounded-full mb-3" style={{ width: 84, height: 84, background: status.bg }}>{status.icon}</span>
+        <p style={{ fontSize: 15, fontWeight: 500, lineHeight: 1.45, color: status.color, margin: 0 }}>{status.text}</p>
         {state === "success" && coords && (
-          <div className="space-y-4">
-            <div
-              className="w-20 h-20 rounded-full flex items-center justify-center mx-auto"
-              style={{ background: "rgba(74,222,128,.10)" }}
-            >
-              <CheckCircle2 size={32} className="text-success" />
-            </div>
-            <div>
-              <p className="font-label text-[10px] tracking-wider mb-2" style={{ color: "var(--color-text-tertiary, #6b6760)" }}>
-                {t("КООРДИНАТЫ", "KOORDINATALAR")}
-              </p>
-              <p className="font-data text-primary text-sm">
-                {coords.lat.toFixed(6)}, {coords.lng.toFixed(6)}
-              </p>
-              <p className="text-xs mt-1" style={{ color: "var(--color-text-tertiary, #6b6760)" }}>
-                {t("Точность:", "Aniqlik:")} ±{Math.round(coords.accuracy)} м
-              </p>
-            </div>
+          <>
+            <p className="font-data" style={{ fontSize: 13, color: "var(--color-text-secondary)", margin: "8px 0 0", letterSpacing: "0.02em" }}>
+              {coords.lat.toFixed(6)}, {coords.lng.toFixed(6)}
+            </p>
             {mapsUrl && (
-              <a
-                href={mapsUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 text-sm font-medium"
-                style={{ color: "var(--color-primary-text)" }}
-              >
-                <Navigation size={14} />
-                {t("Открыть на карте", "Xaritada ochish")}
+              <a href={mapsUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 mt-2" style={{ fontSize: 13, fontWeight: 600, color: "var(--color-primary-text)" }}>
+                <Navigation size={14} />{t("Открыть на карте", "Xaritada ochish")}
               </a>
             )}
-          </div>
-        )}
-
-        {state === "error" && (
-          <div className="space-y-3">
-            <div
-              className="w-20 h-20 rounded-full flex items-center justify-center mx-auto"
-              style={{ background: "var(--color-danger-subtle, rgba(232,80,80,.10))" }}
-            >
-              <AlertCircle size={32} className="text-danger" />
-            </div>
-            <p className="text-sm text-danger">{error}</p>
-          </div>
+          </>
         )}
       </div>
 
-      {/* Кнопка отправки */}
       <button
         onClick={() => locate(MANUAL_FIX)}
         disabled={state === "locating"}
-        className="neo-btn-primary w-full py-4 flex items-center justify-center gap-2 text-base disabled:opacity-50"
+        className="neo-btn-primary w-full flex items-center justify-center gap-2 disabled:opacity-50"
+        style={{ minHeight: 52, fontSize: 15, fontWeight: 700, borderRadius: 16 }}
       >
         {state === "locating"
           ? <><Loader2 size={18} className="animate-spin" />{t("Определяем…", "Aniqlanmoqda…")}</>
-          : <><RefreshCw size={18} />{t("Отправить моё местоположение", "Joylashuvimni yuborish")}</>}
+          : <><MapPin size={18} />{t("Поделиться геолокацией", "Joylashuvni yuborish")}</>}
       </button>
 
-      {/* Точка уходит сама — пока приложение открыто */}
-      <div className="neo-card p-4 flex items-start gap-3">
-        <Radio size={16} className="text-success flex-shrink-0 mt-0.5" />
-        <div>
-          <p className="font-medium text-primary text-sm">
-            {t(
-              `Пока приложение открыто, точка уходит сама раз в ${PING_MIN} ${plural(PING_MIN, "минуту", "минуты", "минут")}`,
-              `Ilova ochiq bo'lganda nuqta har ${PING_MIN} daqiqada o'zi yuboriladi`,
-            )}
+      {/* ── Авто-отправка ── */}
+      <div style={{ ...card, padding: 16 }}>
+        <div className="flex items-center gap-3">
+          <span className="flex items-center justify-center flex-shrink-0" style={{ width: 40, height: 40, borderRadius: 12, background: "var(--color-primary-subtle)" }}>
+            <Radio size={18} color="var(--color-primary-text)" />
+          </span>
+          <div className="flex-1 min-w-0">
+            <p style={{ fontSize: 15, fontWeight: 600, color: "var(--color-text-primary)", margin: 0 }}>{t("Авто-отправка", "Avto-yuborish")}</p>
+            <p style={{ fontSize: 13, color: "var(--color-text-tertiary)", margin: "2px 0 0" }}>
+              {t(`Раз в ${PING_MIN} ${plural(PING_MIN, "минуту", "минуты", "минут")}, пока приложение открыто`, `Ilova ochiq bo'lganda har ${PING_MIN} daqiqada`)}
+            </p>
+          </div>
+        </div>
+        {/* Честно: браузер замораживает свёрнутую вкладку, фоновый след — только у мобильного приложения. */}
+        <span className="inline-flex rounded-full px-2.5 py-1 mt-3" style={{ fontSize: 11, fontWeight: 600, background: "var(--color-warning-subtle)", color: "var(--color-warning-text)" }}>
+          {t("Слежение только на экране", "Kuzatuv faqat ekranda")}
+        </span>
+      </div>
+
+      {/* ── Последняя отправка ── */}
+      <div className="flex flex-col items-center" style={{ ...card, padding: "16px 20px" }}>
+        <p style={{ fontSize: 12, fontWeight: 700, letterSpacing: "0.08em", color: "var(--color-text-tertiary)", margin: "0 0 4px" }}>{t("ПОСЛЕДНЯЯ ОТПРАВКА", "OXIRGI YUBORISH")}</p>
+        <p className="font-data" style={{ fontSize: 26, color: "var(--color-text-primary)", margin: 0 }}>{last ? format(last, "HH:mm:ss") : "—"}</p>
+        {coords && (
+          <p className="font-data" style={{ fontSize: 12, color: "var(--color-text-tertiary)", margin: "4px 0 0" }}>
+            {coords.lat.toFixed(5)}° N, {coords.lng.toFixed(5)}° E · ±{Math.round(coords.accuracy)} {t("м", "m")}
           </p>
-          <p className="text-xs mt-0.5" style={{ color: "var(--color-text-tertiary, #6b6760)" }}>
-            {lastPing
-              ? `${t("Последняя", "Oxirgisi")}: ${format(lastPing, "HH:mm")}`
-              : t("Ещё не отправлялась — разрешите геолокацию, когда браузер спросит", "Hali yuborilmagan — brauzer so'raganda geolokatsiyaga ruxsat bering")}
-            {" · "}
-            {t("Слежение в фоне даёт только мобильное приложение", "Fonda kuzatishni faqat mobil ilova beradi")}
+        )}
+        {!last && (
+          <p style={{ fontSize: 12, color: "var(--color-text-tertiary)", margin: "4px 0 0", textAlign: "center" }}>
+            {t("Ещё не отправлялась — разрешите геолокацию, когда браузер спросит", "Hali yuborilmagan — brauzer so'raganda geolokatsiyaga ruxsat bering")}
+          </p>
+        )}
+      </div>
+
+      {/* ── Как это работает ── */}
+      <div className="flex gap-3" style={{ borderRadius: 24, padding: 16, background: "var(--color-primary-subtle)" }}>
+        <Info size={18} color="var(--color-primary-text)" className="flex-shrink-0 mt-0.5" />
+        <div>
+          <p style={{ fontSize: 13, fontWeight: 600, color: "var(--color-text-primary)", margin: 0 }}>{t("Как это работает", "Bu qanday ishlaydi")}</p>
+          <p style={{ fontSize: 13, lineHeight: 1.5, color: "var(--color-text-secondary)", margin: "4px 0 0" }}>
+            {t("Ваши координаты будут видны супервайзеру на карте. Это помогает планировать маршруты и подтверждать посещения магазинов.", "Koordinatalaringiz supervayzerga xaritada ko'rinadi. Bu marshrutlarni rejalashtirish va do'kon tashriflarini tasdiqlashga yordam beradi.")}
           </p>
         </div>
       </div>
-
-      {/* Подтверждение отправки */}
-      {lastSent && (
-        <p className="text-xs text-center" style={{ color: "var(--color-text-tertiary, #6b6760)" }}>
-          ✓ {t("Местоположение отправлено в", "Joylashuv yuborildi")} {format(lastSent, "HH:mm:ss")}
-        </p>
-      )}
     </div>
   );
 }

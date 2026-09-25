@@ -1,13 +1,49 @@
 import { CheckCircle2 } from "lucide-react";
+import { useLang } from "@/i18n";
 
 interface StepsProps {
   current: number;
   labels: string[];
 }
 
+/*
+  На телефоне — StepIndicator мобилки v8 (Warehouse-Pro-Mobile,
+  app/order/new.tsx): полоса пройденного, номер шага в круге, «Шаг 1 из 3»,
+  название шага и точки. Три кружка с подписями — для большого экрана: на
+  телефоне они съедали высоту и дублировали то, что и так видно.
+*/
 export function Steps({ current, labels }: StepsProps) {
+  const { lang } = useLang();
+  const total = labels.length;
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 0, marginBottom: "32px" }}>
+    <>
+      <div className="md:hidden" style={{ marginBottom: 20 }} data-testid="phone-steps">
+        <div style={{ height: 5, borderRadius: 999, background: "var(--color-surface-light)", overflow: "hidden", marginBottom: 14 }}>
+          <div style={{ height: "100%", width: `${(current / total) * 100}%`, borderRadius: 999, background: "var(--color-primary)", transition: "width .3s ease" }} />
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <span style={{ width: 30, height: 30, borderRadius: 15, display: "flex", alignItems: "center", justifyContent: "center", background: "var(--color-primary)", color: "var(--color-on-primary)", fontSize: 13, fontWeight: 700 }}>{current}</span>
+          <span style={{ flex: 1, minWidth: 0 }}>
+            <span style={{ display: "block", fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", color: "var(--color-text-tertiary)" }}>
+              {lang === "uz" ? `QADAM ${current} / ${total}` : `ШАГ ${current} ИЗ ${total}`}
+            </span>
+            <span style={{ display: "block", fontSize: 15, fontWeight: 700, color: "var(--color-text-primary)" }}>{labels[current - 1]}</span>
+          </span>
+          <span style={{ display: "flex", gap: 5 }}>
+            {labels.map((_, i) => (
+              <span key={i} style={{ width: i + 1 === current ? 18 : 6, height: 6, borderRadius: 3, background: i + 1 < current ? "color-mix(in srgb, var(--color-primary) 40%, transparent)" : i + 1 === current ? "var(--color-primary)" : "var(--color-border)" }} />
+            ))}
+          </span>
+        </div>
+      </div>
+      <DesktopSteps current={current} labels={labels} />
+    </>
+  );
+}
+
+function DesktopSteps({ current, labels }: StepsProps) {
+  return (
+    <div className="hidden md:flex" style={{ alignItems: "center", gap: 0, marginBottom: "32px" }}>
       {labels.map((label, i) => {
         const step = i + 1;
         const done = step < current;

@@ -15,6 +15,8 @@ import { QueryErrorFallback } from "@/components/QueryErrorFallback";
 // Слово и цвет состояния — оттуда же, откуда их берёт экран заказов.
 import { STATUS } from "@/components/orders/theme-tokens";
 import { labelled, ORDER_STATUS_LABEL } from "@/lib/entity-labels";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { OversightHome } from "@/components/phone/OversightHome";
 
 type Range = "7d" | "30d" | "month";
 
@@ -119,7 +121,18 @@ function MiniBarChart({ data, color }: { data: number[]; color: string }) {
   );
 }
 
+/*
+  На телефоне — главная мобилки (SupervisorHome, v8): владелец, 25.09.2026,
+  «PWA точно как мобайл». Развилка — отдельным компонентом, а не ранним
+  return в середине этого: у настольной главной свои запросы, и на телефоне
+  они не должны уходить вовсе.
+*/
 export default function Dashboard() {
+  const phone = useIsMobile();
+  return phone ? <OversightHome /> : <DesktopDashboard />;
+}
+
+function DesktopDashboard() {
   const [range, setRange] = useState<Range>("7d");
   const { fmt } = useCurrency();
   const { lang } = useLang();

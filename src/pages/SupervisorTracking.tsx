@@ -640,7 +640,7 @@ export default function SupervisorTracking() {
     <div className="space-y-3 animate-fade-up">
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
-          <h1 className="font-display text-2xl font-bold text-primary tracking-tight">
+          <h1 className="hidden md:block font-display text-2xl font-bold text-primary tracking-tight">
             {t("Карта", "Xarita")}
           </h1>
           <p className="text-xs mt-0.5" style={{ color: stalled ? "var(--color-warning-text)" : "var(--color-text-tertiary)" }}>

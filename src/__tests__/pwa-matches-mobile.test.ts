@@ -29,6 +29,7 @@ const read = (p: string) => readFileSync(join(root, p), "utf8").replace(/\r\n/g,
 const CSS = read("src/index.css");
 const LAYOUT = read("src/components/Layout.tsx");
 const HOME = read("src/pages/AgentDashboard.tsx");
+const KIT = read("src/components/phone/kit.tsx");
 
 const PHONE_AT = CSS.indexOf("ТЕЛЕФОН (PWA) = МОБИЛКА v8");
 function block(selector: string): string {
@@ -198,7 +199,9 @@ describe("панель вкладок — как в мобилке", () => {
 
 describe("главная агента — раскладка мобилки", () => {
   it("«Новый заказ» — главное действие, выручка — на плашке hero", () => {
-    expect(HOME).toContain("background: \"var(--color-cta)\", color: \"var(--color-on-cta)\"");
+    // Жёлтая плитка — общая деталь телефонных экранов (components/phone/kit.tsx).
+    expect(KIT).toContain("style={{ background: \"var(--color-cta)\", color: \"var(--color-on-cta)\"");
+    expect(HOME).toMatch(/<CtaTile icon=\{Plus\} label=\{t\("Новый заказ", "Yangi buyurtma"\)\}/);
     expect(HOME).toContain("background: \"var(--color-hero)\"");
     expect(HOME).toContain("color: \"var(--color-on-hero)\"");
     expect(HOME).toContain("t(\"Новый заказ\", \"Yangi buyurtma\")");

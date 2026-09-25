@@ -3,6 +3,8 @@ import { useNavigate } from "react-router";
 import { trpc } from "@/providers/trpc";
 import { useLang } from "@/i18n";
 import { notificationText } from "@/lib/notification-text";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { PhoneNotifications } from "@/components/phone/PhoneNotifications";
 import { format, isToday, isYesterday } from "date-fns";
 import { dateLocale } from "@/lib/date-locale";
 import {
@@ -74,7 +76,17 @@ function dayTitle(date: Date, lang: string): string {
   return format(date, "d MMMM yyyy", { locale: dateLocale(lang) });
 }
 
+/*
+  На телефоне — экран мобилки v8 (components/phone/PhoneNotifications):
+  владелец, 25.09.2026, «PWA точно как мобайл». Ниже — лента большого экрана
+  с разделами по роду уведомлений.
+*/
 export default function Notifications() {
+  const phone = useIsMobile();
+  return phone ? <PhoneNotifications /> : <DesktopNotifications />;
+}
+
+function DesktopNotifications() {
   const { lang } = useLang();
   const t = (ru: string, uz: string) => (lang === "uz" ? uz : ru);
   const navigate = useNavigate();

@@ -52,6 +52,8 @@ type PageTitle = { ru: string; uz: string };
 
 const PAGE_META: Record<string, { title: PageTitle; parent?: PageTitle; parentPath?: string }> = {
   "/":                  { title: { ru: "Главная",       uz: "Bosh sahifa" } },
+  "/dashboard":         { title: { ru: "Главная",       uz: "Bosh sahifa" } },
+  "/courier":           { title: { ru: "Главная",       uz: "Bosh sahifa" } },
   "/super-admin":       { title: { ru: "Super Admin",   uz: "Super Admin" } },
   "/monitoring":        { title: { ru: "Мониторинг",    uz: "Monitoring" } },
   "/reports":           { title: { ru: "Отчёты",        uz: "Hisobotlar" } },
@@ -75,13 +77,19 @@ const PAGE_META: Record<string, { title: PageTitle; parent?: PageTitle; parentPa
   "/agent/gps":         { title: { ru: "GPS",           uz: "GPS" }, parent: { ru: "Мой день", uz: "Mening kunim" }, parentPath: "/agent" },
   "/agent/plans":       { title: { ru: "Визиты",        uz: "Tashriflar" } },
   "/agent/debts":       { title: { ru: "Мои долги",     uz: "Mening qarzlarim" }, parent: { ru: "Мой день", uz: "Mening kunim" }, parentPath: "/agent" },
+  // Отчёт о визите мерчендайзера открывают из плана — туда и стрелка.
+  "/agent/visit":       { title: { ru: "Отчёт о визите", uz: "Tashrif hisoboti" }, parent: { ru: "Визиты", uz: "Tashriflar" }, parentPath: "/agent/plans" },
   "/deliveries":        { title: { ru: "Доставки",      uz: "Yetkazishlar" } },
   // «Карта» — как в нижней панели и в боковом меню: один экран назывался
   // тремя словами («Слежение», «Карта», «Слежение за агентами»).
   "/supervisor":        { title: { ru: "Карта",         uz: "Xarita" } },
-  "/supervisor/plans":  { title: { ru: "Планы",         uz: "Rejalar" }, parent: { ru: "Карта", uz: "Xarita" }, parentPath: "/supervisor" },
+  // «Планы» — вкладка нижней панели (как в мобилке), а не шаг из «Карты»: стрелки назад у неё нет.
+  "/supervisor/plans":  { title: { ru: "Планы",         uz: "Rejalar" } },
   "/barcode":           { title: { ru: "Сканер",        uz: "Skaner" } },
   "/offline-orders":    { title: { ru: "Офлайн",        uz: "Oflayn" } },
+  "/notifications":     { title: { ru: "Уведомления",   uz: "Bildirishnomalar" } },
+  "/agent/kpi":         { title: { ru: "KPI",           uz: "KPI" } },
+  "/support":           { title: { ru: "Поддержка",     uz: "Qo'llab-quvvatlash" } },
 };
 
 function usePageMeta(): { title: string; parent?: string; parentPath?: string } {
@@ -91,12 +99,26 @@ function usePageMeta(): { title: string; parent?: string; parentPath?: string } 
   // обязано знать про пару {ru, uz}, и одно из трёх однажды про неё забудет.
   const pick = (p: PageTitle) => (lang === "uz" ? p.uz : p.ru);
 
+  // Шапка рисуется только на телефоне, а там /settings без раздела — это
+  // вкладка «Профиль», как в мобилке (components/phone/PhoneProfile).
+  if (location.pathname === "/settings" && !new URLSearchParams(location.search).get("section")) {
+    return { title: pick({ ru: "Профиль", uz: "Profil" }) };
+  }
+
   const exact = PAGE_META[location.pathname];
   if (exact) return { title: pick(exact.title), parent: exact.parent && pick(exact.parent), parentPath: exact.parentPath };
 
-  const base = "/" + location.pathname.split("/")[1];
-  const detail = PAGE_META[base];
-  if (detail) return { title: pick(detail.title), parent: pick(detail.title), parentPath: base };
+  /*
+    Вложенный экран называется по БЛИЖАЙШЕМУ разделу, а не по первому
+    сегменту: карточка магазина агента (/agent/shops/5) — это «Магазины» со
+    стрелкой к ним, а не «Мой день».
+  */
+  const base = Object.keys(PAGE_META)
+    .filter(k => k !== "/" && location.pathname.startsWith(k + "/"))
+    .sort((a, b) => b.length - a.length)[0];
+  const detail = base ? PAGE_META[base] : undefined;
+  // Шаг мастера (/orders/new/items) — тот же «Новый заказ» с его же родителем, а не «Новый заказ / Новый заказ».
+  if (base && detail) return { title: pick(detail.title), parent: pick(detail.parent ?? detail.title), parentPath: detail.parentPath ?? base };
 
   // Заголовок неописанной страницы подставляет вызывающий — из вывески
   // арендатора, а не из названия системы.
@@ -335,6 +357,7 @@ const Sidebar = memo(function Sidebar({ onClose, unreadCount = 0 }: { onClose?: 
 // ── Mobile header ─────────────────────────────────────────────────────────────
 const MobileHeader = memo(function MobileHeader({ onMenuClick, unreadCount }: { onMenuClick: () => void; unreadCount: number }) {
   const navigate = useNavigate();
+  const location = useLocation();
   const { lang }  = useLang();
   const meta     = usePageMeta();
   const { name: appName } = useAppBrand();
@@ -367,7 +390,11 @@ const MobileHeader = memo(function MobileHeader({ onMenuClick, unreadCount }: { 
   return (
     <header className="md:hidden flex items-center px-3 sticky top-0 z-40 gap-2.5 mobile-header-premium h-[calc(56px+env(safe-area-inset-top,0px))] pt-[env(safe-area-inset-top,0px)]">
       {hasParent ? (
-        <button onClick={() => navigate(meta.parentPath!)} className={roundBtn} style={roundSize} aria-label={lang === "uz" ? "Orqaga" : "Назад"}>
+        <button
+          // На шагах мастера заказа стрелка возвращает на ШАГ, а не выбрасывает
+          // из заказа: набранное живёт в родителе, и шаги — это история.
+          onClick={() => (location.pathname.startsWith("/orders/new/") ? navigate(-1) : navigate(meta.parentPath!))}
+          className={roundBtn} style={roundSize} aria-label={lang === "uz" ? "Orqaga" : "Назад"}>
           <ArrowLeft size={18} color="var(--color-text-primary)" />
         </button>
       ) : (
@@ -408,21 +435,33 @@ const BOTTOM_NAV: Record<string, Array<{ ru: string; uz: string; path: string; i
   superadmin: [
     { ru: "Платформа", uz: "Platforma", path: "/super-admin", icon: "Zap", exact: true },
   ],
+  /*
+    Надзорные роли — вкладки мобилки (src/lib/tabs.ts в Warehouse-Pro-Mobile):
+    Главная, Карта, Планы, Магазины. Владелец, 25.09.2026: «все сделай
+    абсолютно» — в ответ на «4 вкладки, как в мобилке?». Заказы, склад, отчёты
+    и KPI — в боковом меню, оно на телефоне за кнопкой «Меню».
+
+    Главная — /dashboard: туда ведёт «/» (pages/Home.tsx), и на телефоне там
+    рисуется главная мобилки (components/phone/OversightHome).
+  */
   ceo: [
-    { ru: "Главная",   uz: "Bosh",      path: "/",          icon: "House", exact: true },
-    { ru: "KPI",       uz: "KPI",       path: "/agent/kpi",  icon: "BarChart3" },
-    { ru: "Заказы",    uz: "Buyurtma",  path: "/orders",    icon: "Clipboard" },
-    { ru: "Магазины",  uz: "Do'konlar", path: "/shops",     icon: "ShoppingBag" },
-    { ru: "Склад",     uz: "Ombor",     path: "/warehouse", icon: "Warehouse" },
-    { ru: "Отчёты",    uz: "Hisobot",   path: "/reports",   icon: "Activity" },
+    { ru: "Главная",   uz: "Bosh sahifa", path: "/dashboard",        icon: "House", exact: true },
+    { ru: "Карта",     uz: "Xarita",      path: "/supervisor",       icon: "Map", exact: true },
+    { ru: "Планы",     uz: "Rejalar",     path: "/supervisor/plans", icon: "Calendar" },
+    { ru: "Магазины",  uz: "Do'konlar",   path: "/shops",            icon: "ShoppingBag" },
   ],
+  /*
+    Оператору мобилка даёт «Главная, Планы, Магазины», но сервер ему не отдаёт
+    ни главную руководителя (dashboard.* — директор и супервайзер), ни планы
+    (agent.createPlans — они же): вкладка с отказом хуже отсутствующей — то
+    же правило, что в tabs.ts мобилки для карты. Его главная — заказы (туда
+    ведёт «/»), рядом магазины, склад и профиль.
+  */
   operator: [
-    { ru: "Главная",  uz: "Bosh",      path: "/",          icon: "House", exact: true },
-    { ru: "KPI",      uz: "KPI",       path: "/agent/kpi",  icon: "BarChart3" },
-    { ru: "Заказы",   uz: "Buyurtma",  path: "/orders",    icon: "Clipboard" },
-    { ru: "Магазины", uz: "Do'konlar", path: "/shops",     icon: "ShoppingBag" },
-    { ru: "Приходы",  uz: "Kirimlar",  path: "/arrivals",  icon: "Truck" },
-    { ru: "Склад",    uz: "Ombor",     path: "/warehouse", icon: "Warehouse" },
+    { ru: "Заказы",   uz: "Buyurtmalar", path: "/orders",    icon: "Clipboard" },
+    { ru: "Магазины", uz: "Do'konlar",   path: "/shops",     icon: "ShoppingBag" },
+    { ru: "Склад",    uz: "Ombor",       path: "/warehouse", icon: "Warehouse" },
+    { ru: "Профиль",  uz: "Profil",      path: "/settings",  icon: "User" },
   ],
   // Панель агента — ровно вкладки мобильного приложения (владелец, 24.09.2026:
   // «PWA точно как мобайл»): Главная, Магазины, Каталог, Заказы, Профиль —
@@ -446,15 +485,13 @@ const BOTTOM_NAV: Record<string, Array<{ ru: string; uz: string; path: string; i
     { ru: "Заказы",     uz: "Buyurtmalar", path: "/orders",      icon: "Clipboard" },
     { ru: "Профиль",    uz: "Profil",      path: "/settings",    icon: "User" },
   ],
-  // Настройки уехали в боковое меню, как у руководителя: внизу шесть мест, и
-  // магазины с заказами нужны в работе чаще, чем смена языка.
+  // Как у супервайзера в мобилке (владелец, 17.09.2026: «хватит 3–4 табов»):
+  // Главная, Карта, Планы, Магазины. Заказы, отчёты, KPI — в боковом меню.
   supervisor: [
-    { ru: "KPI",       uz: "KPI",       path: "/agent/kpi",       icon: "BarChart3" },
-    { ru: "Карта",     uz: "Xarita",    path: "/supervisor",       icon: "Map", exact: true },
-    { ru: "Планы",     uz: "Rejalar",   path: "/supervisor/plans", icon: "Calendar" },
-    { ru: "Магазины",  uz: "Do'konlar", path: "/shops",            icon: "ShoppingBag" },
-    { ru: "Заказы",    uz: "Buyurtma",  path: "/orders",           icon: "Clipboard" },
-    { ru: "Отчёты",    uz: "Hisobot",   path: "/reports",          icon: "Activity" },
+    { ru: "Главная",   uz: "Bosh sahifa", path: "/dashboard",        icon: "House", exact: true },
+    { ru: "Карта",     uz: "Xarita",      path: "/supervisor",       icon: "Map", exact: true },
+    { ru: "Планы",     uz: "Rejalar",     path: "/supervisor/plans", icon: "Calendar" },
+    { ru: "Магазины",  uz: "Do'konlar",   path: "/shops",            icon: "ShoppingBag" },
   ],
   // Как у мерчендайзера в мобилке: Главная, Магазины, План, Профиль. План
   // визитов — его работа (отчёт о визите открывается оттуда), прятать её за
@@ -468,12 +505,13 @@ const BOTTOM_NAV: Record<string, Array<{ ru: string; uz: string; path: string; i
   // Доставщика тут не было вовсе. Панель при этом всё равно рисовалась — с
   // пустым списком: внизу экрана оставалась глухая полоса в 60 точек, которая
   // закрывала содержимое и никуда не вела. Пункты те же, что в боковом меню
-  // (src/const.ts), чтобы на телефоне и на большом экране было одно и то же;
-  // «Настройки» названы «Профилем», как вкладка курьера в мобилке.
+  // (src/const.ts), чтобы на телефоне и на большом экране было одно и то же.
+  // С 25.09.2026 — ровно вкладки курьера в мобилке: Главная, Доставки,
+  // Профиль; KPI — в боковом меню.
   courier: [
-    { ru: "Доставки",  uz: "Yetkazish",  path: "/deliveries", icon: "Truck", exact: true },
-    { ru: "KPI",       uz: "KPI",        path: "/agent/kpi",  icon: "BarChart3" },
-    { ru: "Профиль",   uz: "Profil",     path: "/settings",   icon: "User" },
+    { ru: "Главная",   uz: "Bosh sahifa", path: "/courier",    icon: "House", exact: true },
+    { ru: "Доставки",  uz: "Yetkazish",   path: "/deliveries", icon: "Truck" },
+    { ru: "Профиль",   uz: "Profil",      path: "/settings",   icon: "User" },
   ],
 };
 

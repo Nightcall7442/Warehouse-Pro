@@ -2,16 +2,20 @@ import { useState, useMemo } from "react";
 import { trpc } from "@/providers/trpc";
 import { useCurrency } from "@/hooks/useCurrency";
 import { useTranslate } from "@/i18n";
-import { Package, Search, X, Plus, Minus } from "lucide-react";
+import { Package, Search, X, Plus, Minus, ShoppingCart, ArrowRight } from "lucide-react";
 import { QueryErrorFallback } from "@/components/QueryErrorFallback";
 import { PhotoOrIcon } from "@/components/PhotoOrIcon";
-import { QuickOrderModal } from "@/components/orders";
 import { formatQty } from "@/lib/format";
 import { unitLabel } from "@/components/orders/types";
 import { useLang } from "@/i18n";
 import { createPortal } from "react-dom";
 import { useOfflineCopy } from "@/hooks/useOfflineCopy";
 import { useOverlay } from "@/lib/overlay";
+import { useNavigate } from "react-router";
+import { useAuth } from "@/hooks/useAuth";
+import { notify } from "@/lib/toast";
+import { plural } from "@/lib/plural";
+import { addToCart, clearCart, useCatalogCart, type CartLine } from "@/lib/catalog-cart";
 
 /* ═══════════════════════════════════════════════════════════════════════════
    КАТАЛОГ АГЕНТА — то, чем он пользуется у прилавка.
@@ -26,9 +30,13 @@ import { useOverlay } from "@/lib/overlay";
 
    Здесь — как в приложении: сетка карточек с фотографией во всю ширину,
    поиск, категории. Нажатие открывает карточку с крупным снимком, ценой,
-   остатком и счётчиком, а «Заказать» отдаёт товар окну быстрого заказа —
-   тому же, что открывается со страницы заказов. Своего создания заказа
-   здесь нет намеренно: одна дорога, один набор проверок.
+   остатком и счётчиком.
+
+   Корзина — как в мобилке v8 (25.09.2026, «PWA точно как мобайл»): кнопка
+   на карточке кладёт единицу, в корзине она становится степпером, внизу
+   плашка «В заказе · сумма · Оформить». «Оформить» открывает мастер заказа
+   с этими товарами (lib/catalog-cart.ts). Своего создания заказа здесь нет
+   намеренно: одна дорога, один набор проверок — мастер.
    ═══════════════════════════════════════════════════════════════════════════ */
 
 type CatalogProduct = {
@@ -42,48 +50,79 @@ type CatalogProduct = {
   photoUrl: string | null;
 };
 
-/** Карточка в сетке. */
-function ProductCard({ product, onOpen }: { product: CatalogProduct; onOpen: () => void }) {
+type CatalogProductFull = CatalogProduct & { unitWeight?: string | number | null };
+
+/** Строка корзины из товара каталога. */
+function asLine(p: CatalogProductFull): Omit<CartLine, "quantity"> {
+  return {
+    productId: p.id, productName: p.name, unitPrice: p.unitPrice, available: p.available ?? "0",
+    unit: p.unit ?? "pcs", unitWeight: Number(p.unitWeight ?? 0),
+  };
+}
+
+/** Карточка в сетке — ProductCard мобилки: фото, бирка наличия, корзина на фото. */
+function ProductCard({ product, onOpen, inCart, onAdd, onRemove }: {
+  product: CatalogProduct; onOpen: () => void; inCart: number; onAdd: () => void; onRemove: () => void;
+}) {
   const { fmt } = useCurrency();
   const { lang } = useLang();
+  const tr = useTranslate();
   const stock = Number(product.available ?? 0);
   const out = stock <= 0;
+  const unit = unitLabel(product.unit ?? undefined, lang);
 
   return (
-    <button
-      type="button"
+    <div
       data-testid={`catalog-card-${product.id}`}
-      onClick={onOpen}
-      className="neo-card-sm text-left"
-      style={{
-        display: "flex", flexDirection: "column", gap: "8px", padding: "8px",
-        opacity: out ? 0.55 : 1, cursor: "pointer", width: "100%",
-      }}
+      className="text-left overflow-hidden"
+      style={{ background: "var(--color-surface)", boxShadow: "var(--shadow-raised)", borderRadius: 20, display: "flex", flexDirection: "column" }}
     >
-      <div style={{
-        width: "100%", aspectRatio: "1", borderRadius: "10px", overflow: "hidden",
-        display: "flex", alignItems: "center", justifyContent: "center",
-        background: "var(--color-surface-light)",
-      }}>
-        <PhotoOrIcon src={product.photoUrl} fallback={<Package size={28} style={{ color: "var(--color-text-tertiary)" }} />} />
+      <div style={{ position: "relative", width: "100%", aspectRatio: "1", background: "var(--color-surface-light)" }}>
+        <button type="button" onClick={onOpen} aria-label={product.name} style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
+          <PhotoOrIcon src={product.photoUrl} fallback={<Package size={28} style={{ color: "var(--color-text-tertiary)" }} />} />
+        </button>
+        <span style={{
+          position: "absolute", top: 8, left: 8, borderRadius: 999, padding: "4px 8px", fontSize: 11, fontWeight: 600,
+          background: out ? "var(--color-danger-subtle)" : "var(--color-success-subtle)",
+          color: out ? "var(--color-danger-text)" : "var(--color-success-text)",
+          backdropFilter: "blur(6px)",
+        }}>
+          {out ? tr("Нет", "Yo'q") : tr("В наличии", "Bor")}
+        </span>
+        {!out && (inCart > 0 ? (
+          <div data-testid={`catalog-stepper-${product.id}`} style={{ position: "absolute", right: 8, bottom: 8, display: "flex", alignItems: "center", height: 36, borderRadius: 18, background: "var(--color-primary)", color: "var(--color-on-primary)" }}>
+            <button type="button" aria-label={tr("Меньше", "Kamroq")} onClick={onRemove} style={{ width: 36, height: 36, display: "flex", alignItems: "center", justifyContent: "center" }}><Minus size={16} /></button>
+            <span className="font-data" style={{ minWidth: 18, textAlign: "center", fontSize: 13, fontWeight: 700 }}>{inCart}</span>
+            <button type="button" aria-label={tr("Больше", "Ko'proq")} onClick={onAdd} style={{ width: 36, height: 36, display: "flex", alignItems: "center", justifyContent: "center" }}><Plus size={16} /></button>
+          </div>
+        ) : (
+          <button type="button" aria-label={tr("В корзину", "Savatga")} onClick={onAdd} data-testid={`catalog-add-${product.id}`}
+            style={{ position: "absolute", right: 8, bottom: 8, width: 36, height: 36, borderRadius: 18, display: "flex", alignItems: "center", justifyContent: "center", background: "var(--color-primary)", color: "var(--color-on-primary)" }}>
+            <ShoppingCart size={16} />
+          </button>
+        ))}
       </div>
 
-      <p style={{
-        margin: 0, fontSize: "13px", fontWeight: 500, color: "var(--color-text-primary)",
-        display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical",
-        overflow: "hidden", minHeight: "34px", lineHeight: "17px",
-      }}>
-        {product.name}
-      </p>
-
-      <p style={{ margin: 0, fontSize: "14px", fontWeight: 700, color: "var(--color-primary-text)" }}>
-        {fmt(product.unitPrice)}
-      </p>
-
-      <p style={{ margin: 0, fontSize: "11px", color: out ? "var(--color-danger-text)" : "var(--color-text-tertiary)" }}>
-        {out ? (lang === "uz" ? "Mahsulot tugadi" : "Нет в наличии") : `${formatQty(product.available)} ${unitLabel(product.unit ?? undefined, lang)}`}
-      </p>
-    </button>
+      <button type="button" onClick={onOpen} style={{ padding: 12, textAlign: "left", display: "flex", flexDirection: "column", gap: 4, opacity: out ? 0.6 : 1 }}>
+        <span style={{
+          fontSize: 14, fontWeight: 600, color: "var(--color-text-primary)",
+          display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", lineHeight: "18px", minHeight: 36,
+        }}>
+          {product.name}
+        </span>
+        {product.code && (
+          <span className="font-data" style={{ fontSize: 11, color: "var(--color-text-tertiary)" }}>{tr("Артикул", "Artikul")}: {product.code}</span>
+        )}
+        <span style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 6, marginTop: 2 }}>
+          <span className="font-data" style={{ fontSize: 16, fontWeight: 700, color: "var(--color-primary-text)", whiteSpace: "nowrap" }}>
+            {fmt(product.unitPrice)}<span style={{ fontSize: 11, fontWeight: 500, color: "var(--color-text-tertiary)" }}>/{unit}</span>
+          </span>
+          <span style={{ fontSize: 11, fontWeight: 500, color: out ? "var(--color-danger-text)" : "var(--color-success-text)", whiteSpace: "nowrap" }}>
+            {out ? (lang === "uz" ? "Tugadi" : "Нет") : `${formatQty(product.available)} ${unit}`}
+          </span>
+        </span>
+      </button>
+    </div>
   );
 }
 
@@ -222,7 +261,8 @@ function ProductSheet({ product, onClose, onOrder }: {
               className="neo-btn-primary"
               style={{ width: "100%", padding: "14px", fontSize: "15px", fontWeight: 600, opacity: qty > stock ? 0.4 : 1 }}
             >
-              {tr("Заказать", "Buyurtma berish")}
+              {/* Как в мобилке: сразу видно, на сколько кладём. */}
+              {tr(`В заказ · ${fmt(Number(product.unitPrice) * qty)}`, `Buyurtmaga · ${fmt(Number(product.unitPrice) * qty)}`)}
             </button>
           </>
         )}
@@ -237,7 +277,12 @@ export default function Catalog() {
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState<string | null>(null);
   const [opened, setOpened] = useState<CatalogProduct | null>(null);
-  const [quickOrder, setQuickOrder] = useState<{ product: CatalogProduct; qty: number } | null>(null);
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const cart = useCatalogCart(user?.id);
+  const inCart = useMemo(() => new Map(cart.lines.map(l => [l.productId, l.quantity])), [cart.lines]);
+  const { fmt } = useCurrency();
+  const put = (p: CatalogProduct, delta: number) => { if (user) addToCart(user.id, asLine(p), delta); };
 
   const { data, isLoading, isLoadingError, refetch } = trpc.product.listAll.useQuery(undefined);
   // `data ?? []` прямо в зависимостях давал бы новый пустой массив на каждый
@@ -286,7 +331,7 @@ export default function Catalog() {
   if (isLoadingError && products.length === 0) return <QueryErrorFallback onRetry={refetch} />;
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-3" style={{ paddingBottom: cart.positions > 0 ? 88 : undefined }}>
       {/* Копия с устройства — говорим об этом. По остаткам агент
           разговаривает с магазином, и выдавать вчерашнее за сегодняшнее
           молча нельзя. */}
@@ -355,7 +400,9 @@ export default function Catalog() {
         </div>
       ) : (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(148px, 1fr))", gap: "10px" }}>
-          {filtered.map(p => <ProductCard key={p.id} product={p} onOpen={() => setOpened(p)} />)}
+          {filtered.map(p => (
+            <ProductCard key={p.id} product={p} onOpen={() => setOpened(p)} inCart={inCart.get(p.id) ?? 0} onAdd={() => put(p, 1)} onRemove={() => put(p, -1)} />
+          ))}
         </div>
       )}
 
@@ -363,23 +410,37 @@ export default function Catalog() {
         <ProductSheet
           product={opened}
           onClose={() => setOpened(null)}
-          onOrder={(qty) => { setQuickOrder({ product: opened, qty }); setOpened(null); }}
+          onOrder={(qty) => {
+            put(opened, qty);
+            notify.success(tr("Добавлено в заказ", "Buyurtmaga qo'shildi"));
+            setOpened(null);
+          }}
         />
       )}
 
-      {quickOrder && (
-        <QuickOrderModal
-          open
-          onOpenChange={(v) => { if (!v) setQuickOrder(null); }}
-          initialItem={{
-            productId: quickOrder.product.id,
-            name:      quickOrder.product.name,
-            code:      quickOrder.product.code,
-            unitPrice: Number(quickOrder.product.unitPrice),
-            quantity:  quickOrder.qty,
-          }}
-          onCreated={() => setQuickOrder(null)}
-        />
+      {/* Плашка корзины — над нижней панелью телефона: что набрано и одна
+          дорога — оформить. На большом экране панели нет, плашка у края. */}
+      {cart.positions > 0 && (
+        <div
+          data-testid="catalog-cart-bar"
+          className="fixed left-4 right-4 md:left-auto md:right-6 md:w-[420px] bottom-[calc(68px+env(safe-area-inset-bottom,0px))] md:bottom-6 z-40 flex items-center gap-2"
+          style={{ background: "var(--color-surface)", boxShadow: "var(--shadow-lg)", borderRadius: 20, padding: "8px 8px 8px 16px" }}
+        >
+          <div className="flex-1 min-w-0">
+            <p className="truncate" style={{ margin: 0, fontSize: 13, fontWeight: 600, color: "var(--color-text-secondary)" }}>
+              {tr(`В заказе: ${cart.positions} ${plural(cart.positions, "товар", "товара", "товаров")}`, `Buyurtmada: ${cart.positions} ta tovar`)}
+            </p>
+            <p className="font-data truncate" style={{ margin: 0, fontSize: 17, fontWeight: 700, color: "var(--color-text-primary)" }}>{fmt(cart.total)}</p>
+          </div>
+          <button type="button" aria-label={tr("Очистить корзину", "Savatni tozalash")} onClick={() => user && clearCart(user.id)}
+            style={{ width: 40, height: 40, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--color-text-secondary)" }}>
+            <X size={18} />
+          </button>
+          <button type="button" data-testid="catalog-checkout" onClick={() => navigate("/orders/new?fromCart=1")}
+            className="neo-btn-primary flex items-center gap-1.5" style={{ padding: "12px 16px", fontSize: 14 }}>
+            {tr("Оформить", "Rasmiylashtirish")}<ArrowRight size={16} />
+          </button>
+        </div>
       )}
     </div>
   );

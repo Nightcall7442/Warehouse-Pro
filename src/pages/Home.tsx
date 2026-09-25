@@ -25,9 +25,10 @@ const ROLE_HOME: Record<string, string> = {
   agent:        "/agent",
   merchandiser: "/agent",
   // Курьера здесь не было, и он проваливался в общий fallback на /dashboard —
-  // экран директора с выручкой и долгами, у которого нет RoleGuard. Его
-  // рабочий раздел — список доставок.
-  courier:      "/deliveries",
+  // экран директора с выручкой и долгами, у которого нет RoleGuard. С
+  // 25.09.2026 у него своя главная, как в мобилке: день в числах и последние
+  // доставки; список доставок — вкладкой рядом.
+  courier:      "/courier",
 };
 
 export default function Home() {

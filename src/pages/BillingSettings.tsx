@@ -133,7 +133,7 @@ export default function BillingSettings() {
 
   return (
     <div className="max-w-2xl space-y-6">
-      <h1 className="font-display text-2xl font-bold text-primary tracking-tight">
+      <h1 className="hidden md:block font-display text-2xl font-bold text-primary tracking-tight">
         {t("Подписка", "Obuna")}
       </h1>
 
