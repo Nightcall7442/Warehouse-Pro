@@ -355,7 +355,14 @@ async function shootMobile(browser) {
   for (const lang of LANGS) {
     for (const [role, scenarios] of Object.entries(MOBILE_SCENARIOS)) {
       const email = ACCOUNTS[role];
-      const ctx = await browser.newContext({ ...phone, locale: lang === "uz" ? "uz" : "ru" });
+      // Геолокация выдана, как на телефоне агента в работе. Без неё «План»
+      // вешал жёлтый баннер «Геолокация выключена — визиты не подтверждаются»,
+      // а лендинг рядом подписывает кадр «Отмечен по GPS» (25.09.2026).
+      // Точка — Ургенч, где стоят магазины засева.
+      const ctx = await browser.newContext({
+        ...phone, locale: lang === "uz" ? "uz" : "ru",
+        geolocation: { latitude: 41.5506, longitude: 60.6317 }, permissions: ["geolocation"],
+      });
       // AsyncStorage в вебе — localStorage с тем же ключом, что и на телефоне.
       await ctx.addInitScript(l => { try { localStorage.setItem("app_lang", l); } catch {} }, lang);
       const page = await ctx.newPage();

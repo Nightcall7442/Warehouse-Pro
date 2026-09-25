@@ -1,68 +1,37 @@
 /**
- * Seed script — populates Railway MySQL with comprehensive demo data (Uzbekistan context).
+ * Seed script — fills a LOCAL MySQL with comprehensive demo data (Uzbekistan context).
+ * Стирает все таблицы; на удалённой базе отказывается (db/seed-reset.ts).
  *
  * Idempotent: safe to run multiple times. Clears existing data first, then inserts fresh.
  * Run via:  npm run db:seed
  */
 import "dotenv/config";
 import { getDb } from "../api/queries/connection";
+import { eq } from "drizzle-orm";
 import * as schema from "./schema";
 import { hashPassword } from "../api/auth/password";
+import { daysAgo } from "./seed-dates";
+import { assertSeedTarget, wipeAll } from "./seed-reset";
+import { actualsForTargets } from "../api/services/sales-target-actuals";
+import { monthRange } from "../api/lib/period";
+import { env } from "../api/lib/env";
 
 const PLACEHOLDER_PHOTO =
   "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUAAScY42YAAAAASUVORK5CYII=";
-
-/**
- * Дата «n дней назад, в hourOffset часов от восьми утра» — и никогда в
- * будущем. Засев — история, а не план: сегодняшний заказ, датированный
- * вечером, при утреннем прогоне встаёт в списке ВЫШЕ только что
- * оформленного, и e2e «жизнь заказа» не находит свой заказ на первой
- * странице (оба PR 21.09.2026 упали в 12:46 UTC, вечерний прогон проходил).
- * Заодно «выручка сегодня» на главной не считает то, чего ещё не было.
- */
-function daysAgo(n: number, hourOffset = 0): Date {
-  const d = new Date(Date.now() - n * 86_400_000);
-  d.setHours(8 + hourOffset, Math.floor(Math.random() * 60), 0, 0);
-  if (d.getTime() > Date.now()) d.setTime(Date.now() - (1 + Math.floor(Math.random() * 30)) * 60_000);
-  return d;
-}
 
 function randomPrice(min: number, max: number): string {
   return (Math.floor(Math.random() * (max - min) + min) / 100).toFixed(2);
 }
 
 async function seed() {
+  assertSeedTarget(env.databaseUrl);
   const db = getDb();
   const { randomUUID } = await import("crypto");
 
   console.log("🌱 Seeding Warehouse Pro database...\n");
   console.log("Clearing existing data...");
-
-  await db.delete(schema.auditLog);
-  await db.delete(schema.passwordResetTokens);
-  await db.delete(schema.visitReports);
-  await db.delete(schema.billingEvents);
-  await db.delete(schema.subscriptions);
-  await db.delete(schema.idMappings);
-  await db.delete(schema.syncStatus);
-  await db.delete(schema.tenantBranding);
-  await db.delete(schema.invites);
-  await db.delete(schema.notifications);
-  await db.delete(schema.agentLocations);
-  await db.delete(schema.dailyPlans);
-  await db.delete(schema.payments);
-  await db.delete(schema.arrivalItems);
-  await db.delete(schema.arrivals);
-  await db.delete(schema.stockMovements);
-  await db.delete(schema.warehouseStock);
-  await db.delete(schema.orderItems);
-  await db.delete(schema.orders);
-  await db.delete(schema.shops);
-  await db.delete(schema.products);
-  await db.delete(schema.settings);
-  await db.delete(schema.users);
-  await db.delete(schema.tenants);
-  console.log("✓ Data cleared\n");
+  const wiped = await wipeAll(db);
+  console.log(`✓ Data cleared (${wiped} tables)\n`);
 
   // ── Tenant ───────────────────────────────────────────────────────────────────
   console.log("Creating tenants...");
@@ -736,6 +705,44 @@ async function seed() {
     }
   }
   console.log(`✓ ${payCount} pay terms created\n`);
+
+  // ── Нормы на месяц (sales_targets) ──────────────────────────────────────────
+  /*
+    Без них «Показатели» супервайзера в мобилке и нормы в вебе были пустыми:
+    «Нет норм. Создайте нормы в табе „Планы“» — на демо это читалось как
+    незаполненная программа (25.09.2026). План ставится от настоящего факта
+    месяца — того же actualsForTargets, что считает сервер, — с разным
+    множителем: кто-то перевыполнил, кто-то отстаёт, как в жизни.
+  */
+  console.log("Creating monthly targets...");
+  const month = monthRange(new Date());
+  const targetIds: Array<{ id: number; agentId: number }> = [];
+  for (const agentId of allAgents) {
+    const [r] = await db.insert(schema.salesTargets).values({
+      tenantId, userId: agentId, periodType: "monthly",
+      periodStart: new Date(`${month.start}T12:00:00`), periodEnd: new Date(`${month.end}T12:00:00`),
+      targetAmount: "1.00", orderCountTarget: 1, visitTarget: "90.00",
+    });
+    targetIds.push({ id: Number(r.insertId), agentId });
+  }
+  const actuals = await actualsForTargets(db, tenantId, targetIds.map(x => x.id));
+  const pace = [0.85, 1.1, 1.35, 1.6, 0.95];
+  let targetCount = 0;
+  for (const [i, { id }] of targetIds.entries()) {
+    const a = actuals.get(id);
+    if (!a || a.revenue <= 0) {
+      // Агенту без продаж норму не ставим: «0 из плана» у пустого агента — шум.
+      await db.delete(schema.salesTargets).where(eq(schema.salesTargets.id, id));
+      continue;
+    }
+    const k = pace[i % pace.length];
+    await db.update(schema.salesTargets).set({
+      targetAmount: (Math.round((a.revenue * k) / 100_000) * 100_000).toFixed(2),
+      orderCountTarget: Math.max(1, Math.round(a.orderCount * k)),
+    }).where(eq(schema.salesTargets.id, id));
+    targetCount++;
+  }
+  console.log(`✓ ${targetCount} monthly targets created\n`);
 
   // ── Agent Locations (30) ────────────────────────────────────────────────────
   console.log("Creating agent locations...");

@@ -17,7 +17,7 @@ let poolRef: mysql.Pool | null = null;
  * Railway and most cloud MySQL providers require SSL.
  * Local (localhost / 127.0.0.1) doesn't need it.
  */
-function isRemoteHost(url: string): boolean {
+export function isRemoteHost(url: string): boolean {
   try {
     const parsed = new URL(url);
     const host = parsed.hostname;
