@@ -193,9 +193,18 @@ export async function myOrders(db: Db, tenantId: number, agentId: number) {
       notes: orders.notes,
       createdAt: orders.createdAt,
       shopId: orders.shopId,
+      /*
+        Название магазина — в строку списка. Мобилка давно пишет в карточке
+        заказа `shopName ?? orderNumber`, но поле не приходило, и агент видел
+        одни номера: «какой из трёх заказов ждёт офиса» приходилось открывать.
+        Соединение по арендатору — как везде в этом файле.
+      */
+      shopName: shops.name,
       agentId: orders.agentId,
       paymentMethod: orders.paymentMethod,
-    }).from(orders).where(and(...conditions)).orderBy(desc(orders.createdAt)).limit(500),
+    }).from(orders)
+      .leftJoin(shops, and(eq(orders.shopId, shops.id), eq(shops.tenantId, tenantId)))
+      .where(and(...conditions)).orderBy(desc(orders.createdAt)).limit(500),
     db.select({ count: sql<number>`count(*)` }).from(orders).where(and(...conditions)),
   ]);
   return { data, total: Number(countResult[0]?.count ?? 0) };

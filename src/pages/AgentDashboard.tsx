@@ -1,30 +1,31 @@
+import { useMemo } from "react";
 import { trpc } from "@/providers/trpc";
 import { useLang } from "@/i18n";
 import { useCurrency } from "@/hooks/useCurrency";
 import { useAuth } from "@/hooks/useAuth";
 import { useNavigate } from "react-router";
-import { getGreeting } from "@/lib/utils";
 import { plural } from "@/lib/plural";
 import { format } from "date-fns";
-import { dateLocale } from "@/lib/date-locale";
 import {
-  CheckCircle2, Clock, Calendar, MapPin, ArrowRight, ChevronRight, AlertCircle,
+  CheckCircle2, Clock, Calendar, MapPin, ChevronRight, AlertCircle,
   Plus, ShoppingBag, Navigation, Maximize, User, Clipboard, TrendingUp,
 } from "lucide-react";
 import { QueryErrorFallback } from "@/components/QueryErrorFallback";
+import {
+  ListCard, ListRow, SectionHead, Tile, CtaTile, EmptyState, RowsSkeleton, HomeGreeting, Sparkline, StatusDot,
+} from "@/components/phone/kit";
+import { CARD, orderTone, orderStatusWord } from "@/components/phone/tones";
 import type { LucideIcon } from "lucide-react";
 
 /*
   «Мой день» — раскладка главной мобилки v8 (Warehouse-Pro-Mobile,
-  app/(tabs)/index.tsx). Владелец, 24.09.2026: «PWA точно как мобайл».
+  app/(tabs)/index.tsx, AgentHome). Владелец, 24–25.09.2026: «PWA точно как
+  мобайл», «все сделай абсолютно».
 
-  Порядок тот же, что на телефоне: визиты на сегодня → главное действие
-  («Новый заказ» жёлтой плиткой) и плитки быстрых переходов → долги
-  магазинов → «Мои заказы сегодня» с плашкой выручки. Подписи — обычными
-  буквами: КАПС в десять пунктов и был тем, что читалось дёшево.
-
-  Кольца плана здесь больше нет: в мобилке прогресс — счётчик «3 / 8» у
-  заголовка визитов, и он читается быстрее кольца.
+  Порядок тот же, что на телефоне: визиты на сегодня → динамика продаж за
+  неделю → главное действие («Новый заказ» жёлтой плиткой) и плитки
+  быстрых переходов → долги магазинов → «Мои заказы сегодня»: плашка
+  выручки и сами заказы. Подписи — обычными буквами.
 */
 
 // ── Статусы визитов ───────────────────────────────────────────────────────────
@@ -33,8 +34,6 @@ const PLAN_STATUS: Record<string, { icon: LucideIcon; labelRu: string; labelUz: 
   skipped: { icon: Clock,        labelRu: "Пропущен",     labelUz: "O'tkazildi",       color: "var(--color-warning)", textColor: "var(--color-warning-text)" },
   planned: { icon: Calendar,     labelRu: "Запланирован", labelUz: "Rejalashtirilgan", color: "var(--color-info)",    textColor: "var(--color-info-text)" },
 };
-
-const CARD: React.CSSProperties = { background: "var(--color-surface)", boxShadow: "var(--shadow-raised)" };
 
 // ── Строка визита ─────────────────────────────────────────────────────────────
 function PlanRow({ plan, first, onDone, onSkip, isPending }: {
@@ -53,10 +52,7 @@ function PlanRow({ plan, first, onDone, onSkip, isPending }: {
   const address = [plan.shopAddress, plan.shopCity].filter(Boolean).join(", ");
 
   return (
-    <div
-      className="flex items-center gap-3 px-4 py-3.5"
-      style={{ borderTop: first ? "none" : "1px solid var(--color-border-subtle)", opacity: plan.status === "visited" ? 0.6 : 1 }}
-    >
+    <ListRow first={first} dim={plan.status === "visited"}>
       <span
         className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
         style={{ background: `color-mix(in srgb, ${s.color} 15%, transparent)` }}
@@ -111,53 +107,7 @@ function PlanRow({ plan, first, onDone, onSkip, isPending }: {
           {lang === "uz" ? s.labelUz : s.labelRu}
         </span>
       )}
-    </div>
-  );
-}
-
-/** Заголовок раздела с переходом «→», как SectionTitle мобилки. */
-function SectionHead({ icon: Icon, title, badge, onMore, moreLabel }: {
-  icon: LucideIcon; title: string; badge?: string; onMore?: () => void; moreLabel: string;
-}) {
-  return (
-    <div className="flex items-center justify-between mb-3">
-      <div className="flex items-center gap-2 min-w-0">
-        <Icon size={16} color="var(--color-primary-text)" className="flex-shrink-0" />
-        <h2 className="truncate" style={{ fontSize: 16, fontWeight: 700, color: "var(--color-text-primary)", margin: 0 }}>{title}</h2>
-        {badge && (
-          <span className="rounded-full px-2 py-0.5 flex-shrink-0" style={{ fontSize: 11, fontWeight: 700, background: "var(--color-primary-subtle)", color: "var(--color-primary-text)" }}>
-            {badge}
-          </span>
-        )}
-      </div>
-      {onMore && (
-        <button type="button" onClick={onMore} className="btn-ghost w-11 h-11 flex-shrink-0" aria-label={moreLabel}>
-          <ArrowRight size={16} color="var(--color-text-tertiary)" />
-        </button>
-      )}
-    </div>
-  );
-}
-
-/** Плитка быстрого перехода: белая карточка, значок на мягкой подложке. */
-function Tile({ icon: Icon, label, tint, onClick, big }: {
-  icon: LucideIcon; label: string; tint: string; onClick: () => void; big?: boolean;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="flex-1 min-w-0 flex flex-col items-center justify-center active:scale-[0.98] transition-transform"
-      style={{ ...CARD, borderRadius: big ? 20 : 16, padding: big ? "20px 8px" : "16px 8px", gap: big ? 10 : 8 }}
-    >
-      <span
-        className="flex items-center justify-center"
-        style={{ width: big ? 40 : 36, height: big ? 40 : 36, borderRadius: big ? 12 : 10, background: `color-mix(in srgb, ${tint} 12%, transparent)` }}
-      >
-        <Icon size={big ? 20 : 16} color={tint} />
-      </span>
-      <span className="max-w-full truncate" style={{ fontSize: 13, fontWeight: 600, color: "var(--color-text-primary)" }}>{label}</span>
-    </button>
+    </ListRow>
   );
 }
 
@@ -169,23 +119,30 @@ export default function AgentDashboard() {
   const { lang }    = useLang();
   const t = (ru: string, uz: string) => lang === "uz" ? uz : ru;
 
+  // Мерчендайзер не продаёт: ни нового заказа, ни сканера, ни выручки — как в мобилке (sells).
+  const sells = user?.role !== "merchandiser";
+
   const { data: kpis, isError: kpisFailed, isLoading: kpisLoading } = trpc.dashboard.agentDashboard.useQuery();
   const { data: plans, isLoading, isLoadingError, refetch } = trpc.agent.getPlans.useQuery({});
+  const { data: trend } = trpc.dashboard.revenueTrend.useQuery({ days: 7 }, { enabled: sells, retry: false });
+  const { data: mine, isLoading: mineLoading, isError: mineFailed } = trpc.order.myOrders.useQuery(undefined, { enabled: sells, retry: false });
   const utils                          = trpc.useUtils();
 
   const updatePlan = trpc.agent.updatePlanStatus.useMutation({
     onSuccess: () => utils.agent.getPlans.invalidate(),
   });
 
-  // Мерчендайзер не продаёт: ни нового заказа, ни сканера, ни выручки — как в мобилке (sells).
-  const sells        = user?.role !== "merchandiser";
   const todayVisited = plans?.filter(p => p.status === "visited").length ?? 0;
   const todayPlanned = plans?.length ?? 0;
   const debt         = Number(kpis?.shopsDebt ?? 0);
   const orders       = kpis?.todayOrders ?? 0;
 
-  const greeting  = getGreeting(t);
-  const firstName = user?.name?.split(" ")[0] ?? "";
+  // «Мои заказы сегодня» — именно сегодня и не больше пяти, как в мобилке: это
+  // витрина, а итог дня считает сервер (плашка выше списка).
+  const todayOrders = useMemo(() => {
+    const today = format(new Date(), "yyyy-MM-dd");
+    return (mine?.data ?? []).filter(o => o.createdAt && format(new Date(o.createdAt), "yyyy-MM-dd") === today).slice(0, 5);
+  }, [mine]);
 
   if (isLoadingError) return <QueryErrorFallback onRetry={refetch} />;
 
@@ -198,30 +155,7 @@ export default function AgentDashboard() {
   return (
     <div className="space-y-5 animate-fade-up">
 
-      {/* ── Шапка ── */}
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p style={{ fontSize: 13, fontWeight: 500, color: "var(--color-primary-text)", margin: 0 }}>
-            {greeting}{firstName ? `, ${firstName}` : ""}
-          </p>
-          {/* На телефоне «Мой день» уже написан в шапке приложения — второй раз не повторяем. */}
-          <h1 className="hidden md:block font-display" style={{ fontSize: 26, fontWeight: 700, letterSpacing: "-0.02em", color: "var(--color-text-primary)", margin: "4px 0 0" }}>
-            {t("Мой день", "Mening kunim")}
-          </h1>
-          <p className="capitalize" style={{ fontSize: 13, color: "var(--color-text-secondary)", margin: "4px 0 0" }}>
-            {format(new Date(), "EEEE, d MMMM", { locale: dateLocale(lang) })}
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={() => navigate("/settings")}
-          aria-label={t("Профиль", "Profil")}
-          className="flex-shrink-0 flex items-center justify-center rounded-full"
-          style={{ width: 44, height: 44, background: "var(--color-primary-subtle)", border: "2px solid var(--color-primary)", color: "var(--color-primary-text)", fontSize: 18, fontWeight: 700 }}
-        >
-          {(firstName || "?").charAt(0).toUpperCase()}
-        </button>
-      </div>
+      <HomeGreeting title={t("Мой день", "Mening kunim")} />
 
       {/* ── Визиты сегодня ── */}
       <section>
@@ -232,23 +166,9 @@ export default function AgentDashboard() {
           onMore={() => navigate("/agent/plans")}
           moreLabel={t("Все планы", "Barcha rejalar")}
         />
-        <div style={{ ...CARD, borderRadius: 20, overflow: "hidden" }}>
-          {isLoading ? (
-            <div className="p-4 space-y-2.5">
-              {Array.from({ length: 2 }).map((_, i) => (
-                <div key={i} className="h-11 rounded-xl animate-pulse" style={{ background: "var(--color-surface-light)" }} />
-              ))}
-            </div>
-          ) : sorted.length === 0 ? (
-            <div className="flex flex-col items-center gap-2 px-6 py-6 text-center">
-              <span className="w-12 h-12 rounded-full flex items-center justify-center" style={{ background: "var(--color-canvas)" }}>
-                <MapPin size={20} color="var(--color-text-tertiary)" />
-              </span>
-              <p style={{ fontSize: 13, fontWeight: 500, color: "var(--color-text-secondary)", margin: 0 }}>{t("На сегодня визитов нет", "Bugun tashrif yo'q")}</p>
-              <p style={{ fontSize: 12, color: "var(--color-text-tertiary)", margin: 0 }}>
-                {t("Супервайзер ещё не назначил маршрут", "Supervisor yo'l haritasini hali tayinlamadi")}
-              </p>
-            </div>
+        <ListCard>
+          {isLoading ? <RowsSkeleton /> : sorted.length === 0 ? (
+            <EmptyState icon={MapPin} title={t("На сегодня визитов нет", "Bugun tashrif yo'q")} hint={t("Супервайзер ещё не назначил маршрут", "Supervisor yo'l haritasini hali tayinlamadi")} />
           ) : (
             sorted.map((plan, i) => (
               <PlanRow
@@ -261,25 +181,26 @@ export default function AgentDashboard() {
               />
             ))
           )}
-        </div>
+        </ListCard>
       </section>
+
+      {/* ── Динамика продаж: выручка за неделю ── */}
+      {sells && (
+        <section style={{ ...CARD, borderRadius: 24, padding: 20 }} data-testid="agent-trend">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 style={{ fontSize: 16, fontWeight: 700, color: "var(--color-text-primary)", margin: 0 }}>{t("Динамика продаж", "Sotuvlar dinamikasi")}</h2>
+              <p style={{ fontSize: 12, color: "var(--color-text-tertiary)", margin: "3px 0 0" }}>{t("Выручка за 7 дней", "7 kunlik tushum")}</p>
+            </div>
+          </div>
+          <Sparkline data={(trend ?? []).map(Number)} height={60} />
+        </section>
+      )}
 
       {/* ── Быстрые действия ── */}
       <div className="space-y-3">
         <div className="flex gap-3">
-          {sells && (
-            <button
-              type="button"
-              onClick={() => navigate("/orders/new")}
-              className="flex-1 min-w-0 flex flex-col items-center justify-center active:scale-[0.98] transition-transform"
-              style={{ background: "var(--color-cta)", color: "var(--color-on-cta)", borderRadius: 20, padding: "20px 8px", gap: 10 }}
-            >
-              <span className="flex items-center justify-center" style={{ width: 40, height: 40, borderRadius: 12, background: "rgba(0,0,0,0.08)" }}>
-                <Plus size={22} color="var(--color-on-cta)" />
-              </span>
-              <span style={{ fontSize: 15, fontWeight: 700 }}>{t("Новый заказ", "Yangi buyurtma")}</span>
-            </button>
-          )}
+          {sells && <CtaTile icon={Plus} label={t("Новый заказ", "Yangi buyurtma")} onClick={() => navigate("/orders/new")} testId="agent-new-order" />}
           <Tile big icon={ShoppingBag} label={t("Магазины", "Do'konlar")} tint="var(--color-primary-text)" onClick={() => navigate("/agent/shops")} />
         </div>
         <div className="flex gap-3">
@@ -315,7 +236,7 @@ export default function AgentDashboard() {
         </button>
       )}
 
-      {/* ── Мои заказы сегодня: плашка главной цифры ──
+      {/* ── Мои заказы сегодня: плашка главной цифры и сами заказы ──
           Сбой связи НЕ рисуется нулём: «0 сум» и «не пришёл ответ» на экране
           выглядят одинаково, и агент решил бы, что день пустой. */}
       {sells && (
@@ -327,7 +248,7 @@ export default function AgentDashboard() {
             moreLabel={t("Мои заказы", "Buyurtmalarim")}
           />
           <div
-            className="flex items-center justify-between gap-3"
+            className="flex items-center justify-between gap-3 mb-3"
             style={{ background: "var(--color-hero)", borderRadius: 24, padding: 20, boxShadow: "var(--shadow-lg)" }}
             data-testid="agent-hero"
           >
@@ -357,6 +278,28 @@ export default function AgentDashboard() {
               <TrendingUp size={20} color="var(--color-on-hero)" />
             </span>
           </div>
+
+          <ListCard>
+            {mineLoading ? <RowsSkeleton /> : todayOrders.length === 0 ? (
+              <EmptyState
+                icon={Clipboard}
+                title={mineFailed
+                  ? t("Не удалось загрузить заказы — это сбой связи", "Buyurtmalar yuklanmadi — aloqa uzildi")
+                  : (mine?.data.length ?? 0) > 0 ? t("Сегодня заказов ещё нет", "Bugun hali buyurtma yo'q") : t("Создайте первый заказ", "Birinchi buyurtmani yarating")}
+              />
+            ) : todayOrders.map((o, i) => {
+              const tone = orderTone(o.status);
+              return (
+                <ListRow key={o.id} first={i === 0} onClick={() => navigate(`/orders/${o.id}`)} testId="agent-today-order">
+                  <div className="flex-1 min-w-0">
+                    <p className="truncate" style={{ fontSize: 14, fontWeight: 600, color: "var(--color-text-primary)", margin: 0 }}>{o.shopName ?? o.orderNumber}</p>
+                    <div style={{ marginTop: 2 }}><StatusDot dot={tone.dot} text="var(--color-text-tertiary)" label={orderStatusWord(o.status, lang)} /></div>
+                  </div>
+                  <span className="font-data flex-shrink-0" style={{ fontSize: 14, fontWeight: 700, color: "var(--color-text-primary)" }}>{fmt(o.total)}</span>
+                </ListRow>
+              );
+            })}
+          </ListCard>
         </section>
       )}
 

@@ -130,7 +130,7 @@ export default function ProductDetail() {
     <div className="max-w-3xl mx-auto space-y-4">
       {dialog}
       <div className="flex items-center justify-between flex-wrap gap-2">
-        <button onClick={()=>navigate(`/products?page=${fromPage}${fromSearch ? `&search=${encodeURIComponent(fromSearch)}` : ""}${fromCategory ? `&category=${encodeURIComponent(fromCategory)}` : ""}`)} className="neo-btn flex items-center gap-2 py-1.5 px-3 text-sm">
+        <button onClick={()=>navigate(`/products?page=${fromPage}${fromSearch ? `&search=${encodeURIComponent(fromSearch)}` : ""}${fromCategory ? `&category=${encodeURIComponent(fromCategory)}` : ""}`)} className="neo-btn hidden md:flex items-center gap-2 py-1.5 px-3 text-sm">
           <ArrowLeft size={18}/><span className="text-sm">{tr("Товары","Mahsulotlar")}</span>
         </button>
         {canEdit && (

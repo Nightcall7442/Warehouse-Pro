@@ -19,6 +19,8 @@ import { AppearanceSettings } from "@/components/settings/AppearanceSettings";
 import { BrandingSettings } from "@/components/settings/BrandingSettings";
 import { OperatorAccess } from "@/components/settings/OperatorAccess";
 import { SectionHeader } from "@/components/settings/ui";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { PhoneProfile } from "@/components/phone/PhoneProfile";
 
 /**
  * Настройки.
@@ -168,7 +170,20 @@ const SECTIONS: Section[] = [
 
 const DEFAULT_SECTION = "profile";
 
+/*
+  На телефоне «/settings» без раздела — вкладка «Профиль» мобилки v8
+  (components/phone/PhoneProfile): владелец, 25.09.2026, «PWA точно как
+  мобайл». Любой раздел (?section=…) открывает полную страницу ниже — на неё
+  ведут строки профиля.
+*/
 export default function Settings() {
+  const phone = useIsMobile();
+  const [params] = useSearchParams();
+  if (phone && !params.get("section")) return <PhoneProfile />;
+  return <FullSettings />;
+}
+
+function FullSettings() {
   const [params, setParams] = useSearchParams();
   const { lang } = useLang();
   const { user } = useAuth();
@@ -196,7 +211,7 @@ export default function Settings() {
   return (
     <div className="max-w-5xl mx-auto animate-fade-up">
       <header className="mb-6">
-        <h1 className="font-display text-2xl font-bold text-primary tracking-tight">
+        <h1 className="hidden md:block font-display text-2xl font-bold text-primary tracking-tight">
           {t("Настройки", "Sozlamalar")}
         </h1>
         <p className="text-sm text-secondary mt-1">

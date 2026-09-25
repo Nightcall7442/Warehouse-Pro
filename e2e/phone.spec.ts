@@ -10,9 +10,9 @@ import { login } from "./harness";
  * Здесь они проверяются там, где были видны, — на ширине телефона.
  *
  * Нарочная поломка: в ScrollToTop замени `type !== "PUSH"` на сравнение
- * pathname — упадёт «пункт меню повторно»; убери flexWrap/flexShrink у кольца
- * на главной — упадёт «кольцо внутри карточки»; убери ветку isMobile в
- * KpiCard — упадут «карточки-показатели».
+ * pathname — упадёт «пункт меню повторно»; верни директору шесть вкладок —
+ * упадёт «главная директора»; убери ветку isMobile в KpiCard — упадут
+ * «карточки-показатели».
  */
 test.use({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
 
@@ -22,19 +22,37 @@ function sidewaysOverflow(page: Page) {
 }
 
 test.describe("телефон", () => {
-  test("главная: страница не шире экрана, кольцо прибыли внутри карточки", async ({ page }) => {
+  test("главная директора — как в мобилке: не шире экрана, четыре вкладки", async ({ page }) => {
+    /*
+      С 25.09.2026 на телефоне у директора главная мобилки v8 (SupervisorHome:
+      подсказки, долги, динамика, статусы, «Трекинг»), а внизу — её вкладки:
+      Главная, Карта, Планы, Магазины. Кольца прибыли здесь больше нет — оно
+      осталось на главной большого экрана.
+    */
     await login(page, "ceo");
     await page.goto("/");
-    const ring = page.locator(".neo-progress-ring").first();
-    await expect(ring).toBeVisible();
+    await expect(page.getByTestId("oversight-home")).toBeVisible();
+    await expect(page.getByRole("button", { name: /^(Трекинг|Kuzatuv)$/ })).toBeVisible();
     expect(await sidewaysOverflow(page), "главная шире экрана").toBeLessThanOrEqual(0);
-    const box = await ring.evaluate(el => {
-      const r = el.getBoundingClientRect();
-      const card = el.closest(".kpi-hero")!.getBoundingClientRect();
-      return { right: r.right, cardRight: card.right, screen: window.innerWidth };
-    });
-    expect(box.right, "кольцо вылезло за карточку").toBeLessThanOrEqual(box.cardRight + 1);
-    expect(box.right, "кольцо вылезло за экран").toBeLessThanOrEqual(box.screen);
+    const tabs = page.locator("nav.bottom-nav-premium button");
+    await expect(tabs).toHaveCount(4);
+    await expect(tabs.first()).toHaveAttribute("aria-current", "page");
+  });
+
+  test("агент: главная и корзина каталога — как в мобилке", async ({ page }) => {
+    await login(page, "agent");
+    await page.goto("/agent");
+    await expect(page.getByRole("button", { name: /^(Новый заказ|Yangi buyurtma)$/ })).toBeVisible();
+    await expect(page.getByTestId("agent-hero")).toBeVisible();
+    expect(await sidewaysOverflow(page), "главная агента шире экрана").toBeLessThanOrEqual(0);
+    await expect(page.locator("nav.bottom-nav-premium button")).toHaveCount(5);
+
+    // Корзина: кнопка на карточке → плашка «В заказе» → мастер заказа с этими товарами.
+    await page.goto("/catalog");
+    await page.locator("[data-testid^='catalog-add-']").first().click();
+    await expect(page.getByTestId("catalog-cart-bar")).toBeVisible();
+    await page.getByTestId("catalog-checkout").click();
+    await expect(page).toHaveURL(/\/orders\/new\?fromCart=1/);
   });
 
   test("заказы: сумма в карточке одной строкой и на экране", async ({ page }) => {

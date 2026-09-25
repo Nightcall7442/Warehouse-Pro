@@ -30,6 +30,17 @@ function bottomNav(): Record<string, string[]> {
 
 const BOTTOM = bottomNav();
 
+/** Куда роль попадает после входа: ROLE_ROUTES, а «/» — дальше по ROLE_HOME из pages/Home.tsx. */
+const HOME_SRC = readFileSync(join(process.cwd(), "src", "pages", "Home.tsx"), "utf8");
+function landing(role: string): string | undefined {
+  const r = ROLE_ROUTES[role];
+  if (r !== "/") return r;
+  const table = HOME_SRC.slice(HOME_SRC.indexOf("const ROLE_HOME"), HOME_SRC.indexOf("};", HOME_SRC.indexOf("const ROLE_HOME")));
+  const m = new RegExp(`^\\s*${role}:\\s*"([^"]+)"`, "m").exec(table);
+  expect(m, `роль «${role}» уходит на «/», а в ROLE_HOME её нет`).not.toBeNull();
+  return m![1];
+}
+
 describe("у каждой роли есть чем ходить по приложению", () => {
   it("исходник разобран, роли найдены", () => {
     // Если разбор сломается, все проверки ниже станут зелёными на пустом
@@ -56,8 +67,9 @@ describe("у каждой роли есть чем ходить по прило�
 
     it(`${role}: начальная страница роли есть в панели`, () => {
       // Куда роль попадает после входа — туда должна вести и панель, иначе
-      // вернуться на свой главный экран нечем.
-      const home = ROLE_ROUTES[role];
+      // вернуться на свой главный экран нечем. «/» — не страница, а развилка:
+      // pages/Home.tsx уводит роль дальше, туда и смотрим.
+      const home = landing(role);
       if (!home) return;
       expect(paths, `после входа роль «${role}» попадает на ${home}, а в панели такого пункта нет`).toContain(home);
     });

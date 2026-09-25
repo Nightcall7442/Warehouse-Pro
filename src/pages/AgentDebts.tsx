@@ -1,7 +1,8 @@
 import { useMemo, useState } from "react";
 import { format, parseISO } from "date-fns";
 import { dateLocale } from "@/lib/date-locale";
-import { Wallet, Phone, MapPin, Loader2, CheckCircle2 } from "lucide-react";
+import { Wallet, Phone, MapPin, Loader2, CheckCircle2, Search } from "lucide-react";
+import { useNavigate } from "react-router";
 import { trpc } from "@/providers/trpc";
 import { useLang } from "@/i18n";
 import { useCurrency } from "@/hooks/useCurrency";
@@ -57,21 +58,44 @@ export default function AgentDebts() {
   );
 
   const [collecting, setCollecting] = useState<Debt | null>(null);
+  const [search, setSearch] = useState("");
+  const navigate = useNavigate();
+  // Магазинов, а не строк: «шесть точек» — это шесть остановок за день.
+  const shops = useMemo(() => new Set(debts.map(d => d.shopId)).size, [debts]);
+  const shown = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return q ? debts.filter(d => d.shopName.toLowerCase().includes(q) || d.orderNumber.toLowerCase().includes(q)) : debts;
+  }, [debts, search]);
+  // Время открытия экрана — одно на все строки; при отрисовке часы не спрашиваем.
+  const [now] = useState(() => Date.now());
 
   if (isLoadingError) return <QueryErrorFallback onRetry={refetch} />;
 
+  /*
+    Вид — «Мои долги» мобилки v8 (Warehouse-Pro-Mobile, app/debts.tsx): сумма
+    и число точек, поиск, карточка долга с возрастом в днях и строкой звонка;
+    нажатие открывает заказ. «Принять оплату» — своё у веба, остаётся.
+  */
   return (
-    <div className="space-y-4 max-w-lg mx-auto">
+    <div className="space-y-3 max-w-lg mx-auto" data-testid="agent-debts">
       <div>
-        <h1 className="font-display text-2xl font-bold text-primary tracking-tight">
+        <h1 className="hidden md:block font-display text-2xl font-bold text-primary tracking-tight">
           {t("Мои долги", "Mening qarzlarim")}
         </h1>
-        <p className="text-sm" style={{ color: "var(--color-text-tertiary)" }}>
+        <p style={{ fontSize: 13, color: "var(--color-text-secondary)", margin: 0 }}>
           {isLoading
-            ? t("Загружаем…", "Yuklanmoqda…")
-            : t(`${debts.length} заказов · ${fmt(total)}`, `${debts.length} ta · ${fmt(total)}`)}
+            ? t("Считаем…", "Hisoblanmoqda…")
+            : t(`${fmt(total)} · ${shops} точек`, `${fmt(total)} · ${shops} ta do'kon`)}
         </p>
       </div>
+
+      {debts.length > 0 && (
+        <label className="flex items-center gap-2 px-4" style={{ background: "var(--color-field)", borderRadius: 16, height: 48, boxShadow: "var(--shadow-pressed)" }}>
+          <Search size={16} color="var(--color-text-tertiary)" className="flex-shrink-0" />
+          <input value={search} onChange={e => setSearch(e.target.value)} placeholder={t("Магазин или номер заказа", "Do'kon yoki buyurtma raqami")}
+            className="flex-1 min-w-0 bg-transparent outline-none" style={{ fontSize: 15, color: "var(--color-text-primary)" }} />
+        </label>
+      )}
 
       {isLoading && (
         <div className="space-y-3">
@@ -81,45 +105,48 @@ export default function AgentDebts() {
         </div>
       )}
 
-      {!isLoading && debts.length === 0 && (
-        // Пустой экран не оставляем немым: ноль долгов — это хорошая новость,
-        // и агент должен понять, что ничего не сломалось.
-        <div className="neo-card" style={{ padding: "32px", textAlign: "center" }}>
-          <CheckCircle2 size={40} style={{ color: "var(--color-success-text)", margin: "0 auto 10px", display: "block" }} />
+      {!isLoading && shown.length === 0 && (
+        <div style={{ background: "var(--color-surface)", boxShadow: "var(--shadow-raised)", borderRadius: 24, padding: 32, textAlign: "center" }}>
+          <CheckCircle2 size={40} style={{ color: search ? "var(--color-text-tertiary)" : "var(--color-success-text)", margin: "0 auto 10px", display: "block" }} />
           <p style={{ margin: 0, fontWeight: 600, color: "var(--color-text-primary)" }}>
-            {t("Долгов нет", "Qarz yo'q")}
+            {search ? t("Ничего не нашлось", "Hech narsa topilmadi") : t("Долгов нет", "Qarz yo'q")}
           </p>
           <p style={{ margin: "4px 0 0", fontSize: "13px", color: "var(--color-text-tertiary)" }}>
-            {t("По вашим заказам всё оплачено", "Buyurtmalaringiz bo'yicha hammasi to'langan")}
+            {search ? t("Попробуйте другое название", "Boshqa nom bilan urinib ko'ring") : t("По вашим заказам всё оплачено", "Buyurtmalaringiz bo'yicha hammasi to'langan")}
           </p>
         </div>
       )}
 
-      {debts.map(d => {
+      {shown.map(d => {
         const remaining = Number(d.remaining);
         const paid = Number(d.paid);
+        const created = typeof d.createdAt === "string" ? parseISO(d.createdAt) : d.createdAt;
+        // Сколько дней висит: «вчера отгрузили» и «забыли полгода назад» по сумме одинаковы.
+        const days = Math.max(0, Math.floor((now - created.getTime()) / 86_400_000));
         return (
-          <div key={d.orderId} className="neo-card" style={{ padding: "16px" }}>
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <p style={{ margin: 0, fontWeight: 600, color: "var(--color-text-primary)" }}>{d.shopName}</p>
-                <p style={{ margin: "2px 0 0", fontSize: "12px", color: "var(--color-text-tertiary)" }}>
-                  {d.orderNumber} · {format(typeof d.createdAt === "string" ? parseISO(d.createdAt) : d.createdAt, "d MMMM", { locale: dateLocale(lang) })}
-                </p>
-              </div>
-              <p style={{ margin: 0, fontSize: "18px", fontWeight: 700, color: "var(--color-danger-text)", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>
-                {fmt(remaining)}
-              </p>
-            </div>
-
-            {/* Уже внесённое видно рядом: иначе агент не поймёт, почему остаток
-                меньше суммы заказа, и заподозрит ошибку. */}
-            {paid > 0 && (
-              <p style={{ margin: "8px 0 0", fontSize: "12px", color: "var(--color-text-tertiary)" }}>
-                {t("Оплачено", "To'langan")}: {fmt(paid)} {t("из", "dan")} {fmt(Number(d.total))}
-              </p>
-            )}
-
+          <div key={d.orderId} style={{ background: "var(--color-surface)", boxShadow: "var(--shadow-raised)", borderRadius: 24, padding: 16 }} data-testid="agent-debt-card">
+            <button type="button" onClick={() => navigate(`/orders/${d.orderId}`)} className="w-full text-left flex items-start justify-between gap-3">
+              <span className="min-w-0">
+                <span className="block" style={{ fontSize: 15, fontWeight: 700, color: "var(--color-text-primary)" }}>{d.shopName}</span>
+                <span className="block font-data" style={{ fontSize: 12, color: "var(--color-text-tertiary)", marginTop: 2 }}>
+                  {d.orderNumber} · {format(created, "d MMMM", { locale: dateLocale(lang) })}{days > 0 ? t(` · ${days} дн.`, ` · ${days} kun`) : ""}
+                </span>
+                {d.shopAddress && (
+                  <span className="flex items-center gap-1 truncate" style={{ fontSize: 12, color: "var(--color-text-tertiary)", marginTop: 2 }}>
+                    <MapPin size={12} className="flex-shrink-0" /> {d.shopAddress}
+                  </span>
+                )}
+              </span>
+              <span className="text-right flex-shrink-0">
+                <span className="block font-data" style={{ fontSize: 17, fontWeight: 800, color: "var(--color-danger-text)", whiteSpace: "nowrap" }}>{fmt(remaining)}</span>
+                {/* Частично оплаченное отличается от неоплаченного: «внесли половину» — другой разговор в точке. */}
+                {paid > 0 && (
+                  <span className="block font-data" style={{ fontSize: 12, color: "var(--color-text-tertiary)", marginTop: 2 }}>
+                    {t(`из ${fmt(Number(d.total))}`, `${fmt(Number(d.total))} dan`)}
+                  </span>
+                )}
+              </span>
+            </button>
             <div className="flex gap-2 mt-3">
               <button
                 onClick={() => setCollecting(d)}
@@ -131,20 +158,14 @@ export default function AgentDebts() {
               {d.shopPhone && (
                 <a
                   href={`tel:${d.shopPhone}`}
-                  aria-label={t("Позвонить", "Qo'ng'iroq")}
-                  className="neo-btn tap flex items-center justify-center"
-                  style={{ width: 44 }}
+                  aria-label={t(`Позвонить в ${d.shopName}`, `${d.shopName} ga qo'ng'iroq`)}
+                  className="tap flex items-center justify-center gap-1.5 rounded-xl px-3"
+                  style={{ minHeight: 44, background: "var(--color-surface-light)", color: "var(--color-text-secondary)", fontSize: 13, fontWeight: 600, textDecoration: "none" }}
                 >
-                  <Phone size={16} />
+                  <Phone size={14} /> {d.shopPhone}
                 </a>
               )}
             </div>
-
-            {d.shopAddress && (
-              <p style={{ margin: "8px 0 0", fontSize: "12px", color: "var(--color-text-tertiary)", display: "flex", alignItems: "center", gap: "4px" }}>
-                <MapPin size={12} /> {d.shopAddress}
-              </p>
-            )}
           </div>
         );
       })}

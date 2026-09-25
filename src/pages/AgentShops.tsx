@@ -12,6 +12,8 @@ import { QueryErrorFallback } from "@/components/QueryErrorFallback";
 import { useAuth } from "@/hooks/useAuth";
 import { useOfflineCopy } from "@/hooks/useOfflineCopy";
 import { AppModal, modalFieldLabel } from "@/components/ui/AppModal";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { ShopBrowser } from "@/components/phone/ShopBrowser";
 
 // ── Форма добавления магазина агентом ─────────────────────────────────────────
 function AddShopModal({ onClose }: { onClose: () => void }) {
@@ -213,6 +215,7 @@ export default function AgentShops() {
   // магазин выбирается первым шагом мастера.
   const { data: shops, fromCopy } = useOfflineCopy<typeof liveShops>("shops", liveShops);
   const navigate                   = useNavigate();
+  const phone                      = useIsMobile();
 
   /*
     Свои магазины — первыми, остальные ниже.
@@ -240,6 +243,33 @@ export default function AgentShops() {
   // Копия спасает и здесь: запрос не удался, но магазины с прошлого раза
   // на устройстве есть.
   if (isLoadingError && !shops?.length) return <QueryErrorFallback onRetry={refetch} />;
+
+  /*
+    Телефон — «Магазины» мобилки v8 (components/phone/ShopBrowser): поиск,
+    территории, ближайшие; нажатие открывает карточку точки, тележка — новый
+    заказ. Порядок «свои первыми» сохраняется внутри каждой территории.
+  */
+  if (phone) {
+    const mineFirst = (shops ?? []).slice().sort((a, b) =>
+      (a.agentId === user?.id ? 0 : 1) - (b.agentId === user?.id ? 0 : 1) || (a.name ?? "").localeCompare(b.name ?? "", "ru"));
+    return (
+      <>
+        {showAdd && <AddShopModal onClose={() => setShowAdd(false)} />}
+        <ShopBrowser
+          shops={mineFirst}
+          loading={isLoading}
+          onOpen={id => navigate(`/agent/shops/${id}`)}
+          onOrder={id => navigate(`/orders/new?shopId=${id}`)}
+          onAdd={() => setShowAdd(true)}
+          note={fromCopy ? (
+            <p data-testid="shops-offline-copy" style={{ fontSize: 12, color: "var(--color-warning-text)", margin: 0 }}>
+              {t("Список с устройства — связи нет", "Ro'yxat qurilmadan — aloqa yo'q")}
+            </p>
+          ) : undefined}
+        />
+      </>
+    );
+  }
   if (isLoading) {
     return (
       <div className="space-y-4">

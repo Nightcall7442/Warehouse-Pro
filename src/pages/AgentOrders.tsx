@@ -1,28 +1,29 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router";
 import { format, parseISO, isToday, isYesterday } from "date-fns";
 import { dateLocale } from "@/lib/date-locale";
-import { ChevronRight, ClipboardList, RefreshCw, Plus } from "lucide-react";
+import { ChevronRight, Clipboard, ClipboardList, RefreshCw, Plus, WifiOff } from "lucide-react";
 import { trpc } from "@/providers/trpc";
 import { useLang } from "@/i18n";
+import { useAuth } from "@/hooks/useAuth";
 import { useCurrency } from "@/hooks/useCurrency";
-import { STATUS } from "@/components/orders/theme-tokens";
+import { plural } from "@/lib/plural";
+import { getPendingOrders } from "@/pages/OfflineOrders.helpers";
+import { Donut, ProgressBar, EmptyState } from "@/components/phone/kit";
+import { CARD, orderTone, orderStatusWord } from "@/components/phone/tones";
 
 /**
- * «Мои заказы» для агента: просто список своих заказов и переход в карточку.
+ * «Мои заказы» для агента — экран «Заказы» мобилки v8 (Warehouse-Pro-Mobile,
+ * app/(tabs)/orders.tsx): сводка и кнопка «Новый», три кольца (всего, новые,
+ * выполнены), полоса выполнения, список по дням («Сегодня», «Вчера») и
+ * круглая «+» внизу. Владелец, 25.09.2026: «все сделай абсолютно».
  *
  * Раньше агент попадал на общую страницу заказов — ту же, что оператор и
- * руководитель. На телефоне это выглядело так: два поля выбора дат, кнопки
- * «Excel» и «PDF», а под ними столбик плиток со счётчиками — «ВСЕГО 0»,
- * «НОВЫЕ 0», «В ОБРАБОТКЕ 0»... При нуле заказов страница занимала 1762
- * точки, и агент листал полтора экрана нулей, прежде чем дойти до списка.
- * Ничем из этого он не пользуется: выгрузки делает офис, диапазон дат ему
- * не нужен, а сводка по своим заказам уже есть на «Дне».
+ * руководитель: выгрузки, диапазон дат, полтора экрана плиток с нулями. Ничем
+ * из этого он не пользуется.
  *
- * Форма взята из мобильного приложения (app/(tabs)/orders.tsx): список,
- * разбитый по дням, с «Сегодня» и «Вчера» вместо дат. Так агент за секунду
- * находит заказ, который только что оформил, — а именно за этим он сюда и
- * заходит.
+ * Неотправленное без связи — плашкой сверху, как в мобилке: заказ,
+ * оформленный в подвале магазина, не должен выглядеть пропавшим.
  */
 
 type Order = {
@@ -42,23 +43,48 @@ function dayLabel(value: string | Date, uz: boolean): string {
   return format(d, "d MMMM", { locale: dateLocale(uz ? "uz" : "ru") });
 }
 
+const asDate = (v: string | Date) => (typeof v === "string" ? parseISO(v) : v);
+
+function Ring({ value, total, color, label }: { value: number; total: number; color: string; label: string }) {
+  const pct = total > 0 ? Math.round((value / total) * 100) : 0;
+  return (
+    <div className="flex-1 min-w-0 flex flex-col items-center" style={{ ...CARD, borderRadius: 20, padding: 12 }}>
+      <Donut size={56} stroke={6} segments={[{ value: pct, color }, { value: 100 - pct, color: "transparent" }]} />
+      <span className="font-data" style={{ fontSize: 17, fontWeight: 700, color: "var(--color-text-primary)", marginTop: 6 }}>{value}</span>
+      <span style={{ fontSize: 11, fontWeight: 500, color: "var(--color-text-tertiary)" }}>{label}</span>
+    </div>
+  );
+}
+
 export default function AgentOrders() {
   const navigate = useNavigate();
   const { lang } = useLang();
+  const { user } = useAuth();
   const { fmt } = useCurrency();
   const t = (r: string, u: string) => (lang === "uz" ? u : r);
 
-  // Архив нужен редко, но нужен: заказ недельной давности иначе не найти.
-  const [archived, setArchived] = useState(false);
-
   const { data, isLoading, isError, refetch, isFetching } = trpc.order.list.useQuery(
-    { page: 1, pageSize: 100, archived },
+    { page: 1, pageSize: 200 },
     // Сервер сам сужает выборку до заказов агента (api/services/order.ts),
     // поэтому фильтр по себе тут не нужен и подделать его нельзя.
     { staleTime: 30_000 },
   );
-
   const orders = useMemo(() => (data?.data ?? []) as Order[], [data]);
+
+  // Неотправленное лежит в браузере (IndexedDB) — читаем при открытии.
+  const [pending, setPending] = useState(0);
+  useEffect(() => {
+    if (!user) return;
+    let alive = true;
+    getPendingOrders(user.id).then(list => { if (alive) setPending(list.length); }).catch(() => {});
+    return () => { alive = false; };
+  }, [user]);
+
+  const stats = useMemo(() => ({
+    total: orders.length,
+    fresh: orders.filter(o => o.status === "new").length,
+    done: orders.filter(o => o.status === "delivered").length,
+  }), [orders]);
 
   /*
     Группировка по дню. Порядок дней берём из самого списка, а не сортируем
@@ -69,7 +95,7 @@ export default function AgentOrders() {
     const out: { key: string; label: string; items: Order[] }[] = [];
     for (const o of orders) {
       if (!o.createdAt) continue;
-      const key = format(typeof o.createdAt === "string" ? parseISO(o.createdAt) : o.createdAt, "yyyy-MM-dd");
+      const key = format(asDate(o.createdAt), "yyyy-MM-dd");
       const last = out[out.length - 1];
       if (last && last.key === key) last.items.push(o);
       else out.push({ key, label: dayLabel(o.createdAt, lang === "uz"), items: [o] });
@@ -77,128 +103,138 @@ export default function AgentOrders() {
     return out;
   }, [orders, lang]);
 
+  const donePct = stats.total > 0 ? Math.round((stats.done / stats.total) * 100) : 0;
+
   return (
-    <div className="space-y-4 max-w-lg mx-auto">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="font-display text-2xl font-bold text-primary tracking-tight">
+    <div className="space-y-4 max-w-lg mx-auto pb-20" data-testid="agent-orders">
+      {/* ── Сводка и «Новый» ── */}
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <h1 className="hidden md:block font-display" style={{ fontSize: 24, fontWeight: 800, color: "var(--color-text-primary)", margin: 0 }}>
             {t("Мои заказы", "Buyurtmalarim")}
           </h1>
-          <p className="text-sm" style={{ color: "var(--color-text-tertiary)" }}>
-            {isLoading ? t("Загружаем…", "Yuklanmoqda…") : t(`${orders.length} за период`, `${orders.length} ta`)}
+          <p style={{ fontSize: 13, color: "var(--color-text-tertiary)", margin: 0 }}>
+            {isLoading
+              ? t("Загружаем…", "Yuklanmoqda…")
+              : t(`${stats.total} ${plural(stats.total, "заказ", "заказа", "заказов")} · ${stats.fresh} ${plural(stats.fresh, "новый", "новых", "новых")}`, `${stats.total} ta buyurtma · ${stats.fresh} ta yangi`)}
           </p>
         </div>
-        {/* Обновить вручную: связь в магазине рвётся, и ждать фонового
-            обновления агенту неоткуда — он не знает, что оно вообще есть. */}
-        <button
-          onClick={() => refetch()}
-          aria-label={t("Обновить", "Yangilash")}
-          className="tap flex items-center justify-center rounded-xl border transition-colors"
-          style={{ borderColor: "var(--color-border, #d8d5cd)" }}
-        >
-          <RefreshCw size={18} className={isFetching ? "animate-spin" : ""} />
-        </button>
-      </div>
-
-      <div className="flex gap-2">
-        {([false, true] as const).map((arch) => (
+        <div className="flex items-center gap-2 flex-shrink-0">
+          {/* Обновить вручную: связь в магазине рвётся, а потянуть список вниз, как в приложении, браузер не даёт. */}
           <button
-            key={String(arch)}
-            onClick={() => setArchived(arch)}
-            className="tap flex-1 rounded-xl font-medium text-sm transition-colors"
-            style={
-              archived === arch
-                ? { background: "var(--color-primary)", color: "var(--color-on-primary, #fff)" }
-                : { border: "1px solid var(--color-border, #d8d5cd)", color: "var(--color-text-secondary)" }
-            }
+            onClick={() => refetch()}
+            aria-label={t("Обновить", "Yangilash")}
+            className="flex items-center justify-center rounded-full"
+            style={{ width: 40, height: 40, background: "var(--color-surface)", boxShadow: "var(--shadow-sm)", color: "var(--color-text-secondary)" }}
           >
-            {arch ? t("Архив", "Arxiv") : t("Активные", "Faol")}
+            <RefreshCw size={16} className={isFetching ? "animate-spin" : ""} />
           </button>
-        ))}
-      </div>
-
-      {isError && (
-        <div className="neo-card-sm text-center space-y-3">
-          <p style={{ color: "var(--color-text-secondary)" }}>
-            {t("Не удалось загрузить заказы", "Buyurtmalarni yuklab bo'lmadi")}
-          </p>
-          <button onClick={() => refetch()} className="neo-btn-primary tap px-6 rounded-xl">
-            {t("Повторить", "Qayta urinish")}
+          <button
+            onClick={() => navigate("/orders/new")}
+            className="flex items-center gap-1.5 rounded-xl"
+            style={{ padding: "10px 14px", background: "var(--color-primary)", color: "var(--color-on-primary)", fontSize: 13, fontWeight: 700 }}
+          >
+            <Plus size={14} /> {t("Новый", "Yangi")}
           </button>
         </div>
+      </div>
+
+      {/* ── Неотправленное без связи ── */}
+      {pending > 0 && (
+        <button
+          type="button"
+          onClick={() => navigate("/offline-orders")}
+          data-testid="agent-orders-pending"
+          className="w-full flex items-center gap-3 text-left"
+          style={{ borderRadius: 20, padding: 14, background: "var(--color-warning-subtle)", border: "1px solid var(--color-warning)" }}
+        >
+          <WifiOff size={18} color="var(--color-warning-text)" className="flex-shrink-0" />
+          <span className="flex-1 min-w-0">
+            <span className="block" style={{ fontSize: 14, fontWeight: 600, color: "var(--color-text-primary)" }}>
+              {t(`${pending} ${plural(pending, "заказ не отправлен", "заказа не отправлены", "заказов не отправлены")}`, `${pending} ta buyurtma yuborilmadi`)}
+            </span>
+            <span className="block" style={{ fontSize: 12, fontWeight: 600, color: "var(--color-primary-text)", marginTop: 2 }}>
+              {t("Открыть очередь отправки", "Yuborish navbatini ochish")}
+            </span>
+          </span>
+          <ChevronRight size={16} color="var(--color-text-tertiary)" />
+        </button>
       )}
 
-      {isLoading && (
-        <div className="space-y-3">
-          {[0, 1, 2].map((i) => (
-            <div key={i} className="neo-card-sm h-[76px] animate-pulse" />
-          ))}
+      {/* ── Кольца и полоса выполнения ── */}
+      {isLoading ? (
+        <div className="flex gap-2">{[0, 1, 2].map(i => <div key={i} className="flex-1 h-[120px] rounded-3xl animate-pulse" style={{ background: "var(--color-surface-light)" }} />)}</div>
+      ) : (
+        <>
+          <div className="flex gap-2">
+            <Ring value={stats.total} total={stats.total} color="var(--color-info)" label={t("Всего", "Jami")} />
+            <Ring value={stats.fresh} total={stats.total} color="var(--color-primary)" label={t("Новые", "Yangi")} />
+            <Ring value={stats.done} total={stats.total} color="var(--color-success)" label={t("Выполнены", "Bajarildi")} />
+          </div>
+          {stats.total > 0 && <ProgressBar value={donePct} height={6} color="var(--color-success)" />}
+        </>
+      )}
+
+      {isError && (
+        <div className="text-center space-y-3" style={{ ...CARD, borderRadius: 20, padding: 20 }}>
+          <p style={{ color: "var(--color-text-secondary)", margin: 0 }}>{t("Не удалось загрузить заказы", "Buyurtmalarni yuklab bo'lmadi")}</p>
+          <button onClick={() => refetch()} className="neo-btn-primary">{t("Повторить", "Qayta urinish")}</button>
         </div>
       )}
 
       {!isLoading && !isError && days.length === 0 && (
-        // Пустой экран не оставляем немым: агент должен понять, что всё в
-        // порядке, и куда идти дальше.
-        <div className="neo-card-sm p-8 text-center space-y-4">
-          <ClipboardList size={40} style={{ color: "var(--color-text-tertiary)" }} className="mx-auto" />
-          <div className="space-y-1">
-            <p className="font-medium" style={{ color: "var(--color-text-primary)" }}>
-              {archived ? t("В архиве пусто", "Arxiv bo'sh") : t("Заказов пока нет", "Hozircha buyurtma yo'q")}
-            </p>
-            <p className="text-sm" style={{ color: "var(--color-text-tertiary)" }}>
-              {archived
-                ? t("Сюда попадают завершённые заказы", "Bu yerga yakunlangan buyurtmalar tushadi")
-                : t("Оформленные заказы появятся здесь", "Rasmiylashtirilgan buyurtmalar shu yerda ko'rinadi")}
-            </p>
-          </div>
-          {!archived && (
-            <button onClick={() => navigate("/orders/new")} className="neo-btn-primary tap px-6 rounded-xl inline-flex items-center gap-2">
-              <Plus size={18} /> {t("Новый заказ", "Yangi buyurtma")}
-            </button>
-          )}
+        <div style={{ ...CARD, borderRadius: 20 }}>
+          <EmptyState icon={ClipboardList} title={t("Заказов пока нет", "Hozircha buyurtma yo'q")} hint={t("Оформленные заказы появятся здесь", "Rasmiylashtirilgan buyurtmalar shu yerda ko'rinadi")} />
         </div>
       )}
 
       {days.map((day) => (
         <div key={day.key} className="space-y-2">
-          <p className="font-label text-[11px] tracking-wider px-1" style={{ color: "var(--color-text-tertiary)" }}>
-            {day.label.toUpperCase()}
-          </p>
+          <p className="px-1" style={{ fontSize: 13, fontWeight: 600, color: "var(--color-text-secondary)", margin: "4px 0 0" }}>{day.label}</p>
           {day.items.map((o) => {
-            const s = STATUS[o.status];
+            const tone = orderTone(o.status);
+            const time = o.createdAt ? format(asDate(o.createdAt), "HH:mm") : "";
             return (
               <button
                 key={o.id}
                 onClick={() => navigate(`/orders/${o.id}`)}
-                className="neo-card-sm w-full text-left p-4 flex items-center gap-3 transition-transform active:scale-[.99]"
+                className="w-full text-left flex items-center gap-3 transition-transform active:scale-[.99]"
+                style={{ ...CARD, borderRadius: 20, padding: 14 }}
+                data-testid="agent-order-row"
               >
-                <div className="flex-1 min-w-0 space-y-1">
-                  <div className="flex items-center gap-2">
-                    <span className="font-semibold truncate" style={{ color: "var(--color-text-primary)" }}>
-                      {o.shopName ?? t("Магазин не указан", "Do'kon ko'rsatilmagan")}
+                <span className="flex items-center justify-center flex-shrink-0" style={{ width: 36, height: 36, borderRadius: 10, background: "var(--color-primary-subtle)" }}>
+                  <Clipboard size={16} color="var(--color-primary-text)" />
+                </span>
+                <span className="flex-1 min-w-0">
+                  <span className="block truncate" style={{ fontSize: 15, fontWeight: 600, color: "var(--color-text-primary)" }}>
+                    {o.shopName ?? o.orderNumber}
+                  </span>
+                  <span className="flex items-center gap-1.5 flex-wrap" style={{ fontSize: 12, marginTop: 2 }}>
+                    <span style={{ color: "var(--color-text-tertiary)" }}>{o.orderNumber} · {time}</span>
+                    <span style={{ fontWeight: 600, color: tone.text }}>
+                      {o.status === "pending" ? t("Ждёт офиса", "Ofisni kutmoqda") : orderStatusWord(o.status, lang)}
                     </span>
-                  </div>
-                  <div className="flex items-center gap-2 text-sm" style={{ color: "var(--color-text-tertiary)" }}>
-                    <span>{o.orderNumber}</span>
-                    <span
-                      className="px-2 py-0.5 rounded-full text-[11px] font-medium"
-                      style={{ background: "var(--color-primary-subtle)", color: s?.dot ?? "var(--color-primary)" }}
-                    >
-                      {s ? (lang === "uz" ? s.uz : s.ru) : o.status}
-                    </span>
-                  </div>
-                </div>
-                <div className="text-right shrink-0">
-                  <div className="font-semibold tabular-nums" style={{ color: "var(--color-text-primary)" }}>
-                    {fmt(Number(o.total ?? 0))}
-                  </div>
-                </div>
-                <ChevronRight size={18} style={{ color: "var(--color-text-tertiary)" }} className="shrink-0" />
+                  </span>
+                </span>
+                <span className="font-data flex-shrink-0" style={{ fontSize: 15, fontWeight: 700, color: "var(--color-text-primary)" }}>{fmt(Number(o.total ?? 0))}</span>
+                <ChevronRight size={16} color="var(--color-text-tertiary)" className="flex-shrink-0" />
               </button>
             );
           })}
         </div>
       ))}
+
+      {/* ── «+» над нижней панелью — как в мобилке ── */}
+      <button
+        type="button"
+        onClick={() => navigate("/orders/new")}
+        aria-label={t("Новый заказ", "Yangi buyurtma")}
+        data-testid="agent-orders-fab"
+        className="md:hidden fixed right-5 z-30 flex items-center justify-center rounded-full active:scale-95 transition-transform"
+        style={{ bottom: "calc(76px + env(safe-area-inset-bottom, 0px))", width: 56, height: 56, background: "var(--color-primary)", color: "var(--color-on-primary)", boxShadow: "var(--shadow-lg)" }}
+      >
+        <Plus size={26} />
+      </button>
     </div>
   );
 }
