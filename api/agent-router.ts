@@ -1039,7 +1039,16 @@ export const agentRouter = createRouter({
       return shop;
     }),
 
-  // Мобильное приложение: агент редактирует ТОЛЬКО свой магазин
+  /*
+    Карточка магазина — любого, который агент может открыть (решение
+    владельца 27.09.2026: «в пределах организации, как фото»).
+
+    Стояло `shops.agentId = ctx.user.id`, а открывает агент (getShopById,
+    myShops) всю организацию: закрепление у большинства арендаторов не
+    делали. Правка незакреплённого магазина не записывалась, а ручка
+    отвечала success — мобилка показывала «Сохранено», и правка пропадала.
+    Условие — как у фото: магазин своей организации; не нашлось — отказ.
+  */
   updateMyShop: fieldSalesQuery
     .input(z.object({
       id:        z.number(),
@@ -1072,8 +1081,9 @@ export const agentRouter = createRouter({
       // Skip update if no fields to set
       if (Object.keys(sanitized).length === 0) return { success: true };
 
-      await db.update(shops).set(sanitized)
-        .where(and(eq(shops.id, id), eq(shops.tenantId, ctx.tenant.id), eq(shops.agentId, ctx.user.id)));
+      const res = await db.update(shops).set(sanitized)
+        .where(and(eq(shops.id, id), eq(shops.tenantId, ctx.tenant.id)));
+      if (affectedRows(res) === 0) throw new TRPCError({ code: "NOT_FOUND", message: "Магазин не найден" });
       // Тот же сброс, что и в createShop: иначе агент видел бы в пикере старое
       // название своего магазина до истечения TTL.
       cache.invalidatePrefix(`shops:${ctx.tenant.id}`);
