@@ -1,8 +1,7 @@
-import { createHmac, timingSafeEqual } from "node:crypto";
 import { and, eq, isNull } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { tenants, users } from "@db/schema";
-import { env } from "../lib/env";
+import { createSignedToken, readSignedToken } from "../telegram/link-token";
 import { sendVerifyEmail } from "../lib/mailer";
 import { logger } from "../lib/logger";
 
@@ -21,8 +20,8 @@ type Db = ReturnType<typeof import("../queries/connection").getDb>;
  *
  * ── Почему без таблицы ──────────────────────────────────────────────────────
  *
- * Токен — подпись поверх идентификатора и срока, как у привязки Telegram
- * (telegram/link-token.ts). Хранить нечего и отзывать незачем:
+ * Токен — подпись поверх идентификатора и срока, той же функцией, что у
+ * привязки Telegram (telegram/link-token.ts). Хранить нечего и отзывать незачем:
  * подтверждение идемпотентно, а срок в три дня даёт письму дойти и
  * полежать. Повторное письмо выпускает свежий токен, старый остаётся годным
  * до своего срока — обе ссылки подтверждают один и тот же адрес.
@@ -32,30 +31,8 @@ type Db = ReturnType<typeof import("../queries/connection").getDb>;
  */
 export const VERIFY_TTL_MS = 3 * 24 * 60 * 60 * 1000;
 
-function sign(payload: string): string {
-  return createHmac("sha256", env.appSecret).update(payload).digest("base64url");
-}
-
-export function createEmailVerifyToken(userId: number, now: number = Date.now()): string {
-  const payload = `ev.${userId}.${now + VERIFY_TTL_MS}`;
-  return `${payload}.${sign(payload)}`;
-}
-
-export function readEmailVerifyToken(token: string, now: number = Date.now()):
-  { ok: true; userId: number } | { ok: false; reason: "expired" | "invalid" } {
-  const parts = token.split(".");
-  if (parts.length !== 4 || parts[0] !== "ev") return { ok: false, reason: "invalid" };
-  const [, rawId, rawExp, signature] = parts;
-  const a = Buffer.from(signature);
-  const b = Buffer.from(sign(`ev.${rawId}.${rawExp}`));
-  if (a.length !== b.length || !timingSafeEqual(a, b)) return { ok: false, reason: "invalid" };
-  const userId = Number(rawId);
-  const expires = Number(rawExp);
-  if (!Number.isInteger(userId) || userId <= 0 || !Number.isFinite(expires)) return { ok: false, reason: "invalid" };
-  // Срок — после подписи: иначе по разнице ответов подпись подбирается.
-  if (expires < now) return { ok: false, reason: "expired" };
-  return { ok: true, userId };
-}
+export const createEmailVerifyToken = (userId: number, now: number = Date.now()) => createSignedToken("ev.", userId, VERIFY_TTL_MS, now);
+export const readEmailVerifyToken = (token: string, now: number = Date.now()) => readSignedToken("ev.", token, now);
 
 export function verifyEmailUrl(appUrl: string, userId: number): string {
   return `${appUrl}/verify-email?token=${createEmailVerifyToken(userId)}`;

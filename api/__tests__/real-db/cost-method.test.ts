@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, beforeEach, afterAll } from "vitest";
 import { sql, eq } from "drizzle-orm";
-import { hasRealDb, connectRealDb, closeRealDb, truncateAll, seed, stockOf, type ServiceDb, type Seeded } from "./harness";
+import { ctxFor, hasRealDb, connectRealDb, closeRealDb, truncateAll, seed, stockOf, type ServiceDb, type Seeded } from "./harness";
 import * as schema from "@db/schema";
 
 /**
@@ -12,13 +12,6 @@ import * as schema from "@db/schema";
  *   · следующий приход 20 шт. по 50 000 при 20 на складе по 57 500 → 53 750;
  *   · приход без цены — карточка не трогается; партия хранит СВОЮ закупку.
  */
-function ctxFor(db: ServiceDb, tenantId: number, userId: number): any {
-  return {
-    req: new Request("http://localhost/"), resHeaders: new Headers(), db,
-    user: { id: userId, tenantId, role: "operator", status: "active" as const, name: "Оператор", email: "op@test.local", passwordHash: "x", avatar: null, phone: null, createdAt: new Date(), updatedAt: new Date(), lastSignInAt: new Date() },
-    tenant: { id: tenantId, slug: "test-co", name: "Тестовая компания", plan: "pro" as const, status: "active" as const, createdAt: new Date(), updatedAt: new Date() },
-  };
-}
 const today = () => new Date().toISOString().slice(0, 10);
 
 describe.skipIf(!hasRealDb)("себестоимость при приходе: последняя / средняя", () => {

@@ -57,6 +57,18 @@ export const hasRealDb = TEST_DATABASE_URL.length > 0;
  */
 export type ServiceDb = Parameters<typeof import("../../services/order").OrderService.create>[0];
 
+/**
+ * Контекст tRPC для createCaller: человек роли role в организации tenantId.
+ * Раньше — своя копия в каждом наборе; копии отличались только ролью и подписью.
+ */
+export function ctxFor(db: ServiceDb, tenantId: number, userId: number, role = "operator"): any {
+  return {
+    req: new Request("http://localhost/"), resHeaders: new Headers(), db,
+    user: { id: userId, tenantId, role, status: "active" as const, name: role, email: `${role}@test.local`, passwordHash: "x", avatar: null, phone: null, createdAt: new Date(), updatedAt: new Date(), lastSignInAt: new Date() },
+    tenant: { id: tenantId, slug: "test-co", name: "Тестовая компания", plan: "pro" as const, status: "active" as const, createdAt: new Date(), updatedAt: new Date() },
+  };
+}
+
 type TestDb = ReturnType<typeof drizzle>;
 
 let pool: mysql.Pool | null = null;

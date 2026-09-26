@@ -5,6 +5,14 @@ import { assertProductsBelongToTenant } from "./lib/tenant-refs";
 import { priceLists, priceListItems, priceListAssignments, products, shops } from "@db/schema";
 import { eq, and, desc, sql, inArray } from "drizzle-orm";
 import { recordAudit, auditActor } from "./services/audit-log";
+import { cache } from "./lib/cache";
+
+/*
+  Каталог (product.list/listAll с shopId) кэширует уже посчитанные цены
+  магазина на три минуты. Любая правка списка сбрасывает его: иначе
+  каталог и корзина заказа показывали старую цену, а заказ считался по новой.
+*/
+const dropCatalogCache = (tenantId: number) => cache.invalidatePrefix(`products:${tenantId}`);
 
 export const priceListRouter = createRouter({
   /**
@@ -37,6 +45,7 @@ export const priceListRouter = createRouter({
         if (ownIds.length) await tx.delete(priceListAssignments).where(and(eq(priceListAssignments.shopId, input.shopId), inArray(priceListAssignments.priceListId, ownIds)));
         if (input.priceListId != null) await tx.insert(priceListAssignments).values({ priceListId: input.priceListId, shopId: input.shopId });
       });
+      dropCatalogCache(ctx.tenant.id);
       await recordAudit(db, { ...auditActor(ctx), action: "price_list.shop_set", targetType: "shop", targetId: input.shopId, meta: { priceListId: input.priceListId } });
       return { success: true };
     }),
@@ -61,8 +70,10 @@ export const priceListRouter = createRouter({
         пишет колонки без таблицы, и подзапрос выходил «WHERE price_list_id =
         id», где id — строки самого подзапроса. Список прайс-листов показывал
         одно и то же число у всех, чаще «0 товаров · 0 магазинов» (25.09.2026).
+        Товары — со своей ценой от одной штуки, как «своих цен» на странице
+        списка: ступени «от 10 / от 50» того же товара — не новые товары.
       */
-      itemCount: sql<number>`(SELECT COUNT(*) FROM price_list_items pli WHERE pli.price_list_id = price_lists.id)`,
+      itemCount: sql<number>`(SELECT COUNT(DISTINCT pli.product_id) FROM price_list_items pli WHERE pli.price_list_id = price_lists.id AND pli.min_quantity <= 1)`,
       shopCount: sql<number>`(SELECT COUNT(*) FROM price_list_assignments pla WHERE pla.price_list_id = price_lists.id)`,
       createdAt: priceLists.createdAt,
     }).from(priceLists)
@@ -145,6 +156,7 @@ export const priceListRouter = createRouter({
       await db.update(priceLists)
         .set({ ...data, ...(markupPct !== undefined ? { markupPct: markupPct == null ? null : markupPct.toFixed(2) } : {}) })
         .where(and(eq(priceLists.id, id), eq(priceLists.tenantId, ctx.tenant.id)));
+      dropCatalogCache(ctx.tenant.id);
       return { success: true };
     }),
 
@@ -155,6 +167,7 @@ export const priceListRouter = createRouter({
       const db = getDb();
       await db.delete(priceLists)
         .where(and(eq(priceLists.id, input.id), eq(priceLists.tenantId, ctx.tenant.id)));
+      dropCatalogCache(ctx.tenant.id);
       await recordAudit(db, { ...auditActor(ctx), action: "price_list.deleted", targetType: "price_list", targetId: input.id });
       return { success: true };
     }),
@@ -214,6 +227,7 @@ export const priceListRouter = createRouter({
           minQuantity: input.minQuantity.toFixed(2),
         });
       }
+      dropCatalogCache(tenantId);
 
       // Цена в прайсе — это цена заказа для магазина; спор о ней — спор о деньгах.
       await recordAudit(db, {
@@ -271,6 +285,7 @@ export const priceListRouter = createRouter({
         }
         return log;
       });
+      dropCatalogCache(tenantId);
       if (changes.length > 0) {
         await recordAudit(db, {
           ...auditActor(ctx), action: "price_list.items_set", targetType: "price_list", targetId: input.priceListId,
@@ -297,6 +312,7 @@ export const priceListRouter = createRouter({
       if (!item) throw new Error("Позиция не найдена");
 
       await db.delete(priceListItems).where(eq(priceListItems.id, input.id));
+      dropCatalogCache(tenantId);
       return { success: true };
     }),
 
@@ -345,6 +361,7 @@ export const priceListRouter = createRouter({
         }
         return { added: added.length, removed: removed.length, moved };
       });
+      dropCatalogCache(tenantId);
       await recordAudit(db, {
         ...auditActor(ctx), action: "price_list.shops_set", targetType: "price_list", targetId: input.priceListId,
         meta: { total: wanted.length, ...result },
@@ -355,7 +372,7 @@ export const priceListRouter = createRouter({
   /** Какой список у какого магазина — чтобы при назначении видеть, откуда магазин уйдёт. */
   shopMap: managementQuery.query(async ({ ctx }) => {
     const db = getDb();
-    return db.select({ shopId: priceListAssignments.shopId, priceListId: priceListAssignments.priceListId })
+    return db.select({ shopId: priceListAssignments.shopId, priceListId: priceListAssignments.priceListId, name: priceLists.name })
       .from(priceListAssignments)
       .innerJoin(priceLists, eq(priceListAssignments.priceListId, priceLists.id))
       .where(eq(priceLists.tenantId, ctx.tenant.id));

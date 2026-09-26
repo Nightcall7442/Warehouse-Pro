@@ -181,7 +181,9 @@ export async function getById(db: Db, tenantId: number, orderId: number, viewer:
 }
 
 export async function myOrders(db: Db, tenantId: number, agentId: number) {
-  const conditions = [eq(orders.tenantId, tenantId), eq(orders.agentId, agentId)];
+  // Удаление мягкое и статус не трогает: без отсечения удалённый офисом дубль
+  // висел у агента в «Моих заказах сегодня» живым «Новым».
+  const conditions = [eq(orders.tenantId, tenantId), eq(orders.agentId, agentId), isNull(orders.deletedAt)];
   const [data, countResult] = await Promise.all([
     db.select({
       id: orders.id,

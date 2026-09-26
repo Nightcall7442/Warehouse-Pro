@@ -265,6 +265,8 @@ export function PhonePlan() {
               <EmptyState icon={Calendar} title={isToday ? t("На сегодня визитов нет", "Bugun tashrif yo'q") : t("На этот день визитов нет", "Bu kun uchun tashrif yo'q")} hint={t("Планы визитов появятся здесь", "Tashrif rejalari shu yerda chiqadi")} />
             </div>
           ) : plans.map(p => {
+            // Подписи — как в мобилке и в справке («Tashrif qilindi», «Rejalangan»),
+            // а не из общего словаря «Моего дня»: экран — копия мобильного «Плана».
             const meta = p.status === "visited"
               ? { icon: CheckCircle2, fill: "var(--color-success)", text: "var(--color-success-text)", label: t("Посещён", "Tashrif qilindi") }
               : p.status === "skipped"

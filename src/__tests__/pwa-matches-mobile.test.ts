@@ -3,6 +3,18 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { brandCss } from "@/hooks/useBranding";
 import { NAV_ITEMS } from "@/const";
+import { contrastRatio } from "@/lib/contrast";
+
+/*
+  Контраст — общей функцией, но строго: contrastRatio считает не-hex (var(),
+  rgba) чёрным, и --color-on-cta: var(...) прошло бы как «чёрный на жёлтом».
+  Своя lum() давала NaN и роняла тест — так и должно остаться.
+*/
+function contrast(fg: string, bg: string): number {
+  expect(fg, "цвет не hex — контраст не посчитать").toMatch(/^#[0-9a-f]{6}$/i);
+  expect(bg, "цвет не hex — контраст не посчитать").toMatch(/^#[0-9a-f]{6}$/i);
+  return contrastRatio(fg, bg);
+}
 
 /**
  * PWA = мобилка v8.
@@ -44,17 +56,6 @@ function token(b: string, name: string): string {
   expect(m, `--${name} не объявлен`).not.toBeNull();
   return m![1].trim();
 }
-
-// Контраст по WCAG — тот же расчёт, что в мобилке (theme-contrast.test.ts).
-function lum(hex: string): number {
-  const c = [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16) / 255)
-    .map(v => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4));
-  return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
-}
-const contrast = (a: string, b: string) => {
-  const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p);
-  return (x + 0.05) / (y + 0.05);
-};
 
 describe("палитра телефона — мобилка v8", () => {
   it("телефонный блок на месте и в слое base", () => {
@@ -204,7 +205,6 @@ describe("главная агента — раскладка мобилки", ()
     expect(HOME).toMatch(/<CtaTile icon=\{Plus\} label=\{t\("Новый заказ", "Yangi buyurtma"\)\}/);
     expect(HOME).toContain("background: \"var(--color-hero)\"");
     expect(HOME).toContain("color: \"var(--color-on-hero)\"");
-    expect(HOME).toContain("t(\"Новый заказ\", \"Yangi buyurtma\")");
     expect(HOME).toContain("t(\"Выручка за сегодня\", \"Bugungi tushum\")");
   });
 

@@ -15,7 +15,8 @@ import { useNavigate } from "react-router";
 import { useAuth } from "@/hooks/useAuth";
 import { notify } from "@/lib/toast";
 import { plural } from "@/lib/plural";
-import { addToCart, clearCart, useCatalogCart, type CartLine } from "@/lib/catalog-cart";
+import { addToCart, asLine, clearCart, useCatalogCart } from "@/lib/catalog-cart";
+import { CARD } from "@/components/phone/tones";
 
 /* ═══════════════════════════════════════════════════════════════════════════
    КАТАЛОГ АГЕНТА — то, чем он пользуется у прилавка.
@@ -50,16 +51,6 @@ type CatalogProduct = {
   photoUrl: string | null;
 };
 
-type CatalogProductFull = CatalogProduct & { unitWeight?: string | number | null };
-
-/** Строка корзины из товара каталога. */
-function asLine(p: CatalogProductFull): Omit<CartLine, "quantity"> {
-  return {
-    productId: p.id, productName: p.name, unitPrice: p.unitPrice, available: p.available ?? "0",
-    unit: p.unit ?? "pcs", unitWeight: Number(p.unitWeight ?? 0),
-  };
-}
-
 /** Карточка в сетке — ProductCard мобилки: фото, бирка наличия, корзина на фото. */
 function ProductCard({ product, onOpen, inCart, onAdd, onRemove }: {
   product: CatalogProduct; onOpen: () => void; inCart: number; onAdd: () => void; onRemove: () => void;
@@ -75,7 +66,7 @@ function ProductCard({ product, onOpen, inCart, onAdd, onRemove }: {
     <div
       data-testid={`catalog-card-${product.id}`}
       className="text-left overflow-hidden"
-      style={{ background: "var(--color-surface)", boxShadow: "var(--shadow-raised)", borderRadius: 20, display: "flex", flexDirection: "column" }}
+      style={{ ...CARD, borderRadius: 20, display: "flex", flexDirection: "column" }}
     >
       <div style={{ position: "relative", width: "100%", aspectRatio: "1", background: "var(--color-surface-light)" }}>
         <button type="button" onClick={onOpen} aria-label={product.name} style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>

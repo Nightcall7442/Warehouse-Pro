@@ -2,8 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router";
 import { trpc } from "@/providers/trpc";
 import { useTranslate } from "@/i18n";
-import { AlertCircle, CheckCircle2, Loader2 } from "lucide-react";
-import { AuthShell, AuthError } from "@/components/auth/AuthShell";
+import { AlertCircle, Loader2 } from "lucide-react";
+import { AuthShell, AuthError, AuthDone } from "@/components/auth/AuthShell";
 
 /**
  * Ссылка из письма после регистрации: подтверждает адрес и ведёт ко входу.
@@ -38,13 +38,6 @@ export default function VerifyEmail() {
     );
   }, [token, client]);
 
-  const toLogin = (
-    <Link to="/login" className="neo-btn-primary" data-testid="verify-email-login"
-      style={{ width: "100%", height: "46px", borderRadius: "14px", fontSize: "14px", textDecoration: "none" }}>
-      {tr("Войти", "Kirish")}
-    </Link>
-  );
-
   if (!token || state.kind === "error") {
     return (
       <AuthShell title={tr("Ссылка не сработала", "Havola ishlamadi")} subtitle={tr("Подтверждение адреса", "Manzilni tasdiqlash")}>
@@ -57,7 +50,10 @@ export default function VerifyEmail() {
             {tr("Новое письмо можно запросить на странице входа — введите почту и пароль, там будет кнопка.",
                 "Yangi xatni kirish sahifasida so'rash mumkin — pochta va parolni kiriting, u yerda tugma bo'ladi.")}
           </p>
-          {toLogin}
+          <Link to="/login" className="neo-btn-primary" data-testid="verify-email-login"
+            style={{ width: "100%", height: "46px", borderRadius: "14px", fontSize: "14px", textDecoration: "none" }}>
+            {tr("Войти", "Kirish")}
+          </Link>
         </div>
       </AuthShell>
     );
@@ -66,17 +62,7 @@ export default function VerifyEmail() {
   if (state.kind === "done") {
     return (
       <AuthShell title={tr("Адрес подтверждён", "Manzil tasdiqlandi")} subtitle={tr("Теперь можно войти", "Endi kirishingiz mumkin")}>
-        <div style={{ textAlign: "center", paddingTop: "4px" }} data-testid="verify-email-done">
-          <div style={{
-            width: "58px", height: "58px", borderRadius: "20px", margin: "0 auto 20px",
-            display: "flex", alignItems: "center", justifyContent: "center",
-            background: "var(--color-success-subtle)", color: "var(--color-success-text, var(--color-success))",
-            boxShadow: "var(--shadow-sm)",
-          }}>
-            <CheckCircle2 size={26} />
-          </div>
-          {toLogin}
-        </div>
+        <AuthDone to="/login" label={tr("Войти", "Kirish")} testId="verify-email-done" />
       </AuthShell>
     );
   }

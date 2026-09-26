@@ -37,23 +37,14 @@ export function effective(r: PriceRow, markupPct: number | null): { price: numbe
   return rule != null ? { price: rule, source: "rule" } : { price: r.cardPrice, source: "card" };
 }
 
-/** Сколько процентов к карточке; null — считать не от чего. */
+/**
+ * Сколько процентов к карточке; null — считать не от чего. Маржа к
+ * себестоимости — markupPct из arrival-sheet: там цена 0 даёт пусто, а
+ * здесь бесплатная цена — честные −100 %.
+ */
 export function toCardPct(price: number, cardPrice: number): number | null {
   if (!(cardPrice > 0)) return null;
   return Math.round((price / cardPrice - 1) * 1000) / 10;
-}
-
-/** Маржа к себестоимости, %; null — себестоимость не заведена. */
-export function marginPct(price: number, costPrice: number): number | null {
-  if (!(costPrice > 0) || !(price > 0)) return null;
-  return Math.round((price / costPrice - 1) * 1000) / 10;
-}
-
-/** «Найденным: карточка ±X%» — своя цена от карточки, до копеек. */
-export function applyPct(rows: PriceRow[], ids: Set<number>, pct: number): PriceRow[] {
-  return rows.map(r => ids.has(r.productId) && r.cardPrice > 0
-    ? { ...r, price: String(Math.round(r.cardPrice * (1 + pct / 100) * 100) / 100) }
-    : r);
 }
 
 /** Своя цена ниже себестоимости — продажа в минус. */
@@ -77,11 +68,4 @@ export function changes(base: Map<number, string>, rows: PriceRow[]): Array<{ pr
     out.push({ productId: r.productId, price: Math.round(n * 100) / 100 });
   }
   return out;
-}
-
-/** «1 200,50» → «1200.50»; пусто → ""; нечисло → null. */
-export function normalizePrice(raw: string): string | null {
-  const s = raw.replace(/[\s\u00a0]/g, "").replace(",", ".");
-  if (s === "") return "";
-  return /^\d+(\.\d+)?$/.test(s) ? s : null;
 }

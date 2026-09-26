@@ -13,7 +13,7 @@
  */
 import { describe, it, expect, beforeAll, beforeEach, afterAll, vi } from "vitest";
 import * as schema from "@db/schema";
-import { hasRealDb, connectRealDb, closeRealDb, truncateAll, seed, type ServiceDb, type Seeded } from "./harness";
+import { ctxFor, hasRealDb, connectRealDb, closeRealDb, truncateAll, seed, type ServiceDb, type Seeded } from "./harness";
 import { invalidateReports } from "../../lib/report-cache";
 
 let current: ServiceDb;
@@ -21,14 +21,6 @@ vi.mock("../../queries/connection", () => ({
   getDb: () => current,
   getPool: () => null,
 }));
-
-function ctxFor(db: ServiceDb, tenantId: number, userId: number): any {
-  return {
-    req: new Request("http://localhost/"), resHeaders: new Headers(), db,
-    user: { id: userId, tenantId, role: "ceo", status: "active" as const, name: "Директор", email: "ceo@test.local", passwordHash: "x", avatar: null, phone: null, createdAt: new Date(), updatedAt: new Date() },
-    tenant: { id: tenantId, slug: "test-co", name: "Тестовая компания", plan: "pro" as const, status: "active" as const, createdAt: new Date(), updatedAt: new Date() },
-  };
-}
 
 describe.skipIf(!hasRealDb)("отчёты склада: строка на товар", () => {
   let db: ServiceDb;
@@ -46,7 +38,7 @@ describe.skipIf(!hasRealDb)("отчёты склада: строка на тов
     await db.insert(schema.warehouseStock).values({ tenantId: s.tenantId, productId: s.productId, warehouseId: secondWh, currentStock: "5.000", reserved: "0.000", available: "5.000" } as never);
   });
 
-  const reports = async () => (await import("../../warehouse-reports-router")).warehouseReportsRouter.createCaller(ctxFor(current, s.tenantId, s.agentId));
+  const reports = async () => (await import("../../warehouse-reports-router")).warehouseReportsRouter.createCaller(ctxFor(current, s.tenantId, s.agentId, "ceo"));
 
   it("топ по стоимости: без фильтра — одна строка с суммой по складам, с фильтром — остаток склада", async () => {
     const all = await (await reports()).topByValue({ limit: 10 });

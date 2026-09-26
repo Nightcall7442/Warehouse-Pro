@@ -13,7 +13,7 @@ import { notify } from "@/lib/toast";
 import { compressImage } from "@/lib/compress-image";
 import { useConfirm } from "@/components/ConfirmDialog";
 import { useAppBrand } from "@/hooks/useAppBrand";
-import { ROLE_LABEL } from "@contracts/entity-labels";
+import { ROLE_LABEL, labelled } from "@contracts/entity-labels";
 import { APP_VERSION } from "@contracts/constants";
 import { QuotaCard } from "./PhonePlan";
 
@@ -129,7 +129,7 @@ export function PhoneProfile() {
   };
 
   const initials = (user?.name ?? "?").split(" ").filter(Boolean).slice(0, 2).map(w => w[0]?.toUpperCase()).join("");
-  const roleLabel = ROLE_LABEL[role as keyof typeof ROLE_LABEL]?.[lang] ?? role;
+  const roleLabel = labelled(ROLE_LABEL, role, lang);
 
   return (
     <div className="space-y-6 animate-fade-up" data-testid="phone-profile">

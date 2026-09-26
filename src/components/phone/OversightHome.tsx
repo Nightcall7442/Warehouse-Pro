@@ -8,7 +8,7 @@ import { useCurrency } from "@/hooks/useCurrency";
 import {
   ListCard, ListRow, SectionHead, Tile, CtaTile, EmptyState, HomeGreeting, Segmented, Sparkline, Donut,
 } from "./kit";
-import { CARD, orderTone, orderStatusWord } from "./tones";
+import { CARD, orderTone, orderStatusWord, tone } from "./tones";
 
 /*
   Главная надзорных ролей на телефоне — SupervisorHome мобилки v8
@@ -26,12 +26,6 @@ import { CARD, orderTone, orderStatusWord } from "./tones";
   отдаёт.
 */
 type Range = "7d" | "30d" | "month";
-
-const ALERT_TONE: Record<string, { fill: string; text: string }> = {
-  info:    { fill: "var(--color-info)",    text: "var(--color-info-text)" },
-  warning: { fill: "var(--color-warning)", text: "var(--color-warning-text)" },
-  danger:  { fill: "var(--color-danger)",  text: "var(--color-danger-text)" },
-};
 
 export function OversightHome() {
   const navigate = useNavigate();
@@ -60,12 +54,12 @@ export function OversightHome() {
       {alerts && alerts.length > 0 && (
         <div className="flex gap-2 overflow-x-auto -mx-5 px-5 pb-1" style={{ scrollbarWidth: "none" }}>
           {alerts.slice(0, 4).map((a, i) => {
-            const tone = ALERT_TONE[a.severity] ?? ALERT_TONE.info;
+            const { fill, text } = tone(a.severity);
             const Icon = a.severity === "danger" ? AlertCircle : a.severity === "warning" ? TrendingDown : TrendingUp;
             return (
-              <div key={i} className="flex items-center gap-2.5 flex-shrink-0" style={{ ...CARD, borderRadius: 20, padding: 14, minWidth: 220, maxWidth: 280, borderLeft: `3px solid ${tone.fill}` }}>
-                <span className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: `color-mix(in srgb, ${tone.fill} 14%, transparent)` }}>
-                  <Icon size={14} color={tone.text} />
+              <div key={i} className="flex items-center gap-2.5 flex-shrink-0" style={{ ...CARD, borderRadius: 20, padding: 14, minWidth: 220, maxWidth: 280, borderLeft: `3px solid ${fill}` }}>
+                <span className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: `color-mix(in srgb, ${fill} 14%, transparent)` }}>
+                  <Icon size={14} color={text} />
                 </span>
                 <div className="min-w-0">
                   <p className="truncate" style={{ fontSize: 13, fontWeight: 600, color: "var(--color-text-primary)", margin: 0 }}>{a.title}</p>

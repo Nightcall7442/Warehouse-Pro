@@ -1,5 +1,5 @@
 /**
- * Клавиатура в сетке ввода — как в Excel.
+ * Клавиатура и вставка в сетке ввода — как в Excel.
  *
  * Приход и прайс-лист набирают столбцом: «пришло» по сорока строкам подряд.
  * Мышью это сорок прицеливаний; здесь — число, Enter, число, Enter. Tab
@@ -37,4 +37,27 @@ export function focusCell(grid: string, pos: CellPos): void {
   if (!el) return;
   el.focus();
   el.select?.();
+}
+
+/** Enter и стрелки в ячейке: фокус на соседнюю по столбцу; прочие клавиши — браузеру. */
+export function gridKey(e: { key: string; shiftKey: boolean; preventDefault(): void }, grid: string, at: CellPos, rowCount: number): void {
+  const to = nextCell(e.key, at, rowCount, e.shiftKey);
+  if (!to) return;
+  e.preventDefault();
+  focusCell(grid, to);
+}
+
+/** Диапазон из Excel — разобранным; одна ячейка — null, её вставит браузер. */
+export function pastedRange(e: { clipboardData: { getData(type: string): string }; preventDefault(): void }): string[][] | null {
+  const text = e.clipboardData.getData("text");
+  if (!isRangePaste(text)) return null;
+  e.preventDefault();
+  return parseClipboard(text);
+}
+
+/** Число из Excel: «1 200,50» → «1200.50»; пусто → ""; нечисло → null. */
+export function normalizeNumber(raw: string): string | null {
+  const s = raw.replace(/[\s\u00a0]/g, "").replace(",", ".");
+  if (s === "") return "";
+  return /^\d+(\.\d+)?$/.test(s) ? s : null;
 }

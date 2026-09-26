@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, beforeEach, afterAll, vi } from "vitest";
 import { sql } from "drizzle-orm";
-import { hasRealDb, connectRealDb, closeRealDb, truncateAll, seed, stockOf, countOf, type ServiceDb, type Seeded } from "./harness";
+import { ctxFor, hasRealDb, connectRealDb, closeRealDb, truncateAll, seed, stockOf, countOf, type ServiceDb, type Seeded } from "./harness";
 import { OrderService } from "../../services/order";
 
 /**
@@ -16,14 +16,6 @@ vi.mock("../../queries/connection", () => ({
   getDb: () => current,
   getPool: () => null,
 }));
-
-function ctxFor(db: ServiceDb, tenantId: number, userId: number, role: "operator" | "courier"): any {
-  return {
-    req: new Request("http://localhost/"), resHeaders: new Headers(), db,
-    user: { id: userId, tenantId, role, status: "active" as const, name: role, email: `${role}@test.local`, passwordHash: "x", avatar: null, phone: null, createdAt: new Date(), updatedAt: new Date(), lastSignInAt: new Date() },
-    tenant: { id: tenantId, slug: "test-co", name: "Тестовая компания", plan: "pro" as const, status: "active" as const, createdAt: new Date(), updatedAt: new Date() },
-  };
-}
 
 describe.skipIf(!hasRealDb)("курьер: назначить → выехал → закрыть", () => {
   let db: ServiceDb;

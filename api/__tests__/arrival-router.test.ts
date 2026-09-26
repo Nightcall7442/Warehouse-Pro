@@ -28,7 +28,7 @@ import { arrivals, arrivalItems, warehouses, warehouseStock, stockMovements, pro
 import { makeConditionEvaluator } from "./helpers/fake-conditions";
 
 // ── Fake tables ──────────────────────────────────────────────────────────────
-type FakeArrival = { id: number; tenantId: number; arrivalNumber: string; truckId: string | null; driverName: string | null; driverPhone: string | null; status: string; fuelCost: string; tollCost: string; otherCost: string; totalExpense: string; arrivalDate: Date; arrivalTime: string | null; unloadingTime: string | null; notes: string | null; createdAt: Date; };
+type FakeArrival = { id: number; tenantId: number; arrivalNumber: string; truckId: string | null; driverName: string | null; driverPhone: string | null; status: string; fuelCost: string; tollCost: string; otherCost: string; totalExpense: string; arrivalDate: Date; arrivalTime: string | null; unloadingTime: string | null; notes: string | null; createdAt: Date; updatedAt: Date; };
 /*
   Партия и срок — необязательные поля строки приёмки. Их здесь не было, и
   ветку «приёмка передаёт партию на остаток» нечем было даже вызвать.
@@ -75,8 +75,8 @@ let nextMovementId = 1;
 
 function resetTables() {
   arrivalsTable = [
-    { id: 1, tenantId: 1, arrivalNumber: "ARR-000000000001", truckId: "T-123", driverName: "Иван", driverPhone: "+998901234567", status: "pending", fuelCost: "50.00", tollCost: "10.00", otherCost: "5.00", totalExpense: "65.00", arrivalDate: new Date("2025-01-15"), arrivalTime: null, unloadingTime: null, notes: null, createdAt: new Date() },
-    { id: 2, tenantId: 1, arrivalNumber: "ARR-000000000002", truckId: null, driverName: "Петр", driverPhone: null, status: "completed", fuelCost: "0.00", tollCost: "0.00", otherCost: "0.00", totalExpense: "0.00", arrivalDate: new Date("2025-01-10"), arrivalTime: null, unloadingTime: null, notes: "已完成", createdAt: new Date() },
+    { id: 1, tenantId: 1, arrivalNumber: "ARR-000000000001", truckId: "T-123", driverName: "Иван", driverPhone: "+998901234567", status: "pending", fuelCost: "50.00", tollCost: "10.00", otherCost: "5.00", totalExpense: "65.00", arrivalDate: new Date("2025-01-15"), arrivalTime: null, unloadingTime: null, notes: null, createdAt: new Date(), updatedAt: new Date("2025-01-15T09:00:00Z") },
+    { id: 2, tenantId: 1, arrivalNumber: "ARR-000000000002", truckId: null, driverName: "Петр", driverPhone: null, status: "completed", fuelCost: "0.00", tollCost: "0.00", otherCost: "0.00", totalExpense: "0.00", arrivalDate: new Date("2025-01-10"), arrivalTime: null, unloadingTime: null, notes: "已完成", createdAt: new Date(), updatedAt: new Date("2025-01-10T09:00:00Z") },
   ];
   arrivalItemsTable = [
     { id: 1, arrivalId: 1, productId: 1, quantity: "100", costPrice: "50.00", sellingPrice: "80.00", condition: "good", notes: null },
@@ -216,7 +216,7 @@ function makeMockDb() {
             otherCost: String(vals.otherCost ?? "0.00"), totalExpense: String(vals.totalExpense ?? "0.00"),
             arrivalDate: (vals.arrivalDate as Date) ?? new Date(), arrivalTime: (vals.arrivalTime as string) ?? null,
             unloadingTime: (vals.unloadingTime as string) ?? null, notes: (vals.notes as string) ?? null,
-            createdAt: new Date(),
+            createdAt: new Date(), updatedAt: new Date(),
           });
           return Promise.resolve([{ insertId: id }]);
         }
@@ -666,7 +666,7 @@ describe("arrival — tenant isolation", () => {
       id: 99, tenantId: 999, arrivalNumber: "ARR-OTHER", truckId: null, driverName: null,
       driverPhone: null, status: "pending", fuelCost: "0", tollCost: "0", otherCost: "0",
       totalExpense: "0", arrivalDate: new Date(), arrivalTime: null, unloadingTime: null,
-      notes: null, createdAt: new Date(),
+      notes: null, createdAt: new Date(), updatedAt: new Date(),
     });
     const { arrivalRouter } = await import("../arrival-router");
     const caller = arrivalRouter.createCaller(makeCtx(1, 10));
@@ -1156,5 +1156,55 @@ describe("проведение без посчитанных строк", () => 
     expect(lock).toBeGreaterThan(tx);
     expect(check, "проверка стоит до замка или вне транзакции").toBeGreaterThan(lock);
     expect(check).toBeLessThan(body.indexOf("await receiveStock(tx, {"));
+  });
+});
+
+/**
+ * Проведённый приход не правится и шапкой; строки — только со своей версией.
+ *
+ *   · update без статуса (топливо, заметка) у проведённого — отказ, расходы
+ *     и итог в P&L не тронуты; у ожидающего — как раньше;
+ *   · setItems с версией, которую уже сменила чужая правка, — CONFLICT, строки
+ *     первого оператора целы; своя версия проходит и сдвигает версию.
+ *
+ * Нарочная поломка: убери `if (cur.status === "completed")` в updateArrival —
+ * падает первый тест; убери сверку seenUpdatedAt в setArrivalItems — второй.
+ */
+describe("правка прихода: проведённый и чужая версия", () => {
+  it("шапка проведённого — отказ; расходы, итог и заметка не тронуты", async () => {
+    const { arrivalRouter } = await import("../arrival-router");
+    const caller = arrivalRouter.createCaller(makeCtx(1, 10));
+    const before = { ...arrivalsTable.find(a => a.id === 2)! };
+    await expect(caller.update({ id: 2, fuelCost: "999.00" })).rejects.toMatchObject({
+      code: "BAD_REQUEST", message: expect.stringMatching(/шапка не правится/),
+    });
+    await expect(caller.update({ id: 2, notes: "задним числом" })).rejects.toThrow(/шапка не правится/);
+    const after = arrivalsTable.find(a => a.id === 2)!;
+    expect(after.fuelCost, "расход проведённого переписан").toBe(before.fuelCost);
+    expect(after.totalExpense, "итог проведённого в P&L сдвинулся").toBe(before.totalExpense);
+    expect(after.notes).toBe(before.notes);
+
+    await caller.update({ id: 1, notes: "ожидающий правится" });
+    expect(arrivalsTable.find(a => a.id === 1)!.notes).toBe("ожидающий правится");
+  });
+
+  it("setItems с устаревшей версией — CONFLICT, посчитанное первым цело", async () => {
+    const { arrivalRouter } = await import("../arrival-router");
+    const caller = arrivalRouter.createCaller(makeCtx(1, 10));
+    const opened = new Date(arrivalsTable.find(a => a.id === 1)!.updatedAt);
+
+    // Первый оператор сохраняет посчитанное со своей версией — проходит, версия сдвигается.
+    const saved = await caller.setItems({ id: 1, updatedAt: opened, items: [{ productId: 1, quantity: "40", expectedQuantity: "40" }, { productId: 2, quantity: "0", expectedQuantity: "20" }] });
+    const moved = arrivalsTable.find(a => a.id === 1)!.updatedAt;
+    expect(moved.getTime() - opened.getTime(), "версия не сдвинулась").toBeGreaterThanOrEqual(1000);
+    // Новая версия уходит экрану — с ней он сохранит следующий шаг, не приняв себя за чужого.
+    expect(saved.updatedAt.getTime(), "экрану вернулась не та версия, что записана").toBe(moved.getTime());
+    const counted = JSON.stringify(arrivalItemsTable.filter(i => i.arrivalId === 1).map(i => [i.productId, i.quantity]));
+
+    // Второй открыл документ раньше и шлёт свой набор поверх.
+    await expect(caller.setItems({ id: 1, updatedAt: opened, items: [{ productId: 1, quantity: "0", expectedQuantity: "40" }, { productId: 2, quantity: "20", expectedQuantity: "20" }] }))
+      .rejects.toMatchObject({ code: "CONFLICT", message: "Документ изменили, пока вы правили — обновите страницу" });
+    expect(JSON.stringify(arrivalItemsTable.filter(i => i.arrivalId === 1).map(i => [i.productId, i.quantity])), "чужой набор затёр посчитанное").toBe(counted);
+    expect(arrivalsTable.find(a => a.id === 1)!.updatedAt).toBe(moved);
   });
 });

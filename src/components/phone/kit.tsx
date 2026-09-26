@@ -1,7 +1,7 @@
 import { useId, type CSSProperties, type ReactNode } from "react";
 import { useNavigate } from "react-router";
 import { format } from "date-fns";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, Search } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useLang } from "@/i18n";
@@ -24,8 +24,8 @@ import { CARD } from "./tones";
 
 
 /** Карточка-список: строки внутри делятся линией, углы 20. */
-export function ListCard({ children, style }: { children: ReactNode; style?: CSSProperties }) {
-  return <div style={{ ...CARD, borderRadius: 20, overflow: "hidden", ...style }}>{children}</div>;
+export function ListCard({ children }: { children: ReactNode }) {
+  return <div style={{ ...CARD, borderRadius: 20, overflow: "hidden" }}>{children}</div>;
 }
 
 /** Строка в карточке-списке. Первая — без линии сверху. */
@@ -116,6 +116,19 @@ export function EmptyState({ icon: Icon, title, hint }: { icon: LucideIcon; titl
       <p style={{ fontSize: 13, fontWeight: 500, color: "var(--color-text-secondary)", margin: 0 }}>{title}</p>
       {hint && <p style={{ fontSize: 12, color: "var(--color-text-tertiary)", margin: 0 }}>{hint}</p>}
     </div>
+  );
+}
+
+/** Поле поиска-«таблетка»: вдавленное, значок лупы слева. `mono` — для кодов товара. */
+export function SearchField({ value, onChange, placeholder, mono }: {
+  value: string; onChange: (v: string) => void; placeholder: string; mono?: boolean;
+}) {
+  return (
+    <label className="flex-1 min-w-0 flex items-center gap-2 px-4" style={{ background: "var(--color-field)", borderRadius: 16, height: 48, boxShadow: "var(--shadow-pressed)" }}>
+      <Search size={16} color="var(--color-text-tertiary)" className="flex-shrink-0" />
+      <input value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder}
+        className={`flex-1 min-w-0 bg-transparent outline-none${mono ? " font-data" : ""}`} style={{ fontSize: 15, color: "var(--color-text-primary)" }} />
+    </label>
   );
 }
 
@@ -267,16 +280,6 @@ export function ProgressBar({ value, color = "var(--color-primary)", height = 10
     <div className="rounded-full overflow-hidden" style={{ height, background: "var(--color-surface-light)" }} role="progressbar" aria-valuenow={Math.round(pct)} aria-valuemin={0} aria-valuemax={100}>
       <div className="h-full rounded-full" style={{ width: `${pct}%`, background: color, transition: "width .4s ease" }} />
     </div>
-  );
-}
-
-/** Точка состояния с подписью — как под названием заказа в мобилке. */
-export function StatusDot({ dot, text, label }: { dot: string; text: string; label: string }) {
-  return (
-    <span className="inline-flex items-center gap-1.5 min-w-0">
-      <span className="flex-shrink-0 rounded-full" style={{ width: 6, height: 6, background: dot }} />
-      <span className="truncate" style={{ fontSize: 12, color: text }}>{label}</span>
-    </span>
   );
 }
 

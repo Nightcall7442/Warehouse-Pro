@@ -82,7 +82,7 @@ describe("лист прихода", () => {
 
 describe("выбор товаров пачкой", () => {
   const show = (onPick = vi.fn()) => {
-    render(<LangProvider><ProductMultiPicker open onClose={() => {}} products={[juice, water, cola]} already={new Set([2])} onPick={onPick} /></LangProvider>);
+    render(<LangProvider><ProductMultiPicker onClose={() => {}} products={[juice, water, cola]} already={new Set([2])} onPick={onPick} /></LangProvider>);
     return onPick;
   };
 

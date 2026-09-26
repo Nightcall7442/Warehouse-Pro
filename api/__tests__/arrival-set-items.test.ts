@@ -37,14 +37,14 @@ describe("строка прихода", () => {
   it("setItems — под suppliers.manage, с замком и отказом для проведённого", () => {
     const router = read("api/arrival-router.ts");
     expect(router).toContain('setItems: operatorQuery.use(can("suppliers.manage"))');
-    expect(router).toContain(".mutation(({ input, ctx }) => setArrivalItems(ctx.db, ctx.tenant.id, input.id, input.items))");
+    expect(router).toContain(".mutation(({ input, ctx }) => setArrivalItems(ctx.db, ctx.tenant.id, input.id, input.items, input.updatedAt))");
     const svc = read("api/services/arrival.ts");
     const at = svc.indexOf("export async function setArrivalItems(");
     const body = svc.slice(at, svc.indexOf("export async function updateArrival("));
     expect(body).toContain('.for("update")');
     expect(body).toContain('if (locked.status === "completed")');
     expect(body.indexOf('if (locked.status === "completed")')).toBeLessThan(body.indexOf("tx.delete(arrivalItems)"));
-    expect(body).toContain("await assertItems(db, tenantId,");
+    expect(body).toContain("await assertItems(tx, tenantId,");
   });
 
   it("проведение пропускает строки с нулём до движения остатка", () => {

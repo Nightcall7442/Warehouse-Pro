@@ -2,8 +2,8 @@ import { useState } from "react";
 import { Link } from "react-router";
 import { trpc } from "@/providers/trpc";
 import { useLang } from "@/i18n";
-import { Mail, Loader2, ArrowLeft, CheckCircle2 } from "lucide-react";
-import { AuthShell, AuthError } from "@/components/auth/AuthShell";
+import { Mail, Loader2, ArrowLeft } from "lucide-react";
+import { AuthShell, AuthError, AuthDone } from "@/components/auth/AuthShell";
 
 /**
  * Забытый пароль.
@@ -32,23 +32,7 @@ export default function ForgotPassword() {
   if (sent) {
     return (
       <AuthShell title={t("auth.forgotPassword.emailSent")} subtitle={t("auth.forgotPassword.subtitle")}>
-        <div style={{ textAlign: "center", paddingTop: "4px" }}>
-          <div style={{
-            width: "58px", height: "58px", borderRadius: "20px", margin: "0 auto 20px",
-            display: "flex", alignItems: "center", justifyContent: "center",
-            background: "var(--color-success-subtle)", color: "var(--color-success-text, var(--color-success))",
-            boxShadow: "var(--shadow-sm)",
-          }}>
-            <CheckCircle2 size={26} />
-          </div>
-          <Link
-            to="/login"
-            className="neo-btn-primary"
-            style={{ width: "100%", height: "46px", borderRadius: "14px", fontSize: "14px", textDecoration: "none" }}
-          >
-            {t("auth.forgotPassword.returnToLogin")}
-          </Link>
-        </div>
+        <AuthDone to="/login" label={t("auth.forgotPassword.returnToLogin")} />
       </AuthShell>
     );
   }

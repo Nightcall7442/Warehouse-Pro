@@ -44,10 +44,7 @@ describe("вкладки — как в мобилке (src/lib/tabs.ts моби�
     expect(tabs("supervisor")).toEqual(["/dashboard", "/supervisor", "/supervisor/plans", "/shops"]);
   });
   it("оператору — без экранов, где сервер ему откажет (главная руководителя и планы)", () => {
-    const op = tabs("operator");
-    expect(op).toEqual(["/orders", "/shops", "/warehouse", "/settings"]);
-    expect(op).not.toContain("/dashboard");
-    expect(op).not.toContain("/supervisor/plans");
+    expect(tabs("operator")).toEqual(["/orders", "/shops", "/warehouse", "/settings"]);
   });
   it("курьер: Главная, Доставки, Профиль — и попадает на свою главную", () => {
     expect(tabs("courier")).toEqual(["/courier", "/deliveries", "/settings"]);
@@ -132,7 +129,6 @@ describe("деталь за деталью", () => {
     expect(fn).toContain(".leftJoin(shops, and(eq(orders.shopId, shops.id), eq(shops.tenantId, tenantId)))");
   });
   it("стрелки дат видны: кнопки-значки, а не neo-btn шириной 35 с полями по 20", () => {
-    expect(read("src/pages/SupervisorPlans.tsx")).not.toContain("neo-btn w-10 h-10");
     for (const f of readdirSync(join(root, "src/pages"))) {
       expect(read(`src/pages/${f}`), f).not.toContain("neo-btn w-10 h-10");
     }

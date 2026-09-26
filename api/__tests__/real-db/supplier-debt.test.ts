@@ -35,29 +35,9 @@ import { describe, it, expect, beforeAll, beforeEach, afterAll } from "vitest";
 import { sql } from "drizzle-orm";
 import * as schema from "@db/schema";
 import {
-  hasRealDb, connectRealDb, closeRealDb, truncateAll, seed,
+  ctxFor, hasRealDb, connectRealDb, closeRealDb, truncateAll, seed,
   type ServiceDb, type Seeded,
 } from "./harness";
-
-/** Контекст tRPC поверх настоящей базы. */
-function ctxFor(db: ServiceDb, tenantId: number, userId: number): any {
-  return {
-    req: new Request("http://localhost/"),
-    resHeaders: new Headers(),
-    db,
-    user: {
-      id: userId, tenantId, role: "operator", status: "active" as const,
-      name: "Оператор", email: "op@test.local", passwordHash: "x",
-      avatar: null, phone: null,
-      createdAt: new Date(), updatedAt: new Date(), lastSignInAt: new Date(),
-    },
-    tenant: {
-      id: tenantId, slug: "test-co", name: "Тестовая компания",
-      plan: "pro" as const, status: "active" as const,
-      createdAt: new Date(), updatedAt: new Date(),
-    },
-  };
-}
 
 describe.skipIf(!hasRealDb)(
   "долг контрагенту на настоящей MySQL (пропущено без TEST_DATABASE_URL — см. real-db/harness.ts)",

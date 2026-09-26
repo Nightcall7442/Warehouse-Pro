@@ -59,6 +59,6 @@ describe("черновик прихода", () => {
     expect(src).toContain("useState<ArrivalDraft>(() => (isNew && user ? loadArrivalDraft(user.id) : null) ?? emptyDraft())");
     expect(src).toContain("if (arrivalDraftHasWork(draft)) saveArrivalDraft(user.id, draft); else clearArrivalDraft(user.id);");
     expect(src).toContain("if (isNew) { if (user) clearArrivalDraft(user.id); setDraft(emptyDraft()); }");
-    expect(src).toContain("if (user) clearArrivalDraft(user.id);\n      setDraft(emptyDraft());");
+    expect(src).toContain("if (user) clearArrivalDraft(user.id);\n    setDraft(emptyDraft());");
   });
 });

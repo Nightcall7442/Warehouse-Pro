@@ -108,6 +108,8 @@ export const arrivalRouter = createRouter({
         totalExpense: arrivals.totalExpense, arrivalDate: arrivals.arrivalDate,
         arrivalTime: arrivals.arrivalTime, unloadingTime: arrivals.unloadingTime,
         notes: arrivals.notes, createdAt: arrivals.createdAt,
+        // Версия документа: с ней редактор отдаёт строки в setItems.
+        updatedAt: arrivals.updatedAt,
       }).from(arrivals)
         .where(and(eq(arrivals.id, input.id), eq(arrivals.tenantId, tenantId))).limit(1);
       if (!arrival) return null;
@@ -209,8 +211,8 @@ export const arrivalRouter = createRouter({
     цену. Проведённый приход не правится: остаток по нему уже принят.
   */
   setItems: operatorQuery.use(can("suppliers.manage"))
-    .input(z.object({ id: z.number(), items: z.array(arrivalItemInput).max(2000) }))
-    .mutation(({ input, ctx }) => setArrivalItems(ctx.db, ctx.tenant.id, input.id, input.items)),
+    .input(z.object({ id: z.number(), items: z.array(arrivalItemInput).max(2000), updatedAt: z.date().optional() }))
+    .mutation(({ input, ctx }) => setArrivalItems(ctx.db, ctx.tenant.id, input.id, input.items, input.updatedAt)),
 
   delete: operatorQuery.use(can("suppliers.manage"))
     .input(z.object({ id: z.number() }))

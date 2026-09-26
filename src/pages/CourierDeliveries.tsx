@@ -10,6 +10,7 @@ import { useNavigate } from "react-router";
 import { notify } from "@/lib/toast";
 import { QueryErrorFallback } from "@/components/QueryErrorFallback";
 import { formatQty } from "@/lib/format";
+import { CARD } from "@/components/phone/tones";
 import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "../../api/router";
 
@@ -47,7 +48,7 @@ function MonthTotals() {
   ];
   return (
     <button type="button" onClick={() => navigate("/agent/kpi")} className="w-full text-left" data-testid="courier-month-totals"
-      style={{ background: "var(--color-surface)", boxShadow: "var(--shadow-raised)", borderRadius: 24, padding: 20 }}>
+      style={{ ...CARD, borderRadius: 24, padding: 20 }}>
       <span className="flex items-center justify-between mb-3">
         <span style={{ fontSize: 12, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--color-text-tertiary)" }}>{t("Итоги месяца", "Oy yakuni")}</span>
         <ChevronRight size={16} color="var(--color-text-tertiary)" />
@@ -115,6 +116,12 @@ export default function CourierDeliveries() {
     );
   }
 
+  /*
+    Страницу открывают и директор с оператором — им сервер отдаёт все доставки.
+    Итоги месяца без courierId считаются по самому смотрящему (у директора
+    нули), а «Выехал по всем» сервер пускает только назначенному курьеру.
+  */
+  const isCourier = user?.role === "courier";
   const assigned = (deliveries ?? []).filter((d) => d.deliveryStatus === "assigned");
   const inTransit = (deliveries ?? []).filter((d) => d.deliveryStatus === "out_for_delivery");
 
@@ -177,6 +184,7 @@ export default function CourierDeliveries() {
               })}
               onFail={() => markFailed.mutate({ orderId: order.id })}
               isPending={markDelivered.isPending}
+              canAct={isCourier}
             />
           ))}
         </div>
@@ -189,7 +197,7 @@ export default function CourierDeliveries() {
             <Package size={16} className="text-info" />
             {t("Ожидают доставки", "Yetkazishni kutmoqda")}
           </h2>
-          {assigned.length > 1 && (
+          {isCourier && assigned.length > 1 && (
             <button
               type="button"
               onClick={() => assigned.forEach(o => markOutForDelivery.mutate({ orderId: o.id }))}
@@ -231,14 +239,15 @@ export default function CourierDeliveries() {
                     {t("На карте", "Xaritada")}
                   </a>
                 )}
-                <button
+                {/* «Взять в доставку» — только курьеру, по той же причине, что и «Выехал по всем». */}
+                {isCourier && <button
                   onClick={() => markOutForDelivery.mutate({ orderId: order.id })}
                   disabled={markOutForDelivery.isPending}
                   className="neo-btn-primary flex items-center gap-2 text-sm flex-1 justify-center"
                 >
                   <ArrowRight size={14} />
                   {t("Взять в доставку", "Yetkazishga olish")}
-                </button>
+                </button>}
               </div>
             </div>
           ))}
@@ -252,7 +261,7 @@ export default function CourierDeliveries() {
         </div>
       )}
 
-      <MonthTotals />
+      {isCourier && <MonthTotals />}
     </div>
   );
 }
@@ -376,7 +385,7 @@ function MapView({ deliveries }: { deliveries: Delivery[] | undefined }) {
 }
 
 function DeliveryCard({
-  order, fmt, t, cashInput, onCashChange, onDeliver, onFail, isPending,
+  order, fmt, t, cashInput, onCashChange, onDeliver, onFail, isPending, canAct,
 }: {
   order: Delivery;
   fmt: (v: string | number) => string;
@@ -386,6 +395,10 @@ function DeliveryCard({
   onDeliver: () => void;
   onFail: () => void;
   isPending: boolean;
+  /* Отметить доставку может только сам курьер: сервер ищет заказ с
+     courier_id = тот, кто жмёт. Директору и оператору эти кнопки отвечали
+     «Заказ не найден или не назначен на вас». */
+  canAct: boolean;
 }) {
   const { lang } = useLang();
   return (
@@ -426,6 +439,7 @@ function DeliveryCard({
         )}
       </div>
 
+      {canAct && (<>
       <div className="border-t border-border-subtle pt-3 space-y-2">
         <label className="text-xs text-secondary">
           {t("Сумма наличных (необязательно)", "Naqd pul miqdori (ixtiyoriy)")}
@@ -453,6 +467,7 @@ function DeliveryCard({
       >
         {t("Не доставлено", "Yetkazilmadi")}
       </button>
+      </>)}
     </div>
   );
 }

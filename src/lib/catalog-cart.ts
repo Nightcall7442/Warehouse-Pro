@@ -29,7 +29,7 @@ const keyFor = (ownerId: number) => `${KEY}:${ownerId}`;
 const listeners = new Set<() => void>();
 const cache = new Map<number, { raw: string | null; lines: CartLine[] }>();
 
-function read(ownerId: number): CartLine[] {
+export function loadCart(ownerId: number): CartLine[] {
   let raw: string | null = null;
   try { raw = localStorage.getItem(keyFor(ownerId)); } catch { /* хранилище недоступно — корзина пуста */ }
   const hit = cache.get(ownerId);
@@ -51,23 +51,29 @@ function write(ownerId: number, lines: CartLine[]) {
   listeners.forEach(l => l());
 }
 
-export function loadCart(ownerId: number): CartLine[] {
-  return read(ownerId);
-}
-
 export function clearCart(ownerId: number): void {
   write(ownerId, []);
 }
 
 /** Прибавить (или убавить) единицы товара. До нуля — строка уходит. */
 export function addToCart(ownerId: number, product: Omit<CartLine, "quantity">, delta: number): void {
-  const lines = read(ownerId).slice();
+  const lines = loadCart(ownerId).slice();
   const i = lines.findIndex(l => l.productId === product.productId);
   const next = (i >= 0 ? lines[i].quantity : 0) + delta;
   if (i >= 0 && next <= 0) lines.splice(i, 1);
   else if (i >= 0) lines[i] = { ...lines[i], quantity: next };
   else if (next > 0) lines.push({ ...product, quantity: next });
   write(ownerId, lines);
+}
+
+/** Строка корзины из товара — одна на каталог и сканер. */
+export function asLine(p: {
+  id: number; name: string; unitPrice: string; available: string | null; unit: string | null; unitWeight?: string | number | null;
+}): Omit<CartLine, "quantity"> {
+  return {
+    productId: p.id, productName: p.name, unitPrice: p.unitPrice, available: p.available ?? "0",
+    unit: p.unit ?? "pcs", unitWeight: Number(p.unitWeight ?? 0),
+  };
 }
 
 /** Строки корзины как позиции мастера заказа. */
@@ -81,9 +87,8 @@ export function cartToItems(lines: CartLine[]): OrderItem[] {
 /** Корзина владельца с подпиской: плашка и карточки перерисовываются сами. */
 export function useCatalogCart(ownerId: number | undefined) {
   const subscribe = useCallback((cb: () => void) => { listeners.add(cb); return () => { listeners.delete(cb); }; }, []);
-  const lines = useSyncExternalStore(subscribe, () => (ownerId ? read(ownerId) : EMPTY), () => EMPTY);
-  const count = lines.reduce((s, l) => s + l.quantity, 0);
+  const lines = useSyncExternalStore(subscribe, () => (ownerId ? loadCart(ownerId) : EMPTY), () => EMPTY);
   const total = lines.reduce((s, l) => s + l.quantity * Number(l.unitPrice || 0), 0);
-  return { lines, count, total, positions: lines.length };
+  return { lines, total, positions: lines.length };
 }
 const EMPTY: CartLine[] = [];

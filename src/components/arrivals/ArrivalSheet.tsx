@@ -6,9 +6,9 @@ import { DecimalInput } from "@/components/ui/DecimalInput";
 import { unitShort } from "@/lib/units";
 import { formatQty } from "@/lib/format";
 import {
-  type SheetRow, type EditableCol, diff, markupPct, boxesToQuantity, quantityToBoxes, pasteRange, problems, daysLeft,
+  type SheetRow, type EditableCol, diff, markupPct, pctText, boxesToQuantity, quantityToBoxes, pasteRange, problems, daysLeft,
 } from "@/lib/arrival-sheet";
-import { nextCell, focusCell, isRangePaste, parseClipboard } from "@/lib/grid-nav";
+import { gridKey, pastedRange } from "@/lib/grid-nav";
 
 const GRID = "arrival";
 
@@ -41,18 +41,11 @@ export function ArrivalSheet({ rows, onChange, readOnly, arrivalDate, onAddClick
   const set = (i: number, patch: Partial<SheetRow>) => onChange(rows.map((r, idx) => (idx === i ? { ...r, ...patch } : r)));
   const remove = (i: number) => onChange(rows.filter((_, idx) => idx !== i));
 
-  const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, row: number, col: string) => {
-    const to = nextCell(e.key, { row, col }, rows.length, e.shiftKey);
-    if (!to) return;
-    e.preventDefault();
-    focusCell(GRID, to);
-  };
+  const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, row: number, col: string) => gridKey(e, GRID, { row, col }, rows.length);
 
   const onPaste = (e: React.ClipboardEvent<HTMLInputElement>, row: number, col: EditableCol | "boxes") => {
-    const text = e.clipboardData.getData("text");
-    if (!isRangePaste(text)) return;
-    e.preventDefault();
-    const matrix = parseClipboard(text);
+    const matrix = pastedRange(e);
+    if (!matrix) return;
     if (col === "boxes") {
       onChange(rows.map((r, i) => {
         const line = matrix[i - row];
@@ -60,7 +53,7 @@ export function ArrivalSheet({ rows, onChange, readOnly, arrivalDate, onAddClick
       }));
       return;
     }
-    onChange(pasteRange(rows, row, col, matrix).rows);
+    onChange(pasteRange(rows, row, col, matrix));
   };
 
   const cell = (i: number, col: EditableCol, opts: { numeric?: boolean; type?: string; placeholder?: string; min?: string } = {}) => {
@@ -173,7 +166,7 @@ export function ArrivalSheet({ rows, onChange, readOnly, arrivalDate, onAddClick
                   <td className="num" style={{ padding: "0 8px", whiteSpace: "nowrap", fontWeight: 600, fontVariantNumeric: "tabular-nums" }}>{sum > 0 ? fmt(sum) : ""}</td>
                   <td className="num" style={{ width: 120 }}>{readOnly ? ro(r.sellingPrice ? fmt(r.sellingPrice) : "", true) : cell(i, "sellingPrice", { numeric: true })}</td>
                   <td className="num" style={{ padding: "0 8px", whiteSpace: "nowrap", color: m != null && m < 0 ? "var(--color-danger-text)" : "var(--color-text-secondary)", fontVariantNumeric: "tabular-nums" }}>
-                    {m == null ? "" : `${m > 0 ? "+" : ""}${m}%`}
+                    {pctText(m)}
                   </td>
                   <td style={{ width: 120 }}>{readOnly ? ro(r.batchNumber) : cell(i, "batchNumber", { placeholder: t("—", "—") })}</td>
                   <td style={{ width: 150 }}>

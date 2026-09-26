@@ -14,11 +14,9 @@ import * as schema from "./schema";
  * клиентов.
  */
 export function assertSeedTarget(databaseUrl: string, allowRemote = process.env.SEED_ALLOW_REMOTE === "1"): void {
-  let parsed = true;
-  try { new URL(databaseUrl); } catch { parsed = false; }
-  if (!parsed || (isRemoteHost(databaseUrl) && !allowRemote)) {
-    const host = parsed ? new URL(databaseUrl).hostname : "(адрес не разобран)";
-    throw new Error(`Засев стирает все таблицы, а база ${host} не локальная. Отказ. Если это правда нужно — SEED_ALLOW_REMOTE=1.`);
+  const host = URL.parse(databaseUrl)?.hostname;
+  if (host === undefined || (isRemoteHost(databaseUrl) && !allowRemote)) {
+    throw new Error(`Засев стирает все таблицы, а база ${host ?? "(адрес не разобран)"} не локальная. Отказ. Если это правда нужно — SEED_ALLOW_REMOTE=1.`);
   }
 }
 

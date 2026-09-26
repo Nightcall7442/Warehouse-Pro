@@ -26,7 +26,7 @@ export function PriceTiers({ listId, tiers, products }: { listId: number; tiers:
   const [minQty, setMinQty] = useState("10");
   const [price, setPrice] = useState("");
 
-  const refresh = () => Promise.all([utils.priceList.getById.invalidate({ id: listId }), utils.priceList.list.invalidate()]);
+  const refresh = () => utils.priceList.invalidate();
   const upsert = trpc.priceList.upsertItem.useMutation({
     onSuccess: async () => { await refresh(); setPicked(null); setQ(""); setPrice(""); notify.success(t("Ступень сохранена", "Pog'ona saqlandi")); },
     onError: e => notify.error(e.message),

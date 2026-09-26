@@ -1,10 +1,11 @@
 import { useMemo, useState, type ReactNode } from "react";
-import { AlertCircle, ArrowLeft, Check, ChevronRight, Globe, MapPin, Navigation, Search, ShoppingBag, ShoppingCart } from "lucide-react";
+import { AlertCircle, ArrowLeft, Check, ChevronRight, Globe, MapPin, Navigation, ShoppingBag, ShoppingCart } from "lucide-react";
 import { useLang } from "@/i18n";
 import { PhotoOrIcon } from "@/components/PhotoOrIcon";
 import { plural } from "@/lib/plural";
 import { CARD } from "./tones";
-import { EmptyState } from "./kit";
+import { EmptyState, SearchField } from "./kit";
+import { haversineKm } from "@contracts/geo";
 
 /*
   Магазины на телефоне — экран «Магазины» мобилки v8 (Warehouse-Pro-Mobile,
@@ -21,12 +22,6 @@ export type BrowserShop = {
   address?: string | null; city?: string | null; district?: string | null; photoUrl?: string | null;
   gpsLat?: string | number | null; gpsLng?: string | number | null;
 };
-
-function km(aLat: number, aLng: number, bLat: number, bLng: number) {
-  const R = 6371, dLat = ((bLat - aLat) * Math.PI) / 180, dLng = ((bLng - aLng) * Math.PI) / 180;
-  const h = Math.sin(dLat / 2) ** 2 + Math.cos((aLat * Math.PI) / 180) * Math.cos((bLat * Math.PI) / 180) * Math.sin(dLng / 2) ** 2;
-  return 2 * R * Math.asin(Math.sqrt(h));
-}
 
 const roundBtn = "flex items-center justify-center rounded-full flex-shrink-0 active:scale-95 transition-transform";
 
@@ -123,7 +118,7 @@ export function ShopBrowser({ shops, loading, onOpen, onOrder, onAdd, note }: {
       .filter(s => !q || s.name?.toLowerCase().includes(q) || s.ownerName?.toLowerCase().includes(q) || s.district?.toLowerCase().includes(q))
       .map(s => {
         const lat = Number(s.gpsLat), lng = Number(s.gpsLng);
-        return { s, d: here && lat && lng ? km(here.lat, here.lng, lat, lng) : Infinity };
+        return { s, d: here && lat && lng ? haversineKm(here.lat, here.lng, lat, lng) : Infinity };
       });
     return here ? list.sort((a, b) => a.d - b.d) : list;
   }, [shops, search, here]);
@@ -168,16 +163,7 @@ export function ShopBrowser({ shops, loading, onOpen, onOrder, onAdd, note }: {
   return (
     <div className="space-y-3 animate-fade-up" data-testid="phone-shops">
       <div className="flex items-center gap-2">
-        <label className="flex-1 min-w-0 flex items-center gap-2 px-4" style={{ background: "var(--color-field)", borderRadius: 16, height: 48, boxShadow: "var(--shadow-pressed)" }}>
-          <Search size={16} color="var(--color-text-tertiary)" className="flex-shrink-0" />
-          <input
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            placeholder={t("Поиск магазинов…", "Do'kon qidirish…")}
-            className="flex-1 min-w-0 bg-transparent outline-none"
-            style={{ fontSize: 15, color: "var(--color-text-primary)" }}
-          />
-        </label>
+        <SearchField value={search} onChange={setSearch} placeholder={t("Поиск магазинов…", "Do'kon qidirish…")} />
         {typeof navigator !== "undefined" && "geolocation" in navigator && (
           <button type="button" onClick={toggleNear} aria-pressed={!!here} aria-label={t("Сначала ближайшие", "Avval yaqinlari")} className={roundBtn}
             style={{ width: 44, height: 44, background: here ? "var(--color-primary)" : "var(--color-surface)", color: here ? "var(--color-on-primary)" : "var(--color-text-primary)", boxShadow: here ? "none" : "var(--shadow-sm)" }}>

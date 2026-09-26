@@ -637,14 +637,10 @@ export async function applyStockEffect(
  * вызывающий переводит в свой отказ и называет товар сам.
  */
 export class StockBelowReserveError extends Error {
-  readonly productId: number;
   readonly reserved: number;
-  readonly quantity: number;
   constructor(productId: number, reserved: number, quantity: number) {
     super(`Остаток ${quantity} меньше зарезервированного под заказы (${reserved}) у товара ${productId}`);
-    this.productId = productId;
     this.reserved = reserved;
-    this.quantity = quantity;
   }
 }
 

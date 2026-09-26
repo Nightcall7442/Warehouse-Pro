@@ -1,4 +1,6 @@
 import type { ReactNode } from "react";
+import { Link } from "react-router";
+import { CheckCircle2 } from "lucide-react";
 import { AppBrand } from "@/components/brand/AppBrand";
 import { recallBrand } from "@/lib/remembered-brand";
 import { useLang } from "@/i18n";
@@ -179,6 +181,26 @@ export function AuthError({ children }: { children: ReactNode }) {
       color: "var(--color-danger-text, var(--color-danger))",
     }}>
       {children}
+    </div>
+  );
+}
+
+/** «Готово»: зелёная плитка с галочкой и одна кнопка дальше — письмо ушло, адрес подтверждён. */
+export function AuthDone({ to, label, testId }: { to: string; label: string; testId?: string }) {
+  return (
+    <div style={{ textAlign: "center", paddingTop: "4px" }} data-testid={testId}>
+      <div style={{
+        width: "58px", height: "58px", borderRadius: "20px", margin: "0 auto 20px",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        background: "var(--color-success-subtle)", color: "var(--color-success-text, var(--color-success))",
+        boxShadow: "var(--shadow-sm)",
+      }}>
+        <CheckCircle2 size={26} />
+      </div>
+      <Link to={to} className="neo-btn-primary"
+        style={{ width: "100%", height: "46px", borderRadius: "14px", fontSize: "14px", textDecoration: "none" }}>
+        {label}
+      </Link>
     </div>
   );
 }

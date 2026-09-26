@@ -13,11 +13,19 @@
  */
 export function daysAgo(n: number, hourOffset = 0, now = Date.now()): Date {
   const d = new Date(now - n * 86_400_000);
-  const dayStart = new Date(d);
-  dayStart.setHours(0, 0, 0, 0);
   d.setHours(8 + hourOffset, Math.floor(Math.random() * 60), 0, 0);
   if (d.getTime() > now) {
-    d.setTime(Math.max(dayStart.getTime(), now - (1 + Math.floor(Math.random() * 30)) * 60_000));
+    d.setTime(Math.max(new Date(d).setHours(0, 0, 0, 0), now - (1 + Math.floor(Math.random() * 30)) * 60_000));
   }
   return d;
+}
+
+/**
+ * Событие через hours часов после base — но не позже «сейчас». Доставка и
+ * слово магазина считались от createdAt плюс часы: сегодняшний заказ в
+ * 12:20 получал «доставлен» в 17:20 и «подтверждён» в 21:20 — на «Контроле»
+ * и у курьера было то, чего ещё не случилось.
+ */
+export function hoursAfter(base: Date, hours: number, now = Date.now()): Date {
+  return new Date(Math.min(now, base.getTime() + hours * 3_600_000));
 }

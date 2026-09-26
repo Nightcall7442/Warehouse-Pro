@@ -5,6 +5,7 @@ import { MapPin, Radio, CheckCircle2, AlertCircle, Loader2, Navigation, Info } f
 import { format } from "date-fns";
 import { plural } from "@/lib/plural";
 import { PING_MIN, useLastPing } from "@/hooks/useLocationPing";
+import { CARD } from "@/components/phone/tones";
 
 type GpsState = "idle" | "locating" | "success" | "error";
 
@@ -90,7 +91,7 @@ export default function AgentGps() {
     биркой (в браузере — только пока экран открыт), «Последняя отправка»
     крупным временем и «Как это работает». Владелец, 25.09.2026.
   */
-  const card: React.CSSProperties = { background: "var(--color-surface)", boxShadow: "var(--shadow-raised)", borderRadius: 24 };
+  const card = { ...CARD, borderRadius: 24 };
   const last = lastSent ?? lastPing;
   const status = {
     idle:     { icon: <MapPin size={34} color="var(--color-primary-text)" />, bg: "var(--color-primary-subtle)", text: t("Нажмите кнопку, чтобы поделиться геолокацией", "Joylashuvni yuborish uchun tugmani bosing"), color: "var(--color-text-secondary)" },

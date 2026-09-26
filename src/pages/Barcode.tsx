@@ -19,10 +19,12 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { BarcodeScanner } from "@/components/BarcodeScanner";
 import { useNavigate } from "react-router";
 import { notify } from "@/lib/toast";
-import { addToCart } from "@/lib/catalog-cart";
+import { addToCart, asLine } from "@/lib/catalog-cart";
+import { SearchField } from "@/components/phone/kit";
+import { CARD } from "@/components/phone/tones";
 import { printLabels as printLabelSheet } from "@/lib/documents";
 import { unitShort } from "@/lib/units";
-import { Scan, Package, Plus, Printer, Search, AlertTriangle, RefreshCw, ShoppingCart } from "lucide-react";
+import { Scan, Package, Plus, Printer, AlertTriangle, RefreshCw, ShoppingCart } from "lucide-react";
 
 type Found = {
   id: number; name: string; code: string; barcode: string | null; unitPrice: string;
@@ -61,10 +63,7 @@ export default function BarcodePage() {
 
   const put = (p: Found) => {
     if (!user) return false;
-    addToCart(user.id, {
-      productId: p.id, productName: p.name, unitPrice: p.unitPrice, available: p.available ?? "0",
-      unit: p.unit ?? "pcs", unitWeight: Number(p.unitWeight ?? 0),
-    }, 1);
+    addToCart(user.id, asLine(p), 1);
     return true;
   };
   const order = (p: Found) => { if (put(p)) navigate("/orders/new?fromCart=1"); };
@@ -80,7 +79,7 @@ export default function BarcodePage() {
     name: p.name, code: p.code ?? "", barcode: p.barcode ?? null, price: p.unitPrice ?? "0", currency,
   })));
 
-  const card: React.CSSProperties = { background: "var(--color-surface)", boxShadow: "var(--shadow-raised)", borderRadius: 20 };
+  const card = { ...CARD, borderRadius: 20 };
 
   return (
     <div className="space-y-4 max-w-lg mx-auto" data-testid="barcode-page">
@@ -145,16 +144,7 @@ export default function BarcodePage() {
       </button>
 
       {/* Поиск руками — когда код не читается */}
-      <label className="flex items-center gap-2 px-4" style={{ background: "var(--color-field)", borderRadius: 16, height: 48, boxShadow: "var(--shadow-pressed)" }}>
-        <Search size={16} color="var(--color-text-tertiary)" className="flex-shrink-0" />
-        <input
-          className="flex-1 min-w-0 bg-transparent outline-none font-data"
-          style={{ fontSize: 15, color: "var(--color-text-primary)" }}
-          placeholder={t("Поиск по коду или названию…", "Kod bo'yicha qidirish…")}
-          value={searchCode}
-          onChange={e => { setSearchCode(e.target.value); setScanned(null); }}
-        />
-      </label>
+      <SearchField mono value={searchCode} onChange={v => { setSearchCode(v); setScanned(null); }} placeholder={t("Поиск по коду или названию…", "Kod bo'yicha qidirish…")} />
 
       {/* Результаты ручного поиска */}
       {!scanned && searchCode.length > 1 && (

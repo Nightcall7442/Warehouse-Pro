@@ -4,7 +4,7 @@
 
 import { getDb } from "../queries/connection";
 import { warehouseStock, orderItems, orders, products, arrivals, arrivalItems } from "@db/schema";
-import { eq, and, sql, gte, lt } from "drizzle-orm";
+import { eq, and, sql, gte, lt, inArray } from "drizzle-orm";
 import { revenueOrderConditions } from "../lib/order-status";
 import { withCache } from "../lib/cache";
 import type { DemandPoint } from "./forecast-engine";
@@ -188,13 +188,17 @@ async function computeStockouts(
 
   const pendingRows = await db.select({
     productId: arrivalItems.productId,
-    total: sql<string>`SUM(CAST(${arrivalItems.quantity} AS DECIMAL(15,3)))`,
+    // Приход по накладной заводят нулём в «пришло» до разгрузки — в пути то,
+    // что на бумаге, пока не посчитано. Иначе прогноз советовал дозаказ того, что уже едет.
+    total: sql<string>`SUM(CAST(CASE WHEN ${arrivalItems.quantity} = 0 THEN COALESCE(${arrivalItems.expectedQuantity}, 0) ELSE ${arrivalItems.quantity} END AS DECIMAL(15,3)))`,
   })
     .from(arrivalItems)
     .innerJoin(arrivals, eq(arrivalItems.arrivalId, arrivals.id))
     .where(and(
       eq(arrivals.tenantId, tenantId),
-      eq(arrivals.status, "pending"),
+      // И во время разгрузки: на склад по документу ещё ничего не легло —
+      // остаток растёт только при проведении, — а товар уже у ворот.
+      inArray(arrivals.status, ["pending", "unloading"]),
     ))
     .groupBy(arrivalItems.productId);
 
