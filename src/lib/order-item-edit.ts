@@ -28,6 +28,10 @@ export interface EditLine {
      дёргать курсор. Разбор — один раз, при отправке. */
   quantity: string;
   unitPrice: string;
+  /* Новая строка, цену которой руками не набирали: она идёт за ступенью
+     прайс-листа при текущем количестве (OrderItemsEditor). У строк заказа
+     признака нет — их цену сервер при смене количества не трогает. */
+  auto?: boolean;
 }
 
 /** Позиция заказа, как её отдаёт сервер. */
@@ -74,7 +78,10 @@ export function linesToPayload(original: OrderLine[], edited: EditLine[]): ItemP
   const changed: ItemPayload[] = edited.map(l =>
     l.itemId !== undefined
       ? { itemId: l.itemId, quantity: Number(l.quantity), unitPrice: l.unitPrice }
-      : { productId: l.productId, quantity: Number(l.quantity), unitPrice: l.unitPrice },
+      // Новая строка с нетронутой ценой уходит без цены: сервер посчитает её сам
+      // по прайс-листу заказа и запишет, из какого списка она (priceListId).
+      // Цена, отправленная офисом, для сервера — ручная, и источник терялся.
+      : { productId: l.productId, quantity: Number(l.quantity), ...(l.auto ? {} : { unitPrice: l.unitPrice }) },
   );
 
   // Ноль — это и есть «удалить»: сервер по нему снимает резерв и убирает

@@ -15,18 +15,25 @@
  * Область — либо один список (прайс-лист, выбранный в заказе), либо все
  * активные списки, привязанные к магазину. Среди них для товара берётся
  * строка с minQuantity ≤ количеству; побеждает список с большим priority,
- * внутри списка — больший порог (ярус по объёму). Строки нет — если у
+ * внутри списка — больший порог (ярус по объёму). Порог ≤ 1 — цена «от
+ * одной штуки» — действует на любое количество, в том числе дробное
+ * (0,5 кг); правило — pickTier в contracts/price-tiers.ts. Строки нет — если у
  * списка задана наценка/скидка к карточке (markupPct), цена = карточка ×
  * (1 + pct/100), округлённая до копеек; иначе карточка.
  *
  * Так список «Опт −7 %» — одно число, а не пятьсот строк; строки остаются
  * исключениями поверх правила. Одним запросом на весь заказ.
  *
- * Та же функция кормит каталог (product.list с shopId/priceListId): агент и
- * оператор видят ровно те цены, по которым сервер посчитает заказ.
+ * Каталог (product.list/listAll с shopId/priceListId) берёт цены отсюда же —
+ * resolveCatalog: цену при количестве 1 и ступени «от N» товара. Ступень
+ * выбирает pickTier из contracts/price-tiers.ts — одна функция на сервер и
+ * экран, поэтому «Итог» и офлайн-итог совпадают с тем, что посчитает заказ.
  */
 import { and, eq, inArray, desc } from "drizzle-orm";
 import { priceLists, priceListItems, priceListAssignments } from "@db/schema";
+import { pickTier, type PriceTier } from "@contracts/price-tiers";
+
+export { pickTier };
 
 type Db = ReturnType<typeof import("../queries/connection").getDb>;
 type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
@@ -35,15 +42,8 @@ export interface ResolvedPrice { price: string; priceListId: number | null }
 /** Область цен: магазин (его списки) или явно выбранный список заказа. */
 export type PriceScope = { shopId: number; priceListId?: number | null };
 
-interface TierRow { productId: number; price: string; minQuantity: string; priority: number; priceListId: number }
+interface TierRow extends PriceTier { productId: number; price: string; minQuantity: string; priority: number; priceListId: number }
 interface ListRow { id: number; priority: number; markupPct: string | null }
-
-/** Чистое правило выбора яруса — то же, что в SQL-сортировке, для стендов. */
-export function pickTier(rows: TierRow[], quantity: number): TierRow | undefined {
-  return rows
-    .filter(r => Number(r.minQuantity) <= quantity)
-    .sort((a, b) => b.priority - a.priority || Number(b.minQuantity) - Number(a.minQuantity))[0];
-}
 
 /** Цена по правилу списка: карточка × (1 + pct/100), до копеек. */
 export function applyMarkup(basePrice: string | number, markupPct: string | number): string {
@@ -71,6 +71,39 @@ export async function shopPriceList(db: Db | Tx, tenantId: number, shopId: numbe
   return row ? { id: Number(row.id), name: row.name } : null;
 }
 
+/** Строки прайс-листов области по товарам — одним запросом. */
+async function scopeRows(db: Db | Tx, tenantId: number, sc: PriceScope, productIds: number[]) {
+  const lists = await listsInScope(db, tenantId, sc);
+  const byProduct = new Map<number, TierRow[]>();
+  if (lists.length === 0 || productIds.length === 0) return { lists, byProduct };
+  const rows = await db.select({
+    productId: priceListItems.productId,
+    price: priceListItems.price,
+    minQuantity: priceListItems.minQuantity,
+    priority: priceLists.priority,
+    priceListId: priceListItems.priceListId,
+  })
+    .from(priceListItems)
+    .innerJoin(priceLists, eq(priceListItems.priceListId, priceLists.id))
+    .where(and(inArray(priceListItems.priceListId, lists.map(l => l.id)), inArray(priceListItems.productId, productIds)));
+  for (const r of rows) {
+    const list = byProduct.get(Number(r.productId)) ?? [];
+    list.push({ ...r, productId: Number(r.productId), priority: Number(r.priority), priceListId: Number(r.priceListId) });
+    byProduct.set(Number(r.productId), list);
+  }
+  return { lists, byProduct };
+}
+
+/** Цена товара при количестве: ступень, иначе правило самого приоритетного списка, иначе карточка. */
+function priceOf(rows: TierRow[], lists: ListRow[], quantity: number, card: string | undefined): ResolvedPrice | undefined {
+  const tier = pickTier(rows, quantity);
+  if (tier) return { price: tier.price, priceListId: tier.priceListId };
+  // Правило «к карточке» — у самого приоритетного списка, где оно задано.
+  const ruled = lists.filter(l => l.markupPct != null).sort((a, b) => b.priority - a.priority)[0];
+  if (ruled && card !== undefined) return { price: applyMarkup(card, ruled.markupPct!), priceListId: ruled.id };
+  return undefined;
+}
+
 export async function resolvePrices(
   db: Db | Tx, tenantId: number, scope: number | PriceScope,
   items: Array<{ productId: number; quantity: number | string }>,
@@ -81,32 +114,35 @@ export async function resolvePrices(
   for (const it of items) out.set(it.productId, { price: fallback.get(it.productId) ?? "0", priceListId: null });
   if (items.length === 0) return out;
 
-  const lists = await listsInScope(db, tenantId, sc);
+  const { lists, byProduct } = await scopeRows(db, tenantId, sc, items.map(i => i.productId));
   if (lists.length === 0) return out;
-
-  const rows = await db.select({
-    productId: priceListItems.productId,
-    price: priceListItems.price,
-    minQuantity: priceListItems.minQuantity,
-    priority: priceLists.priority,
-    priceListId: priceListItems.priceListId,
-  })
-    .from(priceListItems)
-    .innerJoin(priceLists, eq(priceListItems.priceListId, priceLists.id))
-    .where(and(inArray(priceListItems.priceListId, lists.map(l => l.id)), inArray(priceListItems.productId, items.map(i => i.productId))));
-
-  const byProduct = new Map<number, TierRow[]>();
-  for (const r of rows) {
-    const list = byProduct.get(Number(r.productId)) ?? [];
-    list.push({ ...r, productId: Number(r.productId), priority: Number(r.priority), priceListId: Number(r.priceListId) });
-    byProduct.set(Number(r.productId), list);
-  }
-  // Правило «к карточке» — у самого приоритетного списка, где оно задано.
-  const ruled = lists.filter(l => l.markupPct != null).sort((a, b) => b.priority - a.priority)[0];
   for (const it of items) {
-    const tier = pickTier(byProduct.get(it.productId) ?? [], Number(it.quantity));
-    if (tier) { out.set(it.productId, { price: tier.price, priceListId: tier.priceListId }); continue; }
-    if (ruled && fallback.has(it.productId)) out.set(it.productId, { price: applyMarkup(fallback.get(it.productId)!, ruled.markupPct!), priceListId: ruled.id });
+    const p = priceOf(byProduct.get(it.productId) ?? [], lists, Number(it.quantity), fallback.get(it.productId));
+    if (p) out.set(it.productId, p);
+  }
+  return out;
+}
+
+/**
+ * Цены каталога для магазина: цена при количестве 1 и ступени товара.
+ *
+ * tiers — строки прайс-листов товара (с порогом, ценой и приоритетом списка),
+ * только у тех товаров, где есть ступень «от N»; остальным хватает цены.
+ * Экран выбирает по ним цену строки тем же pickTier (contracts/price-tiers).
+ */
+export async function resolveCatalog(
+  db: Db | Tx, tenantId: number, scope: PriceScope, fallback: Map<number, string>,
+): Promise<Map<number, ResolvedPrice & { tiers: PriceTier[] | null }>> {
+  const ids = [...fallback.keys()];
+  const out = new Map<number, ResolvedPrice & { tiers: PriceTier[] | null }>();
+  const { lists, byProduct } = await scopeRows(db, tenantId, scope, ids);
+  for (const id of ids) {
+    const rows = byProduct.get(id) ?? [];
+    const p = priceOf(rows, lists, 1, fallback.get(id)) ?? { price: fallback.get(id) ?? "0", priceListId: null };
+    const tiers = rows.some(r => Number(r.minQuantity) > 1)
+      ? rows.map(r => ({ minQuantity: r.minQuantity, price: r.price, priority: r.priority }))
+      : null;
+    out.set(id, { ...p, tiers });
   }
   return out;
 }

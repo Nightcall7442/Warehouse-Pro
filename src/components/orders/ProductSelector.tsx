@@ -544,7 +544,9 @@ export function ProductSelector({ items, onChange, cartOpen = false, onCartOpenC
                       {product.name}
                     </p>
                     <p style={{ fontSize: "11px", color: "var(--color-text-secondary)", margin: "2px 0 0" }}>
-                      {fmt(product.unitPrice)}/{unitLabel(product.unit, lang)}
+                      {/* В корзине — цена строки по ступени её количества (NewOrder,
+                          pricedItems), иначе карточка спорила бы с корзиной. */}
+                      {fmt(inCart?.unitPrice ?? product.unitPrice)}/{unitLabel(product.unit, lang)}
                       {out
                         ? <span data-testid={`product-out-${product.id}`} style={{ color: "var(--color-danger-text)", marginLeft: "6px", fontWeight: 600 }}>{t("товар закончился", "mahsulot tugadi")}</span>
                         : lowStock && <span style={{ color: "var(--color-warning-text)", marginLeft: "6px" }}>⚠ {t("осталось", "qoldi")} {formatQty(product.available)}</span>}

@@ -447,6 +447,9 @@ describe("priceList.removeItem", () => {
 
 describe("priceList.getPrice", () => {
   it("returns default price when no price list assigned", async () => {
+    // Стенд проверяет условие до соединения и не отличит «список не привязан
+    // к магазину» — это сверяет real-db/order-preview-tiers. Здесь: списков нет.
+    priceListsTable = [];
     priceListAssignmentsTable = [];
     const { priceListRouter } = await import("../price-list-router");
     const caller = priceListRouter.createCaller(buildCtx());

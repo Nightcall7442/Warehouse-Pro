@@ -13,6 +13,7 @@ import { loadCart, clearCart, cartToItems } from "@/lib/catalog-cart";
 import { Steps, ShopSelector, ProductSelector, OrderReview } from "@/components/orders";
 import type { OrderItem, PaymentMethod } from "@/components/orders";
 import { EMPTY_ITEM } from "@/components/orders";
+import { priceAt } from "@contracts/price-tiers";
 
 const LABELS_RU = ["Магазин", "Товары", "Итог"];
 const LABELS_UZ = ["Do'kon", "Mahsulotlar", "Xulosa"];
@@ -300,12 +301,21 @@ export default function NewOrder() {
     (тот же ключ — второго запроса нет), и заново при смене магазина. Цену в
     мастере руками не правят — в заказ уходят только товар и количество, —
     поэтому переоцениваются все строки: и из корзины, и из черновика.
+
+    Цена — при ЭТОМ количестве, а не при одной штуке. Каталог отдаёт цену
+    при количестве 1, а сервер считает строку по ступени прайс-листа («от 10
+    — 8500»): корзина, «Итог» и офлайн-итог показывали 10 000 за штуку, а
+    заказ создавался по 8 500. Ступени приходят тем же ответом (tiers), и
+    цену выбирает тот же priceAt, что и сервер, — на каждое количество.
   */
   const { data: shopPrices } = trpc.product.listAll.useQuery({ shopId }, { enabled: shopId > 0 });
+  const catalog = useMemo(() => new Map((shopPrices ?? []).map(p => [p.id, p])), [shopPrices]);
   const pricedItems = useMemo(() => {
-    const price = new Map((shopPrices ?? []).map(p => [p.id, String(p.unitPrice)]));
-    return items.map(i => price.has(i.productId) ? { ...i, unitPrice: price.get(i.productId)! } : i);
-  }, [items, shopPrices]);
+    return items.map(i => {
+      const p = catalog.get(i.productId);
+      return p ? { ...i, unitPrice: priceAt(String(p.unitPrice), p.tiers, Number(i.quantity)) } : i;
+    });
+  }, [items, catalog]);
 
 
   const invalidateOrderCaches = useInvalidateOrderCaches();
@@ -409,7 +419,22 @@ export default function NewOrder() {
   const wizard: OrderWizard = {
     shopId, shopName,
     setShop: (id, name) => { setShopId(id); setShopName(name); },
-    items: pricedItems, setItems,
+    items: pricedItems,
+    /*
+      Шаги видят строки уже по ступени, а в состояние и черновик ступень не
+      пишется: возвращаем строкам ту цену, с которой они лежали (цена при 1).
+      Иначе +/− на шаге «Товары» записывал 8 500 в черновик, и после
+      перезагрузки без связи, когда каталога нет, строка на 2 шт так и
+      считалась по ступени — офлайн-итог меньше, чем насчитает сервер.
+    */
+    setItems: next => setItems(prev => next.map(n => {
+      if (!(n.productId > 0)) return n;
+      // Цена магазина при 1 шт — лучшее, что можно сохранить на случай без связи.
+      const base = catalog.get(n.productId);
+      if (base) return { ...n, unitPrice: String(base.unitPrice) };
+      const was = prev.find(o => o.productId === n.productId);
+      return was ? { ...n, unitPrice: was.unitPrice } : n;
+    })),
     notes, setNotes,
     promisedAt, setPromisedAt,
     discount, setDiscount,
