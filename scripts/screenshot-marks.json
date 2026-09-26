@@ -963,8 +963,8 @@
    ],
    "targets": [
     [
-     "emptyHint",
-     "text=/Создайте нормы в табе|Normani «Rejalar»/"
+     "normCard",
+     "text=/^(План|Reja): / >> nth=0"
     ]
    ]
   },

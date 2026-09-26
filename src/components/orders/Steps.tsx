@@ -1,5 +1,6 @@
 import { CheckCircle2 } from "lucide-react";
 import { useLang } from "@/i18n";
+import { ProgressBar } from "@/components/phone/kit";
 
 interface StepsProps {
   current: number;
@@ -18,9 +19,7 @@ export function Steps({ current, labels }: StepsProps) {
   return (
     <>
       <div className="md:hidden" style={{ marginBottom: 20 }} data-testid="phone-steps">
-        <div style={{ height: 5, borderRadius: 999, background: "var(--color-surface-light)", overflow: "hidden", marginBottom: 14 }}>
-          <div style={{ height: "100%", width: `${(current / total) * 100}%`, borderRadius: 999, background: "var(--color-primary)", transition: "width .3s ease" }} />
-        </div>
+        <div style={{ marginBottom: 14 }}><ProgressBar value={(current / total) * 100} height={5} /></div>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <span style={{ width: 30, height: 30, borderRadius: 15, display: "flex", alignItems: "center", justifyContent: "center", background: "var(--color-primary)", color: "var(--color-on-primary)", fontSize: 13, fontWeight: 700 }}>{current}</span>
           <span style={{ flex: 1, minWidth: 0 }}>

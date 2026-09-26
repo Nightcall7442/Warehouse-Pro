@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
+import { hoursAfter } from "../../db/seed-dates";
 
 /**
  * Засев — история, а не план: ни одна дата в нём не в будущем.
@@ -12,22 +13,36 @@ import path from "node:path";
  * упали оба открытых PR — ни один из них список не трогал. Вечерний прогон
  * накануне проходил.
  *
- * Сам засев зовёт базу при импорте, поэтому здесь — по тексту.
- * Нарочная поломка: верни «8 +» в вызов или убери ограничитель — упадёт.
+ * Сам daysAgo проверяется поведением в src/__tests__/seed-today-stays-today.test.ts.
+ * Засев зовёт базу при импорте, поэтому вызовы в нём — по тексту.
+ * Нарочная поломка: верни «8 +» в вызов — падает «от восьми утра»; верни
+ * доставке «createdAt.getTime() + …» или убери Math.min из hoursAfter —
+ * падает «доставка и слово магазина».
  */
 const seed = fs.readFileSync(path.resolve(process.cwd(), "db/seed.ts"), "utf8").replace(/\r\n/g, "\n");
-// daysAgo с 25.09.2026 живёт в db/seed-dates.ts — там его и проверяют поведением
-// (src/__tests__/seed-today-stays-today.test.ts); здесь — что засев берёт именно его.
-const dates = fs.readFileSync(path.resolve(process.cwd(), "db/seed-dates.ts"), "utf8").replace(/\r\n/g, "\n");
 
 describe("засев не датирует будущим", () => {
-  it("daysAgo не отдаёт дату позже «сейчас»", () => {
-    expect(seed).toContain('import { daysAgo } from "./seed-dates"');
-    expect(dates).toMatch(/if \(d\.getTime\(\) > now\) \{\s*d\.setTime\(Math\.max\(dayStart\.getTime\(\), now -/);
-  });
-
   it("часы заказов — от восьми утра один раз, а не дважды", () => {
     expect(seed).toContain("const createdAt = daysAgo(daysBack, Math.floor(rnd() * 10));");
     expect(seed).not.toContain("daysAgo(daysBack, 8 +");
+  });
+
+  /*
+    Сегодняшний доставленный заказ в 12:20 получал «доставлен» в 17:20 и
+    «подтверждён магазином» в 21:20 — «Контроль» и курьер показывали то,
+    чего ещё не было (26.09.2026).
+  */
+  it("доставка и слово магазина — не позже «сейчас»", () => {
+    const now = new Date(2026, 8, 25, 12, 46).getTime();
+    const created = new Date(2026, 8, 25, 12, 20);
+    expect(hoursAfter(created, 5, now).getTime()).toBe(now);
+    expect(hoursAfter(created, 9, now).getTime()).toBe(now);
+    // Вчерашнее событие остаётся на своём часе — ограничитель трогает только будущее.
+    expect(hoursAfter(new Date(2026, 8, 24, 9, 0), 9, now)).toEqual(new Date(2026, 8, 24, 18, 0));
+
+    for (const field of ["deliveredAt", "shopConfirmedAt", "shopDisputedAt"]) {
+      expect(seed, field).toMatch(new RegExp(`\\b${field}: [^\\n]*\\? hoursAfter\\(createdAt, `));
+    }
+    expect(seed, "метка времени снова считается от createdAt без ограничителя").not.toMatch(/createdAt\.getTime\(\) \+/);
   });
 });

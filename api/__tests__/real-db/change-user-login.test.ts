@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, beforeEach, afterAll, vi } from "vitest";
 import { eq } from "drizzle-orm";
 import * as schema from "@db/schema";
-import { hasRealDb, connectRealDb, closeRealDb, truncateAll, seed, countOf, type ServiceDb, type Seeded } from "./harness";
+import { ctxFor, hasRealDb, connectRealDb, closeRealDb, truncateAll, seed, countOf, type ServiceDb, type Seeded } from "./harness";
 
 /**
  * Смена логина сотруднику организации из суперадмина — по просьбе клиента
@@ -11,14 +11,6 @@ import { hasRealDb, connectRealDb, closeRealDb, truncateAll, seed, countOf, type
  */
 let current: ServiceDb;
 vi.mock("../../queries/connection", () => ({ getDb: () => current, getPool: () => null }));
-
-function ctxFor(db: ServiceDb, role: "superadmin" | "ceo", tenantId: number, userId: number): any {
-  return {
-    req: new Request("http://localhost/"), resHeaders: new Headers(), db,
-    user: { id: userId, tenantId, role, status: "active" as const, name: role, email: `${role}@test.local`, passwordHash: "x", avatar: null, phone: null, createdAt: new Date(), updatedAt: new Date(), lastSignInAt: new Date() },
-    tenant: { id: tenantId, slug: "test-co", name: "Тестовая компания", plan: "pro" as const, status: "active" as const, createdAt: new Date(), updatedAt: new Date() },
-  };
-}
 
 describe.skipIf(!hasRealDb)("смена логина сотруднику из суперадмина", () => {
   let db: ServiceDb;
@@ -39,7 +31,7 @@ describe.skipIf(!hasRealDb)("смена логина сотруднику из �
     superId = Number(sa.insertId);
   });
 
-  const asSuperadmin = async () => (await import("../../tenant-router")).tenantRouter.createCaller(ctxFor(db, "superadmin", s.otherTenantId, superId));
+  const asSuperadmin = async () => (await import("../../tenant-router")).tenantRouter.createCaller(ctxFor(db, s.otherTenantId, superId, "superadmin"));
 
   it("меняет почту, гасит сессии, тянет за собой почту владельца, пишет след", async () => {
     const r = await (await asSuperadmin()).changeUserLogin({ tenantId: s.tenantId, userId: ceoId, email: "  Director@Velora.UZ " });
@@ -69,7 +61,7 @@ describe.skipIf(!hasRealDb)("смена логина сотруднику из �
   });
 
   it("директор организации этой ручкой не владеет — у него свой путь («Передать доступ»)", async () => {
-    const caller = (await import("../../tenant-router")).tenantRouter.createCaller(ctxFor(db, "ceo", s.tenantId, ceoId));
+    const caller = (await import("../../tenant-router")).tenantRouter.createCaller(ctxFor(db, s.tenantId, ceoId, "ceo"));
     await expect(caller.changeUserLogin({ tenantId: s.tenantId, userId: ceoId, email: "x@y.uz" })).rejects.toThrow();
   });
 });

@@ -15,19 +15,11 @@
 import { describe, it, expect, beforeAll, beforeEach, afterAll, vi } from "vitest";
 import { eq, sql } from "drizzle-orm";
 import * as schema from "@db/schema";
-import { hasRealDb, connectRealDb, closeRealDb, truncateAll, seed, stockOf, type ServiceDb, type Seeded } from "./harness";
+import { ctxFor, hasRealDb, connectRealDb, closeRealDb, truncateAll, seed, stockOf, type ServiceDb, type Seeded } from "./harness";
 
 let current: ServiceDb;
 vi.mock("../../queries/connection", () => ({ getDb: () => current, getPool: () => null }));
 vi.mock("../../lib/telegram", async (orig) => ({ ...(await orig<object>()), sendTelegram: vi.fn(async () => true), notifyTenantRole: vi.fn(async () => undefined) }));
-
-function ctxFor(db: ServiceDb, tenantId: number, userId: number, role: string): any {
-  return {
-    req: new Request("http://localhost/"), resHeaders: new Headers(), db,
-    user: { id: userId, tenantId, role, status: "active" as const, name: role, email: `${role}@test.local`, passwordHash: "x", avatar: null, phone: null, createdAt: new Date(), updatedAt: new Date() },
-    tenant: { id: tenantId, slug: "test-co", name: "Тестовая компания", plan: "pro" as const, status: "active" as const, createdAt: new Date(), updatedAt: new Date() },
-  };
-}
 
 describe.skipIf(!hasRealDb)("деньги: недостача и удалённый заказ", () => {
   let db: ServiceDb;

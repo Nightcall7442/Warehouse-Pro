@@ -16,7 +16,7 @@
  */
 import { describe, it, expect, beforeAll, beforeEach, afterAll, vi } from "vitest";
 import * as schema from "@db/schema";
-import { hasRealDb, connectRealDb, closeRealDb, truncateAll, seed, type ServiceDb, type Seeded } from "./harness";
+import { ctxFor, hasRealDb, connectRealDb, closeRealDb, truncateAll, seed, type ServiceDb, type Seeded } from "./harness";
 import { invalidateReports } from "../../lib/report-cache";
 
 let current: ServiceDb;
@@ -38,14 +38,6 @@ function counting(db: ServiceDb): ServiceDb {
       return typeof v === "function" ? (v as (...a: unknown[]) => unknown).bind(target) : v;
     },
   }) as ServiceDb;
-}
-
-function ctxFor(db: ServiceDb, tenantId: number, userId: number): any {
-  return {
-    req: new Request("http://localhost/"), resHeaders: new Headers(), db,
-    user: { id: userId, tenantId, role: "ceo", status: "active" as const, name: "Директор", email: "ceo@test.local", passwordHash: "x", avatar: null, phone: null, createdAt: new Date(), updatedAt: new Date(), lastSignInAt: new Date() },
-    tenant: { id: tenantId, slug: "test-co", name: "Тестовая компания", plan: "pro" as const, status: "active" as const, createdAt: new Date(), updatedAt: new Date() },
-  };
 }
 
 /** Окно, заведомо накрывающее сегодняшний день. */
@@ -80,7 +72,7 @@ describe.skipIf(!hasRealDb)("P&L под кэшем: точные числа, в�
     } as never);
   }
 
-  const analytics = async () => (await import("../../analytics-router")).analyticsRouter.createCaller(ctxFor(current, s.tenantId, s.agentId));
+  const analytics = async () => (await import("../../analytics-router")).analyticsRouter.createCaller(ctxFor(current, s.tenantId, s.agentId, "ceo"));
 
   it("pnl: повтор — побайтно тот же JSON и ноль SQL; после записи и сброса — новое число", async () => {
     await deliveredOrder("300.00", "180.00");

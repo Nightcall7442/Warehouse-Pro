@@ -469,7 +469,7 @@ export default function OrderDetail() {
       {/* Путь заказа — как PipelineBanner мобилки v8; на большом экране его
           роль играет список состояний в шапке. */}
       <div className="md:hidden">
-        <OrderPipeline status={order.status} holdReason={(order as { holdReason?: string | null }).holdReason} />
+        <OrderPipeline status={order.status} />
       </div>
 
       {/* Заказ ждёт офиса: причина — на виду, чтобы директор подтверждал не вслепую. */}

@@ -12,9 +12,9 @@ import {
 } from "lucide-react";
 import { QueryErrorFallback } from "@/components/QueryErrorFallback";
 import {
-  ListCard, ListRow, SectionHead, Tile, CtaTile, EmptyState, RowsSkeleton, HomeGreeting, Sparkline, StatusDot,
+  ListCard, ListRow, SectionHead, Tile, CtaTile, EmptyState, RowsSkeleton, HomeGreeting, Sparkline,
 } from "@/components/phone/kit";
-import { CARD, orderTone, orderStatusWord } from "@/components/phone/tones";
+import { CARD, orderTone, orderStatusWord, planStatus } from "@/components/phone/tones";
 import type { LucideIcon } from "lucide-react";
 
 /*
@@ -28,12 +28,8 @@ import type { LucideIcon } from "lucide-react";
   выручки и сами заказы. Подписи — обычными буквами.
 */
 
-// ── Статусы визитов ───────────────────────────────────────────────────────────
-const PLAN_STATUS: Record<string, { icon: LucideIcon; labelRu: string; labelUz: string; color: string; textColor: string }> = {
-  visited: { icon: CheckCircle2, labelRu: "Посещён",      labelUz: "Borildi",          color: "var(--color-success)", textColor: "var(--color-success-text)" },
-  skipped: { icon: Clock,        labelRu: "Пропущен",     labelUz: "O'tkazildi",       color: "var(--color-warning)", textColor: "var(--color-warning-text)" },
-  planned: { icon: Calendar,     labelRu: "Запланирован", labelUz: "Rejalashtirilgan", color: "var(--color-info)",    textColor: "var(--color-info-text)" },
-};
+// ── Статусы визитов: цвет и подпись общие (phone/tones.ts), значок — свой ─────
+const PLAN_ICON: Record<string, LucideIcon> = { visited: CheckCircle2, skipped: Clock, planned: Calendar };
 
 // ── Строка визита ─────────────────────────────────────────────────────────────
 function PlanRow({ plan, first, onDone, onSkip, isPending }: {
@@ -46,8 +42,8 @@ function PlanRow({ plan, first, onDone, onSkip, isPending }: {
   const { fmt }  = useCurrency();
   const { lang } = useLang();
   const t = (ru: string, uz: string) => lang === "uz" ? uz : ru;
-  const s = PLAN_STATUS[plan.status] ?? PLAN_STATUS.planned;
-  const Icon = s.icon;
+  const s = planStatus(plan.status, lang);
+  const Icon = PLAN_ICON[plan.status] ?? Calendar;
   const hasDebt = Number(plan.shopDebt ?? 0) > 0;
   const address = [plan.shopAddress, plan.shopCity].filter(Boolean).join(", ");
 
@@ -55,9 +51,9 @@ function PlanRow({ plan, first, onDone, onSkip, isPending }: {
     <ListRow first={first} dim={plan.status === "visited"}>
       <span
         className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
-        style={{ background: `color-mix(in srgb, ${s.color} 15%, transparent)` }}
+        style={{ background: `color-mix(in srgb, ${s.fill} 15%, transparent)` }}
       >
-        <Icon size={14} color={s.textColor} />
+        <Icon size={14} color={s.text} />
       </span>
 
       <div className="flex-1 min-w-0">
@@ -103,8 +99,8 @@ function PlanRow({ plan, first, onDone, onSkip, isPending }: {
           </button>
         </div>
       ) : (
-        <span className="flex-shrink-0" style={{ fontSize: 11, fontWeight: 600, color: s.textColor }}>
-          {lang === "uz" ? s.labelUz : s.labelRu}
+        <span className="flex-shrink-0" style={{ fontSize: 11, fontWeight: 600, color: s.text }}>
+          {s.label}
         </span>
       )}
     </ListRow>
@@ -306,18 +302,20 @@ export default function AgentDashboard() {
                   ? t("Не удалось загрузить заказы — это сбой связи", "Buyurtmalar yuklanmadi — aloqa uzildi")
                   : (mine?.data.length ?? 0) > 0 ? t("Сегодня заказов ещё нет", "Bugun hali buyurtma yo'q") : t("Создайте первый заказ", "Birinchi buyurtmani yarating")}
               />
-            ) : todayOrders.map((o, i) => {
-              const tone = orderTone(o.status);
-              return (
-                <ListRow key={o.id} first={i === 0} onClick={() => navigate(`/orders/${o.id}`)} testId="agent-today-order">
-                  <div className="flex-1 min-w-0">
-                    <p className="truncate" style={{ fontSize: 14, fontWeight: 600, color: "var(--color-text-primary)", margin: 0 }}>{o.shopName ?? o.orderNumber}</p>
-                    <div style={{ marginTop: 2 }}><StatusDot dot={tone.dot} text="var(--color-text-tertiary)" label={orderStatusWord(o.status, lang)} /></div>
+            ) : todayOrders.map((o, i) => (
+              <ListRow key={o.id} first={i === 0} onClick={() => navigate(`/orders/${o.id}`)} testId="agent-today-order">
+                <div className="flex-1 min-w-0">
+                  <p className="truncate" style={{ fontSize: 14, fontWeight: 600, color: "var(--color-text-primary)", margin: 0 }}>{o.shopName ?? o.orderNumber}</p>
+                  <div style={{ marginTop: 2 }}>
+                    <span className="inline-flex items-center gap-1.5 min-w-0">
+                      <span className="flex-shrink-0 rounded-full" style={{ width: 6, height: 6, background: orderTone(o.status).dot }} />
+                      <span className="truncate" style={{ fontSize: 12, color: "var(--color-text-tertiary)" }}>{orderStatusWord(o.status, lang)}</span>
+                    </span>
                   </div>
-                  <span className="font-data flex-shrink-0" style={{ fontSize: 14, fontWeight: 700, color: "var(--color-text-primary)" }}>{fmt(o.total)}</span>
-                </ListRow>
-              );
-            })}
+                </div>
+                <span className="font-data flex-shrink-0" style={{ fontSize: 14, fontWeight: 700, color: "var(--color-text-primary)" }}>{fmt(o.total)}</span>
+              </ListRow>
+            ))}
           </ListCard>
         </section>
       )}

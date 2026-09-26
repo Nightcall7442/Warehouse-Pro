@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
+import { createHmac } from "node:crypto";
 
 /**
  * Подтверждение почты при регистрации с сайта — решение владельца 21.09.2026.
@@ -70,6 +71,15 @@ describe("токен подтверждения", () => {
     const tg = createLinkToken(42, now);
     expect(readEmailVerifyToken(tg, now)).toEqual({ ok: false, reason: "invalid" });
     expect(readEmailVerifyToken(`ev.${tg}`, now)).toEqual({ ok: false, reason: "invalid" });
+  });
+
+  it("формат обоих токенов прежний: ссылки, ушедшие до выкладки, остаются годными", () => {
+    // Подпись у Telegram и почты теперь одна функция; строки — байт в байт прежние.
+    const now = 1_800_000_000_000;
+    const hmac = (p: string) => `${p}.${createHmac("sha256", "тест-секрет").update(p).digest("base64url")}`;
+    expect(createLinkToken(42, now)).toBe(hmac(`42.${now + 15 * 60 * 1000}`));
+    expect(createEmailVerifyToken(42, now)).toBe(hmac(`ev.42.${now + VERIFY_TTL_MS}`));
+    expect(readEmailVerifyToken(hmac(`ev.42.${now + 1}`), now)).toEqual({ ok: true, userId: 42 });
   });
 
   it("ссылка ведёт на /verify-email приложения с токеном", () => {
@@ -241,7 +251,7 @@ describe("экраны", () => {
     expect(src).toContain("client.auth.verifyEmail.mutate({ token })");
     expect(src).not.toContain("verifyEmail.useMutation");
     expect(src).toContain("if (!token || fired.current) return;");
-    expect(src).toContain('data-testid="verify-email-done"');
+    expect(src).toContain('<AuthDone to="/login" label={tr("Войти", "Kirish")} testId="verify-email-done" />');
     expect(src).toContain('<Link to="/login"');
   });
 });

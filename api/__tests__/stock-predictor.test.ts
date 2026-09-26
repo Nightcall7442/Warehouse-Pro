@@ -46,16 +46,19 @@ interface Canned {
 let canned: Canned;
 /** Условия WHERE каждой выборки — по имени таблицы-источника. */
 let capturedWhere: Record<string, unknown>;
+/** Что выбирает каждая выборка — по тому же имени источника. */
+let capturedFields: Record<string, any>;
 
 function makeDb() {
   return {
-    select: () => {
+    select: (fields?: unknown) => {
       let source = "other";
       const api: any = {
         from: (ref: unknown) => {
           source = ref === warehouseStock ? "stock"
             : ref === orderItems ? "demand"
             : ref === arrivalItems ? "pending" : "other";
+          capturedFields[source] = fields;
           return api;
         },
         innerJoin: () => api,
@@ -104,6 +107,7 @@ const stockRow = (over: Record<string, unknown> = {}) => ({
 beforeEach(() => {
   canned = { stock: [], demand: [], pending: [] };
   capturedWhere = {};
+  capturedFields = {};
   mockDb = makeDb();
 });
 
@@ -148,6 +152,18 @@ describe("прогноз исчерпания: арифметика", () => {
       // (100 + 200) / 10 = 30 дней вместо десяти.
       expect(p.daysUntilStockout).toBe(30);
     });
+  });
+
+  it("в пути — и строка «по накладной», где «пришло» ещё ноль", async () => {
+    // Приход по накладной заводят нулём в «пришло» до разгрузки. Сумма только
+    // по quantity давала 0 — и прогноз советовал дозаказ того, что уже едет.
+    // Считает сама база (real-db/arrival-edits-and-transit и стенд в
+    // audit-reports-speed), здесь — что выражение смотрит на накладную, когда «пришло» ноль.
+    canned.stock = [stockRow()];
+    await predictStockouts(1, 30);
+    const total = capturedFields.pending.total;
+    expect(total.values, "накладная не участвует в «в пути»").toEqual([arrivalItems.quantity, arrivalItems.expectedQuantity, arrivalItems.quantity]);
+    expect(total.strings.join("?")).toMatch(/CASE WHEN \? = 0 THEN COALESCE\(\?, 0\) ELSE \? END/);
   });
 
   it("без продаж срок не считается и товар не срочный", () => {

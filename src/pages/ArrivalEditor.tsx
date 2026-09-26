@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
-import { useNavigate, useParams } from "react-router";
+import { useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { UNSAFE_NavigationContext, useBeforeUnload, useNavigate, useParams } from "react-router";
 import { format } from "date-fns";
 import { ArrowLeft, Plus, Printer, ScanLine, Trash2, Loader2, CheckCircle2, Truck, ListChecks } from "lucide-react";
 import { trpc } from "@/providers/trpc";
@@ -14,7 +14,7 @@ import { labelled, ARRIVAL_STATUS_LABEL } from "@/lib/entity-labels";
 import { printArrivalReceipt, printLabels } from "@/lib/documents";
 import { focusCell } from "@/lib/grid-nav";
 import {
-  type SheetRow, addProducts, applyScan, fillFromExpected, problems, rowsFromDetail, toPayload, totals,
+  type SheetRow, addProducts, applyScan, fillFromExpected, markupPct, problems, rowsFromDetail, toPayload, totals,
 } from "@/lib/arrival-sheet";
 import { saveArrivalDraft, loadArrivalDraft, clearArrivalDraft, arrivalDraftHasWork, type ArrivalDraft } from "./Arrivals.draft";
 import { DecimalInput } from "@/components/ui/DecimalInput";
@@ -87,8 +87,13 @@ export default function ArrivalEditor() {
 
   /* Новый — черновик у браузера; сохранённый — правки поверх документа, пока их не сохранили. */
   const [draft, setDraft] = useState<ArrivalDraft>(() => (isNew && user ? loadArrivalDraft(user.id) : null) ?? emptyDraft());
-  const [edit, setEdit] = useState<{ head: Head; rows: SheetRow[] } | null>(null);
+  // seen — версия документа, с которой начали правку: её сверяет setItems.
+  const [edit, setEdit] = useState<{ head: Head; rows: SheetRow[]; seen: Date } | null>(null);
+  // Документ изменил кто-то другой: сохранять поверх нельзя, пока человек не
+  // отменит правки и не увидит новую версию. Кнопка, которая всегда откажет, хуже выключенной.
+  const [stale, setStale] = useState(false);
   const base = useMemo(() => detail ? {
+    seen: detail.updatedAt,
     head: {
       truckId: detail.truckId ?? "", driverName: detail.driverName ?? "", driverPhone: detail.driverPhone ?? "",
       arrivalDate: detail.arrivalDate ? format(new Date(detail.arrivalDate), "yyyy-MM-dd") : today(),
@@ -120,10 +125,40 @@ export default function ArrivalEditor() {
   const readOnly = completed || !can("suppliers.manage");
   const dirty = isNew ? arrivalDraftHasWork(draft) : edit != null;
 
-  const setRows = (next: SheetRow[]) => isNew ? setDraft(d => ({ ...d, rows: next })) : setEdit(e => ({ head: e?.head ?? base!.head, rows: next }));
-  const setHead = (patch: Partial<Head>) => isNew ? setDraft(d => ({ ...d, form: { ...d.form, ...patch } })) : setEdit(e => ({ rows: e?.rows ?? base!.rows, head: { ...(e?.head ?? base!.head), ...patch } }));
+  const setRows = (next: SheetRow[]) => isNew ? setDraft(d => ({ ...d, rows: next })) : setEdit(e => ({ ...(e ?? base!), rows: next }));
+  const setHead = (patch: Partial<Head>) => isNew ? setDraft(d => ({ ...d, form: { ...d.form, ...patch } })) : setEdit(e => ({ ...(e ?? base!), head: { ...(e ?? base!).head, ...patch } }));
+
+  /*
+    Уход с несохранёнными правками — спросить. У нового прихода черновик в
+    браузере, а правки сохранённого живут только здесь: сорок строк «пришло»,
+    набранных при разгрузке, пропадали от «← Приходы», пункта меню или
+    перезагрузки. useBlocker требует data router, а у нас BrowserRouter —
+    поэтому перехвачен navigator.push: через него идут и ссылки, и navigate() меню.
+  */
+  const askLeave = useRef<(() => Promise<boolean>) | null>(null);
+  useEffect(() => {
+    askLeave.current = !isNew && edit != null ? () => confirm({
+      title: t("Уйти без сохранения?", "Saqlamasdan chiqilsinmi?"),
+      message: t("Несохранённые правки документа пропадут.", "Hujjatdagi saqlanmagan o'zgarishlar yo'qoladi."),
+      confirmText: t("Уйти", "Chiqish"), danger: true,
+    }) : null;
+  });
+  const { navigator } = useContext(UNSAFE_NavigationContext);
+  /* eslint-disable react-hooks/immutability -- navigator это history роутера, а не состояние React */
+  useEffect(() => {
+    const push = navigator.push;
+    navigator.push = (...a: Parameters<typeof push>) => {
+      const ask = askLeave.current;
+      if (!ask) return push(...a);
+      void ask().then(ok => { if (ok) push(...a); });
+    };
+    return () => { navigator.push = push; };
+  }, [navigator]);
+  /* eslint-enable react-hooks/immutability */
+  useBeforeUnload(useCallback((e: BeforeUnloadEvent) => { if (askLeave.current) e.preventDefault(); }, []));
 
   const sum = totals(rows);
+  const markup = markupPct(sum.costSum, sum.saleSum);
   const expense = Number(head.fuelCost || 0) + Number(head.tollCost || 0) + Number(head.otherCost || 0);
   const issues = problems(rows, head.arrivalDate);
 
@@ -186,11 +221,16 @@ export default function ArrivalEditor() {
     return true;
   };
 
-  /** Новый: create, при «и завершить» — тот же update({status: completed}), что и «Завершить» в документе. */
+  /**
+   * Новый: create, при «и завершить» — тот же update({status: completed}), что и «Завершить» в документе.
+   * Создан — дальше его документ, даже если проведение отказало: пустая форма «Нового прихода»
+   * читалась как «ничего не сохранилось», приход набирали заново — дубль и второй долг поставщику.
+   */
   const saveNew = async (complete: boolean) => {
     if (!guard()) return;
+    let r: { id: number };
     try {
-      const r = await createMutation.mutateAsync({
+      r = await createMutation.mutateAsync({
         ...head,
         items: toPayload(rows),
         supplier: d.supplierMode === "none" ? undefined : {
@@ -201,15 +241,21 @@ export default function ArrivalEditor() {
           dueDate: d.supplyDueDate || undefined,
         },
       });
-      if (user) clearArrivalDraft(user.id);
-      setDraft(emptyDraft());
-      if (complete) await updateStatus.mutateAsync({ id: r.id, status: "completed" });
-      await refresh();
-      notify.success(complete ? t("Приход сохранён и завершён", "Kelish saqlandi va yakunlandi") : t("Приход сохранён", "Kelish saqlandi"));
-      navigate(`/arrivals/${r.id}`, { replace: true });
     } catch (e) {
       notify.error(e instanceof Error ? e.message : String(e));
+      return;
     }
+    if (user) clearArrivalDraft(user.id);
+    setDraft(emptyDraft());
+    try {
+      if (complete) await updateStatus.mutateAsync({ id: r.id, status: "completed" });
+      notify.success(complete ? t("Приход сохранён и завершён", "Kelish saqlandi va yakunlandi") : t("Приход сохранён", "Kelish saqlandi"));
+    } catch (e) {
+      const why = e instanceof Error ? e.message : String(e);
+      notify.error(t(`Приход сохранён, но не проведён: ${why}`, `Kelish saqlandi, lekin yakunlanmadi: ${why}`));
+    }
+    await refresh();
+    navigate(`/arrivals/${r.id}`, { replace: true });
   };
 
   /** Сохранённый: строки целиком через setItems, шапка — update. Только изменённое. */
@@ -218,18 +264,22 @@ export default function ArrivalEditor() {
     if (!guard()) return false;
     try {
       if (edit) {
-        if (JSON.stringify(edit.rows) !== JSON.stringify(base.rows)) await setItems.mutateAsync({ id: arrivalId, items: toPayload(edit.rows) });
-        const h = edit.head, b = base.head;
-        if (h.truckId !== b.truckId || h.driverName !== b.driverName || h.driverPhone !== b.driverPhone || h.notes !== b.notes
-          || h.fuelCost !== b.fuelCost || h.tollCost !== b.tollCost || h.otherCost !== b.otherCost) {
-          await updateStatus.mutateAsync({ id: arrivalId, truckId: h.truckId, driverName: h.driverName, driverPhone: h.driverPhone, notes: h.notes, fuelCost: h.fuelCost || "0", tollCost: h.tollCost || "0", otherCost: h.otherCost || "0" });
+        if (JSON.stringify(edit.rows) !== JSON.stringify(base.rows)) {
+          const r = await setItems.mutateAsync({ id: arrivalId, items: toPayload(edit.rows), updatedAt: edit.seen });
+          // Строки легли, версия сдвинулась — запоминаем свою: упадёт шапка ниже,
+          // и повторное «Сохранить» не должно принять себя за чужую правку.
+          setEdit(e => e && { ...e, seen: r.updatedAt });
         }
+        // Дата сохранённого не правится, а лишнее поле update отбросит его же схема.
+        if (JSON.stringify(edit.head) !== JSON.stringify(base.head)) await updateStatus.mutateAsync({ id: arrivalId, ...edit.head });
       }
       await refresh();
       setEdit(null);
       return true;
     } catch (e) {
       notify.error(e instanceof Error ? e.message : String(e));
+      // Документ правили в другом месте: подтянуть свежий — набранное остаётся на экране, «Отменить правки» покажет чужое.
+      if ((e as { data?: { code?: string } }).data?.code === "CONFLICT") { setStale(true); void refresh(); }
       return false;
     }
   };
@@ -260,6 +310,8 @@ export default function ArrivalEditor() {
 
   const startUnloading = async () => {
     if (!arrivalId) return;
+    // Сначала правки: смена статуса двигает версию документа, и несохранённое потом не сохранилось бы.
+    if (dirty && !(await saveDoc())) return;
     try { await updateStatus.mutateAsync({ id: arrivalId, status: "unloading" }); await refresh(); } catch (e) { notify.error(e instanceof Error ? e.message : String(e)); }
   };
 
@@ -267,13 +319,13 @@ export default function ArrivalEditor() {
     if (!arrivalId) return;
     const ok = await confirm({ title: t("Удалить приход?", "Kelish o'chirilsinmi?"), message: t("Данные будут удалены безвозвратно.", "Ma'lumotlar qaytarib bo'lmaydigan tarzda o'chiriladi."), confirmText: t("Удалить", "O'chirish"), danger: true });
     if (!ok) return;
-    try { await deleteMutation.mutateAsync({ id: arrivalId }); await utils.arrival.list.invalidate(); navigate("/arrivals"); } catch (e) { notify.error(e instanceof Error ? e.message : String(e)); }
+    try { await deleteMutation.mutateAsync({ id: arrivalId }); await utils.arrival.list.invalidate(); askLeave.current = null; navigate("/arrivals"); } catch (e) { notify.error(e instanceof Error ? e.message : String(e)); }
   };
 
   const discard = async () => {
     const ok = await confirm({ title: t("Отменить набранное?", "Kiritilganlar bekor qilinsinmi?"), message: t("Черновик будет стёрт.", "Qoralama o'chiriladi."), confirmText: t("Стереть", "O'chirish"), danger: true });
     if (!ok) return;
-    if (isNew) { if (user) clearArrivalDraft(user.id); setDraft(emptyDraft()); } else setEdit(null);
+    if (isNew) { if (user) clearArrivalDraft(user.id); setDraft(emptyDraft()); } else { setEdit(null); setStale(false); }
   };
 
   /* ── Печать ─────────────────────────────────────────────────────────── */
@@ -342,7 +394,7 @@ export default function ArrivalEditor() {
           <>
             <button className="neo-btn text-danger" onClick={remove} disabled={busy} aria-label={t("Удалить", "O'chirish")} data-testid="arrival-delete"><Trash2 size={14} /></button>
             {dirty && <button className="neo-btn" onClick={discard} disabled={busy}>{t("Отменить правки", "Bekor qilish")}</button>}
-            {dirty && <button className="neo-btn" onClick={() => void saveDoc().then(ok => ok && notify.success(t("Сохранено", "Saqlandi")))} disabled={busy} data-testid="arrival-save">{t("Сохранить", "Saqlash")}</button>}
+            {dirty && <button className="neo-btn" onClick={() => void saveDoc().then(ok => ok && notify.success(t("Сохранено", "Saqlandi")))} disabled={busy || stale} title={stale ? t("Документ изменили — отмените правки, чтобы увидеть новую версию", "Hujjat o'zgargan — yangi versiyani ko'rish uchun o'zgarishlarni bekor qiling") : undefined} data-testid="arrival-save">{t("Сохранить", "Saqlash")}</button>}
             <button className="neo-btn-primary" onClick={complete} disabled={busy} style={{ display: "flex", alignItems: "center", gap: 6 }} data-testid="arrival-complete">
               {busy ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}{t("Завершить приход", "Kelishni yakunlash")}
             </button>
@@ -356,7 +408,7 @@ export default function ArrivalEditor() {
         <Stat label={t("Пришло, ед.", "Keldi, birlik")} value={formatQty(sum.units)} sub={sum.expectedUnits > 0 ? t(`по накладной ${formatQty(sum.expectedUnits)}`, `hujjatda ${formatQty(sum.expectedUnits)}`) : undefined} />
         <Stat label={t("Расхождений", "Farqlar")} value={String(sum.mismatches)} tone={sum.mismatches > 0 ? "danger" : undefined} testId="arrival-stat-mismatches" />
         <Stat label={t("Закупка", "Xarid")} value={fmt(sum.costSum)} sub={expense > 0 ? t(`+ доставка ${fmt(expense)}`, `+ yetkazish ${fmt(expense)}`) : undefined} testId="arrival-stat-cost" />
-        <Stat label={t("В ценах продажи", "Sotuv narxida")} value={fmt(sum.saleSum)} sub={sum.costSum > 0 && sum.saleSum > 0 ? t(`наценка ${Math.round((sum.saleSum / sum.costSum - 1) * 1000) / 10}%`, `ustama ${Math.round((sum.saleSum / sum.costSum - 1) * 1000) / 10}%`) : undefined} />
+        <Stat label={t("В ценах продажи", "Sotuv narxida")} value={fmt(sum.saleSum)} sub={markup != null ? t(`наценка ${markup}%`, `ustama ${markup}%`) : undefined} />
         {sum.weightKg > 0 && <Stat label={t("Вес", "Og'irlik")} value={`${formatQty(sum.weightKg)} ${t("кг", "kg")}`} />}
       </div>
 
@@ -383,7 +435,7 @@ export default function ArrivalEditor() {
           <Field label={t("Машина", "Mashina")}><input className="neo-input" disabled={readOnly} value={head.truckId} onChange={e => setHead({ truckId: e.target.value })} placeholder="01 A 123 BC" /></Field>
           <Field label={t("Водитель", "Haydovchi")}><input className="neo-input" disabled={readOnly} value={head.driverName} onChange={e => setHead({ driverName: e.target.value })} /></Field>
           <Field label={t("Телефон водителя", "Haydovchi telefoni")}><input className="neo-input" disabled={readOnly} value={head.driverPhone} onChange={e => setHead({ driverPhone: e.target.value })} /></Field>
-          <Field label={t("Топливо", "Yoqilg'i")}><DecimalInput className="neo-input" disabled={readOnly} style={{ textAlign: "right" }} value={head.fuelCost} onValueChange={v => setHead({ fuelCost: v })} /></Field>
+          <Field label={t("Топливо", "Yoqilg'i")}><DecimalInput className="neo-input" disabled={readOnly} style={{ textAlign: "right" }} value={head.fuelCost} onValueChange={v => setHead({ fuelCost: v })} data-testid="arrival-fuel" /></Field>
           <Field label={t("Дорога", "Yo'l")}><DecimalInput className="neo-input" disabled={readOnly} style={{ textAlign: "right" }} value={head.tollCost} onValueChange={v => setHead({ tollCost: v })} /></Field>
           <Field label={t("Прочие расходы", "Boshqa xarajatlar")}><DecimalInput className="neo-input" disabled={readOnly} style={{ textAlign: "right" }} value={head.otherCost} onValueChange={v => setHead({ otherCost: v })} /></Field>
         </div>
@@ -474,7 +526,7 @@ export default function ArrivalEditor() {
       )}
 
       {picking && (
-        <ProductMultiPicker open onClose={() => setPicking(false)} products={catalog} already={new Set(rows.map(r => r.productId))} onPick={onPick} />
+        <ProductMultiPicker onClose={() => setPicking(false)} products={catalog} already={new Set(rows.map(r => r.productId))} onPick={onPick} />
       )}
       {scanning && (
         <BarcodeScanner

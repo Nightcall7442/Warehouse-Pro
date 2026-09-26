@@ -20,6 +20,8 @@
  *   · убрать кнопку «Заказ» — «заказ из визита»;
  *   · вернуть запрос к { date: сегодня } — «переход по дням».
  */
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
 import { render, screen, fireEvent, cleanup, waitFor, within } from "@testing-library/react";
 import { format, addDays, subDays } from "date-fns";
@@ -128,5 +130,16 @@ describe("PhonePlan: вернулось то, что было у большог�
     expect(screen.queryByRole("button", { name: "Заказ" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Готово" }));
     expect(state.navigated[0]).toMatch(/^\/agent\/visit\/7\?shopId=3&/);
+  });
+});
+
+describe("подписи визита — как в мобилке и в справке", () => {
+  it("«Tashrif qilindi» и «Rejalangan», а не общий словарь «Моего дня»", () => {
+    // Словарь «Моего дня» говорит «Borildi»; этот экран — копия мобильного
+    // «Плана», и справка учит по его словам.
+    const src = readFileSync(join(process.cwd(), "src/components/phone/PhonePlan.tsx"), "utf8");
+    expect(src).toContain("label: t(\"Посещён\", \"Tashrif qilindi\")");
+    expect(src).toContain("label: t(\"Запланирован\", \"Rejalangan\")");
+    expect(src).not.toContain("planStatus(");
   });
 });

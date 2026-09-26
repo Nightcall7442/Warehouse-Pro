@@ -32,6 +32,7 @@ export const SearchInput = memo(function SearchInput({
   inputClassName,
   inputStyle,
   focusRing = false,
+  testId,
 }: {
   placeholder: string;
   /** Вызывается придержанно — когда набор остановился. */
@@ -45,6 +46,7 @@ export const SearchInput = memo(function SearchInput({
   inputStyle?: React.CSSProperties;
   /** Подсветка рамки при фокусе, как на странице склада. */
   focusRing?: boolean;
+  testId?: string;
 }) {
   const [value, setValue] = useState(initialValue);
 
@@ -87,6 +89,7 @@ export const SearchInput = memo(function SearchInput({
           outline: "none",
         }}
         placeholder={placeholder}
+        data-testid={testId}
         value={value}
         onChange={e => setValue(e.target.value)}
         onFocus={focusRing ? e => {

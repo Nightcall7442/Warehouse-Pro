@@ -35,8 +35,8 @@ const stub = vi.hoisted(() => {
     trpc: {
       priceList: {
         getById: { useQuery: q(() => state.detail) },
-        list: { useQuery: q(() => [{ id: 5, name: "Опт −7" }, { id: 6, name: "VIP" }]) },
-        shopMap: { useQuery: q(() => [{ shopId: 10, priceListId: 5 }, { shopId: 11, priceListId: 6 }]) },
+        // Имя списка приходит с картой магазинов — отдельный priceList.list странице не нужен.
+        shopMap: { useQuery: q(() => [{ shopId: 10, priceListId: 5, name: "Опт −7" }, { shopId: 11, priceListId: 6, name: "VIP" }]) },
         setItems: { useMutation: mut(v => state.setItems(v)) },
         setShops: { useMutation: mut(v => state.setShops(v)) },
         update: { useMutation: mut(async () => ({ success: true })) },
@@ -48,9 +48,10 @@ const stub = vi.hoisted(() => {
         { id: 1, name: "Сок яблочный", code: "S-1", category: "Напитки", costPrice: "8000", unitPrice: "12000" },
         { id: 2, name: "Вода", code: "W", category: "Напитки", costPrice: "2000", unitPrice: "3000" },
         { id: 3, name: "Сок вишнёвый", code: "S-2", category: "Напитки", costPrice: "0", unitPrice: "15000" },
+        { id: 4, name: "Сок пробный", code: "S-0", category: "Напитки", costPrice: "0", unitPrice: "0" },
       ] })) } },
       shop: { list: { useQuery: q(() => ({ data: [{ id: 10, name: "Альфа", city: "Ургенч" }, { id: 11, name: "Бета", city: "Хива" }] })) } },
-      useUtils: () => ({ priceList: { getById: inv, list: inv, shopMap: inv, forShop: inv }, product: inv }),
+      useUtils: () => ({ priceList: inv, product: inv }),
     },
   };
 });
@@ -81,10 +82,12 @@ describe("цены", () => {
     await waitFor(() => expect(stub.state.setItems).toHaveBeenCalledWith({ priceListId: 5, items: [{ productId: 1, price: 11000 }] }));
   });
 
-  it("найденным −10 %: поиск «сок» — два товара от карточки", async () => {
+  it("найденным −10 %: поиск «сок» — от карточки; товар без карточки не трогаем", async () => {
     show();
     fireEvent.change(screen.getByTestId("price-grid-search"), { target: { value: "сок" } });
-    expect(screen.queryByTestId("price-row-2")).toBeNull();
+    // Поиск придержан (SearchInput): сетка на тысячи строк не фильтруется на каждую букву.
+    await waitFor(() => expect(screen.queryByTestId("price-row-2")).toBeNull());
+    expect(screen.getByTestId("price-row-4")).toBeTruthy();
     fireEvent.change(screen.getByTestId("price-grid-bulk-pct"), { target: { value: "-10" } });
     fireEvent.click(screen.getByTestId("price-grid-bulk-apply"));
     fireEvent.click(screen.getByTestId("price-grid-save"));

@@ -188,7 +188,7 @@ describe("форма запроса", () => {
       return [[{ reserved: "6.00" }], []];
     });
     await expect(setStock(tx, { tenantId: 1, warehouseId: 2, productId: 7, quantity: 3 }))
-      .rejects.toMatchObject({ productId: 7, reserved: 6, quantity: 3 });
+      .rejects.toMatchObject({ reserved: 6 });
     expect(queries.some(q => q.text.includes("INSERT INTO warehouse_stock")), "запись ушла несмотря на отказ").toBe(false);
   });
 

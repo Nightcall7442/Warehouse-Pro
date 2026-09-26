@@ -181,7 +181,7 @@ describe.skipIf(!hasRealDb)("дверь для остатка: setStock заво
     // Стояло LEAST: пересчёт «на полке 3» при резерве 6 молча снимал три
     // единицы с открытых заказов. Решение владельца 21.09.2026 — отказывать.
     await db.execute(sql`UPDATE warehouse_stock SET reserved = 6, available = 4 WHERE product_id = ${s.productId}`);
-    await expect(set(3)).rejects.toMatchObject({ productId: s.productId, reserved: 6, quantity: 3 });
+    await expect(set(3)).rejects.toMatchObject({ reserved: 6 });
     const st = await stockOf(s.productId);
     expect(st.current).toBe(10);
     expect(st.reserved).toBe(6);

@@ -57,9 +57,8 @@ export function loadArrivalDraft(ownerId: number): ArrivalDraft | null {
       expected: i.expected ?? "", quantity: i.quantity ?? "", costPrice: i.costPrice ?? "", sellingPrice: i.sellingPrice ?? "",
       batchNumber: i.batchNumber ?? "", expiresAt: i.expiresAt ?? "",
     }));
-    const { items: _legacy, ...rest } = d;
-    void _legacy;
-    return { ...rest, rows };
+    delete d.items;
+    return { ...d, rows };
   } catch {
     return null;
   }

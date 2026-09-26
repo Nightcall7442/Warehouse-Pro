@@ -6,6 +6,7 @@
  * сколько пришло против накладной, итоги, вставка столбца из Excel и то,
  * что уходит на сервер, — всё здесь.
  */
+import { normalizeNumber } from "./grid-nav";
 
 export type SheetRow = {
   productId: number;
@@ -24,6 +25,12 @@ export type SheetRow = {
   sellingPrice: string;
   batchNumber: string;
   expiresAt: string;
+  /**
+   * «Состояние» строки из прежней формы («Повреждено, 3 шт»). Сетка его не
+   * правит, но возит туда и обратно: setItems заменяет строки целиком, и
+   * без него сохранение стирало записанное. Черновики до 27.09 — без поля.
+   */
+  condition?: string;
 };
 
 /** Столбцы, которые правятся с клавиатуры, — в порядке слева направо. */
@@ -51,7 +58,7 @@ export function rowFromProduct(p: ProductLike): SheetRow {
 }
 
 /** Добавить выбранные товары; уже стоящие в приходе не дублируются. */
-export function addProducts(rows: SheetRow[], picked: ProductLike[]): { rows: SheetRow[]; added: number; skipped: number } {
+export function addProducts(rows: SheetRow[], picked: ProductLike[]): { rows: SheetRow[]; added: number } {
   const have = new Set(rows.map(r => r.productId));
   const fresh: SheetRow[] = [];
   for (const p of picked) {
@@ -59,7 +66,7 @@ export function addProducts(rows: SheetRow[], picked: ProductLike[]): { rows: Sh
     have.add(p.id);
     fresh.push(rowFromProduct(p));
   }
-  return { rows: [...rows, ...fresh], added: fresh.length, skipped: picked.length - fresh.length };
+  return { rows: [...rows, ...fresh], added: fresh.length };
 }
 
 /** Скан: у товара в приходе +1 к «пришло», нового — строка с единицей. */
@@ -100,12 +107,18 @@ export function diff(r: SheetRow): number | null {
   return Math.round((num(r.quantity) - num(r.expected)) * 100) / 100;
 }
 
-/** Наценка продажи к закупке, %; null — не из чего считать. */
-export function markupPct(cost: string, sale: string): number | null {
+/**
+ * Наценка продажи к закупке, %; null — не из чего считать. Одна формула на
+ * приход и прайс-лист (маржа к себестоимости там — она же).
+ */
+export function markupPct(cost: string | number, sale: string | number): number | null {
   const c = num(cost), s = num(sale);
   if (!(c > 0) || !(s > 0)) return null;
   return Math.round((s / c - 1) * 1000) / 10;
 }
+
+/** «+33.3%», «-7%»; нет процента — пусто. */
+export const pctText = (p: number | null) => (p == null ? "" : `${p > 0 ? "+" : ""}${p}%`);
 
 export type SheetTotals = {
   positions: number; units: number; expectedUnits: number; weightKg: number;
@@ -137,9 +150,8 @@ export function totals(rows: SheetRow[]): SheetTotals {
  * а не мусор в ячейке. Строк больше, чем в приходе, — лишние отбрасываются:
  * товар по строке не угадать.
  */
-export function pasteRange(rows: SheetRow[], row: number, col: EditableCol, matrix: string[][]): { rows: SheetRow[]; cells: number } {
+export function pasteRange(rows: SheetRow[], row: number, col: EditableCol, matrix: string[][]): SheetRow[] {
   const c0 = EDITABLE_COLS.indexOf(col);
-  let cells = 0;
   const next = rows.map(r => ({ ...r }));
   matrix.forEach((line, dr) => {
     const target = next[row + dr];
@@ -148,43 +160,33 @@ export function pasteRange(rows: SheetRow[], row: number, col: EditableCol, matr
       const key = EDITABLE_COLS[c0 + dc];
       if (!key) return;
       const v = NUMERIC.has(key) ? normalizeNumber(raw) : raw;
-      if (v == null) return;
-      target[key] = v;
-      cells++;
+      if (v != null) target[key] = v;
     });
   });
-  return { rows: next, cells };
-}
-
-/** «1 200,50» → «1200.50»; пусто → ""; нечисло → null. */
-export function normalizeNumber(raw: string): string | null {
-  const s = raw.replace(/[\s\u00a0]/g, "").replace(",", ".");
-  if (s === "") return "";
-  return /^\d+(\.\d+)?$/.test(s) ? s : null;
+  return next;
 }
 
 export type PayloadItem = {
   productId: number; quantity: string; expectedQuantity?: string;
-  costPrice?: string; sellingPrice?: string; batchNumber?: string; expiresAt?: string;
+  costPrice?: string; sellingPrice?: string; batchNumber?: string; expiresAt?: string; condition?: string;
 };
 
 /**
- * Что уходит на сервер. Строка без «пришло» и без «по накладной» не
- * уходит — это выбранный и забытый товар. «Пришло» пустое при заполненной
- * накладной уходит нулём: приход заведён по бумаге, считать будут потом.
+ * Что уходит на сервер. «Пришло» пустое при заполненной накладной уходит
+ * нулём: приход заведён по бумаге, считать будут потом. Строку без того и
+ * другого сюда не пускает problems().
  */
 export function toPayload(rows: SheetRow[]): PayloadItem[] {
-  return rows
-    .filter(r => r.quantity.trim() !== "" || r.expected.trim() !== "")
-    .map(r => ({
-      productId: r.productId,
-      quantity: fixed2(r.quantity), // пусто → "0.00"
-      expectedQuantity: r.expected.trim() === "" ? undefined : fixed2(r.expected),
-      costPrice: r.costPrice.trim() === "" ? undefined : fixed2(r.costPrice),
-      sellingPrice: r.sellingPrice.trim() === "" ? undefined : fixed2(r.sellingPrice),
-      batchNumber: r.batchNumber.trim() || undefined,
-      expiresAt: r.expiresAt || undefined,
-    }));
+  return rows.map(r => ({
+    productId: r.productId,
+    quantity: fixed2(r.quantity), // пусто → "0.00"
+    expectedQuantity: r.expected.trim() === "" ? undefined : fixed2(r.expected),
+    costPrice: r.costPrice.trim() === "" ? undefined : fixed2(r.costPrice),
+    sellingPrice: r.sellingPrice.trim() === "" ? undefined : fixed2(r.sellingPrice),
+    batchNumber: r.batchNumber.trim() || undefined,
+    expiresAt: r.expiresAt || undefined,
+    condition: r.condition?.trim() || undefined,
+  }));
 }
 
 export type SheetProblem = { row: number; col: EditableCol; message: { ru: string; uz: string } };
@@ -196,7 +198,13 @@ export function problems(rows: SheetRow[], arrivalDate: string): SheetProblem[] 
     if (r.expiresAt && arrivalDate && r.expiresAt < arrivalDate) {
       out.push({ row, col: "expiresAt", message: { ru: "Срок раньше даты прихода", uz: "Muddat kelish sanasidan oldin" } });
     }
-    if (r.quantity.trim() === "" && r.expected.trim() === "") {
+    // Минус пропускает поле ввода (DecimalInput держит знак), а сервер
+    // принимает только неотрицательное — и отказал бы всему сохранению.
+    if (num(r.expected) < 0) out.push({ row, col: "expected", message: { ru: "Количество не может быть меньше нуля", uz: "Miqdor noldan kam bo'lmaydi" } });
+    if (num(r.quantity) < 0) out.push({ row, col: "quantity", message: { ru: "Количество не может быть меньше нуля", uz: "Miqdor noldan kam bo'lmaydi" } });
+    // Ноль без накладной — то же, что пусто: сервер (refine в arrival-router)
+    // отверг бы всё сохранение, не назвав строку.
+    else if (!(num(r.quantity) > 0) && r.expected.trim() === "") {
       out.push({ row, col: "quantity", message: { ru: "Нет количества", uz: "Miqdor yo'q" } });
     }
   });
@@ -206,19 +214,16 @@ export function problems(rows: SheetRow[], arrivalDate: string): SheetProblem[] 
 /** Строки документа из ответа arrival.getById. */
 export function rowsFromDetail(items: Array<{
   productId: number; productName: string; productCode: string; quantity: number; expectedQuantity: number | null;
-  costPrice: string; sellingPrice: string; batchNumber: string | null; expiresAt: string | null;
+  costPrice: string; sellingPrice: string; batchNumber: string | null; expiresAt: string | null; condition?: string | null;
   unit?: string | null; unitWeight?: string | number | null; packSize?: string | number | null; packLabel?: string | null;
 }>): SheetRow[] {
   return items.map(i => ({
-    productId: i.productId, name: i.productName, code: i.productCode,
-    unit: i.unit ?? "pcs", unitWeight: Number(i.unitWeight ?? 0) || 0,
-    packSize: Number(i.packSize ?? 0) || 0, packLabel: i.packLabel ?? "",
+    ...rowFromProduct({ ...i, id: i.productId, name: i.productName, code: i.productCode, unitPrice: i.sellingPrice }),
     expected: i.expectedQuantity == null ? "" : String(i.expectedQuantity),
     // Ноль в документе — «ещё не считали»: так строку заводят по накладной.
     quantity: Number(i.quantity) > 0 ? String(i.quantity) : "",
-    costPrice: Number(i.costPrice) > 0 ? String(Number(i.costPrice)) : "",
-    sellingPrice: Number(i.sellingPrice) > 0 ? String(Number(i.sellingPrice)) : "",
     batchNumber: i.batchNumber ?? "", expiresAt: i.expiresAt ?? "",
+    condition: i.condition ?? "",
   }));
 }
 
@@ -236,7 +241,7 @@ export function daysLeft(day: string, now: Date = new Date()): number {
   return Math.round((due - today) / 86_400_000);
 }
 
-function num(v: string): number {
+function num(v: string | number): number {
   const n = Number(v);
   return Number.isFinite(n) ? n : 0;
 }

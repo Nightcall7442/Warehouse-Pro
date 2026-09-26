@@ -12,7 +12,8 @@
  * падает «неизменённое не уходит».
  */
 import { describe, it, expect } from "vitest";
-import { ruled, effective, toCardPct, marginPct, applyPct, belowCost, changes, normalizePrice, type PriceRow } from "@/lib/price-sheet";
+import { ruled, effective, toCardPct, belowCost, changes, type PriceRow } from "@/lib/price-sheet";
+import { markupPct } from "@/lib/arrival-sheet";
 import { applyMarkup } from "../../api/services/price-resolver";
 
 const row = (patch: Partial<PriceRow> = {}): PriceRow => ({
@@ -38,16 +39,18 @@ describe("проценты", () => {
   it("к карточке, маржа, ниже себестоимости", () => {
     expect(toCardPct(11160, 12000)).toBe(-7);
     expect(toCardPct(100, 0)).toBeNull();
-    expect(marginPct(12000, 8000)).toBe(50);
-    expect(marginPct(12000, 0)).toBeNull();
+    expect(toCardPct(0, 12000)).toBe(-100);
+    // Маржа к себестоимости — та же наценка, что в приходе.
+    expect(markupPct(8000, 12000)).toBe(50);
+    expect(markupPct(0, 12000)).toBeNull();
     expect(belowCost(row({ price: "7999" }), null)).toBe(true);
     expect(belowCost(row({ price: "8000" }), null)).toBe(false);
     expect(belowCost(row({ costPrice: 0, price: "1" }), null)).toBe(false);
   });
 
-  it("найденным: карточка −7 % до копеек; без карточки — не трогаем", () => {
-    const rows = applyPct([row(), row({ productId: 2, cardPrice: 9999.99 }), row({ productId: 3, cardPrice: 0 }), row({ productId: 4 })], new Set([1, 2, 3]), -7);
-    expect(rows.map(r => r.price)).toEqual(["11160", "9299.99", "", ""]);
+  it("найденным: карточка −7 % — та же цена, что даст правило, до копеек", () => {
+    // «Найденным ±X %» считает через ruled(); без карточки — в сетке (price-list-editor-ui).
+    expect([ruled(12000, -7), ruled(9999.99, -7)]).toEqual([11160, 9299.99]);
   });
 });
 
@@ -63,11 +66,5 @@ describe("что уходит на сервер", () => {
       row({ productId: 6, price: "abc" }),       // мусор — не уходит
     ]);
     expect(out).toEqual([{ productId: 2, price: null }, { productId: 3, price: 650 }, { productId: 4, price: 100 }]);
-  });
-
-  it("вставка из Excel: «1 200,50» → число, пусто — пусто, мусор — null", () => {
-    expect(normalizePrice("1 200,50")).toBe("1200.50");
-    expect(normalizePrice("")).toBe("");
-    expect(normalizePrice("12 шт")).toBeNull();
   });
 });

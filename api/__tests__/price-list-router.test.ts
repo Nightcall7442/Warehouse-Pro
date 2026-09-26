@@ -15,9 +15,10 @@ vi.mock("drizzle-orm", () => {
   };
 });
 
+const invalidatePrefix = vi.hoisted(() => vi.fn());
 vi.mock("../lib/cache", () => ({
   withCache: async (_k: string, _t: number, produce: () => unknown) => produce(),
-  cache: { get: () => undefined, set: () => {}, invalidate: () => {}, invalidatePrefix: () => {} },
+  cache: { get: () => undefined, set: () => {}, invalidate: () => {}, invalidatePrefix },
   CacheKeys: { dashboardKpis: () => "", commissions: () => "" },
   CacheTTL: { commissions: 60, kpis: 60 },
 }));
@@ -203,6 +204,7 @@ function makeMockDb() {
       return Promise.resolve();
     },
   });
+  db.transaction = (fn: (tx: unknown) => unknown) => fn(db);
   return db;
 }
 
@@ -220,6 +222,7 @@ function buildCtx(overrides: Record<string, unknown> = {}): TrpcContext {
 beforeEach(() => {
   resetTables();
   mockDb = makeMockDb();
+  invalidatePrefix.mockClear();
 });
 
 describe("priceList.list", () => {
@@ -237,6 +240,72 @@ describe("priceList.list", () => {
     const result = await caller.list();
     expect(result[0].name).toBe("Default");
     expect(result[0].type).toBe("shop");
+  });
+
+  /*
+    27.09.2026: «N товаров» считал все строки списка, со ступенями: 5 товаров
+    со ступенями «от 10 / от 50» давали «15 товаров», а страница списка —
+    «5 своих цен». Сырой SQL этот стенд не исполняет — проверяется текст
+    подзапроса; по-настоящему — real-db/price-list-count-skips-tiers.test.ts.
+    Нарочная поломка: убери «AND pli.min_quantity <= 1» — тест падает.
+  */
+  it("счётчик товаров — своих цен от одной штуки, без ступеней", async () => {
+    const { priceListRouter } = await import("../price-list-router");
+    const select = vi.spyOn(mockDb, "select");
+    await priceListRouter.createCaller(buildCtx()).list();
+    const itemCount = (select.mock.calls[0][0] as { itemCount: { strings: string[] } }).itemCount.strings.join("?");
+    expect(itemCount).toContain("COUNT(DISTINCT pli.product_id)");
+    expect(itemCount).toContain("AND pli.min_quantity <= 1");
+  });
+});
+
+/*
+  27.09.2026: каталог (product.list/listAll с shopId) кэширует посчитанные цены
+  магазина на три минуты, а правки прайс-листа кэш не сбрасывали: после
+  «Сохранить цены» корзина заказа ещё три минуты показывала старую цену, а
+  заказ считался по новой. Каждая мутация списка сбрасывает products:{tenant}.
+  Нарочная поломка: убери dropCatalogCache из любой мутации — падает её тест.
+*/
+describe("правка прайс-листа сбрасывает кэш каталога", () => {
+  const caller = async () => (await import("../price-list-router")).priceListRouter.createCaller(buildCtx());
+
+  it("setItems — цены сеткой", async () => {
+    await (await caller()).setItems({ priceListId: 1, items: [{ productId: 1, price: 11500 }] });
+    expect(priceListItemsTable.find(i => i.id === 10)!.price).toBe("11500.00");
+    expect(invalidatePrefix).toHaveBeenCalledWith("products:1");
+  });
+
+  it("setShops — магазины списка", async () => {
+    await (await caller()).setShops({ priceListId: 1, shopIds: [] });
+    expect(priceListAssignmentsTable.some(a => a.priceListId === 1)).toBe(false);
+    expect(invalidatePrefix).toHaveBeenCalledWith("products:1");
+  });
+
+  it("setForShop — список с карточки магазина", async () => {
+    await (await caller()).setForShop({ shopId: 2, priceListId: 2 });
+    expect(priceListAssignmentsTable.some(a => a.shopId === 2 && a.priceListId === 2)).toBe(true);
+    expect(invalidatePrefix).toHaveBeenCalledWith("products:1");
+  });
+
+  it("update — правило, включён, приоритет", async () => {
+    await (await caller()).update({ id: 1, markupPct: -7 });
+    expect(priceListsTable.find(p => p.id === 1)!.markupPct).toBe("-7.00");
+    expect(invalidatePrefix).toHaveBeenCalledWith("products:1");
+  });
+
+  it("delete — список удалён", async () => {
+    await (await caller()).delete({ id: 2 });
+    expect(priceListsTable.some(p => p.id === 2)).toBe(false);
+    expect(invalidatePrefix).toHaveBeenCalledWith("products:1");
+  });
+
+  it("upsertItem и removeItem — ступени", async () => {
+    const c = await caller();
+    await c.upsertItem({ priceListId: 1, productId: 2, price: 8000, minQuantity: 10 });
+    expect(invalidatePrefix).toHaveBeenCalledWith("products:1");
+    invalidatePrefix.mockClear();
+    await c.removeItem({ id: 11 });
+    expect(invalidatePrefix).toHaveBeenCalledWith("products:1");
   });
 });
 

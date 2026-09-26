@@ -1,24 +1,25 @@
 import { useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router";
-import { ArrowLeft, Check, Loader2, Search, Store, Tag, Trash2, X } from "lucide-react";
+import { ArrowLeft, Check, Loader2, Store, Tag, Trash2, X } from "lucide-react";
 import { trpc } from "@/providers/trpc";
 import { useLang } from "@/i18n";
 import { useCurrency } from "@/hooks/useCurrency";
 import { notify } from "@/lib/toast";
 import { useConfirm } from "@/components/ConfirmDialog";
 import { DecimalInput } from "@/components/ui/DecimalInput";
+import { SearchInput } from "@/components/SearchInput";
 import { QueryErrorFallback } from "@/components/QueryErrorFallback";
 import { PriceTiers } from "@/components/price-lists/PriceTiers";
-import { nextCell, focusCell, isRangePaste, parseClipboard } from "@/lib/grid-nav";
-import {
-  type PriceRow, effective, toCardPct, marginPct, applyPct, belowCost, changes, normalizePrice, ruled,
-} from "@/lib/price-sheet";
+import { gridKey, pastedRange, normalizeNumber } from "@/lib/grid-nav";
+import { markupPct, pctText } from "@/lib/arrival-sheet";
+import { type PriceRow, effective, toCardPct, belowCost, changes, ruled } from "@/lib/price-sheet";
 
 const GRID = "price";
 /** Строк сетки за раз: каталог бывает на тысячи позиций, нужное находят поиском. */
 const SHOWN = 300;
-
-const pctText = (p: number | null) => (p == null ? "" : `${p > 0 ? "+" : ""}${p}%`);
+// Постоянные объекты: SearchInput — memo, новый стиль на каждый рендер перерисовывал бы его.
+const SEARCH_BOX = { flex: "1 1 240px", maxWidth: 360 };
+const SEARCH_FIELD = { paddingLeft: 38 };
 
 /**
  * Прайс-лист — страница, а не блок в настройках.
@@ -42,7 +43,6 @@ export default function PriceListEditor() {
   const utils = trpc.useUtils();
 
   const detailQ = trpc.priceList.getById.useQuery({ id: listId }, { enabled: listId > 0 });
-  const listsQ = trpc.priceList.list.useQuery();
   const productsQ = trpc.product.list.useQuery({ page: 1, pageSize: 10000, includeAll: true });
   const shopsQ = trpc.shop.list.useQuery({ page: 1, pageSize: 10000 });
   const mapQ = trpc.priceList.shopMap.useQuery();
@@ -55,8 +55,8 @@ export default function PriceListEditor() {
     const own = new Map<number, string>();
     const tiers = new Map<number, number>();
     for (const i of detail?.items ?? []) {
-      if (Number(i.minQuantity) <= 1) own.set(Number(i.productId), String(Number(i.price)));
-      else tiers.set(Number(i.productId), (tiers.get(Number(i.productId)) ?? 0) + 1);
+      if (Number(i.minQuantity) <= 1) own.set(i.productId, String(Number(i.price)));
+      else tiers.set(i.productId, (tiers.get(i.productId) ?? 0) + 1);
     }
     return { own, tiers };
   }, [detail]);
@@ -85,29 +85,20 @@ export default function PriceListEditor() {
   const applyBulk = () => {
     const pct = Number(bulkPct);
     if (!bulkPct.trim() || !Number.isFinite(pct)) return notify.error(t("Укажите процент, например −7", "Foizni kiriting, masalan −7"));
-    const ids = new Set(found.map(r => r.productId));
-    const next = applyPct(found, ids, pct);
-    setEdits(m => { const n = new Map(m); for (const r of next) n.set(r.productId, r.price); return n; });
-    notify.info(t(`Цена «карточка ${pctText(pct)}» — ${ids.size} товарам`, `${ids.size} ta mahsulotga «karta ${pctText(pct)}»`));
+    // Своя цена от карточки — по той же формуле, что правило списка; без карточки — не трогаем.
+    setEdits(m => { const n = new Map(m); for (const r of found) if (r.cardPrice > 0) n.set(r.productId, String(ruled(r.cardPrice, pct))); return n; });
+    notify.info(t(`Цена «карточка ${pctText(pct)}» — ${found.length} товарам`, `${found.length} ta mahsulotga «karta ${pctText(pct)}»`));
   };
   const clearFound = () => setEdits(m => { const n = new Map(m); for (const r of found) n.set(r.productId, ""); return n; });
 
-  const onKey = (e: React.KeyboardEvent<HTMLInputElement>, row: number) => {
-    const to = nextCell(e.key, { row, col: "price" }, shown.length, e.shiftKey);
-    if (!to) return;
-    e.preventDefault();
-    focusCell(GRID, to);
-  };
   const onPaste = (e: React.ClipboardEvent<HTMLInputElement>, row: number) => {
-    const text = e.clipboardData.getData("text");
-    if (!isRangePaste(text)) return;
-    e.preventDefault();
-    const lines = parseClipboard(text);
+    const lines = pastedRange(e);
+    if (!lines) return;
     setEdits(m => {
       const n = new Map(m);
       lines.forEach((line, i) => {
         const r = shown[row + i];
-        const v = r ? normalizePrice(line[0] ?? "") : null;
+        const v = r ? normalizeNumber(line[0] ?? "") : null;
         if (r && v != null) n.set(r.productId, v);
       });
       return n;
@@ -119,16 +110,15 @@ export default function PriceListEditor() {
     if (pending.length === 0) return;
     try {
       const r = await saveItems.mutateAsync({ priceListId: listId, items: pending });
-      await Promise.all([utils.priceList.getById.invalidate({ id: listId }), utils.priceList.list.invalidate(), utils.product.invalidate()]);
+      await Promise.all([utils.priceList.invalidate(), utils.product.invalidate()]);
       setEdits(new Map());
       notify.success(t(`Цены сохранены: ${r.set}, убрано: ${r.cleared}`, `Narxlar saqlandi: ${r.set}, olib tashlandi: ${r.cleared}`));
     } catch (e) { notify.error(e instanceof Error ? e.message : String(e)); }
   };
 
   /* ── Магазины ───────────────────────────────────────────────────────── */
-  const listName = useMemo(() => new Map((listsQ.data ?? []).map(l => [l.id, l.name])), [listsQ.data]);
-  const currentOf = useMemo(() => new Map((mapQ.data ?? []).map(m => [Number(m.shopId), Number(m.priceListId)])), [mapQ.data]);
-  const assigned = useMemo(() => new Set((detail?.assignments ?? []).map(a => Number(a.shopId))), [detail]);
+  const currentOf = useMemo(() => new Map((mapQ.data ?? []).map(m => [m.shopId, m])), [mapQ.data]);
+  const assigned = useMemo(() => new Set((detail?.assignments ?? []).map(a => a.shopId)), [detail]);
   const [shopSel, setShopSel] = useState<Set<number> | null>(null);
   const selected = shopSel ?? assigned;
   const shopsDirty = shopSel != null && (shopSel.size !== assigned.size || [...shopSel].some(s => !assigned.has(s)));
@@ -142,13 +132,13 @@ export default function PriceListEditor() {
   const toggleShop = (sid: number) => setShopSel(prev => { const n = new Set(prev ?? assigned); if (n.has(sid)) n.delete(sid); else n.add(sid); return n; });
   const allShopsOn = shopsFound.length > 0 && shopsFound.every(sh => selected.has(sh.id));
   const toggleAllShops = () => setShopSel(prev => { const n = new Set(prev ?? assigned); for (const sh of shopsFound) { if (allShopsOn) n.delete(sh.id); else n.add(sh.id); } return n; });
-  const moving = [...selected].filter(sid => !assigned.has(sid) && currentOf.has(sid) && currentOf.get(sid) !== listId).length;
+  const moving = [...selected].filter(sid => !assigned.has(sid) && currentOf.has(sid) && currentOf.get(sid)!.priceListId !== listId).length;
 
   const saveShops = trpc.priceList.setShops.useMutation();
   const onSaveShops = async () => {
     try {
       const r = await saveShops.mutateAsync({ priceListId: listId, shopIds: [...selected] });
-      await Promise.all([utils.priceList.getById.invalidate({ id: listId }), utils.priceList.list.invalidate(), utils.priceList.shopMap.invalidate(), utils.priceList.forShop.invalidate()]);
+      await utils.priceList.invalidate();
       setShopSel(null);
       notify.success(t(`Магазины сохранены: +${r.added}, −${r.removed}${r.moved ? `, перешли из других списков: ${r.moved}` : ""}`, `Do'konlar saqlandi: +${r.added}, −${r.removed}`));
     } catch (e) { notify.error(e instanceof Error ? e.message : String(e)); }
@@ -164,14 +154,14 @@ export default function PriceListEditor() {
     if (v != null && (!Number.isFinite(v) || v < -99 || v > 1000)) return notify.error(t("Правило — от −99 до 1000 %", "Qoida — −99 dan 1000 % gacha"));
     try {
       await update.mutateAsync({ id: listId, markupPct: v });
-      await Promise.all([utils.priceList.getById.invalidate({ id: listId }), utils.priceList.list.invalidate()]);
+      await utils.priceList.invalidate();
       setRuleDraft(null);
       notify.success(t("Правило сохранено", "Qoida saqlandi"));
     } catch (e) { notify.error(e instanceof Error ? e.message : String(e)); }
   };
   const toggleActive = async () => {
     if (!detail) return;
-    try { await update.mutateAsync({ id: listId, isActive: !detail.isActive }); await Promise.all([utils.priceList.getById.invalidate({ id: listId }), utils.priceList.list.invalidate()]); }
+    try { await update.mutateAsync({ id: listId, isActive: !detail.isActive }); await utils.priceList.invalidate(); }
     catch (e) { notify.error(e instanceof Error ? e.message : String(e)); }
   };
   const onDelete = async () => {
@@ -220,8 +210,7 @@ export default function PriceListEditor() {
       <div className="neo-card neo-card-static" style={{ borderRadius: 20, padding: 16, display: "flex", gap: 12, alignItems: "flex-end", flexWrap: "wrap" }}>
         <label style={{ display: "flex", flexDirection: "column", gap: 6, width: 200 }}>
           <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: ".06em", textTransform: "uppercase", color: "var(--color-text-tertiary)" }}>{t("Ко всей карточке, %", "Butun kartaga, %")}</span>
-          <input className="neo-input" inputMode="decimal" value={ruleValue} placeholder={t("нет правила", "qoida yo'q")} data-testid="price-list-rule"
-            onChange={e => setRuleDraft(e.target.value.replace(/[^0-9.,-]/g, "").replace(",", "."))} />
+          <DecimalInput className="neo-input" value={ruleValue} placeholder={t("нет правила", "qoida yo'q")} data-testid="price-list-rule" onValueChange={setRuleDraft} />
         </label>
         <p style={{ flex: "1 1 280px", margin: 0, fontSize: 12, color: "var(--color-text-secondary)", lineHeight: 1.5 }}>
           {t("Правило даёт цену всем товарам без своей цены: −7 — на 7 % дешевле карточки, 5 — наценка. Своя цена в сетке — исключение поверх правила.",
@@ -243,10 +232,8 @@ export default function PriceListEditor() {
       {tab === "prices" && (
         <>
           <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-            <div style={{ position: "relative", flex: "1 1 240px", maxWidth: 360 }}>
-              <Search size={15} style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "var(--color-text-tertiary)" }} />
-              <input className="neo-input" style={{ paddingLeft: 38 }} placeholder={t("Название или код", "Nomi yoki kodi")} value={q} onChange={e => setQ(e.target.value)} data-testid="price-grid-search" />
-            </div>
+            <SearchInput placeholder={t("Название или код", "Nomi yoki kodi")} initialValue={q} onSearch={setQ} testId="price-grid-search"
+              style={SEARCH_BOX} inputClassName="neo-input" inputStyle={SEARCH_FIELD} />
             <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, color: "var(--color-text-secondary)", cursor: "pointer" }}>
               <input type="checkbox" checked={onlyOwn} onChange={e => setOnlyOwn(e.target.checked)} data-testid="price-grid-only-own" />{t("только со своей ценой", "faqat o'z narxi bilan")}
             </label>
@@ -289,7 +276,7 @@ export default function PriceListEditor() {
                   {shown.map((r, i) => {
                     const eff = effective(r, markup);
                     const k = toCardPct(eff.price, r.cardPrice);
-                    const m = marginPct(eff.price, r.costPrice);
+                    const m = markupPct(r.costPrice, eff.price);
                     const loss = belowCost(r, markup);
                     const rule = ruled(r.cardPrice, markup);
                     return (
@@ -311,7 +298,7 @@ export default function PriceListEditor() {
                             placeholder={rule != null ? String(rule) : String(r.cardPrice)}
                             value={r.price}
                             onValueChange={v => setPrice(r.productId, v)}
-                            onKeyDown={e => onKey(e, i)}
+                            onKeyDown={e => gridKey(e, GRID, { row: i, col: "price" }, shown.length)}
                             onPaste={e => onPaste(e, i)}
                             onFocus={e => e.currentTarget.select()}
                             data-testid={`price-cell-${r.productId}`}
@@ -347,20 +334,14 @@ export default function PriceListEditor() {
 
           <PriceTiers
             listId={listId}
-            tiers={(detail.items ?? []).filter(i => Number(i.minQuantity) > 1).map(i => ({ ...i, productId: Number(i.productId), price: String(i.price), minQuantity: String(i.minQuantity), unitPrice: i.unitPrice == null ? null : String(i.unitPrice) }))}
+            tiers={detail.items.filter(i => Number(i.minQuantity) > 1)}
             products={productsQ.data?.data ?? []}
           />
 
           {pending.length > 0 && (
-            <div className="neo-card neo-card-static" style={{ borderRadius: 20, padding: 14, display: "flex", alignItems: "center", gap: 10, position: "sticky", bottom: 12, zIndex: 5 }} data-testid="price-grid-pending">
-              <span style={{ fontSize: 13, color: "var(--color-text-secondary)", flex: 1 }}>
-                {t(`Изменено цен: ${pending.length}`, `O'zgargan narxlar: ${pending.length}`)}
-              </span>
-              <button className="neo-btn" onClick={() => setEdits(new Map())}>{t("Отменить", "Bekor qilish")}</button>
-              <button className="neo-btn-primary" onClick={onSavePrices} disabled={saveItems.isPending} data-testid="price-grid-save">
-                {saveItems.isPending ? <Loader2 size={14} className="animate-spin" /> : t("Сохранить цены", "Narxlarni saqlash")}
-              </button>
-            </div>
+            <PendingBar id="price-grid" busy={saveItems.isPending} onCancel={() => setEdits(new Map())} onSave={onSavePrices} save={t("Сохранить цены", "Narxlarni saqlash")}>
+              {t(`Изменено цен: ${pending.length}`, `O'zgargan narxlar: ${pending.length}`)}
+            </PendingBar>
           )}
         </>
       )}
@@ -368,10 +349,8 @@ export default function PriceListEditor() {
       {tab === "shops" && (
         <>
           <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-            <div style={{ position: "relative", flex: "1 1 240px", maxWidth: 360 }}>
-              <Search size={15} style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "var(--color-text-tertiary)" }} />
-              <input className="neo-input" style={{ paddingLeft: 38 }} placeholder={t("Магазин, адрес, город", "Do'kon, manzil, shahar")} value={sq} onChange={e => setSq(e.target.value)} data-testid="price-shops-search" />
-            </div>
+            <SearchInput placeholder={t("Магазин, адрес, город", "Do'kon, manzil, shahar")} initialValue={sq} onSearch={setSq} testId="price-shops-search"
+              style={SEARCH_BOX} inputClassName="neo-input" inputStyle={SEARCH_FIELD} />
             {shopsFound.length > 0 && (
               <button className="neo-btn" onClick={toggleAllShops} data-testid="price-shops-all">
                 {allShopsOn ? t("Снять найденные", "Topilganlarni olib tashlash") : t(`Отметить найденные (${shopsFound.length})`, `Topilganlarni belgilash (${shopsFound.length})`)}
@@ -385,7 +364,7 @@ export default function PriceListEditor() {
             {shopsFound.map(sh => {
               const on = selected.has(sh.id);
               const cur = currentOf.get(sh.id);
-              const elsewhere = cur != null && cur !== listId ? listName.get(cur) : null;
+              const elsewhere = cur != null && cur.priceListId !== listId ? cur.name : null;
               return (
                 <button key={sh.id} onClick={() => toggleShop(sh.id)} data-testid={`price-shop-${sh.id}`}
                   style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", padding: "10px 12px", borderRadius: 12, border: "none", cursor: "pointer", textAlign: "left", background: on ? "var(--color-primary-subtle)" : "transparent" }}>
@@ -407,19 +386,30 @@ export default function PriceListEditor() {
             {shopsFound.length === 0 && <p style={{ textAlign: "center", padding: 24, fontSize: 13, color: "var(--color-text-tertiary)" }}>{t("Ничего не нашлось", "Hech narsa topilmadi")}</p>}
           </div>
           {shopsDirty && (
-            <div className="neo-card neo-card-static" style={{ borderRadius: 20, padding: 14, display: "flex", alignItems: "center", gap: 10, position: "sticky", bottom: 12, zIndex: 5 }} data-testid="price-shops-pending">
-              <span style={{ fontSize: 13, color: "var(--color-text-secondary)", flex: 1 }}>
-                {t(`Отмечено магазинов: ${selected.size}`, `Belgilangan do'konlar: ${selected.size}`)}
-                {moving > 0 && <b style={{ color: "var(--color-warning-text)" }}>{t(` · перейдут из других списков: ${moving}`, ` · boshqa ro'yxatlardan o'tadi: ${moving}`)}</b>}
-              </span>
-              <button className="neo-btn" onClick={() => setShopSel(null)}>{t("Отменить", "Bekor qilish")}</button>
-              <button className="neo-btn-primary" onClick={onSaveShops} disabled={saveShops.isPending} data-testid="price-shops-save">
-                {saveShops.isPending ? <Loader2 size={14} className="animate-spin" /> : t("Сохранить магазины", "Do'konlarni saqlash")}
-              </button>
-            </div>
+            <PendingBar id="price-shops" busy={saveShops.isPending} onCancel={() => setShopSel(null)} onSave={onSaveShops} save={t("Сохранить магазины", "Do'konlarni saqlash")}>
+              {t(`Отмечено магазинов: ${selected.size}`, `Belgilangan do'konlar: ${selected.size}`)}
+              {moving > 0 && <b style={{ color: "var(--color-warning-text)" }}>{t(` · перейдут из других списков: ${moving}`, ` · boshqa ro'yxatlardan o'tadi: ${moving}`)}</b>}
+            </PendingBar>
           )}
         </>
       )}
+    </div>
+  );
+}
+
+/** Липкая плашка «изменено — отменить / сохранить» под ценами и под магазинами. */
+function PendingBar({ id, busy, onCancel, onSave, save, children }: {
+  id: string; busy: boolean; onCancel: () => void; onSave: () => void; save: string; children: React.ReactNode;
+}) {
+  const { lang } = useLang();
+  const t = (ru: string, uz: string) => (lang === "uz" ? uz : ru);
+  return (
+    <div className="neo-card neo-card-static" style={{ borderRadius: 20, padding: 14, display: "flex", alignItems: "center", gap: 10, position: "sticky", bottom: 12, zIndex: 5 }} data-testid={`${id}-pending`}>
+      <span style={{ fontSize: 13, color: "var(--color-text-secondary)", flex: 1 }}>{children}</span>
+      <button className="neo-btn" onClick={onCancel}>{t("Отменить", "Bekor qilish")}</button>
+      <button className="neo-btn-primary" onClick={onSave} disabled={busy} data-testid={`${id}-save`}>
+        {busy ? <Loader2 size={14} className="animate-spin" /> : save}
+      </button>
     </div>
   );
 }

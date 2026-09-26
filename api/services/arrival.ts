@@ -30,6 +30,8 @@ export interface ArrivalItemInput {
   expiresAt?: string;
 }
 
+type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
+
 export interface ArrivalSupplierInput {
   supplierId?: number;
   newSupplierName?: string;
@@ -75,7 +77,7 @@ export interface UpdateArrivalInput {
  * две строки одного товара при проведении дважды двигают остаток и цену,
  * а разницу с накладной не посчитать.
  */
-async function assertItems(db: Db, tenantId: number, arrivalDate: string, items: ArrivalItemInput[]): Promise<void> {
+async function assertItems(db: Db | Tx, tenantId: number, arrivalDate: string, items: ArrivalItemInput[]): Promise<void> {
   const seen = new Set<number>();
   for (const item of items) {
     if (item.expiresAt && item.expiresAt < arrivalDate) {
@@ -102,8 +104,6 @@ async function assertItems(db: Db, tenantId: number, arrivalDate: string, items:
     }
   }
 }
-
-type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
 
 async function insertItems(tx: Tx, arrivalId: number, items: ArrivalItemInput[]): Promise<void> {
   for (const item of items) {
@@ -222,41 +222,44 @@ export async function createArrival(db: Db, tenantId: number, userId: number, in
  * заменены до проведения и оно примет новые, либо приход уже проведён, и
  * правка получает отказ, а не молча меняет документ, по которому остаток
  * уже принят.
+ *
+ * seenUpdatedAt — версия, с которой клиент открыл документ. Строки
+ * заменяются целиком, и без неё второй оператор молча затирал посчитанное
+ * первым: его набор уходил поверх, у чужих строк — прежние нули. Без версии
+ * (старый клиент) — как раньше.
  */
-export async function setArrivalItems(db: Db, tenantId: number, arrivalId: number, items: ArrivalItemInput[]) {
-  const [head] = await db.select({ arrivalDate: arrivals.arrivalDate }).from(arrivals)
-    .where(and(eq(arrivals.id, arrivalId), eq(arrivals.tenantId, tenantId))).limit(1);
-  if (!head) throw new TRPCError({ code: "NOT_FOUND", message: "Приход не найден" });
-  await assertItems(db, tenantId, dateColumnDay(head.arrivalDate), items);
-
-  await db.transaction(async (tx) => {
-    const [locked] = await tx.select({ status: arrivals.status }).from(arrivals)
-      .where(and(eq(arrivals.id, arrivalId), eq(arrivals.tenantId, tenantId)))
-      .for("update").limit(1);
+export async function setArrivalItems(db: Db, tenantId: number, arrivalId: number, items: ArrivalItemInput[], seenUpdatedAt?: Date) {
+  const own = and(eq(arrivals.id, arrivalId), eq(arrivals.tenantId, tenantId));
+  const version = await db.transaction(async (tx) => {
+    const [locked] = await tx.select({ status: arrivals.status, arrivalDate: arrivals.arrivalDate, updatedAt: arrivals.updatedAt })
+      .from(arrivals).where(own).for("update").limit(1);
     if (!locked) throw new TRPCError({ code: "NOT_FOUND", message: "Приход не найден" });
     if (locked.status === "completed") {
       throw new TRPCError({ code: "BAD_REQUEST", message: "Приход уже проведён — остаток по нему принят, строки не правятся" });
     }
+    if (seenUpdatedAt && locked.updatedAt.getTime() !== seenUpdatedAt.getTime()) {
+      throw new TRPCError({ code: "CONFLICT", message: "Документ изменили, пока вы правили — обновите страницу" });
+    }
+    await assertItems(tx, tenantId, dateColumnDay(locked.arrivalDate), items);
     await tx.delete(arrivalItems).where(eq(arrivalItems.arrivalId, arrivalId));
     await insertItems(tx, arrivalId, items);
+    // Строки — в своей таблице, версию документа двигаем сами. Хотя бы на
+    // секунду: колонка хранит секунды, и две правки в одну секунду дали бы ту же версию.
+    const next = new Date(Math.max(Date.now(), locked.updatedAt.getTime() + 1000));
+    await tx.update(arrivals).set({ updatedAt: next }).where(own);
+    return next;
   });
   await invalidateReports(tenantId, "arrival");
-  return { success: true, count: items.length };
+  // Новая версия — экрану: иначе при сбое следующего шага (шапка) он
+  // сохранял бы строки со старой версией и получал «документ изменили»
+  // на собственную правку.
+  return { success: true, count: items.length, updatedAt: version };
 }
 
 export async function updateArrival(db: Db, tenantId: number, input: UpdateArrivalInput, actor?: { id: number; name: string; ip?: string }) {
   const { id, ...data } = input;
   const targetWarehouseId = data.warehouseId;
   delete data.warehouseId;
-
-  // Validate status transitions: completed cannot go back to pending/unloading
-  if (data.status && data.status !== "completed") {
-    const [current] = await db.select({ status: arrivals.status })
-      .from(arrivals).where(and(eq(arrivals.id, id), eq(arrivals.tenantId, tenantId))).limit(1);
-    if (current?.status === "completed") {
-      throw new Error("Нельзя изменить статус завершённого прихода");
-    }
-  }
 
   // Prevent duplicate completion
   if (data.status === "completed") {
@@ -481,22 +484,27 @@ export async function updateArrival(db: Db, tenantId: number, input: UpdateArriv
     return { success: true };
   }
 
-  // Non-completion status changes
-  if (data.fuelCost || data.tollCost || data.otherCost) {
-    const [existing] = await db.select().from(arrivals)
-      .where(and(eq(arrivals.id, id), eq(arrivals.tenantId, tenantId))).limit(1);
-    if (existing) {
-      const fuel  = Number(data.fuelCost  ?? existing.fuelCost);
-      const toll  = Number(data.tollCost  ?? existing.tollCost);
-      const other = Number(data.otherCost ?? existing.otherCost);
-      await db.update(arrivals).set({ ...data, totalExpense: (fuel + toll + other).toFixed(2) })
-        .where(and(eq(arrivals.id, id), eq(arrivals.tenantId, tenantId)));
-      await invalidateReports(tenantId, "arrival.costs");
-      return { success: true };
+  /*
+    Шапка и смена статуса — под замком строки прихода, тем же, что берёт
+    проведение. Проверка без замка пропускала гонку: «Топливо» правили в
+    открытом документе, приход тем временем проводили в другой вкладке, и
+    сохранение переписывало расходы проведённого — а они уже в P&L.
+  */
+  const own = and(eq(arrivals.id, id), eq(arrivals.tenantId, tenantId));
+  const costs = Boolean(data.fuelCost || data.tollCost || data.otherCost);
+  await db.transaction(async (tx) => {
+    const [cur] = await tx.select({ status: arrivals.status, fuelCost: arrivals.fuelCost, tollCost: arrivals.tollCost, otherCost: arrivals.otherCost })
+      .from(arrivals).where(own).for("update").limit(1);
+    if (!cur) throw new TRPCError({ code: "NOT_FOUND", message: "Приход не найден" });
+    if (cur.status === "completed") {
+      throw new TRPCError({ code: "BAD_REQUEST", message: data.status ? "Нельзя изменить статус завершённого прихода" : "Приход уже проведён — шапка не правится" });
     }
-  }
-
-  await db.update(arrivals).set(data).where(and(eq(arrivals.id, id), eq(arrivals.tenantId, tenantId)));
+    const totalExpense = costs
+      ? (Number(data.fuelCost ?? cur.fuelCost) + Number(data.tollCost ?? cur.tollCost) + Number(data.otherCost ?? cur.otherCost)).toFixed(2)
+      : undefined;
+    await tx.update(arrivals).set({ ...data, totalExpense }).where(own);
+  });
+  if (costs) await invalidateReports(tenantId, "arrival.costs");
   return { success: true };
 }
 

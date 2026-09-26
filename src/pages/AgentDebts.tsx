@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { format, parseISO } from "date-fns";
 import { dateLocale } from "@/lib/date-locale";
-import { Wallet, Phone, MapPin, Loader2, CheckCircle2, Search } from "lucide-react";
+import { Wallet, Phone, MapPin, Loader2, CheckCircle2 } from "lucide-react";
 import { useNavigate } from "react-router";
 import { trpc } from "@/providers/trpc";
 import { useLang } from "@/i18n";
@@ -10,6 +10,8 @@ import { notify } from "@/lib/toast";
 import { useInvalidateOrderCaches } from "@/hooks/useOrderCacheSync";
 import { QueryErrorFallback } from "@/components/QueryErrorFallback";
 import { AppModal } from "@/components/ui/AppModal";
+import { SearchField } from "@/components/phone/kit";
+import { CARD } from "@/components/phone/tones";
 
 /**
  * «Мои долги» — то, что магазины должны по заказам этого агента.
@@ -90,11 +92,7 @@ export default function AgentDebts() {
       </div>
 
       {debts.length > 0 && (
-        <label className="flex items-center gap-2 px-4" style={{ background: "var(--color-field)", borderRadius: 16, height: 48, boxShadow: "var(--shadow-pressed)" }}>
-          <Search size={16} color="var(--color-text-tertiary)" className="flex-shrink-0" />
-          <input value={search} onChange={e => setSearch(e.target.value)} placeholder={t("Магазин или номер заказа", "Do'kon yoki buyurtma raqami")}
-            className="flex-1 min-w-0 bg-transparent outline-none" style={{ fontSize: 15, color: "var(--color-text-primary)" }} />
-        </label>
+        <SearchField value={search} onChange={setSearch} placeholder={t("Магазин или номер заказа", "Do'kon yoki buyurtma raqami")} />
       )}
 
       {isLoading && (
@@ -106,7 +104,7 @@ export default function AgentDebts() {
       )}
 
       {!isLoading && shown.length === 0 && (
-        <div style={{ background: "var(--color-surface)", boxShadow: "var(--shadow-raised)", borderRadius: 24, padding: 32, textAlign: "center" }}>
+        <div style={{ ...CARD, borderRadius: 24, padding: 32, textAlign: "center" }}>
           <CheckCircle2 size={40} style={{ color: search ? "var(--color-text-tertiary)" : "var(--color-success-text)", margin: "0 auto 10px", display: "block" }} />
           <p style={{ margin: 0, fontWeight: 600, color: "var(--color-text-primary)" }}>
             {search ? t("Ничего не нашлось", "Hech narsa topilmadi") : t("Долгов нет", "Qarz yo'q")}
@@ -124,7 +122,7 @@ export default function AgentDebts() {
         // Сколько дней висит: «вчера отгрузили» и «забыли полгода назад» по сумме одинаковы.
         const days = Math.max(0, Math.floor((now - created.getTime()) / 86_400_000));
         return (
-          <div key={d.orderId} style={{ background: "var(--color-surface)", boxShadow: "var(--shadow-raised)", borderRadius: 24, padding: 16 }} data-testid="agent-debt-card">
+          <div key={d.orderId} style={{ ...CARD, borderRadius: 24, padding: 16 }} data-testid="agent-debt-card">
             <button type="button" onClick={() => navigate(`/orders/${d.orderId}`)} className="w-full text-left flex items-start justify-between gap-3">
               <span className="min-w-0">
                 <span className="block" style={{ fontSize: 15, fontWeight: 700, color: "var(--color-text-primary)" }}>{d.shopName}</span>

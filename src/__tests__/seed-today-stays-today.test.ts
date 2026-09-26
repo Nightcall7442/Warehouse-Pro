@@ -11,7 +11,7 @@ import { daysAgo } from "../../db/seed-dates";
  * уводил их во вчера: «Мой день» и «План» на кадрах — «На сегодня визитов
  * нет», при подписи лендинга «Точки на сегодня… Был — отметил».
  *
- * Нарочная поломка: в seed-dates.ts убери Math.max(dayStart…) — падает
+ * Нарочная поломка: в seed-dates.ts убери Math.max(…полночь…) — падает
  * «сразу после полуночи»; поставь откат вперёд (now + …) — «никогда в
  * будущем»; убери geolocation из контекста мобилки — последний.
  */
@@ -49,7 +49,7 @@ describe("засев: сегодня — это сегодня", () => {
 
   it("засев берёт общую функцию, а съёмка мобилки выдаёт геолокацию", () => {
     const seed = readFileSync(join(process.cwd(), "db/seed.ts"), "utf-8");
-    expect(seed).toContain('import { daysAgo } from "./seed-dates"');
+    expect(seed).toMatch(/import \{ daysAgo\b[^}]*\} from "\.\/seed-dates"/);
     expect(seed).not.toMatch(/function daysAgo/);
     const shots = readFileSync(join(process.cwd(), "scripts/screenshots.mjs"), "utf-8");
     const mobileCtx = shots.slice(shots.indexOf("async function shootMobile"));

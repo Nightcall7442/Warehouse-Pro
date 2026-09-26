@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, beforeEach, afterAll } from "vitest";
 import { eq } from "drizzle-orm";
 import * as schema from "@db/schema";
-import { hasRealDb, connectRealDb, closeRealDb, truncateAll, seed, stockOf, countOf, type ServiceDb, type Seeded } from "./harness";
+import { ctxFor, hasRealDb, connectRealDb, closeRealDb, truncateAll, seed, stockOf, countOf, type ServiceDb, type Seeded } from "./harness";
 
 /**
  * Приход по накладной → разгрузка → проведение, на настоящей базе.
@@ -12,13 +12,6 @@ import { hasRealDb, connectRealDb, closeRealDb, truncateAll, seed, stockOf, coun
  * остаток, цену карточки и журнал движений не трогает. Проведённый приход
  * не правится; товар дважды в одном приходе — отказ.
  */
-function ctxFor(db: ServiceDb, tenantId: number, userId: number): any {
-  return {
-    req: new Request("http://localhost/"), resHeaders: new Headers(), db,
-    user: { id: userId, tenantId, role: "operator", status: "active" as const, name: "Оператор", email: "op@test.local", passwordHash: "x", avatar: null, phone: null, createdAt: new Date(), updatedAt: new Date(), lastSignInAt: new Date() },
-    tenant: { id: tenantId, slug: "test-co", name: "Тестовая компания", plan: "pro" as const, status: "active" as const, createdAt: new Date(), updatedAt: new Date() },
-  };
-}
 const today = () => new Date().toISOString().slice(0, 10);
 
 describe.skipIf(!hasRealDb)("приход по накладной: разгрузка сеткой и проведение", () => {

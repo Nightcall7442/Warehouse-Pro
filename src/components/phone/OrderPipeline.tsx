@@ -1,8 +1,7 @@
 import { Check, CheckCircle2, FileText, Loader2, PauseCircle, RotateCcw, Truck, XCircle } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useLang } from "@/i18n";
-import { orderStatusWord } from "./tones";
-import { CARD } from "./tones";
+import { CARD, orderStatusWord, tone, type Tone } from "./tones";
 
 /*
   Путь заказа — PipelineBanner мобилки v8 (Warehouse-Pro-Mobile,
@@ -12,24 +11,23 @@ import { CARD } from "./tones";
 */
 const STEP: Record<string, number> = { new: 0, processing: 1, shipped: 2, delivered: 3, pending: 0 };
 const ICON: Record<string, LucideIcon> = { new: FileText, processing: Loader2, shipped: Truck, delivered: CheckCircle2 };
-const TONE: Record<string, { fill: string; text: string }> = {
-  new:        { fill: "var(--color-info)",    text: "var(--color-info-text)" },
-  processing: { fill: "var(--color-warning)", text: "var(--color-warning-text)" },
-  shipped:    { fill: "var(--color-info)",    text: "var(--color-info-text)" },
-  delivered:  { fill: "var(--color-success)", text: "var(--color-success-text)" },
-};
+const TONE: Record<string, Tone> = { new: "info", processing: "warning", shipped: "info", delivered: "success" };
 
-export function OrderPipeline({ status, holdReason }: { status: string; holdReason?: string | null }) {
+/*
+  Причину задержки плашка не пишет: её строкой ниже показывает блок
+  order-hold-reason страницы заказа, с подсказкой директору.
+*/
+export function OrderPipeline({ status }: { status: string }) {
   const { lang } = useLang();
   const t = (ru: string, uz: string) => (lang === "uz" ? uz : ru);
 
   if (status === "pending" || status === "cancelled" || status === "returned") {
     const cfg = status === "pending"
-      ? { icon: PauseCircle, fill: "var(--color-warning)", text: "var(--color-warning-text)", title: t("Ждёт подтверждения офиса", "Ofis tasdig'ini kutmoqda"),
-          sub: holdReason || t("Офис проверит заказ и подтвердит или отклонит. До этого срок доставки не обещайте.", "Ofis buyurtmani tekshirib tasdiqlaydi yoki rad etadi. Ungacha yetkazish muddatini va'da qilmang.") }
+      ? { icon: PauseCircle, ...tone("warning"), title: t("Ждёт подтверждения офиса", "Ofis tasdig'ini kutmoqda"),
+          sub: t("Офис проверит заказ и подтвердит или отклонит. До этого срок доставки не обещайте.", "Ofis buyurtmani tekshirib tasdiqlaydi yoki rad etadi. Ungacha yetkazish muddatini va'da qilmang.") }
       : status === "cancelled"
-      ? { icon: XCircle, fill: "var(--color-danger)", text: "var(--color-danger-text)", title: t("Заказ отменён", "Buyurtma bekor qilingan"), sub: t("Этот заказ был отменён и не обрабатывается", "Bu buyurtma bekor qilingan va bajarilmaydi") }
-      : { icon: RotateCcw, fill: "var(--color-danger)", text: "var(--color-danger-text)", title: t("Заказ возвращён", "Buyurtma qaytarilgan"), sub: t("Товар вернулся на склад", "Tovar omborga qaytdi") };
+      ? { icon: XCircle, ...tone("danger"), title: t("Заказ отменён", "Buyurtma bekor qilingan"), sub: t("Этот заказ был отменён и не обрабатывается", "Bu buyurtma bekor qilingan va bajarilmaydi") }
+      : { icon: RotateCcw, ...tone("danger"), title: t("Заказ возвращён", "Buyurtma qaytarilgan"), sub: t("Товар вернулся на склад", "Tovar omborga qaytdi") };
     return (
       <div className="flex items-center gap-4" style={{ ...CARD, borderRadius: 20, padding: 20, border: `1px solid color-mix(in srgb, ${cfg.fill} 25%, transparent)` }} data-testid="order-pipeline">
         <span className="flex items-center justify-center flex-shrink-0" style={{ width: 56, height: 56, borderRadius: 16, background: `color-mix(in srgb, ${cfg.fill} 14%, transparent)` }}>
@@ -44,12 +42,12 @@ export function OrderPipeline({ status, holdReason }: { status: string; holdReas
   }
 
   const step = STEP[status] ?? 0;
-  const tone = TONE[status] ?? TONE.new;
+  const { fill, text } = tone(TONE[status] ?? "info");
   const Icon = ICON[status] ?? FileText;
   const steps = [t("Новый", "Yangi"), t("В работе", "Jarayonda"), t("Отгружен", "Yuklandi"), t("Доставлен", "Yetkazildi")];
 
   return (
-    <div className="flex items-center gap-4" style={{ ...CARD, borderRadius: 20, padding: 20, border: `1px solid color-mix(in srgb, ${tone.fill} 18%, transparent)` }} data-testid="order-pipeline">
+    <div className="flex items-center gap-4" style={{ ...CARD, borderRadius: 20, padding: 20, border: `1px solid color-mix(in srgb, ${fill} 18%, transparent)` }} data-testid="order-pipeline">
       <div className="flex-1 min-w-0">
         <p style={{ fontSize: 17, fontWeight: 700, color: "var(--color-text-primary)", margin: "0 0 10px" }}>{orderStatusWord(status, lang)}</p>
         <div className="flex items-center flex-wrap gap-y-2">
@@ -70,8 +68,8 @@ export function OrderPipeline({ status, holdReason }: { status: string; holdReas
           })}
         </div>
       </div>
-      <span className="flex items-center justify-center flex-shrink-0" style={{ width: 56, height: 56, borderRadius: 16, background: `color-mix(in srgb, ${tone.fill} 12%, transparent)` }}>
-        <Icon size={30} color={tone.text} />
+      <span className="flex items-center justify-center flex-shrink-0" style={{ width: 56, height: 56, borderRadius: 16, background: `color-mix(in srgb, ${fill} 12%, transparent)` }}>
+        <Icon size={30} color={text} />
       </span>
     </div>
   );

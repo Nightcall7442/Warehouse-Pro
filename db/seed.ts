@@ -10,7 +10,7 @@ import { getDb } from "../api/queries/connection";
 import { eq } from "drizzle-orm";
 import * as schema from "./schema";
 import { hashPassword } from "../api/auth/password";
-import { daysAgo } from "./seed-dates";
+import { daysAgo, hoursAfter } from "./seed-dates";
 import { assertSeedTarget, wipeAll } from "./seed-reset";
 import { actualsForTargets } from "../api/services/sales-target-actuals";
 import { monthRange } from "../api/lib/period";
@@ -525,11 +525,11 @@ async function seed() {
       total,
       courierId,
       deliveryStatus: dStatus,
-      deliveredAt: dStatus === "delivered" ? new Date(createdAt.getTime() + 3600000 * (2 + Math.floor(rnd() * 6))) : null,
+      deliveredAt: dStatus === "delivered" ? hoursAfter(createdAt, 2 + Math.floor(rnd() * 6)) : null,
       // Слово магазина (контроль): каждая третья доставка подтверждена по QR
       // из чека, одна из тринадцати — оспорена с заметкой.
-      shopConfirmedAt: dStatus === "delivered" && i % 3 === 0 ? new Date(createdAt.getTime() + 3600000 * 9) : null,
-      shopDisputedAt: dStatus === "delivered" && i % 13 === 5 ? new Date(createdAt.getTime() + 3600000 * 10) : null,
+      shopConfirmedAt: dStatus === "delivered" && i % 3 === 0 ? hoursAfter(createdAt, 9) : null,
+      shopDisputedAt: dStatus === "delivered" && i % 13 === 5 ? hoursAfter(createdAt, 10) : null,
       shopDisputeNote: dStatus === "delivered" && i % 13 === 5 ? "Не хватает двух ящиков воды, накладная на 12" : null,
       createdAt,
       updatedAt: createdAt,
@@ -699,23 +699,19 @@ async function seed() {
     type: "shop", isActive: true, priority: 10, markupPct: "-5.00",
   });
   const plNetId = Number(plNet.insertId);
-  for (const idx of [0, 1, 4, 7]) {
-    const price = Math.round((Number(productDefs[idx].unitPrice) * 0.9) / 100) * 100;
-    await db.insert(schema.priceListItems).values({ priceListId: plNetId, productId: productIds[idx], price: price.toFixed(2), minQuantity: "1" });
-  }
-  for (const s of shopIds.slice(0, 3)) await db.insert(schema.priceListAssignments).values({ priceListId: plNetId, shopId: s });
+  await db.insert(schema.priceListItems).values([0, 1, 4, 7].map(idx => ({
+    priceListId: plNetId, productId: productIds[idx], price: (Math.round((Number(productDefs[idx].unitPrice) * 0.9) / 100) * 100).toFixed(2), minQuantity: "1",
+  })));
+  await db.insert(schema.priceListAssignments).values(shopIds.slice(0, 3).map(shopId => ({ priceListId: plNetId, shopId })));
   const [plBulk] = await db.insert(schema.priceLists).values({
     tenantId, name: "Опт — от количества", description: "Скидка за объём: от 10 и от 50 единиц",
     type: "volume", isActive: true, priority: 5, markupPct: null,
   });
   const plBulkId = Number(plBulk.insertId);
-  for (const idx of [2, 3, 5]) {
-    const base = Number(productDefs[idx].unitPrice);
-    for (const [minQ, k] of [[10, 0.95], [50, 0.9]] as const) {
-      await db.insert(schema.priceListItems).values({ priceListId: plBulkId, productId: productIds[idx], price: (Math.round((base * k) / 100) * 100).toFixed(2), minQuantity: String(minQ) });
-    }
-  }
-  for (const s of shopIds.slice(3, 5)) await db.insert(schema.priceListAssignments).values({ priceListId: plBulkId, shopId: s });
+  await db.insert(schema.priceListItems).values([2, 3, 5].flatMap(idx => ([[10, 0.95], [50, 0.9]] as const).map(([minQ, k]) => ({
+    priceListId: plBulkId, productId: productIds[idx], price: (Math.round((Number(productDefs[idx].unitPrice) * k) / 100) * 100).toFixed(2), minQuantity: String(minQ),
+  }))));
+  await db.insert(schema.priceListAssignments).values(shopIds.slice(3, 5).map(shopId => ({ priceListId: plBulkId, shopId })));
   console.log("✓ 2 price lists created\n");
 
   // ── Stock Movements (20) ────────────────────────────────────────────────────

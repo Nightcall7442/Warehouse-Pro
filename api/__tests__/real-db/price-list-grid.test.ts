@@ -12,21 +12,13 @@ import { describe, it, expect, beforeAll, beforeEach, afterAll, vi } from "vites
 import { eq } from "drizzle-orm";
 import * as schema from "@db/schema";
 import {
-  hasRealDb, connectRealDb, closeRealDb, truncateAll, seed, countOf,
+  ctxFor, hasRealDb, connectRealDb, closeRealDb, truncateAll, seed, countOf,
   type ServiceDb, type Seeded,
 } from "./harness";
 
 // Роутер ходит в getDb(), а не в ctx.db — подменяем на тестовую базу.
 let current: ServiceDb;
 vi.mock("../../queries/connection", () => ({ getDb: () => current, getPool: () => null }));
-
-function ctxFor(db: ServiceDb, tenantId: number, userId: number): any {
-  return {
-    req: new Request("http://localhost/"), resHeaders: new Headers(), db,
-    user: { id: userId, tenantId, role: "ceo", status: "active" as const, name: "Директор", email: "ceo@test.local", passwordHash: "x", avatar: null, phone: null, createdAt: new Date(), updatedAt: new Date(), lastSignInAt: new Date() },
-    tenant: { id: tenantId, slug: "test-co", name: "Тестовая компания", plan: "pro" as const, status: "active" as const, createdAt: new Date(), updatedAt: new Date() },
-  };
-}
 
 describe.skipIf(!hasRealDb)("прайс-лист сеткой", () => {
   let db: ServiceDb;
@@ -36,7 +28,7 @@ describe.skipIf(!hasRealDb)("прайс-лист сеткой", () => {
   afterAll(async () => { await closeRealDb(); });
   beforeEach(async () => { await truncateAll(); s = await seed("100.000"); });
 
-  const caller = async () => (await import("../../price-list-router")).priceListRouter.createCaller(ctxFor(db, s.tenantId, s.agentId));
+  const caller = async () => (await import("../../price-list-router")).priceListRouter.createCaller(ctxFor(db, s.tenantId, s.agentId, "ceo"));
   const newList = async (name: string) => Number((await db.insert(schema.priceLists).values({ tenantId: s.tenantId, name, priority: 0, isActive: true } as never))[0].insertId);
   const itemsOf = async (listId: number) => (await db.select({ productId: schema.priceListItems.productId, price: schema.priceListItems.price, min: schema.priceListItems.minQuantity })
     .from(schema.priceListItems).where(eq(schema.priceListItems.priceListId, listId))).map(r => [Number(r.productId), r.price, r.min]).sort();

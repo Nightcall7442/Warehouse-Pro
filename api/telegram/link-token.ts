@@ -35,27 +35,34 @@ function sign(payload: string): string {
   return createHmac("sha256", env.appSecret).update(payload).digest("base64url");
 }
 
-export function createLinkToken(userId: number, now: number = Date.now()): string {
-  const expires = now + LINK_TTL_MS;
-  const payload = `${userId}.${expires}`;
+/**
+ * Подписанный токен человека: `<prefix><userId>.<истекает>.<подпись>`.
+ * Общий для привязки Telegram (prefix "") и подтверждения почты ("ev.") —
+ * секрет один, поэтому разные назначения различает только префикс.
+ */
+export function createSignedToken(prefix: string, userId: number, ttlMs: number, now: number = Date.now()): string {
+  const payload = `${prefix}${userId}.${now + ttlMs}`;
   return `${payload}.${sign(payload)}`;
 }
 
+export const createLinkToken = (userId: number, now: number = Date.now()) => createSignedToken("", userId, LINK_TTL_MS, now);
+export const readLinkToken = (token: string, now: number = Date.now()) => readSignedToken("", token, now);
+
 /**
- * Разобрать токен из `/start`.
+ * Разобрать токен из `/start` или из письма.
  *
  * Возвращает идентификатор пользователя или причину отказа. Причина нужна не
  * ради красоты: «ссылка устарела» и «ссылка поддельная» — это два разных
  * ответа человеку, и первый чинится нажатием кнопки заново.
  */
-export function readLinkToken(token: string, now: number = Date.now()):
+export function readSignedToken(prefix: string, token: string, now: number = Date.now()):
   { ok: true; userId: number } | { ok: false; reason: "expired" | "invalid" } {
-  const parts = token.split(".");
+  if (!token.startsWith(prefix)) return { ok: false, reason: "invalid" };
+  const parts = token.slice(prefix.length).split(".");
   if (parts.length !== 3) return { ok: false, reason: "invalid" };
 
   const [rawId, rawExp, signature] = parts;
-  const payload = `${rawId}.${rawExp}`;
-  const expected = sign(payload);
+  const expected = sign(`${prefix}${rawId}.${rawExp}`);
 
   /*
     Сравнение постоянного времени. Обычное === выходит из цикла на первом

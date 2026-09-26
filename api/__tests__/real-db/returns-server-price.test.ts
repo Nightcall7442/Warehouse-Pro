@@ -13,7 +13,7 @@ import { eq } from "drizzle-orm";
 import * as schema from "@db/schema";
 import { OrderService } from "../../services/order";
 import {
-  hasRealDb, connectRealDb, closeRealDb, truncateAll, seed,
+  ctxFor, hasRealDb, connectRealDb, closeRealDb, truncateAll, seed,
   type ServiceDb, type Seeded,
 } from "./harness";
 
@@ -22,14 +22,6 @@ const describeIf = hasRealDb ? describe : describe.skip;
 // Роутер ходит в getDb(), а не в ctx.db — подменяем на тестовую базу.
 let current: ServiceDb;
 vi.mock("../../queries/connection", () => ({ getDb: () => current, getPool: () => null }));
-
-function ctxFor(db: ServiceDb, tenantId: number, userId: number, role: "agent" | "operator"): any {
-  return {
-    req: new Request("http://localhost/"), resHeaders: new Headers(), db,
-    user: { id: userId, tenantId, role, status: "active" as const, name: "Т", email: "t@test.local", passwordHash: "x", avatar: null, phone: null, createdAt: new Date(), updatedAt: new Date(), lastSignInAt: new Date() },
-    tenant: { id: tenantId, slug: "test-co", name: "Тестовая компания", plan: "pro" as const, status: "active" as const, createdAt: new Date(), updatedAt: new Date() },
-  };
-}
 
 describeIf("возврат без заказа — цена сервера", () => {
   let db: ServiceDb;

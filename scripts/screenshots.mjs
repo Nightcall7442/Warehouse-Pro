@@ -84,7 +84,6 @@ const T = {
   pick: "role=button:/^(Собрать|Yig'ish)$/",
   confirmPick: "role=button:/Подтвердить сборку|Yig'ishni tasdiqlash/",
   newArrival: "role=button:/Новый приход|Yangi kelish/",
-  saveComplete: "role=button:/Сохранить и завершить|Saqlash va yakunlash/",
   month: "role=tab:/^(Месяц|Oy)$/",
   openOrder: "css=table tbody tr td >> nth=1",
   tab: name => `role=tab:/^(${name})/`, // вкладки «Склада» — role=tab, счётчик после подписи

@@ -18,8 +18,7 @@ const SHOWN = 200;
  * найденные», — и одной кнопкой встают в приход строками. Уже стоящие в
  * приходе видны отмеченными и второй раз не добавляются.
  */
-export function ProductMultiPicker({ open, onClose, products, already, onPick }: {
-  open: boolean;
+export function ProductMultiPicker({ onClose, products, already, onPick }: {
   onClose: () => void;
   products: PickerProduct[];
   already: Set<number>;
@@ -57,12 +56,11 @@ export function ProductMultiPicker({ open, onClose, products, already, onPick }:
     const picked = products.filter(p => sel.has(p.id));
     if (picked.length === 0) return;
     onPick(picked);
-    setSel(new Set()); setQ(""); setCat("");
   };
 
   return (
     <AppModal
-      open={open}
+      open
       onClose={onClose}
       dirty={sel.size > 0}
       title={t("Товары в приход", "Kelishga mahsulotlar")}
