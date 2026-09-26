@@ -236,6 +236,9 @@ export default function ArrivalEditor() {
 
   const complete = async () => {
     if (!arrivalId) return;
+    // Ничего не посчитано — сервер откажет. Говорим сразу, а не после
+    // подтверждения «на склад поступит 0 ед.».
+    if (sum.units === 0) { notify.error(t("Ничего не посчитано: впишите «Пришло» хотя бы в одну строку", "Hech narsa sanalmagan: kamida bitta qatorga «Keldi» ni yozing")); return; }
     const warn: string[] = [];
     if (sum.notCounted > 0) warn.push(t(`${sum.notCounted} строк не посчитано — на склад не попадут.`, `${sum.notCounted} qator sanalmagan — omborga tushmaydi.`));
     if (sum.mismatches > 0) warn.push(t(`${sum.mismatches} расхождений с накладной.`, `Hujjat bilan ${sum.mismatches} ta farq.`));

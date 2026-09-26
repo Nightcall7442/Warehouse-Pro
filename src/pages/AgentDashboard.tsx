@@ -7,7 +7,7 @@ import { useNavigate } from "react-router";
 import { plural } from "@/lib/plural";
 import { format } from "date-fns";
 import {
-  CheckCircle2, Clock, Calendar, MapPin, ChevronRight, AlertCircle,
+  CheckCircle2, Clock, Calendar, MapPin, ChevronRight, AlertCircle, Wallet,
   Plus, ShoppingBag, Navigation, Maximize, User, Clipboard, TrendingUp,
 } from "lucide-react";
 import { QueryErrorFallback } from "@/components/QueryErrorFallback";
@@ -126,6 +126,16 @@ export default function AgentDashboard() {
   const { data: plans, isLoading, isLoadingError, refetch } = trpc.agent.getPlans.useQuery({});
   const { data: trend } = trpc.dashboard.revenueTrend.useQuery({ days: 7 }, { enabled: sells, retry: false });
   const { data: mine, isLoading: mineLoading, isError: mineFailed } = trpc.order.myOrders.useQuery(undefined, { enabled: sells, retry: false });
+  /*
+    Долги — тем же запросом, что и страница /agent/debts: число на входе и
+    список за ним считаются по одному основанию (заказы этого агента,
+    orders.agent_id). Здесь стоял kpis.shopsDebt — долг магазинов,
+    ЗАКРЕПЛЁННЫХ за агентом, — обычно ноль, и карточка с ним пряталась
+    совсем. На планшете и ноутбуке другого входа в «Мои долги» нет (профиль
+    с ним — только на телефоне), и «Принять оплату» становилось недоступно.
+  */
+  // Мерчендайзер денег не собирает — ни запроса, ни карточки (как sells в мобилке).
+  const { data: myDebts } = trpc.agent.myDebts.useQuery(undefined, { enabled: sells, retry: false });
   const utils                          = trpc.useUtils();
 
   const updatePlan = trpc.agent.updatePlanStatus.useMutation({
@@ -134,7 +144,8 @@ export default function AgentDashboard() {
 
   const todayVisited = plans?.filter(p => p.status === "visited").length ?? 0;
   const todayPlanned = plans?.length ?? 0;
-  const debt         = Number(kpis?.shopsDebt ?? 0);
+  // undefined — ответа ещё нет или связь сбоила: суммы не рисуем, ноль бы соврал.
+  const debt         = myDebts?.reduce((s, d) => s + Number(d.remaining), 0);
   const orders       = kpis?.todayOrders ?? 0;
 
   // «Мои заказы сегодня» — именно сегодня и не больше пяти, как в мобилке: это
@@ -215,25 +226,33 @@ export default function AgentDashboard() {
         </div>
       </div>
 
-      {/* ── Долги: к кому ехать собирать ── */}
-      {debt > 0 && (
-        <button
-          type="button"
-          onClick={() => navigate("/agent/debts")}
-          className="w-full flex items-center gap-3 text-left"
-          style={{ ...CARD, borderRadius: 20, padding: 16 }}
-        >
-          <span className="flex items-center justify-center flex-shrink-0" style={{ width: 40, height: 40, borderRadius: 12, background: "var(--color-danger-subtle)" }}>
-            <AlertCircle size={18} color="var(--color-danger-text)" />
+      {/* ── Мои долги: к кому ехать собирать. Вход есть всегда, и при нуле.
+          Пока ответа нет или связь сбоила — нейтрально: красный говорит «есть
+          долги», а этого мы ещё не знаем. ── */}
+      {sells && (
+      <button
+        type="button"
+        onClick={() => navigate("/agent/debts")}
+        className="w-full flex items-center gap-3 text-left"
+        style={{ ...CARD, borderRadius: 20, padding: 16 }}
+        data-testid="agent-debts-entry"
+      >
+        <span className="flex items-center justify-center flex-shrink-0" style={{ width: 40, height: 40, borderRadius: 12, background: debt === undefined ? "var(--color-surface-light)" : debt === 0 ? "var(--color-success-subtle)" : "var(--color-danger-subtle)" }}>
+          {debt === undefined ? <Wallet size={18} color="var(--color-text-tertiary)" />
+            : debt === 0 ? <CheckCircle2 size={18} color="var(--color-success-text)" /> : <AlertCircle size={18} color="var(--color-danger-text)" />}
+        </span>
+        <span className="flex-1 min-w-0">
+          <span className="block" style={{ fontSize: 12, fontWeight: 600, color: debt === undefined ? "var(--color-text-secondary)" : debt === 0 ? "var(--color-success-text)" : "var(--color-danger-text)" }}>{t("Мои долги", "Mening qarzlarim")}</span>
+          <span className="block truncate font-data" style={{ fontSize: 15, fontWeight: 700, color: "var(--color-text-primary)", marginTop: 2 }}>
+            {debt === undefined
+              ? t("Кому идти собирать деньги", "Kimdan pul yig'ish kerak")
+              : debt > 0
+                ? `${t("Магазины должны", "Do'konlar qarzi")} · ${fmt(debt)}`
+                : t("Долгов нет", "Qarz yo'q")}
           </span>
-          <span className="flex-1 min-w-0">
-            <span className="block" style={{ fontSize: 12, fontWeight: 600, letterSpacing: "0.05em", color: "var(--color-danger-text)" }}>{t("ДОЛГИ", "QARZLAR")}</span>
-            <span className="block truncate font-data" style={{ fontSize: 15, fontWeight: 700, color: "var(--color-text-primary)", marginTop: 2 }}>
-              {t("Магазины должны", "Do'konlar qarzi")} · {fmt(debt)}
-            </span>
-          </span>
-          <ChevronRight size={16} color="var(--color-text-tertiary)" className="flex-shrink-0" />
-        </button>
+        </span>
+        <ChevronRight size={16} color="var(--color-text-tertiary)" className="flex-shrink-0" />
+      </button>
       )}
 
       {/* ── Мои заказы сегодня: плашка главной цифры и сами заказы ──

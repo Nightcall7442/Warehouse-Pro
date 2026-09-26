@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { createRouter, operatorQuery, authedQuery, supervisorQuery, fieldSalesQuery, can } from "./middleware";
+import { createRouter, operatorQuery, authedQuery, managementQuery, fieldSalesQuery, can } from "./middleware";
 import { getDb } from "./queries/connection";
 import { assertProductsBelongToTenant } from "./lib/tenant-refs";
 import { priceLists, priceListItems, priceListAssignments, products, shops } from "@db/schema";
@@ -40,8 +40,13 @@ export const priceListRouter = createRouter({
       await recordAudit(db, { ...auditActor(ctx), action: "price_list.shop_set", targetType: "shop", targetId: input.shopId, meta: { priceListId: input.priceListId } });
       return { success: true };
     }),
-  // List price lists
-  list: supervisorQuery.query(async ({ ctx }) => {
+  /*
+    Чтение списков — управлению (руководитель, оператор, супервайзер).
+    Правит их оператор (prices.manage), а list/getById/shopMap стояли под
+    supervisorQuery: оператор создавал список и попадал на пустую страницу
+    с FORBIDDEN. Себестоимости здесь нет — только цена карточки.
+  */
+  list: managementQuery.query(async ({ ctx }) => {
     const db = getDb();
     return db.select({
       id: priceLists.id,
@@ -66,7 +71,7 @@ export const priceListRouter = createRouter({
   }),
 
   // Get price list with items
-  getById: supervisorQuery
+  getById: managementQuery
     .input(z.object({ id: z.number() }))
     .query(async ({ input, ctx }) => {
       const db = getDb();
@@ -180,13 +185,22 @@ export const priceListRouter = createRouter({
       // каталог целиком, вместе с прайсом.
       await assertProductsBelongToTenant(db, tenantId, [input.productId]);
 
-      // Check if item exists
-      const [existing] = await db.select()
+      /*
+        Строка — это товар И ступень. Раньше искали только по товару: ступень
+        «от 10» затирала цену от одной штуки (её ставит сетка, setItems), а
+        вторая ступень — первую. Ступень ≤ 1 — цена от одной штуки, как в
+        setItems и резолвере; иначе «от» сравнивается числом: в базе "10.00".
+      */
+      // Сначала округление до копеек, как хранит колонка: «1.001» иначе прошло бы
+      // мимо базы и легло второй ценой от одной штуки.
+      const tierKey = (q: number) => { const r = Number(q.toFixed(2)); return r <= 1 ? "base" : r.toFixed(2); };
+      const rows = await db.select()
         .from(priceListItems)
         .where(and(
           eq(priceListItems.priceListId, input.priceListId),
           eq(priceListItems.productId, input.productId),
-        )).limit(1);
+        ));
+      const existing = rows.find(r => tierKey(Number(r.minQuantity)) === tierKey(input.minQuantity));
 
       if (existing) {
         await db.update(priceListItems)
@@ -339,7 +353,7 @@ export const priceListRouter = createRouter({
     }),
 
   /** Какой список у какого магазина — чтобы при назначении видеть, откуда магазин уйдёт. */
-  shopMap: supervisorQuery.query(async ({ ctx }) => {
+  shopMap: managementQuery.query(async ({ ctx }) => {
     const db = getDb();
     return db.select({ shopId: priceListAssignments.shopId, priceListId: priceListAssignments.priceListId })
       .from(priceListAssignments)

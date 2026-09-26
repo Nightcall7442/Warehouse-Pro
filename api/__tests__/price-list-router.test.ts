@@ -326,6 +326,41 @@ describe("priceList.upsertItem", () => {
     await expect(caller.upsertItem({ priceListId: 999, productId: 1, price: 100 }))
       .rejects.toThrow(/не найден/i);
   });
+
+  /*
+    Ступень — своя строка. upsertItem искал строку только по товару: ступень
+    «от 10» (PriceTiers) переписывала цену от одной штуки, которую ставит
+    сетка (setItems), а «от 50» — ступень «от 10».
+    Нарочная поломка: ищи строку в upsertItem только по товару — тест падает.
+  */
+  it("ступень «от N» не затирает цену от одной штуки и другие ступени; та же ступень правится на месте", async () => {
+    const { priceListRouter } = await import("../price-list-router");
+    const caller = priceListRouter.createCaller(buildCtx());
+    // Товар 2 в списке 1: от одной штуки — 8500 (строка 11).
+    const rows = () => priceListItemsTable.filter(i => i.priceListId === 1 && i.productId === 2)
+      .map(i => [Number(i.minQuantity), i.price]).sort((a, b) => a[0] - b[0]);
+
+    await caller.upsertItem({ priceListId: 1, productId: 2, price: 8000, minQuantity: 10 });
+    expect(rows()).toEqual([[1, "8500.00"], [10, "8000.00"]]);
+
+    await caller.upsertItem({ priceListId: 1, productId: 2, price: 7500, minQuantity: 50 });
+    expect(rows()).toEqual([[1, "8500.00"], [10, "8000.00"], [50, "7500.00"]]);
+
+    // Та же ступень ещё раз — правка своей строки, а не вторая «от 10».
+    const tenId = priceListItemsTable.find(i => i.productId === 2 && Number(i.minQuantity) === 10)!.id;
+    await caller.upsertItem({ priceListId: 1, productId: 2, price: 7900, minQuantity: 10 });
+    expect(rows()).toEqual([[1, "8500.00"], [10, "7900.00"], [50, "7500.00"]]);
+    expect(priceListItemsTable.find(i => i.productId === 2 && Number(i.minQuantity) === 10)!.id).toBe(tenId);
+
+    // Без «от» — цена от одной штуки: правит строку 11, ступени не трогает.
+    await caller.upsertItem({ priceListId: 1, productId: 2, price: 8600 });
+    expect(rows()).toEqual([[1, "8600.00"], [10, "7900.00"], [50, "7500.00"]]);
+    expect(priceListItemsTable.find(i => i.id === 11)!.price).toBe("8600.00");
+
+    // «1.001» хранится как «1.00» — это та же цена от одной штуки, а не вторая.
+    await caller.upsertItem({ priceListId: 1, productId: 2, price: 8700, minQuantity: 1.001 });
+    expect(rows()).toEqual([[1, "8700.00"], [10, "7900.00"], [50, "7500.00"]]);
+  });
 });
 
 describe("priceList.removeItem", () => {

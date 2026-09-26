@@ -14,6 +14,7 @@ import { haversineKm } from "./lib/geo";
 import { onDate } from "./lib/date-range";
 import { photoRef } from "./lib/photo-url";
 import { isDuplicateEntry } from "./lib/db-errors";
+import { affectedRows } from "./lib/db-rows";
 import { recordedAtInput, eventTime } from "./lib/event-time";
 
 
@@ -1079,7 +1080,16 @@ export const agentRouter = createRouter({
       return { success: true };
     }),
 
-  // Мобильное приложение: агент загружает фото ТОЛЬКО своего магазина
+  /*
+    Фото магазина — любого, который агент может открыть.
+
+    Здесь стояло `shops.agentId = ctx.user.id`, а карточку (getShopById) и
+    список (myShops) агент видит по всей организации: закрепление у
+    большинства арендаторов не делали. Снимок незакреплённого магазина не
+    записывался, а ручка всё равно отвечала success — экран говорил «Фото
+    обновлено», и снимок пропадал молча. Условие теперь то же, что у чтения:
+    магазин своей организации. Не нашлось строки — отказ, а не успех.
+  */
   uploadMyShopPhoto: fieldSalesQuery
     // Раньше здесь стояло z.string().url() — то есть ЛЮБОЙ адрес, и любой
     // подтип data:image/, включая svg+xml. Ручка открыта роли агента.
@@ -1090,8 +1100,9 @@ export const agentRouter = createRouter({
         .refine(isSafePhotoValue, PHOTO_VALUE_ERROR),
     }))
     .mutation(async ({ input, ctx }) => {
-      await getDb().update(shops).set({ photoUrl: input.dataUrl })
-        .where(and(eq(shops.id, input.shopId), eq(shops.tenantId, ctx.tenant.id), eq(shops.agentId, ctx.user.id)));
+      const res = await getDb().update(shops).set({ photoUrl: input.dataUrl })
+        .where(and(eq(shops.id, input.shopId), eq(shops.tenantId, ctx.tenant.id)));
+      if (affectedRows(res) === 0) throw new TRPCError({ code: "NOT_FOUND", message: "Магазин не найден" });
       // Ссылка на фото в справочнике несёт метку времени updatedAt — без сброса
       // кэша агент после загрузки продолжал бы видеть старую картинку.
       cache.invalidatePrefix(`shops:${ctx.tenant.id}`);

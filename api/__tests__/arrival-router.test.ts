@@ -1074,3 +1074,87 @@ describe("приёмка передаёт партию на остаток", () 
     expect(batchesTable.map(b => b.expiresAt).sort()).toEqual(["2026-03-01", "2026-09-01"]);
   });
 });
+
+/**
+ * Приход, где ничего не посчитано, не проводится.
+ *
+ * Приход по накладной заводят нулями в «Пришло». Проведение пропускало нулевые
+ * строки и всё равно ставило «проведён»: на склад не ложилось ничего, а
+ * проведённый документ уже не правится и не удаляется — разгруженный потом
+ * товар внести было некуда, долг поставщику висел на пустом документе.
+ *
+ * Нарочная поломка: убери проверку `items.some(… > 0)` в updateArrival —
+ * падает первый тест (приход становится проведённым).
+ */
+describe("проведение без посчитанных строк", () => {
+  const zeroRows = (): FakeArrivalItem[] => [
+    { id: 81, arrivalId: 1, productId: 1, quantity: "0.000", costPrice: "50.00", sellingPrice: "80.00", condition: "good", notes: null },
+    { id: 82, arrivalId: 1, productId: 2, quantity: "0", costPrice: "25.00", sellingPrice: "45.00", condition: "good", notes: null },
+  ];
+
+  it("все строки нулём — отказ BAD_REQUEST, статус, остаток и цены не тронуты", async () => {
+    arrivalsTable.find(a => a.id === 1)!.status = "unloading";
+    arrivalItemsTable = arrivalItemsTable.filter(i => i.arrivalId !== 1).concat(zeroRows());
+    const stockBefore = JSON.stringify(stockTable);
+    const pricesBefore = JSON.stringify(productsTable);
+    const { sseBus } = await import("../lib/sse");
+    vi.mocked(sseBus.emit).mockClear();
+
+    const { arrivalRouter } = await import("../arrival-router");
+    const caller = arrivalRouter.createCaller(makeCtx(1, 10));
+    await expect(caller.update({ id: 1, status: "completed" })).rejects.toMatchObject({
+      code: "BAD_REQUEST",
+      message: expect.stringMatching(/Ничего не посчитано/),
+    });
+
+    expect(arrivalsTable.find(a => a.id === 1)!.status, "пустой приход стал проведённым").toBe("unloading");
+    expect(JSON.stringify(stockTable), "остаток сдвинулся").toBe(stockBefore);
+    expect(movementsTable, "в журнал ушло движение — дверь остатка звали").toHaveLength(0);
+    expect(batchesTable).toHaveLength(0);
+    expect(JSON.stringify(productsTable), "цены карточки поменялись").toBe(pricesBefore);
+    expect(sseBus.emit).not.toHaveBeenCalled();
+
+    // Документ остался живым: строки правятся, как и до попытки.
+    await caller.setItems({ id: 1, items: [{ productId: 1, quantity: "7", expectedQuantity: "10" }] });
+    await caller.update({ id: 1, status: "completed" });
+    expect(arrivalsTable.find(a => a.id === 1)!.status).toBe("completed");
+    expect(Number(stockTable.find(s => s.productId === 1 && s.warehouseId === 1)!.currentStock)).toBe(107);
+  });
+
+  it("приход совсем без строк — тоже отказ", async () => {
+    arrivalItemsTable = arrivalItemsTable.filter(i => i.arrivalId !== 1);
+    const { arrivalRouter } = await import("../arrival-router");
+    await expect(arrivalRouter.createCaller(makeCtx(1, 10)).update({ id: 1, status: "completed" }))
+      .rejects.toThrow(/Ничего не посчитано/);
+    expect(arrivalsTable.find(a => a.id === 1)!.status).toBe("pending");
+  });
+
+  it("хотя бы одна посчитанная строка — проводится, нулевая остаток не трогает", async () => {
+    arrivalItemsTable = arrivalItemsTable.filter(i => i.arrivalId !== 1).concat([
+      { ...zeroRows()[0], quantity: "12" },
+      zeroRows()[1],
+    ]);
+    const { arrivalRouter } = await import("../arrival-router");
+    const r = await arrivalRouter.createCaller(makeCtx(1, 10)).update({ id: 1, status: "completed" });
+    expect(r.success).toBe(true);
+    expect(arrivalsTable.find(a => a.id === 1)!.status).toBe("completed");
+    expect(Number(stockTable.find(s => s.productId === 1 && s.warehouseId === 1)!.currentStock)).toBe(112);
+    expect(stockTable.find(s => s.productId === 2), "нулевая строка завела остаток").toBeUndefined();
+    expect(movementsTable.map(m => m.productId)).toEqual([1]);
+  });
+
+  it("проверка — под замком строки прихода, до двери остатка", async () => {
+    // Стенд без параллельных транзакций гонку не покажет: вынеси проверку
+    // до замка, и setItems между проверкой и проведением обнулит строки.
+    const { readFileSync } = await import("node:fs");
+    const svc = readFileSync("api/services/arrival.ts", "utf-8");
+    const body = svc.slice(svc.indexOf("export async function updateArrival("), svc.indexOf("export async function deleteArrival("));
+    const tx = body.indexOf("await db.transaction(async (tx) => {");
+    const lock = body.indexOf('.for("update")', tx);
+    const check = body.indexOf("Ничего не посчитано");
+    expect(tx).toBeGreaterThan(0);
+    expect(lock).toBeGreaterThan(tx);
+    expect(check, "проверка стоит до замка или вне транзакции").toBeGreaterThan(lock);
+    expect(check).toBeLessThan(body.indexOf("await receiveStock(tx, {"));
+  });
+});
