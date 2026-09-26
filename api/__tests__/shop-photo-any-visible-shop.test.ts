@@ -34,7 +34,7 @@ vi.mock("../lib/sse", () => ({ sseBus: { emit: vi.fn() } }));
 import { shops } from "@db/schema";
 import { makeConditionEvaluator } from "./helpers/fake-conditions";
 
-type Shop = { id: number; tenantId: number; agentId: number | null; photoUrl: string | null };
+type Shop = { id: number; tenantId: number; agentId: number | null; photoUrl: string | null; name?: string };
 let rows: Shop[] = [];
 
 const fieldOf = new Map<unknown, string>(Object.entries(shops).map(([f, c]) => [c, f]));
@@ -101,6 +101,31 @@ describe("agent.uploadMyShopPhoto — те же магазины, что аге�
   it("нет такого магазина — отказ, а не «Фото обновлено»", async () => {
     const { agentRouter } = await import("../agent-router");
     await expect(agentRouter.createCaller(ctx("agent", 10)).uploadMyShopPhoto({ shopId: 999, dataUrl: PHOTO }))
+      .rejects.toMatchObject({ code: "NOT_FOUND" });
+  });
+});
+
+/*
+  Правка карточки — по тому же правилу (решение владельца 27.09.2026):
+  мобилка правит любую карточку, которую открыл getShopById, и правка
+  незакреплённого магазина пропадала за ответом «Сохранено».
+*/
+describe("agent.updateMyShop — те же магазины, что агент видит", () => {
+  it("незакреплённый и чужой агентский магазин своей организации правятся", async () => {
+    const { agentRouter } = await import("../agent-router");
+    await expect(agentRouter.createCaller(ctx("agent", 10)).updateMyShop({ id: 2, name: "Барака" }))
+      .resolves.toEqual({ success: true });
+    expect(rows.find(r => r.id === 2)!.name, "правка незакреплённого магазина потеряна").toBe("Барака");
+    await agentRouter.createCaller(ctx("agent", 10)).updateMyShop({ id: 3, name: "Гулистон" });
+    expect(rows.find(r => r.id === 3)!.name).toBe("Гулистон");
+  });
+
+  it("магазин чужой организации и несуществующий — отказ, а не «Сохранено»", async () => {
+    const { agentRouter } = await import("../agent-router");
+    await expect(agentRouter.createCaller(ctx("agent", 10)).updateMyShop({ id: 5, name: "Чужой" }))
+      .rejects.toMatchObject({ code: "NOT_FOUND" });
+    expect(rows.find(r => r.id === 5)!.name, "правка легла в магазин другой организации").toBeUndefined();
+    await expect(agentRouter.createCaller(ctx("agent", 10)).updateMyShop({ id: 999, name: "Нет" }))
       .rejects.toMatchObject({ code: "NOT_FOUND" });
   });
 });
