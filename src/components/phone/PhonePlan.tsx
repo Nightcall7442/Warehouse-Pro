@@ -1,12 +1,14 @@
+import { useRef, useState } from "react";
 import { useNavigate } from "react-router";
-import { format } from "date-fns";
-import { Calendar, Check, CheckCircle2, ChevronRight, Circle, Clock, DollarSign, MapPin, ShoppingCart, AlertCircle } from "lucide-react";
+import { format, addDays, subDays } from "date-fns";
+import { Calendar, Camera, Check, CheckCircle2, ChevronLeft, ChevronRight, Circle, Clock, DollarSign, Loader2, MapPin, PlusCircle, ShoppingCart, AlertCircle } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { trpc } from "@/providers/trpc";
 import { useLang } from "@/i18n";
 import { useAuth } from "@/hooks/useAuth";
 import { useCurrency } from "@/hooks/useCurrency";
 import { notify } from "@/lib/toast";
+import { compressImage } from "@/lib/compress-image";
 import { dateLocale } from "@/lib/date-locale";
 import { Donut, ProgressBar, EmptyState, StatusPill } from "./kit";
 import { CARD } from "./tones";
@@ -19,7 +21,65 @@ import { CARD } from "./tones";
 
   «Готово» у мерчендайзера — не отметка, а отчёт о визите (фото полки,
   чек-лист): кнопка ведёт на него, как в мобилке.
+
+  При переносе на v8 экран потерял четыре вещи страницы большого экрана:
+  отметку со снимком, заметку супервайзера к визиту, «Заказ» из визита и
+  переход по дням (запрос был прибит к сегодня). Агент с телефона не мог ни
+  приложить доказательство, ни отметить вчерашний визит. Вернули все четыре;
+  снимок — общим useVisitPhoto, тем же, что у большого экрана.
 */
+
+/*
+  Отметка визита со снимком — одна на оба вида «Плана».
+
+  Ручка та же, что у приложения (agent.saveVisitPhoto): она и статус ставит,
+  и снимок кладёт, и прогоняет проверку на подлог. Открыта она ролям
+  merchVisitQuery — среди них все, кого пускает маршрут /agent/plans.
+
+  capture="environment" на телефоне открывает заднюю камеру сразу, на
+  настольном браузере остаётся обычным выбором файла: снимок могли сделать и
+  телефоном, а отметить с ноутбука. Один выбор файла на страницу: какой план
+  снимаем, помнит photoFor.
+*/
+// eslint-disable-next-line react-refresh/only-export-components
+export function useVisitPhoto() {
+  const { lang } = useLang();
+  const t = (ru: string, uz: string) => (lang === "uz" ? uz : ru);
+  const utils = trpc.useUtils();
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [photoFor, setPhotoFor] = useState<number | null>(null);
+
+  const save = trpc.agent.saveVisitPhoto.useMutation({
+    onSuccess: () => {
+      utils.agent.getPlans.invalidate();
+      utils.salesTarget.myQuota.invalidate();
+      notify.success(t("Визит отмечен с фото", "Tashrif foto bilan belgilandi"));
+    },
+    onError: e => notify.error(e.message),
+    onSettled: () => setPhotoFor(null),
+  });
+
+  const onFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file || photoFor == null) { setPhotoFor(null); return; }
+    try {
+      // Сжатие обязательно: камера телефона отдаёт снимок на несколько
+      // мегабайт, а ручка принимает не больше пяти и хранит строку в базе.
+      save.mutate({ planId: photoFor, photoUrl: await compressImage(file) });
+    } catch {
+      notify.error(t("Не удалось обработать снимок", "Rasmni qayta ishlab bo'lmadi"));
+      setPhotoFor(null);
+    }
+  };
+
+  return {
+    input: <input ref={fileRef} type="file" accept="image/*" capture="environment" onChange={onFile} style={{ display: "none" }} data-testid="visit-photo-input" />,
+    start: (planId: number) => { setPhotoFor(planId); fileRef.current?.click(); },
+    isPending: save.isPending,
+    busyFor: save.isPending ? photoFor : null,
+  };
+}
 const tone = (pct: number) => pct >= 100 ? "var(--color-success-text)" : pct >= 70 ? "var(--color-warning-text)" : "var(--color-danger-text)";
 const fill = (pct: number) => pct >= 100 ? "var(--color-success)" : pct >= 70 ? "var(--color-warning)" : "var(--color-danger)";
 
@@ -130,13 +190,16 @@ export function PhonePlan() {
   const isMerch = user?.role === "merchandiser";
   const utils = trpc.useUtils();
 
-  const today = format(new Date(), "yyyy-MM-dd");
-  const { data: plans, isLoading, isError, refetch } = trpc.agent.getPlans.useQuery({ date: today });
+  const [day, setDay] = useState(() => new Date());
+  const dayStr = format(day, "yyyy-MM-dd");
+  const isToday = dayStr === format(new Date(), "yyyy-MM-dd");
+  const { data: plans, isLoading, isError, refetch } = trpc.agent.getPlans.useQuery({ date: dayStr });
   const update = trpc.agent.updatePlanStatus.useMutation({
     onSuccess: () => { utils.agent.getPlans.invalidate(); utils.salesTarget.myQuota.invalidate(); },
     // Отметка не должна пропадать молча: агент жмёт ещё раз и бросает.
     onError: e => notify.error(t(`Отметка не сохранена: ${e.message}`, `Belgi saqlanmadi: ${e.message}`)),
   });
+  const photo = useVisitPhoto();
 
   const visited = plans?.filter(p => p.status === "visited").length ?? 0;
   const total = plans?.length ?? 0;
@@ -160,10 +223,31 @@ export function PhonePlan() {
 
       <QuotaCard />
 
-      {/* ── Визиты на сегодня ── */}
+      {photo.input}
+
+      {/* ── День: назад / вперёд; середина возвращает к сегодня ── */}
+      <div className="flex items-center gap-2" data-testid="phone-plan-day">
+        <button type="button" onClick={() => setDay(d => subDays(d, 1))} aria-label={t("Предыдущий день", "Oldingi kun")}
+          className="flex items-center justify-center flex-shrink-0 rounded-full" style={{ ...CARD, width: 44, height: 44, color: "var(--color-text-primary)" }}>
+          <ChevronLeft size={18} />
+        </button>
+        <button type="button" onClick={() => setDay(new Date())} disabled={isToday}
+          className="flex-1 min-w-0 text-center" style={{ ...CARD, borderRadius: 16, padding: "6px 12px" }}>
+          <span className="block capitalize truncate" style={{ fontSize: 15, fontWeight: 700, color: "var(--color-text-primary)" }}>
+            {isToday ? t("Сегодня", "Bugun") : format(day, "EEEE", { locale: dateLocale(lang) })}
+          </span>
+          <span className="block" style={{ fontSize: 12, color: "var(--color-text-tertiary)" }}>{format(day, "d MMMM yyyy", { locale: dateLocale(lang) })}</span>
+        </button>
+        <button type="button" onClick={() => setDay(d => addDays(d, 1))} aria-label={t("Следующий день", "Keyingi kun")}
+          className="flex items-center justify-center flex-shrink-0 rounded-full" style={{ ...CARD, width: 44, height: 44, color: "var(--color-text-primary)" }}>
+          <ChevronRight size={18} />
+        </button>
+      </div>
+
+      {/* ── Визиты дня ── */}
       <div>
         <div className="flex items-center justify-between mb-2">
-          <span style={{ fontSize: 13, fontWeight: 700, color: "var(--color-text-tertiary)" }}>{t("Визиты на сегодня", "Bugungi tashriflar")}</span>
+          <span style={{ fontSize: 13, fontWeight: 700, color: "var(--color-text-tertiary)" }}>{isToday ? t("Визиты на сегодня", "Bugungi tashriflar") : t("Визиты дня", "Kun tashriflari")}</span>
           <span className="font-data" style={{ fontSize: 13, fontWeight: 700, color: pct >= 80 ? "var(--color-success-text)" : "var(--color-primary-text)" }}>{visited}/{total} · {pct}%</span>
         </div>
         <ProgressBar value={pct} height={6} color={pct >= 80 ? "var(--color-success)" : "var(--color-primary)"} />
@@ -178,7 +262,7 @@ export function PhonePlan() {
             </div>
           ) : !plans?.length ? (
             <div style={{ ...CARD, borderRadius: 20 }}>
-              <EmptyState icon={Calendar} title={t("На сегодня визитов нет", "Bugun tashrif yo'q")} hint={t("Планы визитов появятся здесь", "Tashrif rejalari shu yerda chiqadi")} />
+              <EmptyState icon={Calendar} title={isToday ? t("На сегодня визитов нет", "Bugun tashrif yo'q") : t("На этот день визитов нет", "Bu kun uchun tashrif yo'q")} hint={t("Планы визитов появятся здесь", "Tashrif rejalari shu yerda chiqadi")} />
             </div>
           ) : plans.map(p => {
             const meta = p.status === "visited"
@@ -187,30 +271,48 @@ export function PhonePlan() {
               ? { icon: Clock, fill: "var(--color-warning)", text: "var(--color-warning-text)", label: t("Пропущен", "O'tkazildi") }
               : { icon: Circle, fill: "var(--color-info)", text: "var(--color-info-text)", label: t("Запланирован", "Rejalangan") };
             const hasDebt = Number(p.shopDebt ?? 0) > 0;
-            const busy = update.isPending && update.variables?.planId === p.id;
+            const busy = (update.isPending && update.variables?.planId === p.id) || photo.isPending;
+            const ghost = { minHeight: 40, padding: "6px 10px", background: "var(--color-surface-light)", fontSize: 12, fontWeight: 600 } as const;
             return (
-              <div key={p.id} className="flex items-center gap-2.5" style={{ ...CARD, borderRadius: 16, padding: 12, opacity: p.status === "visited" ? 0.6 : 1 }} data-testid="phone-plan-visit">
-                <span className="flex items-center justify-center flex-shrink-0 rounded-full" style={{ width: 36, height: 36, background: `color-mix(in srgb, ${meta.fill} 14%, transparent)` }}>
-                  <meta.icon size={16} color={meta.text} />
-                </span>
-                <div className="flex-1 min-w-0">
-                  <p className="truncate" style={{ fontSize: 15, fontWeight: 600, color: "var(--color-text-primary)", margin: 0 }}>{p.shopName ?? t("Магазин", "Do'kon")}</p>
-                  <p className="truncate" style={{ fontSize: 12, color: "var(--color-text-tertiary)", margin: "1px 0 0" }}>{p.shopAddress ?? t("Адрес не указан", "Manzil ko'rsatilmagan")}</p>
-                  {hasDebt && <p className="font-data" style={{ fontSize: 11, fontWeight: 500, color: "var(--color-danger-text)", margin: "2px 0 0" }}>{t("Долг", "Qarz")}: {fmt(p.shopDebt)}</p>}
+              <div key={p.id} style={{ ...CARD, borderRadius: 16, padding: 12, opacity: p.status === "visited" ? 0.6 : 1 }} data-testid="phone-plan-visit">
+                <div className="flex items-center gap-2.5">
+                  <span className="flex items-center justify-center flex-shrink-0 rounded-full" style={{ width: 36, height: 36, background: `color-mix(in srgb, ${meta.fill} 14%, transparent)` }}>
+                    <meta.icon size={16} color={meta.text} />
+                  </span>
+                  <div className="flex-1 min-w-0">
+                    <p className="truncate" style={{ fontSize: 15, fontWeight: 600, color: "var(--color-text-primary)", margin: 0 }}>{p.shopName ?? t("Магазин", "Do'kon")}</p>
+                    <p className="truncate" style={{ fontSize: 12, color: "var(--color-text-tertiary)", margin: "1px 0 0" }}>{p.shopAddress ?? t("Адрес не указан", "Manzil ko'rsatilmagan")}</p>
+                    {hasDebt && <p className="font-data" style={{ fontSize: 11, fontWeight: 500, color: "var(--color-danger-text)", margin: "2px 0 0" }}>{t("Долг", "Qarz")}: {fmt(p.shopDebt)}</p>}
+                    {/* Заметка супервайзера к визиту: «спросить про возврат», «новый владелец». */}
+                    {p.notes && <p className="break-words" style={{ fontSize: 12, fontStyle: "italic", color: "var(--color-text-secondary)", margin: "4px 0 0" }} data-testid="phone-plan-note">«{p.notes}»</p>}
+                  </div>
+                  {p.status !== "planned" && <StatusPill dot={meta.fill} text={meta.text} label={meta.label} />}
                 </div>
-                {p.status === "planned" ? (
-                  <div className="flex gap-1.5 flex-shrink-0">
+                {p.status === "planned" && (
+                  <div className="flex gap-1.5 mt-2.5">
                     <button type="button" disabled={busy} onClick={() => update.mutate({ planId: p.id, status: "skipped" })}
-                      className="flex items-center gap-1 rounded-lg" style={{ minHeight: 36, padding: "6px 10px", background: "var(--color-surface-light)", color: "var(--color-warning-text)", fontSize: 11, fontWeight: 600 }}>
+                      className="flex items-center gap-1 rounded-lg" style={{ ...ghost, color: "var(--color-warning-text)" }}>
                       <Clock size={14} />{t("Отложить", "Keyinga")}
                     </button>
+                    {!isMerch && (
+                      <>
+                        <button type="button" onClick={() => navigate(`/orders/new?shopId=${p.shopId ?? ""}`)}
+                          className="flex items-center gap-1 rounded-lg" style={{ ...ghost, color: "var(--color-primary-text)" }}>
+                          <PlusCircle size={14} />{t("Заказ", "Buyurtma")}
+                        </button>
+                        {/* Отметить со снимком — то же «Готово», но с доказательством. */}
+                        <button type="button" disabled={busy} onClick={() => photo.start(p.id)}
+                          aria-label={t("Отметить с фото", "Foto bilan belgilash")}
+                          className="flex items-center justify-center rounded-lg" style={{ ...ghost, minWidth: 40, color: "var(--color-text-primary)" }}>
+                          {photo.busyFor === p.id ? <Loader2 size={16} className="animate-spin" /> : <Camera size={16} />}
+                        </button>
+                      </>
+                    )}
                     <button type="button" disabled={busy} onClick={() => done(p)}
-                      className="flex items-center gap-1 rounded-lg" style={{ minHeight: 36, padding: "6px 12px", background: "var(--color-success-text)", color: "var(--color-surface)", fontSize: 11, fontWeight: 600 }}>
+                      className="flex-1 flex items-center justify-center gap-1 rounded-lg" style={{ minHeight: 40, padding: "6px 12px", background: "var(--color-success-text)", color: "var(--color-surface)", fontSize: 12, fontWeight: 600 }}>
                       <Check size={14} />{t("Готово", "Tayyor")}
                     </button>
                   </div>
-                ) : (
-                  <StatusPill dot={meta.fill} text={meta.text} label={meta.label} />
                 )}
               </div>
             );

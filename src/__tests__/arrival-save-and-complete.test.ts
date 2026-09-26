@@ -46,3 +46,12 @@ describe("новый приход", () => {
     expect(read("src/App.tsx")).toContain('<Route path="/arrivals/:id"   element={<RoleGuard roles={["ceo","operator"]}><ArrivalEditor /></RoleGuard>} />');
   });
 });
+
+describe("документ: «Завершить» без посчитанного", () => {
+  it("ничего не посчитано — сразу говорит, до подтверждения «поступит 0 ед.»", () => {
+    const at = PAGE.indexOf("const complete = async");
+    const body = PAGE.slice(at, PAGE.indexOf("await confirm(", at));
+    expect(at, "нет complete()").toBeGreaterThan(0);
+    expect(body).toContain("if (sum.units === 0) { notify.error(t(\"Ничего не посчитано: впишите «Пришло» хотя бы в одну строку\", \"Hech narsa sanalmagan: kamida bitta qatorga «Keldi» ni yozing\")); return; }");
+  });
+});

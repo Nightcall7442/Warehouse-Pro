@@ -312,6 +312,20 @@ export async function updateArrival(db: Db, tenantId: number, input: UpdateArriv
       const items = rawItems as Array<{ id: number; arrivalId: number; productId: number; quantity: string; condition: string; notes: string | null; costPrice: string | null; sellingPrice: string | null; batchNumber: string | null; expiresAt: Date | string | null }>;
       const badItem = items.find(it => it.productId == null);
       if (badItem) throw new Error(`Позиция прихода #${badItem.id} не привязана к товару`);
+      /*
+        Пустой приход не проводится.
+
+        Приход по накладной заводят нулями в «Пришло». Проведение пропускает
+        нулевые строки (ниже), и документ, где не посчитано ничего, раньше
+        всё равно становился проведённым: на склад не ложилось ни штуки, а
+        править строки и удалять проведённый уже нельзя — товар, который
+        потом разгрузили, внести было некуда, а долг поставщику висел на
+        пустом документе. Проверка под замком строки прихода: setItems
+        берёт тот же замок, и строки здесь — уже окончательные.
+      */
+      if (!items.some(it => Number(it.quantity) > 0)) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Ничего не посчитано: впишите «Пришло» хотя бы в одну строку" });
+      }
 
       // Use provided warehouseId, or fall back to default warehouse
       let warehouseId: number;

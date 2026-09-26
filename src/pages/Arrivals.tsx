@@ -336,7 +336,10 @@ export default function Arrivals() {
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                     <StatusBadge status={a.status ?? "pending"} lang={lang as "ru" | "uz"} />
                     {a.status === "pending" && <button onClick={(e) => { e.stopPropagation(); updateStatus.mutate({ id: a.id, status: "unloading" }); }} style={{ padding: "6px 12px", borderRadius: "8px", fontSize: "11px", fontWeight: 600, fontFamily: F.body, color: COLORS.primaryText, background: "color-mix(in srgb, var(--color-primary) 8%, transparent)", border: "none", cursor: "pointer" }}>{t("Разгрузка", "Tushirish")}</button>}
-                    {a.status === "unloading" && <button onClick={(e) => { e.stopPropagation(); updateStatus.mutate({ id: a.id, status: "completed" }); }} className="neo-btn-primary neo-btn-sm">{t("Завершить", "Yakunlash")}</button>}
+                    {/* «Завершить» открывает документ, а не проводит вслепую: из
+                        списка не видно, что строки не посчитаны, а проведённый
+                        приход уже не правится. Там — сверка и подтверждение. */}
+                    {a.status === "unloading" && <button onClick={(e) => { e.stopPropagation(); navigate(`/arrivals/${a.id}`); }} className="neo-btn-primary neo-btn-sm" data-testid={`arrivals-complete-${a.id}`}>{t("Завершить", "Yakunlash")}</button>}
                     {a.status !== "completed" && <button onClick={async (e) => { e.stopPropagation(); const ok = await confirm({ title: t("Удалить приход?", "Kelish o'chirilsinmi?"), message: t("Данные будут удалены безвозвратно.", "Ma'lumotlar qaytarib bo'lmaydigan tarzda o'chiriladi."), confirmText: t("Удалить", "O'chirish"), danger: true }); if (ok) deleteMutation.mutate({ id: a.id }); }} style={{ padding: "6px 10px", borderRadius: "8px", fontSize: "11px", fontWeight: 600, fontFamily: F.body, color: COLORS.danger, background: "var(--color-danger-subtle)", border: "none", cursor: "pointer" }}>{t("Удалить", "O'chirish")}</button>}
                   </div>
                 </td>

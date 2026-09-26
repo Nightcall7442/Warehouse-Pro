@@ -1,7 +1,12 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { assertSeedTarget, allTables } from "../../db/seed-reset";
+
+// clear.ts запускается здесь по-настоящему: адрес базы — подменный, getDb — шпион.
+const h = vi.hoisted(() => ({ databaseUrl: "", getDb: vi.fn() }));
+vi.mock("../../api/lib/env", () => ({ env: { get databaseUrl() { return h.databaseUrl; } } }));
+vi.mock("../../api/queries/connection", async (orig) => ({ ...(await orig<typeof import("../../api/queries/connection")>()), getDb: h.getDb }));
 
 /**
  * Засев: на боевой базе — отказ; на локальной — чистит всё.
@@ -64,5 +69,47 @@ describe("уборка засева", () => {
     expect(seed).not.toMatch(/await db\.delete\(schema\.\w+\);/);
     expect(seed).toMatch(/await wipeAll\(db\)/);
     expect(seed).toMatch(/async function seed\(\) \{\s*assertSeedTarget\(env\.databaseUrl\);\s*const db = getDb\(\);/);
+  });
+});
+
+/*
+  npm run db:reset начинается с clear.ts, а проверка базы стояла только в
+  засеве — третьем шаге. clear.ts стирал данные всех организаций, куда бы ни
+  смотрел DATABASE_URL, и засев отказывался уже над пустой базой (26.09.2026).
+  Нарочная поломка: убери assertSeedTarget из clear.ts или поставь его после
+  getDb() — падает «удалённая база»; верни ручной список db.delete вместо
+  wipeAll — падает «локальная база».
+*/
+describe("db:reset: clear.ts", () => {
+  async function runClear(url: string) {
+    const deleted: unknown[] = [];
+    h.databaseUrl = url;
+    h.getDb.mockReset().mockReturnValue({
+      transaction: async (cb: (tx: unknown) => Promise<void>) => cb({ execute: async () => undefined, delete: async (t: unknown) => { deleted.push(t); } }),
+    });
+    const allow = process.env.SEED_ALLOW_REMOTE;
+    process.env.SEED_ALLOW_REMOTE = "0";
+    const exit = vi.spyOn(process, "exit").mockImplementation((() => undefined) as never);
+    const quiet = [vi.spyOn(console, "log").mockImplementation(() => {}), vi.spyOn(console, "error").mockImplementation(() => {})];
+    try {
+      vi.resetModules();
+      await import("../../db/clear");
+      await vi.waitFor(() => { if (exit.mock.calls.length === 0) throw new Error("clear.ts не завершился"); });
+      return { code: exit.mock.calls[0][0], dbTouched: h.getDb.mock.calls.length > 0, deleted: deleted.length };
+    } finally {
+      exit.mockRestore();
+      quiet.forEach(s => s.mockRestore());
+      if (allow === undefined) delete process.env.SEED_ALLOW_REMOTE; else process.env.SEED_ALLOW_REMOTE = allow;
+    }
+  }
+
+  it("удалённая база — отказ до первого запроса", async () => {
+    const r = await runClear("mysql://root:secret@roundhouse.proxy.rlwy.net:41234/railway");
+    expect(r).toEqual({ code: 1, dbTouched: false, deleted: 0 });
+  });
+
+  it("локальная база — чистит каждую таблицу схемы (wipeAll)", async () => {
+    const r = await runClear("mysql://root@127.0.0.1:3307/wp");
+    expect(r).toEqual({ code: 0, dbTouched: true, deleted: allTables().length });
   });
 });

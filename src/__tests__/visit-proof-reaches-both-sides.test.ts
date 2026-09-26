@@ -29,26 +29,39 @@ const SRC = join(__dirname, "..");
 const read = (...p: string[]) => readFileSync(join(SRC, ...p), "utf8");
 
 const AGENT_PLANS = read("pages", "AgentPlans.tsx");
+/*
+  Съёмка — общий useVisitPhoto (components/phone/PhonePlan.tsx): им пользуются
+  и страница большого экрана, и «План» телефона. Телефонный вид v8 однажды
+  потерял кнопку, пока большой экран её держал, — поэтому проверяется и сам
+  хук, и то, что его зовут оба вида.
+*/
+const VISIT_PHOTO = read("components", "phone", "PhonePlan.tsx");
+const PHONE_PLAN = VISIT_PHOTO.slice(VISIT_PHOTO.indexOf("export function PhonePlan"));
 const SUPERVISOR_PLANS = read("pages", "SupervisorPlans.tsx");
 
 describe("агент может приложить снимок", () => {
   it("страница плана зовёт saveVisitPhoto, а не только смену статуса", () => {
     expect(
-      AGENT_PLANS,
+      VISIT_PHOTO,
       "в вебе отметить визит можно только без доказательства",
     ).toMatch(/trpc\.agent\.saveVisitPhoto\.useMutation/);
+    for (const [name, src] of [["большой экран", AGENT_PLANS], ["телефон", PHONE_PLAN]]) {
+      expect(src, `${name}: снимок не снять — useVisitPhoto не позван`).toMatch(/const photo = useVisitPhoto\(\)/);
+      expect(src, `${name}: выбора файла нет в разметке`).toMatch(/\{photo\.input\}/);
+      expect(src, `${name}: кнопки снимка нет`).toMatch(/photo\.start\(\w+\.id\)/);
+    }
   });
 
   it("снимок сжимается перед отправкой", () => {
     // Камера телефона отдаёт несколько мегабайт, ручка принимает не больше
     // пяти и хранит строку в базе. Без сжатия отказ приходил бы уже с дороги.
-    expect(AGENT_PLANS).toMatch(/compressImage\(/);
+    expect(VISIT_PHOTO).toMatch(/compressImage\(/);
   });
 
   it("выбор файла открывает камеру на телефоне", () => {
     // На настольном браузере это обычный выбор файла — снимок могли сделать
     // телефоном, а отметить с ноутбука.
-    expect(AGENT_PLANS).toMatch(/capture="environment"/);
+    expect(VISIT_PHOTO).toMatch(/capture="environment"/);
   });
 });
 

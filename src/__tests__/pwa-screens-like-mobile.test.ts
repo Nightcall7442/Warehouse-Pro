@@ -17,7 +17,9 @@ import { NAV_ITEMS, ROLE_ROUTES } from "@/const";
  * Нарочная поломка (каждая роняет свой тест):
  *   · верни директору вкладку «Заказы» — «вкладки директора»;
  *   · в Dashboard убери развилку useIsMobile — «главная директора на телефоне»;
- *   · в NewOrder убери clearCart после отправки — «корзина уезжает в заказ»;
+ *   · в NewOrder верни `const fromCart = searchParams.get(…)` — «корзина
+ *     уезжает в заказ» (а в new-order-from-catalog-cart — «после отправки
+ *     корзина пуста»);
  *   · в Barcode верни `/orders/new?productCode=` — «сканер кладёт товар в заказ»;
  *   · в order-read уберите shopName — «мои заказы с магазином»;
  *   · в SupervisorPlans верни `neo-btn w-10 h-10` — «стрелки дат видны».
@@ -102,11 +104,20 @@ describe("главные — раскладка мобилки", () => {
 });
 
 describe("деталь за деталью", () => {
-  it("корзина уезжает в заказ: мастер берёт её по ?fromCart=1 и чистит после отправки", () => {
+  it("корзина уезжает в заказ: мастер берёт её по тому же ?fromCart=1, что ставят каталог и сканер", () => {
+    /*
+      Здесь стояла проверка строки `if (user && fromCart) clearCart` — и была
+      зелёной, пока корзина после отправки не чистилась: признак читался
+      заново на каждом шаге, а шаги ходят без ?fromCart. Само поведение —
+      вход, «назад», отправка онлайн и офлайн, цены магазина — теперь
+      проверяет new-order-from-catalog-cart.test.tsx на живом мастере. Тут
+      остаётся только стык файлов: имя параметра и то, что оно читается один
+      раз на входе.
+    */
     const src = strip(read("src/pages/NewOrder.tsx"));
-    expect(src).toContain('const fromCart = searchParams.get("fromCart") === "1";');
+    expect(src).toContain('const [fromCart, setFromCart] = useState(() => searchParams.get("fromCart") === "1");');
     expect(src).toContain("setItems(cartToItems(lines));");
-    expect(src).toContain("if (user && fromCart) clearCart(user.id);");
+    expect(strip(read("src/pages/Catalog.tsx"))).toContain('navigate("/orders/new?fromCart=1")');
   });
   it("сканер кладёт товар в заказ через корзину, а не мёртвым ?productCode=", () => {
     const src = strip(read("src/pages/Barcode.tsx"));

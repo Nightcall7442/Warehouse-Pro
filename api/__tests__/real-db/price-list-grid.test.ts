@@ -4,6 +4,7 @@
  *   · setItems: ставит, меняет, убирает цену от одной штуки; ступени «от N»
  *     не трогает; то, что совпало с сохранённым, не пишется; след в журнале;
  *     цена списка доходит до заказа (resolvePrices);
+ *   · upsertItem: ступень «от N» — своя строка, цену от одной штуки не трогает;
  *   · setShops: отмеченные переезжают из прежнего списка организации,
  *     снятые остаются без списка; чужой магазин — отказ.
  */
@@ -62,6 +63,29 @@ describe.skipIf(!hasRealDb)("прайс-лист сеткой", () => {
     const priceFor = async (quantity: number) => (await resolvePrices(db as never, s.tenantId, s.shopId, [{ productId: s.productId, quantity }], new Map([[s.productId, "100.00"]]))).get(s.productId)?.price;
     expect(await priceFor(1)).toBe("90.00");
     expect(await priceFor(12)).toBe("70.00");
+  });
+
+  it("ступени «от N» — своей строкой: не затирают цену от одной штуки и друг друга", async () => {
+    // 26.09.2026: upsertItem искал строку только по товару — ступень «от 10»
+    // переписывала цену от одной штуки из сетки, а «от 50» — ступень «от 10».
+    // Нарочная поломка: ищи строку в upsertItem только по товару — тест падает.
+    const c = await caller();
+    const id = await newList("Опт");
+    await c.setItems({ priceListId: id, items: [{ productId: s.productId, price: 90 }] });
+
+    await c.upsertItem({ priceListId: id, productId: s.productId, price: 85, minQuantity: 10 });
+    expect(await itemsOf(id)).toEqual([[s.productId, "85.00", "10.00"], [s.productId, "90.00", "1.00"]].sort());
+    await c.upsertItem({ priceListId: id, productId: s.productId, price: 80, minQuantity: 50 });
+    expect(await itemsOf(id)).toEqual([[s.productId, "80.00", "50.00"], [s.productId, "85.00", "10.00"], [s.productId, "90.00", "1.00"]].sort());
+    // Та же ступень ещё раз — правка на месте, не вторая строка «от 10».
+    await c.upsertItem({ priceListId: id, productId: s.productId, price: 84, minQuantity: 10 });
+    expect(await itemsOf(id)).toEqual([[s.productId, "80.00", "50.00"], [s.productId, "84.00", "10.00"], [s.productId, "90.00", "1.00"]].sort());
+
+    // До заказа доходят все три: 1 → 90, 12 → 84, 60 → 80.
+    await c.setShops({ priceListId: id, shopIds: [s.shopId] });
+    const { resolvePrices } = await import("../../services/price-resolver");
+    const priceFor = async (quantity: number) => (await resolvePrices(db as never, s.tenantId, s.shopId, [{ productId: s.productId, quantity }], new Map([[s.productId, "100.00"]]))).get(s.productId)?.price;
+    expect([await priceFor(1), await priceFor(12), await priceFor(60)]).toEqual(["90.00", "84.00", "80.00"]);
   });
 
   it("список показывает, сколько в прайс-листе своих цен и магазинов — у каждого своё", async () => {

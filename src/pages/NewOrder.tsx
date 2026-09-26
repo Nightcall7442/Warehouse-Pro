@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { trpc } from "@/providers/trpc";
 import { useInvalidateOrderCaches } from "@/hooks/useOrderCacheSync";
 import { notify } from "@/lib/toast";
@@ -220,10 +220,23 @@ export default function NewOrder() {
     Приход из корзины каталога (?fromCart=1) — как «Оформить» в мобилке:
     товары уже набраны, магазин выбирается первым шагом. Черновик прошлого
     набора здесь не поднимается — человек только что собрал заказ заново.
+
+    Признак берётся из адреса один раз, на входе в мастер. Шаги ходят по адресам без ?fromCart, и признак, читаемый заново на каждой
+    отрисовке, на «Итоге» был уже false: корзина после отправки не чистилась.
+    Агент видел полную корзину, решал, что заказ не ушёл, и оформлял его ещё
+    раз — два заказа и двойной резерв.
   */
-  const fromCart = searchParams.get("fromCart") === "1";
+  const [fromCart, setFromCart] = useState(() => searchParams.get("fromCart") === "1");
+  /*
+    Корзина кладётся в заказ один раз за показ мастера. Эффект может
+    сработать снова — StrictMode гоняет его дважды, пользователь из useAuth
+    может пропасть и вернуться, — и молча заменил бы всё, что агент добавил
+    на шаге «Товары».
+  */
+  const cartApplied = useRef(false);
   useEffect(() => {
-    if (!user || !fromCart) return;
+    if (!user || !fromCart || cartApplied.current) return;
+    cartApplied.current = true;
     const lines = loadCart(user.id);
     if (lines.length === 0) return;
     // То же исключение из правила, что у черновика ниже: корзина привязана к
@@ -257,6 +270,10 @@ export default function NewOrder() {
     setDiscount(draft.discount);
     setPaymentMethod(draft.paymentMethod);
     setPromisedAt(draft.promisedAt ?? "");
+    // Черновик из корзины: признак возвращается, чтобы корзина очистилась
+    // после отправки. Сама корзина уже лежит в черновике — второй раз её не
+    // раскладываем, иначе затёрли бы набранное после неё.
+    if (draft.fromCart) { cartApplied.current = true; setFromCart(true); }
     /* eslint-enable react-hooks/set-state-in-effect */
     notify.info(t("Продолжаем набранный заказ", "Boshlangan buyurtma tiklandi"));
     // Только на первый показ: дальше правит человек, и перезаписывать его
@@ -268,10 +285,27 @@ export default function NewOrder() {
   // браузера, отдельно откладывать её незачем.
   useEffect(() => {
     if (!user) return;
-    const draft = { shopId, shopName, items, notes, discount, paymentMethod, promisedAt };
+    const draft = { shopId, shopName, items, notes, discount, paymentMethod, promisedAt, fromCart };
     if (draftHasWork(draft)) saveDraft(user.id, draft);
     else clearDraft(user.id);
-  }, [user, shopId, shopName, items, notes, discount, paymentMethod, promisedAt]);
+  }, [user, shopId, shopName, items, notes, discount, paymentMethod, promisedAt, fromCart]);
+
+  /*
+    Цены — магазина, а не витрины.
+
+    Корзина каталога приезжает с базовой ценой карточки, а заказ сервер
+    считает по прайс-листам магазина (resolvePrices). Экран показывал одну
+    сумму, заказ создавался на другую, офлайн-запись сохраняла неверный итог.
+    Переоцениваем на отрисовке тем же запросом, что и каталог шага «Товары»
+    (тот же ключ — второго запроса нет), и заново при смене магазина. Цену в
+    мастере руками не правят — в заказ уходят только товар и количество, —
+    поэтому переоцениваются все строки: и из корзины, и из черновика.
+  */
+  const { data: shopPrices } = trpc.product.listAll.useQuery({ shopId }, { enabled: shopId > 0 });
+  const pricedItems = useMemo(() => {
+    const price = new Map((shopPrices ?? []).map(p => [p.id, String(p.unitPrice)]));
+    return items.map(i => price.has(i.productId) ? { ...i, unitPrice: price.get(i.productId)! } : i);
+  }, [items, shopPrices]);
 
 
   const invalidateOrderCaches = useInvalidateOrderCaches();
@@ -339,7 +373,7 @@ export default function NewOrder() {
         нет. Агент не видел, на сколько заказ, — а это первое, что он хочет
         знать про то, что ещё не ушло.
       */
-      const offlineTotal = items
+      const offlineTotal = pricedItems
         .filter(i => i.productId > 0 && Number(i.quantity) > 0)
         .reduce((sum, i) => sum + Number(i.unitPrice) * Number(i.quantity), 0);
 
@@ -347,6 +381,9 @@ export default function NewOrder() {
         .then(() => {
           // Заказ лёг в очередь — он больше не черновик.
           clearDraft(user.id);
+          // И корзине конец: полная корзина говорит агенту «заказ не ушёл»,
+          // он сохраняет его ещё раз, и при связи уезжают два.
+          if (fromCart) clearCart(user.id);
           notify.success(t("Заказ сохранён офлайн", "Buyurtma oflayn saqlandi"));
           const role = user?.role;
           if (role === "ceo" || role === "operator" || role === "superadmin") {
@@ -366,13 +403,13 @@ export default function NewOrder() {
 
   // Для панели снизу на шаге «Товары»: сколько позиций и на какую сумму,
   // чтобы корзину было видно, не прокручивая список до конца.
-  const validItems = items.filter(i => i.productId > 0 && Number(i.quantity) > 0);
+  const validItems = pricedItems.filter(i => i.productId > 0 && Number(i.quantity) > 0);
   const cartSubtotal = validItems.reduce((s, i) => s + Number(i.unitPrice) * Number(i.quantity), 0);
 
   const wizard: OrderWizard = {
     shopId, shopName,
     setShop: (id, name) => { setShopId(id); setShopName(name); },
-    items, setItems,
+    items: pricedItems, setItems,
     notes, setNotes,
     promisedAt, setPromisedAt,
     discount, setDiscount,

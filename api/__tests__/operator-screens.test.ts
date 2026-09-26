@@ -125,4 +125,35 @@ describe("оператор: экран зовёт только то, что се
     }
     expect(offenders, "оператору обещано то, чего сервер не отдаст:\n" + offenders.join("\n")).toEqual([]);
   });
+
+  /*
+    Прайс-листы (26.09.2026): страница /price-lists/:id и раздел настроек
+    открыты оператору, правка — operatorQuery, а list/getById/shopMap стояли
+    под supervisorQuery. Оператор жал «Создать» и попадал на FORBIDDEN.
+    Общий страж этого не видел: getById идёт с enabled: listId > 0, а
+    мутации он не смотрит. Здесь — каждый запрос и каждая мутация трёх
+    файлов против всех ролей, кого пускают маршрут и раздел «Прайс-листы».
+    Нарочная поломка: верни getById под supervisorQuery — тест падает.
+  */
+  it("прайс-листы: страница, ступени и раздел настроек зовут только то, что открыто их ролям", () => {
+    const SETTINGS = read("src/pages/Settings.tsx");
+    const section = SETTINGS.slice(SETTINGS.indexOf(`key: "prices"`)).match(/roles:\s*\[([^\]]+)\]/);
+    expect(section, "раздел «Прайс-листы» без roles").not.toBeNull();
+    const roles = new Set([...routeRoles("/price-lists/:id"), ...section![1].split(",").map(x => x.trim().replace(/["']/g, ""))]);
+    expect([...roles]).toContain("operator");
+
+    const offenders: string[] = [];
+    let seen = 0;
+    for (const file of ["src/pages/PriceListEditor.tsx", "src/components/settings/PriceListSettings.tsx", "src/components/price-lists/PriceTiers.tsx"]) {
+      for (const m of read(file).matchAll(/trpc\.(\w+)\.(\w+)\.(?:useQuery|useMutation)\(/g)) {
+        const call = `${m[1]}.${m[2]}`;
+        const kind = kindOfCall(call);
+        expect(kind, `${file}: ручка ${call} не нашлась`).not.toBeNull();
+        seen++;
+        for (const role of roles) if (!rolesOf(kind!).includes(role)) offenders.push(`${file}: ${call} (${kind}) закрыт для ${role}`);
+      }
+    }
+    expect(seen, "страж не нашёл ни одного вызова — разбор сломался").toBeGreaterThan(10);
+    expect(offenders, offenders.join("\n")).toEqual([]);
+  });
 });
