@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { resolvePrices } from "./services/price-resolver";
 import { createRouter, operatorQuery, authedQuery, managementQuery, fieldSalesQuery, can } from "./middleware";
 import { getDb } from "./queries/connection";
 import { assertProductsBelongToTenant } from "./lib/tenant-refs";
@@ -396,45 +397,20 @@ export const priceListRouter = createRouter({
         .limit(1);
       if (!shop) throw new Error("Магазин не найден");
 
-      // Find price lists assigned to this shop
-      const assignedLists = await db.select({ priceListId: priceListAssignments.priceListId })
-        .from(priceListAssignments)
-        .where(eq(priceListAssignments.shopId, input.shopId));
-
-      if (assignedLists.length === 0) {
-        // No custom price list, return default product price
-        // P2 FIX: Filter by tenant to prevent cross-tenant price leak
-        const [product] = await db.select({ unitPrice: products.unitPrice })
-          .from(products).where(and(eq(products.id, input.productId), eq(products.tenantId, ctx.tenant.id))).limit(1);
-        return { price: product?.unitPrice ?? "0", source: "default" };
-      }
-
-      // Find applicable price for this product across assigned lists (highest priority wins)
-      const listIds = assignedLists.map(l => l.priceListId);
-      const [priceItem] = await db.select({
-        price: priceListItems.price,
-        priceListId: priceListItems.priceListId,
-        minQuantity: priceListItems.minQuantity,
-        priority: priceLists.priority,
-      }).from(priceListItems)
-        .innerJoin(priceLists, eq(priceListItems.priceListId, priceLists.id))
-        .where(and(
-          eq(priceListItems.productId, input.productId),
-          sql`${priceListItems.priceListId} IN (${sql.join(listIds.map(id => sql`${id}`), sql`, `)})`,
-          eq(priceLists.isActive, true),
-          sql`${priceListItems.minQuantity} <= ${input.quantity}`,
-        ))
-        .orderBy(desc(priceLists.priority))
-        .limit(1);
-
-      if (priceItem) {
-        return { price: priceItem.price, source: `price_list_${priceItem.priceListId}` };
-      }
-
-      // Fallback to default price
-      // P2 FIX: Filter by tenant to prevent cross-tenant price leak
+      /*
+        Та же цена, что посчитает заказ: resolvePrices — ступени «от N» с
+        приоритетом списка, цена от одной штуки на любое количество, правило
+        списка «к карточке». Здесь стояла своя копия правила, и она
+        расходилась с заказом: без правила списка, без исключения для порога
+        ≤ 1, без выбора большего порога внутри одного приоритета.
+      */
       const [product] = await db.select({ unitPrice: products.unitPrice })
-        .from(products).where(and(eq(products.id, input.productId), eq(products.tenantId, ctx.tenant.id))).limit(1);
-      return { price: product?.unitPrice ?? "0", source: "default" };
+        .from(products).where(and(eq(products.id, input.productId), eq(products.tenantId, tenantId))).limit(1);
+      const card = product ? String(product.unitPrice) : "0";
+      const resolved = (await resolvePrices(db, tenantId, input.shopId, [{ productId: input.productId, quantity: input.quantity }],
+        new Map(product ? [[input.productId, card]] : []))).get(input.productId);
+      return resolved?.priceListId
+        ? { price: resolved.price, source: `price_list_${resolved.priceListId}` }
+        : { price: card, source: "default" };
     }),
 });

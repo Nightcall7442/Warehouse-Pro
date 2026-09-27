@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { PriceTier } from "@contracts/price-tiers";
 import { checkPlanLimits } from "./lib/plan-limits";
 import { s3Client, publicUrl } from "./lib/s3";
 import { isSafePhotoValue, PHOTO_VALUE_ERROR } from "./lib/photo-value";
@@ -17,7 +18,7 @@ import { existingSpelling } from "./lib/category";
 import { TRPCError } from "@trpc/server";
 import { recordAudit, auditActor, changedFields } from "./services/audit-log";
 import { defaultReorderPoint } from "./services/reorder";
-import { resolvePrices } from "./services/price-resolver";
+import { resolveCatalog } from "./services/price-resolver";
 import { invalidateReports } from "./lib/report-cache";
 
 /**
@@ -157,10 +158,12 @@ export const productRouter = createRouter({
         .orderBy(products.name)
         .limit(10000);
 
-      if (!input?.shopId) return data.map(r => ({ ...r, basePrice: r.unitPrice, priceListId: null as number | null }));
-      const priced = await resolvePrices(db, tenantId, { shopId: input.shopId, priceListId: input.priceListId ?? null },
-        data.map(r => ({ productId: Number(r.id), quantity: 1 })), new Map(data.map(r => [Number(r.id), String(r.unitPrice)])));
-      return data.map(r => { const p = priced.get(Number(r.id)); return { ...r, basePrice: r.unitPrice, unitPrice: p?.price ?? r.unitPrice, priceListId: p?.priceListId ?? null }; });
+      // tiers — ступени «от N» товара: экран выбирает по ним цену строки тем же
+      // pickTier, что и заказ (contracts/price-tiers). Без магазина ступеней нет.
+      if (!input?.shopId) return data.map(r => ({ ...r, basePrice: r.unitPrice, priceListId: null as number | null, tiers: null as PriceTier[] | null }));
+      const priced = await resolveCatalog(db, tenantId, { shopId: input.shopId, priceListId: input.priceListId ?? null },
+        new Map(data.map(r => [Number(r.id), String(r.unitPrice)])));
+      return data.map(r => { const p = priced.get(Number(r.id)); return { ...r, basePrice: r.unitPrice, unitPrice: p?.price ?? r.unitPrice, priceListId: p?.priceListId ?? null, tiers: p?.tiers ?? null }; });
       });
     }),
 
@@ -259,8 +262,8 @@ export const productRouter = createRouter({
       // renders nothing. Kept as one shape so callers get one type, with the
       // field simply absent for those who may not have it.
       const priced = input?.shopId
-        ? await resolvePrices(db, tenantId, { shopId: input.shopId, priceListId: input.priceListId ?? null },
-            data.map(r => ({ productId: Number(r.id), quantity: 1 })), new Map(data.map(r => [Number(r.id), String(r.unitPrice)])))
+        ? await resolveCatalog(db, tenantId, { shopId: input.shopId, priceListId: input.priceListId ?? null },
+            new Map(data.map(r => [Number(r.id), String(r.unitPrice)])))
         : null;
       const visible = data.map(row => {
         const r = priced?.get(Number(row.id));
@@ -270,6 +273,7 @@ export const productRouter = createRouter({
           basePrice: row.unitPrice,
           unitPrice: r?.price ?? row.unitPrice,
           priceListId: r?.priceListId ?? null,
+          tiers: r?.tiers ?? null,
         };
       });
       return { data: visible, total: Number(countResult[0]?.count ?? 0), page, pageSize };

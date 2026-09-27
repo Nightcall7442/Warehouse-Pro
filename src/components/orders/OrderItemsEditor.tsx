@@ -13,6 +13,7 @@ import {
   type EditLine, type OrderLine,
 } from "@/lib/order-item-edit";
 import { useInvalidateOrderCaches } from "@/hooks/useOrderCacheSync";
+import { priceAt } from "@contracts/price-tiers";
 import { Loader2, Plus, Trash2 } from "lucide-react";
 
 /**
@@ -104,14 +105,35 @@ export function OrderItemsEditor({ orderId, shopId, priceListId, items, onSaved 
       productName: p.name,
       quantity: "1",
       unitPrice: String(Number(p.unitPrice ?? 0)),
+      auto: true,
     }]);
     setAddId("");
   };
 
-  const subtotal = lines.reduce((s, l) => s + (Number(l.quantity) || 0) * (Number(l.unitPrice) || 0), 0);
+  /*
+    Цена новой строки — по ступени её количества.
+
+    Каталог отдаёт цену при одной штуке, а новую строку сервер считает по
+    ступени прайс-листа («от 10 — 8500»). Агент видел 10 000 за штуку, а в
+    заказ ложилось 8 500; у офиса хуже — поле цены уходит на сервер как
+    набранное, и строка на 20 штук сохранялась по цене одной, мимо ступени.
+    Поэтому новая строка идёт за ступенью тем же priceAt, что и сервер, пока
+    цену не набрали руками: набранное офисом не перезаписывается.
+
+    Строки, которые уже есть в заказе, не переоцениваются: при смене
+    количества сервер оставляет им прежнюю цену, и экран не должен обещать
+    другую.
+  */
+  const catalogById = new Map(products.map(p => [p.id, p]));
+  const priced = lines.map(l => {
+    const p = l.auto ? catalogById.get(l.productId) : undefined;
+    return p ? { ...l, unitPrice: String(Number(priceAt(String(p.unitPrice ?? 0), p.tiers, Number(l.quantity) || 0))) } : l;
+  });
+
+  const subtotal = priced.reduce((s, l) => s + (Number(l.quantity) || 0) * (Number(l.unitPrice) || 0), 0);
 
   const submit = () => {
-    const wrong = validateLines(lines);
+    const wrong = validateLines(priced);
     if (wrong) { notify.error(wrong); return; }
     /*
       Поле называется `id`, а не `orderId` — так его назвала ручка. Здесь
@@ -119,7 +141,7 @@ export function OrderItemsEditor({ orderId, shopId, priceListId, items, onSaved 
       сервер получил бы запрос без номера заказа. Приведений в вызовах ручек
       быть не должно ровно поэтому.
     */
-    save.mutate({ id: orderId, items: linesToPayload(items, lines) });
+    save.mutate({ id: orderId, items: linesToPayload(items, priced) });
   };
 
   if (!open) {
@@ -147,7 +169,7 @@ export function OrderItemsEditor({ orderId, shopId, priceListId, items, onSaved 
       </p>
 
       <div className="space-y-2">
-        {lines.map(l => (
+        {priced.map(l => (
           <div key={l.key} className="flex items-center gap-2 flex-wrap">
             <span className="flex-1 truncate text-sm text-primary" style={{ minWidth: "140px" }}>
               {l.productName}
@@ -168,7 +190,7 @@ export function OrderItemsEditor({ orderId, shopId, priceListId, items, onSaved 
             {canEditPrice ? (
               <DecimalInput
                 value={l.unitPrice}
-                onValueChange={v => patch(l.key, { unitPrice: normalizeDecimalInput(v) })}
+                onValueChange={v => patch(l.key, { unitPrice: normalizeDecimalInput(v), auto: false })}
                 inputMode="decimal"
                 aria-label={t(`Цена: ${l.productName}`, `Narx: ${l.productName}`)}
                 className="neo-input text-right"

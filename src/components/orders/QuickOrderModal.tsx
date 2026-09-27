@@ -10,6 +10,7 @@ import { useTranslate } from "@/i18n";
 import { useAuth } from "@/hooks/useAuth";
 import { useCurrency } from "@/hooks/useCurrency";
 import { colorMix } from "@/lib/color-mix";
+import { priceAt } from "@contracts/price-tiers";
 
 interface CartItem {
   productId: number;
@@ -161,9 +162,15 @@ export function QuickOrderModal({ open, onOpenChange, preselectedShopId, initial
   const { data: productsData } = trpc.product.listAll.useQuery({ search: productSearch || undefined, shopId, priceListId: effectivePriceListId });
   // Корзина переценивается вслед за списком на отрисовке: цены — из того же
   // ответа, что и каталог; в заказ уходят только товар и количество.
+  // Цена — по ступени количества строки («от 10 — 8500»), тем же priceAt,
+  // что и сервер: каталог отдаёт цену при одной штуке, а заказ считается по
+  // ступени, и «Итого» расходилось с накладной.
   const { data: pricedAll } = trpc.product.listAll.useQuery({ shopId, priceListId: effectivePriceListId }, { enabled: open && !!shopId && cart.length > 0 });
-  const priceOf = useMemo(() => new Map((pricedAll ?? []).map(p => [p.id, Number(p.unitPrice)])), [pricedAll]);
-  const pricedCart = useMemo(() => cart.map(c => priceOf.has(c.productId) ? { ...c, unitPrice: priceOf.get(c.productId)! } : c), [cart, priceOf]);
+  const catalogOf = useMemo(() => new Map((pricedAll ?? []).map(p => [p.id, p])), [pricedAll]);
+  const pricedCart = useMemo(() => cart.map(c => {
+    const p = catalogOf.get(c.productId);
+    return p ? { ...c, unitPrice: Number(priceAt(String(p.unitPrice), p.tiers, c.quantity)) } : c;
+  }), [cart, catalogOf]);
 
 
   const filteredShops = useMemo(() => {
@@ -442,7 +449,8 @@ export function QuickOrderModal({ open, onOpenChange, preselectedShopId, initial
                     <span className="min-w-0">
                       <span className="block text-sm font-medium truncate" style={{ color: "var(--color-text-primary)" }}>{p.name}</span>
                       <span className="block text-xs" style={{ color: "var(--color-text-tertiary)" }}>
-                        {p.code} · {Number(p.unitPrice).toLocaleString("ru")} {currency}
+                        {/* В корзине — цена строки (по ступени), как справа; иначе — цена одной штуки. */}
+                        {p.code} · {(pricedCart.find(c => c.productId === p.id)?.unitPrice ?? Number(p.unitPrice)).toLocaleString("ru")} {currency}
                         {" · "}
                         <span style={{ color: free <= 0 ? "var(--color-danger-text)" : undefined }}>
                           {t("свободно", "bo'sh")} {free}

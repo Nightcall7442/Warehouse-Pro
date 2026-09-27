@@ -23,15 +23,25 @@ import { addToCart, loadCart } from "@/lib/catalog-cart";
  *   · убери cartApplied — «пользователь пропал и вернулся…»;
  *   · отдай шагам items вместо pricedItems — «строки из корзины
  *     переоцениваются…»; офлайн-итог по items — «офлайн: …итог — по ценам
- *     магазина».
+ *     магазина»;
+ *   · верни pricedItems цену при одной штуке (p.unitPrice без priceAt) —
+ *     «количество перешло ступень…».
  */
 
 const h = vi.hoisted(() => {
   // Прайс магазина — как вернёт product.listAll({ shopId }): 7 у магазина 5
-  // дешевле карточки, у магазина 6 — дороже.
-  const prices: Record<number, Array<{ id: number; unitPrice: string }>> = {
-    5: [{ id: 7, unitPrice: "10000.00" }, { id: 8, unitPrice: "3000.00" }],
-    6: [{ id: 7, unitPrice: "13000.00" }, { id: 8, unitPrice: "3000.00" }],
+  // дешевле карточки и со ступенью «от 10 — 8500», у магазина 6 — дороже и
+  // без ступеней.
+  type Tier = { minQuantity: string; price: string; priority: number };
+  const prices: Record<number, Array<{ id: number; unitPrice: string; tiers: Tier[] | null }>> = {
+    5: [
+      { id: 7, unitPrice: "10000.00", tiers: [
+        { minQuantity: "1.00", price: "10000.00", priority: 0 },
+        { minQuantity: "10.00", price: "8500.00", priority: 0 },
+      ] },
+      { id: 8, unitPrice: "3000.00", tiers: null },
+    ],
+    6: [{ id: 7, unitPrice: "13000.00", tiers: null }, { id: 8, unitPrice: "3000.00", tiers: null }],
   };
   return {
     prices,
@@ -89,7 +99,12 @@ vi.mock("@/components/orders", async () => {
       el("output", { "data-testid": "lines" }, lines(items)),
       el("button", {
         onClick: () => onChange([...items, { productId: 8, productName: "Сок", unitPrice: "3000.00", quantity: "1", available: "9", unit: "pcs", unitWeight: 1 }]),
-      }, "add-8")),
+      }, "add-8"),
+      // Количество молока, как его набирают в корзине. Строки приходят сюда
+      // уже переоцененными — и уходят обратно с той ценой, что была.
+      ...["2", "12"].map(q => el("button", {
+        key: q, onClick: () => onChange(items.map(i => i.productId === 7 ? { ...i, quantity: q } : i)),
+      }, `qty-7-${q}`))),
     OrderReview: ({ items }: { items: OrderItem[] }) => el("output", { "data-testid": "review" }, lines(items)),
   };
 });
@@ -259,5 +274,57 @@ describe("цены магазина, а не витрины", () => {
     expect(screen.getByTestId("lines").textContent, "после смены магазина осталась цена прежнего").toBe("7×2@13000.00");
     next();
     expect(screen.getByTestId("review").textContent).toBe("7×2@13000.00");
+  });
+});
+describe("ступени: цена строки — при её количестве", () => {
+  it("количество перешло ступень — строка, панель снизу, «Итог» и офлайн-итог по ступени", () => {
+    vi.spyOn(navigator, "onLine", "get").mockReturnValue(false);
+    render(tree());
+    click("shop-5"); next();
+    expect(screen.getByTestId("lines").textContent).toBe("7×2@10000.00");
+    expect(screen.getByTestId("open-cart").textContent).toContain("20000.00");
+
+    click("qty-7-12");
+    expect(screen.getByTestId("lines").textContent, "12 штук посчитаны по цене одной, мимо ступени «от 10»").toBe("7×12@8500.00");
+    expect(screen.getByTestId("open-cart").textContent).toContain("102000.00");
+
+    // Обратно ниже порога: строка пришла назад с ценой ступени — она не должна
+    // прилипнуть, цена берётся из каталога заново.
+    click("qty-7-2");
+    expect(screen.getByTestId("lines").textContent, "цена ступени прилипла к строке").toBe("7×2@10000.00");
+
+    click("qty-7-12"); next();
+    expect(screen.getByTestId("review").textContent, "«Итог» не по ступени").toBe("7×12@8500.00");
+    next();
+    const [record] = h.savePendingOrder.mock.calls[0] as [{ total: number }];
+    expect(record.total, "офлайн-итог по цене одной штуки, а заказ уйдёт по ступени").toBe(102000);
+  });
+
+  it("ступень не оседает в черновике: после перезагрузки без каталога строка на 2 шт — по цене одной штуки", () => {
+    /*
+      Шаги получают строки уже по ступени, и +/− возвращал их в состояние —
+      8 500 ложилось в черновик. Без связи после перезагрузки каталога нет,
+      и 2 шт считались бы по 8 500: офлайн-итог 17 000 при серверных 20 000.
+    */
+    render(tree());
+    click("shop-5"); next();
+    click("qty-7-12");
+    // Строка уже показана по ступени; следующее изменение состава возвращает её в состояние.
+    click("add-8");
+    const draft = JSON.parse(localStorage.getItem("warehouse_pro_order_draft:1") ?? "null") as { items: Array<{ productId: number; quantity: string; unitPrice: string }> };
+    const line = draft.items.find(i => i.productId === 7)!;
+    expect(line.quantity).toBe("12");
+    expect(line.unitPrice, "цена ступени легла в черновик").toBe("10000.00");
+  });
+
+  it("смена магазина переоценивает и ступень: у магазина 6 её нет", () => {
+    render(tree());
+    click("shop-5"); next();
+    click("qty-7-12");
+    expect(screen.getByTestId("lines").textContent).toBe("7×12@8500.00");
+
+    back();
+    click("shop-6"); next();
+    expect(screen.getByTestId("lines").textContent, "ступень прежнего магазина осталась").toBe("7×12@13000.00");
   });
 });
