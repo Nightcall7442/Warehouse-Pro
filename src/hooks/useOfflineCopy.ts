@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { saveOfflineCopy, loadOfflineCopy, currentOwnerId, type OfflineKind } from "@/lib/offline-copy";
+import type { PriceTier } from "@contracts/price-tiers";
 
 /**
  * Данные с сервера, а без связи — отложенная копия.
@@ -18,12 +19,15 @@ import { saveOfflineCopy, loadOfflineCopy, currentOwnerId, type OfflineKind } fr
  * собой и то и другое, и тесты на выдвижную корзину падали с «useNavigate
  * может использоваться только внутри Router». Проверено.
  */
-export function useOfflineCopy<T>(kind: OfflineKind, live: T | undefined): {
+export function useOfflineCopy<T>(kind: OfflineKind, live: T | undefined, scope?: number): {
   data: T | undefined;
   fromCopy: boolean;
   savedAt: string | null;
 } {
-  const [copy, setCopy] = useState<{ data: T; savedAt: string } | null>(null);
+  // Копия помнит, чья она: после смены магазина прежняя не должна мелькнуть
+  // ни на одну отрисовку, пока эффект не прочтёт новую.
+  const tag = `${kind}.${scope ?? ""}`;
+  const [copy, setCopy] = useState<{ tag: string; data: T; savedAt: string } | null>(null);
 
   /*
     Копия читается один раз: она нужна лишь как запасной путь, а живые данные
@@ -35,9 +39,9 @@ export function useOfflineCopy<T>(kind: OfflineKind, live: T | undefined): {
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     const owner = currentOwnerId();
-    if (owner == null) { setCopy(null); return; }
-    setCopy(loadOfflineCopy<T>(kind, owner));
-  }, [kind]);
+    const found = owner == null ? null : loadOfflineCopy<T>(kind, owner, scope);
+    setCopy(found && { tag: `${kind}.${scope ?? ""}`, ...found });
+  }, [kind, scope]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
   // Пришли живые — откладываем. Пустой ответ не откладываем: он затёр бы
@@ -47,10 +51,33 @@ export function useOfflineCopy<T>(kind: OfflineKind, live: T | undefined): {
     if (Array.isArray(live) && live.length === 0) return;
     const owner = currentOwnerId();
     if (owner == null) return;
-    saveOfflineCopy(kind, owner, live);
-  }, [kind, live]);
+    saveOfflineCopy(kind, owner, live, scope);
+  }, [kind, live, scope]);
 
   if (live !== undefined) return { data: live, fromCopy: false, savedAt: null };
-  if (copy) return { data: copy.data, fromCopy: true, savedAt: copy.savedAt };
+  if (copy && copy.tag === tag) return { data: copy.data, fromCopy: true, savedAt: copy.savedAt };
   return { data: undefined, fromCopy: false, savedAt: null };
+}
+
+/** Цена товара у магазина: при одной штуке и ступени «от N». */
+export type ShopPrice = { id: number; unitPrice: string; tiers: PriceTier[] | null };
+
+/**
+ * Цены магазина: живые из product.listAll({ shopId }), а без связи — копия
+ * ЭТОГО магазина.
+ *
+ * Мастер заказа брал цены только из живого ответа. После перезагрузки без
+ * связи его нет, и строки, «Итог» и офлайн-итог шли по цене одной штуки мимо
+ * ступеней — сервер потом насчитывал другую сумму.
+ *
+ * В копию — только то, чем считается цена: каталог целиком на каждый магазин
+ * переполнил бы хранилище, а имена и остатки лежат в общей копии каталога.
+ * Без магазина (shopId 0) не читает и не пишет ничего.
+ */
+export function useShopPrices(shopId: number | undefined, live: readonly ShopPrice[] | undefined) {
+  const prices = useMemo(
+    () => shopId && live ? live.map(p => ({ id: p.id, unitPrice: String(p.unitPrice), tiers: p.tiers ?? null })) : undefined,
+    [shopId, live],
+  );
+  return useOfflineCopy<ShopPrice[]>("shopPrices", prices, shopId || 0);
 }

@@ -4,6 +4,7 @@ import { render, screen, fireEvent, cleanup, waitFor } from "@testing-library/re
 import { MemoryRouter, Routes, Route, useLocation } from "react-router";
 import type { OrderItem } from "@/components/orders/types";
 import { addToCart, loadCart } from "@/lib/catalog-cart";
+import { setSessionOwner } from "@/lib/offline-copy";
 
 /**
  * Заказ из корзины каталога — настоящий мастер NewOrder, а не текст файла.
@@ -25,7 +26,11 @@ import { addToCart, loadCart } from "@/lib/catalog-cart";
  *     переоцениваются…»; офлайн-итог по items — «офлайн: …итог — по ценам
  *     магазина»;
  *   · верни pricedItems цену при одной штуке (p.unitPrice без priceAt) —
- *     «количество перешло ступень…».
+ *     «количество перешло ступень…»;
+ *   · верни каталогу NewOrder только живой ответ (без useShopPrices) —
+ *     «перезагрузка без связи: …по ступени из копии этого магазина»;
+ *   · сделай ключ копии общим для всех магазинов (keyFor без scope) —
+ *     «без связи копия другого магазина не берётся».
  */
 
 const h = vi.hoisted(() => {
@@ -50,6 +55,8 @@ const h = vi.hoisted(() => {
     onSuccess: null as null | ((r: { held: boolean }) => void),
     savePendingOrder: vi.fn(),
     info: [] as string[],
+    // Нет связи: сервер не отвечает, живого каталога нет.
+    offline: false,
   };
 });
 
@@ -59,7 +66,7 @@ vi.mock("@/providers/trpc", () => ({
     product: {
       listAll: {
         useQuery: (input?: { shopId?: number }, opts?: { enabled?: boolean }) =>
-          ({ data: opts?.enabled === false || !input?.shopId ? undefined : h.prices[input.shopId] }),
+          ({ data: h.offline || opts?.enabled === false || !input?.shopId ? undefined : h.prices[input.shopId] }),
       },
     },
     order: {
@@ -142,6 +149,9 @@ const where = () => screen.getByTestId("where").textContent;
 
 beforeEach(() => {
   localStorage.clear();
+  // Владельца копий кладёт настоящий useAuth, здесь он подменён.
+  setSessionOwner(1);
+  h.offline = false;
   h.user = { id: 1, role: "agent", name: "Агент" };
   h.sent = [];
   h.info = [];
@@ -326,5 +336,63 @@ describe("ступени: цена строки — при её количест
     back();
     click("shop-6"); next();
     expect(screen.getByTestId("lines").textContent, "ступень прежнего магазина осталась").toBe("7×12@13000.00");
+  });
+});
+
+describe("без связи после перезагрузки — цены из копии этого магазина", () => {
+  const reload = () => {
+    cleanup();
+    render(
+      <MemoryRouter initialEntries={["/orders/new/items"]}>
+        <Where />
+        <Routes>
+          <Route path="/orders/new" element={<NewOrder />}>
+            <Route index element={<NewOrderShopStep />} />
+            <Route path="items" element={<NewOrderItemsStep />} />
+            <Route path="review" element={<NewOrderReviewStep />} />
+          </Route>
+          <Route path="*" element={<div>вне мастера</div>} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    if (where() === "/orders/new") next();
+  };
+
+  it("перезагрузка без связи: строки, панель, «Итог» и офлайн-итог — по ступени из копии этого магазина", () => {
+    render(tree());
+    click("shop-5"); next();
+    click("qty-7-12");
+    click("add-8");
+    expect(screen.getByTestId("lines").textContent).toBe("7×12@8500.00 8×1@3000.00");
+
+    // Связь пропала, вкладку перезагрузили: живого каталога нет.
+    h.offline = true;
+    vi.spyOn(navigator, "onLine", "get").mockReturnValue(false);
+    reload();
+    expect(screen.getByTestId("lines").textContent, "после перезагрузки 12 штук снова по цене одной").toBe("7×12@8500.00 8×1@3000.00");
+    expect(screen.getByTestId("open-cart").textContent).toContain("105000.00");
+    next();
+    expect(screen.getByTestId("review").textContent).toBe("7×12@8500.00 8×1@3000.00");
+    next();
+    const [record] = h.savePendingOrder.mock.calls[0] as [{ total: number }];
+    expect(record.total, "офлайн-итог по цене одной штуки, а заказ уйдёт по ступени").toBe(105000);
+  });
+
+  it("без связи копия другого магазина не берётся", () => {
+    // Магазин 5 открывали при связи — его цены лежат копией.
+    render(tree());
+    click("shop-5"); next();
+    expect(screen.getByTestId("lines").textContent).toBe("7×2@10000.00");
+    cleanup();
+
+    // Без связи — магазин 6: его копии нет, строка остаётся с той ценой, с
+    // которой пришла (карточка), а не с ценой и ступенью магазина 5.
+    h.offline = true;
+    vi.spyOn(navigator, "onLine", "get").mockReturnValue(false);
+    render(tree());
+    click("shop-6"); next();
+    expect(screen.getByTestId("lines").textContent, "магазину 6 достались цены магазина 5").toBe("7×2@12000.00");
+    click("qty-7-12");
+    expect(screen.getByTestId("lines").textContent, "магазину 6 досталась ступень магазина 5").toBe("7×12@12000.00");
   });
 });
