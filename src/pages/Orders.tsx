@@ -18,7 +18,8 @@ import {
   CheckSquare, Square, LayoutGrid, Table as TableIcon, Eye, Users,
   RefreshCw, Truck, ClipboardList,
 } from "lucide-react";
-import { format, startOfMonth } from "date-fns";
+import { format } from "date-fns";
+import { ordersQuery, exportTitle } from "@/lib/orders-query";
 import { dateLocale } from "@/lib/date-locale";
 import { exportToExcel, formatOrdersForExport } from "@/lib/excel";
 import { QueryErrorFallback } from "@/components/QueryErrorFallback";
@@ -84,8 +85,9 @@ function OperatorOrders() {
     setDebouncedSearch(value);
     setPage(1);
   }, []);
-  const [dateFrom, setDateFrom] = useState(format(startOfMonth(new Date()), "yyyy-MM-dd"));
-  const [dateTo, setDateTo] = useState(format(new Date(), "yyyy-MM-dd"));
+  // Пусто — человек даты не выбирал: работа без периода, архив — за месяц (lib/orders-query).
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   const isMobile            = useIsMobile();
   const navigate            = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -201,35 +203,25 @@ function OperatorOrders() {
   const { data: agentsData } = trpc.user.list.useQuery({ role: "agent", pageSize: 200 }, { enabled: isOperatorOrCeo });
   const { data: couriersData } = trpc.user.list.useQuery({ role: "courier", pageSize: 100 }, { enabled: isOperatorOrCeo });
 
-  // Apply chip filters to date range
-  const effectiveDateFrom = useMemo(() => {
-    if (chipFilters.datePreset === "today") return format(new Date(), "yyyy-MM-dd");
-    if (chipFilters.datePreset === "yesterday") { const d = new Date(); d.setDate(d.getDate() - 1); return format(d, "yyyy-MM-dd"); }
-    if (chipFilters.datePreset === "week") { const d = new Date(); d.setDate(d.getDate() - d.getDay()); return format(d, "yyyy-MM-dd"); }
-    if (chipFilters.datePreset === "month") return format(startOfMonth(new Date()), "yyyy-MM-dd");
-    return dateFrom;
-  }, [chipFilters.datePreset, dateFrom]);
-  const effectiveDateTo = useMemo(() => {
-    if (chipFilters.datePreset) return format(new Date(), "yyyy-MM-dd");
-    return dateTo;
-  }, [chipFilters.datePreset, dateTo]);
-  // «Ждут расчёта» — не статус, а очередь: доставлены, деньги офис ещё не принял.
-  const awaitingMoney = status === "money";
-  const effectiveStatus = chipFilters.status ?? (awaitingMoney ? "" : status);
-  const effectivePaymentMethod = chipFilters.paymentMethod;
+  // Одна сводка того, что выбрано на экране; запросы страницы строит lib/orders-query.
+  const view = useMemo(() => ({
+    section, status, chips: chipFilters, dateFrom, dateTo,
+    search: debouncedSearch, agentIds: agentFilter.map(Number),
+  }), [section, status, chipFilters, dateFrom, dateTo, debouncedSearch, agentFilter]);
+  const q = useMemo(() => ordersQuery(view), [view]);
+  /*
+    Поле даты показывает то, что применено к таблице. Тронул поле — чип
+    периода снимается: иначе на экране одни даты, а таблица по другим.
+  */
+  const pickDate = (set: (v: string) => void, value: string) => {
+    set(value);
+    if (chipFilters.datePreset) setChipFilters(prev => ({ ...prev, datePreset: undefined }));
+    setPage(1);
+  };
 
   const { data, isLoading, isLoadingError, refetch } = trpc.order.list.useQuery({
     page, pageSize: 25,
-    search: debouncedSearch || undefined,
-    status: (effectiveStatus || undefined) as "new" | "processing" | "shipped" | "pending" | "delivered" | "cancelled" | "returned" | undefined,
-    // Always scoped to the open tab; a status filter now narrows within it
-    // rather than replacing it, so the archive keeps showing archive content.
-    archived: section === "archive",
-    dateFrom: effectiveDateFrom || undefined,
-    dateTo: effectiveDateTo || undefined,
-    paymentMethod: effectivePaymentMethod as "cash" | "card" | "transfer" | "debt" | undefined,
-    agentIds: agentFilter.length > 0 ? agentFilter.map(Number) : undefined,
-    awaitingMoney: awaitingMoney || undefined,
+    ...q.list,
   }, {
     // Прошлый список остаётся на экране, пока грузится новый: без этого
     // смена запроса обнуляет data, и страница падает в скелетон на каждый
@@ -237,21 +229,29 @@ function OperatorOrders() {
     placeholderData: keepPreviousData,
   });
 
-  const { refetch: refetchAllOrders } = trpc.order.list.useQuery(
-    { page: 1, pageSize: 5000, showDeleted: false, dateFrom: dateFrom || undefined, dateTo: dateTo || undefined },
-    { enabled: false }
-  );
+  /*
+    Выгрузка — те же условия, что у таблицы, и только по нажатию.
+
+    Раньше отдельный запрос на 5000 строк знал лишь два поля дат: файл уносил
+    месяц, пока таблица показывала «Сегодня», «Ждут расчёта» или одного агента.
+    Удалённые заказы в архиве видны строкой-призраком, но в бумагу не идут:
+    итог по ним — выдумка (так было и прежде).
+  */
+  const fetchShown = useCallback(async () => {
+    const r = await utils.client.order.list.query({ ...q.list, page: 1, pageSize: 5000 });
+    return r.data.filter(o => !o.deletedAt);
+  }, [utils, q.list]);
+  /** Отмеченные галочками — по номерам, где бы они ни были: на другой странице, за другим периодом. */
+  const fetchSelected = useCallback(async (ids: number[]) => {
+    const r = await utils.client.order.list.query({ ids, page: 1, pageSize: Math.min(ids.length, 5000) });
+    return r.data;
+  }, [utils]);
 
   // ── "By agent" view ────────────────────────────────────────────────────────
   // Both queries share the page's own date/section filters so the grouping
   // always describes the same slice of work the other views show.
   const { data: agentSummary, isLoading: agentsLoading } = trpc.order.agentSummary.useQuery(
-    {
-      dateFrom: effectiveDateFrom || undefined,
-      dateTo: effectiveDateTo || undefined,
-      archived: section === "archive",
-      search: debouncedSearch || undefined,
-    },
+    q.agentSummary,
     // Also feeds the "Агент" filter in the toolbar, so it stays loaded in
     // every view — not just the by-agent one.
     { enabled: isOperatorOrCeo },
@@ -269,10 +269,7 @@ function OperatorOrders() {
       page: 1,
       pageSize: 200,
       agentId: expandedAgentId ?? undefined,
-      archived: section === "archive",
-      dateFrom: effectiveDateFrom || undefined,
-      dateTo: effectiveDateTo || undefined,
-      search: debouncedSearch || undefined,
+      ...q.agentSummary,
     },
     { enabled: viewMode === "agents" && expandedAgentId !== null },
   );
@@ -399,15 +396,15 @@ function OperatorOrders() {
   });
 
   const handleExport = useCallback(async () => {
-    const result = await refetchAllOrders();
+    const rows = await fetchShown();
     // Пустой набор уходит в выгрузку, а не отсекается здесь: она называет его
     // отказом словами, а тихий выход неотличим от сломанной кнопки.
-    await exportToExcel(formatOrdersForExport(result.data?.data ?? []), `orders-${dateFrom}-${dateTo}`, "Заказы", `Заказы ${dateFrom} — ${dateTo}`);
-  }, [refetchAllOrders, dateFrom, dateTo]);
+    await exportToExcel(formatOrdersForExport(rows), `orders-${q.shown.dateFrom || "all"}-${q.shown.dateTo || "now"}`, "Заказы", exportTitle(view, q.list));
+  }, [fetchShown, view, q]);
 
   const handleExportPDF = useCallback(async () => {
-    const result = await refetchAllOrders();
-    if (!result.data?.data) return;
+    const rows = await fetchShown();
+    const title = exportTitle(view, q.list);
     const fmtNum = (n: number) => n.toLocaleString("ru");
     /*
       Три вещи, из-за которых эту выгрузку нельзя было никому отдать.
@@ -423,17 +420,17 @@ function OperatorOrders() {
       колонки, а не у каждого числа.
     */
     const cur = escapeHtml(symbol);
-    let html = `<div class="section"><h2>Заказы за ${escapeHtml(dateFrom)} — ${escapeHtml(dateTo)}</h2>
+    let html = `<div class="section"><h2>${escapeHtml(title)}</h2>
       <table><thead><tr><th>№</th><th>Дата</th><th>Магазин</th><th>Агент</th><th>Статус</th><th class="right">Сумма, ${cur}</th></tr></thead><tbody>`;
-    for (const o of result.data.data) {
+    for (const o of rows) {
       const dateStr = o.createdAt ? format(new Date(o.createdAt), "dd.MM.yyyy") : "—";
       html += `<tr><td>${escapeHtml(o.orderNumber)}</td><td>${dateStr}</td><td>${escapeHtml(o.shopName ?? "—")}</td><td>${escapeHtml(o.agentName ?? "—")}</td><td>${escapeHtml(labelled(ORDER_STATUS_LABEL, o.status))}</td><td class="right bold">${fmtNum(Number(o.total ?? 0))}</td></tr>`;
     }
     html += `</tbody></table></div>`;
-    const total = result.data.data.reduce((s: number, o: { total?: string | null }) => s + Number(o.total ?? 0), 0);
-    html += `<div style="margin-top:16px;text-align:right;font-size:14px;font-weight:700">Итого: ${fmtNum(total)} ${cur} · ${result.data.data.length} заказов</div>`;
-    exportToPDF(`Заказы ${dateFrom} — ${dateTo}`, html);
-  }, [refetchAllOrders, dateFrom, dateTo, symbol]);
+    const total = rows.reduce((s: number, o: { total?: string | null }) => s + Number(o.total ?? 0), 0);
+    html += `<div style="margin-top:16px;text-align:right;font-size:14px;font-weight:700">Итого: ${fmtNum(total)} ${cur} · ${rows.length} заказов</div>`;
+    exportToPDF(title, html);
+  }, [fetchShown, view, q.list, symbol]);
 
   const allVisibleIds = useMemo(() => (data?.data ?? []).map(o => o.id as number), [data]);
   const allSelected = allVisibleIds.length > 0 && allVisibleIds.every(id => selected.has(id));
@@ -461,25 +458,19 @@ function OperatorOrders() {
   }, [allSelected, allVisibleIds, setSelected]);
 
   const handleExportSelected = useCallback(async () => {
-    const result = await refetchAllOrders();
-    if (!result.data?.data) return;
-    const rows = result.data.data.filter((o: { id: number }) => selected.has(o.id));
+    if (selected.size === 0) return;
+    const rows = await fetchSelected([...selected]);
     if (rows.length === 0) return;
     await exportToExcel(formatOrdersForExport(rows), `orders-selected`, "Заказы", `Выбранные заказы`);
-  }, [refetchAllOrders, selected]);
+  }, [fetchSelected, selected]);
 
   /* ─── Server-side KPI stats (all orders matching filters) ─── */
-  const { data: stats } = trpc.order.stats.useQuery({
-    dateFrom: effectiveDateFrom || undefined,
-    dateTo: effectiveDateTo || undefined,
-    status: effectiveStatus || undefined,
-    paymentMethod: effectivePaymentMethod || undefined,
-    search: debouncedSearch || undefined,
-    // The tiles have to describe the same slice the table below them shows.
-    // They previously ignored the agent filter entirely, so narrowing to one
-    // agent left the totals reading for the whole company.
-    agentIds: agentFilter.length > 0 ? agentFilter.map(Number) : undefined,
-  });
+  // The tiles have to describe the same slice the table below them shows —
+  // agent filter, search and payment chip included. Очереди и отчёт — два
+  // запроса: у очереди нет периода по умолчанию, у отчёта он есть. Выбран
+  // период явно — входы совпадают, и запрос уходит один.
+  const { data: stats } = trpc.order.stats.useQuery(q.reportStats);
+  const { data: queue } = trpc.order.stats.useQuery(q.queueStats);
 
   /**
    * Cells whose own controls must not also open the order page.
@@ -700,15 +691,15 @@ function OperatorOrders() {
             {t("Управление заказами и отслеживание статусов", "Buyurtmalarni boshqarish va holatni kuzatish")}
             {data && (
               <span style={{ marginLeft: "8px", fontSize: "12px", color: COLORS.textTertiary }}>
-                {data.total} {t("за период", "davr uchun")}
+                {data.total} {q.list.dateFrom || q.list.dateTo ? t("за период", "davr uchun") : t("в работе", "ishda")}
               </span>
             )}
           </p>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
-          <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} style={{ padding: "6px 10px", borderRadius: "8px", border: `1px solid ${COLORS.border}`, fontSize: "12px", fontFamily: F.body, color: COLORS.textPrimary, background: COLORS.surface }} />
+          <input type="date" value={q.shown.dateFrom} onChange={e => pickDate(setDateFrom, e.target.value)} style={{ padding: "6px 10px", borderRadius: "8px", border: `1px solid ${COLORS.border}`, fontSize: "12px", fontFamily: F.body, color: COLORS.textPrimary, background: COLORS.surface }} />
           <span style={{ color: COLORS.textTertiary, fontSize: "12px" }}>—</span>
-          <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} style={{ padding: "6px 10px", borderRadius: "8px", border: `1px solid ${COLORS.border}`, fontSize: "12px", fontFamily: F.body, color: COLORS.textPrimary, background: COLORS.surface }} />
+          <input type="date" value={q.shown.dateTo} onChange={e => pickDate(setDateTo, e.target.value)} style={{ padding: "6px 10px", borderRadius: "8px", border: `1px solid ${COLORS.border}`, fontSize: "12px", fontFamily: F.body, color: COLORS.textPrimary, background: COLORS.surface }} />
           <button onClick={handleExport} style={{
             display: "flex", alignItems: "center", gap: "6px", padding: "8px 14px",
             fontSize: "13px", fontWeight: 500, fontFamily: F.body, borderRadius: "10px",
@@ -774,12 +765,12 @@ function OperatorOrders() {
       <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
         {([
           { key: "", n: stats?.total ?? 0, ru: "Всего", uz: "Jami", icon: <ShoppingCart size={13} />, tone: undefined },
-          { key: "pending", n: stats?.pendingCount ?? 0, ru: "Ожидает", uz: "Kutishda", icon: <Clock size={13} />, tone: (stats?.pendingCount ?? 0) > 0 ? "warning" : undefined },
-          { key: "new", n: stats?.newCount ?? 0, ru: "Новые", uz: "Yangi", icon: <Clock size={13} />, tone: undefined },
-          { key: "processing", n: stats?.processingCount ?? 0, ru: "В обработке", uz: "Jarayonda", icon: <RefreshCw size={13} />, tone: undefined },
-          { key: "shipped", n: stats?.shippedCount ?? 0, ru: "Отгружены", uz: "Yuklandi", icon: <Truck size={13} />, tone: undefined },
+          { key: "pending", n: queue?.pendingCount ?? 0, ru: "Ожидает", uz: "Kutishda", icon: <Clock size={13} />, tone: (queue?.pendingCount ?? 0) > 0 ? "warning" : undefined },
+          { key: "new", n: queue?.newCount ?? 0, ru: "Новые", uz: "Yangi", icon: <Clock size={13} />, tone: undefined },
+          { key: "processing", n: queue?.processingCount ?? 0, ru: "В обработке", uz: "Jarayonda", icon: <RefreshCw size={13} />, tone: undefined },
+          { key: "shipped", n: queue?.shippedCount ?? 0, ru: "Отгружены", uz: "Yuklandi", icon: <Truck size={13} />, tone: undefined },
           { key: "delivered", n: stats?.deliveredCount ?? 0, ru: "Доставлены", uz: "Yetkazildi", icon: <CheckCircle2 size={13} />, tone: undefined },
-          { key: "money", n: stats?.awaitingMoneyCount ?? 0, ru: "Ждут расчёта", uz: "Hisob-kitob kutmoqda", icon: <Wallet size={13} />, tone: (stats?.awaitingMoneyCount ?? 0) > 0 ? "warning" : undefined },
+          { key: "money", n: queue?.awaitingMoneyCount ?? 0, ru: "Ждут расчёта", uz: "Hisob-kitob kutmoqda", icon: <Wallet size={13} />, tone: (queue?.awaitingMoneyCount ?? 0) > 0 ? "warning" : undefined },
           { key: "cancelled", n: stats?.cancelledCount ?? 0, ru: "Отменены", uz: "Bekor", icon: <XCircle size={13} />, tone: undefined },
         ] as const).map(s => {
           const active = status === s.key;
@@ -1198,8 +1189,7 @@ function OperatorOrders() {
         // shop's debt the moment they were created — completing them here
         // doesn't add to that debt, but it doesn't clear it either, so the
         // operator needs to know which of their selection will still be owed.
-        const allResult = await refetchAllOrders();
-        const selectedRows = (allResult.data?.data ?? []).filter((o: { id: number }) => selected.has(o.id));
+        const selectedRows = await fetchSelected(ids);
         const debtRows = selectedRows.filter((o: { paymentMethod?: string }) => o.paymentMethod === "debt");
         const debtTotal = debtRows.reduce((s: number, o: { total: string }) => s + Number(o.total), 0);
 

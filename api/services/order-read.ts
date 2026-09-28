@@ -13,7 +13,16 @@ import { couriers, viewerScope } from "./order-shared";
   звёздочкой это ловил бы только тест; без неё не собирается сборка.
 */
 export async function list(db: Db, tenantId: number, filters: Record<string, unknown>, viewer: OrderViewer) {
-  const f = filters as { status?: string; archived?: boolean; agentId?: number; agentIds?: number[]; page?: number; pageSize?: number; search?: string; showDeleted?: boolean; dateFrom?: string; dateTo?: string; paymentMethod?: string; awaitingMoney?: boolean };
+  const f = filters as { status?: string; archived?: boolean; agentId?: number; agentIds?: number[]; ids?: number[]; page?: number; pageSize?: number; search?: string; showDeleted?: boolean; dateFrom?: string; dateTo?: string; paymentMethod?: string; awaitingMoney?: boolean };
+  /*
+    «Ждут расчёта» — очередь поперёк вкладок: доставленный заказ по статусу
+    архивный, а деньги по нему ещё в поле. Экран шлёт очередь вместе с
+    вкладкой «Активные», и пересечение «открытые И доставленные» было пустым
+    всегда: плитка говорила «3», таблица — «Нет заказов», ссылка из
+    «Контроля» вела в пустоту. Очередь сама задаёт свой набор — вкладку
+    она не сужает.
+  */
+  const archived = f.awaitingMoney ? undefined : f.archived;
   const page = f.page ?? 1;
   const limit = f.pageSize ?? 25;
   const offset = (page - 1) * limit;
@@ -22,7 +31,7 @@ export async function list(db: Db, tenantId: number, filters: Record<string, unk
   if (f.status) {
     conditions.push(eq(orders.status, f.status as "new" | "processing" | "shipped" | "pending" | "delivered" | "cancelled" | "returned"));
   }
-  if (f.archived !== undefined) {
+  if (archived !== undefined) {
     // Archive holds everything that is out of play, so nothing can fall out
     // of both tabs: orders that reached an end state, and deleted ones
     // whatever status they were in when deleted. A deleted order is not
@@ -33,7 +42,7 @@ export async function list(db: Db, tenantId: number, filters: Record<string, unk
     // it: picking a status while on a tab narrows *within* that tab, which
     // is the only reading under which a deleted "new" order is reachable at
     // all now that it belongs to the archive.
-    conditions.push(f.archived
+    conditions.push(archived
       ? or(inArray(orders.status, CLOSED_ORDER_STATUSES), isNotNull(orders.deletedAt))!
       : and(inArray(orders.status, OPEN_ORDER_STATUSES), isNull(orders.deletedAt))!);
   }
@@ -43,6 +52,8 @@ export async function list(db: Db, tenantId: number, filters: Record<string, unk
   // filter here treats an absent value.
   if (f.agentIds?.length) conditions.push(inArray(orders.agentId, f.agentIds));
   else if (f.agentId) conditions.push(eq(orders.agentId, f.agentId));
+  // Отмеченные галочками — для «Excel по выбранным» и вопроса перед «Выполнить».
+  if (f.ids?.length) conditions.push(inArray(orders.id, f.ids));
   if (f.paymentMethod) conditions.push(eq(orders.paymentMethod, f.paymentMethod as "cash" | "card" | "transfer" | "debt"));
   // Ждут расчёта: доставлены, офис деньги ещё не принял (services/order-close.ts).
   if (f.awaitingMoney) conditions.push(eq(orders.status, "delivered"), isNull(orders.closedAt));
@@ -54,7 +65,7 @@ export async function list(db: Db, tenantId: number, filters: Record<string, unk
   // Hide deleted orders unless explicitly requested — except in the archive,
   // which is where they belong and already selects them above. Applying it
   // there would cancel that out and leave deleted orders in neither tab.
-  if (!f.showDeleted && f.archived !== true) conditions.push(isNull(orders.deletedAt));
+  if (!f.showDeleted && archived !== true) conditions.push(isNull(orders.deletedAt));
   // P0-14 FIX: Non-privileged users see only their own orders
   conditions.push(...viewerScope(viewer));
 

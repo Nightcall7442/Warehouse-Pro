@@ -115,8 +115,9 @@ describe("рабочее место оператора", () => {
     expect(orders).not.toContain("OrderSlideOver");
     expect(orders).toContain("const openOrder = (id: number) => navigate(`/orders/${id}`);");
     expect(orders).toContain("onClick={() => openOrder(o.id as number)}");
-    expect(orders).toContain('{ key: "money", n: stats?.awaitingMoneyCount ?? 0, ru: "Ждут расчёта"');
-    expect(orders).toContain("awaitingMoney: awaitingMoney || undefined,");
+    // Очередь считается без периода по умолчанию — отдельным запросом (lib/orders-query).
+    expect(orders).toContain('{ key: "money", n: queue?.awaitingMoneyCount ?? 0, ru: "Ждут расчёта"');
+    expect(read("src/lib/orders-query.ts")).toContain("awaitingMoney: awaitingMoney || undefined,");
   });
   it("карточка: две колонки, деньги справа с курьером, состав и переписка слева", () => {
     const detail = read("src/pages/OrderDetail.tsx");
