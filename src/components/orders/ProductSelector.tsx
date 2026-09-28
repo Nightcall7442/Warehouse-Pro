@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useMemo } from "react";
 import { useOverlay } from "@/lib/overlay";
 import { createPortal } from "react-dom";
 import { useCurrency } from "@/hooks/useCurrency";
@@ -11,7 +11,7 @@ import { unitLabel } from "./types";
 import type { OrderItem } from "./types";
 import { formatQty } from "@/lib/format";
 import { PhotoOrIcon } from "@/components/PhotoOrIcon";
-import { useOfflineCopy } from "@/hooks/useOfflineCopy";
+import { useOfflineCopy, useShopPrices } from "@/hooks/useOfflineCopy";
 import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "../../../api/router";
 
@@ -40,9 +40,30 @@ export function ProductSelector({ items, onChange, cartOpen = false, onCartOpenC
   const [scanning, setScanning] = useState(false);
   const [lastScanned, setLastScanned] = useState<string | null>(null);
 
-  // Без связи — отложенная копия каталога: иначе офлайн-заказ не из чего
-  // собрать, а ради этого вкладка «Офлайн» и заведена.
-  const { data: catalog, fromCopy } = useOfflineCopy<CatalogProduct[]>("catalog", products);
+  /*
+    Без связи — отложенная копия каталога: иначе офлайн-заказ не из чего
+    собрать, а ради этого вкладка «Офлайн» и заведена.
+
+    Общая копия — по ценам карточки: в неё писался ответ с ценами магазина, и
+    без связи другой магазин и витрина видели цены того, у кого заказывали
+    последним. Цены магазина кладутся поверх из копии ЭТОГО магазина; у кого
+    её нет — карточка. Копию прежней версии, где цены ещё чужие, приводит к
+    карточке само чтение (loadOfflineCopy), поэтому `: p` ниже — карточка.
+  */
+  const cardPriced = useMemo(
+    () => shopId && products ? products.map(p => ({ ...p, unitPrice: p.basePrice, priceListId: null, tiers: null })) : products,
+    [shopId, products],
+  );
+  const { data: copy, fromCopy } = useOfflineCopy<CatalogProduct[]>("catalog", cardPriced);
+  const { data: shopPrices } = useShopPrices(shopId, products);
+  const catalog = useMemo(() => {
+    if (products) return products;
+    const byId = new Map((shopPrices ?? []).map(p => [p.id, p]));
+    return copy?.map(p => {
+      const s = byId.get(p.id);
+      return s ? { ...p, unitPrice: s.unitPrice, tiers: s.tiers } : p;
+    });
+  }, [products, copy, shopPrices]);
 
   const filtered = (catalog ?? []).filter((p) =>
     !search || p.name?.toLowerCase().includes(search.toLowerCase()) || (p.code ?? "").toLowerCase().includes(search.toLowerCase())

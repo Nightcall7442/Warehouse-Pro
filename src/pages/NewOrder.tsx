@@ -14,6 +14,7 @@ import { Steps, ShopSelector, ProductSelector, OrderReview } from "@/components/
 import type { OrderItem, PaymentMethod } from "@/components/orders";
 import { EMPTY_ITEM } from "@/components/orders";
 import { priceAt } from "@contracts/price-tiers";
+import { useShopPrices } from "@/hooks/useOfflineCopy";
 
 const LABELS_RU = ["Магазин", "Товары", "Итог"];
 const LABELS_UZ = ["Do'kon", "Mahsulotlar", "Xulosa"];
@@ -307,8 +308,12 @@ export default function NewOrder() {
     — 8500»): корзина, «Итог» и офлайн-итог показывали 10 000 за штуку, а
     заказ создавался по 8 500. Ступени приходят тем же ответом (tiers), и
     цену выбирает тот же priceAt, что и сервер, — на каждое количество.
+
+    Без связи — копия цен ЭТОГО магазина: после перезагрузки живого ответа
+    нет, и итог шёл по цене одной штуки мимо ступеней.
   */
-  const { data: shopPrices } = trpc.product.listAll.useQuery({ shopId }, { enabled: shopId > 0 });
+  const { data: liveShopPrices } = trpc.product.listAll.useQuery({ shopId }, { enabled: shopId > 0 });
+  const { data: shopPrices } = useShopPrices(shopId, liveShopPrices);
   const catalog = useMemo(() => new Map((shopPrices ?? []).map(p => [p.id, p])), [shopPrices]);
   const pricedItems = useMemo(() => {
     return items.map(i => {
