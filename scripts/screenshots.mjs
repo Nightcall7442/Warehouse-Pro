@@ -274,7 +274,58 @@ const MOBILE_SCENARIOS = {
   ],
 };
 
-const index = { web: [], mobile: [], failures: [] };
+/* ── веб в браузере телефона (глава «Веб с телефона») ─────────────────────
+   Тот же веб и те же учётные записи, что у WEB_SCENARIOS, но окно телефона:
+   уже 768 точек веб рисует телефонный вид (#119, #120) — вкладки внизу,
+   «Мой день», «План», профиль. Указатели — role=, testid= и css: боковое
+   меню на телефоне спрятано, но в разметке есть и несёт те же слова
+   («Магазины», «Уведомления»); text= нашёл бы первым его, невидимое. */
+const PWA_VIEW = {
+  viewport: { width: 390, height: 844 }, deviceScaleFactor: 2,
+  // Точка — Ургенч, как у мобилки: полевые роли шлют место раз в десять минут.
+  geolocation: { latitude: 41.5506, longitude: 60.6317 }, permissions: ["geolocation"],
+};
+const TABS = "css=nav.bottom-nav-premium";
+const PWA_SCENARIOS = {
+  agent: [
+    { name: "home", path: "/agent",
+      marks: [["menu", "role=button:/^(Меню|Menyu)$/"], ["bell", "role=button:/^(Уведомления|Bildirishnomalar)$/"], ["visits", "text=/^(Визиты сегодня|Bugungi tashriflar)$/"], ["allPlans", "role=button:/^(Все планы|Barcha rejalar)$/"], ["done", "role=button:/^(Готово|Bajarildi)$/ >> nth=0"], ["tabs", TABS]] },
+    /* Список меню прокручивается внутри себя: пункт ниже его края (у агента
+       это «Сканер», «GPS») остаётся на экране по координатам, но закрыт
+       кнопками низа — выноска легла бы на «РУС». Метим верхние пункты.
+       «Справки» у засева нет: руководство подключают организации отдельно. */
+    { name: "menu", path: "/agent", do: [["click", "role=button:/^(Меню|Menyu)$/"], ["wait", 800]],
+      marks: [["kpi", "role=button:/^KPI$/"], ["newOrder", "role=button:/^(Новый заказ|Yangi buyurtma)$/ >> nth=0"], ["lang", "role=button:/^(РУС|UZB)$/ >> nth=0"], ["theme", "role=button:/^(Тёмная тема|Светлая тема|Qorong'i mavzu|Yorug' mavzu)$/"], ["logout", "role=button:/^(Выйти|Chiqish)$/"]] },
+    { name: "plans", path: "/agent/plans",
+      marks: [["quota", "text=/^(План месяца|Oylik reja)$/"], ["day", "testid=phone-plan-day"], ["skip", "role=button:/^(Отложить|Keyinga)$/ >> nth=0"], ["order", "role=button:/^(Заказ|Buyurtma)$/ >> nth=0"], ["photo", "role=button:/^(Отметить с фото|Foto bilan belgilash)$/ >> nth=0"], ["done", "role=button:/^(Готово|Tayyor)$/ >> nth=0"]] },
+    { name: "shops", path: "/agent/shops",
+      marks: [["search", "ph=/Поиск магазинов|Do'kon qidirish/"], ["near", "role=button:/^(Сначала ближайшие|Avval yaqinlari)$/"], ["add", "role=button:/^(Добавить магазин|Do'kon qo'shish)$/"], ["all", "testid=phone-territory >> nth=0"]] },
+    // Два товара в корзину: у них «− n +», у третьего ещё «В корзину», внизу — плашка.
+    { name: "catalog", path: "/catalog", do: [["click", "css=[data-testid^=catalog-add-] >> nth=0"], ["wait", 400], ["click", "css=[data-testid^=catalog-add-] >> nth=0"], ["wait", 800]],
+      marks: [["search", "ph=/Название или код|Nomi yoki kodi/"], ["stepper", "css=[data-testid^=catalog-stepper-] >> nth=0"], ["add", "css=[data-testid^=catalog-add-] >> nth=0"], ["cart", "testid=catalog-cart-bar"], ["checkout", "testid=catalog-checkout"]], after: [] },
+    { name: "orders", path: "/orders",
+      marks: [["refresh", "role=button:/^(Обновить|Yangilash)$/"], ["new", "role=button:/^(Новый|Yangi)$/"], ["rings", "text=/^(Всего|Jami)$/"], ["row", "testid=agent-order-row >> nth=0"], ["fab", "testid=agent-orders-fab"]] },
+    // Профиль длиннее экрана: снимаем низ — «Оформление» с языком и выход.
+    { name: "profile", path: "/settings", do: [["click", "text=/^(Язык|Til)$/"], ["key", "End"], ["wait", 600]],
+      marks: [["theme", "text=/^(Тема|Mavzu)$/"], ["lang", "text=/^(Язык|Til)$/"], ["logout", "testid=profile-logout"]], after: [] },
+  ],
+  courier: [
+    { name: "home", path: "/courier",
+      marks: [["stats", "text=/^(Ожидают|Kutilmoqda)$/"], ["progress", "text=/^(Прогресс дня|Kun jarayoni)$/"], ["deliveries", "testid=courier-deliveries"], ["tabs", TABS]] },
+    { name: "deliveries", path: "/deliveries",
+      marks: [["summary", "text=/^(Ожидают \\d+ · В пути \\d+|Kutmoqda \\d+ · Yo'lda \\d+)$/"], ["map", "role=link:/^(На карте|Xaritada)$/ >> nth=0"], ["cash", "css=input[type=number] >> nth=0"], ["delivered", "role=button:/^(Доставлено|Yetkazildi)$/ >> nth=0"], ["fail", "role=button:/^(Не доставлено|Yetkazilmadi)$/ >> nth=0"]] },
+  ],
+  supervisor: [
+    { name: "home", path: "/dashboard",
+      marks: [["debts", "testid=oversight-debts"], ["trend", "text=/^(Динамика продаж|Sotuvlar dinamikasi)$/"], ["range", "role=tab:/^(7д|7 k)$/"], ["tabs", TABS]] },
+  ],
+  operator: [
+    { name: "orders", path: "/orders",
+      marks: [["lists", T.lists], ["new", "role=button:/^(Новый заказ|Yangi buyurtma)$/"], ["tabs", TABS]] },
+  ],
+};
+
+const index = { web: [], mobile: [], pwa: [], failures: [] };
 
 const settle = async page => {
   await page.waitForLoadState("networkidle", { timeout: 15_000 }).catch(() => {});
@@ -305,7 +356,10 @@ async function runScenarios(page, base, scenarios, dir, entry, kind, role) {
     try {
       if (sc.path) { await page.goto(`${base}${sc.path}`, { waitUntil: "domcontentloaded" }); await settle(page); }
       for (const step of sc.do ?? []) await act(page, step);
-      const marks = await marksOf(page, [...(sc.marks ?? []), ...extraMarks(kind, role, sc.name)]);
+      let marks = await marksOf(page, [...(sc.marks ?? []), ...extraMarks(kind, role, sc.name)]);
+      // Телефонный кадр — один экран, а страница длиннее: метка ниже края
+      // легла бы цифрой на нижнюю кромку снимка. Такой выноски просто нет.
+      if (kind === "pwa") marks = marks.filter(m => m.y >= 0 && m.y + m.h <= PWA_VIEW.viewport.height);
       await page.screenshot({ path: join(dir, `${sc.name}.png`) });
       entry.push({ screen: sc.name, path: sc.path, marks });
       console.log(`  ${dir}/${sc.name} (${marks.length} меток)`);
@@ -317,10 +371,15 @@ async function runScenarios(page, base, scenarios, dir, entry, kind, role) {
   }
 }
 
-async function shootWeb(browser) {
+/*
+  kind "pwa" — тот же веб в окне телефона (PWA_VIEW, PWA_SCENARIOS): вход тот
+  же, снимки — в свою папку и свой список index.json. Экран входа снимает
+  только "web".
+*/
+async function shootWeb(browser, kind = "web", byRole = WEB_SCENARIOS, view = { viewport: { width: 1440, height: 1000 }, deviceScaleFactor: SHOT_SCALE }) {
   for (const lang of LANGS) {
-    {
-      const ctx = await browser.newContext({ viewport: { width: 1440, height: 1000 }, deviceScaleFactor: SHOT_SCALE, locale: lang === "uz" ? "uz" : "ru" });
+    if (kind === "web") {
+      const ctx = await browser.newContext({ ...view, locale: lang === "uz" ? "uz" : "ru" });
       await ctx.addInitScript(l => { try { localStorage.setItem("lang", l); } catch {} }, lang);
       const page = await ctx.newPage();
       await page.goto(`${WEB}/login`).catch(() => {});
@@ -332,9 +391,9 @@ async function shootWeb(browser) {
       await ctx.close();
     }
     for (const [role, email] of Object.entries(ACCOUNTS)) {
-      const scenarios = WEB_SCENARIOS[role];
+      const scenarios = byRole[role];
       if (!scenarios) continue;
-      const ctx = await browser.newContext({ viewport: { width: 1440, height: 1000 }, deviceScaleFactor: SHOT_SCALE, locale: lang === "uz" ? "uz" : "ru" });
+      const ctx = await browser.newContext({ ...view, locale: lang === "uz" ? "uz" : "ru" });
       await ctx.addInitScript(l => { try { localStorage.setItem("lang", l); } catch {} }, lang);
       const page = await ctx.newPage();
       try {
@@ -344,14 +403,14 @@ async function shootWeb(browser) {
         await page.getByTestId("login-submit").click();
         await page.waitForURL(u => !new URL(u).pathname.startsWith("/login"), { timeout: 20_000 });
       } catch (e) {
-        index.failures.push({ where: `web/${lang}/${role}`, step: "login", error: String(e).slice(0, 300) });
+        index.failures.push({ where: `${kind}/${lang}/${role}`, step: "login", error: String(e).slice(0, 300) });
         await ctx.close();
         continue;
       }
-      const dir = join(OUT, "web", lang, role); mkdirSync(dir, { recursive: true });
+      const dir = join(OUT, kind, lang, role); mkdirSync(dir, { recursive: true });
       const entry = [];
-      await runScenarios(page, WEB, scenarios, dir, entry, "web", role);
-      for (const e of entry) index.web.push({ lang, role, ...e, file: `web/${lang}/${role}/${e.screen}.png` });
+      await runScenarios(page, WEB, scenarios, dir, entry, kind, role);
+      for (const e of entry) index[kind].push({ lang, role, ...e, file: `${kind}/${lang}/${role}/${e.screen}.png` });
       await ctx.close();
     }
   }
@@ -411,11 +470,12 @@ async function shootMobile(browser) {
 const browser = await chromium.launch();
 try {
   await shootWeb(browser);
+  await shootWeb(browser, "pwa", PWA_SCENARIOS, PWA_VIEW);
   if (MOBILE) await shootMobile(browser);
 } finally {
   await browser.close();
 }
 mkdirSync(OUT, { recursive: true });
 writeFileSync(join(OUT, "index.json"), JSON.stringify(index, null, 2));
-console.log(`web: ${index.web.length}, mobile: ${index.mobile.length}, не вышло: ${index.failures.length}`);
+console.log(`web: ${index.web.length}, pwa: ${index.pwa.length}, mobile: ${index.mobile.length}, не вышло: ${index.failures.length}`);
 for (const f of index.failures) console.log(`  ✗ ${f.where} ${f.step}: ${f.error}`);

@@ -186,7 +186,8 @@ def render_chapter(lang, ch, fig_state):
             texts = {key: txt for key, txt in b.get("callouts", [])}
             legend = "".join(f"<li><span class='n'>{n}</span><span>{esc(tx(texts[key]))}</span></li>" for n, key in found)
             cap = f"<figcaption>{esc(L['fig'])} {fig_state['n']}. {esc(tx(b['cap']))}</figcaption>" + (f"<ul class='legend'>{legend}</ul>" if legend else "")
-            if kind == "mobile":
+            # "pwa" — веб, снятый окном телефона: верстается как снимок телефона.
+            if kind in ("mobile", "pwa"):
                 out.append(f"<figure class='mobile'><img src='{rel}' alt='{esc(tx(b['cap']))}' loading='lazy'><div>{cap}</div></figure>")
             else:
                 out.append(f"<figure><img src='{rel}' alt='{esc(tx(b['cap']))}' loading='lazy'>{cap}</figure>")
@@ -502,7 +503,9 @@ READER_JS = r"""
 
 def group_of(cid):
     if cid == "rollout": return "grp:rollout"
-    if cid == "roles" or cid.startswith("role-"): return "grp:roles"
+    # «Веб с телефона» — тот же рабочий день, только в браузере; не "role-*",
+    # чтобы не встать фишкой роли в шапке читалки и на обложке.
+    if cid in ("roles", "phone-web") or cid.startswith("role-"): return "grp:roles"
     if cid == "howto" or cid.startswith("howto-"): return "grp:howto"
     if cid == "money": return "grp:money"
     if cid in ("faq", "glossary"): return "grp:help"
