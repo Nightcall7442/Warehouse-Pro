@@ -63,6 +63,8 @@ export class SSEBus {
   private lastEviction = Date.now();
   private evictionInterval = 60 * 1000;
   private redisSubscribed = false;
+  /** Процесс останавливается: потоки закрыты, новые не держим. */
+  private closed = false;
   private readonly origin: string;
 
   constructor(origin: string = INSTANCE_ID) {
@@ -143,6 +145,16 @@ export class SSEBus {
     userId: number,
     controller: ReadableStreamDefaultController,
   ): () => void {
+    /*
+      Поток, открытый уже во время остановки (запрос пришёл до сигнала, а до
+      подписки дошёл после — проверка входа ходит в базу), закрывается сразу:
+      иначе он держал бы остановку до конца срока. Не синхронно — вызывающий
+      ещё дописывает в поток догон.
+    */
+    if (this.closed) {
+      queueMicrotask(() => { try { controller.close(); } catch { /* уже закрыт */ } });
+      return () => {};
+    }
     this.ensureRedis();
     const channel = `tenant:${tenantId}`;
     if (!this.listeners.has(channel)) {
@@ -210,6 +222,23 @@ export class SSEBus {
     const history = this.eventHistory.get(channel) ?? [];
     return history.filter(e =>
       isVisibleTo(e, userId) && (since === undefined || e.timestamp > since));
+  }
+
+  /**
+   * Остановка процесса: закрыть все потоки и новых не держать.
+   *
+   * Поток событий сам не кончается — пока он открыт, запрос «в полёте», и
+   * остановка ждала бы его до конца срока. Закрытый сервером поток браузер
+   * открывает заново сам, уже к новому экземпляру (см. lib/graceful-shutdown.ts).
+   */
+  closeAll(): void {
+    this.closed = true;
+    for (const listeners of this.listeners.values()) {
+      for (const l of listeners) {
+        try { l.controller.close(); } catch { /* уже закрыт */ }
+      }
+    }
+    this.listeners.clear();
   }
 
   getStats(): { channels: number; totalListeners: number } {

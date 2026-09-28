@@ -349,6 +349,8 @@ async function tick(now = new Date()): Promise<void> {
   try {
     if (!stateLoaded) await loadState();
     for (const job of JOBS) {
+      // Остановка процесса: начатую работу доделываем, следующую не берём.
+      if (stopped) break;
       if (job.everyMinutes) continue;
       const known = stateLoaded && (lastSuccess.has(job.name) || lastAttempt.has(job.name));
       const due = known ? dueSlot(job, now) : (exactMinute(job, now) ? lastDue(job, now) : null);
@@ -381,8 +383,20 @@ function isDue(job: Job, at: Date): boolean {
  *
  * Замок не ждёт очереди (нулевой тайм-аут): если его держит другая реплика,
  * значит работа уже идёт, и вторая копия не нужна.
+ *
+ * Идущие работы считаются: остановка процесса ждёт их вместе с запросами
+ * (lib/graceful-shutdown.ts), а не рвёт копию базы на середине.
  */
 async function runExclusively(job: Job, due?: Date): Promise<void> {
+  running++;
+  try {
+    await runLocked(job, due);
+  } finally {
+    running--;
+  }
+}
+
+async function runLocked(job: Job, due?: Date): Promise<void> {
   const pool = getPool();
   if (!pool) return;
 
@@ -468,6 +482,10 @@ async function runExclusively(job: Job, due?: Date): Promise<void> {
 }
 
 let timer: ReturnType<typeof setInterval> | null = null;
+/** Расписание остановлено: идущий тик не берёт следующую работу. */
+let stopped = false;
+/** Сколько работ идёт прямо сейчас. */
+let running = 0;
 
 /**
  * Запустить расписание.
@@ -479,6 +497,7 @@ let timer: ReturnType<typeof setInterval> | null = null;
 export function startScheduler(): void {
   if (timer) return;
 
+  stopped = false;
   void loadState();
   timer = setInterval(() => { void tick(); }, 60_000);
 
@@ -487,8 +506,15 @@ export function startScheduler(): void {
   logger.info("cron scheduler started", { jobs: JOBS.map(j => j.name) });
 }
 
+/** Остановка процесса: новых тиков нет, а идущий тик не берёт следующую работу. */
 export function stopScheduler(): void {
+  stopped = true;
   if (timer) { clearInterval(timer); timer = null; }
+}
+
+/** Сколько работ ещё идёт — остановка процесса их дожидается. */
+export function runningJobs(): number {
+  return running;
 }
 
 /** Список работ — для страницы мониторинга и проверок. */
@@ -505,6 +531,6 @@ export const _internals = {
   /** Забыть всё между проверками: отметки, попытки, флаг загрузки. */
   reset(): void {
     lastRun.clear(); lastSuccess.clear(); lastAttempt.clear(); notified.clear();
-    stateLoaded = false; ticking = false;
+    stateLoaded = false; ticking = false; stopped = false;
   },
 };

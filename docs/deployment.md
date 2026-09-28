@@ -28,15 +28,34 @@
 - Сборка — по `Dockerfile` (см. `railway.json`).
 
 > **До 1 декабря 2026.** Railway объявил файлы Config-as-Code устаревшими:
-> `railway.json` продолжает действовать только до этой даты. Три его значения
-> — путь проверки готовности `/health/ready` с выдержкой 300 с, перезапуск
-> `ON_FAILURE` до 10 раз и команда запуска `node dist/boot.js` — нужно
-> перенести в панель службы Warehouse-Pro (Settings → Deploy), а файл убрать.
+> `railway.json` продолжает действовать только до этой даты. Его значения
+> нужно перенести в панель службы Warehouse-Pro (Settings), а файл убрать:
+>
+> | Поле в панели | Значение | В `railway.json` |
+> |---|---|---|
+> | Builder | Dockerfile, путь `Dockerfile` | `build.builder`, `build.dockerfilePath` |
+> | Healthcheck Path | `/health/ready` | `deploy.healthcheckPath` |
+> | Healthcheck Timeout | `300` | `deploy.healthcheckTimeout` |
+> | Restart Policy | On Failure, Max Retries `10` | `deploy.restartPolicyType`, `deploy.restartPolicyMaxRetries` |
+> | Draining Seconds (или переменная `RAILWAY_DEPLOYMENT_DRAINING_SECONDS`) | `30` | `deploy.drainingSeconds` |
+> | Custom Start Command | **пусто** | нет — намеренно |
+>
 > Пока файл в репозитории, поля в панели заблокированы. Порядок: сначала
-> удалить файл (команда запуска у образа та же — `CMD` в Dockerfile), после
-> первой выкладки без файла сразу вписать три значения в панель.
-- Проверка живости — `/health/ready`, срок ожидания 300 секунд.
+> удалить файл, после первой выкладки без файла сразу вписать значения.
+- Проверка готовности — `/health/ready`, срок ожидания 300 секунд. Railway
+  зовёт её только при выкладке, чтобы решить, можно ли слать трафик.
 - При падении — до 10 перезапусков.
+- **Остановка при выкладке.** Старому экземпляру приходит SIGTERM; он
+  перестаёт принимать новые соединения, закрывает потоки событий, не начинает
+  новых работ расписания и ждёт запросы в полёте до `SHUTDOWN_TIMEOUT_MS`
+  (20 с), затем досылает журнал, закрывает базу (не дольше 5 с) и выходит
+  (`api/lib/graceful-shutdown.ts`).
+  Между SIGTERM и SIGKILL Railway по умолчанию даёт **0 секунд** — поэтому
+  `drainingSeconds: 30`. Срок ожидания в приложении обязан быть меньше.
+- **Команды запуска нет.** Она заменяет `ENTRYPOINT` образа (`dumb-init`), а
+  не `CMD`: node становится первым процессом, и SIGTERM, пришедший до
+  установки обработчика (ожидание базы, миграции), игнорируется до SIGKILL.
+  Команда у образа своя — `CMD ["node", "dist/boot.js"]`.
 
 ## Docker
 
