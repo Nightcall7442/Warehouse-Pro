@@ -60,8 +60,23 @@ describe("справка и экраны", () => {
     агент, который ищет её в магазине. Число «ёлочек» в ru и uz одно: подпись,
     забытая в переводе, — та же ошибка.
 
-    Нарочная поломка: «Выехал по всем» → «Выехал по всем точкам» — падает.
+    Подпись обязана и кончаться там же, где строка: страж искал только её
+    начало, и кнопка, переименованная В КОДЕ из «Выехал по всем» в «Выехал
+    по всем точкам», оставляла его зелёным, а короткие «Добавить» или «Долги»
+    находились в любой длинной строке, что с них начинается. Немногие подписи
+    из шаблонов с числом или текстом ошибки перечислены в TEMPLATES вместе с
+    тем, что в коде стоит сразу за ними.
+
+    Нарочная поломка: «Выехал по всем» → «Выехал по всем точкам» в справке
+    или в CourierDeliveries.tsx; «Добавить на экран» → «Добавить на экран
+    Домой» в InstallPrompt.tsx — падает.
   */
+  const TEMPLATES: Record<string, string> = {
+    "Выехал по всем": " (${",
+    "Hammasiga yo'lga chiqdim": " (${",
+    "Отметка не сохранена": ": ${",
+    "Belgi saqlanmadi": ": ${",
+  };
   it("«Веб с телефона»: каждая подпись в «ёлочках» есть в коде экранов", () => {
     const start = lines.findIndex(l => l.includes('{"id": "phone-web"'));
     expect(start, "глава «Веб с телефона» пропала").toBeGreaterThan(-1);
@@ -80,14 +95,20 @@ describe("справка и экраны", () => {
     expect(pairs.length).toBeGreaterThan(60);
     const uneven: string[] = [];
     const missing = new Set<string>();
+    const seen = new Set<string>();
     for (const [, ru, uz] of pairs) {
       if (quoted(ru).length !== quoted(uz).length) uneven.push(`${ru}\n  ${uz}`);
-      // Подпись начинает строку в коде: после кавычки, обратной кавычки или «>» в разметке.
+      // Подпись — строка в коде целиком: от кавычки, обратной кавычки или «>»
+      // в разметке до такой же кавычки или «<»; у шаблона — до его продолжения.
       for (const label of [...quoted(ru), ...quoted(uz)]) {
-        if (!new RegExp(`["'\`>]${esc(label)}`).test(code)) missing.add(label);
+        seen.add(label);
+        const tail = label in TEMPLATES ? esc(TEMPLATES[label]) : "[\"'`<]";
+        if (!new RegExp(`["'\`>]${esc(label)}${tail}`).test(code)) missing.add(label);
       }
     }
     expect(uneven, "в ru и uz разное число подписей в «ёлочках»").toEqual([]);
     expect([...missing], "подписей нет ни в одном экране — справка выдумывает кнопки").toEqual([]);
+    // Исключение, которое глава больше не цитирует, прикрывало бы чужую подпись.
+    expect(Object.keys(TEMPLATES).filter(l => !seen.has(l)), "в TEMPLATES подпись, которой в главе нет").toEqual([]);
   });
 });
