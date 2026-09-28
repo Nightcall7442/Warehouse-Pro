@@ -72,12 +72,12 @@ describe("SSE между репликами", () => {
     a.subscribe(1, 10, listenerOf(gotA));
     b.subscribe(1, 10, listenerOf(gotB));
 
-    a.emit({ type: "order.created", tenantId: 1, data: { id: 5 } });
+    a.emit({ type: "order.changed", tenantId: 1, data: { id: 5 } });
 
-    expect(gotA.filter(x => x.includes("order.created"))).toHaveLength(1);
-    expect(gotB.filter(x => x.includes("order.created"))).toHaveLength(1);
+    expect(gotA.filter(x => x.includes("order.changed"))).toHaveLength(1);
+    expect(gotB.filter(x => x.includes("order.changed"))).toHaveLength(1);
     // и B помнит его для догона после обрыва
-    expect(b.getRecentEvents(1, 10).map(e => e.type)).toEqual(["order.created"]);
+    expect(b.getRecentEvents(1, 10).map(e => e.type)).toEqual(["order.changed"]);
   });
 
   it("адресное событие с A не уходит чужому пользователю на B; чужая организация молчит", () => {

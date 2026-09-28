@@ -621,10 +621,13 @@ describe("arrival.update", () => {
     const { arrivalRouter } = await import("../arrival-router");
     const caller = arrivalRouter.createCaller(makeCtx(1, 10));
     await caller.update({ id: 1, status: "completed" });
+    // Своим видом, а не внутри notification.new: иначе экраны склада его не
+    // узнают, а колокольчик всей организации прибавляет несуществующее.
     expect(sseBus.emit).toHaveBeenCalledWith(expect.objectContaining({
-      type: "notification.new",
-      data: expect.objectContaining({ type: "arrival.completed", arrivalId: 1 }),
+      type: "arrival.completed",
+      data: { arrivalId: 1 },
     }));
+    expect(sseBus.emit).not.toHaveBeenCalledWith(expect.objectContaining({ type: "notification.new" }));
   });
 
   it("updates fuelCost and recalculates totalExpense", async () => {

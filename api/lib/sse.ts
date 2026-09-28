@@ -1,8 +1,16 @@
 import { subscribeChannel, publishChannel, INSTANCE_ID } from "./redis";
 
 export type SSEEventType =
-  | "order.created"
-  | "order.status_changed"
+  /*
+    Заказ записан — любой: создан, сменил статус, доставлен, оплачен,
+    рассчитан, исправлен. Шлёт его invalidateReports (lib/report-cache.ts)
+    после коммита; экраны перечитывают списки, очереди и Главную. Данных в
+    нём нет нарочно: экран всё равно перечитывает, а суммы и имена по всей
+    организации рассылать незачем.
+  */
+  | "order.changed"
+  /* Приход проведён — остаток вырос; раньше ехал внутри notification.new и щёлкал колокольчик. */
+  | "arrival.completed"
   | "agent.location_updated"
   | "stock.low"
   | "notification.new"

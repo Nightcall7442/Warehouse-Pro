@@ -476,8 +476,10 @@ export async function updateArrival(db: Db, tenantId: number, input: UpdateArriv
       }, { strict: true });
     });
 
-    // Notify connected frontends that stock has changed
-    sseBus.emit({ type: "notification.new", tenantId, data: { type: "arrival.completed", arrivalId: id, arrivalNumber } });
+    // Открытые экраны склада перечитают остаток. Раньше событие ехало видом
+    // notification.new: экраны склада его не узнавали, а колокольчик у всей
+    // организации прибавлял единицу уведомлению, которого нет.
+    sseBus.emit({ type: "arrival.completed", tenantId, data: { arrivalId: id } });
     // Остаток, оценка склада, партии, расходы P&L — после коммита проведения.
     await invalidateReports(tenantId, "arrival.completed");
 
