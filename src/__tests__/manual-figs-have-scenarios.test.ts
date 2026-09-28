@@ -40,13 +40,15 @@ const figs: Fig[] = [];
 }
 
 /* Сценарии CI: kind → role → screen → ключи меток. */
-const scenarios: Record<string, Record<string, Record<string, Set<string>>>> = { web: {}, mobile: {} };
+const scenarios: Record<string, Record<string, Record<string, Set<string>>>> = { web: {}, mobile: {}, pwa: {} };
 {
   let kind = "";
   let role = "";
   for (const line of shots.split("\n")) {
     if (line.startsWith("const WEB_SCENARIOS")) kind = "web";
     else if (line.startsWith("const MOBILE_SCENARIOS")) kind = "mobile";
+    // Веб, снятый окном телефона (глава «Веб с телефона»).
+    else if (line.startsWith("const PWA_SCENARIOS")) kind = "pwa";
     const r = /^ {2}(\w+): \[/.exec(line);
     if (r && kind) { role = r[1]; scenarios[kind][role] ??= {}; continue; }
     if (!kind || !role) continue;
@@ -87,6 +89,24 @@ describe("фигуры руководства обеспечены сценар�
       for (const k of f.callouts) if (!own.has(k) && !more.has(k)) bad.push(`manual_content.py:${f.line} ${f.kind}/${f.role}/${f.screen}: «${k}»`);
     }
     expect(bad, "выноски без метки — цифры на снимке не появятся:\n" + bad.join("\n")).toEqual([]);
+  });
+
+  /*
+    Снимки «Веб с телефона» — веб в окне телефона. Окно шире порога
+    use-mobile — и CI снимет настольный вид с меню слева, а подписи будут
+    про вкладки внизу. build_manual.py считает выноски в CSS-пикселях: для
+    не-"web" делит на ту же ширину и верстает снимок как телефон.
+  */
+  it("веб с телефона снимается уже порога телефонного вида и верстается как телефон", () => {
+    expect(figs.some(f => f.kind === "pwa")).toBe(true);
+    const width = Number(/const PWA_VIEW = \{\s*viewport: \{ width: (\d+)/.exec(shots)?.[1]);
+    const breakpoint = Number(/MOBILE_BREAKPOINT = (\d+)/.exec(read("src/hooks/use-mobile.ts"))?.[1]);
+    expect(width).toBeGreaterThan(0);
+    expect(width, "окно снимков шире порога — снимется настольный вид").toBeLessThan(breakpoint);
+    expect(shots, "проход pwa не вызывается — снимков не будет").toMatch(/await shootWeb\(browser, "pwa", PWA_SCENARIOS, PWA_VIEW\);/);
+    const build = read("scripts/build_manual.py");
+    expect(build).toContain(`(1440 if kind == "web" else ${width})`);
+    expect(build).toContain(`if kind in ("mobile", "pwa"):`);
   });
 
   for (const lang of ["ru", "uz"] as const) {
