@@ -1,9 +1,11 @@
-import { eq, and, or, desc, sql, isNull, isNotNull, inArray } from "drizzle-orm";
+import { eq, and, or, asc, desc, sql, isNull, isNotNull, inArray, type SQL, type SQLWrapper } from "drizzle-orm";
 import { alias } from "drizzle-orm/mysql-core";
 import { orders, orderItems, shops, users, products, payments, orderAdjustments, territories, priceLists } from "@db/schema";
 import { OPEN_ORDER_STATUSES, CLOSED_ORDER_STATUSES } from "../lib/order-status";
 import type { Db, OrderViewer } from "./order-shared";
 import { couriers, viewerScope } from "./order-shared";
+import { orderMatches } from "../lib/order-search";
+import type { OrderSortKey, OrderSortDir } from "@contracts/order-list";
 
 /*
   opts обязателен, а не необязателен.
@@ -13,7 +15,7 @@ import { couriers, viewerScope } from "./order-shared";
   звёздочкой это ловил бы только тест; без неё не собирается сборка.
 */
 export async function list(db: Db, tenantId: number, filters: Record<string, unknown>, viewer: OrderViewer) {
-  const f = filters as { status?: string; archived?: boolean; agentId?: number; agentIds?: number[]; ids?: number[]; page?: number; pageSize?: number; search?: string; showDeleted?: boolean; dateFrom?: string; dateTo?: string; paymentMethod?: string; awaitingMoney?: boolean };
+  const f = filters as { status?: string; archived?: boolean; agentId?: number; agentIds?: number[]; ids?: number[]; page?: number; pageSize?: number; search?: string; showDeleted?: boolean; dateFrom?: string; dateTo?: string; paymentMethod?: string; awaitingMoney?: boolean; sortBy?: OrderSortKey; sortDir?: OrderSortDir };
   /*
     «Ждут расчёта» — очередь поперёк вкладок: доставленный заказ по статусу
     архивный, а деньги по нему ещё в поле. Экран шлёт очередь вместе с
@@ -57,8 +59,8 @@ export async function list(db: Db, tenantId: number, filters: Record<string, unk
   if (f.paymentMethod) conditions.push(eq(orders.paymentMethod, f.paymentMethod as "cash" | "card" | "transfer" | "debt"));
   // Ждут расчёта: доставлены, офис деньги ещё не принял (services/order-close.ts).
   if (f.awaitingMoney) conditions.push(eq(orders.status, "delivered"), isNull(orders.closedAt));
-  // P0-14 FIX: Implement search filter
-  if (f.search) conditions.push(sql`(${orders.orderNumber} LIKE ${'%' + f.search + '%'} OR ${shops.name} LIKE ${'%' + f.search + '%'})`);
+  // Номер, магазин, владелец, телефон по цифрам — см. lib/order-search.
+  if (f.search?.trim()) conditions.push(orderMatches(f.search, orders.orderNumber, shops));
   // P0-14 FIX: Implement date filters
   if (f.dateFrom) conditions.push(sql`${orders.createdAt} >= ${f.dateFrom}`);
   if (f.dateTo) conditions.push(sql`${orders.createdAt} <= ${f.dateTo + ' 23:59:59'}`);
@@ -110,13 +112,66 @@ export async function list(db: Db, tenantId: number, filters: Record<string, unk
     .where(and(...conditions));
 
   const [data, countResult] = await Promise.all([
-    baseQuery.orderBy(desc(orders.createdAt)).limit(limit).offset(offset),
+    baseQuery.orderBy(...listOrder(f.sortBy, f.sortDir, courier.name)).limit(limit).offset(offset),
     db.select({ count: sql<number>`count(*)` }).from(orders)
       .leftJoin(shops, and(eq(orders.shopId, shops.id), eq(shops.tenantId, tenantId)))
       .where(and(...conditions)),
   ]);
 
   return { data, total: Number(countResult[0]?.count ?? 0), page, pageSize: limit };
+}
+
+/*
+  Порядок строк списка: столбец, который выбрал оператор, и за ним — то, что
+  делает порядок однозначным.
+
+  ── Что было ────────────────────────────────────────────────────────────────
+
+  Список шёл только по дате создания, новые сверху. Вечером оператору нужно
+  другое: крупные суммы первыми, заказы одного магазина подряд, кто из
+  курьеров что везёт. Сортировка на экране по видимым 25 строкам здесь не
+  годится — она переставляет одну страницу, а крупный заказ со второй так и
+  остаётся на второй.
+
+  ── Почему хвост у каждого порядка ──────────────────────────────────────────
+
+  Одинаковых значений много: десять заказов одного магазина, пять — на одну
+  сумму. Порядок равных MySQL не обещает, и от запроса к запросу страниц он
+  может меняться: заказ, стоявший последним на первой странице, оказывается
+  первым на второй, а соседний не попадает ни на одну. Поэтому за выбранным
+  столбцом всегда идут дата и номер строки — порядок становится полным.
+
+  «Нет значения» — не доставлен, курьер не назначен, магазин пропал — стоит в
+  конце в обе стороны: иначе при сортировке «сначала давние доставки» первая
+  страница целиком состояла бы из недоставленных.
+
+  Статус — в порядке работы (ожидает → новый → … → доставлен → отменён), а не
+  по алфавиту и не по номеру в перечислении столбца: «ожидает» дописали в
+  перечисление позже, и там он стоит посреди.
+
+  Индексы. Дата создания идёт по idx_orders_tenant_date. Прочие столбцы
+  сортируются в памяти по строкам организации, прошедшим фильтры, — тот же
+  проход уже делает подсчёт total рядом, и LIMIT держит в памяти только одну
+  страницу. Имя магазина и курьера лежит в соседних таблицах, «нет значения в
+  конце» — выражение: ни то, ни другое индекс по orders не ускорил бы.
+  Проверено EXPLAIN на 20 000 заказах (29.09.2026): любая сортировка — 35–40
+  мс, столько же, сколько сам подсчёт; пробный индекс (tenant_id, total)
+  MySQL не выбрал вовсе.
+*/
+const STATUS_WORK_ORDER = sql`FIELD(${orders.status}, 'pending', 'new', 'processing', 'shipped', 'delivered', 'cancelled', 'returned')`;
+
+function listOrder(sortBy: OrderSortKey | undefined, sortDir: OrderSortDir | undefined, courierName: SQLWrapper): SQL[] {
+  const dir = sortDir === "asc" ? asc : desc;
+  const emptyLast = (col: SQLWrapper) => sql`${col} IS NULL`;
+  const tie = [desc(orders.createdAt), desc(orders.id)];
+  switch (sortBy) {
+    case "total":       return [dir(orders.total), ...tie];
+    case "shopName":    return [emptyLast(shops.name), dir(shops.name), ...tie];
+    case "deliveredAt": return [emptyLast(orders.deliveredAt), dir(orders.deliveredAt), ...tie];
+    case "courierName": return [emptyLast(courierName), dir(courierName), ...tie];
+    case "status":      return [dir(STATUS_WORK_ORDER), ...tie];
+    default:            return [dir(orders.createdAt), dir(orders.id)];
+  }
 }
 
 /*

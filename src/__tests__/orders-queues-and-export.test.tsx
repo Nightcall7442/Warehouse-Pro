@@ -220,12 +220,12 @@ describe("выгрузка — то, что на экране", () => {
     fireEvent.click(rowBoxes[1]);
 
     await act(async () => { fireEvent.click(screen.getByRole("button", { name: "bulk-excel" })); });
-    expect(h.clientList).toHaveBeenLastCalledWith({ ids: [11, 12], page: 1, pageSize: 2 });
+    expect(h.clientList).toHaveBeenLastCalledWith({ ids: [11, 12], page: 1, pageSize: 2, sortBy: "createdAt", sortDir: "desc" });
     expect((h.exportToExcel.mock.calls[0] as unknown[])[3]).toBe("Выбранные заказы");
 
     h.rows = [h.rows[0]];
     await act(async () => { fireEvent.click(screen.getByRole("button", { name: "bulk-complete" })); });
-    expect(h.clientList).toHaveBeenLastCalledWith({ ids: [11, 12], page: 1, pageSize: 2 });
+    expect(h.clientList).toHaveBeenLastCalledWith({ ids: [11, 12], page: 1, pageSize: 2, sortBy: "createdAt", sortDir: "desc" });
     // Долговой заказ из прошлого месяца назван в вопросе.
     await waitFor(() => expect(document.body.textContent).toContain("Из них 1 в долг"));
   });

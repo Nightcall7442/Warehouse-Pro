@@ -113,7 +113,8 @@ describe("рабочее место оператора", () => {
   it("список: панели справа нет, строка ведёт в карточку, плитка «Ждут расчёта» фильтрует очередь", () => {
     const orders = read("src/pages/Orders.tsx");
     expect(orders).not.toContain("OrderSlideOver");
-    expect(orders).toContain("const openOrder = (id: number) => navigate(`/orders/${id}`);");
+    // Пометка в переходе — чтобы «Назад» в карточке вернул этот же список (hooks/useBackToOrders).
+    expect(orders).toContain("const openOrder = (id: number) => navigate(`/orders/${id}`, { state: FROM_ORDERS_LIST });");
     expect(orders).toContain("onClick={() => openOrder(o.id as number)}");
     // Очередь считается без периода по умолчанию — отдельным запросом (lib/orders-query).
     expect(orders).toContain('{ key: "money", n: queue?.awaitingMoneyCount ?? 0, ru: "Ждут расчёта"');
