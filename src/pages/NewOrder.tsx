@@ -12,6 +12,7 @@ import { saveDraft, loadDraft, clearDraft, draftHasWork } from "./NewOrder.draft
 import { loadCart, clearCart, cartToItems } from "@/lib/catalog-cart";
 import { Steps, ShopSelector, ProductSelector, OrderReview } from "@/components/orders";
 import type { OrderItem, PaymentMethod } from "@/components/orders";
+import type { LastTimeHint } from "@/components/orders/ProductSelector";
 import { EMPTY_ITEM } from "@/components/orders";
 import { priceAt } from "@contracts/price-tiers";
 import { useShopPrices } from "@/hooks/useOfflineCopy";
@@ -57,6 +58,8 @@ interface OrderWizard {
   setPaymentMethod: (v: PaymentMethod) => void;
   cartOpen: boolean;
   setCartOpen: (v: boolean) => void;
+  /** Сколько магазин брал в последние разы — подсказка на шаге «Товары». */
+  lastTime?: LastTimeHint[];
   /*
     Кому засчитать продажу. Пусто у агента: он оформляет на себя, и выбор ему
     только мешал бы в форме, которую он заполняет по двадцать раз в день.
@@ -84,6 +87,7 @@ export function NewOrderItemsStep() {
       cartOpen={w.cartOpen}
       onCartOpenChange={w.setCartOpen}
       shopId={w.shopId || undefined}
+      lastTime={w.lastTime}
     />
   );
 }
@@ -322,6 +326,13 @@ export default function NewOrder() {
     });
   }, [items, catalog]);
 
+  /*
+    «В прошлый раз» — среднее по трём последним заказам магазина (у агента —
+    своим), order.repeatDraft. Агент набирал по памяти, сколько магазин
+    брал; теперь число стоит у товара, а «Как в прошлый раз» кладёт всё
+    разом. Без связи подсказки нет — заказ собирается как раньше.
+  */
+  const { data: repeatDraft } = trpc.order.repeatDraft.useQuery({ shopId }, { enabled: shopId > 0 });
 
   const invalidateOrderCaches = useInvalidateOrderCaches();
   const createOrder = trpc.order.create.useMutation({
@@ -445,6 +456,7 @@ export default function NewOrder() {
     discount, setDiscount,
     paymentMethod, setPaymentMethod,
     cartOpen, setCartOpen,
+    lastTime: repeatDraft?.lastTime,
     assignableAgents, agentId, setAgentId,
   };
 

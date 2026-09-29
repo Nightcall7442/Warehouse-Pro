@@ -26,6 +26,8 @@ import { ShopPriceList } from "@/components/shops/ShopPriceList";
 import { useAuth } from "@/hooks/useAuth";
 import { canOperate } from "@/lib/permissions";
 import { AppModal, modalFieldLabel } from "@/components/ui/AppModal";
+import { ShopOrderButtons } from "@/components/orders/RepeatOrderButtons";
+import { usesQuickOrder } from "@/lib/quick-order";
 
 
 // ── Форма платежа ─────────────────────────────────────────────────────────────
@@ -276,6 +278,9 @@ export default function ShopDetail() {
         <button onClick={() => goBack()} className="neo-btn hidden md:flex items-center gap-2 py-1.5 px-3 text-sm">
           <ArrowLeft size={18} /><span className="text-sm">{t("Магазины", "Do'konlar")}</span>
         </button>
+        <div className="flex gap-2 flex-wrap">
+        {/* Заказ магазину — прямо отсюда; убранной в архив точке заказ не оформляют. */}
+        {usesQuickOrder(user?.role) && !isArchived && <ShopOrderButtons shop={{ id: shop.id, name: shop.name }} />}
         {canEdit && (
         <div className="flex gap-2">
           <button onClick={() => setEditing(v => !v)} className="neo-btn flex items-center gap-1.5 text-sm py-2">
@@ -301,6 +306,7 @@ export default function ShopDetail() {
           )}
         </div>
         )}
+        </div>
       </div>
 
       {/* Карточка магазина */}

@@ -126,7 +126,7 @@ export function SearchField({ value, onChange, placeholder, mono }: {
   return (
     <label className="flex-1 min-w-0 flex items-center gap-2 px-4" style={{ background: "var(--color-field)", borderRadius: 16, height: 48, boxShadow: "var(--shadow-pressed)" }}>
       <Search size={16} color="var(--color-text-tertiary)" className="flex-shrink-0" />
-      <input value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder}
+      <input value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} data-hotkey-search=""
         className={`flex-1 min-w-0 bg-transparent outline-none${mono ? " font-data" : ""}`} style={{ fontSize: 15, color: "var(--color-text-primary)" }} />
     </label>
   );

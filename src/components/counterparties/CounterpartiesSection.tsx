@@ -143,7 +143,7 @@ export function CounterpartiesSection() {
               background: COLORS.surfaceLight, border: "none", color: COLORS.textPrimary,
               outline: "none", width: "100%",
             }}
-            placeholder={t("Поиск контрагента…", "Kontragent qidirish…")}
+            placeholder={t("Поиск контрагента…", "Kontragent qidirish…")} data-hotkey-search=""
             value={search}
             onChange={e => setSearch(e.target.value)}
           />

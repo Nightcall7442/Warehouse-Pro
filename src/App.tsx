@@ -7,6 +7,7 @@ import Layout from "@/components/Layout";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import { lazyWithRecovery } from "@/lib/stale-app-recovery";
 import { CommandPalette } from "@/components/CommandPalette";
+import { QuickOrderHost } from "@/components/orders/QuickOrderHost";
 import { NoAccess } from "@/components/NoAccess";
 import Login                from "./pages/Login";
 import Register             from "./pages/Register";
@@ -149,14 +150,16 @@ function AppShortcuts() {
   if (!user) return null;
   return (
     <>
-      <HotkeysListener />
+      <HotkeysListener role={user.role} />
       <CommandPalette />
+      {/* Быстрый заказ с любой страницы: клавиша N, «Повторить» в карточках. */}
+      <QuickOrderHost />
     </>
   );
 }
 
-function HotkeysListener() {
-  useHotkeys();
+function HotkeysListener({ role }: { role: string }) {
+  useHotkeys(role);
   return null;
 }
 

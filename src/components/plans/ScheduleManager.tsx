@@ -148,7 +148,7 @@ export function ScheduleManager({ lang }: { lang: string }) {
             <input
               className="neo-input"
               style={{ flex: 1, minWidth: "180px", fontSize: "12px", padding: "6px 8px" }}
-              placeholder={t("Поиск магазина…", "Do'kon qidirish…")}
+              placeholder={t("Поиск магазина…", "Do'kon qidirish…")} data-hotkey-search=""
               value={shopQuery}
               onChange={e => setShopQuery(e.target.value)}
             />

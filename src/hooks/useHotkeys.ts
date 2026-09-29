@@ -1,5 +1,19 @@
 import { useEffect } from "react";
 import { useNavigate } from "react-router";
+import { openQuickOrder, usesQuickOrder } from "@/lib/quick-order";
+
+/**
+ * Поле, куда «/» ставит каретку, — помечено атрибутом.
+ *
+ * Искалось по тексту подсказки: input[placeholder*="Поиск"] и ещё три
+ * написания. По-узбекски подсказки пишутся со строчной — «Buyurtma
+ * qidirish…», — и под «Qidirish» с заглавной не подходила ни одна: «/» в
+ * узбекском интерфейсе всегда открывал палитру вместо поиска страницы. А у
+ * поиска магазинов («Название, владелец, телефон…») слова «Поиск» нет ни на
+ * одном языке. Текст подсказки — дело перевода, а не клавиатуры; атрибут от
+ * языка не зависит. Ставится на поле поиска страницы (SearchInput — сам).
+ */
+export const HOTKEY_SEARCH_ATTR = "data-hotkey-search";
 
 function isInputFocused() {
   const el = document.activeElement;
@@ -54,7 +68,31 @@ export function areHotkeysBlocked(key: string): boolean {
   return isInputFocused() || isModalOpen();
 }
 
-export function useHotkeys() {
+/*
+  Клавиша — по месту на клавиатуре (e.code), а не по букве (e.key).
+
+  Сравнивалось e.key с латиницей. В офисе стоит русская раскладка: там N
+  даёт «т», Ctrl+K — «л», а «/» и вовсе на другой клавише (на её месте
+  «.»). Ни одно сокращение не срабатывало, пока человек не переключит язык, —
+  а переключать его ради клавиши никто не станет. e.code называет клавишу,
+  а не символ, и одинаков в любой раскладке; латинская буква оставлена
+  вторым признаком — для раскладок, где N стоит в другом месте.
+*/
+export function isNewOrderKey(e: Pick<KeyboardEvent, "code" | "key">): boolean {
+  return e.code === "KeyN" || e.key === "n" || e.key === "N";
+}
+
+export function isSearchKey(e: Pick<KeyboardEvent, "code" | "key" | "shiftKey">): boolean {
+  // Shift+та же клавиша — «?» или «,», не поиск.
+  return (e.code === "Slash" && !e.shiftKey) || e.key === "/";
+}
+
+/**
+ * role — чтобы N открывала то, чем роль оформляет заказ: офису — окно
+ * быстрого заказа поверх текущей страницы, полевым — мастер /orders/new.
+ * Раньше N вела в мастер всех, хотя офис по руководству работает окном.
+ */
+export function useHotkeys(role?: string) {
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -63,24 +101,23 @@ export function useHotkeys() {
       if (e.metaKey || e.ctrlKey || e.altKey) return;
 
       // N → new order
-      if (e.key === "n" || e.key === "N") {
+      if (isNewOrderKey(e)) {
         e.preventDefault();
-        navigate("/orders/new");
+        if (usesQuickOrder(role)) openQuickOrder();
+        else navigate("/orders/new");
         return;
       }
 
       // / → focus search input
-      if (e.key === "/") {
+      if (isSearchKey(e)) {
         e.preventDefault();
-        const searchInput = document.querySelector<HTMLInputElement>(
-          'input[placeholder*="Поиск"], input[placeholder*="Qidirish"], input[placeholder*="поиск"], input[placeholder*="Search"]'
-        );
+        const searchInput = document.querySelector<HTMLInputElement>(`[${HOTKEY_SEARCH_ATTR}]`);
         if (searchInput) {
           searchInput.focus();
         } else {
           // Open CommandPalette via Ctrl+K shortcut
           document.dispatchEvent(
-            new KeyboardEvent("keydown", { key: "k", ctrlKey: true, bubbles: true })
+            new KeyboardEvent("keydown", { key: "k", code: "KeyK", ctrlKey: true, bubbles: true })
           );
         }
         return;
@@ -103,5 +140,5 @@ export function useHotkeys() {
 
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
-  }, [navigate]);
+  }, [navigate, role]);
 }

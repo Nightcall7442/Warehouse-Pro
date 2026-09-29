@@ -224,7 +224,7 @@ function StockCountSheet({ id, onBack }: { id: number; onBack: () => void }) {
       </div>
 
       <div className="neo-card p-4 flex flex-wrap items-center gap-3">
-        <input className="neo-input" style={{ maxWidth: 320 }} placeholder={t("Поиск по названию или коду…", "Nomi yoki kodi bo'yicha qidirish…")} value={search} onChange={e => setSearch(e.target.value)} />
+        <input className="neo-input" style={{ maxWidth: 320 }} placeholder={t("Поиск по названию или коду…", "Nomi yoki kodi bo'yicha qidirish…")} data-hotkey-search="" value={search} onChange={e => setSearch(e.target.value)} />
         <label className="flex items-center gap-2 text-sm" style={{ color: COLORS.textSecondary }}>
           <input type="checkbox" checked={onlyDiff} onChange={e => setOnlyDiff(e.target.checked)} /> {t("Только расхождения", "Faqat farqlar")}
         </label>

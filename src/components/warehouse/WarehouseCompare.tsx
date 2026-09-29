@@ -49,7 +49,7 @@ export function WarehouseCompare({ warehouses }: { warehouses: Warehouse[] }) {
       <div className="relative" style={{ maxWidth: 420 }}>
         <Search size={16} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: COLORS.textSecondary }} />
         <input className="neo-input w-full" style={{ paddingLeft: 36 }} value={search} onChange={e => setSearch(e.target.value)}
-          placeholder={t("Поиск товара…", "Mahsulot qidirish…")} data-testid="compare-search" />
+          placeholder={t("Поиск товара…", "Mahsulot qidirish…")} data-hotkey-search="" data-testid="compare-search" />
       </div>
       <div className="neo-card p-0 overflow-hidden">
         <div style={{ overflowX: "auto" }}>

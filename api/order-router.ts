@@ -5,6 +5,7 @@ import { createRouter, operatorQuery, fieldSalesQuery, orderReaderQuery, can } f
 import { OrderService, assertOrderVisible, assertItemsEditableBy } from "./services/order";
 import { OrderCloseService } from "./services/order-close";
 import { NonCashService } from "./services/noncash";
+import { repeatDraft } from "./services/order-repeat";
 
 /** Кто делает правку — для журнала действий службы заказа. */
 const actorOf = (ctx: { user: { id: number; role: string; name: string } }) => ({ id: ctx.user.id, role: ctx.user.role, name: ctx.user.name });
@@ -470,6 +471,24 @@ export const orderRouter = createRouter({
         });
         throw err;
       }
+    }),
+
+  /**
+   * Черновик повтора: состав заказа или последнего заказа магазина по
+   * текущим ценам и остатку основного склада, пропущенные товары по именам и
+   * «в прошлый раз» — среднее по трём последним заказам.
+   *
+   * Процедура та же, что у create: повторить может тот, кто может оформить.
+   * Сам заказ отсюда не создаётся — только через create со всеми проверками
+   * (services/order-repeat.ts).
+   */
+  repeatDraft: fieldSalesQuery
+    .input(z.object({
+      orderId: z.number().int().positive().optional(),
+      shopId:  z.number().int().positive().optional(),
+    }).refine(v => (v.orderId == null) !== (v.shopId == null), "Укажите заказ или магазин — одно из двух"))
+    .query(async ({ input, ctx }) => {
+      return repeatDraft(ctx.db, ctx.tenant.id, input, { userId: ctx.user.id, userRole: ctx.user.role as string });
     }),
 
   cancel: fieldSalesQuery

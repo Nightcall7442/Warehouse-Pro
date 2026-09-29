@@ -24,7 +24,7 @@ export function UserFilters({ search, role, lang, onSearchChange, onRoleChange }
         <input
           className="neo-input w-full"
           style={{ paddingLeft: "36px" }}
-          placeholder={t("Поиск пользователей…", "Foydalanuvchi qidirish…")}
+          placeholder={t("Поиск пользователей…", "Foydalanuvchi qidirish…")} data-hotkey-search=""
           value={search}
           onChange={e => onSearchChange(e.target.value)}
         />

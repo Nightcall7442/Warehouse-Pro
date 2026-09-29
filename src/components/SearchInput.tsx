@@ -89,6 +89,7 @@ export const SearchInput = memo(function SearchInput({
           outline: "none",
         }}
         placeholder={placeholder}
+        data-hotkey-search=""
         data-testid={testId}
         value={value}
         onChange={e => setValue(e.target.value)}
