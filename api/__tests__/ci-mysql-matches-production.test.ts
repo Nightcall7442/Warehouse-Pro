@@ -18,12 +18,20 @@
  * задания матрицы «real-db (9.4)». Без явного имени каждый PR ждал бы
  * навсегда проверку, которая не придёт.
  *
+ * И вторую: у службы в Railway включён «Wait for CI», а он смотрит на итог
+ * всего потока CI, не на список обязательных проверок. Упавшая 9.7 делала
+ * весь поток красным, и Railway пропускал выкладку: «не обязательная»
+ * проверка на будущей версии держала бы бой на 9.4 без выкладок, даже
+ * срочных. Теперь у ветви 9.7 continue-on-error — задание красное, поток нет.
+ *
  * ── Что проверяется ─────────────────────────────────────────────────────────
  *
  * 1. Каждый образ, записанный словами, во всех заданиях с базой и в compose —
  *    боевой. Подстановка из матрицы допустима только в real-db.
  * 2. Матрица real-db содержит боевую версию под именем «real-db» и следующую
  *    версию под другим именем; обе гоняют npm run test:db.
+ * 3. Падение следующей версии не роняет поток (не держит выкладку), падение
+ *    боевой — роняет.
  *
  * Версии — две константы ниже. Когда бой обновят, поменять их здесь, и
  * проверка назовёт все места, которые за ними не успели.
@@ -97,10 +105,36 @@ describe("образ MySQL в проверках", () => {
   });
 });
 
+/**
+ * Ветви матрицы real-db: каждая «- mysql: "…"» со своими ключами. Ключ
+ * относится к ветви, пока отступ глубже её дефиса.
+ */
+function matrixLegs(block: string) {
+  const legs: { image: string; check?: string; optional?: string }[] = [];
+  let indent = -1;
+  for (const line of block.split(/\r?\n/)) {
+    if (/^\s*(#.*)?$/.test(line)) continue;
+    const start = line.match(/^(\s*)-\s*mysql:\s*"([^"]+)"\s*$/);
+    if (start) {
+      indent = start[1].length;
+      legs.push({ image: `mysql:${start[2]}` });
+      continue;
+    }
+    const kv = line.match(/^(\s*)([\w-]+):\s*(.+?)\s*$/);
+    if (indent >= 0 && kv && kv[1].length > indent) {
+      const leg = legs[legs.length - 1];
+      if (kv[2] === "check") leg.check = kv[3];
+      if (kv[2] === "optional") leg.optional = kv[3];
+    } else {
+      indent = -1;
+    }
+  }
+  return legs;
+}
+
 describe("проверки с базой идут на боевой версии и на следующей", () => {
   const block = jobBlock(read(".github/workflows/ci.yml"), "real-db");
-  const legs = [...block.matchAll(/-\s*mysql:\s*"([^"]+)"\s*\n\s*check:\s*(.+?)\s*$/gm)]
-    .map(m => ({ image: `mysql:${m[1]}`, check: m[2] }));
+  const legs = matrixLegs(block);
 
   it("боевая версия отвечает за обязательную проверку «real-db»", () => {
     expect(block, "имя задания не взято из матрицы — GitHub назовёт его «real-db (9.4)»")
@@ -120,5 +154,20 @@ describe("проверки с базой идут на боевой версии
   it("одна упавшая версия не обрывает другую, обе гоняют test:db", () => {
     expect(block).toContain("fail-fast: false");
     expect(block).toContain("npm run test:db");
+  });
+
+  it("упавшая следующая версия не держит выкладку, упавшая боевая — держит", () => {
+    // «Wait for CI» в Railway смотрит на итог всего потока. Задание без
+    // continue-on-error, упав, делает поток красным — выкладка пропускается.
+    // Именно на уровне задания: на шаге оно сделало бы задание зелёным, и
+    // красную 9.7 не увидел бы никто.
+    expect(block, `без continue-on-error упавшая ${NEXT_MYSQL} остановит выкладку боя`)
+      .toMatch(/^ {4}continue-on-error: \$\{\{ matrix\.optional \}\}\s*$/m);
+    expect(block.match(/continue-on-error:/g), "continue-on-error на шаге спрячет красную ветвь")
+      .toHaveLength(1);
+    const required = legs.find(l => l.check === REQUIRED_CHECK);
+    const next = legs.find(l => l.image === NEXT_MYSQL);
+    expect(required?.optional, "падение боевой версии обязано держать выкладку").toBe("false");
+    expect(next?.optional, `падение ${NEXT_MYSQL} не должно держать выкладку`).toBe("true");
   });
 });
