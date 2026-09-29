@@ -826,7 +826,7 @@ if (env.isProduction) {
   // Bring the schema up to date before serving a single request.
   //
   // This used to be a `drizzle-kit migrate` step in the Dockerfile's CMD, but
-  // railway.json sets its own startCommand, which silently replaced it — so
+  // railway.json (since removed) set its own startCommand, which silently replaced it — so
   // migrations never ran in production at all, and the schema was kept in
   // step by hand. Columns the code depended on went missing, which surfaced
   // as "Failed query" errors long after the deploy that introduced them.

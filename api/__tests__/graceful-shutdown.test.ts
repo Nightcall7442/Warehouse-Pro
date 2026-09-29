@@ -21,11 +21,13 @@
  *   - зависший запрос не держит процесс дольше срока: обрыв, пул, выход;
  *   - закрытие, которое не кончается, не держит выход дольше четверти срока;
  *   - второй сигнал не запускает вторую остановку;
- *   - загрузчик подключает всё это, а railway.json даёт время дождаться.
+ *   - загрузчик подключает всё это, образ оставляет dumb-init первым
+ *     процессом, а окно до SIGKILL из панели Railway (docs/deployment.md)
+ *     вмещает ожидание с закрытием; railway.json в репозиторий не вернулся.
  */
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { connect } from "node:net";
-import { readFileSync } from "node:fs";
+import { readFileSync, existsSync } from "node:fs";
 import { resolve } from "node:path";
 import type { Server } from "node:http";
 import type { AddressInfo } from "node:net";
@@ -227,12 +229,22 @@ describe("загрузчик и платформа", () => {
     expect(boot).toMatch(/const server = serve\([\s\S]{0,900}?\n {2}\}\);\n\n {2}\/\*[\s\S]{0,700}?\*\/\n {2}const shutdown = gracefulShutdown\(/);
   });
 
-  it("railway.json даёт дождаться, и команда запуска не отнимает у образа dumb-init", () => {
-    const railway = JSON.parse(readFileSync(resolve(__dirname, "../../railway.json"), "utf8"));
+  it("окно из панели Railway даёт дождаться, и команда запуска не отнимает у образа dumb-init", () => {
+    /*
+      Настройки выкладки живут в панели Railway: railway.json Railway
+      перестаёт читать 01.12.2026, а пока файл лежит в репозитории, он
+      перекрывает панель и блокирует её поля — настройки расходятся по двум
+      местам. Значения панели записаны в docs/deployment.md; из CI саму
+      панель не прочитать, поэтому сверяем с документом.
+    */
+    expect(existsSync(resolve(__dirname, "../../railway.json"))).toBe(false);
+    const doc = readFileSync(resolve(__dirname, "../../docs/deployment.md"), "utf8");
+    const draining = doc.match(/^(?:> )?\| Draining Seconds \| `(\d+)` \|\r?$/m);
+    expect(draining, "строка Draining Seconds в таблице панели").not.toBeNull();
     // Ожидание и четверть срока на закрытие — строго внутри окна до SIGKILL.
-    expect(railway.deploy.drainingSeconds * 1000).toBeGreaterThanOrEqual(env.shutdownTimeoutMs * 1.25);
-    // startCommand заменяет ENTRYPOINT: node стал бы первым процессом.
-    expect(railway.deploy).not.toHaveProperty("startCommand");
+    expect(Number(draining![1]) * 1000).toBeGreaterThanOrEqual(env.shutdownTimeoutMs * 1.25);
+    // Custom Start Command заменяет ENTRYPOINT: node стал бы первым процессом.
+    expect(doc).toMatch(/^(?:> )?\| Custom Start Command \| \*\*пусто\*\* \|\r?$/m);
     const docker = readFileSync(resolve(__dirname, "../../Dockerfile"), "utf8");
     expect(docker).toContain('ENTRYPOINT ["dumb-init", "--"]');
     expect(docker).toContain('CMD ["node", "dist/boot.js"]');

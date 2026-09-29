@@ -25,8 +25,8 @@ describe("выключатель лимитов для нагрузочного 
     expect(env).toContain('rateLimitDisabled:    optional("RATE_LIMIT_DISABLED") === "1"');
     const boot = readFileSync(resolve(__dirname, "../boot.ts"), "utf8");
     expect(boot).toMatch(/if \(env\.rateLimitDisabled\) logger\.warn\("RATE_LIMIT_DISABLED=1/);
-    // В бою переменной нет: ни в Dockerfile, ни в railway.json, ни в примере окружения.
-    for (const f of ["../../Dockerfile", "../../railway.json", "../../.env.example"]) {
+    // В бою переменной нет: ни в Dockerfile, ни в примере окружения.
+    for (const f of ["../../Dockerfile", "../../.env.example"]) {
       expect(readFileSync(resolve(__dirname, f), "utf8"), f).not.toContain("RATE_LIMIT_DISABLED");
     }
   });

@@ -89,7 +89,7 @@ export const env = {
 
   /**
    * Сколько ждать незаконченные запросы при остановке, мс. Вместе с четвертью
-   * на закрытие — меньше railway.json → deploy.drainingSeconds (30 с): после
+   * на закрытие — меньше Draining Seconds в панели Railway (30 с): после
    * него платформа снимает процесс силой. См. lib/graceful-shutdown.ts.
    */
   shutdownTimeoutMs:    parseInt(optional("SHUTDOWN_TIMEOUT_MS", "20000"), 10),

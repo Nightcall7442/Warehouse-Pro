@@ -25,23 +25,27 @@
 
 Сервис пересобирается и выкладывается сам при отправке в `main`.
 
-- Сборка — по `Dockerfile` (см. `railway.json`).
+- Сборка — по `Dockerfile`. Все настройки выкладки — в панели службы
+  Warehouse-Pro (Settings), `railway.json` в репозитории нет.
 
-> **До 1 декабря 2026.** Railway объявил файлы Config-as-Code устаревшими:
-> `railway.json` продолжает действовать только до этой даты. Его значения
-> нужно перенести в панель службы Warehouse-Pro (Settings), а файл убрать:
+> **Почему не файл.** Railway объявил Config-as-Code устаревшим: `railway.json`
+> он читает только до 1 декабря 2026. Пока файл лежал в репозитории, он
+> перекрывал панель и блокировал её поля. Значения перенесены в панель
+> 29.09.2026, файл убран. Тест `graceful-shutdown` сверяет с этой таблицей
+> срок остановки и следит, чтобы файл не вернулся.
 >
-> | Поле в панели | Значение | В `railway.json` |
-> |---|---|---|
-> | Builder | Dockerfile, путь `Dockerfile` | `build.builder`, `build.dockerfilePath` |
-> | Healthcheck Path | `/health/ready` | `deploy.healthcheckPath` |
-> | Healthcheck Timeout | `300` | `deploy.healthcheckTimeout` |
-> | Restart Policy | On Failure, Max Retries `10` | `deploy.restartPolicyType`, `deploy.restartPolicyMaxRetries` |
-> | Draining Seconds (или переменная `RAILWAY_DEPLOYMENT_DRAINING_SECONDS`) | `30` | `deploy.drainingSeconds` |
-> | Custom Start Command | **пусто** | нет — намеренно |
+> | Поле в панели | Значение |
+> |---|---|
+> | Builder | Dockerfile, путь `Dockerfile` |
+> | Healthcheck Path | `/health/ready` |
+> | Healthcheck Timeout | `300` |
+> | Restart Policy | On Failure, Max Retries `10` |
+> | Draining Seconds | `30` |
+> | Custom Start Command | **пусто** |
 >
-> Пока файл в репозитории, поля в панели заблокированы. Порядок: сначала
-> удалить файл, после первой выкладки без файла сразу вписать значения.
+> Что реально стоит в панели, видно в `deployment.meta.serviceManifest`
+> любой выкладки (GraphQL Railway) — сверять с таблицей там, а не по полю
+> `serviceInstance.builder`: оно устаревшее и показывает `RAILPACK`.
 - Проверка готовности — `/health/ready`, срок ожидания 300 секунд. Railway
   зовёт её только при выкладке, чтобы решить, можно ли слать трафик.
 - При падении — до 10 перезапусков.
@@ -94,7 +98,7 @@ docker compose up -d
 Миграции применяются **внутри `dist/boot.js`**, а не в команде запуска.
 
 Это сделано намеренно. Когда они стояли в команде запуска, платформа позволяла
-переопределить её (`railway.json` это и делает) — и миграции молча переставали
+переопределить её (так делал `railway.json`) — и миграции молча переставали
 выполняться. Именно так рабочая база однажды отстала от кода на несколько
 миграций.
 

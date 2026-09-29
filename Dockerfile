@@ -81,7 +81,7 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
 # осиротевшие процессы. Команда запуска Railway (startCommand) ЗАМЕНЯЕТ
 # ENTRYPOINT, а не CMD, — с ней node сам становится первым процессом, и сигнал
 # остановки, пришедший до установки обработчика (ожидание базы, миграции),
-# игнорируется до SIGKILL. Поэтому в railway.json и в панели её нет.
+# игнорируется до SIGKILL. Поэтому в панели Railway её нет.
 ENTRYPOINT ["dumb-init", "--"]
 # Migrations run inside boot.js (see api/boot.ts). Keeping them out of the
 # start command means a platform-level startCommand override can no longer
