@@ -25,13 +25,8 @@ Sentry.init({
     // in App.tsx — that integration turns off its own navigation tracking and
     // relies on the wrapper, so switching here alone would lose navigations.
     Sentry.browserTracingIntegration(),
-    Sentry.replayIntegration({
-      // В записи сеанса не должно быть ни сумм, ни названий магазинов: она
-      // уходит третьей стороне. Текст и поля ввода закрываются целиком.
-      maskAllText: true,
-      maskAllInputs: true,
-      blockAllMedia: true,
-    }),
+    // Запись сеанса здесь не подключается — она приезжает позже, отдельным
+    // куском: см. loadReplayWhenIdle ниже и src/sentry-replay.ts.
   ],
 
   tracesSampleRate: import.meta.env.PROD ? 0.2 : 1.0,
@@ -103,6 +98,43 @@ Sentry.init({
     return event;
   },
 });
+
+/**
+ * Запись сеанса — после первого экрана, а не во входном файле.
+ *
+ * ── Что было ────────────────────────────────────────────────────────────────
+ *
+ * replayIntegration стояла прямо в init выше, и вместе с ней во входной файл
+ * ехал весь rrweb: больше сотни килобайт, которые дешёвый Android агента
+ * качал по мобильной связи и разбирал ДО того, как нарисовать хоть что-то.
+ *
+ * ── Что теперь ──────────────────────────────────────────────────────────────
+ *
+ * Ошибки ловятся с первой секунды, как и раньше: init с глобальными
+ * обработчиками остаётся здесь, во входном файле. Запись сеанса
+ * подгружается отдельным куском, когда страница загружена и браузер
+ * простаивает (requestIdleCallback; где его нет — через три секунды после
+ * load). Платим за это одним: ошибка в первые секунды приходит без записи —
+ * стек, браузер, пользователь и путь по экранам у неё есть.
+ *
+ * Почему на всех устройствах, а не «только на компьютере»: труднее всего
+ * воспроизвести как раз ошибки агента в поле, и запись нужнее всего там.
+ * Задача была убрать её с пути первого экрана, а не выключить.
+ *
+ * Без DSN (разработка, стенд) не грузится вовсе: отправлять некуда.
+ */
+function loadReplayWhenIdle(): void {
+  if (!import.meta.env.VITE_SENTRY_DSN || typeof window === "undefined") return;
+  const load = () => { void import("./sentry-replay").then(m => m.startReplay()).catch(() => { /* без записи — не беда */ }); };
+  const idle = () => {
+    if ("requestIdleCallback" in window) window.requestIdleCallback(load, { timeout: 15_000 });
+    else setTimeout(load, 3_000);
+  };
+  if (document.readyState === "complete") idle();
+  else window.addEventListener("load", idle, { once: true });
+}
+
+loadReplayWhenIdle();
 
 /**
  * Кто именно наткнулся на ошибку.

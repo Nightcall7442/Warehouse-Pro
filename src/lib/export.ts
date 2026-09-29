@@ -1,4 +1,3 @@
-import ExcelJS from "exceljs";
 import { unitShort } from "./units";
 import { openPrintWindowOrExplain } from "./print";
 import { notify } from "./toast";
@@ -30,6 +29,10 @@ export async function exportToExcel(sheets: Array<{
     return;
   }
 
+  // Библиотека (~900 КБ) грузится по нажатию, а не вместе со страницей:
+  // статический import ставил её в предзагрузку каждой страницы с кнопкой
+  // выгрузки — агент качал её, открывая «KPI» или «Магазины» на телефоне.
+  const ExcelJS = (await import("exceljs")).default;
   const wb = new ExcelJS.Workbook();
 
   for (const sheet of sheets) {
