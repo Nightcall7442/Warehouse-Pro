@@ -34,7 +34,7 @@ jobs:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
         with:
-          node-version: 22
+          node-version: 24
           cache: npm
       # Именно `npm ci`, а не `npm install`: образ в Dockerfile ставит зависимости
       # строгим `npm ci`, который падает при расхождении package.json и файла
@@ -44,26 +44,23 @@ jobs:
       # Флаг legacy-peer-deps объявлен в .npmrc, но здесь оставлен явно.
       - run: npm ci --legacy-peer-deps
 
-      # TEMPORARY diagnostic step: drizzle-kit's CLI spinner has been
-      # swallowing the actual failure reason on every run so far. This calls
-      # drizzle-orm's migrate() directly (same function the CLI calls
-      # internally) so the real error message/stack prints. Remove once the
-      # underlying migration issue is found and drizzle-kit migrate passes on
-      # its own below.
-      - name: Debug — run migrate() directly for full error output
+      # Весь смысл задания: цепочка миграций целиком (0000 и дальше) встаёт на
+      # пустую базу той же версии, что в бою. Это поймало бы 0022–0029, так и
+      # не записанные в журнал, пока их не починили.
+      #
+      # Накат — тем же migrate() из drizzle-orm, что зовёт сервер при запуске
+      # (scripts/migrate.cjs), а не `drizzle-kit migrate`: тот при падении
+      # выходит с кодом 1, не напечатав причины (проверено 29.09.2026 на
+      # 0.31.11). Здесь этот шаг назывался временным отладочным
+      # (debug-migrate.cjs) и стоял перед `drizzle-kit migrate` «на пустую
+      # базу» — который из-за него накатывал уже накатанное и не проверял
+      # ничего. Теперь накат с нуля — один шаг, и он с причиной; drizzle-kit
+      # проверяется в конце, на накатанной базе, а с нуля его гоняет стенд
+      # real-db в ci.yml на каждом прогоне.
+      - name: Миграции с нуля — тем же migrate(), что при запуске сервера
         env:
           DATABASE_URL: mysql://root@127.0.0.1:3306/warehouse_pro_migrate_test
-        run: node scripts/debug-migrate.cjs
-
-      # The whole point of this job: verify the full migration history
-      # (0000 through the latest file) applies cleanly to a brand-new MySQL 8
-      # database via the exact command the Dockerfile runs on every deploy.
-      # This is what would have caught migrations 0022-0029 never having been
-      # registered in the journal before that was fixed.
-      - name: Run drizzle-kit migrate against a fresh database
-        env:
-          DATABASE_URL: mysql://root@127.0.0.1:3306/warehouse_pro_migrate_test
-        run: npx drizzle-kit migrate
+        run: bash scripts/ci-run.sh "Миграции с нуля" node scripts/migrate.cjs
 
       # Spot-check a few things that previously silently failed to apply
       # (order_items.cost_price and onec_config were undocumented manual
@@ -126,8 +123,10 @@ jobs:
             exit 1
           fi
 
-      # Re-run migrate against the now-migrated database. drizzle-kit tracks
-      # applied migrations in __drizzle_migrations and skips them, so this
+      # Re-run migrate against the now-migrated database — через drizzle-kit,
+      # то есть тем путём, которым идут `npm run db:migrate` и стенд real-db.
+      # drizzle-kit tracks applied migrations in __drizzle_migrations and
+      # skips them, so this
       # mainly guards against the command itself erroring on a second run
       # (e.g. a missing journal/snapshot file) rather than re-exercising every
       # statement's idempotency — that was verified manually against a

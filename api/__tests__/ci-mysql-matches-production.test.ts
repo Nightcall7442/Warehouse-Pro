@@ -1,5 +1,6 @@
 /**
- * Проверки идут на той же мажорной версии MySQL, что и бой.
+ * Проверки идут на той же мажорной версии MySQL, что и бой, — и заранее на
+ * той, куда бой переезжает.
  *
  * ── Что было ────────────────────────────────────────────────────────────────
  *
@@ -10,11 +11,22 @@
  * возможностях 9.x (mysql_native_password) и в планировщике запросов
  * осталась бы невидимой до боя.
  *
+ * 29.09.2026: 9.4 больше не получает исправлений безопасности, бой переедет
+ * на 9.7 LTS обновлением на месте. Проверки с базой (задание real-db) теперь
+ * идут матрицей на обеих версиях. Матрица принесла свою ловушку: защита
+ * ветки main требует проверку с именем ровно «real-db», а GitHub называет
+ * задания матрицы «real-db (9.4)». Без явного имени каждый PR ждал бы
+ * навсегда проверку, которая не придёт.
+ *
  * ── Что проверяется ─────────────────────────────────────────────────────────
  *
- * Все три места объявляют один образ. Версию берём из одной константы:
- * когда бой обновят (Railway предлагает 9.7), менять её здесь — и все три
- * файла проверка приведёт к ней.
+ * 1. Каждый образ, записанный словами, во всех заданиях с базой и в compose —
+ *    боевой. Подстановка из матрицы допустима только в real-db.
+ * 2. Матрица real-db содержит боевую версию под именем «real-db» и следующую
+ *    версию под другим именем; обе гоняют npm run test:db.
+ *
+ * Версии — две константы ниже. Когда бой обновят, поменять их здесь, и
+ * проверка назовёт все места, которые за ними не успели.
  */
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
@@ -22,14 +34,91 @@ import { resolve } from "node:path";
 
 /** Мажор.минор боевой базы (Railway → MySQL-avuz → Settings → Source Image). */
 const PRODUCTION_MYSQL = "mysql:9.4";
+/** Версия, на которую бой переезжает. Проверки с базой гоняются и на ней. */
+const NEXT_MYSQL = "mysql:9.7";
+/** Имя проверки, которое требует защита ветки main (Settings → Branches). */
+const REQUIRED_CHECK = "real-db";
+
+const read = (file: string) => readFileSync(resolve(__dirname, "../..", file), "utf-8");
+
+/** Все значения `image:` в файле, как записаны. */
+function imagesIn(src: string): string[] {
+  return [...src.matchAll(/^\s*image:\s*(\S.*?)\s*$/gm)].map(m => m[1]);
+}
+
+/**
+ * Текст одного задания из ci.yml: от «  имя:» до следующего задания.
+ * Задания — ключи с отступом в два пробела; комментарии и вложенные ключи
+ * начинаются иначе.
+ */
+function jobBlock(ci: string, job: string): string {
+  const lines = ci.split(/\r?\n/);
+  const start = lines.findIndex(l => l === `  ${job}:`);
+  expect(start, `задание ${job} не найдено в ci.yml`).toBeGreaterThanOrEqual(0);
+  let end = lines.length;
+  for (let i = start + 1; i < lines.length; i++) {
+    if (/^ {2}[a-z][\w-]*:\s*$/.test(lines[i])) { end = i; break; }
+  }
+  return lines.slice(start, end).join("\n");
+}
 
 describe("образ MySQL в проверках", () => {
-  for (const file of [".github/workflows/ci.yml", ".github/workflows/test-migrations.yml", "docker-compose.yml"]) {
-    it(`${file} использует ${PRODUCTION_MYSQL}`, () => {
-      const src = readFileSync(resolve(__dirname, "../..", file), "utf-8");
-      const images = src.match(/image: mysql:[^\s]+/g) ?? [];
+  const files = [
+    ".github/workflows/ci.yml",
+    ".github/workflows/test-migrations.yml",
+    ".github/workflows/load-test.yml",
+    ".github/workflows/screenshots.yml",
+    "docker-compose.yml",
+  ];
+  for (const file of files) {
+    it(`${file}: образ, записанный словами, — ${PRODUCTION_MYSQL}`, () => {
+      const images = imagesIn(read(file));
       expect(images.length, "объявление образа не найдено").toBeGreaterThan(0);
-      for (const img of images) expect(img).toBe(`image: ${PRODUCTION_MYSQL}`);
+      for (const img of images) {
+        // Подстановку из матрицы разбирает отдельная проверка ниже.
+        if (img.includes("${{")) continue;
+        expect(img, `${file}: база не боевой версии`).toBe(PRODUCTION_MYSQL);
+      }
     });
   }
+
+  it("подстановка версии из матрицы — только в real-db", () => {
+    for (const file of files) {
+      const src = read(file);
+      const templated = imagesIn(src).filter(img => img.includes("${{"));
+      if (file !== ".github/workflows/ci.yml") {
+        expect(templated, `${file}: версия базы должна быть боевой, без матрицы`).toEqual([]);
+        continue;
+      }
+      // В ci.yml подстановка ровно одна — и та внутри real-db.
+      expect(templated).toEqual(["mysql:${{ matrix.mysql }}"]);
+      expect(jobBlock(src, "real-db")).toContain("image: mysql:${{ matrix.mysql }}");
+    }
+  });
+});
+
+describe("проверки с базой идут на боевой версии и на следующей", () => {
+  const block = jobBlock(read(".github/workflows/ci.yml"), "real-db");
+  const legs = [...block.matchAll(/-\s*mysql:\s*"([^"]+)"\s*\n\s*check:\s*(.+?)\s*$/gm)]
+    .map(m => ({ image: `mysql:${m[1]}`, check: m[2] }));
+
+  it("боевая версия отвечает за обязательную проверку «real-db»", () => {
+    expect(block, "имя задания не взято из матрицы — GitHub назовёт его «real-db (9.4)»")
+      .toContain("name: ${{ matrix.check }}");
+    const required = legs.filter(l => l.check === REQUIRED_CHECK);
+    expect(required, "обязательную проверку должна давать ровно одна ветвь матрицы").toHaveLength(1);
+    expect(required[0].image, "обязательная проверка идёт не на боевой базе").toBe(PRODUCTION_MYSQL);
+  });
+
+  it(`и рядом — ${NEXT_MYSQL} под своим именем`, () => {
+    const next = legs.find(l => l.image === NEXT_MYSQL);
+    expect(next, `в матрице real-db нет ${NEXT_MYSQL}`).toBeDefined();
+    expect(next!.check).not.toBe(REQUIRED_CHECK);
+    expect(legs.map(l => l.image).sort()).toEqual([NEXT_MYSQL, PRODUCTION_MYSQL].sort());
+  });
+
+  it("одна упавшая версия не обрывает другую, обе гоняют test:db", () => {
+    expect(block).toContain("fail-fast: false");
+    expect(block).toContain("npm run test:db");
+  });
 });

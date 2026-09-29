@@ -13,7 +13,7 @@
 [![Миграции](https://github.com/Nightcall7442/Warehouse-Pro/actions/workflows/test-migrations.yml/badge.svg)](https://github.com/Nightcall7442/Warehouse-Pro/actions/workflows/test-migrations.yml)
 [![Снимки](https://github.com/Nightcall7442/Warehouse-Pro/actions/workflows/screenshots.yml/badge.svg)](https://github.com/Nightcall7442/Warehouse-Pro/actions/workflows/screenshots.yml)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178c6?logo=typescript&logoColor=white)
-![Node](https://img.shields.io/badge/Node-%E2%89%A522.5-5fa04e?logo=node.js&logoColor=white)
+![Node](https://img.shields.io/badge/Node-24-5fa04e?logo=node.js&logoColor=white)
 
 ![React](https://img.shields.io/badge/React-19-20232a?logo=react&logoColor=61dafb)
 ![Vite](https://img.shields.io/badge/Vite-7-646cff?logo=vite&logoColor=white)
@@ -23,7 +23,7 @@
 ![Hono](https://img.shields.io/badge/Hono-4-e36002?logo=hono&logoColor=white)
 ![tRPC](https://img.shields.io/badge/tRPC-11-2596be?logo=trpc&logoColor=white)
 ![Drizzle](https://img.shields.io/badge/Drizzle_ORM-0.45-c5f74f?logo=drizzle&logoColor=black)
-![MySQL](https://img.shields.io/badge/MySQL-8-4479a1?logo=mysql&logoColor=white)
+![MySQL](https://img.shields.io/badge/MySQL-9.4-4479a1?logo=mysql&logoColor=white)
 ![Zod](https://img.shields.io/badge/Zod-4-3e67b1?logo=zod&logoColor=white)
 
 ![Vitest](https://img.shields.io/badge/Vitest-3500%2B_проверок-6e9f18?logo=vitest&logoColor=white)
@@ -101,7 +101,7 @@ flowchart TB
         M["Телефон агента<br/>React Native / Expo"]
     end
 
-    subgraph Server["Сервер — один процесс Node 22"]
+    subgraph Server["Сервер — один процесс Node 24"]
         H["Hono + tRPC"]
         MW["Промежуточный слой:<br/>арендатор → лимит → вход → роль"]
         S["Службы:<br/>заказы, склад, долги, KPI"]
@@ -133,7 +133,7 @@ flowchart TB
 | Веб | React 19, Vite 7, React Router 7, Tailwind CSS, Radix UI |
 | Мобильное | React Native, Expo Router, TanStack Query |
 | Сервер | Hono 4, tRPC 11, Drizzle ORM |
-| База | MySQL 8 |
+| База | MySQL 9.4 (проверки — ещё и на 9.7) |
 | Вход | JWT (jose), пароли PBKDF2, куки httpOnly |
 | Сборка | Vite, esbuild, TypeScript 5.9 |
 | Проверки | Vitest, Playwright |
@@ -143,7 +143,8 @@ flowchart TB
 
 ## Быстрый старт
 
-Нужен **Node ≥ 22.5** и **MySQL 8**.
+Нужен **Node 24** и **MySQL 9.4**. Как обновляем зависимости и какие мажоры
+пока не берём — [docs/dependency-policy.md](docs/dependency-policy.md).
 
 ```bash
 git clone https://github.com/Nightcall7442/Warehouse-Pro.git
