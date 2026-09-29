@@ -15,6 +15,25 @@ import { openQuickOrder, usesQuickOrder } from "@/lib/quick-order";
  */
 export const HOTKEY_SEARCH_ATTR = "data-hotkey-search";
 
+/*
+  Виджеты, которые сами ловят буквы: открытый выпадающий список ищет пункт по
+  первым буквам (PremiumSelect, Select и меню Radix), нативный <select> — даже
+  закрытый. Пока клавиши сравнивались с латиницей, русская «т» сюда не
+  доходила; по e.code это та же клавиша N, и «Т», набранная, чтобы прыгнуть к
+  «Тимуру» в фильтре агентов, открывала новый заказ поверх страницы.
+
+  Закрытый combobox букв не ловит (PremiumSelect открывается стрелкой и
+  Enter), поэтому он молчит только раскрытым: после выбора фильтра фокус
+  остаётся на нём, и N должна работать.
+*/
+const LETTER_ROLES = new Set(["listbox", "option", "menu", "menuitem", "menuitemradio", "menuitemcheckbox", "textbox", "searchbox", "spinbutton"]);
+
+function takesLetters(el: Element): boolean {
+  const role = el.getAttribute("role") ?? "";
+  if (role === "combobox") return el.getAttribute("aria-expanded") === "true";
+  return LETTER_ROLES.has(role);
+}
+
 function isInputFocused() {
   const el = document.activeElement;
   if (!el) return false;
@@ -22,7 +41,9 @@ function isInputFocused() {
   return (
     tag === "INPUT" ||
     tag === "TEXTAREA" ||
-    (el as HTMLElement).isContentEditable
+    tag === "SELECT" ||
+    (el as HTMLElement).isContentEditable ||
+    takesLetters(el)
   );
 }
 

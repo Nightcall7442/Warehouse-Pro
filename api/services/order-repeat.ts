@@ -133,9 +133,22 @@ export async function repeatDraft(
     throw new TRPCError({ code: "BAD_REQUEST", message: "Укажите заказ или магазин" });
   }
 
-  const [shop] = await db.select({ id: shops.id, name: shops.name }).from(shops)
+  const [shop] = await db.select({ id: shops.id, name: shops.name, status: shops.status }).from(shops)
     .where(and(eq(shops.id, shopId), eq(shops.tenantId, tenantId))).limit(1);
   if (!shop) throw new TRPCError({ code: "NOT_FOUND", message: "Магазин не найден" });
+  /*
+    Точке в архиве заказ не оформляют: выбор магазина в окне и в мастере
+    показывает только действующие, кнопок заказа в карточке архивного
+    магазина нет. А «Повторить» в карточке старого заказа открывал окно с
+    этой точкой, уже выбранной, — и order.create, который статус магазина не
+    проверяет, оформлял ей заказ в обход всех трёх. Отказ называет выход.
+  */
+  if (shop.status !== "active") {
+    throw new TRPCError({
+      code: "PRECONDITION_FAILED",
+      message: `Магазин «${shop.name}» в архиве. Верните его в работу, чтобы оформить заказ.`,
+    });
+  }
 
   // ── Состав повторяемого заказа ──
   const rows = source

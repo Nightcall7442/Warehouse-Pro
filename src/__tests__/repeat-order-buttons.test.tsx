@@ -84,6 +84,14 @@ vi.mock("@/components/PremiumSelect", async () => {
   };
 });
 
+/*
+  Окно хозяин грузит лениво (lazy). На холодном запуске — в CI кэша
+  трансформаций нет — первый импорт окна со всеми его зависимостями
+  дольше секунды, которую ждёт findByRole, и первый тест падал «нет
+  диалога» при исправном коде. Модуль грузится здесь заранее: lazy берёт
+  его из кэша модулей, и тест ждёт окно, а не сборку.
+*/
+await import("@/components/orders/QuickOrderModal");
 const { RepeatOrderButton, ShopOrderButtons } = await import("@/components/orders/RepeatOrderButtons");
 const { QuickOrderHost } = await import("@/components/orders/QuickOrderHost");
 const { closeQuickOrder, openQuickOrder } = await import("@/lib/quick-order");

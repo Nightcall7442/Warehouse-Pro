@@ -28,7 +28,9 @@ import { LangProvider } from "@/i18n";
  *   · верни в палитре (e.metaKey || e.ctrlKey) && e.key === "k" — падает Ctrl+K;
  *   · верни поиск поля по placeholder*="Поиск"/"Qidirish" — падает «/…какой
  *     бы ни была подсказка»;
- *   · сделай N для всех navigate("/orders/new") — падает «офис: N».
+ *   · сделай N для всех navigate("/orders/new") — падает «офис: N»;
+ *   · убери takesLetters(el) из isInputFocused — падает ««т» в открытом
+ *     списке»; глуши combobox и закрытым — падает «закрытый список».
  */
 
 vi.mock("@/providers/trpc", () => ({
@@ -42,9 +44,13 @@ vi.mock("@/providers/trpc", () => ({
 vi.mock("@/hooks/useAuth", () => ({ useAuth: () => ({ user: { id: 1, role: "operator" } }) }));
 vi.mock("@/hooks/useCurrency", () => ({ useCurrency: () => ({ fmt: (v: unknown) => String(v) }) }));
 
+// Открытый список подкручивает активный пункт в поле зрения; в jsdom этого нет.
+Element.prototype.scrollIntoView = () => {};
+
 const { useHotkeys } = await import("@/hooks/useHotkeys");
 const { CommandPalette } = await import("@/components/CommandPalette");
 const { SearchInput } = await import("@/components/SearchInput");
+const { PremiumSelect } = await import("@/components/PremiumSelect");
 const { useQuickOrderSession, closeQuickOrder } = await import("@/lib/quick-order");
 
 afterEach(() => { act(() => closeQuickOrder()); cleanup(); });
@@ -93,6 +99,40 @@ describe("N — новый заказ", () => {
     mount("agent");
     press({ key: "n", code: "KeyN" });
     expect(screen.getByTestId("where").textContent).toBe("/orders/new");
+  });
+});
+
+/*
+  Открытый выпадающий список ищет пункт по первым буквам. Пока клавиши
+  сравнивались с латиницей, русская «т» до N не доходила; с e.code это та же
+  клавиша, и «Т», набранная, чтобы прыгнуть к «Тимуру» в фильтре агентов,
+  открывала новый заказ поверх страницы.
+*/
+describe("выпадающий список ловит буквы сам", () => {
+  const AGENTS = [{ value: "1", label: "Азиз" }, { value: "2", label: "Тимур" }];
+  const pressOn = (el: Element, init: KeyboardEventInit) => act(() => {
+    el.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, cancelable: true, ...init }));
+  });
+
+  it("«т» в открытом списке — поиск пункта, а не новый заказ", () => {
+    mount("operator", <PremiumSelect aria-label="Агент" options={AGENTS} value="1" onChange={() => {}} />);
+    const trigger = screen.getByRole("combobox", { name: "Агент" });
+    act(() => trigger.focus());
+    pressOn(trigger, { key: "ArrowDown", code: "ArrowDown" });
+    expect(trigger.getAttribute("aria-expanded")).toBe("true");
+
+    pressOn(trigger, { key: "т", code: "KeyN" });
+    expect(screen.getByTestId("quick-order").textContent, "буква в списке открыла новый заказ").toBe("closed");
+    expect(screen.getByTestId("where").textContent).toBe("/shops");
+    expect(screen.getByRole("option", { name: "Тимур" }).hasAttribute("data-active"), "список не нашёл «Тимура»").toBe(true);
+  });
+
+  it("закрытый список в фокусе букв не ловит — N работает", () => {
+    mount("operator", <PremiumSelect aria-label="Агент" options={AGENTS} value="1" onChange={() => {}} />);
+    const trigger = screen.getByRole("combobox", { name: "Агент" });
+    act(() => trigger.focus());
+    pressOn(trigger, { key: "т", code: "KeyN" });
+    expect(screen.getByTestId("quick-order").textContent).toBe("open");
   });
 });
 

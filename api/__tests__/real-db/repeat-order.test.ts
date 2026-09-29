@@ -25,6 +25,8 @@ import { ctxFor, hasRealDb, connectRealDb, closeRealDb, truncateAll, seed, type 
  *   · агент не повторит заказ чужого магазина и не увидит его состав ни по
  *     номеру, ни через «последний заказ магазина»;
  *   · чужая организация — отказ «не найден» и по заказу, и по магазину;
+ *   · магазин в архиве — отказ со словами «в архиве», а не окно с этой точкой
+ *     (выбрать её в окне нельзя, а create статус магазина не проверяет);
  *   · «в прошлый раз» — среднее по трём последним заказам магазина, без
  *     отменённых; штуки — целыми, вес — до сотых.
  *
@@ -36,6 +38,7 @@ import { ctxFor, hasRealDb, connectRealDb, closeRealDb, truncateAll, seed, type 
  *   · убери условие warehouseId по основному складу — падает «остаток»;
  *   · убери viewerScope из выборки заказа — падают оба теста агента;
  *   · убери условие tenantId у магазина — падает «чужая организация»;
+ *   · убери проверку shop.status в repeatDraft — падает «магазин в архиве»;
  *   · убери .limit(LAST_TIME_ORDERS) у производной таблицы — падает среднее;
  *   · убери notInArray(NOT_TAKEN) — падает среднее (отменённый входит в «последний»);
  *   · убери округление штучных единиц в roundLastTime — падает «полбутылки».
@@ -169,6 +172,21 @@ describe.skipIf(!hasRealDb)("повтор заказа и «как в прошл
     const them = await orders(stranger, "operator", s.otherTenantId);
     await expect(them.repeatDraft({ orderId: o.id })).rejects.toMatchObject({ code: "NOT_FOUND" });
     await expect(them.repeatDraft({ shopId: s.shopId })).rejects.toMatchObject({ code: "NOT_FOUND" });
+  });
+
+  it("магазин в архиве — повтора нет ни по заказу, ни по магазину, и сказано почему", async () => {
+    // Заказ оформлен, пока точка работала; потом её убрали в архив настоящей ручкой.
+    const o = await create([[s.productId, "3"]]);
+    await (await import("../../shop-router")).shopRouter.createCaller(ctxFor(db, s.tenantId, operatorId, "operator")).archive({ ids: [s.shopId] });
+
+    const me = await orders(operatorId);
+    await expect(me.repeatDraft({ orderId: o.id }), "повтор открыл окно архивной точке")
+      .rejects.toMatchObject({ code: "PRECONDITION_FAILED", message: expect.stringContaining("в архиве") });
+    await expect(me.repeatDraft({ shopId: s.shopId })).rejects.toMatchObject({ code: "PRECONDITION_FAILED" });
+
+    // Вернули в работу — повтор снова открыт.
+    await (await import("../../shop-router")).shopRouter.createCaller(ctxFor(db, s.tenantId, operatorId, "operator")).restore({ id: s.shopId });
+    expect((await me.repeatDraft({ orderId: o.id })).lines.map(l => l.quantity)).toEqual(["3.00"]);
   });
 
   it("«в прошлый раз» — среднее по трём последним заказам, без отменённых", async () => {
