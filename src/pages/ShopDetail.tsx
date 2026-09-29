@@ -30,6 +30,7 @@ import { canOperate } from "@/lib/permissions";
 import { AppModal, modalFieldLabel } from "@/components/ui/AppModal";
 import { ShopOrderButtons } from "@/components/orders/RepeatOrderButtons";
 import { usesQuickOrder } from "@/lib/quick-order";
+import { ShopReturnButton } from "@/components/returns/WebReturn";
 
 
 // ── Форма платежа ─────────────────────────────────────────────────────────────
@@ -283,6 +284,8 @@ export default function ShopDetail() {
         <div className="flex gap-2 flex-wrap">
         {/* Заказ магазину — прямо отсюда; убранной в архив точке заказ не оформляют. */}
         {usesQuickOrder(user?.role) && !isArchived && <ShopOrderButtons shop={{ id: shop.id, name: shop.name }} />}
+        {/* Магазин сдал товар после доставки: выбрать заказ → то же окно, что в карточке заказа. */}
+        <ShopReturnButton shopId={shop.id} shopName={shop.name} />
         {canEdit && (
         <div className="flex gap-2">
           <button onClick={() => setEditing(v => !v)} className="neo-btn flex items-center gap-1.5 text-sm py-2">

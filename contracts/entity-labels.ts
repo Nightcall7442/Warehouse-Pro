@@ -35,7 +35,7 @@
    потерянных данных.
    ═══════════════════════════════════════════════════════════════════════════ */
 import type {
-  Order, User, Arrival, DailyPlan, Tenant, Subscription, OrderAdjustment,
+  Order, User, Arrival, DailyPlan, Tenant, Subscription, OrderAdjustment, Return,
 } from "@contracts/types";
 
 /** Подпись на двух языках. */
@@ -90,6 +90,19 @@ export const ADJUSTMENT_TYPE_LABEL: Record<OrderAdjustment["type"], Label> = {
   partial_payment:  { ru: "Частичная оплата",       uz: "Qisman to'lov" },
   price_change:     { ru: "Изменение цены",         uz: "Narx o'zgarishi" },
   quantity_change:  { ru: "Изменение количества",   uz: "Miqdor o'zgarishi" },
+};
+
+/**
+ * Почему магазин вернул товар. Слова — те же, что на экране «Возвраты» и в
+ * руководстве; набор — перечисление базы, так что шестая причина не соберётся
+ * без подписи.
+ */
+export const RETURN_REASON_LABEL: Record<Return["reason"], Label> = {
+  expired:    { ru: "Истёк срок",   uz: "Muddati o'tgan" },
+  defect:     { ru: "Брак",         uz: "Brak" },
+  wrong_item: { ru: "Не тот товар", uz: "Noto'g'ri mahsulot" },
+  damaged:    { ru: "Повреждён",    uz: "Shikastlangan" },
+  other:      { ru: "Другое",       uz: "Boshqa" },
 };
 
 /**

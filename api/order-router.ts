@@ -284,6 +284,9 @@ export const orderRouter = createRouter({
       // once. Capped so a crafted request can't turn the IN list into a way to
       // make the database chew through an unbounded set.
       agentIds:    z.array(z.number().int().positive()).max(200).optional(),
+      // Заказы одного магазина: «Оформить возврат» в карточке магазина
+      // выбирает из его доставленных заказов.
+      shopId:      z.number().int().positive().optional(),
       // Отмеченные строки: выгрузка и вопрос о долге берут их по номерам, а не
       // ищут в срезе дат — отмеченное на другой странице туда не попадало.
       ids:         z.array(z.number().int().positive()).max(5000).optional(),

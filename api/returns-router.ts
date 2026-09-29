@@ -9,10 +9,11 @@ import { ORDER_STATUS_LABELS, RETURN_STATUS_LABELS } from "./lib/order-status";
 
 /** Офис видит все возвраты организации, поле — только свои. */
 const isOffice = (role: string) => role === "ceo" || role === "operator";
-import { eq, and, desc, sql, ne, inArray, notInArray, isNull } from "drizzle-orm";
+import { eq, and, desc, sql, inArray, notInArray, isNull } from "drizzle-orm";
 import { reportCached, invalidateReports, ReportTTL } from "./lib/report-cache";
 import { sanitizeString } from "./lib/sanitize";
 import { recalcShopDebt } from "./services/shop-debt";
+import { returnableLines, exceedsReturnable } from "./services/returnable";
 import { productLabel } from "./services/order";
 import { tiyin } from "./services/payment";
 
@@ -87,8 +88,13 @@ export const returnsRouter = createRouter({
           notes: returns.notes,
           totalAmount: returns.totalAmount,
           createdAt: returns.createdAt,
+          // Кто завёл: источник у возврата не хранится, а человек и его роль
+          // говорят офису то же самое — агент с телефона или оператор из веба.
+          createdByName: users.name,
+          createdByRole: users.role,
         }).from(returns)
           .leftJoin(shops, and(eq(returns.shopId, shops.id), eq(shops.tenantId, ctx.tenant.id)))
+          .leftJoin(users, and(eq(returns.createdBy, users.id), eq(users.tenantId, ctx.tenant.id)))
           .where(and(...conditions))
           .orderBy(desc(returns.createdAt))
           .limit(input?.pageSize ?? 25)
@@ -145,6 +151,22 @@ export const returnsRouter = createRouter({
       return { ...ret, items };
     }),
 
+  /**
+   * Сколько по заказу ещё можно вернуть — для окна «Оформить возврат» в вебе.
+   * Правило то же, по которому create отвергает лишнее (services/returnable.ts):
+   * экран не считает сам и потому не расходится с сервером. Вид процедуры тот
+   * же, что у create — кто может оформить возврат, тот может и спросить остаток.
+   */
+  returnable: fieldSalesQuery
+    .input(z.object({ orderId: z.number().int().positive() }))
+    .query(async ({ input, ctx }) => {
+      const db = getDb();
+      const [order] = await db.select({ id: orders.id }).from(orders)
+        .where(and(eq(orders.id, input.orderId), eq(orders.tenantId, ctx.tenant.id))).limit(1);
+      if (!order) throw new Error(`Заказ #${input.orderId} не найден`);
+      return [...(await returnableLines(db, ctx.tenant.id, input.orderId)).values()];
+    }),
+
   // Create return
   create: fieldSalesQuery
     .input(z.object({
@@ -181,67 +203,38 @@ export const returnsRouter = createRouter({
 
       // Validate items against original order if provided
       if (input.orderId) {
-        const [order] = await db.select({ tenantId: orders.tenantId })
+        const [order] = await db.select({ tenantId: orders.tenantId, shopId: orders.shopId, orderNumber: orders.orderNumber })
           .from(orders).where(eq(orders.id, input.orderId)).limit(1);
         if (!order || order.tenantId !== ctx.tenant.id) {
           throw new Error(`Заказ #${input.orderId} не найден`);
         }
+        // Возврат по заказу уменьшает долг того магазина, что указан в
+        // возврате (services/shop-debt.ts считает по returns.shop_id). Заказ
+        // одного магазина с возвратом на другой снимал бы долг не с того, кто
+        // получил товар.
+        if (Number(order.shopId) !== input.shopId) {
+          throw new Error(`Заказ ${order.orderNumber} другого магазина — возврат по нему оформляют на его магазин`);
+        }
 
-        const orderItemsData = await db.select().from(orderItems)
-          .where(and(eq(orderItems.orderId, input.orderId)))
-          // Заказ выше уже проверен по организации, но соединение с общей
-          // таблицей товаров всё равно несёт границу: цена одной забытой
-          // проверки здесь — чужие название и код в ответе, а стоимость самого
-          // условия нулевая, потому что для нормальных данных выборка та же.
-          .leftJoin(products, and(eq(orderItems.productId, products.id), eq(products.tenantId, ctx.tenant.id)));
-
-        // Sum quantities already returned for this order
-        const existingReturns = await db.select({
-          productId: returnItems.productId,
-          totalReturned: sql<string>`COALESCE(SUM(${returnItems.quantity}), 0)`,
-        }).from(returnItems)
-          .innerJoin(returns, eq(returnItems.returnId, returns.id))
-          // A rejected return never happened — the goods were never accepted
-          // back, so it must not block a later, legitimate return of the same
-          // item. Pending/approved/completed all still count: those returns
-          // are expected to (or already did) bring the goods back.
-          .where(and(eq(returns.orderId, input.orderId), eq(returns.tenantId, ctx.tenant.id), ne(returns.status, "rejected")))
-          .groupBy(returnItems.productId);
-        const returnedMap = new Map<number, number>();
-        for (const er of existingReturns) returnedMap.set(er.productId, Number(er.totalReturned));
-
+        // Остаток к возврату — одно правило с окном в вебе (services/returnable.ts):
+        // доставленное минус уже возвращённое, отклонённые не в счёт.
+        const lines = await returnableLines(db, ctx.tenant.id, input.orderId);
+        // Один товар двумя строками в одном запросе складывается: иначе каждая
+        // строка по отдельности проходила бы проверку, а вместе — сверх доставленного.
+        const asked = new Map<number, number>();
         for (const item of input.items) {
-          const original = orderItemsData.find(o => o.order_items.productId === item.productId);
-          if (!original) {
+          const line = lines.get(item.productId);
+          if (!line) {
             throw new Error(`«${await productLabel(db, ctx.tenant.id, item.productId)}» нет в этом заказе — вернуть его по нему нельзя`);
           }
-          const alreadyReturned = returnedMap.get(item.productId) ?? 0;
-          // Вернуть можно только то, что реально доехало до магазина.
-          //
-          // Сравнение шло с ЗАКАЗАННЫМ количеством. Курьер, отдавший 4 из 10 и
-          // отметивший это как частичный возврат, уже вернул 6 единиц на склад
-          // — но order_items.quantity остаётся десяткой, поэтому документ на
-          // все 10 проходил проверку. При проведении те же 6 зачислялись на
-          // склад второй раз, а из долга магазина вычиталась стоимость десяти
-          // при заказе, стоящем как четыре. Инвариант склада при этом
-          // сходится, так что сверка целостности молчала.
-          //
-          // deliveredQuantity пусто у заказов, доставленных без построчного
-          // учёта, — там заказанное и есть отгруженное. Тот же COALESCE стоит
-          // в deliveredQty() и в heldQuantity().
-          const shipped = Number(original.order_items.deliveredQuantity ?? original.order_items.quantity);
-          if (alreadyReturned + Number(item.quantity) > shipped) {
-            throw new Error(`«${await productLabel(db, ctx.tenant.id, item.productId)}»: возвращают больше, чем доставили — уже возвращено ${alreadyReturned} из ${shipped}`);
+          const total = (asked.get(item.productId) ?? 0) + Number(item.quantity);
+          asked.set(item.productId, total);
+          if (exceedsReturnable(line, total)) {
+            throw new Error(`«${await productLabel(db, ctx.tenant.id, item.productId)}»: возвращают больше, чем доставили — уже возвращено ${line.returned} из ${line.shipped}`);
           }
         }
         // Use original order unit prices, not client-supplied
-        input.items = input.items.map(item => {
-          const original = orderItemsData.find(o => o.order_items.productId === item.productId);
-          return {
-            ...item,
-            unitPrice: Number(original!.order_items.unitPrice),
-          };
-        });
+        input.items = input.items.map(item => ({ ...item, unitPrice: lines.get(item.productId)!.unitPrice }));
       }
 
       /*

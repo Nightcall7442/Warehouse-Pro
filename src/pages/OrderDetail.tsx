@@ -46,6 +46,7 @@ import { StatusBadge } from "@/components/orders/theme";
 import { OrderPipeline } from "@/components/phone/OrderPipeline";
 import { RepeatOrderButton } from "@/components/orders/RepeatOrderButtons";
 import { usesQuickOrder } from "@/lib/quick-order";
+import { OrderReturnButton, OrderReturnMarks } from "@/components/returns/WebReturn";
 
 /** Statuses where the goods have not been handed over yet — these can still be completed. */
 const OPEN_STATUSES = ["new", "processing", "shipped", "pending"];
@@ -428,6 +429,8 @@ export default function OrderDetail() {
           {!order.deletedAt && <OneCExport orderId={order.id} orderNumber={order.orderNumber} />}
           {/* Повтор — офису, в быстрый заказ: по телефону заказывают «как в прошлый раз». */}
           {usesQuickOrder(user?.role) && !order.deletedAt && <RepeatOrderButton orderId={order.id} />}
+          {/* Возврат после доставки — документ в очередь «Возвраты»; кнопка сама решает, показываться ли. */}
+          <OrderReturnButton orderId={order.id} status={order.status} deleted={!!order.deletedAt} />
           <button onClick={handleExport} className="neo-btn tap text-sm hidden md:inline-flex"><FileDown size={15}/> Excel</button>
           <div className="relative">
             <button onClick={() => setPrintMenu(v => !v)} className="neo-btn tap text-sm" data-testid="order-print">
@@ -488,6 +491,9 @@ export default function OrderDetail() {
           {isOperatorOrCeo && (lang === "uz" ? " — tasdiqlash uchun holatni «yangi»ga o'tkazing" : " — чтобы подтвердить, переведите в «новый»")}
         </div>
       )}
+
+      {/* Возвраты по заказу: «Возврат №… — ждёт проведения». Нет возвратов — нет и строки. */}
+      <OrderReturnMarks orderId={order.id} />
 
       <div className="grid gap-4 items-start" style={{ gridTemplateColumns: "minmax(0, 1fr)" }} data-testid="order-workplace">
         <div className="grid gap-4 items-start lg:grid-cols-[minmax(0,1fr)_380px]">
