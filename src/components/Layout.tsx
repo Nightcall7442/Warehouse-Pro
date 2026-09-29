@@ -5,6 +5,7 @@ import { useAppBrand } from "@/hooks/useAppBrand";
 import { useLocation, useNavigate } from "react-router";
 import { useAuth, hadSession } from "@/hooks/useAuth";
 import { useLocationPing } from "@/hooks/useLocationPing";
+import { useBackToOrders } from "@/hooks/useBackToOrders";
 import { useNotifications } from "@/hooks/useNotifications";
 import { NAV_ITEMS, navRows, pickActivePath, pageKey, type NavGroupKey } from "@/const";
 import { GlobalSearch } from "@/components/GlobalSearch";
@@ -362,6 +363,10 @@ const MobileHeader = memo(function MobileHeader({ onMenuClick, unreadCount }: { 
   const meta     = usePageMeta();
   const { name: appName } = useAppBrand();
   const hasParent = !!meta.parent;
+  // Карточка заказа: стрелка ведёт к тому же списку, что и «Назад» в самой
+  // карточке (на телефоне та спрятана — эта стрелка и есть «Назад»).
+  const backToOrders = useBackToOrders();
+  const isOrderCard = /^\/orders\/\d+$/.test(location.pathname);
 
   /*
    * Высота растёт на safe-area-inset-top, а не просто получает padding-top:
@@ -393,7 +398,7 @@ const MobileHeader = memo(function MobileHeader({ onMenuClick, unreadCount }: { 
         <button
           // На шагах мастера заказа стрелка возвращает на ШАГ, а не выбрасывает
           // из заказа: набранное живёт в родителе, и шаги — это история.
-          onClick={() => (location.pathname.startsWith("/orders/new/") ? navigate(-1) : navigate(meta.parentPath!))}
+          onClick={() => (isOrderCard ? backToOrders() : location.pathname.startsWith("/orders/new/") ? navigate(-1) : navigate(meta.parentPath!))}
           className={roundBtn} style={roundSize} aria-label={lang === "uz" ? "Orqaga" : "Назад"}>
           <ArrowLeft size={18} color="var(--color-text-primary)" />
         </button>

@@ -1,4 +1,5 @@
 import { format, startOfMonth, startOfWeek, subDays } from "date-fns";
+import type { OrderSortKey, OrderSortDir } from "@contracts/order-list";
 
 /*
   Что показывает страница «Заказы» — один расчёт на таблицу, плитки,
@@ -24,6 +25,12 @@ import { format, startOfMonth, startOfWeek, subDays } from "date-fns";
   выбрал даты или чип. Период по умолчанию (месяц) остался там, где он
   отчёт: «Архив» и плитки «Всего», «Доставлены», «Отменены», сумма.
   Выгрузка берёт ровно те же условия, что таблица.
+
+  С 29.09.2026 всё это живёт в адресе страницы (pages/Orders.tsx), а список
+  ещё и сортируется по столбцу. Порядок — такая же часть «того, что на
+  экране», как фильтр: файл, отсортированный иначе, чем таблица, заставляет
+  человека искать в нём те же строки заново. Поэтому сортировка идёт сюда же,
+  в list, и выгрузка получает её тем же путём, что и условия.
 */
 
 export type OrdersView = {
@@ -36,6 +43,9 @@ export type OrdersView = {
   dateTo: string;
   search: string;
   agentIds: number[];
+  /** Столбец и направление; без них — как было: новые сверху. */
+  sortBy?: OrderSortKey;
+  sortDir?: OrderSortDir;
 };
 
 type Period = { dateFrom?: string; dateTo?: string };
@@ -84,6 +94,8 @@ export function ordersQuery(v: OrdersView, today: Date = new Date()) {
     // Вкладка сужает статус, а не заменяет: см. OrderService.list.
     archived: v.section === "archive",
     awaitingMoney: awaitingMoney || undefined,
+    sortBy: v.sortBy,
+    sortDir: v.sortDir,
   };
   return {
     /** Таблица, доска — и Excel/PDF: выгрузка обязана унести то, что на экране. */

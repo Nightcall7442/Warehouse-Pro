@@ -1,5 +1,8 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useScrollTopOnChange } from "@/hooks/useScrollTopOnChange";
+import { useUrlState, urlString, urlPage, urlEnum, type UrlCodec } from "@/hooks/useUrlState";
+import { FROM_ORDERS_LIST, rememberOrdersList } from "@/hooks/useBackToOrders";
+import { ORDER_SORT_KEYS, ORDER_SORT_DIRS, ORDER_PAGE_SIZES, type OrderSortKey } from "@contracts/order-list";
 import { useCan } from "@/hooks/useCan";
 import { keepPreviousData } from "@tanstack/react-query";
 import { useCurrency } from "@/hooks/useCurrency";
@@ -7,7 +10,7 @@ import { trpc } from "@/providers/trpc";
 import { useInvalidateOrderCaches } from "@/hooks/useOrderCacheSync";
 import { useLang } from "@/i18n";
 import { notify } from "@/lib/toast";
-import { useNavigate, useSearchParams } from "react-router";
+import { useLocation, useNavigate, useNavigationType, useSearchParams } from "react-router";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useAuth } from "@/hooks/useAuth";
 import AgentOrders from "@/pages/AgentOrders";
@@ -16,7 +19,7 @@ import {
   ShoppingCart, Clock, CheckCircle2, XCircle, DollarSign, Wallet,
   Trash2, RotateCcw, Printer,
   CheckSquare, Square, LayoutGrid, Table as TableIcon, Eye, Users,
-  RefreshCw, Truck, ClipboardList,
+  RefreshCw, Truck, ClipboardList, ArrowUp, ArrowDown, ArrowUpDown,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ordersQuery, exportTitle } from "@/lib/orders-query";
@@ -69,8 +72,67 @@ export default function Orders() {
   return <OperatorOrders />;
 }
 
+/*
+  Наборы допустимых значений адреса — вне компонента, как на «Магазинах»:
+  иначе каждый рендер давал бы новый объект, и сеттеры useUrlState
+  пересобирались бы без нужды. Чужое значение в адресе (ссылку поправили
+  руками, статус переименовали) читается как «по умолчанию», а не уходит
+  серверу и не открывает страницу отказа.
+*/
+const TAB_CODEC = urlEnum(["active", "archive"] as const, "active");
+// "money" — очередь «Ждут расчёта»: плитка и ссылка из «Контроля».
+const STATUS_CODEC = urlEnum<string>(["", "pending", "new", "processing", "shipped", "delivered", "money", "cancelled", "returned"], "");
+const PERIOD_CODEC = urlEnum<string>(["", "today", "yesterday", "week", "month"], "");
+const CHIP_STATUS_CODEC = urlEnum<string>(["", "new", "processing", "shipped", "pending", "delivered", "cancelled", "returned"], "");
+const PAY_CODEC = urlEnum<string>(["", "cash", "card", "transfer", "debt"], "");
+const VIEW_CODEC = urlEnum(["table", "kanban", "agents"] as const, "table");
+const SORT_CODEC = urlEnum<OrderSortKey>(ORDER_SORT_KEYS, "createdAt");
+const DIR_CODEC = urlEnum(ORDER_SORT_DIRS, "desc");
+// Размер страницы — только из списка: ?size=5000 в ссылке не должен
+// превращать экран в выгрузку на пять тысяч строк.
+const SIZE_CODEC = urlEnum<string>(ORDER_PAGE_SIZES.map(String), String(ORDER_PAGE_SIZES[0]));
+/** Дата — только ГГГГ-ММ-ДД; иное — «не выбирал», а не ошибка базы. */
+const DATE_CODEC: UrlCodec<string> = {
+  parse: raw => (/^\d{4}-\d{2}-\d{2}$/.test(raw) ? raw : ""),
+  format: v => v || null,
+};
+/** Агенты — номера через запятую; мусор отбрасывается, иначе сервер отказал бы всей странице. */
+const agentIdsOnly = (raw: string) => raw.split(",").filter(s => /^\d+$/.test(s)).join(",");
+const AGENTS_CODEC: UrlCodec<string> = {
+  parse: agentIdsOnly,
+  format: v => agentIdsOnly(v) || null,
+};
+
+/** Столбец таблицы → ключ сортировки сервера. Прочие столбцы не сортируются. */
+const SORTABLE: Partial<Record<ColumnId, OrderSortKey>> = {
+  createdAt: "createdAt", shopName: "shopName", total: "total",
+  deliveredAt: "deliveredAt", courierName: "courierName", status: "status",
+};
+/** Первое нажатие: имена и статус — по алфавиту и ходу работы, числа и даты — крупные и свежие сверху. */
+const FIRST_DIR: Record<OrderSortKey, "asc" | "desc"> = {
+  createdAt: "desc", total: "desc", deliveredAt: "desc",
+  shopName: "asc", courierName: "asc", status: "asc",
+};
+
 function OperatorOrders() {
-  const [page, setPage]     = useState(1);
+  /*
+    Всё, чем настроен список, живёт в адресе страницы, а не в useState.
+
+    С 18.09.2026 строка открывает карточку заказа на всю страницу. Список при
+    этом размонтируется, и всё, что лежало в его состоянии, пропадало: «Назад»
+    возвращал вкладку «Активные», пустой поиск, первую страницу. Оператор
+    открывает 60–100 карточек в день и настраивал список заново после каждой.
+
+    Теперь «Назад» — шаг по истории к тому же адресу (hooks/useBackToOrders),
+    перезагрузка страницы ничего не сбрасывает, а отфильтрованный список можно
+    послать ссылкой. Несколько сеттеров подряд в одном обработчике —
+    setStatus(…); setPage(1) — друг друга не затирают: см. hooks/useUrlState.
+    Выделение строк — не адрес, а рабочая пачка: оно по-прежнему в
+    sessionStorage.
+  */
+  const [page, setPage]     = useUrlState("page", 1, urlPage);
+  const [sizeRaw, setSizeRaw] = useUrlState("size", String(ORDER_PAGE_SIZES[0]), SIZE_CODEC);
+  const pageSize            = Number(sizeRaw);
   // «Далее» стоит под таблицей: без этого вторая страница открывалась с того же места, где кончилась первая.
   const listRef = useRef<HTMLDivElement>(null);
   useScrollTopOnChange(page, listRef);
@@ -80,17 +142,31 @@ function OperatorOrders() {
   // у себя и отдаёт сюда, когда набор остановился: иначе каждая буква
   // перерисовывала бы страницу целиком — тысяча строк разметки и таблица на
   // полторы сотни заказов, — и между нажатиями появлялась ощутимая пауза.
-  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useUrlState("search", "", urlString);
   const handleSearch = useCallback((value: string) => {
     setDebouncedSearch(value);
     setPage(1);
-  }, []);
+  }, [setDebouncedSearch, setPage]);
   // Пусто — человек даты не выбирал: работа без периода, архив — за месяц (lib/orders-query).
-  const [dateFrom, setDateFrom] = useState("");
-  const [dateTo, setDateTo] = useState("");
+  const [dateFrom, setDateFrom] = useUrlState("from", "", DATE_CODEC);
+  const [dateTo, setDateTo] = useUrlState("to", "", DATE_CODEC);
   const isMobile            = useIsMobile();
   const navigate            = useNavigate();
+  const location            = useLocation();
+  const navigationType      = useNavigationType();
   const [searchParams, setSearchParams] = useSearchParams();
+  /*
+    Поле поиска держит строку у себя (SearchInput) и берёт из адреса только
+    начальное значение. Если адрес сменил не оно — пункт меню «Заказы» на этой
+    же странице, шаг по истории, — поле пересоздаётся с тем, что теперь в
+    адресе; иначе в нём осталась бы строка, которой таблица уже не ищет.
+    Свои правки (replace — набор, фильтры) поле не пересоздают: сбросился бы
+    курсор посреди слова.
+  */
+  const [searchFieldKey, setSearchFieldKey] = useState(location.key);
+  if (navigationType !== "REPLACE" && searchFieldKey !== location.key) setSearchFieldKey(location.key);
+  // Последний список этой вкладки — для «Назад» из карточки, открытой не отсюда.
+  useEffect(() => { rememberOrdersList(location.search); }, [location.search]);
   const utils               = trpc.useUtils();
   const invalidateOrderCaches = useInvalidateOrderCaches();
   const { user }            = useAuth();
@@ -129,21 +205,48 @@ function OperatorOrders() {
   const { confirm, dialog } = useConfirm();
   const t = useCallback((ru: string, uz: string) => lang === "uz" ? uz : ru, [lang]);
 
-  const [status, setStatus] = useState(searchParams.get("status") ?? "");
+  // Ссылки с Главной и из «Контроля» приходят сюда же: ?status=money, ?status=new.
+  const [status, setStatus] = useUrlState("status", "", STATUS_CODEC);
   // Several agents at once: the operators compare a territory's worth of work
   // side by side, and one-at-a-time meant re-picking the filter for each name.
-  const [agentFilter, setAgentFilter] = useState<string[]>([]);
-  const [section, setSection] = useState<"active" | "archive">("active");
+  const [agentsRaw, setAgentsRaw] = useUrlState("agents", "", AGENTS_CODEC);
+  const agentFilter = useMemo(() => (agentsRaw ? agentsRaw.split(",") : []), [agentsRaw]);
+  const [section, setSection] = useUrlState("tab", "active", TAB_CODEC);
+  const [sortBy, setSortBy] = useUrlState("sort", "createdAt", SORT_CODEC);
+  const [sortDir, setSortDir] = useUrlState("dir", "desc", DIR_CODEC);
+  /** Щелчок по заголовку: тот же столбец — обратный порядок, другой — его привычный. */
+  const sortByColumn = (key: OrderSortKey) => {
+    if (sortBy === key) setSortDir(sortDir === "asc" ? "desc" : "asc");
+    else { setSortBy(key); setSortDir(FIRST_DIR[key]); }
+    setPage(1);
+  };
 
   // ── New feature state ──
-  const [viewMode, setViewMode] = useState<"table" | "kanban" | "agents">("table");
+  // На телефоне только карточки: доски и групп по агентам там нет, и вид из
+  // ссылки, присланной с большого экрана, не должен прятать список.
+  const [viewFromUrl, setViewMode] = useUrlState("view", "table", VIEW_CODEC);
+  const viewMode = isMobile ? "table" : viewFromUrl;
   // Only one agent's orders are loaded at a time — see OrderAgentGroups.
   const [expandedAgentId, setExpandedAgentId] = useState<number | null>(null);
-  const [chipFilters, setChipFilters] = useState<ActiveFilters>({});
+  // Чипы — три поля адреса; наружу (OrderFilterChips, сохранённые фильтры) — прежним объектом.
+  const [period, setPeriod] = useUrlState("period", "", PERIOD_CODEC);
+  const [chipStatus, setChipStatus] = useUrlState("chipStatus", "", CHIP_STATUS_CODEC);
+  const [chipPay, setChipPay] = useUrlState("pay", "", PAY_CODEC);
+  const chipFilters = useMemo<ActiveFilters>(() => ({
+    datePreset: period || undefined, status: chipStatus || undefined, paymentMethod: chipPay || undefined,
+  }), [period, chipStatus, chipPay]);
+  // Сохранённый фильтр мог записать что угодно — через те же наборы допустимого.
+  const setChipFilters = useCallback((next: ActiveFilters) => {
+    setPeriod(PERIOD_CODEC.parse(next.datePreset ?? ""));
+    setChipStatus(CHIP_STATUS_CODEC.parse(next.status ?? ""));
+    setChipPay(PAY_CODEC.parse(next.paymentMethod ?? ""));
+    setPage(1);
+  }, [setPeriod, setChipStatus, setChipPay, setPage]);
   // Заказ открывается страницей, не панелью сбоку: карточка — рабочее место
   // оператора (расчёт, состав, история), а панель справа резала её в узкую
-  // колонку и дублировала экран (владелец, 18.09.2026).
-  const openOrder = (id: number) => navigate(`/orders/${id}`);
+  // колонку и дублировала экран (владелец, 18.09.2026). Пометка в переходе —
+  // чтобы «Назад» в карточке знал, что за ним этот список.
+  const openOrder = (id: number) => navigate(`/orders/${id}`, { state: FROM_ORDERS_LIST });
   const [showInvoiceModal, setShowInvoiceModal] = useState(false);
   const [showLoadingListModal, setShowLoadingListModal] = useState(false);
   // Список уже собранных листов: незакрытый держит свои заказы, и закрыть его
@@ -163,9 +266,9 @@ function OperatorOrders() {
   const switchSection = useCallback((next: "active" | "archive") => {
     setSection(next);
     setStatus("");
-    setChipFilters(prev => ({ ...prev, status: undefined }));
+    setChipStatus("");
     setPage(1);
-  }, []);
+  }, [setSection, setStatus, setChipStatus, setPage]);
 
   const { data: savedFilters } = trpc.order.listFilters.useQuery();
   const saveFilterMut = trpc.order.saveFilter.useMutation({
@@ -206,8 +309,8 @@ function OperatorOrders() {
   // Одна сводка того, что выбрано на экране; запросы страницы строит lib/orders-query.
   const view = useMemo(() => ({
     section, status, chips: chipFilters, dateFrom, dateTo,
-    search: debouncedSearch, agentIds: agentFilter.map(Number),
-  }), [section, status, chipFilters, dateFrom, dateTo, debouncedSearch, agentFilter]);
+    search: debouncedSearch, agentIds: agentFilter.map(Number), sortBy, sortDir,
+  }), [section, status, chipFilters, dateFrom, dateTo, debouncedSearch, agentFilter, sortBy, sortDir]);
   const q = useMemo(() => ordersQuery(view), [view]);
   /*
     Поле даты показывает то, что применено к таблице. Тронул поле — чип
@@ -215,12 +318,12 @@ function OperatorOrders() {
   */
   const pickDate = (set: (v: string) => void, value: string) => {
     set(value);
-    if (chipFilters.datePreset) setChipFilters(prev => ({ ...prev, datePreset: undefined }));
+    if (period) setPeriod("");
     setPage(1);
   };
 
   const { data, isLoading, isLoadingError, refetch } = trpc.order.list.useQuery({
-    page, pageSize: 25,
+    page, pageSize,
     ...q.list,
   }, {
     // Прошлый список остаётся на экране, пока грузится новый: без этого
@@ -779,7 +882,7 @@ function OperatorOrders() {
             <button
               key={s.key || "all"}
               type="button"
-              onClick={() => setStatus(active ? "" : s.key)}
+              onClick={() => { setStatus(active ? "" : s.key); setPage(1); }}
               className="neo-btn"
               aria-pressed={active}
               style={{
@@ -830,7 +933,10 @@ function OperatorOrders() {
         boxShadow: SHADOW,
       }}>
         <SearchInput
-          placeholder={t("Поиск заказов…", "Buyurtma qidirish…")}
+          key={searchFieldKey}
+          // Начало подсказки прежнее: по нему поле находит съёмка справки (scripts/screenshots.mjs).
+          placeholder={t("Поиск заказов: номер, магазин, владелец, телефон…", "Buyurtma qidirish: raqam, do'kon, egasi, telefon…")}
+          initialValue={debouncedSearch}
           onSearch={handleSearch}
           style={{ flex: "1 1 160px" }}
         />
@@ -841,7 +947,7 @@ function OperatorOrders() {
           <PremiumSelect
             multiple
             value={agentFilter}
-            onChange={v => { setAgentFilter(v); setPage(1); }}
+            onChange={v => { setAgentsRaw(v.join(",")); setPage(1); }}
             aria-label={t("Агент", "Agent")}
             placeholder={t("Все агенты", "Barcha agentlar")}
             summarize={n => t(`Агентов: ${n}`, `Agentlar: ${n}`)}
@@ -968,7 +1074,7 @@ function OperatorOrders() {
                       cursor: "pointer", boxShadow: SHADOW, transition: "transform 0.15s",
                       animation: `slideUp ${0.4 + 0.02}s ease`,
                     }}
-                    onClick={() => navigate(`/orders/${o.id}`)}
+                    onClick={() => openOrder(o.id as number)}
                   >
                     <div style={{ display: "flex" }}>
                       <div style={{ width: "4px", flexShrink: 0, borderRadius: "16px 0 0 16px", background: s.dot }} />
@@ -1054,16 +1160,43 @@ function OperatorOrders() {
                   </button>
                 </th>
                 )}
-                {cols.columns.map(c => (
-                  <th key={c.id} style={{
-                    textAlign: c.align === "right" ? "right" : "left", padding: "12px 16px",
-                    fontFamily: F.display, fontSize: "10px", fontWeight: 600,
-                    textTransform: "uppercase", letterSpacing: "0.08em",
-                    color: COLORS.textTertiary, borderBottom: `1px solid ${COLORS.border}`,
-                  }}>
-                    {lang === "uz" ? c.label.uz : c.label.ru}
-                  </th>
-                ))}
+                {cols.columns.map(c => {
+                  /*
+                    Сортирует сервер, по всему списку, а не по видимым строкам:
+                    крупный заказ со второй страницы должен встать на первую.
+                    Порядок уходит в адрес и в выгрузку — файл идёт так же, как
+                    таблица.
+                  */
+                  const key = SORTABLE[c.id];
+                  const sorted = key !== undefined && sortBy === key;
+                  const label = lang === "uz" ? c.label.uz : c.label.ru;
+                  return (
+                    <th key={c.id}
+                      aria-sort={sorted ? (sortDir === "asc" ? "ascending" : "descending") : undefined}
+                      style={{
+                        textAlign: c.align === "right" ? "right" : "left", padding: "12px 16px",
+                        fontFamily: F.display, fontSize: "10px", fontWeight: 600,
+                        textTransform: "uppercase", letterSpacing: "0.08em",
+                        color: COLORS.textTertiary, borderBottom: `1px solid ${COLORS.border}`,
+                      }}>
+                      {key ? (
+                        <button type="button" onClick={() => sortByColumn(key)}
+                          title={t("Сортировать", "Saralash")}
+                          style={{
+                            display: "inline-flex", alignItems: "center", gap: "4px",
+                            background: "none", border: "none", padding: 0, cursor: "pointer",
+                            font: "inherit", letterSpacing: "inherit", textTransform: "inherit",
+                            color: sorted ? COLORS.primaryText : "inherit",
+                          }}>
+                          {label}
+                          {sorted
+                            ? (sortDir === "asc" ? <ArrowUp size={11} /> : <ArrowDown size={11} />)
+                            : <ArrowUpDown size={11} style={{ opacity: 0.35 }} />}
+                        </button>
+                      ) : label}
+                    </th>
+                  );
+                })}
               </tr>
             </thead>
             <tbody>
@@ -1125,10 +1258,18 @@ function OperatorOrders() {
       {/* ─── Pagination ─── */}
       {/* Paging belongs to the flat list; the agent view pages within each
           expanded agent instead, and the board shows the current page as-is. */}
-      {viewMode === "table" && data && data.total > 25 && (
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+      {/* Выбор размера виден, пока список длиннее самой короткой страницы:
+          иначе, выбрав 100 на длинном списке, к 25 было бы уже не вернуться. */}
+      {viewMode === "table" && data && data.total > ORDER_PAGE_SIZES[0] && (
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "8px" }}>
           <span style={{ fontSize: "13px", color: COLORS.textSecondary, fontFamily: F.body }}>{data.total} {t("всего", "jami")}</span>
-          <div style={{ display: "flex", gap: "8px" }}>
+          <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+            <PremiumSelect
+              aria-label={t("Строк на странице", "Sahifadagi qatorlar")}
+              value={String(pageSize)}
+              onChange={v => { setSizeRaw(v); setPage(1); }}
+              options={ORDER_PAGE_SIZES.map(n => ({ value: String(n), label: t(`По ${n}`, `${n} tadan`) }))}
+              width="110px" />
             <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} style={{
               padding: "6px 12px", fontSize: "13px", fontFamily: F.body, borderRadius: "8px",
               border: `1px solid ${COLORS.border}`, cursor: "pointer",
@@ -1137,11 +1278,11 @@ function OperatorOrders() {
             }}>
               {t("Назад", "Orqaga")}
             </button>
-            <button onClick={() => setPage(p => p + 1)} disabled={page * 25 >= data.total} style={{
+            <button onClick={() => setPage(p => p + 1)} disabled={page * pageSize >= data.total} style={{
               padding: "6px 12px", fontSize: "13px", fontFamily: F.body, borderRadius: "8px",
               border: `1px solid ${COLORS.border}`, cursor: "pointer",
               background: COLORS.surface, color: COLORS.textSecondary,
-              opacity: page * 25 >= data.total ? 0.4 : 1,
+              opacity: page * pageSize >= data.total ? 0.4 : 1,
             }}>
               {t("Далее", "Keyingi")}
             </button>

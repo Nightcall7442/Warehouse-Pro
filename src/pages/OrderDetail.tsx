@@ -39,6 +39,7 @@ import { CompletionFlowModal } from "@/components/orders/CompletionFlowModal";
 import type { CompletionData, CompletionMode } from "@/components/orders/CompletionFlowModal";
 import { useCompletionFlow } from "@/hooks/useCompletionFlow";
 import { useInvalidateOrderCaches } from "@/hooks/useOrderCacheSync";
+import { useBackToOrders } from "@/hooks/useBackToOrders";
 import { useSellerCompany } from "@/hooks/useSellerCompany";
 import { colorMix } from "@/lib/color-mix";
 import { StatusBadge } from "@/components/orders/theme";
@@ -75,6 +76,8 @@ function Fact({ icon, label, children }: { icon: React.ReactNode; label: string;
 export default function OrderDetail() {
   const { id }      = useParams<{ id: string }>();
   const navigate    = useNavigate();
+  // К тому же списку, с теми же фильтрами и страницей — см. hooks/useBackToOrders.
+  const backToOrders = useBackToOrders();
   const { currency, symbol } = useCurrency();
   const { lang } = useLang();
   const { user }    = useAuth();
@@ -376,7 +379,7 @@ export default function OrderDetail() {
       {/* ── Шапка: назад, номер, статус, документы ── */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div className="flex items-center gap-3 flex-wrap min-w-0">
-          <button onClick={() => navigate("/orders")} className="neo-btn tap hidden md:inline-flex" aria-label={lang === "uz" ? "Orqaga" : "Назад"}>
+          <button onClick={backToOrders} className="neo-btn tap hidden md:inline-flex" aria-label={lang === "uz" ? "Orqaga" : "Назад"}>
             <ArrowLeft size={18}/>
           </button>
           <div className="min-w-0">

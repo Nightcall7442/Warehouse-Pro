@@ -17,6 +17,8 @@ import { sanitizeString } from "./lib/sanitize";
 import { OPEN_ORDER_STATUSES, CLOSED_ORDER_STATUSES } from "./lib/order-status";
 import { NotificationService } from "./services/NotificationService";
 import { reportCached, ReportTTL } from "./lib/report-cache";
+import { orderMatches, shopMatches } from "./lib/order-search";
+import { ORDER_SORT_KEYS, ORDER_SORT_DIRS } from "@contracts/order-list";
 
 /**
  * Скидка — процент от суммы заказа, от нуля до ста.
@@ -86,9 +88,8 @@ export const orderRouter = createRouter({
       if (input?.paymentMethod) conditions.push(eq(orders.paymentMethod, input.paymentMethod as "cash" | "card" | "transfer" | "debt"));
       if (input?.dateFrom) conditions.push(sql`${orders.createdAt} >= ${input.dateFrom}`);
       if (input?.dateTo) conditions.push(sql`${orders.createdAt} <= ${input.dateTo + ' 23:59:59'}`);
-      if (input?.search) {
-        conditions.push(sql`(${orders.orderNumber} LIKE ${'%' + input.search + '%'} OR ${shops.name} LIKE ${'%' + input.search + '%'})`);
-      }
+      // То же правило, что у таблицы: плитки считают ровно найденное (lib/order-search).
+      if (input?.search?.trim()) conditions.push(orderMatches(input.search, orders.orderNumber, shops));
 
       const [result] = await db.select({
         total: sql<number>`count(*)`,
@@ -183,7 +184,7 @@ export const orderRouter = createRouter({
           ? inArray(orders.status, CLOSED_ORDER_STATUSES)
           : inArray(orders.status, OPEN_ORDER_STATUSES));
       }
-      if (input?.search) {
+      if (input?.search?.trim()) {
         // The shop name lives on a table joined *after* orders below, and a
         // JOIN condition cannot reference a table that hasn't been joined yet
         // — written as `${shops.name} LIKE ...` here it produced "Unknown
@@ -191,9 +192,12 @@ export const orderRouter = createRouter({
         // (silently, since the agent filter just rendered empty) the moment
         // anyone typed in the Orders search box. A correlated subquery gets
         // at the shop without depending on join order.
-        const term = `%${input.search}%`;
-        conditions.push(sql`(${orders.orderNumber} LIKE ${term} OR EXISTS (
-          SELECT 1 FROM ${shops} s2 WHERE s2.id = ${orders.shopId} AND s2.name LIKE ${term}
+        //
+        // Столбцы подзапроса названы буквально (s2.name): ${shops.name}
+        // внутри него указал бы на внешнюю таблицу, которой здесь нет.
+        conditions.push(sql`(${orders.orderNumber} LIKE ${`%${input.search.trim()}%`} OR EXISTS (
+          SELECT 1 FROM ${shops} s2 WHERE s2.id = ${orders.shopId} AND s2.tenant_id = ${tenantId}
+            AND ${shopMatches(input.search, { name: sql.raw("s2.name"), ownerName: sql.raw("s2.owner_name"), phone: sql.raw("s2.phone") })}
         ))`);
       }
 
@@ -287,6 +291,11 @@ export const orderRouter = createRouter({
       showDeleted: z.boolean().optional(),
       paymentMethod: z.enum(["cash", "card", "transfer", "debt"]).optional(),
       awaitingMoney: z.boolean().optional(),
+      // Столбец и направление — белым списком: в ORDER BY уходит только
+      // известное. Без них — как было: новые сверху. Необязательны, чтобы
+      // прежние вызовы (мобилка, палитра, поиск) не заметили перемены.
+      sortBy:      z.enum(ORDER_SORT_KEYS).optional(),
+      sortDir:     z.enum(ORDER_SORT_DIRS).optional(),
     }).optional())
     .query(async ({ input, ctx }) => {
       return OrderService.list(ctx.db, ctx.tenant.id, input ?? {}, {
