@@ -4,7 +4,7 @@ import { eq } from "drizzle-orm";
 import { createRouter, authedQuery, adminQuery } from "./middleware";
 import { getDb } from "./queries/connection";
 import { subscriptions } from "@db/schema";
-import { getStripe, PLANS } from "./lib/stripe";
+import { getStripe, stripeConfigured, PLANS } from "./lib/stripe";
 import { getOrCreateSubscription } from "./lib/subscription";
 import { env } from "./lib/env";
 
@@ -13,12 +13,20 @@ export const stripeRouter = createRouter({
   getSubscription: authedQuery.query(async ({ ctx }) => {
     const sub = await getOrCreateSubscription(ctx.tenant.id);
     const now = new Date();
+    /*
+      Дни — до конца того срока, который сейчас действует: пробного у
+      пробного, оплаченного у оплаченного. Раньше считалось только от конца
+      пробного, и у платящего полоса молчала до самой блокировки.
+    */
+    const ends = sub.status === "trialing" ? sub.trialEndsAt : sub.currentPeriodEnds;
 
     return {
       ...sub,
-      daysLeft:     sub.trialEndsAt
-        ? Math.max(0, Math.ceil((sub.trialEndsAt.getTime() - now.getTime()) / 86_400_000))
+      daysLeft:     ends
+        ? Math.max(0, Math.ceil((ends.getTime() - now.getTime()) / 86_400_000))
         : null,
+      // Карточный путь (доллары) есть, только если его настроили.
+      stripeReady:  stripeConfigured(),
       isActive:     sub.status === "active" || sub.status === "trialing",
       isTrialing:   sub.status === "trialing",
       isPastDue:    sub.status === "past_due",

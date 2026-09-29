@@ -1,22 +1,36 @@
 import { inBackground } from "../lib/graceful-shutdown";
 import { randomUUID } from "crypto";
-import { and, eq, gte, lte } from "drizzle-orm";
+import { and, eq, gte, isNull, lte } from "drizzle-orm";
 import { getDb } from "../queries/connection";
 import { subscriptions, billingEvents, tenants, users } from "@db/schema";
-import { sendTrialEndingEmail } from "../lib/mailer";
+import { sendTrialEndingEmail, sendRenewalReminderEmail } from "../lib/mailer";
 import { env } from "../lib/env";
 import { logger } from "../lib/logger";
 import { notifyAdmin, tgMessages } from "../lib/telegram";
 
 /**
- * Send trial-ending reminder emails to tenants whose trial ends in ≤3 days.
+ * За сколько дней до конца ОПЛАЧЕННОГО срока напомнить директору.
+ *
+ * Платят заявкой, и между «нажал Продлить» и «тариф включён» проходит звонок
+ * и перевод денег — поэтому первое письмо за неделю, а не за три дня, как у
+ * пробного.
+ */
+const RENEWAL_REMINDER_DAYS = [7, 3, 1];
+
+/**
+ * Письма директору: пробный кончается через ≤3 дня; оплаченный — через 7, 3 и
+ * 1 день. Раньше оплаченный срок не напоминался никак: письма шли только
+ * пробным, и платящая организация узнавала о конце срока по запертому входу.
+ *
  * Called via GET /api/cron/trial-reminders?secret=CRON_SECRET
  * Schedule with Vercel/Railway cron or an external service (cron-job.org).
  */
-export async function runTrialReminders(): Promise<{ sent: number; errors: string[] }> {
+export async function runTrialReminders(now = new Date()): Promise<{ sent: number; errors: string[] }> {
   const db      = getDb();
-  const now     = new Date();
   const in3Days = new Date(now.getTime() + 3 * 86_400_000);
+  const in7Days = new Date(now.getTime() + 7 * 86_400_000);
+  const daysTo  = (d: Date) => Math.ceil((d.getTime() - now.getTime()) / 86_400_000);
+  const billingUrl = `${env.appUrl}/billing`;
   const errors: string[] = [];
   let sent = 0;
 
@@ -29,7 +43,23 @@ export async function runTrialReminders(): Promise<{ sent: number; errors: strin
       gte(subscriptions.trialEndsAt, now),
     ));
 
-  for (const sub of expiring) {
+  // Оплаченные — кроме Stripe: там списание продлевает само.
+  const renewing = await db.select()
+    .from(subscriptions)
+    .where(and(
+      eq(subscriptions.status, "active"),
+      isNull(subscriptions.stripeSubscriptionId),
+      lte(subscriptions.currentPeriodEnds, in7Days),
+      gte(subscriptions.currentPeriodEnds, now),
+    ));
+
+  const due = [
+    ...expiring.map(sub => ({ sub, kind: "trial" as const, daysLeft: daysTo(sub.trialEndsAt!) })),
+    ...renewing.map(sub => ({ sub, kind: "renewal" as const, daysLeft: daysTo(sub.currentPeriodEnds!) }))
+      .filter(r => RENEWAL_REMINDER_DAYS.includes(r.daysLeft)),
+  ];
+
+  for (const { sub, kind, daysLeft } of due) {
     try {
       // Find CEO of this tenant
       const [ceo] = await db.select()
@@ -43,12 +73,8 @@ export async function runTrialReminders(): Promise<{ sent: number; errors: strin
         .where(eq(tenants.id, sub.tenantId)).limit(1);
       if (!tenant) continue;
 
-      const daysLeft = Math.ceil(
-        (sub.trialEndsAt!.getTime() - now.getTime()) / 86_400_000
-      );
-
       // Check we haven't sent this reminder today (idempotency)
-      const eventType = `trial_reminder_${daysLeft}d`;
+      const eventType = `${kind}_reminder_${daysLeft}d`;
       const todayStart = new Date(now); todayStart.setHours(0,0,0,0);
       const [alreadySent] = await db.select()
         .from(billingEvents)
@@ -61,12 +87,13 @@ export async function runTrialReminders(): Promise<{ sent: number; errors: strin
 
       if (alreadySent) continue;
 
-      await sendTrialEndingEmail(
-        ceo.email,
-        tenant.name,
-        daysLeft,
-        `${env.appUrl}/settings/billing`,
-      );
+      // Ссылка — на тарифы в сумах с заявкой. /settings/billing вёл к Stripe
+      // в долларах, который здесь не настроен.
+      if (kind === "trial") {
+        await sendTrialEndingEmail(ceo.email, tenant.name, daysLeft, billingUrl);
+      } else {
+        await sendRenewalReminderEmail(ceo.email, tenant.name, sub.plan, daysLeft, sub.currentPeriodEnds!, billingUrl);
+      }
 
       // Log the event
       await db.insert(billingEvents).values({

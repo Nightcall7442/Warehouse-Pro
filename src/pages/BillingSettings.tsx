@@ -1,6 +1,6 @@
 import { trpc } from "@/providers/trpc";
 import { notify } from "@/lib/toast";
-import { useSearchParams } from "react-router";
+import { Navigate, useSearchParams } from "react-router";
 import { useEffect } from "react";
 import {
   CheckCircle2, AlertTriangle, Zap, ExternalLink, Loader2,
@@ -109,6 +109,13 @@ export default function BillingSettings() {
 
   if (isLoading) return <div className="h-64 bg-surface-light animate-pulse rounded"/>;
   if (!sub)      return null;
+  /*
+    Этот экран — оплата картой через Stripe (доллары). Он есть, только если
+    Stripe правда настроен; иначе каждая «Подключить» здесь отвечала «STRIPE_
+    SECRET_KEY is not configured». Тарифы в сумах и заявка живут на /billing —
+    туда и уводим того, кто пришёл по старой ссылке или закладке.
+  */
+  if (!sub.stripeReady) return <Navigate to="/billing" replace />;
 
   const STATUS_STYLE: Record<string, { color: string; icon: typeof CheckCircle2 }> = {
     trialing:   { color: "text-info",    icon: CheckCircle2   },

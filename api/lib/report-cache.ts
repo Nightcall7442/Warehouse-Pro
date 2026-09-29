@@ -1,5 +1,6 @@
 import superjson from "superjson";
 import { getRedis, isRedisAvailable, subscribeChannel, publishChannel } from "./redis";
+import { sseBus } from "./sse";
 
 /*
   Кэш отчётов директора: один пересчёт на организацию, а не тридцать.
@@ -174,7 +175,29 @@ export function reportCached<T>(tenantId: number, name: string, input: unknown, 
   return reportCache.get(tenantId, name, input, ttlMs, fn);
 }
 
+/*
+  Живые экраны — из той же точки.
+
+  Экран «Заказы» и Главная слушали события order.* — а сервер их не слал
+  никогда: оператор не видел нового заказа агента и доставки курьера, пока
+  не щёлкнет по странице. Место для события одно, и оно уже есть: сюда
+  приходит каждый сервис записи заказа, после коммита, один раз на событие
+  (создание, статус, доставка, оплата, расчёт, правка, возврат). Звать
+  рассылку из двадцати мест значило бы однажды забыть двадцать первое.
+
+  Событие уходит ПОСЛЕ сброса версии кэша: экран, перечитав по нему,
+  получает новые числа, а не прежние 20 секунд. Откат транзакции сюда не
+  доходит — сервис бросает раньше, события нет.
+
+  Пачка из ста заказов даёт сто событий: экран склеивает их в одно
+  перечитывание (src/lib/live-events.ts).
+*/
+const ORDER_WORK = new Set(["order", "delivery", "payment", "return"]);
+
 /** Сбросить report:{tenantId}:* на всех экземплярах. Звать ПОСЛЕ коммита, один раз на событие, из сервиса записи. */
-export function invalidateReports(tenantId: number, reason?: string): Promise<void> {
-  return reportCache.invalidate(tenantId, reason);
+export async function invalidateReports(tenantId: number, reason?: string): Promise<void> {
+  await reportCache.invalidate(tenantId, reason);
+  if (reason && ORDER_WORK.has(reason.split(".")[0])) {
+    sseBus.emit({ type: "order.changed", tenantId, data: {} });
+  }
 }

@@ -50,7 +50,9 @@ describe("подпись референса и плитки", () => {
   });
 
   it("«Заказы»: счётчик под заголовком — за период, чтобы не спорить с чипом «Всего»", () => {
-    expect(read("pages/Orders.tsx")).toContain('{data.total} {t("за период", "davr uchun")}');
+    // С 29.09.2026 у «Активных» периода по умолчанию нет (lib/orders-query):
+    // тогда счётчик — «в работе», но по-прежнему не «всего».
+    expect(read("pages/Orders.tsx")).toContain('{data.total} {q.list.dateFrom || q.list.dateTo ? t("за период", "davr uchun") : t("в работе", "ishda")}');
   });
 });
 

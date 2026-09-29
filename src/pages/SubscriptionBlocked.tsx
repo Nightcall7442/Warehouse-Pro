@@ -1,15 +1,37 @@
-import { useNavigate } from "react-router";
 import { useAuth } from "@/hooks/useAuth";
-import { Lock, CreditCard, LogOut } from "lucide-react";
-import { useLang } from "@/i18n";
+import { Lock, LogOut } from "lucide-react";
+import { useLang, useTranslate } from "@/i18n";
+import { trpc } from "@/providers/trpc";
+import { SubscriptionPlanCard } from "@/components/billing/SubscriptionPlanCard";
+import { usePlanRequest } from "@/components/billing/usePlanRequest";
 
+/**
+ * Подписка кончилась — продлить можно прямо здесь.
+ *
+ * ── Что было ────────────────────────────────────────────────────────────────
+ *
+ * Кнопка вела на /settings/billing, внутрь общего Layout. Тот сразу
+ * спрашивает уведомления, поддержку и «Справку» — а эти ручки закрыты
+ * подпиской (api/middleware.ts), и отказ возвращал обратно сюда. Круг: ни
+ * тарифов, ни кнопки заявки. Организация, которая хотела заплатить, не могла.
+ *
+ * ── Как теперь ──────────────────────────────────────────────────────────────
+ *
+ * Тарифы и заявка — на этом же экране, вне Layout, и зовут только billing.*:
+ * эти ручки открыты при истёкшей подписке. Уходить отсюда некуда и не нужно.
+ * Заявку подаёт директор (billing.requestUpgrade — только ему); остальным
+ * сказано, к кому идти.
+ */
 export default function SubscriptionBlocked() {
-  const { logout } = useAuth();
-  const navigate   = useNavigate();
-  const { t } = useLang();
+  const { user, logout } = useAuth();
+  const { lang, t: tk } = useLang();
+  const t = useTranslate();
+  const isCeo = user?.role === "ceo";
+  const { data: billing } = trpc.billing.status.useQuery(undefined, { enabled: isCeo });
+  const { request, sent } = usePlanRequest();
 
   return (
-    <div className="min-h-screen bg-canvas flex flex-col items-center justify-center px-4">
+    <div className="min-h-screen bg-canvas flex flex-col items-center justify-center gap-6 px-4 py-10">
       <div className="neo-card w-full max-w-md p-10 text-center space-y-6">
         <div className="w-16 h-16 rounded-full bg-danger/10 flex items-center justify-center mx-auto">
           <Lock size={28} className="text-danger"/>
@@ -17,30 +39,50 @@ export default function SubscriptionBlocked() {
 
         <div>
           <h1 className="font-display text-2xl font-bold text-primary">
-            {t("auth.subscriptionBlocked.title")}
+            {tk("auth.subscriptionBlocked.title")}
           </h1>
           <p className="text-secondary text-sm mt-2">
-            {t("auth.subscriptionBlocked.hint")}
+            {tk("auth.subscriptionBlocked.hint")}
+          </p>
+          <p className="text-secondary text-sm mt-2">
+            {isCeo
+              ? t("Выберите тариф ниже — оператор свяжется с вами и включит его.", "Quyida tarifni tanlang — operator siz bilan bog'lanib, uni yoqadi.")
+              : t("Продлить подписку может руководитель организации.", "Obunani tashkilot rahbari uzaytira oladi.")}
           </p>
         </div>
 
-        <div className="space-y-3">
-          <button
-            onClick={() => navigate("/settings/billing")}
-            className="neo-btn-primary w-full flex items-center justify-center gap-2 py-3"
-          >
-            <CreditCard size={18}/>
-            {t("auth.subscriptionBlocked.upgrade")}
-          </button>
-          <button
-            onClick={() => logout()}
-            className="neo-btn w-full flex items-center justify-center gap-2 py-3"
-          >
-            <LogOut size={18}/>
-            {t("auth.subscriptionBlocked.logout")}
-          </button>
-        </div>
+        {sent && (
+          <p role="status" data-testid="plan-request-sent" className="text-sm font-semibold text-success">
+            {sent}
+          </p>
+        )}
+
+        <button
+          onClick={() => logout()}
+          className="neo-btn w-full flex items-center justify-center gap-2 py-3"
+        >
+          <LogOut size={18}/>
+          {tk("auth.subscriptionBlocked.logout")}
+        </button>
       </div>
+
+      {billing && (
+        <div className="w-full max-w-4xl grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(230px, 1fr))" }}>
+          {billing.plans.map(plan => (
+            <SubscriptionPlanCard
+              key={plan.key}
+              plan={plan}
+              isCurrent={billing.plan === plan.key}
+              isPro={plan.key === "pro"}
+              usage={billing.usage}
+              planName={p => (lang === "uz" ? p.nameUz : p.name)}
+              t={t}
+              isPending={request.isPending}
+              onSelect={key => request.mutate({ plan: key as "basic" | "pro" | "exclusive" })}
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 }

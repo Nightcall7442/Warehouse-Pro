@@ -113,7 +113,7 @@ export function TenantDetail({ tenantId, onBack }: TenantDetailProps) {
 
   const { tenant, subscription: subArr, users: tenantUsers, stats, monthlyOrders } = data;
   const subscription = Array.isArray(subArr) ? subArr[0] : subArr;
-  const ts = planStatus({ ...tenant, userCount: 0, orderCount: 0, orderTotal: 0 } as TenantRow);
+  const ts = planStatus({ ...tenant, subscription, userCount: 0, orderCount: 0, orderTotal: 0 } as TenantRow);
 
   const metricCards = [
     { label: "Пользователей", value: tenantUsers.length, icon: Users, gradient: "linear-gradient(135deg, #60a5fa, #3b82f6)" },
