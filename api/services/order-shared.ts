@@ -749,6 +749,49 @@ export type OrderPaymentInput = {
 /** Деньги сравниваются в тийинах, а не в double: см. проверку остатка ниже. */
 export { tiyin };
 
+/**
+ * Напоминание о долге по заказу — одно открытое на заказ.
+ *
+ * Писали его три места: курьер при доставке с остатком, оплата по частям
+ * (applyPartialPayment) и офис при закрытии расчёта (order-close.ts). Каждое
+ * вставляло свою строку, и заказ, по которому курьер оставил долг, а офис
+ * потом назначил новый срок, получал два напоминания с разными суммами — или
+ * ни одного, если офис закрывал без доплаты: тогда срок не записывался вовсе.
+ *
+ * Здесь одна дверь: открытое напоминание (ещё не «оплачено») обновляется
+ * новой суммой и сроком и заново встаёт в очередь рассылки, иначе заводится.
+ * `dueDate` — строка «ГГГГ-ММ-ДД» уходит в базу как есть (Date сдвинул бы
+ * день на пояс сервера), Date — как у курьера, уже проверенная по частям.
+ *
+ * Звать только под замком строки заказа (select … for update первым
+ * запросом сделки — так у всех трёх): он и не пускает второе напоминание
+ * того же заказа. Своего замка здесь нет нарочно: `for update` по
+ * напоминаниям без совпадения ставит замок на промежуток индекса, и две
+ * одновременные оплаты по РАЗНЫМ заказам ловили друг друга на вставке —
+ * ER_LOCK_DEADLOCK, и платёж курьера или офиса откатывался целиком.
+ */
+export async function upsertDebtReminder(
+  tx: Tx, tenantId: number,
+  r: { shopId: number; orderId: number; amount: string; dueDate: string | Date },
+): Promise<void> {
+  const dueDate = typeof r.dueDate === "string" ? sql`${r.dueDate}` : r.dueDate;
+  const [open] = await tx.select({ id: debtReminders.id }).from(debtReminders)
+    .where(and(
+      eq(debtReminders.tenantId, tenantId), eq(debtReminders.orderId, r.orderId),
+      inArray(debtReminders.status, ["pending", "sent", "overdue"]),
+    ))
+    .limit(1);
+  if (open) {
+    await tx.update(debtReminders)
+      .set({ amount: r.amount, dueDate: dueDate as Date, status: "pending", sentAt: null })
+      .where(eq(debtReminders.id, open.id));
+    return;
+  }
+  await tx.insert(debtReminders).values({
+    tenantId, shopId: r.shopId, orderId: r.orderId, amount: r.amount, dueDate: dueDate as Date, status: "pending",
+  });
+}
+
 export async function applyPartialPayment(
   tx: Tx, tenantId: number, actor: Actor,
   input: OrderPaymentInput,
@@ -828,16 +871,9 @@ export async function applyPartialPayment(
     receivedBy: inOffice ? userId : null,
   });
 
-  // Create debt reminder if there's remaining debt and a due date
+  // Остаток и срок — в напоминание заказа (одно на заказ, см. upsertDebtReminder).
   if (debt > 0 && input.debtDueDate) {
-    await tx.insert(debtReminders).values({
-      tenantId,
-      shopId: order.shopId,
-      orderId: order.id,
-      amount: debt.toFixed(2),
-      dueDate: sql`${input.debtDueDate}`,
-      status: "pending",
-    });
+    await upsertDebtReminder(tx, tenantId, { shopId: order.shopId, orderId: order.id, amount: debt.toFixed(2), dueDate: input.debtDueDate });
   }
 
   /*
