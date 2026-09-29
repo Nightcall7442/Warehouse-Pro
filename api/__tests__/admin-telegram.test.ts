@@ -34,9 +34,12 @@ describe("у каждого шаблона Telegram есть вызов", () => 
 
 describe("регистрация доходит до суперадмина", () => {
   it("register шлёт newRegistration после транзакции, а не до", () => {
+    // Шаблон зовёт announceRegistration (с запасным видом без ссылки tel:);
+    // сама отправка из register — после записи организации.
     const src = read("api/tenant-router.ts");
     const tx = src.indexOf("await db.transaction(async (tx) => {");
-    const note = src.indexOf("tgMessages.newRegistration(");
+    const note = src.indexOf("inBackground(announceRegistration(");
+    expect(src).toMatch(/async function announceRegistration[\s\S]*?tgMessages\.newRegistration\(/);
     expect(tx).toBeGreaterThan(0);
     expect(note).toBeGreaterThan(tx);
   });
@@ -53,9 +56,12 @@ describe("шаблоны суперадмина экранируют всё, ч�
   it("сводка с нулями отправляется как есть — тишина тоже сведение", () => {
     const msg = tgMessages.adminDigest({
       registrations: 0, orders: 0, revenue: 0, unanswered: 0, trialsEnding: 0, pastDue: 0, activeTenants: 13,
+      renewalsThisWeek: [], silent: 0,
     });
     expect(msg).toContain("Регистраций: 0");
     expect(msg).toContain("Активных организаций: 13");
+    expect(msg).toContain("Продление на этой неделе: 0");
+    expect(msg).toContain("Молчат 5+ дней: 0");
   });
 
   it("серверу с догнанными миграциями — список, без них — одна строка", () => {

@@ -44,7 +44,9 @@ describe("tgMessages templates", () => {
   const SHAPES: Record<string, (v: string) => unknown[]> = {
     trials:      v => [[{ org: v, days: v }], [v]],
     serverUp:    v => [v, [v]],
-    adminDigest: v => [{ registrations: v, orders: v, revenue: 0, unanswered: v, trialsEnding: v, pastDue: v, activeTenants: v }],
+    adminDigest: v => [{ registrations: v, orders: v, revenue: 0, unanswered: v, trialsEnding: v, pastDue: v, activeTenants: v, renewalsThisWeek: [v], silent: v }],
+    // Регистрация с сайта: название, почта, телефон и источник набирает человек.
+    newRegistration: v => [{ org: v, email: v, phone: v, source: v }],
     // Точка заказа: список товаров и число «ещё N».
     lowStockList: v => [[{ name: v, qty: v, unit: v, point: v }], 3],
     // Карточки событий: объект с полями — каждое поле враждебное.

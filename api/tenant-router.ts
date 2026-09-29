@@ -24,6 +24,7 @@ import { setManualAccessFor } from "./services/manual-access";
 import { invalidateAuthTenant, invalidateAuthUser } from "./auth";
 import { invalidateSubscriptionAccess } from "./lib/feature-gating";
 import { sendVerification } from "./services/email-verification";
+import { normalizeUzPhone, PHONE_ERROR, SIGNUP_ANSWERS, composeSignupSource, describeSignupSource } from "@contracts/signup";
 /**
  * Ограничения на публичную регистрацию.
  *
@@ -95,6 +96,44 @@ async function notifyEmailAlreadyRegistered(email: string, appUrl: string): Prom
   }
 }
 
+/**
+ * Телефон с формы регистрации → +998XXXXXXXXX, иначе отказ одним понятным
+ * текстом (contracts/signup.ts).
+ *
+ * `optional()` здесь не значит «можно без телефона»: без него zod 4 выдал бы
+ * своё «Неверный формат поля», и человек не понял бы, чего от него хотят.
+ * Пустое поле и кривой номер получают один и тот же отказ с подсказкой.
+ */
+const signupPhone = z.string().max(40).optional().transform((raw, ctx) => {
+  const phone = normalizeUzPhone(raw);
+  if (!phone) {
+    ctx.addIssue({ code: "custom", message: PHONE_ERROR.ru });
+    return z.NEVER;
+  }
+  return phone;
+});
+
+/**
+ * Новая регистрация — владельцу платформы в Telegram, с телефоном ссылкой tel:.
+ *
+ * Принимает ли Telegram ссылку tel: в разметке сообщения, в документации не
+ * сказано, а проверить на боевом боте отсюда нельзя. Если он откажет всему
+ * сообщению, регистрация пропадёт из чата молча — ровно то, ради чего телефон
+ * и спрашивают. Поэтому отказ повторяется без ссылки: номер в международном
+ * виде Telegram и сам делает нажимаемым.
+ *
+ * Ошибки не бросает: регистрация уже лежит в tenants, и сбой Telegram её не
+ * отменяет — это просто уведомление.
+ */
+async function announceRegistration(card: Parameters<typeof tgMessages.newRegistration>[0]): Promise<void> {
+  try {
+    if (await notifyAdmin(tgMessages.newRegistration(card))) return;
+    await notifyAdmin(tgMessages.newRegistration({ ...card, phoneAsText: true }));
+  } catch (err) {
+    logger.error("registration notice failed", { error: err instanceof Error ? err.message : String(err) });
+  }
+}
+
 function slugify(name: string): string {
   return name
     .toLowerCase()
@@ -112,6 +151,21 @@ export const tenantRouter = createRouter({
       name:     z.string().min(2).max(100),
       email:    z.string().email(),
       password: z.string().min(8),
+      phone:    signupPhone,
+      /*
+        «Откуда узнали» и метки из адреса страницы. Всё необязательно: не
+        ответил — регистрация та же. Метки чистятся при записи
+        (composeSignupSource), здесь — только потолок длины.
+
+        Не прошло потолок — поле отбрасывается (`catch`), а не отказ всей
+        форме: метку из рекламной ссылки человек не видел и исправить не
+        может, и «ref слишком длинное» стоило бы нам регистрации.
+      */
+      source: z.object({
+        answer:    z.enum(SIGNUP_ANSWERS).optional().catch(undefined),
+        utmSource: z.string().max(200).optional().catch(undefined),
+        ref:       z.string().max(200).optional().catch(undefined),
+      }).optional(),
     }))
     .mutation(async ({ input, ctx }) => {
       const emailKey = input.email.trim().toLowerCase();
@@ -149,11 +203,21 @@ export const tenantRouter = createRouter({
       }
 
       const trialEnds = new Date(Date.now() + 14 * 86_400_000);
+      const signupSource = composeSignupSource(input.source);
 
       const userId = await db.transaction(async (tx) => {
+        /*
+          Телефон и почта — в карточку организации: по ним перезванивают и по
+          заявке на тариф (billing-router, callbackContact), и из панели
+          владельца. Раньше здесь не было ни того ни другого, и заявка
+          приходила с «📞 не указан». Организация новая — почта владельца у
+          неё заведомо пуста.
+        */
         const [tenantResult] = await tx.insert(tenants).values({
           slug, name: input.orgName, plan: "trial", status: "active",
           trialEndsAt: trialEnds,
+          ownerPhone: input.phone, ownerEmail: input.email,
+          signupSource,
         });
         const tenantId = Number(tenantResult.insertId);
         // Адрес с публичной формы никто не проверял — вход закрыт до ссылки
@@ -181,11 +245,18 @@ export const tenantRouter = createRouter({
         return Number(userResult.insertId);
       });
 
-      await sendVerification(input.email, input.name, input.orgName, env.appUrl ?? "http://localhost:3000", userId);
+      /*
+        Суперадмину — сразу и ДО письма, а не в вечерней сводке: новую
+        организацию встречают звонком в первый час, потом она либо работает,
+        либо ушла. Письмо подтверждения может уйти в спам или не уйти вовсе —
+        телефон в чате владельца от этого не зависит.
+      */
+      inBackground(announceRegistration({
+        org: input.orgName, email: input.email, phone: input.phone,
+        source: describeSignupSource(signupSource),
+      }));
 
-      // Суперадмину — сразу, а не в вечерней сводке: новую организацию
-      // встречают в первый день, потом она либо работает, либо ушла.
-      inBackground(notifyAdmin(tgMessages.newRegistration(input.orgName, input.email)));
+      await sendVerification(input.email, input.name, input.orgName, env.appUrl ?? "http://localhost:3000", userId);
 
       return registrationAccepted(slug);
     }),
@@ -815,6 +886,18 @@ export const tenantRouter = createRouter({
   featureUsage: superAdminQuery.query(async () => {
     const { collectFeatureUsage } = await import("./services/feature-usage");
     return collectFeatureUsage();
+  }),
+
+  /*
+    Кто платит и кто уходит — панель владельца платформы (services/owner-panel).
+
+    Только чтение и только суперадмину: здесь телефоны владельцев всех
+    организаций и деньги платформы. Копия на минуту — страницу обновляют
+    кнопкой, и семь агрегатов по всей базе на каждое нажатие незачем.
+  */
+  ownerPanel: superAdminQuery.query(async () => {
+    const { ownerPanel } = await import("./services/owner-panel");
+    return ownerPanel(getDb());
   }),
 
   platformStats: superAdminQuery.query(async () => {

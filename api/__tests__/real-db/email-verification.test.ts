@@ -52,7 +52,7 @@ describe.skipIf(!hasRealDb)("подтверждение почты на наст
   it("регистрация → вход закрыт (403, код) → ссылка → вход открыт → повтор ссылки дату не двигает", async () => {
     const { tenantRouter } = await import("../../tenant-router");
     const { authRouter } = await import("../../auth-router");
-    const r = await tenantRouter.createCaller(publicCtx(db)).register({ orgName: "Ферганский сок", name: "Дилноза", email: "dilnoza@sok.uz", password: "пароль-восемь" });
+    const r = await tenantRouter.createCaller(publicCtx(db)).register({ orgName: "Ферганский сок", name: "Дилноза", email: "dilnoza@sok.uz", password: "пароль-восемь", phone: "+998 90 123 45 67" });
     expect(r.message).toContain("Письмо отправлено");
 
     const [u] = await db.select().from(schema.users).where(eq(schema.users.email, "dilnoza@sok.uz"));
@@ -85,7 +85,7 @@ describe.skipIf(!hasRealDb)("подтверждение почты на наст
     const { tenantRouter } = await import("../../tenant-router");
     const { authRouter } = await import("../../auth-router");
     const auth = authRouter.createCaller(publicCtx(db));
-    await tenantRouter.createCaller(publicCtx(db)).register({ orgName: "Сок", name: "Дилноза", email: "dilnoza@sok.uz", password: "пароль-восемь" });
+    await tenantRouter.createCaller(publicCtx(db)).register({ orgName: "Сок", name: "Дилноза", email: "dilnoza@sok.uz", password: "пароль-восемь", phone: "+998 90 123 45 67" });
     mail.verify.length = 0;
 
     await auth.resendVerification({ email: "dilnoza@sok.uz" });

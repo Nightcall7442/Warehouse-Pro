@@ -5,11 +5,13 @@ import { labelled, TENANT_PLAN_LABEL, ACTIVE_STATUS_LABEL } from "@/lib/entity-l
 import { AppModal } from "@/components/ui/AppModal";
 
 // ── Badge components ────────────────────────────────────────────────────────
-export function PlanBadge({ plan }: { plan: string }) {
+// Язык — по умолчанию русский, как у всей суперадминки; двуязычная панель
+// владельца (OwnerPanel) передаёт свой.
+export function PlanBadge({ plan, lang = "ru" }: { plan: string; lang?: "ru" | "uz" }) {
   const c = PLAN_COLORS[plan] ?? PLAN_COLORS.basic;
   return (
     <span style={{ display: "inline-flex", alignItems: "center", padding: "3px 10px", borderRadius: "20px", fontSize: "10px", fontWeight: 700, fontFamily: F.body, color: c.fg, background: c.bg, letterSpacing: "0.04em" }}>
-      {labelled(TENANT_PLAN_LABEL, plan)}
+      {labelled(TENANT_PLAN_LABEL, plan, lang)}
     </span>
   );
 }

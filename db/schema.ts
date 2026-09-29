@@ -69,6 +69,16 @@ export const tenants = mysqlTable("tenants", {
   ownerEmail:    varchar("owner_email", { length: 320 }),
   ownerPhone:    varchar("owner_phone", { length: 30 }),
   /*
+    Откуда пришла организация, зарегистрированная с сайта:
+    «answer=telegram; utm_source=ig_sept; ref=bekzod» (contracts/signup.ts).
+
+    Заявок с лендинга ноль, организаций тринадцать — люди приходят откуда-то
+    ещё, и откуда, не знал никто. Пусто у всех, кого завели руками
+    (суперадмин, песочницы), и у тех, кто не ответил. Только запись: никаких
+    партнёрских начислений по ней не считается.
+  */
+  signupSource:  varchar("signup_source", { length: 200 }),
+  /*
     Песочница для интеграторов.
 
     Организация с выдуманными данными, на которой чужая сторона проверяет
