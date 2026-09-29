@@ -6,7 +6,7 @@ import { sanitizeString } from "../lib/sanitize";
 import { notifyTenantRole, tgEscape, fmtMoney } from "../lib/telegram";
 import { recordAudit } from "./audit-log";
 import { recalcShopDebt } from "./shop-debt";
-import { tiyin } from "./order-shared";
+import { tiyin, upsertDebtReminder } from "./order-shared";
 import { invalidateReports } from "../lib/report-cache";
 
 /*
@@ -216,6 +216,19 @@ export const OrderCloseService = {
       }).where(and(eq(orders.tenantId, tenantId), eq(orders.id, o.id)));
       if (added.length) await recalcShopDebt(tx, tenantId, o.shopId);
 
+      /*
+        Остаток в долг со сроком — в напоминание заказа, в этой же сделке.
+
+        Срок писался только в новые строки платежей (наличные сверх
+        заявленного, «Ещё принято»). В обычном случае — курьер сдал часть,
+        остаток в долг, доплаты нет — строк не было, и введённый «Срок»
+        пропадал: ни напоминания, ни просрочки. Напоминание курьера по этому
+        заказу не дублируется, а получает новую сумму и срок.
+      */
+      if (input.acceptDebt && m.remainder > 0 && input.debtDueDate) {
+        await upsertDebtReminder(tx, tenantId, { shopId: o.shopId, orderId: o.id, amount: m.remainder.toFixed(2), dueDate: input.debtDueDate });
+      }
+
       const [courier] = o.courierId ? await tx.select({ name: users.name }).from(users).where(eq(users.id, o.courierId)).limit(1) : [null];
       result = { shortage: m.shortage, added: m.added, remainder: m.remainder, claimed };
       info = { number: o.number, shopId: o.shopId, shopName: o.shopName, courierName: courier?.name ?? null, total };
@@ -225,11 +238,11 @@ export const OrderCloseService = {
         meta: { number: o.number, shop: o.shopName, total, claimed, cashReceived: round2(input.cashReceived), added: m.added, shortage: m.shortage, debt: m.remainder, courier: courier?.name ?? null },
       }, { strict: true });
     });
-
     /*
       Расчёт меняет очередь «Ждут расчёта», платежи и долг магазина, а сброса
       отчётов здесь не было: плитки «Заказов» (кэш 20 с) держали закрытый
-      заказ в очереди, и событие для живых экранов не уходило вовсе.
+      заказ в очереди, событие для живых экранов не уходило вовсе, а списки
+      магазинов (lib/cache: withTenantDataCache) держали долг ещё три минуты.
     */
     await invalidateReports(tenantId, "order.close");
 

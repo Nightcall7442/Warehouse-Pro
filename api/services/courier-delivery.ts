@@ -1,5 +1,5 @@
 import { inBackground } from "../lib/graceful-shutdown";
-import { orders, users, shops, payments, orderItems, warehouseStock, debtReminders, orderAdjustments } from "@db/schema";
+import { orders, users, shops, payments, orderItems, warehouseStock, orderAdjustments } from "@db/schema";
 import { ORDER_STATUS_LABELS } from "../lib/order-status";
 import { eq, and, sql, isNull } from "drizzle-orm";
 import { logger } from "../lib/logger";
@@ -11,7 +11,7 @@ import { productLabel } from "./order";
 import { releaseStock, shipStock } from "./stock-ledger";
 import { NotificationService } from "./NotificationService";
 import { invalidateReports } from "../lib/report-cache";
-import { orderWarehouseId, type Db } from "./order-shared";
+import { orderWarehouseId, upsertDebtReminder, type Db } from "./order-shared";
 import { eventTime } from "../lib/event-time";
 
 /*
@@ -616,14 +616,7 @@ export async function completeDelivery(db: Db, tenantId: number, courierId: numb
 
     // ── Create debt reminder if partial payment ──
     if (debtAmount > 0 && debtDueDate) {
-      await tx.insert(debtReminders).values({
-        tenantId: tenantId,
-        shopId: order.shopId,
-        orderId: order.id,
-        amount: String(debtAmount),
-        dueDate: debtDueDate,
-        status: "pending",
-      });
+      await upsertDebtReminder(tx, tenantId, { shopId: order.shopId, orderId: order.id, amount: String(debtAmount), dueDate: debtDueDate });
     }
   });
   await invalidateReports(tenantId, "delivery");

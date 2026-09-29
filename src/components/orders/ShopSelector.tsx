@@ -1,47 +1,32 @@
 import { useState, useMemo } from "react";
 import { useCurrency } from "@/hooks/useCurrency";
-import { trpc } from "@/providers/trpc";
-import { useAuth } from "@/hooks/useAuth";
+import { useShopSearch, SHOP_PICK_LIMIT } from "@/hooks/useShopSearch";
 import { useLang } from "@/i18n";
 import { Store, Search, AlertCircle } from "lucide-react";
 
 interface ShopSelectorProps {
   shopId: number;
+  /** Имя выбранного магазина: он показывается, даже если поиск его не вернул. */
+  shopName?: string;
   onSelect: (id: number, name: string) => void;
 }
 
-export function ShopSelector({ shopId, onSelect }: ShopSelectorProps) {
+/*
+  Магазины — поиском на сервере (useShopSearch), одним путём для всех ролей.
+
+  Здесь грузились 200 самых новых магазинов (агенту — все) и фильтровались
+  у себя: у организации с тысячами точек основные, давние клиенты не
+  находились, телефон не искался. Кнопки городов собирались из тех же 200 и
+  отбирали только среди них — теперь город ищется той же строкой.
+*/
+export function ShopSelector({ shopId, shopName, onSelect }: ShopSelectorProps) {
   const [search, setSearch] = useState("");
-  const [selectedCity, setSelectedCity] = useState<string | null>(null);
   const { fmt } = useCurrency();
   const { lang } = useLang();
   const t = (ru: string, uz: string) => lang === "uz" ? uz : ru;
-  const { user } = useAuth();
-  const isAgent = user?.role === "agent" || user?.role === "merchandiser";
-  const useMyShops = isAgent;
 
-  const { data: myShops, isLoading: myShopsLoading } = trpc.agent.myShops.useQuery(undefined, { enabled: useMyShops });
-  const { data: allShopsData, isLoading: allShopsLoading } = trpc.shop.list.useQuery({ page: 1, pageSize: 200 }, { enabled: !useMyShops });
-
-  const shops = useMyShops ? myShops : allShopsData?.data;
-  const isLoading = useMyShops ? myShopsLoading : allShopsLoading;
-
-  const cities = useMemo(() => {
-    const set = new Set<string>();
-    (shops ?? []).forEach((s) => { if (s.city) set.add(s.city); });
-    return Array.from(set).sort();
-  }, [shops]);
-
-  const filtered = useMemo(() => {
-    return (shops ?? []).filter((s) => {
-      const matchCity = !selectedCity || s.city === selectedCity;
-      const matchSearch = !search ||
-        s.name?.toLowerCase().includes(search.toLowerCase()) ||
-        s.ownerName?.toLowerCase().includes(search.toLowerCase()) ||
-        s.district?.toLowerCase().includes(search.toLowerCase());
-      return matchCity && matchSearch;
-    });
-  }, [shops, selectedCity, search]);
+  const pinned = useMemo(() => (shopId > 0 && shopName ? { id: shopId, name: shopName } : null), [shopId, shopName]);
+  const { shops: filtered, isLoading, more } = useShopSearch(search, { pinned });
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
@@ -54,32 +39,6 @@ export function ShopSelector({ shopId, onSelect }: ShopSelectorProps) {
           {t("Для которого оформляем заказ", "Buyurtma uchun do'kon")}
         </p>
       </div>
-
-      {/* Cities filter */}
-      {cities.length > 0 && (
-        <div style={{ display: "flex", gap: "8px", overflowX: "auto", paddingBottom: "4px" }}>
-          <button onClick={() => setSelectedCity(null)} style={{
-            flexShrink: 0, padding: "8px 18px", borderRadius: "24px", fontSize: "13px", fontWeight: 600,
-            fontFamily: "'Manrope', sans-serif", cursor: "pointer", transition: "all 0.25s ease",
-            background: !selectedCity ? "var(--color-primary)" : "var(--color-surface-light, #f6f4f0)",
-            color: !selectedCity ? "var(--color-on-primary)" : "var(--color-text-secondary)",
-            border: "none", boxShadow: !selectedCity ? "0 4px 12px color-mix(in srgb, var(--color-primary) 30%, transparent)" : "none",
-          }}>
-            {t("Все", "Barchasi")}
-          </button>
-          {cities.map(city => (
-            <button key={city} onClick={() => setSelectedCity(selectedCity === city ? null : city)} style={{
-              flexShrink: 0, padding: "8px 18px", borderRadius: "24px", fontSize: "13px", fontWeight: 600,
-              fontFamily: "'Manrope', sans-serif", cursor: "pointer", transition: "all 0.25s ease",
-              background: selectedCity === city ? "var(--color-primary)" : "var(--color-surface-light, #f6f4f0)",
-              color: selectedCity === city ? "var(--color-on-primary)" : "var(--color-text-secondary)",
-              border: "none", boxShadow: selectedCity === city ? "0 4px 12px color-mix(in srgb, var(--color-primary) 30%, transparent)" : "none",
-            }}>
-              {city}
-            </button>
-          ))}
-        </div>
-      )}
 
       {/* Search */}
       <div style={{ position: "relative" }}>
@@ -100,19 +59,11 @@ export function ShopSelector({ shopId, onSelect }: ShopSelectorProps) {
       </div>
 
       {/* Counter */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <p style={{ fontSize: "12px", color: "var(--color-text-tertiary, #6b6760)", fontFamily: "'Manrope', sans-serif", margin: 0 }}>
-          {filtered?.length ?? 0} {t("магазинов", "do'kon")}
-        </p>
-        {selectedCity && (
-          <button onClick={() => setSelectedCity(null)} style={{
-            fontSize: "11px", color: "var(--color-primary)", background: "none", border: "none",
-            cursor: "pointer", fontFamily: "'Manrope', sans-serif", fontWeight: 600, padding: 0,
-          }}>
-            {t("Сбросить", "Tozalash")} ×
-          </button>
-        )}
-      </div>
+      <p style={{ fontSize: "12px", color: "var(--color-text-tertiary, #6b6760)", fontFamily: "'Manrope', sans-serif", margin: 0 }}>
+        {more
+          ? t(`Показаны первые ${SHOP_PICK_LIMIT} — уточните поиск: название, владелец, телефон, район, город`, `Dastlabki ${SHOP_PICK_LIMIT} tasi ko'rsatildi — qidiruvni aniqlashtiring: nomi, egasi, telefon, tuman, shahar`)
+          : `${filtered.length} ${t("магазинов", "do'kon")}`}
+      </p>
 
       {/* Shop list */}
       {isLoading ? (
@@ -131,10 +82,10 @@ export function ShopSelector({ shopId, onSelect }: ShopSelectorProps) {
             <Store size={28} style={{ color: "var(--color-text-tertiary, #6b6760)", opacity: 0.4 }} />
           </div>
           <p style={{ fontSize: "14px", fontWeight: 500, color: "var(--color-text-secondary, #5e5b54)", margin: "0 0 4px" }}>
-            {selectedCity ? t("Нет магазинов в этом городе", "Bu shaharda do'kon yo'q") : t("Магазины не найдены", "Do'kon topilmadi")}
+            {t("Магазины не найдены", "Do'kon topilmadi")}
           </p>
           <p style={{ fontSize: "12px", color: "var(--color-text-tertiary, #6b6760)" }}>
-            {t("Попробуйте другой фильтр", "Boshqa filtringizni sinab ko'ring")}
+            {t("Попробуйте другой поиск", "Boshqa qidiruvni sinab ko'ring")}
           </p>
         </div>
       ) : (

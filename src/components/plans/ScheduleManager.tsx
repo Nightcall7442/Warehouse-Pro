@@ -1,12 +1,15 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Calendar, Loader2, Play } from "lucide-react";
 import { trpc } from "@/providers/trpc";
 import { notify } from "@/lib/toast";
 import { COLORS, SHADOW, F } from "./constants";
 import { PremiumSelect } from "@/components/PremiumSelect";
+import { useShopSearch } from "@/hooks/useShopSearch";
 
 const DAY_NAMES_RU = ["ВС", "ПН", "ВТ", "СР", "ЧТ", "ПТ", "СБ"];
 const DAY_NAMES_UZ = ["Yak", "Dush", "Sesh", "Chor", "Pay", "Jum", "Shan"];
+/** Строк в таблице расписания: дальше — уточнять поиск. */
+const SHOPS_SHOWN = 50;
 
 export function ScheduleManager({ lang }: { lang: string }) {
   const t = (ru: string, uz: string) => lang === "uz" ? uz : ru;
@@ -34,27 +37,34 @@ export function ScheduleManager({ lang }: { lang: string }) {
   */
   const { data: agents = [] } = trpc.agent.listAgents.useQuery();
 
-  const { data: allShopsData } = trpc.shop.list.useQuery({ page: 1, pageSize: 500 });
-  const allShops = allShopsData?.data ?? [];
-
   /*
-    Поиск по магазинам — потому что в таблицу помещаются не все.
+    Магазины — поиском на сервере (useShopSearch), по 50 строк.
 
-    Строк рисуется пятьдесят, а у организации их бывает несколько сотен.
-    Молчаливая обрезка здесь означала бы, что магазин, которого не видно,
-    нельзя поставить в расписание — и понять почему нечем. Теперь видно, из
-    скольких показаны эти пятьдесят, и есть чем добраться до остальных.
+    Раньше грузились 500 самых новых точек и искались у себя: у организации
+    с тысячами магазинов давнего клиента поставить в расписание было нельзя
+    — его просто не было в загруженном. Теперь поиск идёт по всем (название,
+    владелец, телефон, район, город).
+
+    Пока поиск пуст, первыми стоят магазины, уже расписанные у агента: их
+    имена приходят с расписанием, и снять лишнюю галочку можно, не угадывая,
+    где этот магазин в общем списке.
   */
   const [shopQuery, setShopQuery] = useState("");
-  const matching = shopQuery.trim()
-    ? allShops.filter((sh: { name: string }) => sh.name.toLowerCase().includes(shopQuery.trim().toLowerCase()))
-    : allShops;
-  const shops = matching.slice(0, 50);
+  const { shops: found, more } = useShopSearch(shopQuery, { enabled: !!selectedAgent, limit: SHOPS_SHOWN });
 
   const { data: schedules = [], isLoading } = trpc.schedule.list.useQuery(
     { agentId: selectedAgent },
     { enabled: !!selectedAgent }
   );
+  const shops = useMemo(() => {
+    if (shopQuery.trim()) return found;
+    const seen = new Set(found.map(s => s.id));
+    const scheduled = new Map<number, { id: number; name: string }>();
+    for (const s of schedules as Array<{ shopId: number; shopName: string | null }>) {
+      if (!seen.has(s.shopId) && !scheduled.has(s.shopId)) scheduled.set(s.shopId, { id: s.shopId, name: s.shopName ?? `#${s.shopId}` });
+    }
+    return [...scheduled.values(), ...found];
+  }, [shopQuery, found, schedules]);
 
   /*
     Галочка отвечает сразу.
@@ -143,9 +153,9 @@ export function ScheduleManager({ lang }: { lang: string }) {
               onChange={e => setShopQuery(e.target.value)}
             />
             <span style={{ fontSize: "11px", color: COLORS.textTertiary, whiteSpace: "nowrap" }}>
-              {matching.length > shops.length
-                ? t(`Показаны ${shops.length} из ${matching.length}`, `${matching.length} tadan ${shops.length} tasi`)
-                : t(`Магазинов: ${matching.length}`, `Do'konlar: ${matching.length}`)}
+              {more
+                ? t(`Показаны первые ${SHOPS_SHOWN} — уточните поиск`, `Dastlabki ${SHOPS_SHOWN} tasi ko'rsatildi — qidiruvni aniqlashtiring`)
+                : t(`Магазинов: ${shops.length}`, `Do'konlar: ${shops.length}`)}
             </span>
           </div>
 
