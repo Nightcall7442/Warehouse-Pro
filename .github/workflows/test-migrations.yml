@@ -1,4 +1,6 @@
 name: Test migrations
+# Запускается и на правку самого потока или его скрипта наката: иначе
+# сломанный шаг проверки узнали бы только в PR со следующей миграцией.
 on:
   workflow_dispatch:
   push:
@@ -7,12 +9,16 @@ on:
       - "db/migrations/**"
       - "db/schema.ts"
       - "drizzle.config.ts"
+      - ".github/workflows/test-migrations.yml"
+      - "scripts/migrate.cjs"
   pull_request:
     branches: [main]
     paths:
       - "db/migrations/**"
       - "db/schema.ts"
       - "drizzle.config.ts"
+      - ".github/workflows/test-migrations.yml"
+      - "scripts/migrate.cjs"
 
 jobs:
   migrate-fresh:
