@@ -41,6 +41,8 @@ const redis = vi.hoisted(() => {
 });
 
 vi.mock("../lib/redis", () => ({
+  // report-cache шлёт живым экранам order.changed (lib/sse), а тот метит события процессом.
+  INSTANCE_ID: "test",
   isRedisAvailable: () => redis.available,
   getRedis: () => redis.client,
   subscribeChannel: (_c: string, h: (m: string) => void) => { redis.subscribe(h); return true; },

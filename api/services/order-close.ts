@@ -237,9 +237,12 @@ export const OrderCloseService = {
         meta: { number: o.number, shop: o.shopName, total, claimed, cashReceived: round2(input.cashReceived), added: m.added, shortage: m.shortage, debt: m.remainder, courier: courier?.name ?? null },
       }, { strict: true });
     });
-    // Платежи офиса, долг магазина, недостача — после коммита: без этого
-    // списки магазинов (lib/cache: withTenantDataCache) и отчёты держали
-    // долг до закрытия ещё три минуты.
+    /*
+      Расчёт меняет очередь «Ждут расчёта», платежи и долг магазина, а сброса
+      отчётов здесь не было: плитки «Заказов» (кэш 20 с) держали закрытый
+      заказ в очереди, событие для живых экранов не уходило вовсе, а списки
+      магазинов (lib/cache: withTenantDataCache) держали долг ещё три минуты.
+    */
     await invalidateReports(tenantId, "order.close");
 
     if (result.shortage > 0) {

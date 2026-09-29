@@ -7,9 +7,10 @@ vi.mock("drizzle-orm", () => ({
   gte: (col: unknown, val: unknown) => ({ __kind: "gte", col, val }),
 }));
 
-vi.mock("../telegram-router", () => ({
-  notifyAdmin: vi.fn(async () => {}),
-  tgMessages: { upgradeRequest: vi.fn(() => "mock upgrade message") },
+// Заявка ложится через общий приём (services/leads.ts); здесь он подменён,
+// а на настоящей базе проверяется в real-db/plan-request.test.ts.
+vi.mock("../services/leads", () => ({
+  recordLead: vi.fn(async () => ({ id: 1, notified: true })),
 }));
 
 vi.mock("../lib/feature-gating", () => ({
@@ -414,30 +415,17 @@ describe("billing.requestUpgrade", () => {
     expect(result.message).toContain("Pro");
   });
 
-  it("updates tenants.updatedAt", async () => {
-    const before = tenantsTable[0].updatedAt;
-
+  it("кладёт заявку в разбор заявок с контактом организации", async () => {
     const { billingRouter } = await import("../billing-router");
+    const { recordLead } = await import("../services/leads");
     const caller = billingRouter.createCaller(makeCtx(1, 10, "ceo"));
-    await caller.requestUpgrade({ plan: "basic" });
+    await caller.requestUpgrade({ plan: "pro" });
 
-    expect(tenantsTable[0].updatedAt).not.toEqual(before);
-    expect(tenantsTable[0].updatedAt).toBeInstanceOf(Date);
-  });
-
-  it("calls notifyAdmin with tgMessages.upgradeRequest", async () => {
-    const { billingRouter } = await import("../billing-router");
-    const { notifyAdmin, tgMessages } = await import("../telegram-router");
-    const caller = billingRouter.createCaller(makeCtx(1, 10, "ceo"));
-    await caller.requestUpgrade({ plan: "basic" });
-
-    expect(tgMessages.upgradeRequest).toHaveBeenCalledWith(
-      "Test Co",
-      "Basic",
-      expect.any(String),
-      "+998901234567",
+    expect(recordLead).toHaveBeenCalledWith(
+      null,
+      expect.objectContaining({ company: "Test Co", phone: "+998901234567", source: "подписка: тариф" }),
+      "Запрос на тариф",
     );
-    expect(notifyAdmin).toHaveBeenCalled();
   });
 
   it("rejects non-admin roles (operator)", async () => {

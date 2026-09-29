@@ -1,6 +1,7 @@
 import nodemailer from "nodemailer";
 import { env } from "./env";
 import { logger } from "./logger";
+import { PLANS, PLAN_PRICES_UZS, type PlanKey } from "../../contracts/constants";
 
 /** Имя организации и приглашающего задаёт арендатор — в письме это текст, не разметка (аудит 20.09.2026). */
 export const escapeHtml = (s: string) => s.replace(/[&<>"']/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch] as string));
@@ -123,13 +124,58 @@ export async function sendTrialEndingEmail(
         <h2 style="color:${urgent ? "#dc2626" : "#d97706"}">
           ${urgent ? "Последний день пробного периода" : `До конца пробного периода ${daysLeft} дн.`}
         </h2>
-        <p>Организация <b>${orgName}</b> использует пробный период Warehouse Pro.</p>
-        <p>Чтобы не потерять доступ к данным, подключите платную подписку.</p>
+        <p>Организация <b>${escapeHtml(orgName)}</b> использует пробный период Warehouse Pro.</p>
+        <p>Чтобы не потерять доступ к данным, выберите тариф и оставьте заявку — оператор свяжется с вами.</p>
         <a href="${billingUrl}"
            style="display:inline-block;margin:20px 0;padding:12px 24px;background:#4f46e5;color:#fff;border-radius:6px;text-decoration:none;font-weight:bold">
-          Подключить подписку
+          Выбрать тариф
         </a>
-        <p style="color:#666;font-size:12px">Тарифы: Basic $99/мес · Pro $249/мес</p>
+        <p style="color:#666;font-size:12px">Тарифы: ${planPriceLine()}</p>
+      </div>
+    `,
+  });
+}
+
+/*
+  Цены — из того же источника, что экран и заявка. Здесь стояло «Basic $99 ·
+  Pro $249»: доллары Stripe, которым в Узбекистане не платят, и числа,
+  разошедшиеся с экраном оплаты.
+*/
+const planPriceLine = () => (["basic", "pro", "exclusive"] as const)
+  .map(k => `${PLANS[k].name} ${PLAN_PRICES_UZS[k].toLocaleString("ru-RU")} сум/мес`)
+  .join(" · ");
+
+/** Оплаченный срок кончается — за 7, 3 и 1 день (cron/trial-reminders.ts). */
+export async function sendRenewalReminderEmail(
+  to: string,
+  orgName: string,
+  plan: string,
+  daysLeft: number,
+  endsAt: Date,
+  billingUrl: string,
+): Promise<void> {
+  const urgent = daysLeft <= 1;
+  const known  = plan in PLAN_PRICES_UZS ? (plan as PlanKey) : null;
+  const name   = known ? PLANS[known].name : plan;
+  const date   = endsAt.toLocaleDateString("ru-RU", { timeZone: "Asia/Tashkent" });
+  await sendEmail({
+    to,
+    subject: urgent
+      ? `⚠️ Подписка заканчивается завтра — ${orgName}`
+      : `Подписка заканчивается через ${daysLeft} дн. — ${orgName}`,
+    html: `
+      <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:24px">
+        <h2 style="color:${urgent ? "#dc2626" : "#d97706"}">
+          ${urgent ? "Последний день оплаченного срока" : `До конца оплаченного срока ${daysLeft} дн.`}
+        </h2>
+        <p>Тариф <b>${escapeHtml(name)}</b> организации <b>${escapeHtml(orgName)}</b> оплачен до ${date}.
+           После этого вход закроется для всех сотрудников, включая агентов в поле.</p>
+        <p>Нажмите «Продлить» на странице подписки — оператор свяжется с вами. Оплаченные дни не сгорают: продление считается от конца срока.</p>
+        <a href="${billingUrl}"
+           style="display:inline-block;margin:20px 0;padding:12px 24px;background:#4f46e5;color:#fff;border-radius:6px;text-decoration:none;font-weight:bold">
+          Продлить подписку
+        </a>
+        ${known ? `<p style="color:#666;font-size:12px">${escapeHtml(name)}: ${PLAN_PRICES_UZS[known].toLocaleString("ru-RU")} сум/мес</p>` : ""}
       </div>
     `,
   });

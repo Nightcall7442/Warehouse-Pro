@@ -1,4 +1,4 @@
-import { and, count, eq, gte, lte, ne, sum } from "drizzle-orm";
+import { and, count, eq, gte, inArray, lt, lte, ne, sum } from "drizzle-orm";
 import { getDb } from "../queries/connection";
 import { orders, subscriptions, tenants } from "@db/schema";
 import { inbox } from "../services/support-chat";
@@ -28,7 +28,21 @@ export async function runAdminDigest(now = new Date()): Promise<{ sent: boolean 
       gte(subscriptions.trialEndsAt, now),
       lte(subscriptions.trialEndsAt, in3Days),
     )),
-    db.select({ n: count() }).from(subscriptions).where(eq(subscriptions.status, "past_due")),
+    /*
+      Просрочка — по сроку оплаченного, а не по состоянию Stripe.
+
+      Считалось `status = past_due`, а его ставит только вебхук Stripe; в
+      сумах платят заявкой, и суперадмин включает тариф руками — у таких
+      подписок статус остаётся active и после конца срока. Число всегда было
+      ноль. Приостановленные не считаются: с ними уже решили.
+    */
+    db.select({ n: count() }).from(subscriptions)
+      .innerJoin(tenants, eq(tenants.id, subscriptions.tenantId))
+      .where(and(
+        client, eq(tenants.status, "active"),
+        inArray(subscriptions.status, ["active", "past_due"]),
+        lt(subscriptions.currentPeriodEnds, now),
+      )),
     db.select({ n: count() }).from(tenants).where(and(client, eq(tenants.status, "active"))),
     inbox(),
   ]);

@@ -1,17 +1,31 @@
 import { z } from "zod";
 import { createRouter, authedQuery, adminQuery } from "./middleware";
-import { notifyAdmin, tgMessages } from "./telegram-router";
 import { getDb } from "./queries/connection";
 import { tenants, users, orders, products } from "@db/schema";
 import { eq, and, sql, gte } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { PLANS, PLAN_PRICES_UZS, EXTRA_PRICES_UZS, type PlanKey } from "../contracts/constants";
 import { recordLead } from "./services/leads";
-import { logger } from "./lib/logger";
 
 /** Тарифный предел плюс докупленное. Безлимитному прибавлять нечего. */
 const withExtra = (base: number | null, extra: number | null) =>
   base === null ? null : base + Math.max(0, Number(extra ?? 0));
+
+/**
+ * Куда перезвонить по заявке.
+ *
+ * Телефон организации заполняет только суперадмин; у организации,
+ * зарегистрированной с сайта, и телефона, и почты владельца нет вовсе — и
+ * заявка приходила с «📞 не указан». Тогда — телефон или почта самого
+ * директора, который нажал кнопку: он в таблице людей есть всегда.
+ * `||`, а не `??`: пустая строка — тоже «не указан».
+ */
+function callbackContact(ctx: {
+  tenant: { ownerPhone?: string | null; ownerEmail?: string | null };
+  user: { phone?: string | null; email: string };
+}): string {
+  return ctx.tenant.ownerPhone || ctx.user.phone || ctx.tenant.ownerEmail || ctx.user.email || "не указан";
+}
 
 export const billingRouter = createRouter({
   /** Current tenant subscription status */
@@ -29,8 +43,11 @@ export const billingRouter = createRouter({
     const trialEnds = tenant.trialEndsAt;
     const planEnds  = tenant.planExpiresAt;
 
-    const trialActive  = trialEnds && trialEnds > now;
     const planActive   = planEnds  && planEnds  > now;
+    // Оплаченный срок главнее остатка пробного: trial_ends_at после перехода
+    // на платный остаётся, и перешедший досрочно видел «Пробный период,
+    // осталось 4 дн.» вместо оплаченного месяца — как будто оплата не прошла.
+    const trialActive  = !planActive && trialEnds && trialEnds > now;
     const isExpired    = !trialActive && !planActive;
 
     // Current usage
@@ -158,7 +175,7 @@ export const billingRouter = createRouter({
         name:    ctx.user.name,
         company: ctx.tenant.name,
         // Телефон организации, а не входящего: перезванивают владельцу.
-        phone:   ctx.tenant.ownerPhone ?? ctx.user.phone ?? ctx.tenant.ownerEmail ?? "не указан",
+        phone:   callbackContact(ctx),
         comment:
           `Докупить сверх тарифа: ${parts}. ` +
           `Доплата ${priceMonthly.toLocaleString("ru-RU")} сум/мес. ` +
@@ -180,37 +197,48 @@ export const billingRouter = createRouter({
       };
     }),
 
-  /** Request upgrade — creates a pending request for super-admin to process */
+  /* ═════════════════════════════════════════════════════════════════════════
+     Заявка на тариф или продление — единственный путь «купить».
+
+     Платёжной системы в сумах нет: заявку разбирает владелец платформы и
+     включает тариф руками (tenant.updatePlan). Поэтому потерянная заявка —
+     это потерянный платёж.
+
+     А терялась она молча: ручка только слала сообщение в телеграм, и
+     notifyAdmin при сбое не бросает, а возвращает false — `.catch` не
+     срабатывал никогда. Бот не настроен, телеграм лежит, бота заблокировали —
+     намерение заплатить исчезало, а человеку всё равно отвечали «оператор
+     свяжется в течение 30 минут».
+
+     Теперь — как у надбавки: запись в разбор заявок, потом уведомление, и
+     ответ честен про то, ушло ли оно. Тот же тариф, что уже стоит, — это
+     продление, и в заявке оно названо продлением.
+     ═════════════════════════════════════════════════════════════════════════ */
   requestUpgrade: adminQuery
     .input(z.object({ plan: z.enum(["basic", "pro", "exclusive"]) }))
     .mutation(async ({ input, ctx }) => {
-      // In production: integrate with payment gateway (Payme, Click, Uzum Pay)
-      // For now: mark tenant as pending upgrade and notify admin via Telegram
-      const db = getDb();
-      await db.update(tenants)
-        .set({ updatedAt: new Date() })
-        .where(eq(tenants.id, ctx.tenant.id));
+      const plan  = PLANS[input.plan];
+      const price = PLAN_PRICES_UZS[input.plan];
+      const renew = ctx.tenant.plan === input.plan;
+      const now   = PLANS[ctx.tenant.plan as PlanKey]?.name ?? ctx.tenant.plan;
 
-      // Notify admin via Telegram
-      const plan    = PLANS[input.plan];
-      const tenant  = ctx.tenant;
-      await notifyAdmin(tgMessages.upgradeRequest(
-        tenant.name,
-        plan.name,
-        PLAN_PRICES_UZS[input.plan].toLocaleString("ru-RU"),
-        tenant.ownerPhone ?? tenant.ownerEmail ?? "не указан"
-      )).catch((err) => {
-        logger.error("Failed to notify admin about plan upgrade request", {
-          tenantId: tenant.id,
-          plan: input.plan,
-          error: err instanceof Error ? err.message : String(err),
-        });
-      });
+      const { notified } = await recordLead(ctx.db, {
+        name:    ctx.user.name,
+        company: ctx.tenant.name,
+        phone:   callbackContact(ctx),
+        comment: renew
+          ? `Продлить тариф ${plan.name}: ${price.toLocaleString("ru-RU")} сум/мес.`
+          : `Тариф ${plan.name}: ${price.toLocaleString("ru-RU")} сум/мес. Тариф сейчас: ${now}.`,
+        source:  renew ? "подписка: продление" : "подписка: тариф",
+      }, renew ? "Запрос на продление тарифа" : "Запрос на тариф");
 
       return {
         success: true,
-        message: `Запрос на тариф "${PLANS[input.plan].name}" отправлен. Оператор свяжется с вами в течение 30 минут.`,
-        price:   PLAN_PRICES_UZS[input.plan],
+        notified,
+        message: notified
+          ? `Заявка на тариф «${plan.name}» отправлена. Оператор свяжется с вами.`
+          : `Заявка на тариф «${plan.name}» записана. Если не перезвонят в течение дня — позвоните сами.`,
+        price,
         plan:    input.plan,
       };
     }),

@@ -5,9 +5,25 @@ import { PLANS as BASE_PLANS, type PlanKey } from "../../contracts/constants";
 // Lazy singleton — only instantiated if STRIPE_SECRET_KEY is set
 let _stripe: Stripe | null = null;
 
+const keyUsable = () => !!env.stripeSecretKey && !env.stripeSecretKey.startsWith("dev-insecure");
+
+/**
+ * Можно ли вообще платить картой через Stripe: ключ настоящий и заведена хоть
+ * одна цена.
+ *
+ * Без этого /settings/billing показывал «Подключить», которое отвечало
+ * «STRIPE_SECRET_KEY is not configured» или «Plan not configured», — а туда
+ * вели полоса о конце пробного, письмо и экран блокировки. Основной путь
+ * оплаты — заявка в сумах на /billing; Stripe (доллары) — наследство и
+ * показывается, только если его правда настроили.
+ */
+export function stripeConfigured(): boolean {
+  return keyUsable() && !!(env.stripeBasicPriceId || env.stripeProPriceId || env.stripeExclusivePriceId);
+}
+
 export function getStripe(): Stripe {
   if (!_stripe) {
-    if (!env.stripeSecretKey || env.stripeSecretKey.startsWith("dev-insecure")) {
+    if (!keyUsable()) {
       throw new Error("STRIPE_SECRET_KEY is not configured.");
     }
     _stripe = new Stripe(env.stripeSecretKey, { apiVersion: "2024-06-20" });

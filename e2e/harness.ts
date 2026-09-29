@@ -22,6 +22,7 @@ export const SEED = {
   operator: { email: "operator1@demo-uz.uz", password: "password123", home: "/" },
   agent: { email: "agent-urgench@demo-uz.uz", password: "password123", home: "/agent" },
   supervisor: { email: "supervisor@demo-uz.uz", password: "password123", home: "/supervisor" },
+  superadmin: { email: "superadmin@system.local", password: "superadmin123", home: "/super-admin" },
 } as const;
 
 export type SeedRole = keyof typeof SEED;
