@@ -21,6 +21,7 @@ import { checkTotpStepUp } from "./auth/step-up";
 import { countTenantRows, offboardTenant, TenantNotSuspendedError } from "./services/tenant-offboard";
 import { setManualAccessFor } from "./services/manual-access";
 import { invalidateAuthTenant, invalidateAuthUser } from "./auth";
+import { invalidateSubscriptionAccess } from "./lib/feature-gating";
 import { sendVerification } from "./services/email-verification";
 /**
  * Ограничения на публичную регистрацию.
@@ -248,14 +249,28 @@ export const tenantRouter = createRouter({
       .from(orders)
       .groupBy(orders.tenantId);
 
+    /*
+      Подписка — то, что на деле пускает в работу (lib/feature-gating.ts).
+      Без неё список судил по tenants.trial_ends_at, который у организации
+      с сайта остаётся навсегда, и платящий клиент горел красным «Trial истёк».
+    */
+    const subs = await db
+      .select({
+        tenantId: subscriptions.tenantId, status: subscriptions.status,
+        trialEndsAt: subscriptions.trialEndsAt, currentPeriodEnds: subscriptions.currentPeriodEnds,
+      })
+      .from(subscriptions);
+
     const userMap  = Object.fromEntries(userCounts.map(r  => [r.tenantId,  r.cnt]));
     const orderMap = Object.fromEntries(orderStats.map(r => [r.tenantId, { cnt: r.cnt, total: r.total ?? "0" }]));
+    const subMap   = new Map(subs.map(({ tenantId, ...s }) => [tenantId, s]));
 
     return allTenants.map(t => ({
       ...t,
       userCount:  Number(userMap[t.id]  ?? 0),
       orderCount: Number(orderMap[t.id]?.cnt   ?? 0),
       orderTotal: Number(orderMap[t.id]?.total ?? 0),
+      subscription: subMap.get(t.id) ?? null,
     }));
   }),
 
@@ -398,16 +413,27 @@ export const tenantRouter = createRouter({
       if (existing.length) throw new TRPCError({ code: "CONFLICT", message: "Email already registered." });
 
       const passwordHash  = await hashPassword(input.ownerPassword);
-      const trialEndsAt   = new Date(Date.now() + input.trialDays * 86_400_000);
-      const planExpiresAt = input.plan !== "trial"
-        ? new Date(Date.now() + 30 * 86_400_000)
-        : null;
+      /*
+        Тариф и срок — одни и те же в обеих таблицах.
+
+        Раньше в tenants писались выбранный тариф и срок, а подписка
+        заводилась всегда пробной на 14 дней. Пускает в работу подписка
+        (lib/feature-gating.ts), поэтому организацию, созданную как Pro или с
+        пробным на 30 дней, запирало на пятнадцатый день — а карточка
+        показывала «Pro, 30 дн.».
+
+        Подписка — в той же транзакции: снаружи её сбой гасился в журнал, и
+        организация без подписки оставалась запертой с первого входа.
+      */
+      const isTrial       = input.plan === "trial";
+      const trialEndsAt   = isTrial ? new Date(Date.now() + input.trialDays * 86_400_000) : null;
+      const planExpiresAt = isTrial ? null : new Date(Date.now() + 30 * 86_400_000);
 
       let tenantId: number;
       await db.transaction(async (tx) => {
         const [r] = await tx.insert(tenants).values({
           slug, name: input.orgName, plan: input.plan,
-          status: "active", trialEndsAt, planExpiresAt: planExpiresAt ?? undefined,
+          status: "active", trialEndsAt, planExpiresAt,
           ownerEmail: input.ownerEmail,
         });
         tenantId = Number(r.insertId);
@@ -417,19 +443,11 @@ export const tenantRouter = createRouter({
           passwordHash, role: "ceo", status: "active", lastSignInAt: new Date(),
         });
         await tx.insert(settings).values({ tenantId, companyName: input.orgName });
-      });
-
-      // Create trial subscription for admin-created tenant
-      const subTrialEnds = new Date(Date.now() + 14 * 86_400_000);
-      await db.insert(subscriptions).values({
-        id: randomUUID(),
-        tenantId: tenantId!,
-        plan: "trial",
-        status: "trialing",
-        trialEndsAt: subTrialEnds,
-        currentPeriodEnds: subTrialEnds,
-      }).catch((err) => {
-        logger.error("Failed to create trial subscription for admin-created tenant", { tenantId: tenantId!, error: err instanceof Error ? err.message : String(err) });
+        await tx.insert(subscriptions).values({
+          id: randomUUID(), tenantId, plan: input.plan,
+          status: isTrial ? "trialing" : "active",
+          trialEndsAt, currentPeriodEnds: trialEndsAt ?? planExpiresAt,
+        });
       });
 
       return { success: true, slug, tenantId: tenantId! };
@@ -568,8 +586,19 @@ export const tenantRouter = createRouter({
       expiryDays: z.number().min(1).max(3650).default(30),
     }))
     .mutation(async ({ input }) => {
-      const db          = getDb();
-      const planExpires = new Date(Date.now() + input.expiryDays * 86_400_000);
+      const db  = getDb();
+      const now = new Date();
+      /*
+        Продление считается от конца ОПЛАЧЕННОГО, если он ещё впереди.
+
+        Раньше — всегда от сегодня: клиент, заплативший за неделю до конца,
+        терял эту неделю. Пробные дни не оплачены и не переносятся: переход с
+        пробного на платный идёт от дня включения.
+      */
+      const [sub] = await db.select({ status: subscriptions.status, ends: subscriptions.currentPeriodEnds })
+        .from(subscriptions).where(eq(subscriptions.tenantId, input.tenantId)).limit(1);
+      const paidUntil   = sub?.status === "active" && sub.ends && sub.ends > now ? sub.ends : now;
+      const planExpires = new Date(paidUntil.getTime() + input.expiryDays * 86_400_000);
 
       await db.transaction(async (tx) => {
         await tx.update(tenants)
@@ -579,8 +608,10 @@ export const tenantRouter = createRouter({
           .set({ plan: input.plan, status: "active", currentPeriodEnds: planExpires, updatedAt: new Date() })
           .where(eq(subscriptions.tenantId, input.tenantId));
       });
+      // Заплатившего пускаем сразу, а не через минуту кеша доступа.
+      invalidateSubscriptionAccess(input.tenantId);
 
-      return { success: true };
+      return { success: true, planExpiresAt: planExpires };
     }),
 
   /** Приостановить / активировать */

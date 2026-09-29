@@ -1,4 +1,4 @@
-import { Zap, Check, Loader2, LifeBuoy, AlertTriangle } from "lucide-react";
+import { Zap, Check, Loader2, LifeBuoy, AlertTriangle, RefreshCw } from "lucide-react";
 import { FEATURES, PLAN_ADDS, PLAN_ORDER, PLANS, type FeatureKey, type PlanKey } from "@contracts/constants";
 
 export interface Plan {
@@ -198,26 +198,23 @@ export function SubscriptionPlanCard({
         </div>
       )}
 
-      {isCurrent ? (
-        <div style={{
-          width: "100%", textAlign: "center", padding: "12px 20px", borderRadius: "14px",
-          fontSize: "13.5px", fontWeight: 600,
-          color: "var(--color-text-tertiary)", background: "var(--color-surface-light)",
-          boxShadow: "var(--shadow-pressed)",
-        }}>
-          {t("Активен", "Faol")}
-        </div>
-      ) : (
-        <button
-          onClick={() => onSelect(plan.key)}
-          disabled={isPending}
-          className={isPro ? "neo-btn-primary" : "neo-btn"}
-          style={{ width: "100%", height: "44px", borderRadius: "14px", fontSize: "13.5px" }}
-        >
-          {isPending ? <Loader2 size={15} style={{ animation: "spin 1s linear infinite" }} /> : <Zap size={15} />}
-          {t("Подключить", "Ulash")}
-        </button>
-      )}
+      {/*
+        У текущего тарифа — «Продлить», а не неживое «Активен».
+
+        Продлевают заявкой (оплата в сумах идёт через оператора), и кнопки для
+        этого не было вовсе: карточка говорила «Активен» и тогда, когда срок
+        уже кончился. Заявка та же, что на смену тарифа, с тем же тарифом.
+      */}
+      <button
+        data-testid={`plan-request-${plan.key}`}
+        onClick={() => onSelect(plan.key)}
+        disabled={isPending}
+        className={isCurrent || isPro ? "neo-btn-primary" : "neo-btn"}
+        style={{ width: "100%", height: "44px", borderRadius: "14px", fontSize: "13.5px" }}
+      >
+        {isPending ? <Loader2 size={15} style={{ animation: "spin 1s linear infinite" }} /> : isCurrent ? <RefreshCw size={15} /> : <Zap size={15} />}
+        {isCurrent ? t("Продлить", "Uzaytirish") : t("Подключить", "Ulash")}
+      </button>
     </div>
   );
 }

@@ -23,6 +23,7 @@ export type TenantRow = {
   trialEndsAt?: Date | null; planExpiresAt?: Date | null;
   ownerEmail?: string | null;
   userCount: number; orderCount: number; orderTotal: number;
+  subscription?: { status: string; trialEndsAt: Date | null; currentPeriodEnds: Date | null } | null;
 };
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
@@ -36,13 +37,26 @@ export function money(n: number): string {
   return new Intl.NumberFormat("ru").format(Math.round(n));
 }
 
+/*
+  Срок — по подписке: она и решает, пустят ли организацию в работу
+  (api/lib/feature-gating.ts). Раньше первым делом смотрелся
+  tenants.trial_ends_at, а он у организации с сайта остаётся навсегда: клиент,
+  перешедший на платный, горел красным «Trial истёк». Без подписки (старые
+  строки) — по тарифу: пробный по концу пробного, платный по оплаченному.
+*/
 export function planStatus(t: TenantRow): { label: string; color: string } {
-  if (t.trialEndsAt) {
-    const d = differenceInDays(new Date(t.trialEndsAt), new Date());
+  const sub = t.subscription;
+  if (sub && sub.status !== "trialing" && sub.status !== "active") return { label: "Не оплачена", color: COLORS.danger };
+  const trial = sub ? sub.status === "trialing" : t.plan === "trial";
+  if (trial) {
+    const ends = sub ? sub.trialEndsAt : t.trialEndsAt;
+    if (!ends) return { label: "Trial", color: COLORS.info };
+    const d = differenceInDays(new Date(ends), new Date());
     if (d < 0) return { label: "Trial истёк", color: COLORS.danger };
     return { label: `Trial ${d}д.`, color: d < 3 ? COLORS.warning : COLORS.info };
   }
-  const expires = t.planExpiresAt ? new Date(t.planExpiresAt) : null;
+  const paid = sub ? sub.currentPeriodEnds : t.planExpiresAt;
+  const expires = paid ? new Date(paid) : null;
   if (!expires) return { label: "Без лимита", color: COLORS.textSecondary };
   const d = differenceInDays(expires, new Date());
   if (d < 0) return { label: "Истёк", color: COLORS.danger };

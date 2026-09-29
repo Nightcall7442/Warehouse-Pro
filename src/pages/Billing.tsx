@@ -1,7 +1,7 @@
 import { CreditCard } from "lucide-react";
 import { trpc } from "@/providers/trpc";
 import { useLang } from "@/i18n";
-import { notify } from "@/lib/toast";
+import { usePlanRequest } from "@/components/billing/usePlanRequest";
 import { HeroStatusCard } from "@/components/billing/HeroStatusCard";
 import { UsageSection } from "@/components/billing/UsageSection";
 import { SubscriptionPlanCard } from "@/components/billing/SubscriptionPlanCard";
@@ -40,10 +40,7 @@ import { SkeletonBlock } from "@/components/billing/SkeletonBlock";
 export default function BillingPage() {
   const { data: billing, isLoading } = trpc.billing.status.useQuery();
   const { lang } = useLang();
-  const upgrade = trpc.billing.requestUpgrade.useMutation({
-    onSuccess: (d) => notify.success(d.message),
-    onError: (e) => notify.error(e.message),
-  });
+  const { request: upgrade } = usePlanRequest();
 
   const planName = (p: { name: string; nameUz: string }) => (lang === "uz" ? p.nameUz : p.name);
   const t = (ru: string, uz: string) => (lang === "uz" ? uz : ru);

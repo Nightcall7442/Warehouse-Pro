@@ -184,7 +184,8 @@ describe("карточка тарифа", () => {
       />,
     );
     expect(screen.queryByText(/Не вместит/)).toBeNull();
-    expect(screen.getByText("Активен")).toBeTruthy();
+    // Вместо неживого «Активен» — продление (см. subscription-renewal.test.tsx).
+    expect(screen.getByRole("button", { name: /Продлить/ })).toBeTruthy();
   });
 
   it("возможности тарифа перечислены, а не только числа", () => {

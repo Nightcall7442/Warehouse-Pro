@@ -53,12 +53,23 @@ export async function recordLead(
   input: LeadInput,
   title = "Новая заявка с сайта",
 ): Promise<{ id: number; notified: boolean }> {
+  /*
+    Столбцы узкие (имя 120, компания 200, телефон 32), а заявка из подписки
+    несёт имя директора, название организации и — если телефона нет — его
+    почту: они бывают длиннее. Не влезло — вставка падает, и заявка теряется
+    ровно так, как этот файл не допускает. Поэтому режем по столбцу, а
+    контакт, если его пришлось резать, целиком дописываем в комментарий.
+  */
+  const phone = input.phone.slice(0, 32);
+  const comment = phone === input.phone
+    ? input.comment
+    : [input.comment, `Связь: ${input.phone}`].filter(Boolean).join("\n");
   const [inserted] = await db.insert(leads).values({
-    name:    input.name,
-    company: input.company || null,
-    phone:   input.phone,
-    comment: input.comment || null,
-    source:  input.source || null,
+    name:    input.name.slice(0, 120),
+    company: input.company?.slice(0, 200) || null,
+    phone,
+    comment: comment || null,
+    source:  input.source?.slice(0, 64) || null,
   });
   const id = Number(inserted.insertId);
 
