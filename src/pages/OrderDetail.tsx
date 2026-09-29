@@ -44,6 +44,8 @@ import { useSellerCompany } from "@/hooks/useSellerCompany";
 import { colorMix } from "@/lib/color-mix";
 import { StatusBadge } from "@/components/orders/theme";
 import { OrderPipeline } from "@/components/phone/OrderPipeline";
+import { RepeatOrderButton } from "@/components/orders/RepeatOrderButtons";
+import { usesQuickOrder } from "@/lib/quick-order";
 
 /** Statuses where the goods have not been handed over yet — these can still be completed. */
 const OPEN_STATUSES = ["new", "processing", "shipped", "pending"];
@@ -422,6 +424,8 @@ export default function OrderDetail() {
             не выгружаем: в 1С он создал бы проведённый документ.
           */}
           {!order.deletedAt && <OneCExport orderId={order.id} orderNumber={order.orderNumber} />}
+          {/* Повтор — офису, в быстрый заказ: по телефону заказывают «как в прошлый раз». */}
+          {usesQuickOrder(user?.role) && !order.deletedAt && <RepeatOrderButton orderId={order.id} />}
           <button onClick={handleExport} className="neo-btn tap text-sm hidden md:inline-flex"><FileDown size={15}/> Excel</button>
           <div className="relative">
             <button onClick={() => setPrintMenu(v => !v)} className="neo-btn tap text-sm" data-testid="order-print">

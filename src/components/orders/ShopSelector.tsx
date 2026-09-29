@@ -50,7 +50,7 @@ export function ShopSelector({ shopId, shopName, onSelect }: ShopSelectorProps) 
             fontSize: "14px", fontFamily: "'Manrope', sans-serif", color: "var(--color-text-primary, #2b2a28)",
             outline: "none", transition: "all 0.2s ease",
           }}
-          placeholder={t("Поиск магазинов…", "Do'kon qidirish…")}
+          placeholder={t("Поиск магазинов…", "Do'kon qidirish…")} data-hotkey-search=""
           value={search}
           onChange={e => setSearch(e.target.value)}
           onFocus={e => { e.currentTarget.style.borderColor = "var(--color-primary)"; e.currentTarget.style.boxShadow = "0 0 0 4px color-mix(in srgb, var(--color-primary) 10%, transparent)"; e.currentTarget.style.background = "var(--color-surface, #efedea)"; }}

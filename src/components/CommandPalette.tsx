@@ -152,10 +152,11 @@ export function CommandPalette() {
 
   const hasSearchResults = query.length > 1 && groupedSearchResults.length > 0;
 
-  // Keyboard shortcut
+  // Ctrl+K — по месту клавиши (e.code): в русской раскладке e.key здесь «л»,
+  // и палитра не открывалась, пока человек не переключит язык.
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+      if ((e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey && (e.code === "KeyK" || e.key === "k")) {
         e.preventDefault();
         setOpen(v => !v);
       }

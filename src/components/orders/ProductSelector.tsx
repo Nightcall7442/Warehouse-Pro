@@ -4,7 +4,7 @@ import { createPortal } from "react-dom";
 import { useCurrency } from "@/hooks/useCurrency";
 import { trpc } from "@/providers/trpc";
 import { useLang } from "@/i18n";
-import { Package, Search, ShoppingCart, Plus, Minus, Trash2, ChevronUp, ChevronDown, X, ScanLine } from "lucide-react";
+import { Package, Search, ShoppingCart, Plus, Minus, Trash2, ChevronUp, ChevronDown, X, ScanLine, History } from "lucide-react";
 import { BarcodeScanner } from "@/components/BarcodeScanner";
 import { notify } from "@/lib/toast";
 import { unitLabel } from "./types";
@@ -16,6 +16,8 @@ import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "../../../api/router";
 
 type CatalogProduct = inferRouterOutputs<AppRouter>["product"]["listAll"][number];
+/** «В прошлый раз»: среднее количество товара по последним заказам магазина (order.repeatDraft). */
+export type LastTimeHint = inferRouterOutputs<AppRouter>["order"]["repeatDraft"]["lastTime"][number];
 
 interface ProductSelectorProps {
   items: OrderItem[];
@@ -28,9 +30,11 @@ interface ProductSelectorProps {
   onCartOpenChange?: (open: boolean) => void;
   /** Магазин заказа: цены каталога — его прайс-листа, как посчитает сервер. */
   shopId?: number;
+  /** Сколько этот магазин брал в последние разы — число у товара и «Как в прошлый раз». */
+  lastTime?: LastTimeHint[];
 }
 
-export function ProductSelector({ items, onChange, cartOpen = false, onCartOpenChange, shopId }: ProductSelectorProps) {
+export function ProductSelector({ items, onChange, cartOpen = false, onCartOpenChange, shopId, lastTime }: ProductSelectorProps) {
   const { fmt } = useCurrency();
   const { lang } = useLang();
   const t = (ru: string, uz: string) => lang === "uz" ? uz : ru;
@@ -155,6 +159,39 @@ export function ProductSelector({ items, onChange, cartOpen = false, onCartOpenC
     }
     onChange(next);
   }, [items, onChange]);
+
+  /*
+    «Как в прошлый раз» — корзина по подсказке одним нажатием.
+
+    Количество товара из подсказки СТАВИТСЯ, а не прибавляется: нажал
+    дважды — в корзине то же самое, а не вдвое больше. Набранное сверх
+    подсказки остаётся. Товар, которого сейчас нет на складе, не кладётся —
+    как и руками («+» на нуле глухой): сервер отказал бы всему заказу, — и
+    сколько таких, сказано сразу.
+  */
+  const fillLikeLastTime = () => {
+    const byId = new Map((catalog ?? []).map(p => [p.id as number, p]));
+    const next = [...items];
+    let missing = 0;
+    for (const h of lastTime ?? []) {
+      const product = byId.get(h.productId);
+      if (!product || Number(product.available ?? 0) <= 0) { missing++; continue; }
+      const at = next.findIndex(i => i.productId === h.productId);
+      if (at >= 0) next[at] = { ...next[at], quantity: h.quantity };
+      else next.push({
+        productId: product.id as number,
+        productName: product.name as string,
+        unitPrice: product.unitPrice as string,
+        quantity: h.quantity,
+        available: (product.available as string) ?? "0",
+        unit: (product.unit as string) ?? "pcs",
+        unitWeight: Number(product.unitWeight ?? 0),
+      });
+    }
+    onChange(next);
+    if (missing > 0) notify.info(t(`Нет в наличии — не положено: ${missing} поз.`, `Mavjud emas — qo'shilmadi: ${missing} ta`));
+  };
+  const lastTimeOf = useMemo(() => new Map((lastTime ?? []).map(h => [h.productId, h])), [lastTime]);
 
   const removeItem = useCallback((productId: number) => {
     onChange(items.filter(i => i.productId !== productId));
@@ -373,6 +410,16 @@ export function ProductSelector({ items, onChange, cartOpen = false, onCartOpenC
           </span>
         </div>
 
+        {/* Подсказка есть, только если магазин у этого человека уже заказывал. */}
+        {!!lastTime?.length && (
+          <button type="button" onClick={fillLikeLastTime} data-testid="order-like-last-time"
+            className="neo-btn tap w-full" style={{ marginBottom: "12px" }}>
+            <History size={16} />
+            {t("Как в прошлый раз", "O'tgan safargidek")}
+            <span style={{ color: "var(--color-text-tertiary)", fontWeight: 500 }}>· {lastTime.length} {t("поз.", "ta")}</span>
+          </button>
+        )}
+
         {/* Search + сканер */}
         <div style={{ position: "relative", marginBottom: "12px", display: "flex", gap: "8px" }}>
           <div style={{ position: "relative", flex: 1 }}>
@@ -382,7 +429,7 @@ export function ProductSelector({ items, onChange, cartOpen = false, onCartOpenC
               ref={searchRef}
               className="neo-input"
               style={{ paddingLeft: "36px", width: "100%" }}
-              placeholder={t("Поиск по названию или коду…", "Nomi yoki kodi bo'yicha qidirish…")}
+              placeholder={t("Поиск по названию или коду…", "Nomi yoki kodi bo'yicha qidirish…")} data-hotkey-search=""
               value={search}
               onChange={e => setSearch(e.target.value)}
               // Сканер-клавиатура (USB/Bluetooth) печатает код и жмёт Enter:
@@ -572,6 +619,11 @@ export function ProductSelector({ items, onChange, cartOpen = false, onCartOpenC
                         ? <span data-testid={`product-out-${product.id}`} style={{ color: "var(--color-danger-text)", marginLeft: "6px", fontWeight: 600 }}>{t("товар закончился", "mahsulot tugadi")}</span>
                         : lowStock && <span style={{ color: "var(--color-warning-text)", marginLeft: "6px" }}>⚠ {t("осталось", "qoldi")} {formatQty(product.available)}</span>}
                     </p>
+                    {lastTimeOf.has(product.id) && (
+                      <p data-testid={`product-last-${product.id}`} style={{ fontSize: "11px", color: "var(--color-text-tertiary)", margin: "2px 0 0" }}>
+                        {t("в прошлый раз", "o'tgan safar")}: {formatQty(lastTimeOf.get(product.id)!.quantity)} {unitLabel(product.unit, lang)}
+                      </p>
+                    )}
                   </div>
                 </div>
 

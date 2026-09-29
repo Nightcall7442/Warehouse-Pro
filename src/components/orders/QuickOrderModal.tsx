@@ -11,14 +11,9 @@ import { useShopSearch, SHOP_PICK_LIMIT, type PickedShop } from "@/hooks/useShop
 import { useCurrency } from "@/hooks/useCurrency";
 import { colorMix } from "@/lib/color-mix";
 import { priceAt } from "@contracts/price-tiers";
+import type { QuickOrderLine, QuickOrderStart } from "@/lib/quick-order";
 
-interface CartItem {
-  productId: number;
-  name: string;
-  code: string;
-  unitPrice: number;
-  quantity: number;
-}
+type CartItem = QuickOrderLine;
 
 interface Props {
   open: boolean;
@@ -33,6 +28,14 @@ interface Props {
    * каталога нет намеренно: дорога одна, и проверки на ней те же.
    */
   initialItem?: CartItem;
+  /**
+   * С чего начать: магазин и строки повтора (lib/quick-order.ts).
+   *
+   * Повтор кладёт в корзину только товар и количество; цену и остаток окно
+   * берёт из каталога магазина, как для набранного руками, а заказ уходит
+   * тем же order.create — со всеми его проверками.
+   */
+  start?: QuickOrderStart;
   onCreated?: () => void;
 }
 
@@ -110,14 +113,15 @@ function QtyInput({ value, onChange, label }: {
   );
 }
 
-export function QuickOrderModal({ open, onOpenChange, preselectedShopId, initialItem, onCreated }: Props) {
+export function QuickOrderModal({ open, onOpenChange, preselectedShopId, initialItem, start, onCreated }: Props) {
   const t = useTranslate();
   // Валюта — из настроек организации, а не слово «сум» в разметке.
   const { symbol: currency } = useCurrency();
 
+  const startShopId = start?.shop?.id ?? preselectedShopId;
   const [step, setStep] = useState(1);
-  const [shopId, setShopId] = useState<number | undefined>(preselectedShopId);
-  const [cart, setCart] = useState<CartItem[]>(initialItem ? [initialItem] : []);
+  const [shopId, setShopId] = useState<number | undefined>(startShopId);
+  const [cart, setCart] = useState<CartItem[]>(start?.lines ?? (initialItem ? [initialItem] : []));
   const [notes, setNotes] = useState("");
   const [discount, setDiscount] = useState("0");
   const [paymentMethod, setPaymentMethod] = useState<"cash" | "card" | "transfer" | "debt">("cash");
@@ -143,7 +147,9 @@ export function QuickOrderModal({ open, onOpenChange, preselectedShopId, initial
     слышит в трубке, не искался. Выбранный магазин держится отдельно: следующая
     буква поиска не должна убирать его с экрана и из «Шага 2».
   */
-  const [pickedShop, setPickedShop] = useState<PickedShop | null>(null);
+  // Магазин, пришедший со стартом, закреплён сразу: его может не быть среди
+  // первых строк поиска, а «Шаг 2» берёт имя отсюда.
+  const [pickedShop, setPickedShop] = useState<PickedShop | null>(start?.shop ?? null);
   const { shops: filteredShops, more: moreShops } = useShopSearch(shopSearch, { enabled: open, pinned: pickedShop });
   const priceLists = trpc.priceList.forShop.useQuery({ shopId: shopId ?? 0 }, { enabled: open && !!shopId });
   const effectivePriceListId = priceListId === undefined ? (priceLists.data?.current?.id ?? null) : priceListId;
@@ -173,14 +179,14 @@ export function QuickOrderModal({ open, onOpenChange, preselectedShopId, initial
 
   const resetForm = () => {
     setStep(1);
-    setShopId(preselectedShopId);
+    setShopId(startShopId);
     setCart([]);
     setNotes("");
     setDiscount("0");
     setPaymentMethod("cash");
     setProductSearch("");
     setShopSearch("");
-    setPickedShop(null);
+    setPickedShop(start?.shop ?? null);
   };
 
   /**
@@ -316,6 +322,25 @@ export function QuickOrderModal({ open, onOpenChange, preselectedShopId, initial
       {dialog}
       {step === 1 && (
         <>
+          {/*
+            Повтор — откуда строки и чего в них нет. Цены в корзине сегодняшние
+            (каталог магазина), и это сказано прямо: иначе оператор сверит
+            «Итого» с прошлой накладной и решит, что окно ошиблось. Снятый с
+            продажи товар назван: молча выпавшая строка — это магазин, которому
+            не довезли и не сказали почему.
+          */}
+          {start?.repeatOf && (
+            <div className="neo-card neo-card-static" data-testid="quick-order-repeat-note"
+              style={{ borderRadius: "16px", padding: "10px 14px", fontSize: "13px", color: "var(--color-text-secondary)" }}>
+              {t(`Повтор заказа ${start.repeatOf} · цены и остаток — на сегодня`, `${start.repeatOf} buyurtmasi takrori · narx va qoldiq — bugungi`)}
+              {!!start.skipped?.length && (
+                <div data-testid="quick-order-skipped" style={{ color: "var(--color-warning-text)", marginTop: "4px" }}>
+                  {t("Не вошли — сняты с продажи: ", "Kirmadi — sotuvdan olingan: ")}
+                  {start.skipped.map(s => `${s.name} (${Number(s.quantity).toLocaleString("ru")})`).join(", ")}
+                </div>
+              )}
+            </div>
+          )}
           <div>
             <p className={modalSectionLabel}>{t("Магазин", "Do'kon")}</p>
             <div style={{ position: "relative", marginBottom: "8px" }}>
@@ -475,13 +500,26 @@ export function QuickOrderModal({ open, onOpenChange, preselectedShopId, initial
                 style={{ borderRadius: "16px", border: "1px solid var(--color-border, #d8d5cd)", minHeight: 200 }}
               >
                 <div className="overflow-y-auto grow" style={{ maxHeight: 240, padding: "8px" }}>
-                  {pricedCart.map(item => (
+                  {pricedCart.map(item => {
+                    /*
+                      Строка повтора может просить больше, чем лежит: руками
+                      такую не набрать («+» глохнет на нуле), а повтор кладёт
+                      прошлое количество как есть. Сервер откажет всему заказу —
+                      пометка говорит об этом до «Создать».
+                    */
+                    const free = Number(catalogOf.get(item.productId)?.available ?? item.available ?? NaN);
+                    return (
                     <div key={item.productId} className="flex items-center gap-2" style={{ padding: "8px 6px" }}>
                       <div className="flex-1 min-w-0">
                         <div className="text-xs font-medium truncate" style={{ color: "var(--color-text-primary)" }}>{item.name}</div>
                         <div className="text-[10px]" style={{ color: "var(--color-text-tertiary)" }}>
                           {item.unitPrice.toLocaleString("ru")} × {item.quantity}
                         </div>
+                        {Number.isFinite(free) && item.quantity > free && (
+                          <div className="text-[10px] font-semibold" data-testid={`quick-order-short-${item.productId}`} style={{ color: "var(--color-danger-text)" }}>
+                            {t(`на складе ${free}`, `omborda ${free}`)}
+                          </div>
+                        )}
                       </div>
                       <div className="flex items-center gap-0.5">
                         <IconButton size={24} label={t("Меньше", "Kamaytirish")} onClick={() => updateQty(item.productId, item.quantity - 1)}><Minus size={12} /></IconButton>
@@ -494,7 +532,8 @@ export function QuickOrderModal({ open, onOpenChange, preselectedShopId, initial
                       </div>
                       <IconButton size={24} danger label={t("Убрать", "Olib tashlash")} onClick={() => updateQty(item.productId, 0)}><Trash2 size={12} /></IconButton>
                     </div>
-                  ))}
+                    );
+                  })}
                   {cart.length === 0 && (
                     <p className="text-center text-xs py-10" style={{ color: "var(--color-text-tertiary)" }}>
                       {t("Пусто", "Bo'sh")}

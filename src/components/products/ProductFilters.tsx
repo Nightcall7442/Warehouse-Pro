@@ -27,7 +27,7 @@ export function ProductFilters({ search, onSearchChange, category, onCategoryCha
           <input
             className="neo-input"
             style={{ paddingLeft: "36px", width: "100%" }}
-            placeholder={t("Поиск товаров…", "Mahsulot qidirish…")}
+            placeholder={t("Поиск товаров…", "Mahsulot qidirish…")} data-hotkey-search=""
             value={search}
             onChange={e => onSearchChange(e.target.value)}
           />

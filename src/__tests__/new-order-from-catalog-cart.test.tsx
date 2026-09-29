@@ -70,6 +70,8 @@ vi.mock("@/providers/trpc", () => ({
       },
     },
     order: {
+      // «В прошлый раз» здесь не проверяется — см. like-last-time.test.tsx.
+      repeatDraft: { useQuery: () => ({ data: undefined }) },
       create: {
         useMutation: (opts: { onSuccess: (r: { held: boolean }) => void }) => {
           h.onSuccess = opts.onSuccess;

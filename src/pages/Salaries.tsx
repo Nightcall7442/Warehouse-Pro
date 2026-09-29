@@ -559,7 +559,7 @@ export default function Salaries() {
             <input
               className="neo-input"
               style={{ paddingLeft: "32px", width: "200px" }}
-              placeholder={t("Поиск по имени", "Ism bo'yicha qidirish")}
+              placeholder={t("Поиск по имени", "Ism bo'yicha qidirish")} data-hotkey-search=""
               value={search}
               onChange={e => setSearch(e.target.value)}
               data-testid="salaries-search"

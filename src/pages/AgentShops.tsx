@@ -316,7 +316,7 @@ export default function AgentShops() {
         <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-secondary" />
         <input
           className="neo-input pl-10 w-full"
-          placeholder={t("Поиск магазинов…", "Do'kon qidirish…")}
+          placeholder={t("Поиск магазинов…", "Do'kon qidirish…")} data-hotkey-search=""
           value={search}
           onChange={e => setSearch(e.target.value)}
         />
