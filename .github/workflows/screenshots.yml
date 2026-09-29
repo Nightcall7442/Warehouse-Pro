@@ -39,7 +39,7 @@ jobs:
       contents: write
     services:
       mysql:
-        image: mysql:9.4
+        image: mysql:9.7
         env:
           MYSQL_ROOT_PASSWORD: test
           MYSQL_DATABASE: warehouse_shots
