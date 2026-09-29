@@ -21,7 +21,8 @@
  *   · действие → адрес: плитка, заголовок столбца, размер страницы пишутся в
  *     адрес и сбрасывают номер страницы;
  *   · пункт меню «Заказы» на самой странице — чистый список и пустое поле;
- *   · выгрузка — те же условия И тот же порядок, что у таблицы;
+ *   · выгрузка — те же условия И тот же порядок, что у таблицы; «Excel по
+ *     выбранным» — по номерам отмеченных, но тоже в порядке таблицы;
  *   · «Назад» из карточки: пришли из списка — шаг назад к тому же адресу
  *     (pop — прокрутку ScrollToTop не трогает); пришли не из списка — в
  *     последний список этой вкладки, а не в магазин, откуда открыли.
@@ -40,7 +41,9 @@
  *   · список не запоминает себя — падает «пришли из магазина»; ?new=1 не
  *     вычищается — падает он же;
  *   · поле поиска без key — падает «пункт меню»;
- *   · стрелка шапки без ветки карточки — падает проверка шапки.
+ *   · стрелка шапки без ветки карточки — падает проверка шапки;
+ *   · «Excel по выбранным» без сортировки экрана — падает «отмеченные в
+ *     порядке таблицы» (проверка, 29.09.2026: файл шёл по дате создания).
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, cleanup, act, waitFor } from "@testing-library/react";
@@ -81,7 +84,12 @@ vi.mock("@/components/orders/BulkCompletionModal", () => ({ BulkCompletionModal:
 vi.mock("@/components/orders/CompletionFlowModal", () => ({ CompletionFlowModal: () => null }));
 vi.mock("@/components/orders/OrderKanbanBoard", () => ({ OrderKanbanBoard: () => null }));
 vi.mock("@/components/orders/OrderAgentGroups", () => ({ OrderAgentGroups: () => null }));
-vi.mock("@/components/orders/OrderBulkActions", () => ({ OrderBulkActions: () => null }));
+// Панель массовых действий — одной кнопкой «Excel по выбранным»: проверяется, с каким входом страница её выгружает.
+vi.mock("@/components/orders/OrderBulkActions", () => ({
+  OrderBulkActions: (p: { selectedCount: number; onExportExcel: () => void }) => p.selectedCount > 0
+    ? <button type="button" onClick={p.onExportExcel}>bulk-excel</button>
+    : null,
+}));
 vi.mock("@/components/orders/OrderItemsEditor", () => ({ OrderItemsEditor: () => null }));
 vi.mock("@/components/orders/OrderComments", () => ({ OrderComments: () => null }));
 vi.mock("@/components/orders/OrderMoney", () => ({ MoneyBlock: () => null }));
@@ -263,6 +271,17 @@ describe("выгрузка — то, что на экране, и в том же
     expect(resorted).toMatchObject({ sortBy: "total", sortDir: "desc" });
     await act(async () => { fireEvent.click(screen.getByRole("button", { name: /PDF/ })); });
     expect(h.clientList.mock.calls[1][0]).toEqual({ ...resorted, page: 1, pageSize: 5000 });
+  });
+
+  it("«Excel по выбранным» — отмеченные в порядке таблицы, а не по дате создания", async () => {
+    show(["/orders?sort=shopName&dir=asc"]);
+    const rowBoxes = screen.getAllByRole("row").slice(1).map(r => r.querySelector("button")!);
+    fireEvent.click(rowBoxes[0]);
+    fireEvent.click(rowBoxes[1]);
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "bulk-excel" })); });
+    // По номерам отмеченных (их может не быть на этой странице) — и в том порядке, что на экране.
+    expect(h.clientList).toHaveBeenLastCalledWith({ ids: [11, 12], page: 1, pageSize: 2, sortBy: "shopName", sortDir: "asc" });
+    expect((h.exportToExcel.mock.calls[0] as unknown[])[3]).toBe("Выбранные заказы");
   });
 });
 

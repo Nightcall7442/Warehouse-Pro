@@ -344,11 +344,18 @@ function OperatorOrders() {
     const r = await utils.client.order.list.query({ ...q.list, page: 1, pageSize: 5000 });
     return r.data.filter(o => !o.deletedAt);
   }, [utils, q.list]);
-  /** Отмеченные галочками — по номерам, где бы они ни были: на другой странице, за другим периодом. */
+  /*
+    Отмеченные галочками — по номерам, где бы они ни были: на другой странице,
+    за другим периодом. Порядок — как у таблицы: «Excel по выбранным» тоже
+    выгрузка, и отмеченные с разных страниц идут в файл так, как стоят на
+    экране, а не по дате создания.
+  */
   const fetchSelected = useCallback(async (ids: number[]) => {
-    const r = await utils.client.order.list.query({ ids, page: 1, pageSize: Math.min(ids.length, 5000) });
+    const r = await utils.client.order.list.query({
+      ids, page: 1, pageSize: Math.min(ids.length, 5000), sortBy: q.list.sortBy, sortDir: q.list.sortDir,
+    });
     return r.data;
-  }, [utils]);
+  }, [utils, q.list.sortBy, q.list.sortDir]);
 
   // ── "By agent" view ────────────────────────────────────────────────────────
   // Both queries share the page's own date/section filters so the grouping
