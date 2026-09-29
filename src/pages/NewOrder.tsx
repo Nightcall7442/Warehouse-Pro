@@ -71,7 +71,7 @@ const useWizard = () => useOutletContext<OrderWizard>();
 /** Шаг 1 — магазин. */
 export function NewOrderShopStep() {
   const w = useWizard();
-  return <ShopSelector shopId={w.shopId} onSelect={w.setShop} />;
+  return <ShopSelector shopId={w.shopId} shopName={w.shopName} onSelect={w.setShop} />;
 }
 
 /** Шаг 2 — товары. */

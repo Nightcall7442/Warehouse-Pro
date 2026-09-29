@@ -42,8 +42,7 @@ const h = vi.hoisted(() => {
 
 vi.mock("@/providers/trpc", () => ({
   trpc: {
-    agent: { myShops: { useQuery: () => ({ data: undefined }) } },
-    shop: { list: { useQuery: () => ({ data: { data: [{ id: 1, name: "Хумо", ownerName: null, district: null, city: null, debt: "0.00" }] } }) } },
+    agent: { availableShops: { useQuery: () => ({ data: [{ id: 1, name: "Хумо", ownerName: null, district: null, city: null, debt: "0.00" }] }) } },
     product: {
       listAll: { useQuery: () => ({ data: h.catalog, isLoading: false }) },
       list: { useQuery: () => ({ data: { data: h.catalog } }) },

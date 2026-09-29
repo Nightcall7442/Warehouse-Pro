@@ -18,11 +18,10 @@ import { LangProvider } from "@/i18n";
 afterEach(cleanup);
 
 const trpcStub = vi.hoisted(() => ({
-  agent: { myShops: { useQuery: () => ({ data: undefined }) } },
-  shop: { list: { useQuery: () => ({ data: { data: [
+  agent: { availableShops: { useQuery: () => ({ data: [
     { id: 1, name: "Хумо", ownerName: "Алишер", district: "Юнусабад", city: "Ташкент", debt: "150000.00" },
     { id: 2, name: "Барака", ownerName: null, district: null, city: null, debt: "0.00" },
-  ] } }) } },
+  ] }) } },
   product: { listAll: { useQuery: () => ({ data: [
     { id: 1, code: "A-1", barcode: null, name: "Печенье", unitPrice: "12000.00", available: "50" },
     { id: 2, code: "A-2", barcode: null, name: "Сок", unitPrice: "8000.00", available: "0" },

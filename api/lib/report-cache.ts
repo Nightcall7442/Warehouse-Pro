@@ -89,6 +89,12 @@ export class ReportCache {
     return p;
   }
 
+  /** Текущая версия данных арендатора — та, что поднимает invalidate. Хит синхронный, как у get. */
+  async version(tenantId: number): Promise<number> {
+    this.ensureSubscribed();
+    return this.versions.get(tenantId) ?? this.fetchVersion(tenantId);
+  }
+
   /** `reason` — для читающего код у места вызова; в лог не пишется: это горячий путь, по вызову на каждую запись заказа. */
   async invalidate(tenantId: number, _reason?: string): Promise<void> {
     this.ensureSubscribed();
@@ -173,6 +179,16 @@ export const reportCache = new ReportCache();
 /** Ключ: report:{tenantId}:{name}:{stableStringify(input)}; хит — без базы. */
 export function reportCached<T>(tenantId: number, name: string, input: unknown, ttlMs: number, fn: () => Promise<T>): Promise<T> {
   return reportCache.get(tenantId, name, input, ttlMs, fn);
+}
+
+/**
+ * Номер данных арендатора: растёт с каждым invalidateReports, на всех
+ * экземплярах (Redis INCR + канал), без Redis — в памяти процесса.
+ * Им метят ключи кэшей вне отчётов, в чьих ответах живут остаток и долг
+ * (withTenantDataCache в lib/cache.ts).
+ */
+export function tenantDataVersion(tenantId: number): Promise<number> {
+  return reportCache.version(tenantId);
 }
 
 /*

@@ -16,6 +16,7 @@ import { PremiumSelect } from "@/components/PremiumSelect";
 import { QueryErrorFallback } from "@/components/QueryErrorFallback";
 import { useConfirm } from "@/components/ConfirmDialog";
 import { CounterpartiesSection } from "@/components/counterparties";
+import { money } from "@/components/counterparties/constants";
 import { useUrlState, urlEnum } from "@/hooks/useUrlState";
 import { colorMix } from "@/lib/color-mix";
 
@@ -37,8 +38,8 @@ const COLORS = {
 };
 const SHADOW = "var(--shadow-sm, 0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04))";
 
-function KpiCard({ label, value, delta, icon, gradient, delay }: {
-  label: string; value: string; delta: number | null;
+function KpiCard({ label, value, sub, delta, icon, gradient, delay }: {
+  label: string; value: string; sub?: string; delta: number | null;
   icon: React.ReactNode; gradient: string; delay: number;
 }) {
   const isPositive = delta !== null && delta > 0;
@@ -60,6 +61,11 @@ function KpiCard({ label, value, delta, icon, gradient, delay }: {
       <div style={{ fontFamily: F.display, fontSize: "32px", fontWeight: 700, color: COLORS.textPrimary, lineHeight: 1, letterSpacing: "-0.03em" }}>
         {value}
       </div>
+      {sub && (
+        <div style={{ fontFamily: F.display, fontSize: "16px", fontWeight: 600, color: COLORS.textPrimary, marginTop: "6px" }}>
+          {sub}
+        </div>
+      )}
       {delta !== null && (
         <div style={{
           display: "flex", alignItems: "center", gap: "4px", marginTop: "10px",
@@ -112,13 +118,27 @@ export default function Arrivals() {
   const { confirm, dialog } = useConfirm();
 
   const { data, isLoading, isLoadingError, refetch } = trpc.arrival.list.useQuery({ page, pageSize: 25, status: (status || undefined) as "pending" | "unloading" | "completed" | undefined });
-  /*
-    Запрос для выгрузки. Страница была на пятьсот строк — молчаливый потолок:
-    у организации с шестьюстами приходами в файл попадали пятьсот, и понять
-    это было нельзя ниоткуда. Размер тот же, что у выгрузки заказов.
-  */
-  const { data: all } = trpc.arrival.list.useQuery({ page: 1, pageSize: 5000 });
   const utils = trpc.useUtils();
+  /*
+    Выгрузка — по нажатию, а не на каждое открытие страницы.
+
+    Здесь висел второй запрос на все приходы (до 5000 строк) ради одной
+    кнопки «Excel»: страницу открывают часто, выгружают редко. Размер тот же,
+    что у выгрузки заказов: страница в пятьсот строк была молчаливым
+    потолком — у организации с шестьюстами приходами в файл попадали пятьсот.
+  */
+  const [exporting, setExporting] = useState(false);
+  const exportAll = async () => {
+    setExporting(true);
+    try {
+      const all = await utils.arrival.list.fetch({ page: 1, pageSize: 5000 });
+      await exportToExcel(formatArrivalsForExport(all.data), "arrivals");
+    } catch (e) {
+      notify.error(e instanceof Error ? e.message : String(e));
+    } finally {
+      setExporting(false);
+    }
+  };
 
   const updateStatus = trpc.arrival.update.useMutation({
     onSuccess: () => { utils.arrival.list.invalidate(); notify.success(t("Статус обновлён", "Holat yangilandi")); },
@@ -130,18 +150,9 @@ export default function Arrivals() {
   });
 
   const arrivals = useMemo(() => data?.data ?? [], [data]);
-  const kpis = useMemo(() => {
-    const total = arrivals.length;
-    const totalExpenses = arrivals.reduce((s, a) => s + Number(a.totalExpense ?? 0), 0);
-    const completed = arrivals.filter((a) => a.status === "completed").length;
-    // Долг считается только по суммовым поставкам: складывать их с
-    // долларовыми в одно число нельзя, а долларовые встречаются редко и
-    // видны в разделе контрагентов отдельной строкой.
-    const supplierDebt = arrivals
-      .filter((a) => a.supplyCurrency === "UZS")
-      .reduce((s, a) => s + Number(a.supplyDebt ?? 0), 0);
-    return { total, totalExpenses, completed, supplierDebt };
-  }, [arrivals]);
+  // Плитки — сводка сервера по всем приходам под фильтром, а не сумма строк
+  // страницы: см. arrival.list (api/arrival-router.ts).
+  const kpis = data?.summary ?? { total: 0, expenses: 0, completed: 0, debtUzs: 0, debtUsd: 0 };
 
   const thStyle: React.CSSProperties = {
     fontFamily: F.display, fontSize: "10px", fontWeight: 600, textTransform: "uppercase",
@@ -188,7 +199,7 @@ export default function Arrivals() {
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
           {tab === "arrivals" && <>
-          <button onClick={async () => await exportToExcel(formatArrivalsForExport(all?.data ?? []), "arrivals")} style={{
+          <button onClick={exportAll} disabled={exporting} style={{
             display: "flex", alignItems: "center", gap: "6px", padding: "8px 14px",
             fontSize: "13px", fontWeight: 500, fontFamily: F.body, borderRadius: "10px",
             border: `1px solid ${COLORS.border}`, cursor: "pointer",
@@ -250,7 +261,7 @@ export default function Arrivals() {
         />
         <KpiCard
           label={t("РАСХОДЫ", "XARAJATLAR")}
-          value={fmt(kpis.totalExpenses)}
+          value={fmt(kpis.expenses)}
           delta={null}
           icon={<Truck size={20} color="var(--color-on-primary)" />}
           gradient="linear-gradient(135deg, var(--color-warning), color-mix(in srgb, var(--color-warning) 70%, var(--color-danger)))"
@@ -266,7 +277,9 @@ export default function Arrivals() {
         />
         <KpiCard
           label={t("ДОЛГ ПОСТАВЩИКАМ", "YETKAZUVCHILARGA QARZ")}
-          value={fmt(kpis.supplierDebt)}
+          value={fmt(kpis.debtUzs)}
+          // Долларовые поставки — отдельной строкой, как в «Контрагентах»: с сумами в одно число их не сложить.
+          sub={kpis.debtUsd > 0 ? money(kpis.debtUsd, "USD") : undefined}
           delta={null}
           icon={<Clock size={20} color="var(--color-on-primary)" />}
           gradient="linear-gradient(135deg, var(--color-danger), color-mix(in srgb, var(--color-danger) 70%, var(--color-warning)))"

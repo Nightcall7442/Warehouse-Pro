@@ -9,7 +9,7 @@ import { eq, like, and, or, sql, desc } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { sanitizeString, sanitizeSearch } from "./lib/sanitize";
 import { PaymentService } from "./services/payment";
-import { cache, withCache, CacheKeys, CacheTTL } from "./lib/cache";
+import { cache, withTenantDataCache, CacheKeys, CacheTTL } from "./lib/cache";
 import { parseLocationFromUrl } from "./lib/parse-location";
 import { haversineKm } from "./lib/geo";
 import { photoRef } from "./lib/photo-url";
@@ -182,7 +182,7 @@ export const shopRouter = createRouter({
       const archived = input?.archived ?? "hide";
 
       const cacheKey = CacheKeys.shopList(tenantId, page, pageSize, input?.search, input?.city, input?.district, input?.agentId, input?.territoryId, input?.onlyDebtors, sortBy, archived);
-      return withCache(cacheKey, CacheTTL.shops, async () => {
+      return withTenantDataCache(tenantId, cacheKey, CacheTTL.shops, async () => {
       const conditions = [eq(shops.tenantId, tenantId)];
       /*
         Поиск — по названию, владельцу и телефону, а не по одному названию.

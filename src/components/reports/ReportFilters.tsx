@@ -1,4 +1,6 @@
+import { useState } from "react";
 import { trpc } from "@/providers/trpc";
+import { useShopSearch, type PickedShop } from "@/hooks/useShopSearch";
 import { PremiumSelect } from "@/components/PremiumSelect";
 import type { FilterKind, ReportParams } from "./report-registry";
 
@@ -6,7 +8,7 @@ import type { FilterKind, ReportParams } from "./report-registry";
  * The narrow selectors a report card needs.
  *
  * Deliberately not ShopSelector: that one is built for picking exactly one shop
- * while writing an order — search, city grouping, a required value. A report
+ * while writing an order — a list of cards, a required value. A report
  * filter is the opposite shape. Its default is "everyone", it is optional, and
  * it has to sit inside a card without dominating it.
  *
@@ -82,19 +84,38 @@ function AgentFilter({ value, onChange, t, style }: {
 function ShopFilter({ value, onChange, t, style }: {
   value?: number; onChange: (v?: number) => void; t: (ru: string, uz: string) => string; style: React.CSSProperties;
 }) {
-  // shop.list's inferred output collapses to {} through the tRPC chain, which
-  // is why the shops page casts its rows too. Narrowed here to the two fields
-  // this selector actually reads rather than left as any.
-  const { data } = trpc.shop.list.useQuery({ page: 1, pageSize: 500 });
-  const shops = (data as { data?: Array<{ id: number; name: string }> } | undefined)?.data ?? [];
+  /*
+    Магазин — поиском на сервере (useShopSearch), а не из 500 самых новых.
+
+    Список грузил 500 последних заведённых точек: у организации с тысячами
+    магазинов отчёт по давнему, основному клиенту выбрать было нельзя вовсе.
+    Выбранный держится отдельно: иначе следующий поиск стёр бы его из списка,
+    и поле показывало бы «Все магазины» при включённом отборе.
+  */
+  const [search, setSearch] = useState("");
+  const [picked, setPicked] = useState<PickedShop | null>(null);
+  const { shops } = useShopSearch(search, { pinned: value && picked?.id === value ? picked : null });
   return (
-    <Select
-      label={t("Все магазины", "Barcha do'konlar")}
-      value={value ? String(value) : ""}
-      onChange={v => onChange(v ? Number(v) : undefined)}
-      options={shops.map(s => ({ value: String(s.id), label: s.name }))}
-      style={style}
-    />
+    <>
+      <input
+        value={search}
+        onChange={e => setSearch(e.target.value)}
+        placeholder={t("Найти магазин: название, владелец, телефон", "Do'konni topish: nomi, egasi, telefon")}
+        aria-label={t("Поиск магазина", "Do'kon qidirish")}
+        style={style}
+      />
+      <Select
+        label={t("Все магазины", "Barcha do'konlar")}
+        value={value ? String(value) : ""}
+        onChange={v => {
+          const id = v ? Number(v) : undefined;
+          setPicked(shops.find(s => s.id === id) ?? null);
+          onChange(id);
+        }}
+        options={shops.map(s => ({ value: String(s.id), label: s.name }))}
+        style={style}
+      />
+    </>
   );
 }
 
