@@ -14,6 +14,7 @@ import { useOfflineCopy } from "@/hooks/useOfflineCopy";
 import { AppModal, modalFieldLabel } from "@/components/ui/AppModal";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { ShopBrowser } from "@/components/phone/ShopBrowser";
+import { useRenderWindow } from "@/hooks/useRenderWindow";
 
 // ── Форма добавления магазина агентом ─────────────────────────────────────────
 function AddShopModal({ onClose }: { onClose: () => void }) {
@@ -239,6 +240,8 @@ export default function AgentShops() {
       // сервер отдаёт строки без ORDER BY.
       return mine(a) - mine(b) || (a.name ?? "").localeCompare(b.name ?? "", "ru");
     });
+  // Рисуется сотня, дальше по кнопке; поиск выше идёт по всему списку.
+  const win = useRenderWindow(filtered ?? [], search.trim().toLowerCase());
 
   // Копия спасает и здесь: запрос не удался, но магазины с прошлого раза
   // на устройстве есть.
@@ -343,7 +346,7 @@ export default function AgentShops() {
       )}
 
       <div className="space-y-3">
-        {filtered?.map(shop => (
+        {win.shown.map(shop => (
           <div key={shop.id} className="neo-card p-4">
             <div className="flex items-start gap-3">
               <div
@@ -410,6 +413,11 @@ export default function AgentShops() {
             </div>
           </div>
         ))}
+        {win.hidden > 0 && (
+          <button type="button" className="neo-btn tap w-full" onClick={win.more} data-testid="agent-shops-show-more">
+            {t(`Показать ещё ${Math.min(win.step, win.hidden)} (осталось ${win.hidden})`, `Yana ${Math.min(win.step, win.hidden)} ko'rsatish (qoldi ${win.hidden})`)}
+          </button>
+        )}
       </div>
     </div>
   );
