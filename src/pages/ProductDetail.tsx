@@ -19,6 +19,8 @@ import { canOperate } from "@/lib/permissions";
 import { exportToExcel, formatMovementsForExport } from "@/lib/excel";
 import { PremiumSelect } from "@/components/PremiumSelect";
 import { CategoryAutocomplete } from "@/components/products/CategoryAutocomplete";
+import { ProductTaxFields } from "@/components/products/ProductTaxFields";
+import { VAT_RATE_LABEL, isBadIkpu } from "@contracts/tax-requisites";
 import { QueryErrorFallback } from "@/components/QueryErrorFallback";
 import { formatQty } from "@/lib/format";
 import { UNITS, unitShort } from "@/lib/units";
@@ -215,11 +217,18 @@ export default function ProductDetail() {
                 <input className="neo-input" placeholder={tr("Название упаковки (коробка)","Qadoq nomi (quti)")}
                   value={String(editData.packLabel ?? product.packLabel ?? "")}
                   onChange={e=>setEditData((d: Record<string, unknown>)=>({...d,packLabel:e.target.value}))}/>
+                <ProductTaxFields lang={lang}
+                  value={{
+                    ikpu: String(editData.ikpu ?? product.ikpu ?? ""),
+                    packageCode: String(editData.packageCode ?? product.packageCode ?? ""),
+                    vatRate: String(editData.vatRate ?? product.vatRate ?? ""),
+                  }}
+                  onChange={patch=>setEditData((d: Record<string, unknown>)=>({...d,...patch}))}/>
                 <input className="neo-input col-span-2" placeholder={tr("Описание","Tavsif")}
                   defaultValue={product.description ?? ""}
                   onChange={e=>setEditData((d: Record<string, unknown>)=>({...d,description:e.target.value}))}/>
                 <div className="col-span-2 flex gap-2">
-                  <button onClick={()=>updateProduct.mutate({id:product.id,...editData})} disabled={updateProduct.isPending}
+                  <button onClick={()=>updateProduct.mutate({id:product.id,...editData})} disabled={updateProduct.isPending || isBadIkpu(String(editData.ikpu ?? ""))}
                     className="neo-btn-primary flex items-center gap-2">
                     {updateProduct.isPending&&<Loader2 size={14} className="animate-spin"/>}{tr("Сохранить","Saqlash")}
                   </button>
@@ -249,6 +258,11 @@ export default function ProductDetail() {
                   {product.packSize != null && Number(product.packSize) > 0 && (
                     <span className="flex items-center gap-1.5" data-testid="product-pack">
                       <Boxes size={13} />1 {product.packLabel || tr("упаковка","qadoq")} = {formatQty(product.packSize)} {unitLabel(product.unit)}
+                    </span>
+                  )}
+                  {(product.ikpu || product.vatRate) && (
+                    <span className="flex items-center gap-1.5 font-data" data-testid="product-tax">
+                      {[product.ikpu ? `${tr("ИКПУ","MXIK")} ${product.ikpu}` : "", product.vatRate ? (lang === "uz" ? VAT_RATE_LABEL[product.vatRate].uz : VAT_RATE_LABEL[product.vatRate].ru) : ""].filter(Boolean).join(" · ")}
                     </span>
                   )}
                   {Number(product.unitWeight) > 0 && (

@@ -11,7 +11,7 @@ Warehouse Pro обменивается с 1С по **стандартному и
 | Направление | Что | Как часто |
 |---|---|---|
 | 1С → Warehouse Pro | Номенклатура (без папок и помеченных на удаление): название, артикул, единица измерения, цена выбранного *типа цен* | по расписанию и по кнопке |
-| 1С → Warehouse Pro | Контрагенты — для связи с магазинами (по названию и телефону, остальное руками) | по расписанию и по кнопке |
+| 1С → Warehouse Pro | Контрагенты — для связи с магазинами (сначала по ИНН, затем по названию и телефону, остальное руками) | по расписанию и по кнопке |
 | Warehouse Pro → 1С | Доставленный заказ → **Реализация товаров и услуг**, проведённая; при частичной доставке — только довезённое | по расписанию, через журнал с повторами |
 | Warehouse Pro → 1С | Оплата магазина **наличными** → **Приходный кассовый ордер** (если включено) | по расписанию |
 | 1С → Warehouse Pro | **Поступления на расчётный счёт** — только чтение: перевод или карта, записанные агентом, считаются пришедшими, когда в 1С есть проведённое поступление от того же контрагента на ту же сумму (если включены оплаты) | по расписанию и по кнопке «Выгрузить очередь сейчас» |
@@ -24,6 +24,21 @@ Warehouse Pro лишь сверяет свои переводы с этими п
 «пришло» с номером документа 1С — в кассе, вкладка «Безнал». Перевод одной
 суммой за несколько накладных автоматически не подбирается: кассир
 подтверждает его вручную.
+
+### ИНН и НДС
+
+- **Контрагент.** Если у магазина указан ИНН юрлица (9 цифр), связь ищется
+  сначала по ИНН; контрагент с *другим* ИНН по названию не подбирается.
+  «Создать в 1С» передаёт ИНН в поле `ИНН` и не заводит дубль, если
+  контрагент с таким ИНН уже есть. ПИНФЛ (14 цифр) и признак «плательщик
+  НДС» в 1С не передаются: подходящие поля контрагента не сверены.
+- **Строки реализации.** Ставка берётся из карточки товара: «НДС 12%» —
+  `СтавкаНДС = НДС12` и `СуммаНДС` из цены с НДС; «0%» и «без НДС» —
+  `СуммаНДС = 0`, а `СтавкаНДС` — только если её значение задано в «Своей
+  конфигурации» (`sale.vatRateZeroValue`, `sale.vatRateExemptValue`), иначе
+  бухгалтер выбирает ставку в 1С. Товар без ставки уходит, как раньше, со
+  ставкой пресета. ИКПУ и код упаковки в 1С не передаются: в строках
+  реализации под них нет сверенного поля — они живут в карточке номенклатуры 1С.
 
 ## Шаг 1. Публикация базы с OData
 
@@ -130,7 +145,7 @@ Asosiy preset — **1C:Buxgalteriya 8 O'zbekiston uchun (3.0)**; UT 11 va
 | Yo'nalish | Nima | Qachon |
 |---|---|---|
 | 1C → Warehouse Pro | Nomenklatura (papkalar va o'chirishga belgilanganlarsiz): nom, artikul, o'lchov birligi, tanlangan *narx turi* bo'yicha narx | jadval bo'yicha va tugma bilan |
-| 1C → Warehouse Pro | Kontragentlar — do'konlar bilan bog'lash uchun (nom va telefon bo'yicha, qolgani qo'lda) | jadval bo'yicha va tugma bilan |
+| 1C → Warehouse Pro | Kontragentlar — do'konlar bilan bog'lash uchun (avval STIR, keyin nom va telefon bo'yicha, qolgani qo'lda) | jadval bo'yicha va tugma bilan |
 | Warehouse Pro → 1C | Yetkazilgan buyurtma → o'tkazilgan **Tovar va xizmatlar sotuvi**; qisman yetkazilganda — faqat yetkazilgani | jadval bo'yicha, qayta urinishli jurnal orqali |
 | Warehouse Pro → 1C | Do'kon **naqd** to'lovi → **Kirim kassa orderi** (yoqilgan bo'lsa) | jadval bo'yicha |
 | 1C → Warehouse Pro | **Hisob-raqamga tushumlar** — faqat o'qish: agent yozgan o'tkazma yoki karta 1C da o'sha kontragentdan o'sha summaga o'tkazilgan tushum bo'lsa «keldi» hisoblanadi (to'lovlar yoqilgan bo'lsa) | jadval bo'yicha va «Navbatni hozir yuklash» tugmasi bilan |
@@ -142,6 +157,18 @@ keladi. Warehouse Pro faqat o'z o'tkazmalarini shu tushumlar bilan
 solishtiradi va 1C hujjat raqami bilan «keldi» qo'yadi — kassa, «Naqdsiz»
 bo'limi. Bir necha nakladnoy uchun bitta summa bilan o'tkazma avtomatik
 topilmaydi: kassir uni qo'lda tasdiqlaydi.
+
+### STIR va QQS
+
+- **Kontragent.** Do'konda yuridik shaxs STIR (9 raqam) bo'lsa, bog'lanish
+  avval STIR bo'yicha qidiriladi; *boshqa* STIRli kontragent nom bo'yicha
+  tanlanmaydi. «1C da yaratish» STIRni `ИНН` maydoniga yuboradi va shunday
+  STIRli kontragent bo'lsa, dublikat yaratmaydi. JShShIR (14 raqam) va «QQS
+  to'lovchisi» belgisi 1C ga yuborilmaydi.
+- **Sotuv qatorlari.** Stavka tovar kartochkasidan olinadi: «QQS 12%» —
+  `СтавкаНДС = НДС12` va `СуммаНДС`; «0%» va «QQSsiz» — `СуммаНДС = 0`,
+  `СтавкаНДС` esa faqat «O'z konfiguratsiyasi»da berilgan bo'lsa. MXIK va
+  qadoq kodi 1C ga yuborilmaydi.
 
 ## 1-qadam. Bazani OData bilan nashr etish
 

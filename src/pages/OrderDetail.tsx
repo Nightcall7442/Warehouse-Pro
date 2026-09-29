@@ -267,10 +267,11 @@ export default function OrderDetail() {
     if (!order) return null;
     // Реквизиты ещё не прочитаны — печатать нечего.
     if (!seller.name) return null;
-    // Shops carry no INN of their own, so the buyer's ИНН stays blank on documents.
+    // ИНН/ПИНФЛ магазина печатается в реквизитах покупателя, если указан.
     const buyer: CompanyInfo = {
       name:    order.shop?.name ?? "",
       address: order.shop?.address ?? "",
+      inn:     order.shop?.taxId ?? undefined,
     };
     const pm = PAYMENT_METHODS[order.paymentMethod ?? "cash"];
     return {
@@ -290,6 +291,7 @@ export default function OrderDetail() {
         orderedQty: Number(i.quantity),
         deliveredQty: i.deliveredQuantity != null ? Number(i.deliveredQuantity) : undefined,
         returnReason: i.returnReason ?? undefined,
+        vatRate: i.vatRate,
       })),
       subtotal: Number(order.subtotal),
       discount: Number(order.discount ?? 0),

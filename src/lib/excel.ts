@@ -10,6 +10,7 @@ import { formatQty } from "@/lib/format";
 import { notify } from "@/lib/toast";
 import { tt } from "@/i18n";
 import { unitShort } from "@/lib/units";
+import { VAT_RATE_LABEL, type VatRate } from "@contracts/tax-requisites";
 import { cssVar } from "@/lib/css-var";
 import {
   labelled, ACTIVE_STATUS_LABEL, ARRIVAL_STATUS_LABEL,
@@ -480,6 +481,11 @@ export function formatProductsForExport(products: Record<string, unknown>[]) {
     "Остаток":     Number(p.currentStock ?? 0),
     "Мин. остаток": Number(p.reorderPoint ?? 0),
     "Статус":      labelled(ACTIVE_STATUS_LABEL, p.status),
+    // Реквизиты для ЭСФ — теми же названиями, что понимает импорт; ИКПУ строкой,
+    // чтобы Excel не превратил 17 цифр в 1,23E+16.
+    "ИКПУ":        String(p.ikpu ?? ""),
+    "Код упаковки": String(p.packageCode ?? ""),
+    "Ставка НДС":  p.vatRate ? VAT_RATE_LABEL[p.vatRate as VatRate]?.ru ?? "" : "",
   }));
 }
 

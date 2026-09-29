@@ -6,6 +6,7 @@
 import { colorMix } from "@/lib/color-mix";
 import { PAYMENT_METHOD_LABEL } from "@contracts/entity-labels";
 import { resolveInvoiceOptions, type InvoiceOptions, type InvoiceTemplateId } from "@contracts/invoice-template";
+import type { VatRate } from "@contracts/tax-requisites";
 import { COPY_LABELS, debtBlock, renderInvoiceDocument, type InvoiceView } from "./invoice-templates";
 export { COPY_LABELS };
 
@@ -339,6 +340,8 @@ export type DocItem = {
   orderedQty?: number;
   deliveredQty?: number;
   returnReason?: string;
+  /** Ставка НДС товара — для «в т.ч. НДС» на накладной. */
+  vatRate?: VatRate | null;
 };
 
 export type OrderDocData = {
@@ -447,7 +450,7 @@ export function invoiceViewFromOrderDoc(d: OrderDocData): InvoiceView {
     agent: d.agentName ? { name: d.agentName, phone: d.agentPhone } : undefined,
     courier: d.courierName ? { name: d.courierName } : undefined,
     territory: d.territoryName,
-    items: d.items.map(i => ({ code: i.code, name: i.name, unit: i.unit, qty: i.qty, orderedQty: i.orderedQty, price: i.price, total: i.total, returnReason: i.returnReason })),
+    items: d.items.map(i => ({ code: i.code, name: i.name, unit: i.unit, qty: i.qty, orderedQty: i.orderedQty, price: i.price, total: i.total, returnReason: i.returnReason, vatRate: i.vatRate })),
     subtotal: d.subtotal, discount: d.discount ?? 0, total: d.total, paymentLabel: d.paymentMethodLabel,
     isPartial: d.items.some(i => i.orderedQty != null && i.deliveredQty != null && i.deliveredQty < i.orderedQty),
     notes: d.notes, debt: d.shopDebt != null ? { current: d.shopDebt } : undefined, footerNote: d.footerNote,
@@ -460,14 +463,14 @@ export function invoiceViewFromBatch(o: BatchOrderData, company: CompanyInfo, cu
   return {
     number: o.orderNumber, date: new Date(o.createdAt).toLocaleDateString("ru-RU"), printedAt: stamp(), currency,
     company: { ...company },
-    shop: { name: o.shopName ?? "", phone: o.shopPhone ?? undefined, address: o.shopAddress ?? undefined },
+    shop: { name: o.shopName ?? "", phone: o.shopPhone ?? undefined, address: o.shopAddress ?? undefined, inn: o.shopTaxId ?? undefined },
     agent: o.agentName ? { name: o.agentName, phone: o.agentPhone ?? undefined } : undefined,
     courier: o.courierName ? { name: o.courierName } : undefined,
     territory: o.territoryName ?? undefined,
     items: (o.items ?? []).map(i => ({
       code: i.productCode ?? undefined, name: i.productName, unit: i.unit,
       qty: Number(i.deliveredQuantity ?? i.quantity), orderedQty: Number(i.quantity),
-      price: Number(i.unitPrice), total: Number(i.subtotal),
+      price: Number(i.unitPrice), total: Number(i.subtotal), vatRate: i.vatRate,
     })),
     subtotal: Number(o.subtotal), discount: Number(o.discount), total: Number(o.total),
     paymentLabel: PAYMENT_METHOD_LABEL[o.paymentMethod as keyof typeof PAYMENT_METHOD_LABEL]?.ru,
@@ -972,6 +975,8 @@ export type BatchOrderData = {
   shopAddress: string | null;
   shopCity: string | null;
   shopPhone: string | null;
+  /** ИНН/ПИНФЛ магазина — в реквизиты покупателя. */
+  shopTaxId?: string | null;
   shopDebt: string;
   shopDebtAmount: number;
   agentName: string | null;
@@ -992,6 +997,7 @@ export type BatchOrderData = {
     productName: string;
     productCode: string | null;
     unit: string;
+    vatRate?: VatRate | null;
   }>;
   paymentHistory: Array<{
     amount: string;

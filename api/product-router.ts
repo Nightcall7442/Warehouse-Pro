@@ -10,6 +10,7 @@ import { eq, like, and, or, sql, desc } from "drizzle-orm";
 import { movementReferenceNumber } from "./lib/movement-reference";
 import { sanitizeString, sanitizeSearch } from "./lib/sanitize";
 import { decimalOrDefault } from "./lib/zod-decimal";
+import { ikpuInput, packageCodeInput, vatRateInput } from "./lib/tax-requisites-input";
 import { cache, withTenantDataCache, CacheKeys, CacheTTL } from "./lib/cache";
 import { photoRef } from "./lib/photo-url";
 import { ProductService } from "./services/ProductService";
@@ -239,6 +240,9 @@ export const productRouter = createRouter({
           unitWeight:   products.unitWeight,
         packSize:     products.packSize,
         packLabel:    products.packLabel,
+          ikpu:         products.ikpu,
+          packageCode:  products.packageCode,
+          vatRate:      products.vatRate,
           description:  products.description,
           photoUrl:     photoRef("product", products.id, products.photoUrl, products.updatedAt),
           reorderPoint: products.reorderPoint,
@@ -291,6 +295,7 @@ export const productRouter = createRouter({
         id: products.id, code: products.code, barcode: products.barcode, name: products.name,
         category: products.category, costPrice: products.costPrice, unitPrice: products.unitPrice,
         unit: products.unit, unitWeight: products.unitWeight, packSize: products.packSize, packLabel: products.packLabel, description: products.description,
+        ikpu: products.ikpu, packageCode: products.packageCode, vatRate: products.vatRate,
         // Через ручку, как в списке: прямая ссылка на бакет открывалась не всегда.
         photoUrl: photoRef("product", products.id, products.photoUrl, products.updatedAt),
         reorderPoint: products.reorderPoint, status: products.status,
@@ -355,6 +360,10 @@ export const productRouter = createRouter({
       // Упаковка: «12» и «коробка». Пусто — тары нет.
       packSize:     z.preprocess(v => (v === "" ? null : v), z.string().regex(/^\d+(\.\d{1,2})?$/, "Упаковка — число").refine(v => Number(v) > 0, "Упаковка — больше нуля").nullable().optional()),
       packLabel:    z.string().max(30).nullable().optional(),
+      // Для ЭСФ и фискализации: ИКПУ (17 цифр), код упаковки, ставка НДС. Пусто — не задано.
+      ikpu:         ikpuInput,
+      packageCode:  packageCodeInput,
+      vatRate:      vatRateInput,
       description:  z.string().optional(),
       photoUrl:     z.string().max(2_800_000, "Файл слишком большой (макс. 2 МБ)")
         .refine(isSafePhotoValue, PHOTO_VALUE_ERROR).optional(),
@@ -461,6 +470,10 @@ export const productRouter = createRouter({
       unitWeight:   decimalOrDefault("0.000").optional(),
       packSize:     z.preprocess(v => (v === "" ? null : v), z.string().regex(/^\d+(\.\d{1,2})?$/, "Упаковка — число").refine(v => Number(v) > 0, "Упаковка — больше нуля").nullable().optional()),
       packLabel:    z.string().max(30).nullable().optional(),
+      // Для ЭСФ и фискализации: ИКПУ (17 цифр), код упаковки, ставка НДС. Пусто — не задано.
+      ikpu:         ikpuInput,
+      packageCode:  packageCodeInput,
+      vatRate:      vatRateInput,
       description:  z.string().optional(),
       photoUrl:     z.string().max(2_800_000, "Файл слишком большой (макс. 2 МБ)")
         .refine(isSafePhotoValue, PHOTO_VALUE_ERROR).nullable().optional(),
