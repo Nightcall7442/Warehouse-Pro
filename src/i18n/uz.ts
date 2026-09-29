@@ -306,7 +306,6 @@ export const uz = {
     subscriptionBlocked: {
       title:   "Obuna talab qilinadi",
       hint:    "Obunangiz muddati tugagan yoki faol emas. Davom etish uchun tarif rejasini yangilang.",
-      upgrade: "Obunani yangilash",
       logout:  "Chiqish",
     },
   },

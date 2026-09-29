@@ -83,7 +83,7 @@ export const UsageDashboard = memo(function UsageDashboard() {
             </p>
           </div>
         </div>
-        <button onClick={() => navigate("/settings/billing")} className="neo-btn" style={{ padding: "6px 12px", fontSize: "11px" }}>
+        <button onClick={() => navigate("/billing")} className="neo-btn" style={{ padding: "6px 12px", fontSize: "11px" }}>
           {t("Тариф", "Tarif")} <ArrowRight size={12} />
         </button>
       </div>
@@ -147,7 +147,7 @@ export const UsageDashboard = memo(function UsageDashboard() {
       {/* Upgrade prompt */}
       {hasWarning && !isExpired && (
         <button
-          onClick={() => navigate("/settings/billing")}
+          onClick={() => navigate("/billing")}
           className="neo-btn-primary w-full mt-4"
           style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" }}
         >

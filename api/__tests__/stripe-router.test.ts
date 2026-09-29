@@ -172,6 +172,7 @@ const mockStripe = {
 
 vi.mock("../lib/stripe", () => ({
   getStripe: () => mockStripe,
+  stripeConfigured: () => true,
   PLANS: {
     trial: { name: "Trial", price: 0, priceId: null },
     basic: { name: "Basic", price: 9900, priceId: "price_basic_123" },
