@@ -192,6 +192,7 @@ describe("страж: сервисы записи сбрасывают отчё�
     ["services/stock.ts", 1],              // ручная корректировка
     ["stock-count-router.ts", 1],          // инвентаризация
     ["warehouse-multi-router.ts", 1],      // перемещение
+    ["services/stock-transfer.ts", 1],     // перемещение документом в один шаг
     ["services/order-close.ts", 1],        // «Закрыть расчёт»: платежи офиса, долг, недостача
     ["supplier-router.ts", 1],             // возврат поставщику
     ["product-router.ts", 4],              // цена/себестоимость, удаление ×3

@@ -1,4 +1,5 @@
 import { getRedis, isRedisAvailable, subscribeChannel, publishChannel, INSTANCE_ID } from "./redis";
+import { tenantDataVersion } from "./report-cache";
 
 type CacheEntry<T> = {
   value: T;
@@ -308,6 +309,36 @@ export async function withCache<T>(
   const value = await produce();
   cache.set(key, value, ttlMs);
   return value;
+}
+
+/**
+ * withCache для ответа, в котором живут остаток и долг: каталог, список
+ * магазинов, справочник магазинов агента.
+ *
+ * ── Что было ────────────────────────────────────────────────────────────────
+ *
+ * Эти списки лежали в кэше по три минуты, а заказы, приходы, возвраты и оплаты
+ * сбрасывают только кэш отчётов (invalidateReports) — сюда не дотягивался
+ * никто. Агент видел «в наличии 10» у распроданного товара и получал отказ на
+ * заказе; должник висел в списке с долгом уже после оплаты.
+ *
+ * ── Что теперь ──────────────────────────────────────────────────────────────
+ *
+ * В ключ входит номер данных арендатора — тот самый, что поднимает
+ * invalidateReports. Сброс не удаляет ключи (никакого KEYS в Redis): после
+ * записи ключ просто другой, и следующий читатель считает заново; старое
+ * доживает свой TTL никем не читаемым. Номер общий для реплик (Redis INCR и
+ * канал report:invalidate), без Redis — свой у процесса, как и сама память.
+ * Префиксные сбросы (`products:{t}`, `shops:{t}`) по-прежнему работают:
+ * номер дописан в конец ключа.
+ */
+export async function withTenantDataCache<T>(
+  tenantId: number,
+  key: string,
+  ttlMs: number,
+  produce: () => Promise<T>,
+): Promise<T> {
+  return withCache(`${key}:v${await tenantDataVersion(tenantId)}`, ttlMs, produce);
 }
 
 export const CacheKeys = {

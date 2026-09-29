@@ -8,7 +8,7 @@ import { eq, and, sql, desc, gte, lte , inArray, isNull, type SQL } from "drizzl
 import { REVENUE_ORDER_STATUSES } from "./lib/order-status";
 import { sseBus } from "./lib/sse";
 import { sanitizeString, sanitizeSearch } from "./lib/sanitize";
-import { cache, withCache, CacheTTL } from "./lib/cache";
+import { cache, withTenantDataCache, CacheTTL } from "./lib/cache";
 import { verifyVisit } from "./services/anti-fraud";
 import { haversineKm } from "./lib/geo";
 import { onDate } from "./lib/date-range";
@@ -149,11 +149,13 @@ async function listActiveShops(tenantId: number, input: ShopDirectoryInput) {
   const search = input?.search?.trim();
   const cacheKey = `shops:${tenantId}:directory:${search ?? ""}:${input?.limit ?? ""}:${input?.offset ?? ""}`;
 
-  return withCache(cacheKey, CacheTTL.shops, async () => {
+  return withTenantDataCache(tenantId, cacheKey, CacheTTL.shops, async () => {
     const conditions = [eq(shops.tenantId, tenantId), eq(shops.status, "active")];
     if (search) {
       const pattern = `%${sanitizeSearch(search)}%`;
-      conditions.push(sql`(${shops.name} LIKE ${pattern} OR ${shops.ownerName} LIKE ${pattern} OR ${shops.phone} LIKE ${pattern})`);
+      // Район и город — потому что по ним искали пикеры веба, пока фильтровали
+      // загруженный список у себя («Поиск магазина по названию, владельцу, району…»).
+      conditions.push(sql`(${shops.name} LIKE ${pattern} OR ${shops.ownerName} LIKE ${pattern} OR ${shops.phone} LIKE ${pattern} OR ${shops.district} LIKE ${pattern} OR ${shops.city} LIKE ${pattern})`);
     }
 
     const query = getDb().select({

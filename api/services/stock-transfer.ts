@@ -3,6 +3,7 @@ import { warehouses, warehouseStock, stockTransfers, products } from "@db/schema
 import { applyStockEffect, receiveStock } from "./stock-ledger";
 import { recordAudit } from "./audit-log";
 import { badRequest } from "../lib/errors";
+import { invalidateReports } from "../lib/report-cache";
 
 type Db = ReturnType<typeof import("../queries/connection").getDb>;
 type Actor = { id: number; name?: string; role: string };
@@ -42,7 +43,7 @@ export async function transferStock(db: Db, tenantId: number, actor: Actor, inpu
   if (!byId.has(input.fromWarehouseId) || !byId.has(input.toWarehouseId)) throw badRequest("Склад не найден");
   const fromName = byId.get(input.fromWarehouseId)!, toName = byId.get(input.toWarehouseId)!;
 
-  return db.transaction(async (tx) => {
+  const done = await db.transaction(async (tx) => {
     const ids: number[] = [];
     let total = 0;
     for (const it of input.items) {
@@ -95,4 +96,8 @@ export async function transferStock(db: Db, tenantId: number, actor: Actor, inpu
 
     return { ids, count: ids.length, fromName, toName };
   });
+  // Остаток основного склада — в каталоге агента (lib/cache: withTenantDataCache)
+  // и в отчётах: после коммита, иначе ушедшее «в наличии» висело ещё три минуты.
+  await invalidateReports(tenantId, "stock.transfer");
+  return done;
 }

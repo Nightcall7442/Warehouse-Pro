@@ -7,7 +7,7 @@ import { trpc } from "@/providers/trpc";
 import { useInvalidateOrderCaches } from "@/hooks/useOrderCacheSync";
 import { notify } from "@/lib/toast";
 import { useTranslate } from "@/i18n";
-import { useAuth } from "@/hooks/useAuth";
+import { useShopSearch, SHOP_PICK_LIMIT, type PickedShop } from "@/hooks/useShopSearch";
 import { useCurrency } from "@/hooks/useCurrency";
 import { colorMix } from "@/lib/color-mix";
 import { priceAt } from "@contracts/price-tiers";
@@ -135,28 +135,16 @@ export function QuickOrderModal({ open, onOpenChange, preselectedShopId, initial
   const invalidateOrderCaches = useInvalidateOrderCaches();
 
   /*
-    Магазины агенту приходят другим запросом.
+    Магазины — поиском на сервере (useShopSearch), одним путём для всех ролей.
 
-    Здесь стоял один shop.list, а он для руководителя, оператора и
-    супервайзера — агента не пускает. Из-за этого окно быстрого заказа,
-    которое открывается из каталога кнопкой «Заказать», показывало агенту
-    ПУСТОЙ список магазинов: выбрать некого, заказ не оформить. А каталог —
-    это ровно тот путь, которым агент и заказывает, стоя у прилавка.
-
-    Так же устроен первый шаг мастера (ShopSelector): агенту — agent.myShops,
-    остальным — shop.list. Здесь эту развилку просто забыли.
+    Здесь грузились 500 самых новых магазинов (агенту — все), и строка поиска
+    фильтровала их у себя: при трёх с половиной тысячах точек старые, то есть
+    основные, клиенты не находились вовсе, а номер телефона, который оператор
+    слышит в трубке, не искался. Выбранный магазин держится отдельно: следующая
+    буква поиска не должна убирать его с экрана и из «Шага 2».
   */
-  const { user } = useAuth();
-  const isFieldAgent = user?.role === "agent" || user?.role === "merchandiser";
-
-  const { data: myShops } = trpc.agent.myShops.useQuery(undefined, { enabled: open && isFieldAgent });
-  const { data: allShops } = trpc.shop.list.useQuery({ pageSize: 500 }, { enabled: open && !isFieldAgent });
-
-  // Один список на оба случая: ниже по нему и ищут, и достают имя магазина.
-  const shops = useMemo(
-    () => (isFieldAgent ? myShops ?? [] : allShops?.data ?? []),
-    [isFieldAgent, myShops, allShops],
-  );
+  const [pickedShop, setPickedShop] = useState<PickedShop | null>(null);
+  const { shops: filteredShops, more: moreShops } = useShopSearch(shopSearch, { enabled: open, pinned: pickedShop });
   const priceLists = trpc.priceList.forShop.useQuery({ shopId: shopId ?? 0 }, { enabled: open && !!shopId });
   const effectivePriceListId = priceListId === undefined ? (priceLists.data?.current?.id ?? null) : priceListId;
   const { data: productsData } = trpc.product.listAll.useQuery({ search: productSearch || undefined, shopId, priceListId: effectivePriceListId });
@@ -172,18 +160,6 @@ export function QuickOrderModal({ open, onOpenChange, preselectedShopId, initial
     return p ? { ...c, unitPrice: Number(priceAt(String(p.unitPrice), p.tiers, c.quantity)) } : c;
   }), [cart, catalogOf]);
 
-
-  const filteredShops = useMemo(() => {
-    const q = shopSearch.trim().toLowerCase();
-    const list = shops;
-    if (!q) return list;
-    return list.filter(s =>
-      s.name?.toLowerCase().includes(q) ||
-      s.ownerName?.toLowerCase().includes(q) ||
-      s.district?.toLowerCase().includes(q) ||
-      s.city?.toLowerCase().includes(q),
-    );
-  }, [shops, shopSearch]);
   const createOrder = trpc.order.create.useMutation({
     onSuccess: () => {
       notify.success(t("Заказ создан", "Buyurtma yaratildi"));
@@ -204,6 +180,7 @@ export function QuickOrderModal({ open, onOpenChange, preselectedShopId, initial
     setPaymentMethod("cash");
     setProductSearch("");
     setShopSearch("");
+    setPickedShop(null);
   };
 
   /**
@@ -289,7 +266,7 @@ export function QuickOrderModal({ open, onOpenChange, preselectedShopId, initial
     });
   };
 
-  const shopName = shops.find(s => s.id === shopId)?.name;
+  const shopName = filteredShops.find(s => s.id === shopId)?.name;
 
   const footer = step === 1 ? (
     <>
@@ -362,7 +339,7 @@ export function QuickOrderModal({ open, onOpenChange, preselectedShopId, initial
                 <button
                   type="button"
                   key={s.id}
-                  onClick={() => setShopId(s.id)}
+                  onClick={() => { setShopId(s.id); setPickedShop(s); }}
                   /*
                     Наведение — правилом .row-hover, а не парой обработчиков на
                     каждую строку списка. Руками оно не гаснет, если палец ушёл
@@ -400,6 +377,11 @@ export function QuickOrderModal({ open, onOpenChange, preselectedShopId, initial
               {filteredShops.length === 0 && (
                 <p className="text-center text-xs py-8" style={{ color: "var(--color-text-tertiary)" }}>
                   {t("Ничего не найдено", "Hech narsa topilmadi")}
+                </p>
+              )}
+              {moreShops && (
+                <p className="text-center text-xs pt-2" style={{ color: "var(--color-text-tertiary)" }}>
+                  {t(`Показаны первые ${SHOP_PICK_LIMIT} — уточните поиск`, `Dastlabki ${SHOP_PICK_LIMIT} tasi ko'rsatildi — qidiruvni aniqlashtiring`)}
                 </p>
               )}
             </div>

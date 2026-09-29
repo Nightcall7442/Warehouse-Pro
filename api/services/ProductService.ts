@@ -8,7 +8,7 @@ import {
 import { eq, like, and, sql, desc } from "drizzle-orm";
 import { movementReferenceNumber } from "../lib/movement-reference";
 import { sanitizeString, sanitizeSearch } from "../lib/sanitize";
-import { cache, withCache, CacheKeys, CacheTTL } from "../lib/cache";
+import { cache, withTenantDataCache, CacheKeys, CacheTTL } from "../lib/cache";
 
 type DrizzleInstance = ReturnType<typeof import("../queries/connection").getDb>;
 
@@ -63,7 +63,7 @@ export const ProductService = {
     const offset = (page - 1) * pageSize;
 
     const cacheKey = CacheKeys.productList(tenantId, page, pageSize, filters?.search, filters?.category);
-    return withCache(cacheKey, CacheTTL.products, async () => {
+    return withTenantDataCache(tenantId, cacheKey, CacheTTL.products, async () => {
     const conditions = [eq(products.tenantId, tenantId)];
     if (filters?.search) conditions.push(like(products.name, `%${sanitizeSearch(filters.search)}%`));
     if (filters?.category) conditions.push(eq(products.category, filters.category));
