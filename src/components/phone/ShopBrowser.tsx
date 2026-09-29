@@ -6,6 +6,7 @@ import { plural } from "@/lib/plural";
 import { CARD } from "./tones";
 import { EmptyState, SearchField } from "./kit";
 import { haversineKm } from "@contracts/geo";
+import { useRenderWindow } from "@/hooks/useRenderWindow";
 
 /*
   Магазины на телефоне — экран «Магазины» мобилки v8 (Warehouse-Pro-Mobile,
@@ -136,11 +137,30 @@ export function ShopBrowser({ shops, loading, onOpen, onOrder, onAdd, note }: {
   const flat = !!here || !!search.trim();
   const inside = territory === "__all__" ? filtered : groups.find(([k]) => k === territory)?.[1] ?? [];
 
-  const cards = (list: typeof filtered) => list.length === 0
+  /*
+    Карточки — окном по сотне (hooks/useRenderWindow). «Все магазины», поиск
+    и «ближайшие» рисовали каждую точку организации разом: у клиента с тремя
+    тысячами магазинов это десятки тысяч узлов, и дешёвый телефон открывал
+    экран секундами. Отбор выше идёт по всему списку — 101-й магазин находится
+    поиском, просто рисуется только первая сотня найденного.
+  */
+  const listed = flat ? filtered : territory ? inside : [];
+  const win = useRenderWindow(listed, `${flat ? "flat" : territory ?? ""}|${search.trim()}|${here ? `${here.lat},${here.lng}` : ""}`);
+
+  const cards = () => listed.length === 0
     ? <div style={{ ...CARD, borderRadius: 20 }}><EmptyState icon={ShoppingBag} title={t("Ничего не найдено", "Hech narsa topilmadi")} /></div>
-    : list.map(({ s, d }) => (
-      <ShopCard key={s.id} shop={s} distance={here ? d : undefined} onOpen={() => onOpen(s.id)} onOrder={onOrder ? () => onOrder(s.id) : undefined} />
-    ));
+    : (
+      <>
+        {win.shown.map(({ s, d }) => (
+          <ShopCard key={s.id} shop={s} distance={here ? d : undefined} onOpen={() => onOpen(s.id)} onOrder={onOrder ? () => onOrder(s.id) : undefined} />
+        ))}
+        {win.hidden > 0 && (
+          <button type="button" className="neo-btn tap w-full" onClick={win.more} data-testid="phone-shops-show-more">
+            {t(`Показать ещё ${Math.min(win.step, win.hidden)} (осталось ${win.hidden})`, `Yana ${Math.min(win.step, win.hidden)} ko'rsatish (qoldi ${win.hidden})`)}
+          </button>
+        )}
+      </>
+    );
 
   // ── Внутри территории ──
   if (territory && !flat) {
@@ -155,7 +175,7 @@ export function ShopBrowser({ shops, loading, onOpen, onOrder, onAdd, note }: {
             <p style={{ fontSize: 12, fontWeight: 500, color: "var(--color-text-tertiary)", margin: "2px 0 0" }}>{count(inside.length)}</p>
           </div>
         </div>
-        {cards(inside)}
+        {cards()}
       </div>
     );
   }
@@ -181,7 +201,7 @@ export function ShopBrowser({ shops, loading, onOpen, onOrder, onAdd, note }: {
 
       {loading ? (
         [0, 1, 2, 3].map(i => <div key={i} className="h-[88px] rounded-3xl animate-pulse" style={{ background: "var(--color-surface-light)" }} />)
-      ) : flat ? cards(filtered) : (
+      ) : flat ? cards() : (
         <>
           <TerritoryRow icon={<Globe size={20} color="var(--color-primary-text)" />} title={t("Все магазины", "Barcha do'konlar")} sub={count(filtered.length)} onClick={() => setTerritory("__all__")} />
           {groups.map(([name, list]) => (

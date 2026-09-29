@@ -142,7 +142,7 @@ export const ControlService = {
   async overview(db: Db, tenantId: number, input: { from: Date; to: Date }, now = new Date()) {
     const { OrderCloseService } = await import("./order-close");
     const { NonCashService } = await import("./noncash");
-    const { calculateFraudMetrics } = await import("./anti-fraud");
+    const { calculateFraudMetricsForAgents } = await import("./anti-fraud");
     const oldEdge = new Date(now.getTime() - RISK.unconfirmed.hours * HOUR);
     const [people, hands, nonCash, ords, reopens, shortages] = await Promise.all([
       db.select({ id: users.id, name: users.name, role: users.role }).from(users)
@@ -164,11 +164,15 @@ export const ControlService = {
     const bank = new Map(nonCash.byEmployee.map(e => [e.id, e]));
     const reopened = new Map(reopens.map(r => [Number(r.actorId), Number(r.n)]));
     const short = new Map(shortages.map(r => [Number(r.userId), { n: Number(r.n), s: Number(r.s) }]));
+    // Проверка визитов — одним набором запросов на всех агентов, а не
+    // запросом на каждый день каждого. Сбой проверки не роняет «Контроль»:
+    // без неё у агентов просто нет визитного риска, как и было.
     const fraud = new Map<number, { visits: number; suspicious: number }>();
-    await Promise.all(people.filter(p => p.role === "agent").map(async p => {
-      try { const m = await calculateFraudMetrics(db, p.id, tenantId, input.from, input.to); fraud.set(p.id, { visits: m.totalVisits, suspicious: m.suspiciousVisits }); }
-      catch { fraud.set(p.id, { visits: 0, suspicious: 0 }); }
-    }));
+    try {
+      const agentIds = people.filter(p => p.role === "agent").map(p => p.id);
+      const byAgent = await calculateFraudMetricsForAgents(db, agentIds, tenantId, input.from, input.to);
+      for (const [id, m] of byAgent) fraud.set(id, { visits: m.totalVisits, suspicious: m.suspiciousVisits });
+    } catch { /* fraud пуст — у всех 0 из 0 */ }
 
     const employees = people.map(p => {
       const mine = ords.filter(o => o.courierId === p.id);

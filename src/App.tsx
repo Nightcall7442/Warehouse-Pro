@@ -11,7 +11,16 @@ import { QuickOrderHost } from "@/components/orders/QuickOrderHost";
 import { NoAccess } from "@/components/NoAccess";
 import Login                from "./pages/Login";
 import Register             from "./pages/Register";
-import Landing              from "./pages/Landing";
+/*
+  Лендинг — отдельным куском, а не во входном файле.
+
+  Он был обычным import и ехал во входной файл целиком — со всей своей
+  вёрсткой, сценами и плёнкой — к каждому, кто открывает приложение, хотя
+  видит его только гость. Агент с установленным PWA на дешёвом Android
+  качал и разбирал его при каждом холодном старте. Гость теперь получает его
+  отдельным запросом, который уходит сразу при первой отрисовке RootGate.
+*/
+const Landing              = lazyWithRecovery(() => import("./pages/Landing"));
 const Privacy              = lazyWithRecovery(() => import("./pages/Privacy"));
 import ForgotPassword       from "./pages/ForgotPassword";
 import ResetPassword        from "./pages/ResetPassword";

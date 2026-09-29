@@ -4,7 +4,6 @@
  * Добавляет: заголовок отчёта, ширины колонок,
  * цвета статусов, итоговую строку.
  */
-import ExcelJS from "exceljs";
 import { movementKind, movementDocument, movementNote } from "@/lib/stock-movement-text";
 import { formatQty } from "@/lib/format";
 import { notify } from "@/lib/toast";
@@ -154,6 +153,10 @@ export async function exportToExcel(
     return;
   }
 
+  // Библиотека (~900 КБ) грузится по нажатию, а не вместе со страницей:
+  // статический import ставил её в предзагрузку каждой страницы с кнопкой
+  // выгрузки — агент качал её, открывая «KPI» или «Магазины» на телефоне.
+  const ExcelJS = (await import("exceljs")).default;
   const wb = new ExcelJS.Workbook();
   const ws = wb.addWorksheet(sheetName);
   const headers = Object.keys(rows[0]);

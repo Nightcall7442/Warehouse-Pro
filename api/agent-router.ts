@@ -308,9 +308,19 @@ export const agentRouter = createRouter({
     Закрепление не пропало: agentId возвращается, и страница ставит свои
     магазины первыми. Кто за кого отвечает — по-прежнему видно, просто это
     больше не условие видимости.
+
+    Из кэша — тем же путём, что справочник выше (withTenantDataCache). Ответ
+    один на всю организацию (закрепление приходит полем, отбора по агенту
+    нет), а зовут его на каждый заход в «Магазины» и мобилка, и PWA: у клиента
+    с тремя тысячами точек это полный проход по shops на каждое открытие
+    экрана каждым агентом. Свежесть держат два сброса: номер данных
+    организации в ключе поднимают заказ, оплата, возврат и закрытие расчёта
+    (invalidateReports — долг в карточке), а префикс `shops:<tenantId>`
+    сбрасывают правка, создание и импорт магазинов.
   */
   myShops: fieldSalesQuery.query(async ({ ctx }) => {
-    return getDb().select({
+    const tenantId = ctx.tenant.id;
+    return withTenantDataCache(tenantId, `shops:${tenantId}:agent-all`, CacheTTL.shops, async () => getDb().select({
       id: shops.id, name: shops.name, ownerName: shops.ownerName,
       phone: shops.phone, address: shops.address, city: shops.city,
       district: shops.district, status: shops.status,
@@ -319,7 +329,7 @@ export const agentRouter = createRouter({
       agentId: shops.agentId,
     })
       .from(shops)
-      .where(and(eq(shops.tenantId, ctx.tenant.id), eq(shops.status, "active")));
+      .where(and(eq(shops.tenantId, tenantId), eq(shops.status, "active"))));
   }),
 
   // All active shops in tenant — for order creation & shop picker

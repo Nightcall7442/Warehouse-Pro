@@ -3,7 +3,7 @@ import { TRPCError } from "@trpc/server";
 import { dayKey } from "../lib/period";
 import { REVENUE_ORDER_STATUSES, revenueOrderConditions } from "../lib/order-status";
 import { orders, dailyPlans, shops, salesTargets, commissions, agentLocations, visitReports, users, payments } from "@db/schema";
-import { calculateFraudMetrics } from "./anti-fraud";
+import { calculateFraudMetrics, calculateFraudMetricsForAgents, type FraudMetrics } from "./anti-fraud";
 import {
   returnsInPeriod, returnedByAgent, returnedOf, type ReturnedValue,
 } from "./revenue-returns";
@@ -509,6 +509,13 @@ export async function calculateAgentKpi(
     спросить один раз.
   */
   preloadedReturns?: ReturnedValue,
+  /*
+    Проверка визитов, если вызывающий уже посчитал её на всех агентов разом
+    (calculateFraudMetricsForAgents). Веерные вызовы — ведомость зарплаты,
+    «KPI агентов», сводка по территории — иначе читали бы точки GPS
+    отдельным запросом на каждый день каждого агента.
+  */
+  preloadedFraud?: FraudMetrics,
 ): Promise<AgentKpiData> {
   const [planStats] = preloadedKpis?.totalPlans != null ? [{ total: preloadedKpis.totalPlans, visited: preloadedKpis.visitedPlans, skipped: preloadedKpis.skippedPlans }] : await db.select({
     total: sql<number>`count(*)`,
@@ -653,7 +660,7 @@ export async function calculateAgentKpi(
   const visitReportCount = Number(reportStats?.count ?? 0);
   const lastReportTime = reportStats?.lastReport ?? null;
 
-  const fraudMetrics = await calculateFraudMetrics(db, agentId, tenantId, periodStart, periodEnd);
+  const fraudMetrics = preloadedFraud ?? await calculateFraudMetrics(db, agentId, tenantId, periodStart, periodEnd);
 
   /*
     Цель — месячная и та, что действовала в показанном периоде.
@@ -760,10 +767,15 @@ export async function calculateAllAgentsKpi(
   const returnedByAgentMap = returnedByAgent(
     await returnsInPeriod(db, tenantId, dayKey(periodStart), dayKey(periodEnd)));
 
+  // Проверка визитов — тоже один раз на всех: четыре запроса вместо
+  // запроса на каждый день с визитами каждого агента.
+  const fraudByAgent = await calculateFraudMetricsForAgents(
+    db, agentsList.map(a => a.id), tenantId, periodStart, periodEnd);
+
   const results = await Promise.all(
     agentsList.map(agent =>
       calculateAgentKpi(db, agent.id, tenantId, periodStart, periodEnd, undefined,
-        returnedOf(returnedByAgentMap, agent.id))
+        returnedOf(returnedByAgentMap, agent.id), fraudByAgent.get(agent.id))
         .then(kpi => { kpi.agentName = agent.name; return kpi; })
     )
   );
