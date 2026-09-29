@@ -18,8 +18,8 @@ jobs:
       # оно станет ошибкой, встанет весь конвейер разом — все четыре работы
       # используют одни и те же действия.
       #
-      # Речь именно о среде самих действий, а не о Node проекта: он уже везде
-      # 22 — и здесь, и в Dockerfile, и в engines.
+      # Речь именно о среде самих действий, а не о Node проекта: тот задан
+      # ниже в node-version, один мажор с Dockerfile и engines (сейчас 24).
       #
       # Ломающие правки в этих версиях нас не задевают, проверено поимённо:
       # checkout запрещает выгрузку форк-веток для pull_request_target (мы
@@ -29,14 +29,14 @@ jobs:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
         with:
-          node-version: 22
+          node-version: 24
           cache: npm
       # Именно `npm ci`, а не `npm install`: образ в Dockerfile ставит зависимости
       # строгим `npm ci`, который падает при расхождении package.json и файла
       # блокировки. Пока здесь стоял терпимый `npm install`, сборка оставалась
       # зелёной, а выкладка падала — ровно так и случилось с prom-client:
       # зависимость добавили в package.json, файл блокировки не обновили.
-      # Флаг legacy-peer-deps объявлен в .npmrc, но здесь оставлен явно.
+      # Флаг legacy-peer-deps — в каждой команде: .npmrc в репозитории нет.
       - run: npm ci --legacy-peer-deps
       # ВАЖНО: не `tsc --noEmit`. Корневой tsconfig.json — solution-файл
       # ("files": [] плюс references), и для него --noEmit компилирует пустой
@@ -61,11 +61,46 @@ jobs:
   # Отдельной работой, а не шагом в основной: покрытие здесь не считается.
   # Иначе храповик порогов подтянулся бы к прогону С базой, и обычный прогон
   # без неё начал бы падать.
+  #
+  # Две версии базы рядом: та, что в бою (9.4), и та, на которую бой переедет
+  # (9.7 LTS, обновлением на месте). 9.4 исправлений безопасности больше не
+  # получает, и переезд — вопрос окна, а не решения. Пока он не случился,
+  # каждая правка проверяется на обеих: несовместимость с 9.7 видна в день,
+  # когда её внесли, а не в ночь обновления. Остальные задания с базой (e2e,
+  # снимки, нагрузка, test-migrations) — на боевой версии, как и было.
+  #
+  # Имя задания задано явно, и у боевой версии оно ровно «real-db»: защита
+  # ветки main требует проверку с этим именем. Имя по умолчанию для матрицы —
+  # «real-db (9.4)», и каждый PR ждал бы навсегда проверку, которая не придёт.
+  # 9.7 пока в обязательные не входит: красная видна, но не держит ни слияние,
+  # ни выкладку (см. continue-on-error ниже).
+  # Когда бой переедет — поменять версии местами здесь и PRODUCTION_MYSQL в
+  # api/__tests__/ci-mysql-matches-production.test.ts.
   real-db:
+    name: ${{ matrix.check }}
     runs-on: ubuntu-latest
+    # Упавшая 9.7 не должна останавливать выкладку. У службы в Railway включён
+    # «Wait for CI», а он смотрит на итог всего потока, не на обязательные
+    # проверки: поток с упавшим заданием пропускает выкладку. Без этой строки
+    # несовместимость с будущей 9.7 или сбой её образа держали бы бой на 9.4
+    # без выкладок, даже срочных. Само задание при этом остаётся красным в
+    # списке проверок. У боевой версии optional: false — её падение выкладку
+    # держать обязано.
+    continue-on-error: ${{ matrix.optional }}
+    strategy:
+      # Упавшая 9.7 не должна обрывать прогон на боевой версии — и наоборот.
+      fail-fast: false
+      matrix:
+        include:
+          - mysql: "9.4"
+            check: real-db
+            optional: false
+          - mysql: "9.7"
+            check: real-db (MySQL 9.7)
+            optional: true
     services:
       mysql:
-        image: mysql:9.4
+        image: mysql:${{ matrix.mysql }}
         env:
           MYSQL_ROOT_PASSWORD: test
           MYSQL_DATABASE: warehouse_test
@@ -77,11 +112,11 @@ jobs:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
         with:
-          node-version: 22
+          node-version: 24
           cache: npm
       - run: npm ci --legacy-peer-deps
       - name: Tests against a real MySQL
-        run: bash scripts/ci-run.sh "Проверки с базой" npm run test:db
+        run: bash scripts/ci-run.sh "Проверки с базой (MySQL ${{ matrix.mysql }})" npm run test:db
         env:
           TEST_DATABASE_URL: mysql://root:test@127.0.0.1:3306/warehouse_test
 
@@ -101,7 +136,7 @@ jobs:
           path: mobile
       - uses: actions/setup-node@v7
         with:
-          node-version: 22
+          node-version: 24
           cache: npm
       - run: npm ci --legacy-peer-deps
       - name: Контракт мобилки
@@ -146,7 +181,7 @@ jobs:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
         with:
-          node-version: 22
+          node-version: 24
           cache: npm
       - run: npm ci --legacy-peer-deps
       - run: npx playwright install --with-deps chromium

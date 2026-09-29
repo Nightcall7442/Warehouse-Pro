@@ -2,8 +2,9 @@
 
 ## Окружение
 
-Нужен **Node ≥ 22.5** (в проекте используются возможности, которых нет в 20)
-и **MySQL 8**.
+Нужен **Node 24** — тот же мажор, что в боевом образе и в CI (сверяет
+`api/__tests__/node-version-is-one.test.ts`), — и **MySQL 9.4**, как в бою.
+Обновление зависимостей — по [docs/dependency-policy.md](docs/dependency-policy.md).
 
 ```bash
 npm install --legacy-peer-deps
