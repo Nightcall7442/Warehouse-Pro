@@ -1,3 +1,4 @@
+import { inBackground } from "../lib/graceful-shutdown";
 import { TRPCError } from "@trpc/server";
 import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/mysql-core";
@@ -610,13 +611,13 @@ export const LoadingListService = {
       const office = await db.select({ id: users.id }).from(users)
         .where(and(eq(users.tenantId, tenantId), inArray(users.role, ["ceo", "operator"]), eq(users.status, "active")));
       // И в Telegram: оператор в телефоне, а не в колокольчике.
-      void (async () => {
+      inBackground((async () => {
         const [{ notifyEvent }, { tgMessages }] = await Promise.all([import("./telegram-notify"), import("../lib/telegram")]);
         await notifyEvent({
           tenantId, event: "picking.short",
           text: tgMessages.pickingShort(list.listNumber, shortages.map(x => ({ name: x.name, required: x.required, picked: x.picked, unit: unitOf.get(x.productId) ?? "" }))),
         });
-      })().catch(() => { /* уведомление — не сборка */ });
+      })().catch(() => { /* уведомление — не сборка */ }));
       const { NotificationService } = await import("./NotificationService");
       await NotificationService.createBulk(db, {
         tenantId, userIds: office.map(u => u.id), type: "stock",

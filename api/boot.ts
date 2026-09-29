@@ -25,7 +25,7 @@ import publicApi from "./public-api";
 import photos from "./photos";
 import { createSSEResponse } from "./sse-router";
 import { sseBus } from "./lib/sse";
-import { gracefulShutdown, isDraining } from "./lib/graceful-shutdown";
+import { gracefulShutdown, isDraining, inBackground } from "./lib/graceful-shutdown";
 import type { Server } from "node:http";
 import { authenticateRequest } from "./auth";
 import { cache } from "./lib/cache";
@@ -270,7 +270,7 @@ app.use("*", async (c, next) => {
         // the outages you most need to hear about were the quiet ones.
         const detail = err instanceof Error ? err.message : String(err).slice(0, 200);
         const msg = `🔴 <b>Server Error</b>\n<code>${tgEscape(method)} ${tgEscape(path)}</code>\n${tgEscape(detail)}`;
-        notifyAdmin(msg);
+        inBackground(notifyAdmin(msg));
       } catch { /* Telegram not configured — skip */ }
     }
 

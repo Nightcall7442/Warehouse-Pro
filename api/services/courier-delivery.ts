@@ -1,3 +1,4 @@
+import { inBackground } from "../lib/graceful-shutdown";
 import { orders, users, shops, payments, orderItems, warehouseStock, debtReminders, orderAdjustments } from "@db/schema";
 import { ORDER_STATUS_LABELS } from "../lib/order-status";
 import { eq, and, sql, isNull } from "drizzle-orm";
@@ -216,11 +217,11 @@ export async function markDelivered(db: Db, tenantId: number, courierId: number,
     });
 
     // Push notification to CEO
-    sendPushToUser(ceo.id, {
+    inBackground(sendPushToUser(ceo.id, {
       title: "Заказ доставлен",
       body: `Заказ ${order.orderNumber} доставлен${input.cashAmount ? `, наличные: ${input.cashAmount}` : ""}`,
       data: { type: "order.delivered", orderId: input.orderId },
-    }).catch(() => {});
+    }).catch(() => {}));
   }
 
   logger.info("order delivered", { orderId: input.orderId, courierId, cashAmount: input.cashAmount });
@@ -654,11 +655,11 @@ export async function completeDelivery(db: Db, tenantId: number, courierId: numb
       title: delivered.title,
       message: delivered.message,
     });
-    sendPushToUser(order.agentId, {
+    inBackground(sendPushToUser(order.agentId, {
       title: "Заказ доставлен",
       body: `${order.orderNumber} — ${resultLabels[input.result]}`,
       data: { type: "order.delivered", orderId: input.orderId },
-    }).catch(() => {});
+    }).catch(() => {}));
   }
 
   // Notify CEO
@@ -680,7 +681,7 @@ export async function completeDelivery(db: Db, tenantId: number, courierId: numb
     полсотни закрытых заказов в день — это шум; директор видит их в вечерней
     сводке). После ответа: Telegram не на пути курьера.
   */
-  void (async () => {
+  inBackground((async () => {
     const [{ notifyEvent }, { tgMessages, fmtMoney }] = await Promise.all([import("./telegram-notify"), import("../lib/telegram")]);
     const [shop] = await db.select({ name: shops.name }).from(shops).where(eq(shops.id, order.shopId)).limit(1);
     const [courier] = await db.select({ name: users.name }).from(users).where(eq(users.id, courierId)).limit(1);
@@ -692,7 +693,7 @@ export async function completeDelivery(db: Db, tenantId: number, courierId: numb
         paid: paidAmount > 0 ? fmtMoney(paidAmount) : null, debt: debt > 0 ? fmtMoney(debt) : null, courier: courier?.name,
       }),
     });
-  })().catch(e => logger.warn("order.delivered notify failed", { error: String(e) }));
+  })().catch(e => logger.warn("order.delivered notify failed", { error: String(e) })));
 
   logger.info("delivery completed", { orderId: input.orderId, courierId, result: input.result, paidAmount });
 
@@ -764,15 +765,15 @@ export async function markFailed(db: Db, tenantId: number, courierId: number, in
     });
 
     // Push notification to CEO
-    sendPushToUser(ceo.id, {
+    inBackground(sendPushToUser(ceo.id, {
       title: "Доставка не состоялась",
       body: `Заказ ${order.orderNumber}${safeReason ? ` — ${safeReason}` : ""}`,
       data: { type: "order.failed", orderId: input.orderId },
-    }).catch(() => {});
+    }).catch(() => {}));
   }
 
   // Telegram: оператору и агенту магазина — разобраться сегодня, а не завтра.
-  void (async () => {
+  inBackground((async () => {
     const [{ notifyEvent }, { tgMessages, fmtMoney }] = await Promise.all([import("./telegram-notify"), import("../lib/telegram")]);
     const [full] = await db.select({ shopId: orders.shopId, agentId: orders.agentId, total: orders.total }).from(orders).where(eq(orders.id, input.orderId)).limit(1);
     const [shop] = full ? await db.select({ name: shops.name }).from(shops).where(eq(shops.id, full.shopId)).limit(1) : [];
@@ -781,7 +782,7 @@ export async function markFailed(db: Db, tenantId: number, courierId: number, in
       tenantId, event: "delivery.failed", agentOnly: full?.agentId ?? undefined,
       text: tgMessages.deliveryFailed({ number: order.orderNumber, shop: shop?.name ?? "Магазин", total: fmtMoney(full?.total ?? 0), reason: safeReason || null, courier: courier?.name }),
     });
-  })().catch(e => logger.warn("delivery.failed notify failed", { error: String(e) }));
+  })().catch(e => logger.warn("delivery.failed notify failed", { error: String(e) })));
 
   logger.info("order delivery failed", { orderId: input.orderId, courierId, reason: input.reason });
 

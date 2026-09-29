@@ -23,6 +23,7 @@
    удалённый после первой сверки, остался бы у получателя навсегда — и долг по
    нему тоже.
    ═══════════════════════════════════════════════════════════════════════════ */
+import { inBackground } from "../lib/graceful-shutdown";
 import { Hono } from "hono";
 import { getDb } from "../queries/connection";
 import { recordExport } from "./export-log";
@@ -130,12 +131,13 @@ ordersV1.get("/", async (c) => {
     по девяти местам запись однажды забывается в одном из них, и в журнале
     появляется дыра ровно там, где случилось интересное.
 
-    Запись не ждётся (`void`): журнал — подстраховка, и заставлять получателя
-    ждать вставки в него незачем. Упасть она не может — recordExport ловит всё
-    сама.
+    Запись не ждётся: журнал — подстраховка, и заставлять получателя ждать
+    вставки в него незачем. Упасть она не может — recordExport ловит всё сама.
+    А inBackground, а не void, — чтобы остановка при выкладке её дождалась:
+    иначе пул закрывался прямо под ней, и в журнале оставалась дыра.
   */
   const fail = (status: 400 | 403 | 404, message: string, extra?: Record<string, unknown>) => {
-    void recordExport({
+    inBackground(recordExport({
       tenantId,
       apiKeyId: c.get("apiKeyId"),
       endpoint: "GET /orders",
@@ -144,7 +146,7 @@ ordersV1.get("/", async (c) => {
       httpStatus: status,
       durationMs: Date.now() - startedAt,
       error: message,
-    });
+    }));
     return c.json({ error: message, ...extra }, status);
   };
 
@@ -339,7 +341,7 @@ ordersV1.get("/", async (c) => {
     Числа сверки рядом, потому что спор всегда о них: «у нас на три заказа
     меньше» разбирается сравнением его чисел с этими.
   */
-  void recordExport({
+  inBackground(recordExport({
     tenantId,
     apiKeyId: c.get("apiKeyId"),
     endpoint: "GET /orders",
@@ -351,7 +353,7 @@ ordersV1.get("/", async (c) => {
     totalCount: Number(totals?.count ?? 0),
     amountTotal: money(totals?.amount),
     durationMs: Date.now() - startedAt,
-  });
+  }));
 
   return c.json({
     // Время сервера — чтобы получатель мог назначить следующий updated_since

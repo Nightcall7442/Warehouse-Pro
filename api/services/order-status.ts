@@ -1,3 +1,4 @@
+import { inBackground } from "../lib/graceful-shutdown";
 import { eq, and, sql, isNull, isNotNull, inArray } from "drizzle-orm";
 import { applyStockEffect, releaseStock, reserveStock } from "./stock-ledger";
 import { orders, orderItems, warehouseStock, shops, users } from "@db/schema";
@@ -392,11 +393,11 @@ export async function updateStatus(
       const label = ORDER_STATUS_LABELS[newStatus];
       // После ответа: смена статуса не ждёт Expo.
       const agentId = orderRow.agentId;
-      void import("./push-service").then(({ sendPushToUser }) => sendPushToUser(agentId, {
+      inBackground(import("./push-service").then(({ sendPushToUser }) => sendPushToUser(agentId, {
         title: `Заказ ${orderRow.orderNumber}`,
         body: `Статус изменён: ${label}${shop?.name ? ` (${shop.name})` : ""}`,
         data: { type: "order.status_changed", orderId },
-      })).catch(() => {});
+      })).catch(() => {}));
     }
   } catch (e) {
     logger.warn("Status change notification failed", { error: String(e) });

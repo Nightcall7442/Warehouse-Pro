@@ -18,12 +18,12 @@ import { readFileSync } from "node:fs";
 const read = (p: string) => readFileSync(p, "utf8").replace(/\r\n/g, "\n");
 
 describe("уведомления — после ответа", () => {
-  it("создание заказа: уведомления отпущены (void), ответ — сразу за ними", () => {
+  it("создание заказа: уведомления отпущены (inBackground — без ожидания), ответ — сразу за ними", () => {
     const src = read("api/services/order-create.ts");
-    expect(src).toContain("void notifyAboutNewOrder(db, {");
+    expect(src).toContain("inBackground(notifyAboutNewOrder(db, {");
     expect(src).not.toContain("await notifyAboutNewOrder(");
     // return стоит сразу после отпущенного уведомления, а не после await'ов Expo/Telegram
-    const at = src.indexOf("void notifyAboutNewOrder(");
+    const at = src.indexOf("inBackground(notifyAboutNewOrder(");
     const ret = src.indexOf("return { id: orderId, orderNumber, total: orderTotal", at);
     expect(src.slice(at, ret)).not.toMatch(/\bawait\b/);
   });

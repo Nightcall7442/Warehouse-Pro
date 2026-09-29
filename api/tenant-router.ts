@@ -1,3 +1,4 @@
+import { inBackground } from "./lib/graceful-shutdown";
 import { z } from "zod";
 import { randomUUID, randomBytes, createHash } from "crypto";
 import { TRPCError } from "@trpc/server";
@@ -183,7 +184,7 @@ export const tenantRouter = createRouter({
 
       // Суперадмину — сразу, а не в вечерней сводке: новую организацию
       // встречают в первый день, потом она либо работает, либо ушла.
-      void notifyAdmin(tgMessages.newRegistration(input.orgName, input.email));
+      inBackground(notifyAdmin(tgMessages.newRegistration(input.orgName, input.email)));
 
       return registrationAccepted(slug);
     }),
@@ -667,7 +668,7 @@ export const tenantRouter = createRouter({
       }
       invalidateAuthTenant(t.id);
       logger.warn("tenant offboarded by superadmin", { tenantId: t.id, slug: t.slug, by: ctx.user.id, total: result.total });
-      void notifyAdmin(tgMessages.tenantOffboarded(t.name, t.slug, ctx.user.name, result.total));
+      inBackground(notifyAdmin(tgMessages.tenantOffboarded(t.name, t.slug, ctx.user.name, result.total)));
       return { success: true, ...result };
     }),
 

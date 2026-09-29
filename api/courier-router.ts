@@ -1,3 +1,4 @@
+import { inBackground } from "./lib/graceful-shutdown";
 import { z } from "zod";
 import { createRouter, courierQuery, operatorQuery } from "./middleware";
 import { getDb } from "./queries/connection";
@@ -130,11 +131,11 @@ export const courierRouter = createRouter({
       });
 
       // Push курьеру — после ответа: оператор не ждёт Expo.
-      void import("./services/push-service").then(({ sendPushToUser }) => sendPushToUser(input.courierId, {
+      inBackground(import("./services/push-service").then(({ sendPushToUser }) => sendPushToUser(input.courierId, {
         title: "Назначен заказ на доставку",
         body: `Заказ ${order.orderNumber} → ${shop?.name ?? "Магазин"}`,
         data: { type: "delivery", orderId: input.orderId },
-      })).catch(() => { /* push is non-critical */ });
+      })).catch(() => { /* push is non-critical */ }));
 
       sseBus.emit({
         type: "notification.new",
@@ -145,14 +146,14 @@ export const courierRouter = createRouter({
 
       // Только назначенному курьеру: остальным это не новость, а шум.
       // Тоже после ответа — Telegram не на пути назначения.
-      void Promise.all([import("./services/telegram-notify"), import("./telegram-router")]).then(([{ notifyEvent }, { tgEscape: esc }]) => notifyEvent({
+      inBackground(Promise.all([import("./services/telegram-notify"), import("./telegram-router")]).then(([{ notifyEvent }, { tgEscape: esc }]) => notifyEvent({
         tenantId: ctx.tenant.id,
         event: "delivery.assigned",
         onlyUserId: input.courierId,
         text: `🚚 <b>Назначена доставка</b>
 📋 ${esc(order.orderNumber)}
 🏪 ${esc(shop?.name ?? "Магазин")}`,
-      })).catch(e => logger.warn("delivery.assigned notify failed", { error: String(e) }));
+      })).catch(e => logger.warn("delivery.assigned notify failed", { error: String(e) })));
 
       logger.info("courier assigned", { orderId: input.orderId, courierId: input.courierId });
 

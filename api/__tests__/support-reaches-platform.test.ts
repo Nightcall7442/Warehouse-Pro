@@ -30,7 +30,7 @@ describe("письмо арендатора уведомляет платфор�
       Ответ платформы уходит через тот же postMessage. Уведомлять о нём значило
       бы слать самому себе сообщение о том, что сам только что написал.
     */
-    const at = SERVICE.indexOf("void notifyPlatformAboutQuestion");
+    const at = SERVICE.indexOf("inBackground(notifyPlatformAboutQuestion");
     const around = SERVICE.slice(Math.max(0, at - 200), at);
     expect(around).toContain("if (!input.fromPlatform)");
   });
@@ -68,7 +68,7 @@ describe("письмо арендатора уведомляет платфор�
     expect(body).toMatch(/try\s*\{/);
     expect(body).toContain("logger.warn");
     // Отправку не ждут: письмо важнее уведомления о нём.
-    expect(SERVICE).toContain("void notifyPlatformAboutQuestion(");
+    expect(SERVICE).toContain("inBackground(notifyPlatformAboutQuestion(");
   });
 
   it("в уведомление не уходит письмо целиком", () => {

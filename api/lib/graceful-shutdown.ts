@@ -22,8 +22,9 @@ import { logger } from "./logger";
      3. расписание не начинает новых работ, потоки событий закрываются — иначе
         они держали бы остановку до конца срока: браузер переподключится сам,
         уже к новому экземпляру;
-     4. ждём, пока закончатся запросы в полёте и идущие работы расписания, —
-        не дольше timeoutMs;
+     4. ждём, пока закончатся запросы в полёте, идущие работы расписания и
+        то, что запросы оставили после ответа (inBackground), — не дольше
+        timeoutMs;
      5. что не успело — обрываем; досылаем журнал и закрываем пул (не дольше
         четверти срока) и выходим.
 
@@ -41,6 +42,24 @@ let draining = false;
 /** Идёт остановка — проверка готовности отвечает 503. */
 export function isDraining(): boolean {
   return draining;
+}
+
+/*
+  Работа, которую ответ не ждёт: колокольчик и push о новом заказе, Telegram о
+  доставке, запись в журнал обмена. Ответ ушёл — для сервера запрос кончился, а
+  она ещё идёт. Без учёта остановка закрывала бы пул прямо под ней, а выход
+  обрывал бы отправку: заказ, оформленный в секунду выкладки, оставался бы без
+  уведомления.
+*/
+const detached = new Set<Promise<unknown>>();
+
+/**
+ * Запустить без ожидания — вместо `void`: остановка процесса дождётся и этого.
+ * Отказ не глотается — как у `void`, он доходит до unhandledRejection.
+ */
+export function inBackground(p: Promise<unknown>): void {
+  detached.add(p);
+  void p.finally(() => { detached.delete(p); });
 }
 
 type Options = {
@@ -69,14 +88,14 @@ export function gracefulShutdown(server: Server, o: Options): (signal: string) =
     open.add(res);
     res.once("close", () => { open.delete(res); });
   });
-  const pending = () => open.size + o.busyJobs();
+  const pending = () => open.size + o.busyJobs() + detached.size;
 
   let started: Promise<void> | null = null;
   return (signal) => (started ??= run(signal));
 
   async function run(signal: string): Promise<void> {
     draining = true;
-    logger.info(`${signal} received, draining`, { requests: open.size, jobs: o.busyJobs(), timeoutMs: o.timeoutMs });
+    logger.info(`${signal} received, draining`, { requests: open.size, jobs: o.busyJobs(), background: detached.size, timeoutMs: o.timeoutMs });
     server.close();
     for (const res of open) {
       if (!res.headersSent) res.setHeader("Connection", "close");
@@ -88,7 +107,7 @@ export function gracefulShutdown(server: Server, o: Options): (signal: string) =
       await new Promise(r => setTimeout(r, 50));
     }
     if (pending() > 0) {
-      logger.warn("shutdown timeout — cutting what is left", { requests: open.size, jobs: o.busyJobs() });
+      logger.warn("shutdown timeout — cutting what is left", { requests: open.size, jobs: o.busyJobs(), background: detached.size });
     }
     // Остались простаивающие соединения — или те, чей срок вышел.
     server.closeAllConnections();

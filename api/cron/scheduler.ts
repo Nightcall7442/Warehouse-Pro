@@ -1,3 +1,4 @@
+import { inBackground } from "../lib/graceful-shutdown";
 import { getPool, getDb } from "../queries/connection";
 import { eq } from "drizzle-orm";
 import { cronRuns } from "@db/schema";
@@ -471,7 +472,7 @@ async function runLocked(job: Job, due?: Date): Promise<void> {
       if (notified.get(job.name) !== slot) {
         notified.set(job.name, slot);
         const { notifyAdmin, tgMessages } = await import("../lib/telegram");
-        void notifyAdmin(tgMessages.cronFailed(job.name, error, due !== undefined));
+        inBackground(notifyAdmin(tgMessages.cronFailed(job.name, error, due !== undefined)));
       }
     } finally {
       await conn.query("SELECT RELEASE_LOCK(?) AS ok", [`warehouse_pro:cron:${job.name}`]).catch(() => {});

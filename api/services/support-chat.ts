@@ -1,3 +1,4 @@
+import { inBackground } from "../lib/graceful-shutdown";
 import { and, desc, eq, gte, inArray, isNotNull, isNull, lt, lte, sql } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { getDb } from "../queries/connection";
@@ -206,7 +207,7 @@ export async function postMessage(input: PostInput): Promise<{ id: number }> {
     уже записано, и оно важнее уведомления о нём.
   */
   if (!input.fromPlatform) {
-    void notifyPlatformAboutQuestion(input.tenantId, input.userId, body);
+    inBackground(notifyPlatformAboutQuestion(input.tenantId, input.userId, body));
   }
 
   if (input.fromPlatform) {

@@ -1,3 +1,4 @@
+import { inBackground } from "./lib/graceful-shutdown";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { createRouter, supervisorQuery, selfKpiQuery, managementQuery, financeQuery, adminQuery, authedQuery } from "./middleware";
@@ -537,11 +538,11 @@ export const kpiRouter = createRouter({
         выходит.
       */
       // Push — по-русски: язык телефона сотрудника серверу неизвестен.
-      sendPushToUser(person.id, {
+      inBackground(sendPushToUser(person.id, {
         title: title.ru,
         body: `${input.amount} — подтвердите получение`,
         data: { type: "salary.paid", kind: input.kind },
-      }).catch(() => {});
+      }).catch(() => {}));
 
       return { id: Number(result.insertId) };
     }),
