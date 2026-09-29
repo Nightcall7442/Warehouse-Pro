@@ -5,6 +5,7 @@ import { getBridgeForTenant, str } from "../lib/onec-bridge";
 import { OneCMapper } from "./onec-mapper";
 import { updateSyncStatus } from "./onec-status";
 import { logger } from "../lib/logger";
+import { isCompanyInn } from "@contracts/tax-requisites";
 
 /*
   Магазины ↔ контрагенты 1С.
@@ -25,10 +26,24 @@ import { logger } from "../lib/logger";
      строке и выбор руками, либо «Создать в 1С» — контрагент заводится по
      карточке магазина и связывается сразу.
   Связь хранится в id_mappings ("shop" → Ref_Key контрагента).
+
+  ── ИНН (29.09.2026) ────────────────────────────────────────────────────────
+
+  У магазина появился ИНН, и он теперь первый ключ: точка с ИНН находит
+  контрагента с тем же ИНН, даже если в 1С он записан другим названием. Не
+  нашёлся — как раньше, по названию и телефону, но контрагент с ДРУГИМ ИНН
+  не подходит: одинаковая вывеска у двух юрлиц — обычное дело, и связать
+  точку с чужим юрлицом значит выписать ЭСФ не тому.
+  «Создать в 1С» передаёт ИНН в поле контрагента и сначала ищет, нет ли
+  уже контрагента с этим ИНН, — чтобы не завести дубль.
+  В поле ИНН идёт только ИНН юрлица (9 цифр). ПИНФЛ (14 цифр) и признак
+  плательщика НДС не передаются: подходящих полей контрагента ни пресет, ни
+  эмулятор OData не подтверждают (см. docs/onec.md).
 */
 
 const norm = (s: string | null | undefined) => (s ?? "").toLowerCase().replace(/["«»'’`]/g, "").replace(/\s+/g, " ").trim();
 const digits = (s: string | null | undefined) => (s ?? "").replace(/\D/g, "").slice(-9);
+const innOf = (s: string | null | undefined) => (s ?? "").replace(/\D/g, "");
 
 type Counterparty = { key: string; name: string; inn: string | null; phone: string | null };
 
@@ -52,7 +67,10 @@ export async function syncCounterparties(tenantId: number): Promise<{ total: num
     const list = await loadCounterparties(tenantId);
     const byName = new Map<string, Counterparty>();
     const byPhone = new Map<string, Counterparty>();
+    const byInn = new Map<string, Counterparty>();
     for (const c of list) {
+      const inn = innOf(c.inn);
+      if (inn && !byInn.has(inn)) byInn.set(inn, c);
       const k = norm(c.name);
       if (k && !byName.has(k)) byName.set(k, c);
       const p = digits(c.phone);
@@ -61,12 +79,17 @@ export async function syncCounterparties(tenantId: number): Promise<{ total: num
     const existing = await OneCMapper.getAll(db, tenantId, "shop");
     const mappedShops = new Set(existing.map(m => m.internalId));
     const takenKeys = new Set(existing.map(m => m.externalId));
-    const rows = await db.select({ id: shops.id, name: shops.name, phone: shops.phone })
+    const rows = await db.select({ id: shops.id, name: shops.name, phone: shops.phone, taxId: shops.taxId })
       .from(shops).where(and(eq(shops.tenantId, tenantId), eq(shops.status, "active")));
     let matched = 0, unmatched = 0;
     for (const s of rows) {
       if (mappedShops.has(s.id)) continue;
-      const cand = byName.get(norm(s.name)) ?? (digits(s.phone).length >= 7 ? byPhone.get(digits(s.phone)) : undefined);
+      const inn = isCompanyInn(s.taxId) ? s.taxId : null;
+      // Контрагент с другим ИНН — другое юрлицо, даже под той же вывеской.
+      const sameEntity = (c: Counterparty | undefined) => c && (!inn || !innOf(c.inn) || innOf(c.inn) === inn) ? c : undefined;
+      const cand = (inn ? byInn.get(inn) : undefined)
+        ?? sameEntity(byName.get(norm(s.name)))
+        ?? (digits(s.phone).length >= 7 ? sameEntity(byPhone.get(digits(s.phone))) : undefined);
       if (cand && !takenKeys.has(cand.key)) {
         await OneCMapper.upsert(db, tenantId, "shop", cand.key, s.id);
         takenKeys.add(cand.key);
@@ -114,17 +137,32 @@ export async function mapShop(tenantId: number, shopId: number, externalId: stri
   return { success: true };
 }
 
-/** Контрагент в 1С по карточке магазина: название и, если есть куда, телефон. */
+/** Контрагент в 1С по карточке магазина: название, ИНН юрлица и, если есть куда, телефон. */
 export async function createCounterpartyFor(tenantId: number, shopId: number): Promise<{ externalId: string }> {
   const db = getDb();
-  const [shop] = await db.select({ id: shops.id, name: shops.name, phone: shops.phone })
+  const [shop] = await db.select({ id: shops.id, name: shops.name, phone: shops.phone, taxId: shops.taxId })
     .from(shops).where(and(eq(shops.id, shopId), eq(shops.tenantId, tenantId))).limit(1);
   if (!shop) throw new Error("Магазин не найден");
   const already = await OneCMapper.getExternalId(db, tenantId, "shop", shopId);
   if (already) return { externalId: already };
   const bridge = await getBridgeForTenant(tenantId);
   const n = bridge.names.counterparties;
+  const inn = isCompanyInn(shop.taxId) ? shop.taxId : null;
+  if (inn) {
+    // Контрагент с этим ИНН уже есть в 1С — связываем с ним, а не заводим дубль.
+    // Занятый другой точкой не берём: одна связь на контрагента, как при сверке.
+    const [same] = await bridge.query<Record<string, unknown>>(n.set, {
+      $select: "Ref_Key", $top: "1", $filter: `${n.inn} eq ${str(inn)} and ${n.deletion} eq false`,
+    });
+    const key = same ? String(same.Ref_Key) : null;
+    if (key && !(await OneCMapper.getInternalId(db, tenantId, "shop", key))) {
+      await OneCMapper.upsert(db, tenantId, "shop", key, shopId);
+      logger.info("1C counterparty matched by INN", { tenantId, shopId, key });
+      return { externalId: key };
+    }
+  }
   const body: Record<string, unknown> = { [n.name]: shop.name };
+  if (inn) body[n.inn] = inn;
   if (n.phone && shop.phone) body[n.phone] = shop.phone;
   const created = await bridge.create<{ Ref_Key: string }>(n.set, body);
   await OneCMapper.upsert(db, tenantId, "shop", created.Ref_Key, shopId);

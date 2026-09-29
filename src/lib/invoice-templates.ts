@@ -26,6 +26,7 @@
   paper-stays-russian): подписи здесь не переводятся.
 */
 import type { InvoiceOptions, InvoiceTemplateId } from "@contracts/invoice-template";
+import { invoiceVat, type VatRate } from "@contracts/tax-requisites";
 import { unitShort as unitLabel } from "./units";
 import { code128Svg } from "./code128";
 
@@ -41,7 +42,8 @@ export type InvoiceView = {
   agent?: { name: string; phone?: string };
   courier?: { name: string };
   territory?: string;
-  items: Array<{ code?: string; name: string; unit?: string; qty: number; orderedQty?: number; price: number; total: number; returnReason?: string }>;
+  /** vatRate — ставка товара; «в т.ч. НДС» печатается, только если у организации есть ИНН (contracts/tax-requisites.ts). */
+  items: Array<{ code?: string; name: string; unit?: string; qty: number; orderedQty?: number; price: number; total: number; returnReason?: string; vatRate?: VatRate | null }>;
   subtotal: number;
   discount: number;
   total: number;
@@ -136,9 +138,27 @@ export function debtBlock(view: InvoiceView): string {
 
 const totalQty = (view: InvoiceView) => view.items.reduce((s, i) => s + i.qty, 0);
 
+/*
+  НДС на накладной.
+
+  Цены в Узбекистане указываются с НДС, поэтому налог не прибавляется, а
+  выделяется: «в т.ч. НДС 12%» под суммой строки и под итогом. Печатается,
+  только когда у организации задан ИНН и хотя бы у одного товара ставка 12 %;
+  иначе накладная выходит прежней — байт в байт, без единого нового слова.
+*/
+type Vat = ReturnType<typeof invoiceVat>;
+const vatOf = (view: InvoiceView): Vat => invoiceVat(view.items, view.subtotal, view.total, view.company.inn);
+function vatLine(vat: Vat, view: InvoiceView, i: number, size = "7pt"): string {
+  const rate = view.items[i].vatRate;
+  if (!vat.applies || !rate) return "";
+  const text = rate === "vat12" ? `в т.ч. НДС 12%: ${money(vat.lines[i] ?? 0)}` : rate === "vat0" ? "НДС 0%" : "без НДС";
+  return `<div style="font-weight:400;font-size:${size};color:#555">${text}</div>`;
+}
+
 /* ── 1. Классическая ──────────────────────────────────────────────────────── */
 function renderClassic(view: InvoiceView, opts: InvoiceOptions): string {
   const cur = escapeHtml(view.currency);
+  const vat = vatOf(view);
   const rows = view.items.map((item, i) => `
     <tr>
       <td class="center">${i + 1}</td>
@@ -146,7 +166,7 @@ function renderClassic(view: InvoiceView, opts: InvoiceOptions): string {
       ${opts.showUnit ? `<td class="center">${unitLabel(item.unit)}</td>` : ""}
       <td class="center">${cleanNum(item.qty)}</td>
       <td class="right">${money(item.price)}</td>
-      <td class="right">${money(item.total)}</td>
+      <td class="right">${money(item.total)}${vatLine(vat, view, i)}</td>
     </tr>`).join("");
   const cols = opts.showUnit ? 6 : 5;
   const partyExtra = [
@@ -212,7 +232,11 @@ function renderClassic(view: InvoiceView, opts: InvoiceOptions): string {
           <tr>
             <td colspan="${cols - 1}" class="right bold">К ОПЛАТЕ:</td>
             <td class="right bold">${money(view.total)} ${cur}</td>
-          </tr>
+          </tr>${vat.applies ? `
+          <tr>
+            <td colspan="${cols - 1}" class="right">в т.ч. НДС 12%:</td>
+            <td class="right">${money(vat.total)} ${cur}</td>
+          </tr>` : ""}
         </tbody>
       </table>
 
@@ -244,19 +268,21 @@ function renderClassic(view: InvoiceView, opts: InvoiceOptions): string {
 /* ── 2. Компактная — образец владельца ────────────────────────────────────── */
 function renderCompact(view: InvoiceView, opts: InvoiceOptions): string {
   const cur = escapeHtml(view.currency);
-  const rows = view.items.map(item => `
+  const vat = vatOf(view);
+  const rows = view.items.map((item, i) => `
     <tr>
       ${opts.showProductCode ? `<td class="c-code">${escapeHtml(item.code ?? "")}</td>` : ""}
       <td>${escapeHtml(item.name)}${opts.showUnit ? ` <span class="c-unit">${unitLabel(item.unit)}</span>` : ""}${partialNote(item, "7pt")}</td>
       <td class="right">${cleanNum(item.qty)}</td>
       <td class="right">${money(item.price)}</td>
-      <td class="right">${money(item.total)}</td>
+      <td class="right">${money(item.total)}${vatLine(vat, view, i, "6.5pt")}</td>
     </tr>`).join("");
   const meta = (label: string, value: string | null | undefined) =>
     value && value.trim() ? `<div><span class="c-label">${escapeHtml(label)}:</span> <b>${escapeHtml(value)}</b></div>` : "";
   const left = [
     meta("Дата", view.date),
     meta("Клиент", view.shop.name),
+    meta("ИНН", view.shop.inn),
     opts.showShopPhone ? meta("Телефон", view.shop.phone) : "",
     opts.showShopAddress ? meta("Адрес", view.shop.address) : "",
   ].join("");
@@ -293,7 +319,7 @@ function renderCompact(view: InvoiceView, opts: InvoiceOptions): string {
           <td>${opts.showPaymentMethod ? escapeHtml(view.paymentLabel ?? "") : "&nbsp;"}</td>
           <td>&nbsp;</td>
           <td class="bold">${cleanNum(totalQty(view))}</td>
-          <td class="bold">${money(view.total)} ${cur}${opts.showDiscount && view.discount > 0 ? `<div style="font-weight:400;font-size:7pt;color:#555">со скидкой −${money(view.discount)}</div>` : ""}</td>
+          <td class="bold">${money(view.total)} ${cur}${opts.showDiscount && view.discount > 0 ? `<div style="font-weight:400;font-size:7pt;color:#555">со скидкой −${money(view.discount)}</div>` : ""}${vat.applies ? `<div style="font-weight:400;font-size:7pt;color:#555">в т.ч. НДС 12%: ${money(vat.total)}</div>` : ""}</td>
         </tr></tbody>
       </table>
       ${opts.showNotes && view.notes ? `<div style="margin-top:3px;font-size:7.5pt"><b>Примечание:</b> ${escapeHtml(view.notes)}</div>` : ""}
@@ -304,6 +330,7 @@ function renderCompact(view: InvoiceView, opts: InvoiceOptions): string {
 /* ── 3. Подробная — для экспедитора ───────────────────────────────────────── */
 function renderDetailed(view: InvoiceView, opts: InvoiceOptions): string {
   const cur = escapeHtml(view.currency);
+  const vat = vatOf(view);
   const rows = view.items.map((item, i) => {
     const qtyCol = view.isPartial
       ? `<td class="right" style="text-decoration:line-through;color:#999">${cleanNum(item.orderedQty ?? item.qty)}</td><td class="right bold">${cleanNum(item.qty)}</td>`
@@ -315,12 +342,13 @@ function renderDetailed(view: InvoiceView, opts: InvoiceOptions): string {
         ${opts.showUnit ? `<td class="center">${unitLabel(item.unit)}</td>` : ""}
         ${qtyCol}
         <td class="right">${money(item.price)}</td>
-        <td class="right bold">${money(item.total)}</td>
+        <td class="right bold">${money(item.total)}${vatLine(vat, view, i)}</td>
       </tr>`;
   }).join("");
   const qtyHeader = view.isPartial ? '<th style="width:9%">Заказ</th><th style="width:9%">Отдали</th>' : '<th style="width:9%">Кол-во</th>';
   const facts = [
     view.shop.name ? `<span>Магазин: <b>${escapeHtml(view.shop.name)}</b></span>` : "",
+    view.shop.inn ? `<span>ИНН: ${escapeHtml(view.shop.inn)}</span>` : "",
     opts.showShopPhone && view.shop.phone ? `<span>Тел.: ${escapeHtml(view.shop.phone)}</span>` : "",
     opts.showAgent && view.agent ? `<span>Агент: ${escapeHtml(view.agent.name)}${opts.showAgentPhone && view.agent.phone ? ` (${escapeHtml(view.agent.phone)})` : ""}</span>` : "",
     opts.showCourier && view.courier ? `<span>Курьер: ${escapeHtml(view.courier.name)}</span>` : "",
@@ -358,7 +386,8 @@ function renderDetailed(view: InvoiceView, opts: InvoiceOptions): string {
           <tr><td>Итого позиций:</td><td class="right">${view.items.length}</td></tr>
           <tr><td>Сумма:</td><td class="right">${money(view.subtotal)} ${cur}</td></tr>
           ${opts.showDiscount && view.discount > 0 ? `<tr><td>Скидка:</td><td class="right" style="color:#16a34a">−${money(view.discount)} ${cur}</td></tr>` : ""}
-          <tr class="total-row"><td>ИТОГО:</td><td class="right">${money(view.total)} ${cur}</td></tr>
+          <tr class="total-row"><td>ИТОГО:</td><td class="right">${money(view.total)} ${cur}</td></tr>${vat.applies ? `
+          <tr><td>в т.ч. НДС 12%:</td><td class="right">${money(vat.total)} ${cur}</td></tr>` : ""}
         </table>
       </div>
       ${opts.showNotes && view.notes ? `<div style="margin-top:10px;padding:8px 10px;background:#fffbeb;border:1px solid #fde68a;font-size:8pt"><b>Примечание:</b> ${escapeHtml(view.notes)}</div>` : ""}

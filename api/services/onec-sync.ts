@@ -346,6 +346,7 @@ export class OneCSyncService {
           quantity: orderItems.quantity,
           deliveredQuantity: orderItems.deliveredQuantity,
           unitPrice: orderItems.unitPrice,
+          vatRate: products.vatRate,
         }).from(orderItems)
           .leftJoin(products, and(eq(orderItems.productId, products.id), eq(products.tenantId, tenantId)))
           .where(and(
@@ -394,8 +395,28 @@ export class OneCSyncService {
             [s.item.price]: price,
             [s.item.sum]: sum,
           };
-          if (s.item.vatRate && s.vatRateValue) line[s.item.vatRate] = s.vatRateValue;
-          if (s.item.vatSum && s.vatPercent !== null) line[s.item.vatSum] = money(sum * s.vatPercent / (100 + s.vatPercent));
+          /*
+            Ставка НДС — по товару, если она задана в карточке.
+
+            Раньше каждая строка уходила со ставкой пресета (12 %), в том
+            числе товар, который НДС не облагается: бухгалтер правил такие
+            строки в 1С руками. Товар без ставки идёт как раньше. «0 %» и «без
+            НДС» несут СуммаНДС = 0, а значение СтавкаНДС — только если оно
+            сверено и задано в настройках (vatRateZeroValue/ExemptValue):
+            выдуманное имя перечисления 1С не примет.
+          */
+          const rate = item.vatRate;
+          if (!rate) {
+            if (s.item.vatRate && s.vatRateValue) line[s.item.vatRate] = s.vatRateValue;
+            if (s.item.vatSum && s.vatPercent !== null) line[s.item.vatSum] = money(sum * s.vatPercent / (100 + s.vatPercent));
+          } else if (rate === "vat12") {
+            if (s.item.vatRate && s.vatRateValue) line[s.item.vatRate] = s.vatRateValue;
+            if (s.item.vatSum) line[s.item.vatSum] = money(sum * 12 / 112);
+          } else {
+            const value = rate === "vat0" ? s.vatRateZeroValue : s.vatRateExemptValue;
+            if (s.item.vatRate && value) line[s.item.vatRate] = value;
+            if (s.item.vatSum) line[s.item.vatSum] = 0;
+          }
           lines.push(line);
         }
         if (lines.length === 0) throw new Error(`Заказ ${orderId}: ничего не довезено — выгружать в 1С нечего`);

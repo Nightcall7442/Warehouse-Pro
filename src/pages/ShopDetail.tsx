@@ -18,6 +18,8 @@ import {
 } from "lucide-react";
 import { PhotoOrIcon } from "@/components/PhotoOrIcon";
 import { ShopAvatar } from "@/components/shops/ShopAvatar";
+import { TaxRequisitesFields } from "@/components/shops/TaxRequisitesFields";
+import { isBadTaxId } from "@contracts/tax-requisites";
 import { ShopStatement } from "@/components/shops/ShopStatement";
 import { PremiumSelect } from "@/components/PremiumSelect";
 import { QueryErrorFallback } from "@/components/QueryErrorFallback";
@@ -331,6 +333,11 @@ export default function ShopDetail() {
                   onChange={e => setEditData((d: Record<string, unknown>) => ({ ...d, [f.key]: e.target.value }))} />
               ))}
             </div>
+            <TaxRequisitesFields lang={lang}
+              taxId={String(editData.taxId ?? shop.taxId ?? "")}
+              vatPayer={Boolean(editData.vatPayer ?? shop.vatPayer)}
+              onTaxId={v => setEditData((d: Record<string, unknown>) => ({ ...d, taxId: v }))}
+              onVatPayer={v => setEditData((d: Record<string, unknown>) => ({ ...d, vatPayer: v }))} />
             {agents.length > 0 && (
               <div>
                 <label className="font-label text-[10px] text-secondary tracking-wider block mb-1.5">
@@ -349,7 +356,7 @@ export default function ShopDetail() {
             )}
             <div className="flex gap-2">
               <button onClick={() => updateShop.mutate({ id: shop.id, ...editData })}
-                disabled={updateShop.isPending}
+                disabled={updateShop.isPending || isBadTaxId(String(editData.taxId ?? ""))}
                 className="neo-btn-primary flex items-center gap-2 disabled:opacity-40">
                 {updateShop.isPending && <Loader2 size={14} className="animate-spin" />}
                 {t("Сохранить", "Saqlash")}
@@ -391,6 +398,12 @@ export default function ShopDetail() {
                 {(shop.city || shop.address) && (
                   <span className="flex items-center gap-1.5 text-sm text-secondary">
                     <MapPin size={13} />{[shop.address, shop.city, shop.district].filter(Boolean).join(", ")}
+                  </span>
+                )}
+                {shop.taxId && (
+                  <span className="text-sm text-secondary font-data" data-testid="shop-tax-view">
+                    {shop.taxId.length === 14 ? t("ПИНФЛ", "JShShIR") : t("ИНН", "STIR")} {shop.taxId}
+                    {shop.vatPayer ? ` · ${t("плательщик НДС", "QQS to'lovchisi")}` : ""}
                   </span>
                 )}
               </div>

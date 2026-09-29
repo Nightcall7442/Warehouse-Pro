@@ -5,6 +5,8 @@ import { PremiumSelect } from "@/components/PremiumSelect";
 import { CategoryAutocomplete } from "./CategoryAutocomplete";
 import { notify } from "@/lib/toast";
 import { COLORS, SHADOW, F, UNITS, type Unit } from "./constants";
+import { ProductTaxFields } from "./ProductTaxFields";
+import { VAT_RATES, isBadIkpu, type VatRate } from "@contracts/tax-requisites";
 
 /**
  * То, что форма отдаёт наружу.
@@ -27,6 +29,10 @@ export type ProductDraft = {
   reorderPoint: string;
   description:  string;
   photoUrl?:    string;
+  /** Для ЭСФ и фискализации; пусто — не задано. */
+  ikpu?:        string;
+  packageCode?: string;
+  vatRate?:     VatRate;
 };
 
 export interface ProductFormProps {
@@ -44,6 +50,8 @@ function isUnit(v: string): v is Unit {
 export function ProductForm({ onSave, onCancel, isPending, lang, categories = [] }: ProductFormProps) {
   const t = (ru: string, uz: string) => lang === "uz" ? uz : ru;
   const [d, setD] = useState<Omit<ProductDraft, "photoUrl">>({ code: "", barcode: "", name: "", category: "", costPrice: "", unitPrice: "", unit: "pcs", unitWeight: "", packSize: "", packLabel: "", reorderPoint: "10.00", description: "" });
+  const [tax, setTax] = useState({ ikpu: "", packageCode: "", vatRate: "" });
+  const taxBad = isBadIkpu(tax.ikpu);
   const [photo, setPhoto] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const handlePhoto = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -100,11 +108,16 @@ export function ProductForm({ onSave, onCancel, isPending, lang, categories = []
           <DecimalInput className="neo-input font-data" placeholder={t("Порог дозаказа", "Qayta buyurtma chegarasi")} value={d.reorderPoint} onValueChange={v => setD({ ...d, reorderPoint: v })} />
           <DecimalInput className="neo-input font-data" placeholder={t("В упаковке, ед. (12)", "Qadoqda, dona (12)")} value={d.packSize} onValueChange={v => setD({ ...d, packSize: v })} data-testid="product-pack-size" />
           <input className="neo-input" placeholder={t("Название упаковки (коробка)", "Qadoq nomi (quti)")} value={d.packLabel} onChange={e => setD({ ...d, packLabel: e.target.value })} />
+          <ProductTaxFields lang={lang} value={tax} onChange={patch => setTax(x => ({ ...x, ...patch }))} />
           <input className="neo-input sm:col-span-2" placeholder={t("Описание", "Tavsif")} value={d.description} onChange={e => setD({ ...d, description: e.target.value })} />
         </div>
       </div>
       <div style={{ display: "flex", gap: "8px", marginTop: "16px" }}>
-        <button data-testid="product-save" onClick={() => d.code && d.name && d.unitPrice && onSave({ ...d, photoUrl: photo ?? undefined })} disabled={isPending}
+        <button data-testid="product-save" onClick={() => d.code && d.name && d.unitPrice && !taxBad && onSave({
+            ...d, photoUrl: photo ?? undefined,
+            ikpu: tax.ikpu.trim() || undefined, packageCode: tax.packageCode.trim() || undefined,
+            vatRate: VAT_RATES.find(r => r === tax.vatRate),
+          })} disabled={isPending || taxBad}
           className="neo-btn-primary flex-1 sm:flex-none flex items-center justify-center gap-2">
           {isPending && <Loader2 size={14} className="animate-spin" />}{t("Сохранить", "Saqlash")}
         </button>

@@ -17,6 +17,7 @@ import type { CellValue } from "exceljs";
 import { firstRow } from "./lib/db-rows";
 import { uploadBase64ToS3 } from "./lib/photo-upload";
 import { invalidateReports } from "./lib/report-cache";
+import { IKPU_ERROR, IKPU_RE, PACKAGE_CODE_MAX, TAX_ID_ERROR, TAX_ID_RE, onlyDigitsInput, parseVatRate, type VatRate } from "@contracts/tax-requisites";
 /**
  * A spreadsheet cell is whatever exceljs hands back — a string or number for
  * the templates we publish, but also a Date, a formula result or rich text for
@@ -67,6 +68,9 @@ const PRODUCT_COLUMNS: Record<string, string> = {
   "остаток на складе": "initialStock", "stock": "initialStock", "количество": "initialStock", "qty": "initialStock", "кол-во": "initialStock", "остаток": "initialStock",
   "описание": "description", "description": "description",
   "фото": "photoUrl", "photo": "photoUrl", "photoUrl": "photoUrl", "фото url": "photoUrl", "image": "photoUrl", "картинка": "photoUrl",
+  "икпу": "ikpu", "мхик": "ikpu", "икпу (мхик)": "ikpu", "икпу (17 цифр)": "ikpu", "ikpu": "ikpu", "mxik": "ikpu",
+  "код упаковки": "packageCode", "package code": "packageCode", "packagecode": "packageCode", "qadoq kodi": "packageCode",
+  "ставка ндс": "vatRate", "ставка ндс (12 / 0 / без ндс)": "vatRate", "ндс": "vatRate", "vat": "vatRate", "vatrate": "vatRate", "qqs": "vatRate", "qqs stavkasi": "vatRate",
 };
 
 const SHOP_COLUMNS: Record<string, string> = {
@@ -81,7 +85,56 @@ const SHOP_COLUMNS: Record<string, string> = {
   "долгота": "gpsLng", "lng": "gpsLng", "gpslng": "gpsLng",
   "территория": "territory", "territory": "territory",
   "примечания": "notes", "notes": "notes",
+  "инн": "taxId", "пинфл": "taxId", "инн/пинфл": "taxId", "инн / пинфл": "taxId", "инн/пинфл (9 или 14 цифр)": "taxId",
+  "стир": "taxId", "stir": "taxId", "inn": "taxId", "pinfl": "taxId", "jshshir": "taxId", "taxid": "taxId",
+  "плательщик ндс": "vatPayer", "плательщик ндс (да/нет)": "vatPayer", "ндс": "vatPayer", "vatpayer": "vatPayer", "vat payer": "vatPayer", "qqs to'lovchi": "vatPayer",
 };
+
+/*
+  Налоговые реквизиты из файла.
+
+  Неверный ИНН, ИКПУ или ставка — отказ строке с названной причиной, а не
+  молчаливое «без реквизитов»: такие столбцы заполняют ради ЭСФ, и строка,
+  вставшая без них, выглядит принятой. Правила — те же, что у ручек
+  (contracts/tax-requisites.ts).
+
+  ИКПУ числом не принимается вовсе. Это 17 цифр, а Excel хранит число с
+  точностью до 15 знаков: последние цифры он уже заменил нулями, а ноль в
+  начале кода срезал — восстановить из такой ячейки нечего.
+*/
+type TaxCell = CellValue | undefined;
+
+/** Столбцы реквизитов в шаблоне: названия сразу говорят формат; номера — текстом (см. ниже). */
+const PRODUCT_TAX_HEADERS = ["ИКПУ (17 цифр)", "Код упаковки", "Ставка НДС (12 / 0 / без НДС)"];
+const SHOP_TAX_HEADERS = ["ИНН/ПИНФЛ (9 или 14 цифр)", "Плательщик НДС (да/нет)"];
+const TEXT_COLUMNS = new Set(["ИКПУ (17 цифр)", "Код упаковки", "ИНН/ПИНФЛ (9 или 14 цифр)"]);
+function importTaxId(raw: TaxCell): string | null | Error {
+  const v = onlyDigitsInput(String(raw ?? "").trim());
+  if (!v) return null;
+  return TAX_ID_RE.test(v) ? v : new Error(`ИНН/ПИНФЛ «${v}»: ${TAX_ID_ERROR}`);
+}
+function importIkpu(raw: TaxCell): string | null | Error {
+  if (typeof raw === "number") return new Error("ИКПУ записан числом — Excel теряет в нём последние цифры и ноль в начале; задайте столбцу формат «Текстовый» и впишите код заново");
+  const v = onlyDigitsInput(String(raw ?? "").trim());
+  if (!v) return null;
+  return IKPU_RE.test(v) ? v : new Error(`ИКПУ «${v}»: ${IKPU_ERROR}`);
+}
+function importPackageCode(raw: TaxCell): string | null | Error {
+  const v = String(raw ?? "").trim();
+  if (!v) return null;
+  return v.length <= PACKAGE_CODE_MAX ? v : new Error(`Код упаковки длиннее ${PACKAGE_CODE_MAX} знаков`);
+}
+function importVatRate(raw: TaxCell): VatRate | null | Error {
+  const r = parseVatRate(raw);
+  return r === undefined ? new Error(`Ставка НДС «${String(raw).trim()}»: допустимо 12, 0 или «без НДС»`) : r;
+}
+function importYesNo(raw: TaxCell): boolean | null | Error {
+  const v = String(raw ?? "").trim().toLowerCase();
+  if (!v) return null;
+  if (["да", "yes", "ha", "true", "1", "+"].includes(v)) return true;
+  if (["нет", "no", "yo'q", "yoq", "false", "0", "-"].includes(v)) return false;
+  return new Error(`Плательщик НДС «${v}»: напишите «да» или «нет»`);
+}
 
 function mapColumns(headers: string[], mapping: Record<string, string>): Record<string, number> {
   const result: Record<string, number> = {};
@@ -191,8 +244,8 @@ export const importRouter = createRouter({
     .input(z.object({ type: z.enum(["products", "shops"]) }))
     .query(async ({ input }) => {
       const headers = input.type === "products"
-        ? ["Код", "Штрихкод", "Название", "Категория", "Себестоимость (сум)", "Цена продажи (сум)", "Ед. измерения", "Вес (кг)", "Мин. остаток", "Остаток на складе", "Описание", "Фото URL"]
-        : ["Название", "Владелец", "Телефон", "Город", "Район", "Адрес", "Долг", "Широта", "Долгота", "Территория", "Примечания"];
+        ? ["Код", "Штрихкод", "Название", "Категория", "Себестоимость (сум)", "Цена продажи (сум)", "Ед. измерения", "Вес (кг)", "Мин. остаток", "Остаток на складе", "Описание", "Фото URL", ...PRODUCT_TAX_HEADERS]
+        : ["Название", "Владелец", "Телефон", "Город", "Район", "Адрес", "Долг", "Широта", "Долгота", "Территория", "Примечания", ...SHOP_TAX_HEADERS];
 
       const examples = input.type === "products"
         ? [
@@ -278,8 +331,10 @@ export const importRouter = createRouter({
       });
       headerRow.height = 24;
 
+      // Примеры реквизитов не выдумываем: пустые ячейки — «не задано».
+      const taxBlanks = (input.type === "products" ? PRODUCT_TAX_HEADERS : SHOP_TAX_HEADERS).map(() => "");
       examples.forEach((row, idx) => {
-        const dataRow = ws.addRow(row);
+        const dataRow = ws.addRow([...row, ...taxBlanks]);
         const isEven = idx % 2 === 0;
         dataRow.eachCell((cell) => {
           cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: isEven ? "FFF1F5F9" : "FFFFFFFF" } };
@@ -294,6 +349,9 @@ export const importRouter = createRouter({
       });
 
       ws.columns = headers.map((h) => ({ width: Math.max(h.length + 4, 14) }));
+      // ИКПУ и ИНН — текстом: числом Excel режет ноль в начале и цифры после
+      // пятнадцатой, и импорт такую ячейку не примет.
+      headers.forEach((h, i) => { if (TEXT_COLUMNS.has(h)) ws.getColumn(i + 1).numFmt = "@"; });
 
       const buffer = await wb.xlsx.writeBuffer();
       const base64 = Buffer.from(buffer).toString("base64");
@@ -350,6 +408,7 @@ export const importRouter = createRouter({
           category?: string; costPrice: string; unitPrice: string; unit: string;
           unitWeight: string; reorderPoint: string; initialStock: string;
           description?: string; photoUrl?: string;
+          ikpu: string | null; packageCode: string | null; vatRate: VatRate | null;
         }> = [];
 
         // Auto-generate product codes for rows without one
@@ -391,6 +450,12 @@ export const importRouter = createRouter({
           const rawUnit = String(row.unit ?? "pcs").trim().toLowerCase();
           const unit = unitTranslations[rawUnit] ?? (validUnits.includes(rawUnit) ? rawUnit : "pcs");
 
+          const ikpu = importIkpu(row.ikpu);
+          const packageCode = importPackageCode(row.packageCode);
+          const vatRate = importVatRate(row.vatRate);
+          const taxError = [ikpu, packageCode, vatRate].find((v): v is Error => v instanceof Error);
+          if (taxError) { errors.push(`Строка ${rowNum}: ${taxError.message}`); continue; }
+
           parsedRows.push({
             rowNum, name, code,
             barcode: String(row.barcode ?? "").trim() || undefined,
@@ -411,6 +476,7 @@ export const importRouter = createRouter({
               загрузившейся картинкой — насовсем.
             */
             photoUrl: usablePhoto(row.photoUrl, unusablePhotos),
+            ikpu: ikpu as string | null, packageCode: packageCode as string | null, vatRate: vatRate as VatRate | null,
           });
         }
 
@@ -497,6 +563,7 @@ export const importRouter = createRouter({
                     category: existingSpelling(row.category, knownCategories), costPrice: row.costPrice, unitPrice: row.unitPrice,
                     unit: (["kg", "l", "pcs", "box", "pack", "m", "block"].includes(row.unit) ? row.unit : "pcs") as "kg" | "l" | "pcs" | "box" | "pack" | "m" | "block", unitWeight: row.unitWeight,
                     reorderPoint: row.reorderPoint, description: row.description,
+                    ikpu: row.ikpu, packageCode: row.packageCode, vatRate: row.vatRate,
                     photoUrl: photos.get(row.rowNum), status: "active",
                   });
                   const productId = Number(r.insertId);
@@ -545,6 +612,7 @@ export const importRouter = createRouter({
           rowNum: number; name: string; ownerName?: string; phone?: string;
           city?: string; district?: string; address?: string; debt: string;
           gpsLat?: string; gpsLng?: string; territoryId?: number; notes?: string;
+          taxId: string | null; vatPayer: boolean;
         };
         const parsedShops: ParsedShop[] = [];
         const newDistricts = new Set<string>();
@@ -554,6 +622,11 @@ export const importRouter = createRouter({
           const row = parseRow(dataRows[i], mapping);
           const name = String(row.name ?? "").trim();
           if (!name || name.toLowerCase() === "итого" || name.toLowerCase() === "итог") { continue; }
+
+          const taxId = importTaxId(row.taxId);
+          const vatPayer = importYesNo(row.vatPayer);
+          const taxError = [taxId, vatPayer].find((v): v is Error => v instanceof Error);
+          if (taxError) { errors.push(`Строка ${rowNum}: ${taxError.message}`); continue; }
 
           // Resolve territory
           let territoryId: number | undefined;
@@ -581,6 +654,7 @@ export const importRouter = createRouter({
             gpsLng: row.gpsLng ? String(row.gpsLng) : undefined,
             territoryId,
             notes: String(row.notes ?? "").trim() || undefined,
+            taxId: taxId as string | null, vatPayer: vatPayer === true,
           });
         }
 
@@ -615,6 +689,7 @@ export const importRouter = createRouter({
               gpsLat: shop.gpsLat, gpsLng: shop.gpsLng,
               territoryId: tid ?? null,
               notes: shop.notes, status: "active" as const,
+              taxId: shop.taxId, vatPayer: shop.vatPayer,
             };
           });
 
@@ -632,7 +707,7 @@ export const importRouter = createRouter({
                   tenantId, name: shop.name, ownerName: shop.ownerName, phone: shop.phone,
                   city: shop.city, district: shop.district, address: shop.address, debt: shop.debt,
                   gpsLat: shop.gpsLat, gpsLng: shop.gpsLng, territoryId: tid ?? null,
-                  notes: shop.notes, status: "active",
+                  notes: shop.notes, status: "active", taxId: shop.taxId, vatPayer: shop.vatPayer,
                 });
                 success++;
               } catch (e: unknown) {

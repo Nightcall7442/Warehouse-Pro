@@ -49,6 +49,17 @@ export interface OnecNames {
     vatRateValue: string | null;
     /** Процент НДС, заложенный в цену (для СуммаНДС); null — НДС не считаем */
     vatPercent: number | null;
+    /**
+     * Значения перечисления ставок для товаров «НДС 0%» и «Без НДС».
+     *
+     * В типовых пресетах их нет: ни документация под рукой, ни эмулятор не
+     * подтверждают, как они называются в базе клиента, а выдуманное значение
+     * 1С либо отвергнет, либо запишет не ту ставку. Пока null — у такой строки
+     * СтавкаНДС не передаётся (бухгалтер выбирает её в 1С), СуммаНДС = 0.
+     * Задаются в «своей конфигурации», когда имя сверено с базой.
+     */
+    vatRateZeroValue: string | null;
+    vatRateExemptValue: string | null;
   };
   /** Приходный кассовый ордер (оплата покупателя) */
   cashIn: { set: string; fields: { organization: string; counterparty: string; sum: string; date: string; operation: string | null; contract: string | null; comment: string }; operationValue: string | null } | null;
@@ -78,6 +89,8 @@ const BP_UZ: OnecNames = {
     item: { product: "Номенклатура_Key", qty: "Количество", price: "Цена", sum: "Сумма", vatRate: "СтавкаНДС", vatSum: "СуммаНДС", unit: null },
     vatRateValue: "НДС12",
     vatPercent: 12,
+    vatRateZeroValue: null,
+    vatRateExemptValue: null,
   },
   cashIn: {
     set: "Document_ПриходныйКассовыйОрдер",
@@ -108,6 +121,8 @@ const UT: OnecNames = {
     item: { product: "Номенклатура_Key", qty: "Количество", price: "Цена", sum: "Сумма", vatRate: "СтавкаНДС", vatSum: "СуммаНДС", unit: null },
     vatRateValue: "НДС12",
     vatPercent: 12,
+    vatRateZeroValue: null,
+    vatRateExemptValue: null,
   },
   cashIn: {
     set: "Document_ПриходныйКассовыйОрдер",

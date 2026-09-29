@@ -298,7 +298,7 @@ function DesktopShops() {
             // Build rows with consistent columns
             const rows: Record<string, string | number>[] = [];
             for (const [territory, shops] of Array.from(grouped.entries()).sort(([a], [b]) => a.localeCompare(b, "ru"))) {
-              rows.push({ Территория: territory, Название: "", Владелец: "", Телефон: "", Город: "", Район: "", Адрес: "", Агент: "", Долг: "", Статус: "" });
+              rows.push({ Территория: territory, Название: "", Владелец: "", Телефон: "", Город: "", Район: "", Адрес: "", Агент: "", Долг: "", Статус: "", "ИНН/ПИНФЛ": "", "Плательщик НДС": "" });
               for (const shop of shops) {
                 rows.push({
                   Территория: "",
@@ -311,9 +311,12 @@ function DesktopShops() {
                   Агент: shop.agentName ?? "",
                   Долг: Number(shop.debt ?? 0).toFixed(0),
                   Статус: labelled(ACTIVE_STATUS_LABEL, shop.status),
+                  // Реквизиты — теми же названиями, что понимает импорт.
+                  "ИНН/ПИНФЛ": shop.taxId ?? "",
+                  "Плательщик НДС": shop.vatPayer ? "да" : "нет",
                 });
               }
-              rows.push({ Территория: "", Название: "", Владелец: "", Телефон: "", Город: "", Район: "", Адрес: "", Агент: "", Долг: "", Статус: "" });
+              rows.push({ Территория: "", Название: "", Владелец: "", Телефон: "", Город: "", Район: "", Адрес: "", Агент: "", Долг: "", Статус: "", "ИНН/ПИНФЛ": "", "Плательщик НДС": "" });
             }
             await exportToExcel(rows, `shops-all`, "Магазины", `Магазины по территориям`);
           }}

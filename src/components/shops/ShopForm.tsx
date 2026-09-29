@@ -3,8 +3,10 @@ import { notify } from "@/lib/toast";
 import { Store, Camera, Loader2, X, MapPin } from "lucide-react";
 import { PremiumSelect } from "@/components/PremiumSelect";
 import { F, COLORS, SHADOW } from "./constants";
+import { TaxRequisitesFields } from "./TaxRequisitesFields";
+import { isBadTaxId } from "@contracts/tax-requisites";
 
-export interface ShopFormData { name: string; ownerName: string; phone: string; address: string; city: string; district: string; agentId: number | undefined; territoryId: number | undefined; notes: string; photoUrl?: string; telegramLink?: string; gpsLat?: string; gpsLng?: string; }
+export interface ShopFormData { name: string; ownerName: string; phone: string; address: string; city: string; district: string; agentId: number | undefined; territoryId: number | undefined; notes: string; photoUrl?: string; telegramLink?: string; gpsLat?: string; gpsLng?: string; taxId?: string; vatPayer?: boolean; }
 export interface AgentOption { id: number; name: string; }
 export interface TerritoryOption { id: number; name: string; color?: string | null; }
 
@@ -13,6 +15,9 @@ export function ShopForm({ onSave, onCancel, isPending, lang, agents, territorie
 }) {
   const t = (ru: string, uz: string) => lang === "uz" ? uz : ru;
   const [d, setD] = useState({ name: "", ownerName: "", phone: "", address: "", city: "", district: "", agentId: "", territoryId: "", notes: "" });
+  const [taxId, setTaxId] = useState("");
+  const [vatPayer, setVatPayer] = useState(false);
+  const taxError = isBadTaxId(taxId);
   const [telegramLink, setTelegramLink] = useState("");
   const [parsedGps, setParsedGps] = useState<{ lat: number; lng: number } | null>(null);
   const [photo, setPhoto] = useState<string | null>(null);
@@ -141,12 +146,15 @@ export function ShopForm({ onSave, onCancel, isPending, lang, agents, territorie
               options={[{ value: "", label: t("— Территория —", "— Territoriya —") }, ...territories.map((ter: TerritoryOption) => ({ value: String(ter.id), label: ter.name }))]}
               width="100%" />
           )}
+          <div style={{ gridColumn: "span 2" }}>
+            <TaxRequisitesFields lang={lang} taxId={taxId} vatPayer={vatPayer} onTaxId={setTaxId} onVatPayer={setVatPayer} />
+          </div>
           <textarea className="neo-input resize-none" style={{ gridColumn: "span 2" }} rows={2} placeholder={t("Заметки", "Izoh")} value={d.notes} onChange={e => setD({ ...d, notes: e.target.value })} />
         </div>
       </div>
       <div style={{ display: "flex", gap: "12px", marginTop: "20px" }}>
-        <button onClick={() => d.name && onSave({ ...d, agentId: d.agentId ? Number(d.agentId) : undefined, territoryId: d.territoryId ? Number(d.territoryId) : undefined, photoUrl: photo ?? undefined, telegramLink: telegramLink || undefined, gpsLat: parsedGps ? String(parsedGps.lat) : undefined, gpsLng: parsedGps ? String(parsedGps.lng) : undefined } as ShopFormData)}
-          disabled={isPending} className="neo-btn-primary flex-1 sm:flex-none flex items-center justify-center gap-2">
+        <button onClick={() => d.name && !taxError && onSave({ ...d, agentId: d.agentId ? Number(d.agentId) : undefined, territoryId: d.territoryId ? Number(d.territoryId) : undefined, photoUrl: photo ?? undefined, telegramLink: telegramLink || undefined, gpsLat: parsedGps ? String(parsedGps.lat) : undefined, gpsLng: parsedGps ? String(parsedGps.lng) : undefined, taxId: taxId.trim() || undefined, vatPayer: vatPayer || undefined } as ShopFormData)}
+          disabled={isPending || Boolean(taxError)} className="neo-btn-primary flex-1 sm:flex-none flex items-center justify-center gap-2">
           {isPending && <Loader2 size={14} className="animate-spin" />}{t("Сохранить", "Saqlash")}
         </button>
         <button onClick={onCancel} className="neo-btn flex-1 sm:flex-none">{t("Отмена", "Bekor qilish")}</button>

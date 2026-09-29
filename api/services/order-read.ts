@@ -228,10 +228,12 @@ export async function getById(db: Db, tenantId: number, orderId: number, viewer:
       deliveredQuantity: orderItems.deliveredQuantity,
       returnReason: orderItems.returnReason,
       productName: products.name, productCode: products.code, unit: products.unit,
+      // Ставка НДС товара — для «в т.ч. НДС» в накладной (contracts/tax-requisites.ts).
+      vatRate: products.vatRate,
     }).from(orderItems)
       .innerJoin(products, and(eq(orderItems.productId, products.id), eq(products.tenantId, tenantId)))
       .where(eq(orderItems.orderId, orderId)),
-    db.select({ id: shops.id, name: shops.name, address: shops.address, city: shops.city, phone: shops.phone, debt: shops.debt, ownerName: shops.ownerName, territoryName: territories.name })
+    db.select({ id: shops.id, name: shops.name, address: shops.address, city: shops.city, phone: shops.phone, debt: shops.debt, ownerName: shops.ownerName, territoryName: territories.name, taxId: shops.taxId })
       .from(shops)
       .leftJoin(territories, eq(shops.territoryId, territories.id))
       .where(and(eq(shops.id, order.shopId), eq(shops.tenantId, tenantId))).limit(1),
@@ -291,6 +293,8 @@ export async function batchGetOrdersForPrint(db: Db, tenantId: number, orderIds:
     invoicePrintedAt: orders.invoicePrintedAt,
     shopName: shops.name, shopAddress: shops.address, shopCity: shops.city,
     shopPhone: shops.phone, shopDebt: shops.debt,
+    // ИНН/ПИНФЛ покупателя — в реквизиты накладной, если указан.
+    shopTaxId: shops.taxId,
     agentName: users.name,
     // Телефон агента печатается на «Компактной» накладной (образец владельца).
     agentPhone: users.phone,
@@ -315,6 +319,7 @@ export async function batchGetOrdersForPrint(db: Db, tenantId: number, orderIds:
     productName: products.name,
     productCode: products.code,
     unit: products.unit,
+    vatRate: products.vatRate,
   }).from(orderItems)
     .innerJoin(products, and(eq(orderItems.productId, products.id), eq(products.tenantId, tenantId)))
     .where(inArray(orderItems.orderId, orderIds));

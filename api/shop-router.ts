@@ -23,6 +23,7 @@ import { collectDebtJournal, paginateDebtJournal } from "./services/debt-journal
 import { reportCached, ReportTTL } from "./lib/report-cache";
 import { dayKey } from "./lib/period";
 import { recordAudit, auditActor, changedFields } from "./services/audit-log";
+import { taxIdInput, vatPayerInput } from "./lib/tax-requisites-input";
 
 /**
  * Проверить, что чужие идентификаторы в запросе принадлежат этой организации.
@@ -234,6 +235,8 @@ export const shopRouter = createRouter({
           status:    shops.status,
           archivedAt:    shops.archivedAt,
           archiveReason: shops.archiveReason,
+          taxId:     shops.taxId,
+          vatPayer:  shops.vatPayer,
           createdAt: shops.createdAt,
           agentName: users.name,
         })
@@ -303,6 +306,7 @@ export const shopRouter = createRouter({
         photoUrl: photoRef("shop", shops.id, shops.photoUrl, shops.updatedAt), gpsLat: shops.gpsLat, gpsLng: shops.gpsLng,
         debt: shops.debt, status: shops.status, agentId: shops.agentId,
         notes: shops.notes, createdAt: shops.createdAt,
+        taxId: shops.taxId, vatPayer: shops.vatPayer,
       }).from(shops)
         .where(and(eq(shops.id, input.id), eq(shops.tenantId, tenantId)))
         .limit(1);
@@ -336,6 +340,9 @@ export const shopRouter = createRouter({
       agentId:  z.number().optional(),
       territoryId: z.number().optional(),
       notes:    z.string().optional(),
+      // ИНН (9 цифр) или ПИНФЛ (14) и признак плательщика НДС — для ЭСФ и 1С.
+      taxId:    taxIdInput,
+      vatPayer: vatPayerInput,
     }))
     .mutation(async ({ input, ctx }) => {
       const db = getDb();
@@ -410,6 +417,9 @@ export const shopRouter = createRouter({
       status:   z.enum(["active", "inactive"]).optional(),
       // Пусто или null — снять лимит. Строкой, как все деньги в API.
       creditLimit: z.preprocess(v => (v === "" ? null : v), z.string().regex(/^\d+(\.\d{1,2})?$/, "Лимит — неотрицательное число").nullable().optional()),
+      // Пусто — стереть. Формат — contracts/tax-requisites.ts.
+      taxId:    taxIdInput,
+      vatPayer: vatPayerInput,
     }))
     .mutation(async ({ input, ctx }) => {
       const { id, ...data } = input;

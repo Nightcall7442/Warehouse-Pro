@@ -235,6 +235,17 @@ export const shops = mysqlTable("shops", {
   archivedAt:    timestamp("archived_at"),
   archivedBy:    bigint("archived_by", { mode: "number", unsigned: true }).references(() => users.id, { onDelete: "set null" }),
   archiveReason: varchar("archive_reason", { length: 200 }),
+  /*
+    Налоговые реквизиты точки: ИНН (9 цифр, юрлицо) или ПИНФЛ (14 цифр,
+    физлицо и ИП) — одно поле, у точки бывает одно из двух; и признак
+    плательщика НДС.
+
+    Без них 1С получала контрагента без ИНН и сопоставляла его по названию, а
+    ЭСФ без ручной правки было не выписать. Пусто — не указан (так у всех
+    точек до этой правки); формат проверяет contracts/tax-requisites.ts.
+  */
+  taxId:     varchar("tax_id", { length: 14 }),
+  vatPayer:  boolean("vat_payer").default(false).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull().$onUpdate(() => new Date()),
 }, (t) => ({
@@ -272,6 +283,16 @@ export const products = mysqlTable("products", {
   */
   packSize:     decimal("pack_size", { precision: 10, scale: 2 }),
   packLabel:    varchar("pack_label", { length: 30 }),
+  /*
+    Для ЭСФ и фискализации: ИКПУ (код МХИК, 17 цифр), код упаковки из того
+    же каталога и ставка НДС. Ставка — перечисление, а не число: «0 %» и «без
+    НДС» для налоговой разные вещи, хотя налога в цене нет ни там, ни там.
+    Пусто — не задано (так у всех товаров до этой правки), и документы
+    печатаются как раньше.
+  */
+  ikpu:         varchar("ikpu", { length: 17 }),
+  packageCode:  varchar("package_code", { length: 30 }),
+  vatRate:      mysqlEnum("vat_rate", ["vat12", "vat0", "exempt"]),
   description:  text("description"),
   photoUrl:     mediumtext("photo_url"),
   reorderPoint: decimal("reorder_point", { precision: 10, scale: 2 }).default("0.00").notNull(),
