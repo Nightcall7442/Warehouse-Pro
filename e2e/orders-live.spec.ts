@@ -30,9 +30,23 @@ type Shop = { id: number };
 test("заказ из другой вкладки появляется в «Заказах» без перезагрузки; поток один", async ({ browser }) => {
   const office = await browser.newContext();
   const operator = await office.newPage();
-  // Считаем потоки событий, которые открывает вкладка.
-  let streams = 0;
-  operator.on("request", r => { if (new URL(r.url()).pathname === "/api/events") streams++; });
+  /*
+    Считаем открытые потоки ВНУТРИ страницы, а не запросы в сети.
+
+    Запросы /api/events считались за всю жизнь вкладки: вход кончается
+    переходом на «/», там поток уже открыт, а goto("/orders") открывает
+    второй — в новом документе. Успеет ли первый открыться до перехода,
+    решает скорость сборки: локально на vite dev не успевал, в CI на готовой
+    сборке — успевал бы, и проверка падала на правильном коде.
+  */
+  await operator.addInitScript(() => {
+    const Native = window.EventSource;
+    const all: EventSource[] = [];
+    (window as unknown as { __streams: EventSource[] }).__streams = all;
+    window.EventSource = class extends Native {
+      constructor(url: string | URL, init?: EventSourceInit) { super(url, init); all.push(this); }
+    };
+  });
 
   await login(operator, "operator");
   await operator.goto("/orders");
@@ -53,7 +67,9 @@ test("заказ из другой вкладки появляется в «За
 
   // Ни перезагрузки, ни щелчка: строка приходит сама.
   await expect(operator.getByText(created.orderNumber, { exact: true })).toBeVisible({ timeout: 15_000 });
-  expect(streams, "вкладка открыла больше одного потока /api/events").toBe(1);
+  const streams = await operator.evaluate(() => (window as unknown as { __streams: EventSource[] }).__streams
+    .filter(s => new URL(s.url).pathname === "/api/events" && s.readyState !== EventSource.CLOSED).length);
+  expect(streams, "у вкладки не один открытый поток /api/events").toBe(1);
 
   await field.close();
   await office.close();

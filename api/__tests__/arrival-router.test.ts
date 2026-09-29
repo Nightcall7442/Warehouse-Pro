@@ -1211,3 +1211,40 @@ describe("правка прихода: проведённый и чужая ве
     expect(arrivalsTable.find(a => a.id === 1)!.updatedAt).toBe(moved);
   });
 });
+
+/*
+  Проведение прихода: событие экранам — после сброса отчётов.
+
+  ── Что было ────────────────────────────────────────────────────────────────
+
+  arrival.completed уходил ДО invalidateReports. Пока событие ехало внутри
+  notification.new, экраны склада на него не реагировали, и порядок был не
+  важен. Теперь экраны по нему перечитывают остаток — и тот, кто успел
+  перечитать до сброса, получал из кэша отчётов прежние числа (порядок
+  order.changed в lib/report-cache.ts ровно обратный).
+
+  ── Что проверяется ─────────────────────────────────────────────────────────
+
+  В момент события кэш отчётов организации уже сброшен: чтение по событию
+  получает новое, а не сохранённое до проведения.
+*/
+describe("проведение прихода: событие после сброса отчётов", () => {
+  it("перечитавший по arrival.completed видит новое, а не кэш до проведения", async () => {
+    const { sseBus } = await import("../lib/sse");
+    const { reportCached } = await import("../lib/report-cache");
+    const { arrivalRouter } = await import("../arrival-router");
+    expect(await reportCached(1, "warehouse.probe", {}, 60_000, async () => "до проведения")).toBe("до проведения");
+
+    let reread: Promise<string> | null = null;
+    vi.mocked(sseBus.emit).mockImplementation((e) => {
+      if (e.type === "arrival.completed") reread = reportCached(1, "warehouse.probe", {}, 60_000, async () => "после проведения");
+    });
+    try {
+      await arrivalRouter.createCaller(makeCtx(1, 10)).update({ id: 1, status: "completed" });
+    } finally {
+      vi.mocked(sseBus.emit).mockImplementation(() => {});
+    }
+    expect(reread, "события arrival.completed не было").not.toBeNull();
+    expect(await reread!).toBe("после проведения");
+  });
+});
