@@ -48,8 +48,16 @@ vi.mock("../../lib/telegram", async (orig) => ({
 
 const DAY = 86_400_000;
 const HOUR = 3_600_000;
-const ago = (ms: number) => new Date(Date.now() - ms);
-const ahead = (ms: number) => new Date(Date.now() + ms);
+/*
+  Время — в целых секундах, с отступом в прошлое. Столбцы хранятся без долей
+  секунды, и MySQL долю ОКРУГЛЯЕТ вверх: «8 дней назад» в 12:00:00.6 ложилось
+  как 12:00:01 — на 0,4 с меньше восьми суток, и в части прогонов панель
+  честно показывала «молчит 7 дней» (CI #141, 29.09.2026). То же с «через
+  N дней» у продления: ceil давал N+1.
+*/
+const wholeSec = (t: number) => new Date(Math.floor(t / 1000) * 1000);
+const ago = (ms: number) => wholeSec(Date.now() - ms);
+const ahead = (ms: number) => wholeSec(Date.now() + ms);
 
 describe.skipIf(!hasRealDb)("панель владельца на настоящей базе", () => {
   let db: ServiceDb;
