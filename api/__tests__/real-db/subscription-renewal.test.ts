@@ -139,7 +139,10 @@ describe.skipIf(!hasRealDb)("продление оплаченного срок�
       expect(after.plan).toBe("basic");
       expect(after.trialActive).toBeFalsy();
       expect(after.planActive).toBeTruthy();
-      expect(after.daysLeft).toBe(30);
+      // Ровно 30 суток от «сейчас»: TIMESTAMP в MySQL округляет доли секунды
+      // вверх, и ceil на быстрой машине даёт 31 (так упал CI). Важно, что это
+      // месяц оплаты, а не 4 дня пробного.
+      expect([30, 31]).toContain(after.daysLeft);
     });
   });
 
