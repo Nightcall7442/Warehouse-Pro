@@ -43,8 +43,11 @@ export const billingRouter = createRouter({
     const trialEnds = tenant.trialEndsAt;
     const planEnds  = tenant.planExpiresAt;
 
-    const trialActive  = trialEnds && trialEnds > now;
     const planActive   = planEnds  && planEnds  > now;
+    // Оплаченный срок главнее остатка пробного: trial_ends_at после перехода
+    // на платный остаётся, и перешедший досрочно видел «Пробный период,
+    // осталось 4 дн.» вместо оплаченного месяца — как будто оплата не прошла.
+    const trialActive  = !planActive && trialEnds && trialEnds > now;
     const isExpired    = !trialActive && !planActive;
 
     // Current usage

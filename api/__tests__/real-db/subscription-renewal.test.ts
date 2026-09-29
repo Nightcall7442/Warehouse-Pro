@@ -112,6 +112,37 @@ describe.skipIf(!hasRealDb)("продление оплаченного срок�
     });
   });
 
+  /*
+    Что было: billing.status первым делом смотрел tenants.trial_ends_at, а он
+    после включения тарифа остаётся. Перешедший с пробного досрочно видел на
+    /billing «Пробный период, осталось 4 дн.» и дату конца пробного — вместо
+    только что оплаченного месяца.
+    Что проверяется: после updatePlan экран подписки показывает оплаченный
+    срок; у пробного без оплаты — по-прежнему пробный.
+    Нарочная поломка: trialActive снова без `!planActive`.
+  */
+  describe("экран подписки после перехода с пробного", () => {
+    it("оплаченный месяц, а не остаток пробного", async () => {
+      const trialEnds = new Date(Date.now() + 4 * DAY - HOUR);
+      await d().update(schema.tenants).set({ plan: "trial", trialEndsAt: trialEnds, planExpiresAt: null })
+        .where(eq(schema.tenants.id, s.tenantId));
+      await sub(s.tenantId, { plan: "trial", status: "trialing", trialEndsAt: trialEnds, currentPeriodEnds: trialEnds });
+      const { billingRouter } = await import("../../billing-router");
+      const status = () => billingRouter.createCaller(ctxFor(db, s.tenantId, 1, "ceo")).status();
+
+      const before = await status();
+      expect(before.trialActive).toBeTruthy();
+      expect(before.daysLeft).toBe(4);
+
+      await updatePlan(s.tenantId);
+      const after = await status();
+      expect(after.plan).toBe("basic");
+      expect(after.trialActive).toBeFalsy();
+      expect(after.planActive).toBeTruthy();
+      expect(after.daysLeft).toBe(30);
+    });
+  });
+
   describe("письма о конце срока", () => {
     const run = async (now = new Date()) => (await import("../../cron/trial-reminders")).runTrialReminders(now);
 

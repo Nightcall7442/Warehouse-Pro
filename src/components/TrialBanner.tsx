@@ -28,11 +28,13 @@ export function TrialBanner() {
     Раньше «active» значило «молчать» всегда: у платящей организации полоса
     не появлялась ни за неделю, ни в последний день, и о конце срока она
     узнавала по запертому входу. Stripe продлевает списанием сам — там
-    по-прежнему тихо.
+    по-прежнему тихо. Оплаченный без даты конца — бессрочный (калитка
+    lib/feature-gating.ts его пускает): ему тоже тихо, а не «Подписка
+    неактивна» красным без крестика.
   */
   const days      = sub.daysLeft ?? 0;
   const paid      = sub.status === "active" && !sub.stripeSubscriptionId;
-  if (sub.status === "active" && !paid) return null;
+  if (sub.status === "active" && (!paid || sub.daysLeft === null)) return null;
   if (sub.isTrialing && days > TRIAL_WARN_DAYS) return null;
   if (paid && days > PAID_WARN_DAYS) return null;
 
