@@ -6,20 +6,21 @@ import { Eye, EyeOff, Loader2, CheckCircle2, MailCheck } from "lucide-react";
 import { useLang, useTranslate } from "@/i18n";
 import {
   UZ_PHONE_PREFIX, PHONE_ERROR, SIGNUP_ANSWERS, SIGNUP_ANSWER_LABEL, maskUzPhoneNational, normalizeUzPhone,
-  type SignupAnswer,
+  cleanSignupTag, type SignupAnswer,
 } from "@contracts/signup";
 
 /**
  * Метки из адреса страницы: /register?utm_source=ig_sept&ref=bekzod.
  *
  * Читаются один раз при открытии — человек может успеть перейти по вкладкам,
- * а источник всё равно тот, по которому он пришёл. Чистит их сервер
- * (contracts/signup.ts), здесь — только прочесть.
+ * а источник всё равно тот, по которому он пришёл. Чистятся здесь же тем же
+ * правилом, что у сервера (cleanSignupTag): у сервера потолок длины, и сырая
+ * длинная метка из рекламной ссылки иначе дошла бы до него как есть.
  */
 function tagsFromAddress(): { utmSource?: string; ref?: string } {
   try {
     const q = new URLSearchParams(window.location.search);
-    return { utmSource: q.get("utm_source") || undefined, ref: q.get("ref") || undefined };
+    return { utmSource: cleanSignupTag(q.get("utm_source")) ?? undefined, ref: cleanSignupTag(q.get("ref")) ?? undefined };
   } catch {
     return {};
   }

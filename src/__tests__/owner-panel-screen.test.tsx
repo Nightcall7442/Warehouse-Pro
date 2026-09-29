@@ -142,6 +142,8 @@ describe("по-узбекски", () => {
     expect(root.textContent).toContain("7 kun jim");
     expect(root.textContent).toContain("Tanishlar, tavsiya");
     expect(root.textContent).toContain("so'm");
+    // «9 из 12» по-узбекски — «12 tadan»; «12 dan» читалось бы «от 12».
+    expect(root.textContent).toContain("12 tadan");
     expect(root.textContent).not.toContain("Платят сейчас");
   });
 });

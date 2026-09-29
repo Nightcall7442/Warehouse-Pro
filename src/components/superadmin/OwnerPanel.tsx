@@ -56,7 +56,7 @@ export function OwnerPanel() {
         <p className="text-xs" style={{ color: COLORS.textSecondary, margin: "4px 0 0" }}>
           {tr(
             "Без системной организации и песочниц интеграторов. Обновляется раз в минуту.",
-            "Tizim tashkiloti va integrator qumdonlarisiz. Har daqiqada yangilanadi.",
+            "Tizim tashkiloti va integratorlarning sinov muhitlarisiz. Har daqiqada yangilanadi.",
           )}
         </p>
       </div>
@@ -73,7 +73,7 @@ export function OwnerPanel() {
             <KpiCard label={tr("MRR по цене тарифа", "Tarif narxida MRR")} value={money(data?.paying.mrr ?? 0)} suffix={sum}
               icon={TrendingUp} gradient="var(--color-primary)" loading={isLoading} />
             <KpiCard label={tr("Активны за 7 дней", "7 kunda faol")} value={data?.activeLast7 ?? 0}
-              suffix={data ? tr(`из ${data.clients}`, `${data.clients} dan`) : undefined}
+              suffix={data ? tr(`из ${data.clients}`, `${data.clients} tadan`) : undefined}
               icon={Activity} gradient="var(--color-info)" loading={isLoading} />
             <KpiCard label={tr("Молчат 5+ дней", "5+ kun jim")} value={data?.silent.length ?? 0}
               icon={PhoneOff} gradient="var(--color-warning)" loading={isLoading} />

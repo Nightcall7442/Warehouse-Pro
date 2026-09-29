@@ -24,6 +24,8 @@ import { hasRealDb, connectRealDb, closeRealDb, truncateAll, countOf, type Servi
  *     +998XXXXXXXXX, почта — в owner_email, ответ и метки — в signup_source;
  *   · без телефона и с неверным номером — отказ с понятным текстом, и
  *     организации в базе нет;
+ *   · метка длиннее потолка — не отказ всей форме: метка отброшена, ответ
+ *     «откуда узнали» и организация на месте;
  *   · сообщение владельцу уходит сразу, с телефоном ссылкой tel:, почтой и
  *     источником; Telegram отверг ссылку — уходит второе, номером текстом;
  *     Telegram лежит — регистрация всё равно принята;
@@ -38,7 +40,9 @@ import { hasRealDb, connectRealDb, closeRealDb, truncateAll, countOf, type Servi
  * телефон без проверки и приведения — падают все десять; убрать строку
  * телефона из шаблона — «сообщение владельцу» и «Telegram отверг»; убрать
  * повтор без ссылки в announceRegistration — «Telegram отверг» и «Telegram
- * лежит»; пустить ноль после кода (/^\d{9}$/) — «ноль после кода».
+ * лежит»; пустить ноль после кода (/^\d{9}$/) — «ноль после кода»; снять
+ * `.catch(undefined)` у ref — «метка длиннее потолка» (отказ «ref слишком
+ * длинное» вместо регистрации).
  */
 let current: ServiceDb;
 vi.mock("../../queries/connection", () => ({ getDb: () => current, getPool: () => null }));
@@ -129,6 +133,18 @@ describe.skipIf(!hasRealDb)("телефон при регистрации на �
     const t2 = await tenantRow("Сок-2");
     expect(t2?.ownerPhone).toBe("+998907654321");
     expect(t2?.signupSource).toBeNull();
+  });
+
+  it("метка длиннее потолка — регистрация проходит, метка отброшена, ответ записан", async () => {
+    // «Откуда узнали» необязателен: кривая метка из рекламной ссылки не должна
+    // стоить регистрации. Раньше потолок в 200 знаков отвергал всю форму.
+    const r = await trpcPost("tenant.register", form({
+      source: { answer: "search", utmSource: "ya_direct", ref: "r".repeat(300) },
+    }));
+    expect(r.status, JSON.stringify(r.body)).toBe(200);
+    const t = await tenantRow("Ферганский сок");
+    expect(t?.ownerPhone).toBe("+998901234567");
+    expect(t?.signupSource).toBe("answer=search; utm_source=ya_direct");
   });
 
   it.each([

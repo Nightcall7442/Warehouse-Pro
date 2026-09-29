@@ -62,7 +62,7 @@ describe.skipIf(!hasRealDb)("подтверждение почты на наст
     expect(mail.verify[0].to).toBe("dilnoza@sok.uz");
     const token = new URL(mail.verify[0].url).searchParams.get("token")!;
 
-    const closed = await login({ email: "dilnoza@sok.uz", password: "пароль-восемь", phone: "+998 90 123 45 67" });
+    const closed = await login({ email: "dilnoza@sok.uz", password: "пароль-восемь" });
     expect(closed.status).toBe(403);
     expect(closed.body.code).toBe("EMAIL_UNVERIFIED");
     expect(closed.cookie).not.toContain(Session.cookieName);
@@ -71,7 +71,7 @@ describe.skipIf(!hasRealDb)("подтверждение почты на наст
     const [v1] = await db.select({ v: schema.users.emailVerifiedAt }).from(schema.users).where(eq(schema.users.id, u.id));
     expect(v1.v).toBeInstanceOf(Date);
 
-    const open = await login({ email: "dilnoza@sok.uz", password: "пароль-восемь", phone: "+998 90 123 45 67" });
+    const open = await login({ email: "dilnoza@sok.uz", password: "пароль-восемь" });
     expect(open.status).toBe(200);
     expect(open.cookie).toContain(Session.cookieName);
 

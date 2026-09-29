@@ -156,11 +156,15 @@ export const tenantRouter = createRouter({
         «Откуда узнали» и метки из адреса страницы. Всё необязательно: не
         ответил — регистрация та же. Метки чистятся при записи
         (composeSignupSource), здесь — только потолок длины.
+
+        Не прошло потолок — поле отбрасывается (`catch`), а не отказ всей
+        форме: метку из рекламной ссылки человек не видел и исправить не
+        может, и «ref слишком длинное» стоило бы нам регистрации.
       */
       source: z.object({
-        answer:    z.enum(SIGNUP_ANSWERS).optional(),
-        utmSource: z.string().max(200).optional(),
-        ref:       z.string().max(200).optional(),
+        answer:    z.enum(SIGNUP_ANSWERS).optional().catch(undefined),
+        utmSource: z.string().max(200).optional().catch(undefined),
+        ref:       z.string().max(200).optional().catch(undefined),
       }).optional(),
     }))
     .mutation(async ({ input, ctx }) => {
