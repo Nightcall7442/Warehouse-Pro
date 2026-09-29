@@ -66,7 +66,22 @@ export const arrivalRouter = createRouter({
       if (input?.status) conditions.push(eq(arrivals.status, input.status));
       const where = and(...conditions);
 
-      const [data, countResult] = await Promise.all([
+      /*
+        Плитки над списком — по всем приходам под теми же условиями, а не по
+        странице.
+
+        «Всего приходов», «Расходы», «Завершены» и «Долг поставщикам»
+        складывались на клиенте из 25 строк текущей страницы: долг выходил
+        заниженным и менялся от листания, а директор читал его как весь долг
+        поставщикам. Долг — по валютам поставки, как в «Контрагентах»
+        (supplier.stats): сумы с долларами в одно число не складываются.
+      */
+      // Имя внешней таблицы в подзапросе — литералом: см. paidSubquery в supplier-router.
+      const debtIn = (currency: "UZS" | "USD") => sql<string>`COALESCE(SUM((
+        SELECT SUM(s.amount - COALESCE((SELECT SUM(p.amount) FROM supplier_payments p WHERE p.supply_id = s.id), 0))
+        FROM supplies s WHERE s.arrival_id = \`arrivals\`.\`id\` AND s.currency = ${currency}
+      )), 0)`;
+      const [data, [totals]] = await Promise.all([
         db.select({
           id: arrivals.id, arrivalNumber: arrivals.arrivalNumber, truckId: arrivals.truckId,
           driverName: arrivals.driverName, status: arrivals.status,
@@ -75,8 +90,15 @@ export const arrivalRouter = createRouter({
           arrivalTime: arrivals.arrivalTime, createdAt: arrivals.createdAt,
           ...arrivalSupplyColumns,
         }).from(arrivals).where(where).limit(pageSize).offset(offset).orderBy(desc(arrivals.createdAt)),
-        db.select({ count: sql<number>`count(*)` }).from(arrivals).where(where),
+        db.select({
+          count:     sql<number>`count(*)`,
+          expenses:  sql<string>`COALESCE(SUM(${arrivals.totalExpense}), 0)`,
+          completed: sql<number>`COALESCE(SUM(CASE WHEN ${arrivals.status} = 'completed' THEN 1 ELSE 0 END), 0)`,
+          debtUzs:   debtIn("UZS"),
+          debtUsd:   debtIn("USD"),
+        }).from(arrivals).where(where),
       ]);
+      const money = (v: unknown) => Math.round(Number(v ?? 0) * 100) / 100;
 
       // Приход без поставщика — обычное дело, и подзапросы вернут по нему
       // NULL. Здесь это превращается в null и 0, чтобы клиенту не приходилось
@@ -93,7 +115,17 @@ export const arrivalRouter = createRouter({
         };
       });
 
-      return { data: withMoney, total: Number(countResult[0]?.count ?? 0), page, pageSize };
+      const total = Number(totals?.count ?? 0);
+      return {
+        data: withMoney, total, page, pageSize,
+        summary: {
+          total,
+          expenses:  money(totals?.expenses),
+          completed: Number(totals?.completed ?? 0),
+          debtUzs:   money(totals?.debtUzs),
+          debtUsd:   money(totals?.debtUsd),
+        },
+      };
     }),
 
   getById: operatorQuery
