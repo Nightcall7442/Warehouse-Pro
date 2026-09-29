@@ -1,3 +1,4 @@
+import { inBackground } from "../lib/graceful-shutdown";
 import { Hono } from "hono";
 import { and, eq, ne } from "drizzle-orm";
 import { getDb } from "../queries/connection";
@@ -271,7 +272,7 @@ telegramBot.post("/api/webhooks/telegram", async (c) => {
       const chatId = String(cb.message?.chat?.id ?? "");
       const data = cb.data ?? "";
       // Погасить «часики» на кнопке сразу, ответ придёт отдельным сообщением.
-      void answerCallback(cb.id);
+      inBackground(answerCallback(cb.id));
       if (!chatId) return c.json({ ok: true });
       if (data.startsWith("lang:")) {
         const lang: Lang = data.endsWith("uz") ? "uz" : "ru";

@@ -73,9 +73,14 @@ ENV NODE_ENV=production
 EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
   CMD wget -qO- http://localhost:3000/health || exit 1
+# dumb-init — первым процессом: передаёт SIGTERM приложению и подбирает
+# осиротевшие процессы. Команда запуска Railway (startCommand) ЗАМЕНЯЕТ
+# ENTRYPOINT, а не CMD, — с ней node сам становится первым процессом, и сигнал
+# остановки, пришедший до установки обработчика (ожидание базы, миграции),
+# игнорируется до SIGKILL. Поэтому в railway.json и в панели её нет.
 ENTRYPOINT ["dumb-init", "--"]
 # Migrations run inside boot.js (see api/boot.ts). Keeping them out of the
-# start command means a platform-level startCommand override — railway.json
-# sets one — can no longer drop them silently, which is how production ended
-# up several migrations behind its code.
+# start command means a platform-level startCommand override can no longer
+# drop them silently, which is how production ended up several migrations
+# behind its code.
 CMD ["node", "dist/boot.js"]

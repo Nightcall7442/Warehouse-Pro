@@ -87,6 +87,13 @@ export const env = {
   /** max_execution_time для SELECT, мс; 0 — без предела. */
   dbStatementTimeoutMs: parseInt(optional("DB_STATEMENT_TIMEOUT_MS", "30000"), 10),
 
+  /**
+   * Сколько ждать незаконченные запросы при остановке, мс. Вместе с четвертью
+   * на закрытие — меньше railway.json → deploy.drainingSeconds (30 с): после
+   * него платформа снимает процесс силой. См. lib/graceful-shutdown.ts.
+   */
+  shutdownTimeoutMs:    parseInt(optional("SHUTDOWN_TIMEOUT_MS", "20000"), 10),
+
   // Rate limiting
   rateLimitGlobalMax:   parseInt(optional("RATE_LIMIT_GLOBAL_MAX", "120"), 10),
   /**

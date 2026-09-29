@@ -1,3 +1,4 @@
+import { inBackground } from "../lib/graceful-shutdown";
 import type { Env, Hono } from "hono";
 import type Stripe from "stripe";
 import { randomUUID } from "crypto";
@@ -139,13 +140,13 @@ export function registerStripeWebhook<E extends Env>(app: Hono<E>) {
               .where(eq(tenants.id, tenantId)).limit(1);
             admin.note = tgMessages.paymentFailed;
             if (tenant?.ownerEmail) {
-            sendEmail({
+            inBackground(sendEmail({
               to: tenant.ownerEmail,
               subject: `Ошибка оплаты — ${tenant.name}`,
               html: `<p>Не удалось списать оплату. <a href="${env.appUrl}/settings/billing">Обновить платёжные данные</a></p>`,
             }).catch((err) => {
               logger.error("stripe webhook failed to send email", { eventId: event.id, eventType: event.type, error: err instanceof Error ? err.message : String(err) });
-            });
+            }));
             }
             break;
           }
@@ -168,9 +169,9 @@ export function registerStripeWebhook<E extends Env>(app: Hono<E>) {
       if (tenantId && admin.note) {
         const note = admin.note;
         const id = tenantId;
-        void db.select({ name: tenants.name }).from(tenants).where(eq(tenants.id, id)).limit(1)
+        inBackground(db.select({ name: tenants.name }).from(tenants).where(eq(tenants.id, id)).limit(1)
           .then(([t]) => notifyAdmin(note(t?.name ?? `#${id}`)))
-          .catch(err => logger.warn("stripe: admin telegram skipped", { error: err instanceof Error ? err.message : String(err) }));
+          .catch(err => logger.warn("stripe: admin telegram skipped", { error: err instanceof Error ? err.message : String(err) })));
       }
     } catch (err) {
       logger.error("stripe webhook handler error", { error: err instanceof Error ? err.message : String(err) });

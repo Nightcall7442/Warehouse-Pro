@@ -1,3 +1,4 @@
+import { inBackground } from "../lib/graceful-shutdown";
 import { eq, and, sql } from "drizzle-orm";
 import { expiredByProduct, reserveStock } from "./stock-ledger";
 import { orders, orderItems, warehouseStock, shops, users, products, priceLists } from "@db/schema";
@@ -281,11 +282,11 @@ export async function create(db: Db, tenantId: number, agentId: number, input: {
     в базе. Теперь ответ уходит сразу; уведомления доходят своим чередом,
     отказ — в журнал. Telegram вне рабочих часов и так ложится в outbox.
   */
-  void notifyAboutNewOrder(db, {
+  inBackground(notifyAboutNewOrder(db, {
     tenantId, orderId, orderNumber, orderTotal, shopId: input.shopId, agentId,
     items: input.items.length, paymentMethod: input.paymentMethod ?? "cash",
     discountPct: discountPercent, holdReason: input.holdReason ?? null,
-  });
+  }));
 
   // total возвращается наружу, чтобы клиент мог сверить его с суммой,
   // которую агент назвал владельцу магазина.

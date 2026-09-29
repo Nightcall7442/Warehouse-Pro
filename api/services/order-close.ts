@@ -1,3 +1,4 @@
+import { inBackground } from "../lib/graceful-shutdown";
 import { and, eq, isNull, isNotNull, inArray, asc, gte, lt, sql } from "drizzle-orm";
 import { orders, payments, users, shops } from "@db/schema";
 import { badRequest } from "../lib/errors";
@@ -246,10 +247,10 @@ export const OrderCloseService = {
     await invalidateReports(tenantId, "order.close");
 
     if (result.shortage > 0) {
-      void notifyTenantRole(tenantId, "ceo",
+      inBackground(notifyTenantRole(tenantId, "ceo",
         `⚠️ <b>Недостача ${tgEscape(fmtMoney(result.shortage))}</b>\nЗаказ ${tgEscape(info.number)} · ${tgEscape(info.shopName)}\n` +
         `Заявлено ${tgEscape(fmtMoney(result.claimed))}, сдано ${tgEscape(fmtMoney(input.cashReceived))}${info.courierName ? ` · ${tgEscape(info.courierName)}` : ""}\nПринял: ${tgEscape(actor.name)}`,
-      ).catch(() => { /* уведомление — не проводка */ });
+      ).catch(() => { /* уведомление — не проводка */ }));
     }
     return { ...result, closedAt: now };
   },

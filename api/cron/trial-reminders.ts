@@ -1,3 +1,4 @@
+import { inBackground } from "../lib/graceful-shutdown";
 import { randomUUID } from "crypto";
 import { and, eq, gte, isNull, lte } from "drizzle-orm";
 import { getDb } from "../queries/connection";
@@ -126,7 +127,7 @@ export async function runTrialReminders(now = new Date()): Promise<{ sent: numbe
       .filter(t => t.ends && t.ends >= now)
       .map(t => ({ org: t.org, days: Math.ceil((t.ends!.getTime() - now.getTime()) / 86_400_000) }));
     const expired = trials.filter(t => t.ends && t.ends < now).map(t => t.org);
-    void notifyAdmin(tgMessages.trials(ending, expired));
+    inBackground(notifyAdmin(tgMessages.trials(ending, expired)));
   }
 
   logger.info("Trial reminders cron", { sent, errors: errors.length });

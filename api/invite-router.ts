@@ -1,3 +1,4 @@
+import { inBackground } from "./lib/graceful-shutdown";
 import { z } from "zod";
 import { randomBytes } from "crypto";
 import { and, eq, gt, isNull } from "drizzle-orm";
@@ -53,13 +54,13 @@ export const inviteRouter = createRouter({
       const acceptUrl = `${env.appUrl}/invite/${token}`;
 
       // Send non-blocking
-      sendInviteEmail(
+      inBackground(sendInviteEmail(
         input.email,
         ctx.user.name,
         ctx.tenant.name,
         input.role,
         acceptUrl,
-      ).catch((err) => logger.error("invite email send failed", { error: err instanceof Error ? err.message : String(err) }));
+      ).catch((err) => logger.error("invite email send failed", { error: err instanceof Error ? err.message : String(err) })));
 
       return { success: true, acceptUrl };
     }),
@@ -139,7 +140,7 @@ export const inviteRouter = createRouter({
           cache.set(key, true, 86_400_000);
           const [org] = await db.select({ name: tenants.name }).from(tenants)
             .where(eq(tenants.id, invite.tenantId)).limit(1);
-          void notifyAdmin(tgMessages.usersLimitHit(org?.name ?? `#${invite.tenantId}`, limits.limit ?? 0));
+          inBackground(notifyAdmin(tgMessages.usersLimitHit(org?.name ?? `#${invite.tenantId}`, limits.limit ?? 0)));
         }
         throw new TRPCError({
           code: "FORBIDDEN",

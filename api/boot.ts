@@ -24,6 +24,9 @@ import { manual } from "./manual";
 import publicApi from "./public-api";
 import photos from "./photos";
 import { createSSEResponse } from "./sse-router";
+import { sseBus } from "./lib/sse";
+import { gracefulShutdown, isDraining, inBackground } from "./lib/graceful-shutdown";
+import type { Server } from "node:http";
 import { authenticateRequest } from "./auth";
 import { cache } from "./lib/cache";
 import { getDb } from "./queries/connection";
@@ -267,7 +270,7 @@ app.use("*", async (c, next) => {
         // the outages you most need to hear about were the quiet ones.
         const detail = err instanceof Error ? err.message : String(err).slice(0, 200);
         const msg = `🔴 <b>Server Error</b>\n<code>${tgEscape(method)} ${tgEscape(path)}</code>\n${tgEscape(detail)}`;
-        notifyAdmin(msg);
+        inBackground(notifyAdmin(msg));
       } catch { /* Telegram not configured — skip */ }
     }
 
@@ -636,6 +639,8 @@ app.get("/health", async (c) => {
 
 // ── Readiness probe (for k8s/PM2 — checks DB connectivity) ───────────────────
 app.get("/health/ready", async (c) => {
+  // Идёт остановка — новых запросов сюда не нужно (lib/graceful-shutdown.ts).
+  if (isDraining()) return c.json({ status: "draining" }, 503);
   try {
     const db = getDb();
     await db.execute(sql`SELECT 1`);
@@ -950,6 +955,7 @@ if (env.isProduction) {
 
   // P1-6 FIX: Connect Redis on startup for multi-instance support
   await connectRedis();
+  const scheduler = await import("./cron/scheduler");
   const port = parseInt(process.env.PORT ?? "3000", 10);
   const server = serve({ fetch: app.fetch, port }, () => {
     logger.info("server started", { port, version: APP_VERSION });
@@ -960,6 +966,45 @@ if (env.isProduction) {
       .then(({ notifyAdmin, tgMessages }) => notifyAdmin(tgMessages.serverUp(env.sentryRelease || APP_VERSION, caughtUp)))
       .catch(() => { /* Telegram не настроен — молчим */ });
   });
+
+  /*
+    Остановка без обрыва запросов — подробно в lib/graceful-shutdown.ts.
+
+    Прежний обработчик по сигналу сразу закрывал пул и выходил: заказ, отметка
+    курьера или загрузка Excel, шедшие в эту секунду, обрывались на каждой
+    выкладке. Теперь сначала дожидаемся их (не дольше SHUTDOWN_TIMEOUT_MS), и
+    только потом закрываем. Учёт запросов подключается сразу за созданием
+    сервера — до первого запроса.
+  */
+  const shutdown = gracefulShutdown(server as Server, {
+    timeoutMs: env.shutdownTimeoutMs,
+    stopIntake: () => { scheduler.stopScheduler(); sseBus.closeAll(); },
+    busyJobs: scheduler.runningJobs,
+    cleanup: async () => {
+      // Дослать остаток журнала и закрыть трассировку до ухода процесса: иначе
+      // теряются ровно те записи, ради которых в журнал и лезут после падения.
+      try {
+        const { shutdownLoki } = await import("./lib/loki");
+        await shutdownLoki();
+        await shutdownTelemetry();
+      } catch (e) {
+        logger.error("Error flushing observability", { error: String(e) });
+      }
+
+      // Close DB connections
+      try {
+        const { getDb } = await import("./queries/connection");
+        const db = getDb();
+        await db.$client.end();
+        logger.info("Database connections closed");
+      } catch (e) {
+        logger.error("Error closing database", { error: String(e) });
+      }
+    },
+  });
+  process.on("SIGTERM", () => void shutdown("SIGTERM"));
+  process.on("SIGINT", () => void shutdown("SIGINT"));
+
   /*
     WebSocket здесь больше нет — и не потому, что мешал.
 
@@ -1001,36 +1046,5 @@ if (env.isProduction) {
     уходили напоминания о долгах, об окончании пробного периода, и не делалась
     ночная копия базы.
   */
-  void import("./cron/scheduler").then(m => m.startScheduler());
-
-  // Graceful shutdown
-  const shutdown = async (signal: string) => {
-    logger.info(`${signal} received, starting graceful shutdown`);
-    server.close(() => {
-      logger.info("HTTP server closed");
-    });
-    // Дослать остаток журнала и закрыть трассировку до ухода процесса: иначе
-    // теряются ровно те записи, ради которых в журнал и лезут после падения.
-    try {
-      const { shutdownLoki } = await import("./lib/loki");
-      await shutdownLoki();
-      await shutdownTelemetry();
-    } catch (e) {
-      logger.error("Error flushing observability", { error: String(e) });
-    }
-
-    // Close DB connections
-    try {
-      const { getDb } = await import("./queries/connection");
-      const db = getDb();
-      await db.$client.end();
-      logger.info("Database connections closed");
-    } catch (e) {
-      logger.error("Error closing database", { error: String(e) });
-    }
-    process.exit(0);
-  };
-
-  process.on("SIGTERM", () => shutdown("SIGTERM"));
-  process.on("SIGINT", () => shutdown("SIGINT"));
+  scheduler.startScheduler();
 }
