@@ -23,6 +23,10 @@ vi.mock("../services/anti-fraud", () => ({
     fraudRate: 0,
     avgVisitDuration: 0,
   })),
+  // Ведомость и «KPI всех» проверяют визиты одним вызовом на всех агентов —
+  // те же нули на каждого.
+  calculateFraudMetricsForAgents: vi.fn(async (_db: unknown, ids: number[]) =>
+    new Map(ids.map(id => [id, { suspiciousVisits: 0, fraudRate: 0, avgVisitDuration: 0 }]))),
 }));
 
 /*

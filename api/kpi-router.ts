@@ -6,6 +6,7 @@ import { getDb } from "./queries/connection";
 import { getPeriod, dayKey, monthRange } from "./lib/period";
 import { onDate } from "./lib/date-range";
 import { calculateAgentKpi, calculateAllAgentsKpi, calculateCourierStats, calculateSalary, getAgentList, getCourierList, getCourierDaily } from "./services/kpi";
+import { calculateFraudMetricsForAgents } from "./services/anti-fraud";
 import { reportCached, invalidateReports, ReportTTL } from "./lib/report-cache";
 import { recordAudit } from "./services/audit-log";
 import { getClientIp } from "./lib/rate-limit";
@@ -239,8 +240,10 @@ export const kpiRouter = createRouter({
         };
       }
 
+      // Проверка визитов — один раз на всю территорию, а не по дням каждого агента.
+      const fraudByAgent = await calculateFraudMetricsForAgents(db, agentIds, ctx.tenant.id, periodStart, periodEnd);
       const allKpi = await Promise.all(
-        agentIds.map(id => calculateAgentKpi(db, id, ctx.tenant.id, periodStart, periodEnd))
+        agentIds.map(id => calculateAgentKpi(db, id, ctx.tenant.id, periodStart, periodEnd, undefined, undefined, fraudByAgent.get(id)))
       );
 
       const totalRevenue = allKpi.reduce((s, k) => s + k.revenue, 0);
