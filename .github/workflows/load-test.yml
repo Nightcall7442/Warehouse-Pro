@@ -41,7 +41,7 @@ jobs:
     timeout-minutes: 60
     services:
       mysql:
-        image: mysql:9.4
+        image: mysql:9.7
         env:
           MYSQL_ROOT_PASSWORD: test
           MYSQL_DATABASE: warehouse_load
@@ -99,7 +99,7 @@ jobs:
       - name: Итог в сводку задания
         if: always()
         run: |
-          echo "### Стенд: раннер GitHub (4 vCPU), MySQL 9.4 рядом, пул ${DB_CONNECTION_LIMIT:-20}, заказов в базе ${{ inputs.orders || '30000' }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "### Стенд: раннер GitHub (4 vCPU), MySQL 9.7 рядом, пул ${DB_CONNECTION_LIMIT:-20}, заказов в базе ${{ inputs.orders || '30000' }}" >> "$GITHUB_STEP_SUMMARY"
           cat load-summary.md >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || echo "сводки нет — см. журнал" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "Метрики сервера (хвост /metrics):" >> "$GITHUB_STEP_SUMMARY"
