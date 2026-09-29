@@ -6,6 +6,7 @@ import { notifyTenantRole, tgEscape, fmtMoney } from "../lib/telegram";
 import { recordAudit } from "./audit-log";
 import { recalcShopDebt } from "./shop-debt";
 import { tiyin } from "./order-shared";
+import { invalidateReports } from "../lib/report-cache";
 
 /*
   РАСЧЁТ ПО ЗАКАЗУ — вместо кассы.
@@ -223,6 +224,13 @@ export const OrderCloseService = {
         meta: { number: o.number, shop: o.shopName, total, claimed, cashReceived: round2(input.cashReceived), added: m.added, shortage: m.shortage, debt: m.remainder, courier: courier?.name ?? null },
       }, { strict: true });
     });
+
+    /*
+      Расчёт меняет очередь «Ждут расчёта», платежи и долг магазина, а сброса
+      отчётов здесь не было: плитки «Заказов» (кэш 20 с) держали закрытый
+      заказ в очереди, и событие для живых экранов не уходило вовсе.
+    */
+    await invalidateReports(tenantId, "order.close");
 
     if (result.shortage > 0) {
       void notifyTenantRole(tenantId, "ceo",

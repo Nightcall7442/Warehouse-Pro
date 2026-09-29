@@ -26,6 +26,8 @@ export const ORDER_AFFECTED_ROUTERS = [
   "dashboard",
   "agent",
   "product",
+  // «Контроль»: деньги на руках и «Ждут расчёта» — живые числа, двигает их каждая оплата и расчёт.
+  "control",
 ] as const;
 
 /**

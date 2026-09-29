@@ -476,10 +476,13 @@ export async function updateArrival(db: Db, tenantId: number, input: UpdateArriv
       }, { strict: true });
     });
 
-    // Notify connected frontends that stock has changed
-    sseBus.emit({ type: "notification.new", tenantId, data: { type: "arrival.completed", arrivalId: id, arrivalNumber } });
     // Остаток, оценка склада, партии, расходы P&L — после коммита проведения.
     await invalidateReports(tenantId, "arrival.completed");
+    // Открытые экраны склада перечитают остаток — ПОСЛЕ сброса отчётов, как
+    // order.changed: иначе перечитавший по событию получает прежние числа из
+    // кэша. Раньше событие ехало видом notification.new: экраны склада его не
+    // узнавали, а колокольчик у всей организации прибавлял несуществующее.
+    sseBus.emit({ type: "arrival.completed", tenantId, data: { arrivalId: id } });
 
     return { success: true };
   }
