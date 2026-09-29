@@ -4,6 +4,26 @@ import { Link } from "react-router";
 import { trpc } from "@/providers/trpc";
 import { Eye, EyeOff, Loader2, CheckCircle2, MailCheck } from "lucide-react";
 import { useLang, useTranslate } from "@/i18n";
+import {
+  UZ_PHONE_PREFIX, PHONE_ERROR, SIGNUP_ANSWERS, SIGNUP_ANSWER_LABEL, maskUzPhoneNational, normalizeUzPhone,
+  type SignupAnswer,
+} from "@contracts/signup";
+
+/**
+ * Метки из адреса страницы: /register?utm_source=ig_sept&ref=bekzod.
+ *
+ * Читаются один раз при открытии — человек может успеть перейти по вкладкам,
+ * а источник всё равно тот, по которому он пришёл. Чистит их сервер
+ * (contracts/signup.ts), здесь — только прочесть.
+ */
+function tagsFromAddress(): { utmSource?: string; ref?: string } {
+  try {
+    const q = new URLSearchParams(window.location.search);
+    return { utmSource: q.get("utm_source") || undefined, ref: q.get("ref") || undefined };
+  } catch {
+    return {};
+  }
+}
 
 function PasswordStrength({ password }: { password: string }) {
   const { t } = useLang();
@@ -43,15 +63,25 @@ export default function Register() {
   const { t } = useLang();
   const tr = useTranslate();
   const [form, setForm] = useState({ name: "", companyName: "", email: "", password: "" });
+  /*
+    Телефон — только девять своих цифр: «+998» стоит в поле неподвижно.
+    Обязателен: по нему владелец платформы звонит в первый час, пока письмо
+    подтверждения может лежать в спаме.
+  */
+  const [phone, setPhone] = useState("");
+  const [answer, setAnswer] = useState<SignupAnswer | "">("");
+  const [tags] = useState(tagsFromAddress);
   const [showPw, setShowPw] = useState(false);
   const [error,  setError]  = useState("");
   // Адрес, на который ушло письмо. Вход закрыт до ссылки из него, поэтому
   // вместо перехода на «/» — экран «проверьте почту».
   const [sentTo, setSentTo] = useState("");
 
+  const phoneError = tr(PHONE_ERROR.ru, PHONE_ERROR.uz);
   const registerMutation = trpc.tenant.register.useMutation({
     onSuccess: () => setSentTo(form.email),
-    onError:   (e) => setError(e.message || t("auth.register.error")),
+    // Отказ по телефону сервер пишет по-русски — показываем его на языке экрана.
+    onError:   (e) => setError(e.message === PHONE_ERROR.ru ? phoneError : (e.message || t("auth.register.error"))),
   });
   const resend = trpc.auth.resendVerification.useMutation();
 
@@ -61,12 +91,18 @@ export default function Register() {
     if (!form.name || !form.email || !form.password || !form.companyName) {
       setError(t("auth.register.fillAll")); return;
     }
+    // То же правило, что у сервера: не пропустить здесь то, что он отвергнет.
+    const normalized = normalizeUzPhone(UZ_PHONE_PREFIX + phone);
+    if (!normalized) { setError(phoneError); return; }
     if (form.password.length < 8) { setError(t("auth.register.tooShort")); return; }
+    const source = { answer: answer || undefined, ...tags };
     registerMutation.mutate({
       orgName: form.companyName,
       name: form.name,
       email: form.email,
       password: form.password,
+      phone: normalized,
+      source: source.answer || source.utmSource || source.ref ? source : undefined,
     });
   };
 
@@ -175,7 +211,7 @@ export default function Register() {
             ].map(f => (
               <div key={f.key} className="space-y-1.5">
                 <label className="block text-xs font-medium" style={{ color: "var(--color-text-secondary, #5e5b54)" }}>{f.label}</label>
-                <input type={f.type} className="neo-input" placeholder={f.placeholder}
+                <input type={f.type} className="neo-input" placeholder={f.placeholder} data-testid={`register-${f.key}`}
                   value={(form as unknown as Record<string, string>)[f.key]}
                   onChange={e => setForm({ ...form, [f.key]: e.target.value })}
                   disabled={registerMutation.isPending} />
@@ -183,9 +219,32 @@ export default function Register() {
             ))}
 
             <div className="space-y-1.5">
+              <label htmlFor="register-phone" className="block text-xs font-medium" style={{ color: "var(--color-text-secondary)" }}>
+                {tr("Телефон", "Telefon")}
+              </label>
+              <div className="relative">
+                {/* Код страны неподвижен: набирают только свои девять цифр,
+                    вставленный целиком номер маска разберёт сама. */}
+                <span className="auth-icon" style={{ fontSize: "13px", fontWeight: 600, color: "var(--color-text-secondary)" }}>
+                  {UZ_PHONE_PREFIX}
+                </span>
+                <input id="register-phone" data-testid="register-phone"
+                  type="tel" inputMode="numeric" autoComplete="tel-national"
+                  className="neo-input" style={{ paddingLeft: "58px", fontVariantNumeric: "tabular-nums" }}
+                  placeholder="90 123 45 67"
+                  value={phone}
+                  onChange={e => setPhone(maskUzPhoneNational(e.target.value))}
+                  disabled={registerMutation.isPending} />
+              </div>
+              <p className="text-[11px]" style={{ color: "var(--color-text-tertiary)" }}>
+                {tr("Позвоним, чтобы помочь с подключением", "Ulanishda yordam berish uchun qo'ng'iroq qilamiz")}
+              </p>
+            </div>
+
+            <div className="space-y-1.5">
               <label className="block text-xs font-medium" style={{ color: "var(--color-text-secondary, #5e5b54)" }}>{t("auth.login.password")}</label>
               <div className="relative">
-                <input type={showPw ? "text" : "password"} className="neo-input pr-10"
+                <input type={showPw ? "text" : "password"} className="neo-input pr-10" data-testid="register-password"
                   placeholder={tr("Пароль (мин. 8 символов)", "Parol (kamida 8 ta belgi)")}
                   value={form.password}
                   onChange={e => setForm({ ...form, password: e.target.value })}
@@ -199,8 +258,24 @@ export default function Register() {
               <PasswordStrength password={form.password} />
             </div>
 
+            <div className="space-y-1.5">
+              <label htmlFor="register-source" className="block text-xs font-medium" style={{ color: "var(--color-text-secondary)" }}>
+                {tr("Откуда вы о нас узнали?", "Biz haqimizda qayerdan bildingiz?")}{" "}
+                <span style={{ color: "var(--color-text-tertiary)" }}>{tr("— необязательно", "— ixtiyoriy")}</span>
+              </label>
+              <select id="register-source" data-testid="register-source" className="neo-input"
+                value={answer}
+                onChange={e => setAnswer(e.target.value as SignupAnswer | "")}
+                disabled={registerMutation.isPending}>
+                <option value="">{tr("Не выбрано", "Tanlanmagan")}</option>
+                {SIGNUP_ANSWERS.map(a => (
+                  <option key={a} value={a}>{tr(SIGNUP_ANSWER_LABEL[a].ru, SIGNUP_ANSWER_LABEL[a].uz)}</option>
+                ))}
+              </select>
+            </div>
+
             {error && (
-              <div className="flex items-center gap-2 text-sm px-3 py-2.5 rounded-lg"
+              <div role="alert" data-testid="register-error" className="flex items-center gap-2 text-sm px-3 py-2.5 rounded-lg"
                 style={{ background: "var(--color-danger-subtle, rgba(232,80,80,.10))", color: "var(--color-danger-text)" }}>
                 <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
                   <path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm-.75 4a.75.75 0 0 1 1.5 0v3a.75.75 0 0 1-1.5 0V5zm.75 6.5a1 1 0 1 1 0-2 1 1 0 0 1 0 2z" />
@@ -209,7 +284,7 @@ export default function Register() {
               </div>
             )}
 
-            <button type="submit" className="neo-btn-primary w-full py-2.5 text-sm mt-2"
+            <button type="submit" className="neo-btn-primary w-full py-2.5 text-sm mt-2" data-testid="register-submit"
               disabled={registerMutation.isPending}>
               {registerMutation.isPending
                 ? <><Loader2 size={15} className="animate-spin inline mr-2" />{t("auth.register.submit")}</>

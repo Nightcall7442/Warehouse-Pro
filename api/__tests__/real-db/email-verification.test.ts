@@ -52,7 +52,7 @@ describe.skipIf(!hasRealDb)("подтверждение почты на наст
   it("регистрация → вход закрыт (403, код) → ссылка → вход открыт → повтор ссылки дату не двигает", async () => {
     const { tenantRouter } = await import("../../tenant-router");
     const { authRouter } = await import("../../auth-router");
-    const r = await tenantRouter.createCaller(publicCtx(db)).register({ orgName: "Ферганский сок", name: "Дилноза", email: "dilnoza@sok.uz", password: "пароль-восемь" });
+    const r = await tenantRouter.createCaller(publicCtx(db)).register({ orgName: "Ферганский сок", name: "Дилноза", email: "dilnoza@sok.uz", password: "пароль-восемь", phone: "+998 90 123 45 67" });
     expect(r.message).toContain("Письмо отправлено");
 
     const [u] = await db.select().from(schema.users).where(eq(schema.users.email, "dilnoza@sok.uz"));
@@ -62,7 +62,7 @@ describe.skipIf(!hasRealDb)("подтверждение почты на наст
     expect(mail.verify[0].to).toBe("dilnoza@sok.uz");
     const token = new URL(mail.verify[0].url).searchParams.get("token")!;
 
-    const closed = await login({ email: "dilnoza@sok.uz", password: "пароль-восемь" });
+    const closed = await login({ email: "dilnoza@sok.uz", password: "пароль-восемь", phone: "+998 90 123 45 67" });
     expect(closed.status).toBe(403);
     expect(closed.body.code).toBe("EMAIL_UNVERIFIED");
     expect(closed.cookie).not.toContain(Session.cookieName);
@@ -71,7 +71,7 @@ describe.skipIf(!hasRealDb)("подтверждение почты на наст
     const [v1] = await db.select({ v: schema.users.emailVerifiedAt }).from(schema.users).where(eq(schema.users.id, u.id));
     expect(v1.v).toBeInstanceOf(Date);
 
-    const open = await login({ email: "dilnoza@sok.uz", password: "пароль-восемь" });
+    const open = await login({ email: "dilnoza@sok.uz", password: "пароль-восемь", phone: "+998 90 123 45 67" });
     expect(open.status).toBe(200);
     expect(open.cookie).toContain(Session.cookieName);
 
@@ -85,7 +85,7 @@ describe.skipIf(!hasRealDb)("подтверждение почты на наст
     const { tenantRouter } = await import("../../tenant-router");
     const { authRouter } = await import("../../auth-router");
     const auth = authRouter.createCaller(publicCtx(db));
-    await tenantRouter.createCaller(publicCtx(db)).register({ orgName: "Сок", name: "Дилноза", email: "dilnoza@sok.uz", password: "пароль-восемь" });
+    await tenantRouter.createCaller(publicCtx(db)).register({ orgName: "Сок", name: "Дилноза", email: "dilnoza@sok.uz", password: "пароль-восемь", phone: "+998 90 123 45 67" });
     mail.verify.length = 0;
 
     await auth.resendVerification({ email: "dilnoza@sok.uz" });

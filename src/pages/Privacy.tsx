@@ -31,7 +31,7 @@ import { Shield } from "lucide-react";
  * (печать, выгрузки, мониторинг), и политика — из того же ряда.
  */
 export default function Privacy() {
-  const updated = "11 сентября 2026";
+  const updated = "29 сентября 2026";
 
   return (
     <div style={{ minHeight: "100vh", background: "var(--color-bg)" }}>
@@ -82,6 +82,29 @@ export default function Privacy() {
               обращайтесь к руководителю своей организации. Мы выполняем такие запросы через
               организацию, потому что решение о данных сотрудника принимает она.
             </P>
+          </Section>
+
+          {/*
+            Регистрация с сайта спрашивает телефон — это новый сбор данных, и
+            о нём сказано здесь (правило в шапке файла). Абзац на двух языках:
+            регистрируется руководитель, и читать, зачем у него просят номер,
+            он должен на своём языке, хотя сама политика — русский документ.
+          */}
+          <Section title="Что спрашиваем при регистрации организации">
+            <P>
+              <b>Телефон руководителя</b> — чтобы связаться по подключению: помочь завести
+              товары, сотрудников и первые заказы, ответить на вопросы по тарифу. Звоним и
+              пишем только по работе с сервисом, номер никому не передаём и для рекламы не
+              используем. Вместе с ним сохраняется ответ «откуда вы о нас узнали», если вы его
+              дали, — чтобы понимать, откуда приходят клиенты.
+            </P>
+            <p lang="uz" style={{ fontSize: "14.5px", lineHeight: 1.65, color: "var(--color-text-secondary)" }}>
+              <b>Rahbarning telefon raqami</b> — ulanish bo'yicha bog'lanish uchun: mahsulotlar,
+              xodimlar va birinchi buyurtmalarni kiritishda yordam berish, tarif bo'yicha savollarga
+              javob berish. Faqat xizmat bo'yicha qo'ng'iroq qilamiz va yozamiz, raqamni hech kimga
+              bermaymiz va reklama uchun ishlatmaymiz. U bilan birga «biz haqimizda qayerdan
+              bildingiz» degan javob ham saqlanadi, agar uni bergan bo'lsangiz.
+            </p>
           </Section>
 
           <Section title="Что собирает мобильное приложение">
@@ -138,7 +161,7 @@ export default function Privacy() {
             <Ul items={[
               "Хостинг и база данных — размещение самого сервиса.",
               "Служба доставки уведомлений (Expo/Apple/Google) — чтобы уведомление дошло до телефона.",
-              "Telegram — если ваша организация подключила оповещения в Telegram.",
+              "Telegram — если ваша организация подключила оповещения в Telegram. И сообщение команде Warehouse Pro о новой регистрации: название организации, почта и телефон руководителя — чтобы позвонить по подключению.",
               "Внешние системы вашей организации — только если она сама завела ключ доступа: например, выгрузка заказов в её учётную систему. Ключ выдаётся ею и ею же отзывается.",
             ]} />
           </Section>

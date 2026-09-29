@@ -3,6 +3,7 @@ import { getDb } from "../queries/connection";
 import { users } from "@db/schema";
 import { env } from "./env";
 import type { Role } from "@contracts/types";
+import { formatUzPhone } from "@contracts/signup";
 
 /*
   Транспорт Telegram: отправка, экранирование, адресаты, шаблоны сообщений.
@@ -221,8 +222,26 @@ export const tgMessages = {
   supportMessage: (org: string, who: string, preview: string) =>
     `💬 <b>Вопрос в поддержку</b>\n🏢 ${tgEscape(org)}\n👤 ${tgEscape(who)}\n\n${tgEscape(preview)}`,
 
-  newRegistration: (org: string, email: string) =>
-    `🆕 <b>Новая регистрация</b>\n🏢 ${tgEscape(org)}\n📧 ${tgEscape(email)}`,
+  /*
+    Регистрация с сайта — чтобы позвонить в первый час, пока человек ещё у
+    экрана. Телефон первой строкой после названия и ссылкой tel: — нажал и
+    звонишь. Почта ещё не подтверждена, и письмо может лежать в спаме: об
+    этом сказано прямо, чтобы звонок начинался с помощи, а не с вопроса.
+
+    phoneAsText — запасной вид без ссылки (см. announceRegistration в
+    tenant-router.ts). Телефон приходит уже приведённым к +998XXXXXXXXX, но
+    экранируется всё равно: правило «экранируется всё подставленное» не знает
+    исключений. В ссылку — только цифры и плюс: tgEscape не трогает кавычку,
+    а кавычка в href закрыла бы атрибут.
+  */
+  newRegistration: (r: { org: string; email: string; phone: string; source?: string | null; phoneAsText?: boolean }) =>
+    `🆕 <b>Новая регистрация</b>\n🏢 ${tgEscape(r.org)}\n` +
+    (r.phoneAsText
+      ? `📞 ${tgEscape(r.phone)}\n`
+      : `📞 <a href="tel:${r.phone.replace(/[^\d+]/g, "")}">${tgEscape(formatUzPhone(r.phone))}</a>\n`) +
+    `📧 ${tgEscape(r.email)}\n` +
+    `📣 Откуда: ${tgEscape(r.source || "не указано")}\n` +
+    `Почта ещё не подтверждена — позвоните в первый час.`,
 
   tenantOffboarded: (org: string, slug: string, who: string, rows: number) =>
     `🗑 <b>Организация удалена</b>\n🏢 ${tgEscape(org)} (${tgEscape(slug)})\n👤 ${tgEscape(who)}\n📦 Стёрто строк: ${tgEscape(rows)}`,
@@ -271,9 +290,16 @@ export const tgMessages = {
   usersLimitHit: (org: string, limit: number) =>
     `📈 <b>Упёрлись в лимит пользователей</b>\n🏢 ${tgEscape(org)}\n👥 Лимит ${tgEscape(limit)} — повод предложить тариф выше или сверхлимит`,
 
+  /*
+    Две последние строки — кому звонить завтра (services/owner-panel.ts):
+    у кого на неделе кончается оплаченный срок — по названиям, их немного и
+    звонят каждому; и сколько платящих и пробных молчат пятый день — числом,
+    список с телефонами на странице суперадмина.
+  */
   adminDigest: (d: {
     registrations: number; orders: number; revenue: number;
     unanswered: number; trialsEnding: number; pastDue: number; activeTenants: number;
+    renewalsThisWeek: string[]; silent: number;
   }) =>
     `📊 <b>Сводка за сутки</b>\n` +
     `🆕 Регистраций: ${tgEscape(d.registrations)}\n` +
@@ -281,5 +307,10 @@ export const tgMessages = {
     `💬 Ждут ответа поддержки: ${tgEscape(d.unanswered)}\n` +
     `⏳ Пробных заканчивается (3 дня): ${tgEscape(d.trialsEnding)}\n` +
     `⛔ Просрочили оплату: ${tgEscape(d.pastDue)}\n` +
-    `🏢 Активных организаций: ${tgEscape(d.activeTenants)}`,
+    `🏢 Активных организаций: ${tgEscape(d.activeTenants)}\n` +
+    `🔁 Продление на этой неделе: ${tgEscape(d.renewalsThisWeek.length)}` +
+    (d.renewalsThisWeek.length
+      ? ` (${d.renewalsThisWeek.slice(0, 8).map(tgEscape).join(", ")}${d.renewalsThisWeek.length > 8 ? `, и ещё ${tgEscape(d.renewalsThisWeek.length - 8)}` : ""})`
+      : "") + "\n" +
+    `🤫 Молчат 5+ дней: ${tgEscape(d.silent)}`,
 };

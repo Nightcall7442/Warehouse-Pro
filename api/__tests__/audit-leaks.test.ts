@@ -306,10 +306,10 @@ describe("публичная регистрация не отвечает, ес�
     const caller = await registerCaller();
 
     const onFree  = await caller.register({
-      orgName: "Zafar Savdo", name: "Владелец", email: "free@shop.uz", password: "password123",
+      orgName: "Zafar Savdo", name: "Владелец", email: "free@shop.uz", password: "password123", phone: "+998 90 123 45 67",
     });
     const onTaken = await caller.register({
-      orgName: "Zafar Savdo", name: "Владелец", email: "taken@shop.uz", password: "password123",
+      orgName: "Zafar Savdo", name: "Владелец", email: "taken@shop.uz", password: "password123", phone: "+998 90 123 45 67",
     });
 
     expect(onTaken).toEqual(onFree);
@@ -320,7 +320,7 @@ describe("публичная регистрация не отвечает, ес�
     const caller = await registerCaller();
 
     await caller.register({
-      orgName: "Nur Trade", name: "Владелец", email: "busy@shop.uz", password: "password123",
+      orgName: "Nur Trade", name: "Владелец", email: "busy@shop.uz", password: "password123", phone: "+998 90 123 45 67",
     });
 
     expect(state.createdTenants).toHaveLength(0);
@@ -333,7 +333,7 @@ describe("публичная регистрация не отвечает, ес�
     const caller = await registerCaller();
 
     await caller.register({
-      orgName: "Oq Yo'l", name: "Владелец", email: "owner@shop.uz", password: "password123",
+      orgName: "Oq Yo'l", name: "Владелец", email: "owner@shop.uz", password: "password123", phone: "+998 90 123 45 67",
     });
 
     expect(vi.mocked(sendEmail)).toHaveBeenCalledTimes(1);
@@ -345,7 +345,7 @@ describe("публичная регистрация не отвечает, ес�
   it("шесть заявок с одного адреса подряд не проходят", async () => {
     const caller = await registerCaller();
     const shot = (i: number) => caller.register({
-      orgName: `Firma ${i}`, name: "Владелец", email: "flood@shop.uz", password: "password123",
+      orgName: `Firma ${i}`, name: "Владелец", email: "flood@shop.uz", password: "password123", phone: "+998 90 123 45 67",
     });
 
     for (let i = 0; i < 5; i++) await shot(i);
@@ -355,7 +355,7 @@ describe("публичная регистрация не отвечает, ес�
   it("шесть заявок на одно название организации подряд не проходят", async () => {
     const caller = await registerCaller();
     const shot = (i: number) => caller.register({
-      orgName: "Bir Kompaniya", name: "Владелец", email: `org${i}@shop.uz`, password: "password123",
+      orgName: "Bir Kompaniya", name: "Владелец", email: `org${i}@shop.uz`, password: "password123", phone: "+998 90 123 45 67",
     });
 
     for (let i = 0; i < 5; i++) await shot(i);

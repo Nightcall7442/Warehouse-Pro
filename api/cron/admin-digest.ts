@@ -2,6 +2,7 @@ import { and, count, eq, gte, inArray, lt, lte, ne, sum } from "drizzle-orm";
 import { getDb } from "../queries/connection";
 import { orders, subscriptions, tenants } from "@db/schema";
 import { inbox } from "../services/support-chat";
+import { collectOwnerPanel } from "../services/owner-panel";
 import { notifyAdmin, tgMessages } from "../lib/telegram";
 import { logger } from "../lib/logger";
 
@@ -20,7 +21,7 @@ export async function runAdminDigest(now = new Date()): Promise<{ sent: boolean 
   // Системная организация — не клиент; та же оговорка, что в platformStats.
   const client = ne(tenants.slug, "system");
 
-  const [[reg], [ord], [ending], [due], [active], threads] = await Promise.all([
+  const [[reg], [ord], [ending], [due], [active], threads, panel] = await Promise.all([
     db.select({ n: count() }).from(tenants).where(and(client, gte(tenants.createdAt, dayAgo))),
     db.select({ n: count(), revenue: sum(orders.total) }).from(orders).where(gte(orders.createdAt, dayAgo)),
     db.select({ n: count() }).from(subscriptions).where(and(
@@ -45,7 +46,15 @@ export async function runAdminDigest(now = new Date()): Promise<{ sent: boolean 
       )),
     db.select({ n: count() }).from(tenants).where(and(client, eq(tenants.status, "active"))),
     inbox(),
+    /*
+      Кому звонить завтра — из той же панели, что у суперадмина на экране:
+      «продление» и «молчит» там и здесь одни и те же, а не две похожие
+      выборки, которые однажды разойдутся. Без минутной копии: сводка раз в
+      сутки и должна видеть базу.
+    */
+    collectOwnerPanel(db, now),
   ]);
+  const weekAhead = now.getTime() + 7 * 86_400_000;
 
   const digest = {
     registrations: Number(reg?.n ?? 0),
@@ -55,6 +64,8 @@ export async function runAdminDigest(now = new Date()): Promise<{ sent: boolean 
     trialsEnding:  Number(ending?.n ?? 0),
     pastDue:       Number(due?.n ?? 0),
     activeTenants: Number(active?.n ?? 0),
+    renewalsThisWeek: panel.renewals.filter(r => r.periodEnds.getTime() <= weekAhead).map(r => r.name),
+    silent:        panel.silent.length,
   };
   const sent = await notifyAdmin(tgMessages.adminDigest(digest));
   logger.info("admin digest", { ...digest, sent });

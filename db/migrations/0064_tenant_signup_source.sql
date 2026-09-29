@@ -1,0 +1,1 @@
+ALTER TABLE `tenants` ADD `signup_source` varchar(200);

@@ -382,7 +382,7 @@ describe("tenant.register", () => {
   it("creates a new tenant with trial plan", async () => {
     const { tenantRouter } = await import("../tenant-router");
     const caller = tenantRouter.createCaller(buildCtx({ user: undefined, tenant: undefined }));
-    const result = await caller.register({ orgName: "NewCo", name: "Admin", email: "admin@newco.com", password: "password123" });
+    const result = await caller.register({ orgName: "NewCo", name: "Admin", email: "admin@newco.com", password: "password123", phone: "+998 90 123 45 67" });
     expect(result.slug).toBe("newco");
     expect(result.message).toContain("Письмо отправлено");
     expect(tenantsTable.some(t => t.slug === "newco" && t.plan === "trial")).toBe(true);
@@ -400,7 +400,7 @@ describe("tenant.register", () => {
     vi.mocked(sendVerifyEmail).mockClear();
     const { tenantRouter } = await import("../tenant-router");
     const caller = tenantRouter.createCaller(buildCtx({ user: undefined, tenant: undefined }));
-    await caller.register({ orgName: "MailCo", name: "Ольга", email: "olga@mailco.uz", password: "password123" });
+    await caller.register({ orgName: "MailCo", name: "Ольга", email: "olga@mailco.uz", password: "password123", phone: "+998 90 123 45 67" });
 
     const user = usersTable.find(u => u.email === "olga@mailco.uz");
     expect(user, "директор не заведён").toBeDefined();
@@ -419,7 +419,7 @@ describe("tenant.register", () => {
     vi.mocked(sendVerifyEmail).mockClear(); vi.mocked(sendEmail).mockClear();
     const { tenantRouter } = await import("../tenant-router");
     const caller = tenantRouter.createCaller(buildCtx({ user: undefined, tenant: undefined }));
-    await caller.register({ orgName: "Whatever", name: "Кто-то", email: "ceo@acme.com", password: "password123" });
+    await caller.register({ orgName: "Whatever", name: "Кто-то", email: "ceo@acme.com", password: "password123", phone: "+998 90 123 45 67" });
     expect(sendVerifyEmail).not.toHaveBeenCalled();
     expect(sendEmail).toHaveBeenCalledTimes(1);
     expect(vi.mocked(sendEmail).mock.calls[0][0].subject).toMatch(/уже есть аккаунт/);
@@ -428,7 +428,7 @@ describe("tenant.register", () => {
   it("creates ceo user and settings in transaction", async () => {
     const { tenantRouter } = await import("../tenant-router");
     const caller = tenantRouter.createCaller(buildCtx({ user: undefined, tenant: undefined }));
-    await caller.register({ orgName: "TestCo", name: "Owner", email: "own@test.com", password: "password123" });
+    await caller.register({ orgName: "TestCo", name: "Owner", email: "own@test.com", password: "password123", phone: "+998 90 123 45 67" });
     const newTenant = tenantsTable.find(t => t.slug === "testco");
     expect(newTenant).toBeDefined();
     expect(usersTable.some(u => u.tenantId === newTenant!.id && u.role === "ceo")).toBe(true);
@@ -438,7 +438,7 @@ describe("tenant.register", () => {
   it("generates unique slug when org name already exists", async () => {
     const { tenantRouter } = await import("../tenant-router");
     const caller = tenantRouter.createCaller(buildCtx({ user: undefined, tenant: undefined }));
-    const result = await caller.register({ orgName: "Acme", name: "Admin", email: "new@acme.com", password: "password123" });
+    const result = await caller.register({ orgName: "Acme", name: "Admin", email: "new@acme.com", password: "password123", phone: "+998 90 123 45 67" });
     expect(result.slug).toMatch(/^acme-\d+$/);
   });
 
@@ -459,14 +459,14 @@ describe("tenant.register", () => {
     const usersBefore = usersTable.length;
 
     const taken = await caller.register({
-      orgName: "UniqueCo", name: "Admin", email: "ceo@acme.com", password: "password123",
+      orgName: "UniqueCo", name: "Admin", email: "ceo@acme.com", password: "password123", phone: "+998 90 123 45 67",
     });
 
     expect(tenantsTable.length, "по занятому адресу создалась организация").toBe(tenantsBefore);
     expect(usersTable.length, "по занятому адресу создался пользователь").toBe(usersBefore);
 
     const free = await caller.register({
-      orgName: "UniqueCo", name: "Admin", email: "nobody@acme.com", password: "password123",
+      orgName: "UniqueCo", name: "Admin", email: "nobody@acme.com", password: "password123", phone: "+998 90 123 45 67",
     });
 
     // Ответы отличаются только slug — он и при успехе разный от заявки к заявке.
@@ -479,14 +479,14 @@ describe("tenant.register", () => {
     (checkRateLimit as any).mockReturnValueOnce(false);
     const { tenantRouter } = await import("../tenant-router");
     const caller = tenantRouter.createCaller(buildCtx({ user: undefined, tenant: undefined }));
-    await expect(caller.register({ orgName: "GoodName", name: "Admin", email: "x@good.com", password: "password123" }))
+    await expect(caller.register({ orgName: "GoodName", name: "Admin", email: "x@good.com", password: "password123", phone: "+998 90 123 45 67" }))
       .rejects.toThrow(/Too many/i);
   });
 
   it("creates trial subscription during registration", async () => {
     const { tenantRouter } = await import("../tenant-router");
     const caller = tenantRouter.createCaller(buildCtx({ user: undefined, tenant: undefined }));
-    await caller.register({ orgName: "SubCo", name: "Admin", email: "x@sub.com", password: "password123" });
+    await caller.register({ orgName: "SubCo", name: "Admin", email: "x@sub.com", password: "password123", phone: "+998 90 123 45 67" });
     // Check subscription was created in the table (inlined from createTrialSubscription)
     const sub = subscriptionsTable.find((s: any) => s.plan === "trial" && s.status === "trialing");
     expect(sub).toBeTruthy();
@@ -495,14 +495,14 @@ describe("tenant.register", () => {
   it("rejects short password", async () => {
     const { tenantRouter } = await import("../tenant-router");
     const caller = tenantRouter.createCaller(buildCtx({ user: undefined, tenant: undefined }));
-    await expect(caller.register({ orgName: "GoodName", name: "Admin", email: "x@x.com", password: "short" }))
+    await expect(caller.register({ orgName: "GoodName", name: "Admin", email: "x@x.com", password: "short", phone: "+998 90 123 45 67" }))
       .rejects.toThrow();
   });
 
   it("rejects org name shorter than 2 chars", async () => {
     const { tenantRouter } = await import("../tenant-router");
     const caller = tenantRouter.createCaller(buildCtx({ user: undefined, tenant: undefined }));
-    await expect(caller.register({ orgName: "X", name: "Admin", email: "x@x.com", password: "password123" }))
+    await expect(caller.register({ orgName: "X", name: "Admin", email: "x@x.com", password: "password123", phone: "+998 90 123 45 67" }))
       .rejects.toThrow();
   });
 });
