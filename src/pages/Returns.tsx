@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useSearchParams } from "react-router";
 import { useScrollTopOnChange } from "@/hooks/useScrollTopOnChange";
 import { trpc } from "@/providers/trpc";
 import { useLang } from "@/i18n";
@@ -11,6 +12,7 @@ import { exportToExcel } from "@/lib/export";
 import { notify } from "@/lib/toast";
 import { F, COLORS, thStyle, tdStyle } from "@/components/users/types";
 import { format } from "date-fns";
+import { labelled, ROLE_LABEL } from "@/lib/entity-labels";
 import {
   RotateCcw, Check, X, PackageCheck, FileSpreadsheet, ChevronDown, ChevronRight,
 } from "lucide-react";
@@ -75,10 +77,19 @@ export default function Returns() {
   const { confirm, dialog } = useConfirm();
   const utils = trpc.useUtils();
 
-  const [status, setStatus] = useState<Status | "all">("pending");
+  // ?open=<id> — ссылка из карточки заказа («Возврат №… — ждёт проведения»):
+  // возврат раскрыт, а фильтр — «все», чтобы одобренный тоже был виден.
+  const [params] = useSearchParams();
+  const linked = Number(params.get("open")) || null;
+  const [status, setStatus] = useState<Status | "all">(linked ? "all" : "pending");
   const [page, setPage] = useState(1);
   useScrollTopOnChange(page);
-  const [openId, setOpenId] = useState<number | null>(null);
+  const [openId, setOpenId] = useState<number | null>(linked);
+
+  /* Кто завёл: агент с телефона или офис из веба — источник у возврата не
+     хранится, а человек с ролью говорит то же самое. */
+  const author = (r: { createdByName?: string | null; createdByRole?: string | null }) =>
+    r.createdByName ? `${r.createdByName} · ${labelled(ROLE_LABEL, r.createdByRole, lang)}` : null;
 
   const STATUS_LABEL: Record<Status, string> = {
     pending:   t("на рассмотрении", "ko'rib chiqilmoqda"),
@@ -171,6 +182,7 @@ export default function Returns() {
         reason: REASON_RU[r.reason ?? ""] ?? r.reason ?? "",
         amount: Number(r.totalAmount ?? 0),
         status: RU[r.status as Status],
+        author: r.createdByName ? `${r.createdByName} (${labelled(ROLE_LABEL, r.createdByRole)})` : "",
         notes: r.notes ?? "",
       })),
       columns: [
@@ -181,6 +193,7 @@ export default function Returns() {
         { key: "reason", header: "Причина", width: 16 },
         { key: "amount", header: "Сумма", width: 14 },
         { key: "status", header: "Состояние", width: 18 },
+        { key: "author", header: "Завёл", width: 24 },
         { key: "notes", header: "Примечание", width: 30 },
       ],
     }], "vozvraty");
@@ -296,7 +309,14 @@ export default function Returns() {
                               {r.orderId ? ` · ${t("заказ", "buyurtma")} №${r.orderId}` : ""}
                             </div>
                           </td>
-                          <td style={tdStyle}>{r.shopName ?? "—"}</td>
+                          <td style={tdStyle}>
+                            <div>{r.shopName ?? "—"}</div>
+                            {author(r) && (
+                              <div style={{ fontSize: "12px", color: COLORS.textTertiary }} data-testid={`return-author-${r.id}`}>
+                                {t("завёл", "kiritdi")}: {author(r)}
+                              </div>
+                            )}
+                          </td>
                           <td style={{ ...tdStyle, color: COLORS.textSecondary }}>
                             {REASON_LABEL[r.reason ?? ""] ?? r.reason ?? "—"}
                           </td>
@@ -351,6 +371,11 @@ export default function Returns() {
                         <div style={{ fontSize: "12px", color: COLORS.textTertiary }}>
                           {r.shopName ?? "—"} · {REASON_LABEL[r.reason ?? ""] ?? r.reason ?? "—"}
                         </div>
+                        {author(r) && (
+                          <div style={{ fontSize: "12px", color: COLORS.textTertiary }}>
+                            {t("завёл", "kiritdi")}: {author(r)}
+                          </div>
+                        )}
                       </div>
                       <span className={`shrink-0 inline-flex px-2 py-1 rounded-lg border text-xs font-semibold ${STATUS_CHIP[st]}`}>
                         {STATUS_LABEL[st]}

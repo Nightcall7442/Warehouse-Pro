@@ -25,3 +25,11 @@ export function canAdminister(role: string | undefined): boolean {
 export function canSupervise(role: string | undefined): boolean {
   return role === "ceo" || role === "supervisor";
 }
+
+/**
+ * fieldSalesQuery: оформить возврат от магазина (returns.create) — всем, кроме
+ * курьера. Провести его — отдельно, operatorQuery (canOperate).
+ */
+export function canFileReturn(role: string | undefined): boolean {
+  return role === "ceo" || role === "operator" || role === "agent" || role === "supervisor" || role === "merchandiser";
+}
