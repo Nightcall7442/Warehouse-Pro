@@ -180,6 +180,12 @@ export const env = {
 
   // OpenTelemetry
   otelExporterUrl:     optional("OTEL_EXPORTER_OTLP_ENDPOINT"),
+  /**
+   * «1» — слать трассы в Sentry, адрес и ключ взять из SENTRY_DSN. Ключ
+   * отдельно никуда не вписывается: он уже есть в DSN. Явный
+   * OTEL_EXPORTER_OTLP_ENDPOINT главнее.
+   */
+  tracesToSentry:      optional("OTEL_TRACES_TO_SENTRY") === "1",
 
   // Loki — журнал уходит туда вдобавок к stdout, а не вместо него
   lokiUrl:             optional("LOKI_URL"),

@@ -168,9 +168,18 @@ Railway продолжает работать.
 в трассе один промежуток на запрос, то же самое есть в журнале запросов
 Loki и Railway (длительность, маршрут, `correlationId`).
 
-Включить обратно — поднять любой приёмник OTLP (Jaeger v2, Tempo) и задать
-`OTEL_EXPORTER_OTLP_ENDPOINT` — адрес приёмника OTLP по HTTP, у Jaeger это
-`http://<адрес>:4318/v1/traces`. Код приложения менять не нужно.
+Включить — два пути:
+
+- **В Sentry (бесплатно, он уже подключён):** `OTEL_TRACES_TO_SENTRY=1` у
+  службы Warehouse-Pro. Адрес трасс и ключ приложение берёт из `SENTRY_DSN`
+  само (`/api/<проект>/integration/otlp/v1/traces`, заголовок
+  `x-sentry-auth: sentry sentry_key=…`), вписывать их не нужно. Трассы
+  видны в Sentry → Explore → Traces рядом с ошибками. Бесплатный тариф —
+  5 млн промежутков в месяц, у нас один промежуток на запрос.
+- **В свой приёмник OTLP** (Jaeger v2, Tempo, Grafana Cloud):
+  `OTEL_EXPORTER_OTLP_ENDPOINT` — адрес по HTTP, у Jaeger это
+  `http://<адрес>:4318/v1/traces`; заголовки авторизации, если нужны, —
+  стандартной `OTEL_EXPORTER_OTLP_HEADERS`. Явный адрес главнее флажка Sentry.
 
 На запрос создаётся один промежуток: метод, шаблон маршрута, ответ,
 длительность и `app.correlation_id` — по нему та же история находится в Loki.
