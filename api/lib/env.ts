@@ -213,7 +213,6 @@ export const env = {
   grafanaUrl:              optional("GRAFANA_URL"),
   prometheusUrl:           optional("PROMETHEUS_URL"),
   prometheusInternalUrl:   optional("PROMETHEUS_INTERNAL_URL"),
-  jaegerUrl:               optional("JAEGER_URL"),
   alertmanagerUrl:         optional("ALERTMANAGER_URL"),
   alertmanagerInternalUrl: optional("ALERTMANAGER_INTERNAL_URL"),
   sentryUrl:               optional("SENTRY_URL"),

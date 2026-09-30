@@ -37,7 +37,7 @@ async function sentryCard() {
 
 beforeEach(() => {
   // Ни одного адреса: проверять нечего, и посторонние карточки не мешают.
-  for (const k of ["grafanaUrl", "prometheusUrl", "prometheusInternalUrl", "jaegerUrl",
+  for (const k of ["grafanaUrl", "prometheusUrl", "prometheusInternalUrl",
                    "alertmanagerUrl", "alertmanagerInternalUrl", "lokiUrl"]) env[k] = "";
   env.sentryUrl = "https://no-name-a7.sentry.io/issues/";
   env.sentryDsn = "https://key@o1.ingest.de.sentry.io/2";
