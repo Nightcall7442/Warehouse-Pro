@@ -43,8 +43,37 @@ import { env } from "./env";
 
 let sdk: NodeSDK | null = null;
 
+/**
+ * Куда слать трассы, если приёмник — Sentry.
+ *
+ * С 30.09.2026 своего Jaeger в бою нет (1 ГБ памяти, v1 без исправлений).
+ * Sentry принимает OTLP сам: адрес и ключ выводятся из DSN
+ * `https://<ключ>@o<орг>.ingest.<регион>.sentry.io/<проект>` — трассы идут в
+ * `/api/<проект>/integration/otlp/v1/traces` с заголовком
+ * `x-sentry-auth: sentry sentry_key=<ключ>`. Слово «sentry» перед
+ * sentry_key обязательно — без него Sentry отвечает 401.
+ */
+export function sentryOtlpTarget(dsn: string): { url: string; headers: Record<string, string> } | null {
+  let u: URL;
+  try { u = new URL(dsn); } catch { return null; }
+  const project = u.pathname.replace(/^\/+|\/+$/g, "");
+  if (!u.username || !/^\d+$/.test(project)) return null;
+  return {
+    url: `${u.protocol}//${u.host}/api/${project}/integration/otlp/v1/traces`,
+    headers: { "x-sentry-auth": `sentry sentry_key=${decodeURIComponent(u.username)}` },
+  };
+}
+
+/** Приёмник трасс: явный адрес, иначе Sentry по флажку, иначе — выключено. */
+function traceTarget(): { url: string; headers?: Record<string, string> } | null {
+  if (env.otelExporterUrl) return { url: env.otelExporterUrl };
+  if (env.tracesToSentry && env.sentryDsn) return sentryOtlpTarget(env.sentryDsn);
+  return null;
+}
+
 export function initTelemetry() {
-  if (!env.otelExporterUrl) return;
+  const target = traceTarget();
+  if (!target) return;
 
   /**
    * Неудачную отправку трасс надо видеть.
@@ -58,13 +87,13 @@ export function initTelemetry() {
 
   sdk = new NodeSDK({
     serviceName: "warehouse-pro",
-    traceExporter: new OTLPTraceExporter({ url: env.otelExporterUrl }),
+    traceExporter: new OTLPTraceExporter(target),
   });
 
   sdk.start();
 }
 
-/** Включена ли трассировка. Пока адрес не задан, промежутки не создаются. */
+/** Включена ли трассировка. Пока приёмника нет, промежутки не создаются. */
 export function isTracingEnabled(): boolean {
   return sdk !== null;
 }
