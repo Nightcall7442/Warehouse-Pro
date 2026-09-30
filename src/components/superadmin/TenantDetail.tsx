@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useAuth } from "@/hooks/useAuth";
 import { OperatorAccess } from "@/components/settings/OperatorAccess";
 import { format } from "date-fns";
 import { trpc } from "@/providers/trpc";
@@ -70,6 +71,9 @@ export function TenantDetail({ tenantId, onBack }: TenantDetailProps) {
   const [showOffboard, setShowOffboard] = useState(false);
   const [offboardSlug, setOffboardSlug] = useState("");
   const [offboardCode, setOffboardCode] = useState("");
+  // Без второго фактора сервер откажет в удалении — сказать заранее и где его включить.
+  const { user: me } = useAuth();
+  const totpOn = Boolean((me as { totpEnabledAt?: unknown } | null)?.totpEnabledAt);
   const offboardPreview = trpc.tenant.offboardPreview.useQuery({ tenantId }, { enabled: showOffboard });
   const offboard = trpc.tenant.offboard.useMutation({
     onSuccess: (r) => {
@@ -360,6 +364,12 @@ export function TenantDetail({ tenantId, onBack }: TenantDetailProps) {
             </div>
             <Input label={`Slug организации (${tenant.slug})`} value={offboardSlug} onChange={e => setOffboardSlug(e.target.value)} autoComplete="off" data-testid="offboard-slug" />
             <Input label="Код из приложения" value={offboardCode} onChange={e => setOffboardCode(e.target.value)} inputMode="numeric" autoComplete="one-time-code" data-testid="offboard-totp" />
+            {!totpOn && (
+              <p data-testid="offboard-totp-hint" style={{ fontSize: "12px", color: COLORS.textSecondary, lineHeight: 1.6 }}>
+                Код появится после включения входа с кодом из приложения:{" "}
+                <a href="/settings?section=profile" style={{ color: COLORS.primaryText }}>Настройки → Профиль</a>.
+              </p>
+            )}
           </div>
         </Modal>
       )}

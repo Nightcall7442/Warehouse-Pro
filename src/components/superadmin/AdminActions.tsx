@@ -1,13 +1,25 @@
 import { useState } from "react";
+import { useNavigate } from "react-router";
 import { trpc } from "@/providers/trpc";
+import { useAuth } from "@/hooks/useAuth";
 import { notify } from "@/lib/toast";
-import { User, Key, Save, Loader2 } from "lucide-react";
+import { User, Key, Save, Loader2, ShieldCheck } from "lucide-react";
 import { labelled, ROLE_LABEL } from "@/lib/entity-labels";
 import { F, COLORS } from "./types";
 import { Section, Input, BtnPrimary } from "./ui";
 
 export function AdminActions() {
   const { data: user } = trpc.user.me.useQuery();
+  const { user: me } = useAuth();
+  const navigate = useNavigate();
+  /*
+    Второй фактор включается в Настройки → Профиль (ProfileSettings), а в
+    меню суперадмина «Настроек» нет. Удаление организации и чистка обращений
+    требуют код — и суперадмин упирался в «сначала подключите двухфактор»,
+    не видя, где это сделать (01.10.2026). Логика включения — одна, там;
+    здесь — состояние и дорога к ней.
+  */
+  const totpOn = Boolean((me as { totpEnabledAt?: unknown } | null)?.totpEnabledAt);
   const utils = trpc.useUtils();
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
@@ -51,6 +63,17 @@ export function AdminActions() {
             </BtnPrimary>
           </div>
         )}
+      </div>
+      <div data-testid="admin-totp" style={{ marginTop: "20px", paddingTop: "20px", borderTop: `1px solid ${COLORS.border}`, display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
+        <ShieldCheck size={16} style={{ color: totpOn ? COLORS.primaryText : COLORS.textTertiary }} />
+        <span style={{ fontSize: "13px", color: COLORS.textSecondary, fontFamily: F.body }}>
+          {totpOn
+            ? "Вход с кодом из приложения: включён"
+            : "Вход с кодом из приложения не включён — без него нельзя удалить организацию и очистить обращения"}
+        </span>
+        <BtnPrimary onClick={() => navigate("/settings?section=profile")}>
+          {totpOn ? "Управлять" : "Включить"}
+        </BtnPrimary>
       </div>
     </Section>
   );
