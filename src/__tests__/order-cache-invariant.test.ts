@@ -29,6 +29,8 @@ const ORDER_WRITE_PROCEDURES = [
   "order.bulkCompleteWithPayment",
   "order.bulkAssignAgent",
   "order.bulkAssignCourier",
+  // Вечерняя сдача пачкой: закрывает расчёт — платежи, долг магазина, очередь «Ждут расчёта».
+  "order.acceptClaimed",
   "courier.assignCourier",
   "courier.markOutForDelivery",
   "courier.markDelivered",

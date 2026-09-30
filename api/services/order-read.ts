@@ -15,7 +15,7 @@ import type { OrderSortKey, OrderSortDir } from "@contracts/order-list";
   звёздочкой это ловил бы только тест; без неё не собирается сборка.
 */
 export async function list(db: Db, tenantId: number, filters: Record<string, unknown>, viewer: OrderViewer) {
-  const f = filters as { status?: string; archived?: boolean; agentId?: number; agentIds?: number[]; shopId?: number; ids?: number[]; page?: number; pageSize?: number; search?: string; showDeleted?: boolean; dateFrom?: string; dateTo?: string; paymentMethod?: string; awaitingMoney?: boolean; sortBy?: OrderSortKey; sortDir?: OrderSortDir };
+  const f = filters as { status?: string; archived?: boolean; agentId?: number; agentIds?: number[]; shopId?: number; courierId?: number; ids?: number[]; page?: number; pageSize?: number; search?: string; showDeleted?: boolean; dateFrom?: string; dateTo?: string; paymentMethod?: string; awaitingMoney?: boolean; sortBy?: OrderSortKey; sortDir?: OrderSortDir };
   /*
     «Ждут расчёта» — очередь поперёк вкладок: доставленный заказ по статусу
     архивный, а деньги по нему ещё в поле. Экран шлёт очередь вместе с
@@ -55,6 +55,7 @@ export async function list(db: Db, tenantId: number, filters: Record<string, unk
   if (f.agentIds?.length) conditions.push(inArray(orders.agentId, f.agentIds));
   else if (f.agentId) conditions.push(eq(orders.agentId, f.agentId));
   if (f.shopId) conditions.push(eq(orders.shopId, f.shopId));
+  if (f.courierId) conditions.push(eq(orders.courierId, f.courierId));
   // Отмеченные галочками — для «Excel по выбранным» и вопроса перед «Выполнить».
   if (f.ids?.length) conditions.push(inArray(orders.id, f.ids));
   if (f.paymentMethod) conditions.push(eq(orders.paymentMethod, f.paymentMethod as "cash" | "card" | "transfer" | "debt"));

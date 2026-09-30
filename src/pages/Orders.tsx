@@ -45,6 +45,7 @@ import { OrderAgentGroups } from "@/components/orders/OrderAgentGroups";
 import { QuickOrderModal } from "@/components/orders/QuickOrderModal";
 import { CompletionFlowModal } from "@/components/orders/CompletionFlowModal";
 import { BulkCompletionModal } from "@/components/orders/BulkCompletionModal";
+import { AcceptClaimedModal } from "@/components/orders/AcceptClaimedModal";
 import type { BulkEntry } from "@/components/orders/BulkCompletionModal";
 import type { CompletionData, CompletionMode } from "@/components/orders/CompletionFlowModal";
 import { StatusBadge } from "@/components/orders/theme";
@@ -101,6 +102,11 @@ const agentIdsOnly = (raw: string) => raw.split(",").filter(s => /^\d+$/.test(s)
 const AGENTS_CODEC: UrlCodec<string> = {
   parse: agentIdsOnly,
   format: v => agentIdsOnly(v) || null,
+};
+/** Курьер — один номер; «courier=abc» или «courier=0» — «все курьеры», а не отказ сервера. */
+const COURIER_CODEC: UrlCodec<string> = {
+  parse: raw => (/^[1-9]\d*$/.test(raw) ? raw : ""),
+  format: v => v || null,
 };
 
 /** Столбец таблицы → ключ сортировки сервера. Прочие столбцы не сортируются. */
@@ -180,6 +186,9 @@ function OperatorOrders() {
   */
   const can                 = useCan();
   const canDeleteOrders     = isOperatorOrCeo && can("orders.delete");
+  // «Принять по заявленному» — то же право, что «Закрыть расчёт» в карточке.
+  const canAcceptMoney      = isOperatorOrCeo && can("payments.accept");
+  const [showAcceptClaimed, setShowAcceptClaimed] = useState(false);
   const cols                = useOrderColumns(user?.tenantId, user?.id);
   // Persist selection in sessionStorage so it survives navigation
   const [selected, setSelectedRaw] = useState<Set<number>>(() => {
@@ -211,6 +220,8 @@ function OperatorOrders() {
   // side by side, and one-at-a-time meant re-picking the filter for each name.
   const [agentsRaw, setAgentsRaw] = useUrlState("agents", "", AGENTS_CODEC);
   const agentFilter = useMemo(() => (agentsRaw ? agentsRaw.split(",") : []), [agentsRaw]);
+  // Курьер: вечерняя сдача — «Контроль» → «На руках» ведёт сюда с ?status=money&courier=<id>.
+  const [courierRaw, setCourierRaw] = useUrlState("courier", "", COURIER_CODEC);
   const [section, setSection] = useUrlState("tab", "active", TAB_CODEC);
   const [sortBy, setSortBy] = useUrlState("sort", "createdAt", SORT_CODEC);
   const [sortDir, setSortDir] = useUrlState("dir", "desc", DIR_CODEC);
@@ -309,8 +320,8 @@ function OperatorOrders() {
   // Одна сводка того, что выбрано на экране; запросы страницы строит lib/orders-query.
   const view = useMemo(() => ({
     section, status, chips: chipFilters, dateFrom, dateTo,
-    search: debouncedSearch, agentIds: agentFilter.map(Number), sortBy, sortDir,
-  }), [section, status, chipFilters, dateFrom, dateTo, debouncedSearch, agentFilter, sortBy, sortDir]);
+    search: debouncedSearch, agentIds: agentFilter.map(Number), courierId: courierRaw ? Number(courierRaw) : undefined, sortBy, sortDir,
+  }), [section, status, chipFilters, dateFrom, dateTo, debouncedSearch, agentFilter, courierRaw, sortBy, sortDir]);
   const q = useMemo(() => ordersQuery(view), [view]);
   /*
     Поле даты показывает то, что применено к таблице. Тронул поле — чип
@@ -969,6 +980,19 @@ function OperatorOrders() {
             ]}
             width="200px" />
         )}
+        {isOperatorOrCeo && (
+          <PremiumSelect
+            value={courierRaw}
+            onChange={v => { setCourierRaw(v); setPage(1); }}
+            aria-label={t("Курьер", "Kuryer")}
+            options={[
+              { value: "", label: t("Все курьеры", "Barcha kuryerlar") },
+              ...(couriersData?.data ?? []).map(c => ({ value: String(c.id), label: c.name })),
+              // Пришли по ссылке с курьером, которого нет в списке (уволен, сотый) — фильтр виден, а не пуст.
+              ...(courierRaw && !(couriersData?.data ?? []).some(c => String(c.id) === courierRaw) ? [{ value: courierRaw, label: t(`Курьер №${courierRaw}`, `Kuryer №${courierRaw}`) }] : []),
+            ]}
+            width="180px" />
+        )}
 
         {/* Only the desktop table has columns to configure; the card and kanban
             views have no such thing, so the control follows the table. */}
@@ -1377,9 +1401,21 @@ function OperatorOrders() {
         bulkAssignCourier.mutate({ orderIds: ids, courierId });
       }}
       onExportExcel={handleExportSelected}
+      onAcceptClaimed={canAcceptMoney ? () => setShowAcceptClaimed(true) : undefined}
+      acceptClaimedFirst={status === "money"}
       agents={agentsData?.data?.map(a => ({ id: a.id, name: a.name }))}
       couriers={couriersData?.data?.map(c => ({ id: c.id, name: c.name }))}
     />
+    )}
+
+    {/* ── Вечерняя сдача курьера: «Принять по заявленному» ── */}
+    {canAcceptMoney && (
+      <AcceptClaimedModal
+        open={showAcceptClaimed}
+        orderIds={Array.from(selected)}
+        onClose={() => setShowAcceptClaimed(false)}
+        onDone={clearSelection}
+      />
     )}
 
     {/* ── Invoice Print Modal ── */}

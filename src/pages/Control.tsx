@@ -110,8 +110,10 @@ export default function Control() {
               <CardTable style={{ overflowX: "auto" }}>
                 <table style={{ width: "100%", borderCollapse: "collapse", minWidth: "560px" }}>
                   <thead><tr><th style={thStyle}>{t("Сотрудник", "Xodim")}</th><th style={{ ...thStyle, textAlign: "right" }}>{t("На руках", "Qo'lda")}</th><th style={{ ...thStyle, textAlign: "right" }}>{t("Заказов", "Buyurtma")}</th><th style={thStyle}>{t("С какого часа", "Qaysi soatdan")}</th></tr></thead>
+                  {/* Строка курьера — его заказы, ждущие расчёта: оттуда их принимают пачкой («Принять по заявленному»).
+                      У агента наличные бывают за чужие заказы (собрал старый долг) — ему общая очередь. */}
                   <tbody>{money.data!.onHands.map(h => (
-                    <tr key={h.userId} className="row-hover" data-testid={`on-hands-${h.userId}`} style={{ cursor: "pointer" }} onClick={() => navigate("/orders?status=money")}>
+                    <tr key={h.userId} className="row-hover" data-testid={`on-hands-${h.userId}`} style={{ cursor: "pointer" }} onClick={() => navigate(h.role === "courier" ? `/orders?status=money&courier=${h.userId}` : "/orders?status=money")}>
                       <td style={{ ...tdStyle, fontWeight: 600 }}>{h.name}</td>
                       <td className="font-data" style={{ ...tdStyle, textAlign: "right", color: h.hours >= 24 ? "var(--color-danger-text)" : COLORS.textPrimary }}>{fmt(h.amount)}</td>
                       <td className="font-data" style={{ ...tdStyle, textAlign: "right" }}>{h.orders}</td>

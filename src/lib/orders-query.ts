@@ -43,6 +43,8 @@ export type OrdersView = {
   dateTo: string;
   search: string;
   agentIds: number[];
+  /** Курьер: вечерняя сдача — его заказы, ждущие расчёта (ссылка из «Контроля»). */
+  courierId?: number;
   /** Столбец и направление; без них — как было: новые сверху. */
   sortBy?: OrderSortKey;
   sortDir?: OrderSortDir;
@@ -85,6 +87,7 @@ export function ordersQuery(v: OrdersView, today: Date = new Date()) {
   const narrow = {
     search: v.search || undefined,
     agentIds: v.agentIds.length > 0 ? v.agentIds : undefined,
+    courierId: v.courierId,
     paymentMethod: v.chips.paymentMethod as PaymentMethod | undefined,
   };
   const list = {

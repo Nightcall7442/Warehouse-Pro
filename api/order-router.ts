@@ -4,6 +4,7 @@ import { monthlyOrderRoom } from "./lib/plan-limits";
 import { createRouter, operatorQuery, fieldSalesQuery, orderReaderQuery, can } from "./middleware";
 import { OrderService, assertOrderVisible, assertItemsEditableBy } from "./services/order";
 import { OrderCloseService } from "./services/order-close";
+import { planClaimed, acceptClaimed } from "./services/order-close-batch";
 import { NonCashService } from "./services/noncash";
 import { repeatDraft } from "./services/order-repeat";
 
@@ -57,6 +58,8 @@ export const orderRouter = createRouter({
       status: z.string().optional(),
       agentId: z.number().optional(),
       agentIds: z.array(z.number().int().positive()).max(200).optional(),
+      // Курьер — тот же срез, что у таблицы: плитки считают его заказы.
+      courierId: z.number().int().positive().optional(),
       paymentMethod: z.string().optional(),
       search: z.string().optional(),
     }).optional())
@@ -88,6 +91,7 @@ export const orderRouter = createRouter({
       if (input?.status) conditions.push(eq(orders.status, input.status as "new" | "processing" | "shipped" | "pending" | "delivered" | "cancelled" | "returned"));
       if (input?.agentIds?.length) conditions.push(inArray(orders.agentId, input.agentIds));
       else if (input?.agentId) conditions.push(eq(orders.agentId, input.agentId));
+      if (input?.courierId) conditions.push(eq(orders.courierId, input.courierId));
       if (input?.paymentMethod) conditions.push(eq(orders.paymentMethod, input.paymentMethod as "cash" | "card" | "transfer" | "debt"));
       if (input?.dateFrom) conditions.push(sql`${orders.createdAt} >= ${input.dateFrom}`);
       if (input?.dateTo) conditions.push(sql`${orders.createdAt} <= ${input.dateTo + ' 23:59:59'}`);
@@ -289,6 +293,9 @@ export const orderRouter = createRouter({
       // Заказы одного магазина: «Оформить возврат» в карточке магазина
       // выбирает из его доставленных заказов.
       shopId:      z.number().int().positive().optional(),
+      // Заказы одного курьера: вечерняя сдача — «Контроль» → «На руках» ведёт
+      // сюда вместе с очередью «Ждут расчёта».
+      courierId:   z.number().int().positive().optional(),
       // Отмеченные строки: выгрузка и вопрос о долге берут их по номерам, а не
       // ищут в срезе дат — отмеченное на другой странице туда не попадало.
       ids:         z.array(z.number().int().positive()).max(5000).optional(),
@@ -1087,6 +1094,20 @@ export const orderRouter = createRouter({
       note: z.string().max(300).optional(),
     }))
     .mutation(({ input, ctx }) => OrderCloseService.close(getDb(), ctx.tenant.id, { id: ctx.user.id, name: ctx.user.name, role: ctx.user.role }, input)),
+  /*
+    Вечерняя сдача курьера пачкой (services/order-close-batch.ts): итог до
+    нажатия и «Принять по заявленному». Право — то же, что у одиночного
+    «Закрыть расчёт»: офис, и у оператора — «Принимать оплату». Пятьдесят за
+    раз — предел панели выбранных заказов.
+  */
+  claimPlan: operatorQuery.use(can("payments.accept"))
+    .input(z.object({ orderIds: z.array(z.number().int().positive()).min(1).max(50) }))
+    .query(({ input, ctx }) => planClaimed(getDb(), ctx.tenant.id, input.orderIds)),
+  acceptClaimed: operatorQuery.use(can("payments.accept"))
+    .input(z.object({
+      items: z.array(z.object({ orderId: z.number().int().positive(), claimed: z.number().positive().max(1e12) })).min(1).max(50),
+    }))
+    .mutation(({ input, ctx }) => acceptClaimed(getDb(), ctx.tenant.id, { id: ctx.user.id, name: ctx.user.name, role: ctx.user.role }, input.items)),
   // Безнал «пришло на счёт» — по строкам платежей из карточки заказа.
   confirmBank: operatorQuery.use(can("payments.accept"))
     .input(z.object({ ids: z.array(z.number().int().positive()).min(1).max(200), bankRef: z.string().max(64).optional() }))

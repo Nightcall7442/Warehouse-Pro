@@ -64,6 +64,40 @@ export interface CloseInput {
   acceptDebt?: boolean;
   debtDueDate?: string;
   note?: string;
+  /**
+   * «Принять по заявленному» (вечерняя сдача пачкой, services/order-close-batch.ts):
+   * наличные = заявленному, и только если заявленное закрывает остаток ТОЧНО.
+   * `claimed` — то, что оператор видел в итоге до нажатия; разошлось — отказ.
+   * Проверяется под замком заказа, а не до него: между итогом и нажатием
+   * курьер мог записать ещё платёж, и тогда «заявлено» уже другое.
+   */
+  exactClaim?: { claimed: number };
+}
+
+/** Почему заказ не закрывается «по заявленному». Всё в целых тийинах. */
+export type ClaimSkipReason = "not_found" | "not_delivered" | "closed" | "no_claim" | "mismatch" | "changed";
+
+/**
+ * Можно ли закрыть заказ «по заявленному» — чистое правило, под стражем.
+ *
+ * Остаток к оплате без заявленного = итог − (всё записанное − заявленное).
+ * Заявленное должно быть равно ему до тийина: иначе закрытие дало бы
+ * недостачу, излишек или долг — а это решения, которые принимает человек
+ * по одному заказу. Сравнение — целыми тийинами, без плавающей точки.
+ */
+export function claimVerdict(o: { status: string; closed: boolean; totalT: number; paidT: number; claimedT: number }): ClaimSkipReason | null {
+  if (o.closed) return "closed";
+  if (o.status !== "delivered") return "not_delivered";
+  if (o.claimedT <= 0) return "no_claim";
+  if (o.totalT - (o.paidT - o.claimedT) !== o.claimedT) return "mismatch";
+  return null;
+}
+
+/** Отказ «по заявленному» с причиной: пачка пишет его в строку заказа, а не валит всю пачку. */
+export class ClaimSkip extends Error {
+  readonly reason: ClaimSkipReason;
+  readonly number: string | null;
+  constructor(reason: ClaimSkipReason, number: string | null) { super(`claim-skip:${reason}`); this.reason = reason; this.number = number; }
 }
 
 /**
@@ -105,8 +139,9 @@ async function paymentRows(db: Db | Tx, tenantId: number, orderId: number) {
 
 type Row = Awaited<ReturnType<typeof paymentRows>>[number];
 const isLive = (p: Row) => p.type === "payment" && p.reversalOf == null && p.status !== "reversed";
+type HandsRow = Pick<Row, "id" | "type" | "reversalOf" | "method" | "receivedAt">;
 /** Заявлено полем и не получено: наличные на руках. Сторно-пары учтены суммой. */
-export function onHandsOf(rows: Row[]): Row[] {
+export function onHandsOf<R extends HandsRow>(rows: R[]): R[] {
   const reversed = new Set(rows.filter(r => r.reversalOf != null).map(r => r.reversalOf));
   return rows.filter(r => r.type === "payment" && r.reversalOf == null && !reversed.has(r.id) && r.method === "cash" && r.receivedAt == null);
 }
@@ -149,7 +184,8 @@ export const OrderCloseService = {
   /** Закрыть расчёт: принять наличные, отметить безнал, остаток — долгом или никак. */
   async close(db: Db, tenantId: number, actor: Actor, input: CloseInput, now = new Date()) {
     if (!isOffice(actor.role)) throw badRequest("Закрыть расчёт может только офис");
-    const extra = (input.extra ?? []).filter(e => e.amount > 0);
+    // По заявленному — ни доплат, ни долга: только заявленное, и только точно.
+    const extra = input.exactClaim ? [] : (input.extra ?? []).filter(e => e.amount > 0);
     let result!: { shortage: number; added: number; remainder: number; claimed: number };
     let info!: { number: string; shopId: number; shopName: string; courierName: string | null; total: number };
     let shortageUser: number | null = null;
@@ -160,7 +196,8 @@ export const OrderCloseService = {
         closedAt: orders.closedAt, shopName: shops.name,
       }).from(orders).innerJoin(shops, eq(shops.id, orders.shopId))
         .where(and(eq(orders.tenantId, tenantId), eq(orders.id, input.orderId), isNull(orders.deletedAt))).for("update").limit(1);
-      if (!o) throw badRequest("Заказ не найден");
+      if (!o) throw input.exactClaim ? new ClaimSkip("not_found", null) : badRequest("Заказ не найден");
+      if (input.exactClaim && (o.closedAt || o.status !== "delivered")) throw new ClaimSkip(o.closedAt ? "closed" : "not_delivered", o.number);
       if (o.status !== "delivered") throw badRequest(`Заказ ${o.number} не доставлен — рассчитывать нечего`);
       if (o.closedAt) throw badRequest(`Заказ ${o.number} уже рассчитан`);
 
@@ -169,7 +206,15 @@ export const OrderCloseService = {
       const claimed = round2(onHands.reduce((t, r) => t + Number(r.amount), 0));
       const paidBefore = round2(rows.filter(r => r.type === "payment").reduce((t, r) => t + Number(r.amount), 0));
       const total = Number(o.total);
-      const m = closeMath({ total, claimed, cashReceived: round2(input.cashReceived), paidBefore, extra: round2(extra.reduce((t, e) => t + e.amount, 0)) });
+      if (input.exactClaim) {
+        const claimedT = onHands.reduce((t, r) => t + tiyin(Number(r.amount)), 0);
+        const paidT = rows.filter(r => r.type === "payment").reduce((t, r) => t + tiyin(Number(r.amount)), 0);
+        const why = claimVerdict({ status: o.status, closed: false, totalT: tiyin(total), paidT, claimedT })
+          ?? (claimedT !== tiyin(input.exactClaim.claimed) ? "changed" : null);
+        if (why) throw new ClaimSkip(why, o.number);
+      }
+      const cashReceived = input.exactClaim ? claimed : round2(input.cashReceived);
+      const m = closeMath({ total, claimed, cashReceived, paidBefore, extra: round2(extra.reduce((t, e) => t + e.amount, 0)) });
 
       if (m.remainder > 0 && !input.acceptDebt) {
         throw badRequest(`Остаток ${fmtMoney(m.remainder)}: примите деньги или оставьте его долгом магазина`);
@@ -235,7 +280,7 @@ export const OrderCloseService = {
 
       await recordAudit(tx as unknown as Db, {
         tenantId, actorId: actor.id, actorName: actor.name, action: "order.closed", targetType: "order", targetId: o.id, targetLabel: `Заказ ${o.number}`,
-        meta: { number: o.number, shop: o.shopName, total, claimed, cashReceived: round2(input.cashReceived), added: m.added, shortage: m.shortage, debt: m.remainder, courier: courier?.name ?? null },
+        meta: { number: o.number, shop: o.shopName, total, claimed, cashReceived, added: m.added, shortage: m.shortage, debt: m.remainder, courier: courier?.name ?? null, ...(input.exactClaim ? { batch: true } : {}) },
       }, { strict: true });
     });
     /*
@@ -273,12 +318,13 @@ export const OrderCloseService = {
   },
 
   /** Наличные на руках у полевых: заявлено и не получено, по людям, с самой старой записью. */
-  async onHands(db: Db, tenantId: number): Promise<Array<{ userId: number; name: string; amount: number; since: Date }>> {
-    const rows = await db.select({ userId: payments.createdBy, name: users.name, s: sql<string>`sum(${payments.amount})`, since: sql<Date>`min(${payments.createdAt})` })
+  /* Роль — чтобы «Контроль» вёл строку курьера на его заказы (/orders?courier=…), а агента — в общую очередь. */
+  async onHands(db: Db, tenantId: number): Promise<Array<{ userId: number; name: string; role: string; amount: number; since: Date }>> {
+    const rows = await db.select({ userId: payments.createdBy, name: users.name, role: users.role, s: sql<string>`sum(${payments.amount})`, since: sql<Date>`min(${payments.createdAt})` })
       .from(payments).innerJoin(users, eq(users.id, payments.createdBy))
       .where(and(eq(payments.tenantId, tenantId), eq(payments.type, "payment"), eq(payments.paymentMethod, "cash"), isNull(payments.receivedAt), isNull(payments.reversalOf), sql`${payments.status} <> 'reversed'`,
         sql`not exists (select 1 from payments r where r.reversal_of = ${payments.id})`))
-      .groupBy(payments.createdBy, users.name);
-    return rows.filter(r => r.userId != null && Number(r.s) > 0).map(r => ({ userId: Number(r.userId), name: r.name, amount: round2(Number(r.s)), since: new Date(r.since) }));
+      .groupBy(payments.createdBy, users.name, users.role);
+    return rows.filter(r => r.userId != null && Number(r.s) > 0).map(r => ({ userId: Number(r.userId), name: r.name, role: r.role, amount: round2(Number(r.s)), since: new Date(r.since) }));
   },
 };
