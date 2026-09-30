@@ -18,7 +18,6 @@ vi.mock("../lib/env", () => ({
     grafanaUrl: "",
     prometheusUrl: "",
     prometheusInternalUrl: "",
-    jaegerUrl: "",
     sentryUrl: "",
     lokiUrl: "",
   },

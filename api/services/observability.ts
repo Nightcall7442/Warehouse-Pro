@@ -6,7 +6,7 @@ import { register } from "../prometheus-metrics";
 
    ── Зачем это на странице мониторинга ───────────────────────────────────────
 
-   У проекта восемь служб — Prometheus, Grafana, Loki, Jaeger, AlertManager,
+   У проекта семь служб — Prometheus, Grafana, Loki, AlertManager,
    Redis, MySQL, само приложение. Страница мониторинга не знала ни об одной:
    она показывала свои числа и молчала о том, что рядом стоит целая обвязка.
    Владелец держал адреса в закладках и в голове, а «что сейчас горит» узнавал
@@ -102,14 +102,6 @@ function describe(): ServiceDef[] {
       internal: env.lokiUrl.replace(/\/loki\/api\/v1\/push$/, ""),
       probePath: "/ready",
       note: "Наружу закрыт намеренно: своей защиты у Loki нет",
-    },
-    {
-      key: "jaeger",
-      title: "Jaeger",
-      purpose: "Трассировки запросов: где именно ушло время",
-      url: env.jaegerUrl || null,
-      internal: env.jaegerUrl,
-      probePath: "/",
     },
     {
       key: "alertmanager",
