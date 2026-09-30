@@ -72,6 +72,8 @@ vi.mock("@/providers/trpc", () => ({
     order: {
       // «В прошлый раз» здесь не проверяется — см. like-last-time.test.tsx.
       repeatDraft: { useQuery: () => ({ data: undefined }) },
+      // Подсказка о просрочке магазина — здесь её нет (overdue-hold-ui.test.tsx).
+      shopOverdue: { useQuery: () => ({ data: null }) },
       create: {
         useMutation: (opts: { onSuccess: (r: { held: boolean }) => void }) => {
           h.onSuccess = opts.onSuccess;

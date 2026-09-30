@@ -11,6 +11,7 @@ import { useShopSearch, SHOP_PICK_LIMIT, type PickedShop } from "@/hooks/useShop
 import { useCurrency } from "@/hooks/useCurrency";
 import { colorMix } from "@/lib/color-mix";
 import { priceAt } from "@contracts/price-tiers";
+import { holdReasonText } from "@contracts/hold-reason";
 import type { QuickOrderLine, QuickOrderStart } from "@/lib/quick-order";
 
 type CartItem = QuickOrderLine;
@@ -167,8 +168,14 @@ export function QuickOrderModal({ open, onOpenChange, preselectedShopId, initial
   }), [cart, catalogOf]);
 
   const createOrder = trpc.order.create.useMutation({
-    onSuccess: () => {
-      notify.success(t("Заказ создан", "Buyurtma yaratildi"));
+    onSuccess: (created) => {
+      // Заказ встал на решение офиса (скидка, просрочка) — сказать и почему.
+      if ("held" in created && created.held) {
+        const why = holdReasonText(created.holdReason, t("ru", "uz"));
+        notify.info(t("Заказ создан и ждёт подтверждения офиса", "Buyurtma yaratildi va ofis tasdig'ini kutmoqda") + (why ? ` — ${why}` : ""));
+      } else {
+        notify.success(t("Заказ создан", "Buyurtma yaratildi"));
+      }
       invalidateOrderCaches();
       onCreated?.();
       onOpenChange(false);
