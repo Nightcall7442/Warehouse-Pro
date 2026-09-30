@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { PremiumSelect } from "@/components/PremiumSelect";
-import { Printer, Package, FileDown, X, AlertTriangle, CheckSquare, MoreHorizontal, Banknote } from "lucide-react";
+import { Printer, Package, FileDown, X, AlertTriangle, CheckSquare, MoreHorizontal, Banknote, HandCoins } from "lucide-react";
 import { useTranslate } from "@/i18n";
 import { STATUS } from "./theme-tokens";
 
@@ -28,6 +28,14 @@ interface Props {
     но предел должен предлагать выход, а не отнимать экран.
   */
   onTrimSelection?: () => void;
+  /*
+    «Принять по заявленному» — вечерняя сдача курьера пачкой
+    (AcceptClaimedModal). Нет права принимать оплату — кнопки нет. В очереди
+    «Ждут расчёта» это и есть главное действие, и она встаёт на место
+    «Выполнить с оплатой»; в остальных списках — в «Ещё».
+  */
+  onAcceptClaimed?: () => void;
+  acceptClaimedFirst?: boolean;
   agents?: Array<{ id: number; name: string }>;
   couriers?: Array<{ id: number; name: string }>;
   validStatusTransitions?: string[];
@@ -36,6 +44,7 @@ interface Props {
 export function OrderBulkActions({
   selectedCount, maxSelection = 50, onClearSelection,
   onPrintInvoices, onCreateLoadingList, onChangeStatus, onComplete, onCompleteWithPayment, onAssignAgent, onAssignCourier, onExportExcel, onTrimSelection,
+  onAcceptClaimed, acceptClaimedFirst = false,
   agents, couriers, validStatusTransitions = ["processing", "shipped", "delivered", "cancelled", "returned"],
 }: Props) {
   const t = useTranslate();
@@ -109,10 +118,17 @@ export function OrderBulkActions({
                 unpaid — it used to be painted red, which read as "destructive"
                 next to a green sibling and made two similar actions look like
                 a yes/no pair. It's an ordinary secondary action. */}
-            <button type="button" onClick={onCompleteWithPayment} className="neo-btn-primary h-10">
-              <Banknote size={16} />
-              {t("Выполнить с оплатой", "To'lov bilan bajarish")}
-            </button>
+            {onAcceptClaimed && acceptClaimedFirst ? (
+              <button type="button" onClick={onAcceptClaimed} className="neo-btn-primary tap h-10" data-testid="bulk-accept-claimed">
+                <HandCoins size={16} />
+                {t("Принять по заявленному", "E'lon qilingani bo'yicha qabul qilish")}
+              </button>
+            ) : (
+              <button type="button" onClick={onCompleteWithPayment} className="neo-btn-primary h-10">
+                <Banknote size={16} />
+                {t("Выполнить с оплатой", "To'lov bilan bajarish")}
+              </button>
+            )}
 
             {/* На телефоне в один ряд помещаются только счётчик, главная
                 кнопка и «ещё» — иначе шесть-семь элементов с flex-wrap
@@ -170,6 +186,18 @@ export function OrderBulkActions({
                 <span className="font-label text-[10px] tracking-wider uppercase" style={{ color: "var(--color-text-tertiary)" }}>
                   {t("Ещё", "Yana")}
                 </span>
+
+                {onAcceptClaimed && (acceptClaimedFirst ? (
+                  <button type="button" onClick={() => { onCompleteWithPayment(); setMoreOpen(false); }} className="neo-btn w-full h-10">
+                    <Banknote size={16} />
+                    {t("Выполнить с оплатой", "To'lov bilan bajarish")}
+                  </button>
+                ) : (
+                  <button type="button" onClick={() => { onAcceptClaimed(); setMoreOpen(false); }} className="neo-btn tap w-full h-10" data-testid="bulk-accept-claimed">
+                    <HandCoins size={16} />
+                    {t("Принять по заявленному", "E'lon qilingani bo'yicha qabul qilish")}
+                  </button>
+                ))}
 
                 <div className="sm:hidden flex flex-col gap-2">
                   <button type="button" onClick={() => { onComplete(); setMoreOpen(false); }} className="neo-btn w-full h-10">

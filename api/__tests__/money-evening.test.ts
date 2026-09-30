@@ -17,7 +17,7 @@ describe("вечерняя сводка", () => {
   it("очередь, люди с наличными, возраст, куда идти; имена экранируются", () => {
     const t = moneyEveningText(money({
       awaiting: { count: 7, total: 8_400_000, oldestAt: new Date() },
-      onHands: [{ userId: 3, name: "Ботир <b>", amount: 3_100_000, since: new Date(), orders: 3, hours: 49 }, { userId: 4, name: "Азиз", amount: 500_000, since: new Date(), orders: 1, hours: 2 }],
+      onHands: [{ userId: 3, name: "Ботир <b>", role: "courier", amount: 3_100_000, since: new Date(), orders: 3, hours: 49 }, { userId: 4, name: "Азиз", role: "agent", amount: 500_000, since: new Date(), orders: 1, hours: 2 }],
     }))!;
     expect(t).toContain("Ждут расчёта: <b>7</b>");
     expect(t).toContain("Ботир &lt;b&gt; — ");

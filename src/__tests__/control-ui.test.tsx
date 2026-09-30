@@ -20,7 +20,10 @@ const stub = vi.hoisted(() => {
     },
     disputes: [{ id: 77, number: "№1002", total: 300000, deliveredAt: "2026-09-14T09:00:00.000Z", disputedAt: "2026-09-16T10:30:00.000Z", note: "Нет двух ящиков", shopId: 5, shopName: "Магазин Альфа", courierId: 3, courierName: "Курьер Ботир" }],
     money: {
-      onHands: [{ userId: 3, name: "Курьер Ботир", amount: 1_200_000, since: "2026-09-15T09:00:00.000Z", orders: 2, hours: 49 }],
+      onHands: [
+        { userId: 3, name: "Курьер Ботир", role: "courier", amount: 1_200_000, since: "2026-09-15T09:00:00.000Z", orders: 2, hours: 49 },
+        { userId: 4, name: "Агент Азиз", role: "agent", amount: 50_000, since: "2026-09-16T09:00:00.000Z", orders: 1, hours: 3 },
+      ],
       awaiting: { count: 3, total: 2_500_000, oldestAt: "2026-09-15T09:00:00.000Z" },
     },
     shortages: [{ id: 88, number: "№1004", closedAt: "2026-09-16T14:00:00.000Z", amount: 70_000, note: "не хватило пачки", shopName: "Магазин Альфа", userId: 3, userName: "Курьер Ботир", closedByName: "Дилноза", total: 300_000 }],
@@ -88,8 +91,13 @@ describe("страница «Контроль»", () => {
     expect(money.textContent).toContain("3");
     const hands = screen.getByTestId("control-on-hands");
     expect(within(hands).getByTestId("on-hands-3").textContent).toContain("2 дн.");
+    // Строка курьера — его заказы, ждущие расчёта: оттуда вечерняя сдача пачкой.
+    // Агент держит наличные и за чужие заказы (собрал старый долг) — ему общая очередь.
+    // Нарочная поломка (проверено): ссылка без courier — падает первая проверка.
     fireEvent.click(within(hands).getByTestId("on-hands-3"));
-    expect(stub.state.navigate).toHaveBeenCalledWith("/orders?status=money");
+    expect(stub.state.navigate).toHaveBeenLastCalledWith("/orders?status=money&courier=3");
+    fireEvent.click(within(hands).getByTestId("on-hands-4"));
+    expect(stub.state.navigate).toHaveBeenLastCalledWith("/orders?status=money");
     const sh = screen.getByTestId("control-shortages");
     expect(sh.textContent).toContain("не хватило пачки");
     expect(sh.textContent).toContain("Дилноза");

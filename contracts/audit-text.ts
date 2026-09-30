@@ -23,6 +23,8 @@ const KEY_LABEL: Record<string, Label> = {
   expected: { ru: "Ожидалось", uz: "Kutilgan" }, discrepancy: { ru: "Расхождение", uz: "Farq" },
   bankRef: { ru: "Операция банка", uz: "Bank operatsiyasi" }, recordedBy: { ru: "Записал", uz: "Yozgan" },
   shortage: { ru: "Недостача", uz: "Kamomad" }, paid: { ru: "Оплачено", uz: "To'langan" },
+  // «Принять по заявленному» — вечерняя сдача курьера пачкой (services/order-close-batch.ts).
+  batch: { ru: "Пачкой", uz: "To'plam bilan" },
   system: { ru: "По системе", uz: "Tizim bo'yicha" }, counted: { ru: "Пересчёт", uz: "Sanash" }, stornoOf: { ru: "Сторно документа", uz: "Hujjat stornosi" },
   remaining: { ru: "Остаток долга", uz: "Qarz qoldig'i" }, credited: { ru: "Зачтено", uz: "Hisobga olindi" },
   creditLimit: { ru: "Кредитный лимит", uz: "Kredit limiti" }, price: { ru: "Цена", uz: "Narx" }, was: { ru: "Было", uz: "Bo'lgan" },
