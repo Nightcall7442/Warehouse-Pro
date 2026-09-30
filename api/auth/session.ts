@@ -1,5 +1,7 @@
 import * as jose from "jose";
+import * as cookie from "cookie";
 import { randomUUID } from "node:crypto";
+import { Session } from "@contracts/constants";
 import { env } from "../lib/env";
 
 const JWT_ALG = "HS256";
@@ -36,4 +38,19 @@ export async function verifySessionToken(token: string): Promise<SessionClaim | 
   } catch {
     return null;
   }
+}
+
+/**
+ * Кука сессии для веба. Одна на два места: вход (/api/login) и перевыпуск
+ * после смены логина (user.changeMyLogin) — иначе флаги куки однажды
+ * разъедутся, и перевыпущенная сессия окажется слабее выданной при входе.
+ */
+export function sessionCookie(token: string): string {
+  return cookie.serialize(Session.cookieName, token, {
+    httpOnly: true,
+    path: "/",
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+    maxAge: Session.maxAgeMs / 1000,
+  });
 }

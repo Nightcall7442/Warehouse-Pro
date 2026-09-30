@@ -6,7 +6,7 @@ import { Session } from "@contracts/constants";
 import { verifyPassword, hashPassword, needsRehash, ITERATIONS } from "../auth/password";
 import { findUsersByEmailAnyTenant, updateUserLastSignIn, updateUserPasswordHash } from "../queries/users";
 import { findTenantById } from "../queries/tenants";
-import { signSessionToken } from "../auth/session";
+import { signSessionToken, sessionCookie } from "../auth/session";
 import { checkRateLimit, rateLimitSubject } from "../lib/rate-limit";
 import { invalidateAuthUser } from "../auth";
 
@@ -184,13 +184,7 @@ routes.post("/api/login", async (c) => {
     await updateUserLastSignIn(user.id);
     const token = await signSessionToken({ userId: user.id, tv: user.tokenVersion ?? 0 });
 
-    c.header("set-cookie", cookie.serialize(Session.cookieName, token, {
-      httpOnly: true,
-      path: "/",
-      sameSite: "lax",
-      secure: process.env.NODE_ENV === "production",
-      maxAge: Session.maxAgeMs / 1000,
-    }));
+    c.header("set-cookie", sessionCookie(token));
 
     // Токен возвращается в теле — для мобильного приложения.
     //

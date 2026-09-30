@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { createRouter, adminQuery, operatorQuery, authedQuery } from "./middleware";
+import { createRouter, adminQuery, operatorQuery, authedQuery, superAdminQuery } from "./middleware";
 import { getDb } from "./queries/connection";
 import { users } from "@db/schema";
 import { eq, ne, like, and, sql, desc } from "drizzle-orm";
@@ -8,11 +8,16 @@ import { TRPCError } from "@trpc/server";
 import { checkRateLimit, getClientIp, rateLimitSubject } from "./lib/rate-limit";
 import { sanitizeSearch } from "./lib/sanitize";
 import { isSafePhotoValue, PHOTO_VALUE_ERROR } from "./lib/photo-value";
-import { recordAudit } from "./services/audit-log";
+import { recordAudit, auditActor } from "./services/audit-log";
 import { generateTotpSecret, verifyTotpOnce, otpauthUrl } from "./lib/totp";
 import { seal, open as unseal } from "./lib/secret-box";
 import { ROLES } from "@contracts/types";
 import { invalidateAuthUser } from "./auth";
+import { signSessionToken, sessionCookie } from "./auth/session";
+import { checkTotpStepUp } from "./auth/step-up";
+import { inBackground } from "./lib/graceful-shutdown";
+import { isDuplicateEntry } from "./lib/db-errors";
+import { notifyAdmin, tgMessages } from "./telegram-router";
 
 export const userRouter = createRouter({
   /*
@@ -66,7 +71,11 @@ export const userRouter = createRouter({
     вторую выборку тех же колонок значит чинить права доступа дважды.
   */
 
-  me: authedQuery.query(({ ctx }) => ctx.user),
+  /*
+    user.me убран 01.10.2026: его звал один экран — «Мой профиль»
+    суперадмина, а тот теперь читает auth.me (useAuth), который отдаёт то же
+    самое и ещё права. Мобилка его не зовёт (contracts/mobile-procedures.json).
+  */
 
   // Update own profile (name, phone, avatar)
   updateMe: authedQuery
@@ -113,6 +122,92 @@ export const userRouter = createRouter({
       }).where(eq(users.id, ctx.user.id));
       invalidateAuthUser(ctx.user.id);
       return { success: true };
+    }),
+
+  /*
+    Суперадмин меняет СВОЙ логин.
+
+    Логин — это почта: вход ищет человека по ней во всех организациях сразу
+    (findUsersByEmailAnyTenant). Свой логин сотрудник организации сменить не
+    может — это делает директор («Передать доступ») или суперадмин
+    (tenant.changeUserLogin). А у суперадмина над ним никого нет: логин
+    superadmin@system.local из засева оставался навсегда (владелец,
+    01.10.2026: «логин и пароль чтобы можно было изменить»).
+
+    Действие того же веса, что смена пароля, поэтому:
+      - текущий пароль обязателен всегда; код из приложения — если второй
+        фактор включён (без него — только пароль, экран уговаривает включить);
+      - пять попыток на четверть часа, как у changePassword;
+      - логин не должен совпасть ни с чьим во всей базе: вход сверяет пароль
+        со всеми записями этого адреса, и общий адрес сделал бы вход
+        неоднозначным, а сброс пароля по почте — адресованным не тому;
+      - прочие сессии гаснут (tokenVersion), текущая получает новую куку и
+        живёт дальше — человек, сменивший логин, не должен вылетать сам;
+      - след в журнале и сообщение владельцу в Telegram: если логин сменил
+        не он, узнать об этом надо сразу.
+  */
+  changeMyLogin: superAdminQuery
+    .input(z.object({
+      email:           z.string().trim().toLowerCase().email("Логин — адрес почты, например owner@example.com").max(320),
+      currentPassword: z.string().min(1, "Введите текущий пароль"),
+      code:            z.string().max(12).optional(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const subject = rateLimitSubject(ctx.req, `user:${ctx.user.id}`);
+      if (!(await checkRateLimit(subject, { windowMs: 15 * 60 * 1000, limit: 5, namespace: "changeMyLogin" }))) {
+        throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: "Слишком много попыток. Попробуйте через 15 минут." });
+      }
+
+      const db = getDb();
+      const [me] = await db.select({
+        id: users.id, email: users.email, passwordHash: users.passwordHash, totpEnabledAt: users.totpEnabledAt,
+      }).from(users).where(eq(users.id, ctx.user.id)).limit(1);
+      if (!me) throw new TRPCError({ code: "NOT_FOUND", message: "Пользователь не найден" });
+      if (me.email.toLowerCase() === input.email) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Это и есть ваш текущий логин" });
+      }
+
+      // BAD_REQUEST, а не UNAUTHORIZED: неверный пароль в форме — не конец
+      // сессии, и клиент не должен принять его за «войдите заново».
+      if (!(await verifyPassword(input.currentPassword, me.passwordHash))) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Неверный текущий пароль" });
+      }
+      if (me.totpEnabledAt) {
+        const step = await checkTotpStepUp(db, me.id, input.code);
+        if (!step.ok) throw new TRPCError({ code: "BAD_REQUEST", message: step.message });
+      }
+
+      const [taken] = await db.select({ id: users.id }).from(users)
+        .where(and(eq(users.email, input.email), ne(users.id, me.id))).limit(1);
+      if (taken) throw new TRPCError({ code: "CONFLICT", message: "Этот логин уже занят — выберите другой" });
+
+      try {
+        await db.update(users)
+          .set({ email: input.email, tokenVersion: sql`COALESCE(${users.tokenVersion}, 0) + 1`, updatedAt: new Date() })
+          .where(eq(users.id, me.id));
+      } catch (e) {
+        // Проверку выше и запись разделяет мгновение; уникальный ключ
+        // (почта + организация) ловит того, кто успел в него вклиниться.
+        if (isDuplicateEntry(e)) {
+          throw new TRPCError({ code: "CONFLICT", message: "Этот логин уже занят — выберите другой" });
+        }
+        throw e;
+      }
+      invalidateAuthUser(me.id);
+
+      // Прочие сессии погасли вместе со старой версией ключа; этой вкладке —
+      // новая кука с новой версией, чтобы она не вылетела следом.
+      const [fresh] = await db.select({ tokenVersion: users.tokenVersion }).from(users).where(eq(users.id, me.id)).limit(1);
+      const token = await signSessionToken({ userId: me.id, tv: fresh?.tokenVersion ?? 0 });
+      ctx.resHeaders.append("set-cookie", sessionCookie(token));
+
+      await recordAudit(db, {
+        ...auditActor(ctx),
+        action: "user.login_changed", targetType: "user", targetId: me.id,
+        meta: { oldEmail: me.email, newEmail: input.email, by: "self", withTotp: Boolean(me.totpEnabledAt) },
+      });
+      inBackground(notifyAdmin(tgMessages.superadminLoginChanged(ctx.user.name, me.email, input.email, getClientIp(ctx.req) ?? "—")));
+      return { email: input.email };
     }),
 
   // Admin: update any user in same tenant

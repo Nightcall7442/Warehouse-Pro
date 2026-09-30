@@ -35,9 +35,12 @@ export const NAV_GROUPS: Record<NavGroupKey, { labelKey: string; icon: string }>
 
 // Sidebar nav — ключи для i18n, label берётся через t() в Layout
 export const NAV_ITEMS: Record<string, NavItem[]> = {
+  // «Настройки» у суперадмина не было, хотя /settings ему открыт: логин,
+  // пароль и вход с кодом из приложения он искал и не находил (01.10.2026).
   superadmin: [
     { labelKey: "nav.superAdmin", path: "/super-admin", icon: "Zap" },
     { labelKey: "nav.monitoring", path: "/monitoring", icon: "Activity" },
+    { labelKey: "nav.settings",   path: "/settings",   icon: "Settings" },
   ],
   // Директор: Главная, четыре группы и четыре пункта, которые владелец велел
   // оставить снаружи (19.09.2026): «Магазины», «Биллинг», «Журнал действий»,

@@ -35,7 +35,9 @@ vi.mock("../lib/feature-gating", () => ({
 }));
 
 // ── Mock auth modules ─────────────────────────────────────────────────────
-vi.mock("../auth/session", () => ({
+// Кука — настоящая (sessionCookie): её флаги и есть то, что выдаёт вход.
+vi.mock("../auth/session", async (orig) => ({
+  ...(await orig<object>()),
   signSessionToken: vi.fn(async ({ userId }: { userId: number }) => `token-${userId}`),
   verifySessionToken: vi.fn(async () => null),
 }));
