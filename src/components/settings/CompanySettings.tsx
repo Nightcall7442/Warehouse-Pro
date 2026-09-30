@@ -45,6 +45,10 @@ type CompanyForm = {
   maxFieldDiscountPct: string;
   /** Точка заказа для новых товаров, если в карточке не указали. */
   defaultReorderPoint: string;
+  /** Просроченный долг ставит заказ полевых на решение офиса. */
+  overdueHoldEnabled: boolean;
+  /** Отсрочка оплаты по умолчанию, дней. */
+  overdueGraceDays: string;
 };
 
 const EMPTY: CompanyForm = {
@@ -52,6 +56,8 @@ const EMPTY: CompanyForm = {
   companyBank: "", companyBankAccount: "", companyMfo: "", currency: "UZS", logoUrl: "",
   maxFieldDiscountPct: "",
   defaultReorderPoint: "",
+  overdueHoldEnabled: false,
+  overdueGraceDays: "14",
 };
 
 /** Загрузка отвергает файл больше этого; подпись под кнопкой берёт число отсюда же. */
@@ -70,7 +76,9 @@ export function CompanySettings() {
     const next = { ...EMPTY };
     for (const key of Object.keys(EMPTY) as (keyof CompanyForm)[]) {
       const v = s[key];
-      if (v !== null && v !== undefined) next[key] = String(v);
+      if (v === null || v === undefined) continue;
+      if (key === "overdueHoldEnabled") next.overdueHoldEnabled = Boolean(v);
+      else next[key] = String(v);
     }
     setForm(next);
   }
@@ -101,6 +109,19 @@ export function CompanySettings() {
 
   const set = (key: keyof CompanyForm) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setForm({ ...form, [key]: e.target.value });
+
+  /*
+    Отсрочка уходит числом; пусто — не трогать. Не число — отказ здесь, словами,
+    а не «expected number» от сервера.
+  */
+  const save = () => {
+    const days = form.overdueGraceDays.trim();
+    if (days !== "" && !/^\d{1,3}$/.test(days)) {
+      notify.error(t("Отсрочка — целое число дней от 0 до 365", "To'lov muddati — 0 dan 365 gacha butun kun"));
+      return;
+    }
+    saveMutation.mutate({ ...form, overdueGraceDays: days === "" ? undefined : Number(days) });
+  };
 
   return (
     <div>
@@ -200,8 +221,32 @@ export function CompanySettings() {
         </FieldRow>
       </FieldGroup>
 
+      {/* Просроченный долг: выключено — как было у всех. Включено — заказ агента
+          магазину с просрочкой не отказывается, а ждёт офиса, как скидка выше
+          порога. Отсрочка — сколько дней после доставки долг ещё не просрочен,
+          если срок оплаты не назначили явно; у магазина можно задать свою. */}
+      <FieldGroup title={t("Просроченный долг", "Muddati o'tgan qarz")}>
+        <label className="flex items-center gap-3 text-sm text-primary cursor-pointer" style={{ minHeight: "44px" }}>
+          <input type="checkbox" className="neo-toggle" data-testid="overdue-hold-enabled"
+            checked={form.overdueHoldEnabled}
+            onChange={e => setForm({ ...form, overdueHoldEnabled: e.target.checked })} />
+          {t("Заказ магазину с просроченным долгом ждёт решения офиса",
+             "Muddati o'tgan qarzi bor do'kon buyurtmasi ofis qarorini kutadi")}
+        </label>
+        <FieldRow>
+          <Field label={t("Отсрочка оплаты по умолчанию, дней", "Standart to'lov muddati, kun")}>
+            <input className="neo-input font-data" inputMode="numeric" placeholder="14" data-testid="overdue-grace-days"
+              value={form.overdueGraceDays} onChange={set("overdueGraceDays")} />
+          </Field>
+        </FieldRow>
+        <p className="text-xs text-tertiary mt-1.5">
+          {t("Считается от доставки, если срок оплаты не назначен явно. У магазина можно задать свою отсрочку в его карточке.",
+             "Muddat aniq belgilanmagan bo'lsa, yetkazilgan kundan hisoblanadi. Do'kon kartasida o'z muddatini belgilash mumkin.")}
+        </p>
+      </FieldGroup>
+
       <SaveBar
-        onSave={() => saveMutation.mutate(form)}
+        onSave={save}
         isPending={saveMutation.isPending}
         disabled={form.companyName.trim().length === 0}
         label={t("Сохранить", "Saqlash")}

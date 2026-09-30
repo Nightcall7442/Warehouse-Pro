@@ -307,6 +307,11 @@ export const shopRouter = createRouter({
         debt: shops.debt, status: shops.status, agentId: shops.agentId,
         notes: shops.notes, createdAt: shops.createdAt,
         taxId: shops.taxId, vatPayer: shops.vatPayer,
+        /*
+          Лимит и отсрочка — для формы правки: без них поле открывалось
+          пустым, и директор не видел, что уже стоит у магазина.
+        */
+        creditLimit: shops.creditLimit, paymentGraceDays: shops.paymentGraceDays,
       }).from(shops)
         .where(and(eq(shops.id, input.id), eq(shops.tenantId, tenantId)))
         .limit(1);
@@ -417,6 +422,14 @@ export const shopRouter = createRouter({
       status:   z.enum(["active", "inactive"]).optional(),
       // Пусто или null — снять лимит. Строкой, как все деньги в API.
       creditLimit: z.preprocess(v => (v === "" ? null : v), z.string().regex(/^\d+(\.\d{1,2})?$/, "Лимит — неотрицательное число").nullable().optional()),
+      /*
+        Своя отсрочка оплаты, дней (services/overdue-hold.ts). Пусто или null —
+        как у организации. Из формы приходит строкой — число из неё здесь.
+      */
+      paymentGraceDays: z.preprocess(
+        v => (v === "" || v === null ? null : typeof v === "string" ? Number(v.trim()) : v),
+        z.number("Отсрочка — целое число дней").int("Отсрочка — целое число дней").min(0, "Отсрочка — от 0 до 365 дней").max(365, "Отсрочка — от 0 до 365 дней").nullable().optional(),
+      ),
       // Пусто — стереть. Формат — contracts/tax-requisites.ts.
       taxId:    taxIdInput,
       vatPayer: vatPayerInput,
@@ -439,7 +452,7 @@ export const shopRouter = createRouter({
       // Кредитный лимит решает, отпустят ли магазину в долг; смена — в той же
       // транзакции, что и след о ней.
       await getDb().transaction(async (tx) => {
-        const [before] = await tx.select({ creditLimit: shops.creditLimit, name: shops.name })
+        const [before] = await tx.select({ creditLimit: shops.creditLimit, paymentGraceDays: shops.paymentGraceDays, name: shops.name })
           .from(shops).where(and(eq(shops.id, id), eq(shops.tenantId, ctx.tenant.id))).for("update").limit(1);
         if (!before) throw new Error("Магазин не найден");
         await tx.update(shops).set(sanitized)
@@ -449,6 +462,14 @@ export const shopRouter = createRouter({
           await recordAudit(tx as unknown as ReturnType<typeof getDb>, {
             ...auditActor(ctx), action: "shop.credit_limit_changed", targetType: "shop", targetId: id,
             meta: { shop: before.name, ...changed.creditLimit },
+          }, { strict: true });
+        }
+        // Отсрочка решает, когда долг магазина станет просрочкой, — тоже след.
+        const grace = changedFields(before, sanitized, ["paymentGraceDays"]);
+        if (grace.paymentGraceDays) {
+          await recordAudit(tx as unknown as ReturnType<typeof getDb>, {
+            ...auditActor(ctx), action: "shop.payment_grace_changed", targetType: "shop", targetId: id,
+            meta: { shop: before.name, ...grace.paymentGraceDays },
           }, { strict: true });
         }
       });

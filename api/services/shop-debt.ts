@@ -1,6 +1,28 @@
 import { sql } from "drizzle-orm";
 
-type Tx = Parameters<Parameters<ReturnType<typeof import("../queries/connection").getDb>["transaction"]>[0]>[0];
+type Db = ReturnType<typeof import("../queries/connection").getDb>;
+type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
+
+/*
+  Сколько уже заплачено по ЗАКАЗУ `o` — одно выражение на долг магазина и на
+  его просрочку (overdueDebt ниже): разойдись они — и «просрочено» назвало бы
+  сумму, которой нет в долге.
+
+  Раньше здесь стоял LEFT JOIN на подзапрос, который считал суммы по всем
+  заказам всех организаций разом, а потом отбрасывал всё лишнее. Пересчёт
+  долга вызывается на каждое изменение статуса заказа, каждую оплату, каждый
+  возврат и каждое действие курьера, так что вся таблица платежей
+  перемалывалась заново по нескольку раз в минуту. На десятках тысяч строк
+  это стало бы самым дорогим запросом в системе.
+
+  Здесь же читаются только платежи одного заказа, по индексу
+  idx_payments_order. Результат тот же: прежний JOIN группировал по order_id
+  и подставлял строку с тем же условием, что стоит теперь в WHERE.
+*/
+const PAID_ON_ORDER = sql`COALESCE((
+  SELECT SUM(CAST(p.amount AS DECIMAL(15,2))) FROM payments p
+  WHERE p.order_id = o.id AND p.type = 'payment'
+), 0)`;
 
 /**
  * `shops.debt` is a cached running balance, and for a long time every caller
@@ -49,25 +71,7 @@ export async function recalcShopDebt(tx: Tx, tenantId: number, shopId: number): 
           CASE
             WHEN o.status IN ('cancelled', 'returned') THEN 0
             WHEN o.payment_method = 'debt' OR o.status = 'delivered'
-              THEN GREATEST(0, CAST(o.total AS DECIMAL(15,2)) - COALESCE((
-                -- Сколько уже заплачено по ЭТОМУ заказу.
-                --
-                -- Раньше здесь стоял LEFT JOIN на подзапрос, который считал
-                -- суммы по всем заказам всех организаций разом, а потом
-                -- отбрасывал всё лишнее. Пересчёт долга вызывается на каждое
-                -- изменение статуса заказа, каждую оплату, каждый возврат и
-                -- каждое действие курьера, так что вся таблица платежей
-                -- перемалывалась заново по нескольку раз в минуту. Сейчас в
-                -- ней полторы сотни строк и этого не видно; на десятках тысяч
-                -- это стало бы самым дорогим запросом в системе.
-                --
-                -- Здесь же читаются только платежи одного заказа, по индексу
-                -- idx_payments_order. Результат тот же: прежний JOIN
-                -- группировал по order_id и подставлял строку с тем же
-                -- условием, что стоит теперь в WHERE.
-                SELECT SUM(CAST(p.amount AS DECIMAL(15,2))) FROM payments p
-                WHERE p.order_id = o.id AND p.type = 'payment'
-              ), 0))
+              THEN GREATEST(0, CAST(o.total AS DECIMAL(15,2)) - ${PAID_ON_ORDER})
             ELSE 0
           END
         )
@@ -153,4 +157,61 @@ export async function recalcShopDebt(tx: Tx, tenantId: number, shopId: number): 
     )
     WHERE s.id = ${shopId} AND s.tenant_id = ${tenantId}
   `);
+}
+
+/**
+ * Просроченная часть долга магазина — по тем же правилам, что и сам долг.
+ *
+ * Просрочен неоплаченный остаток ДОСТАВЛЕННОГО заказа, у которого
+ *   • явный срок оплаты из напоминания (debt_reminders.due_date — его ставят
+ *     курьер и офис при закрытии расчёта) уже прошёл, или
+ *   • явного срока нет, а со дня доставки прошло больше graceDays.
+ * Явный срок главнее отсрочки: офис договорился с магазином — значит, так.
+ *
+ * Остаток заказа — итог минус оплаты этого заказа (PAID_ON_ORDER, то же
+ * выражение, что в recalcShopDebt) минус завершённые возвраты по нему (долг
+ * вычитает их так же). Недоставленный заказ «в долг» уже долг, но
+ * просрочиться не может: товар ещё не у магазина.
+ *
+ * Потолок — сам долг магазина (shops.debt, выведенный recalcShopDebt выше):
+ * платёж и возврат без привязки к заказу уменьшают долг, и просрочка не может
+ * быть больше того, что магазин вообще должен.
+ *
+ * Возраст самого старого — от даты заказа, как в отчёте «Дебиторка»
+ * (services/receivables.ts): директор видит одно и то же число в двух местах.
+ *
+ * Деньги целыми: копейки остатка не держат заказ.
+ */
+export async function overdueDebt(
+  db: Db | Tx, tenantId: number, shopId: number, graceDays: number,
+): Promise<{ amount: number; oldestDays: number }> {
+  const grace = Math.max(0, Math.floor(graceDays));
+  const result = await db.execute(sql`
+    SELECT
+      COALESCE(SUM(x.owed), 0) AS amount,
+      COALESCE(MAX(x.age), 0)  AS oldestDays,
+      (SELECT CAST(s.debt AS DECIMAL(15,2)) FROM shops s WHERE s.id = ${shopId} AND s.tenant_id = ${tenantId}) AS shopDebt
+    FROM (
+      SELECT
+        GREATEST(0, CAST(o.total AS DECIMAL(15,2)) - ${PAID_ON_ORDER} - COALESCE((
+          SELECT SUM(CAST(r.total_amount AS DECIMAL(15,2))) FROM returns r
+          WHERE r.order_id = o.id AND r.tenant_id = o.tenant_id AND r.status = 'completed'
+        ), 0)) AS owed,
+        DATEDIFF(CURDATE(), DATE(COALESCE(o.first_ordered_at, o.created_at))) AS age,
+        COALESCE(
+          (SELECT MAX(dr.due_date) FROM debt_reminders dr
+           WHERE dr.order_id = o.id AND dr.tenant_id = o.tenant_id),
+          DATE_ADD(DATE(COALESCE(o.delivered_at, o.first_ordered_at, o.created_at)), INTERVAL ${grace} DAY)
+        ) AS due
+      FROM orders o
+      WHERE o.shop_id = ${shopId} AND o.tenant_id = ${tenantId}
+        AND o.deleted_at IS NULL AND o.status = 'delivered'
+    ) x
+    WHERE x.owed > 0 AND x.due < CURDATE()
+  `);
+  const rows = (Array.isArray(result) ? result[0] : result) as unknown as Array<{ amount: unknown; oldestDays: unknown; shopDebt: unknown }>;
+  const row = Array.isArray(rows) ? rows[0] : undefined;
+  const amount = Math.round(Math.min(Number(row?.amount ?? 0), Number(row?.shopDebt ?? 0)));
+  if (!(amount >= 1)) return { amount: 0, oldestDays: 0 };
+  return { amount, oldestDays: Number(row?.oldestDays ?? 0) };
 }

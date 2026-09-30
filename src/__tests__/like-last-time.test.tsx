@@ -51,6 +51,8 @@ vi.mock("@/providers/trpc", () => ({
     product: { listAll: { useQuery: () => ({ data: CATALOG, isLoading: false }) } },
     order: {
       create: { useMutation: () => ({ mutate: vi.fn(), isPending: false }) },
+      // Подсказка о просрочке магазина — здесь её нет (overdue-hold-ui.test.tsx).
+      shopOverdue: { useQuery: () => ({ data: null }) },
       repeatDraft: {
         useQuery: (input: unknown, opts?: { enabled?: boolean }) => {
           h.repeatInputs.push({ input, enabled: opts?.enabled });

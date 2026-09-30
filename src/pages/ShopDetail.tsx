@@ -329,8 +329,12 @@ export default function ShopDetail() {
                 { key: "district",  ru: "Район",     uz: "Tuman"     },
                 // Пусто — без лимита: заказ «в долг» сверх лимита отказывается у прилавка.
                 { key: "creditLimit", ru: "Кредитный лимит (пусто — без лимита)", uz: "Kredit limiti (bo'sh — limitsiz)" },
+                // Своя отсрочка: крупной сети — 30 дней, ларьку — 7. Пусто — как в
+                // настройках организации; по ней долг становится просрочкой.
+                { key: "paymentGraceDays", ru: "Отсрочка оплаты, дней (пусто — как у организации)", uz: "To'lov muddati, kun (bo'sh — tashkilotdagidek)" },
               ].map(f => (
                 <input key={f.key} className="neo-input"
+                  aria-label={lang === "uz" ? f.uz : f.ru}
                   placeholder={lang === "uz" ? f.uz : f.ru}
                   defaultValue={(shop as Record<string, unknown>)[f.key] as string ?? ""}
                   onChange={e => setEditData((d: Record<string, unknown>) => ({ ...d, [f.key]: e.target.value }))} />

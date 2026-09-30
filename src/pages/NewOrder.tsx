@@ -15,6 +15,8 @@ import type { OrderItem, PaymentMethod } from "@/components/orders";
 import type { LastTimeHint } from "@/components/orders/ProductSelector";
 import { EMPTY_ITEM } from "@/components/orders";
 import { priceAt } from "@contracts/price-tiers";
+import { holdReasonText } from "@contracts/hold-reason";
+import { OverdueNotice } from "@/components/orders/OverdueNotice";
 import { useShopPrices } from "@/hooks/useOfflineCopy";
 
 const LABELS_RU = ["Магазин", "Товары", "Итог"];
@@ -343,7 +345,16 @@ export default function NewOrder() {
       if (user) clearDraft(user.id);
       // И корзине каталога: её товары только что уехали этим заказом.
       if (user && fromCart) clearCart(user.id);
-      if (created.held) notify.info(t("Заказ оформлен и ждёт подтверждения офиса — скидка выше порога", "Buyurtma rasmiylashtirildi va ofis tasdig'ini kutmoqda — chegirma chegaradan yuqori"));
+      /*
+        Ждёт офиса — и почему: скидка, просрочка или обе. Причину даёт сервер
+        (holdReason); без неё — как раньше, про скидку: старый ответ другой не знал.
+      */
+      if (created.held) {
+        const why = "holdReason" in created && created.holdReason
+          ? holdReasonText(created.holdReason, lang)
+          : t("скидка выше порога", "chegirma chegaradan yuqori");
+        notify.info(t(`Заказ оформлен и ждёт подтверждения офиса — ${why}`, `Buyurtma rasmiylashtirildi va ofis tasdig'ini kutmoqda — ${why}`));
+      }
       else notify.success(t("Заказ создан!", "Buyurtma yaratildi!"));
       const role = user?.role;
       if (role === "ceo" || role === "operator" || role === "superadmin") {
@@ -509,6 +520,9 @@ export default function NewOrder() {
       </div>
 
       <Steps current={step} labels={LABELS}/>
+
+      {/* Просрочка магазина — заранее, с шага выбора: заказ встанет на решение офиса. */}
+      {shopId > 0 && !isOffline && <OverdueNotice shopId={shopId} />}
 
       {/* Content.
           order-page-content резервирует место под панель снизу только на

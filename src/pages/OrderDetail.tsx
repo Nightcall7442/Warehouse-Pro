@@ -2,6 +2,7 @@ import { useParams, useNavigate } from "react-router";
 import { useCan } from "@/hooks/useCan";
 import { normalizeDecimalInput } from "@/lib/decimal-input";
 import { FIELD_EDITABLE_ORDER_STATUSES } from "@contracts/constants";
+import { HoldReasonBanner } from "@/components/orders/HoldReasonBanner";
 import { OrderItemsEditor } from "@/components/orders/OrderItemsEditor";
 import { OrderComments } from "@/components/orders/OrderComments";
 import { MoneyBlock } from "@/components/orders/OrderMoney";
@@ -485,12 +486,7 @@ export default function OrderDetail() {
       </div>
 
       {/* Заказ ждёт офиса: причина — на виду, чтобы директор подтверждал не вслепую. */}
-      {order.status === "pending" && order.holdReason && (
-        <div className="neo-card neo-card-static" style={{ borderRadius: "16px", padding: "10px 14px", fontSize: "13px", color: "var(--color-warning-text)" }} data-testid="order-hold-reason">
-          <b>{lang === "uz" ? "Ofis tasdig'ini kutmoqda" : "Ждёт подтверждения офиса"}</b>: {order.holdReason}
-          {isOperatorOrCeo && (lang === "uz" ? " — tasdiqlash uchun holatni «yangi»ga o'tkazing" : " — чтобы подтвердить, переведите в «новый»")}
-        </div>
-      )}
+      <HoldReasonBanner status={order.status} holdReason={order.holdReason} lang={lang} canConfirm={isOperatorOrCeo} />
 
       {/* Возвраты по заказу: «Возврат №… — ждёт проведения». Нет возвратов — нет и строки. */}
       <OrderReturnMarks orderId={order.id} />

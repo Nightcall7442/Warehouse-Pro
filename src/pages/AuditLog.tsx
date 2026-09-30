@@ -119,6 +119,7 @@ const ACTION_CONFIG: Record<string, { icon: LucideIcon; gradient: string }> = {
   "return.status":                   { icon: Undo2, gradient: WARNING },
   // Магазины и цены
   "shop.credit_limit_changed":       { icon: Store, gradient: WARNING },
+  "shop.payment_grace_changed":      { icon: Store, gradient: WARNING },
   "product.updated":                 { icon: Tag, gradient: PRIMARY },
   "product.deleted":                 { icon: Trash2, gradient: DANGER },
   "price_list.item_set":             { icon: Tag, gradient: PRIMARY },
