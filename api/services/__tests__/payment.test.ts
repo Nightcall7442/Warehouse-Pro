@@ -174,7 +174,10 @@ function makeMockDb() {
     // (The real statement also folds in orders and returns; this service has
     // neither, so those terms are zero.)
     execute: (query: unknown) => {
-      const [shopId, tenantId] = ((query as { values?: unknown[] }).values ?? []) as number[];
+      // Магазин и организация — два последних параметра (WHERE s.id = … AND
+      // s.tenant_id = …): перед ними в выражение вложены общие куски расчёта
+      // долга (оплата по заказу — одно выражение с просрочкой).
+      const [shopId, tenantId] = (((query as { values?: unknown[] }).values ?? []).slice(-2)) as number[];
       const sumOf = (type: string) => paymentsTable
         .filter(p => p.shopId === shopId && p.tenantId === tenantId && p.type === type)
         .reduce((total, p) => total + Number(p.amount), 0);

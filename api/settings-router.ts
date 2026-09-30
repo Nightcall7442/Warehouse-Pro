@@ -22,6 +22,7 @@ export const settingsRouter = createRouter({
       companyBankAccount: settings.companyBankAccount, companyMfo: settings.companyMfo,
       logoUrl: settings.logoUrl, createdAt: settings.createdAt, updatedAt: settings.updatedAt,
       costMethod: settings.costMethod,
+      overdueHoldEnabled: settings.overdueHoldEnabled, overdueGraceDays: settings.overdueGraceDays,
       }).from(settings).where(eq(settings.tenantId, ctx.tenant.id)).limit(1);
       return row ?? null;
     });
@@ -75,6 +76,13 @@ export const settingsRouter = createRouter({
       companyMfo:          z.string().nullable().optional(),
       // Себестоимость при приходе — последняя закупка или средняя по остатку.
       costMethod:          z.enum(["last", "average"]).optional(),
+      /*
+        Просроченный долг ставит заказ полевых на решение офиса
+        (services/overdue-hold.ts). Выключено — как было у всех.
+      */
+      overdueHoldEnabled:  z.boolean().optional(),
+      // Отсрочка оплаты по умолчанию, дней; 0 — платить при доставке.
+      overdueGraceDays:    z.number().int("Отсрочка — целое число дней").min(0, "Отсрочка — от 0 до 365 дней").max(365, "Отсрочка — от 0 до 365 дней").optional(),
       /*
         Предел — не пожелание, а ёмкость столбца: logo_url объявлен как TEXT,
         это 65 535 байт. Строка длиннее не записывалась, и MySQL отклонял ВЕСЬ

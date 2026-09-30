@@ -49,14 +49,19 @@ describe("порог скидки полевых ролей", () => {
   it("выше порога — заказ ждёт офиса с причиной и уведомлением, а не отказ", () => {
     expect(create).not.toContain('code: "FORBIDDEN"');
     expect(create).toContain("holdReason = `Скидка ${discountPct}% выше порога");
-    expect(create).toMatch(/holdReason,\s*\}\);/);
+    // Причина уходит в службу; там к ней может добавиться просрочка
+    // (services/overdue-hold.ts), и уведомление берёт уже итоговую.
+    expect(create).toMatch(/OrderService\.create\([\s\S]{0,200}holdReason,/);
+    expect(create).toContain('const heldFor = "holdReason" in created ? created.holdReason : null;');
     expect(create).toContain("NotificationService.createBulk(ctx.db, {");
     expect(create).toContain("sql`${users.role} IN ('ceo', 'operator')`");
     const service = orderSource();
-    expect(service).toContain('status: input.holdReason ? "pending" : "new"');
+    expect(service).toContain("let txHold = input.holdReason ?? null;");
+    expect(service).toContain('status: txHold ? "pending" : "new"');
     expect(service).toContain('const holdPatch = order.status === "pending" && newStatus !== "pending" ? { holdReason: null } : {};');
-    expect(service).toContain("held: Boolean(input.holdReason)");
-    expect(readFileSync(resolve(__dirname, "../../src/pages/OrderDetail.tsx"), "utf-8")).toContain('data-testid="order-hold-reason"');
+    expect(service).toContain("held: Boolean(holdReason), holdReason");
+    expect(readFileSync(resolve(__dirname, "../../src/pages/OrderDetail.tsx"), "utf-8")).toContain("<HoldReasonBanner ");
+    expect(readFileSync(resolve(__dirname, "../../src/components/orders/HoldReasonBanner.tsx"), "utf-8")).toContain('data-testid="order-hold-reason"');
   });
 
   it("поле принимает роутер настроек и показывает экран компании", () => {

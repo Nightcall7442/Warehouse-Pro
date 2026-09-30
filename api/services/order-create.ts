@@ -4,6 +4,8 @@ import { expiredByProduct, reserveStock } from "./stock-ledger";
 import { orders, orderItems, warehouseStock, shops, users, products, priceLists } from "@db/schema";
 import { resolvePrices } from "./price-resolver";
 import { recalcShopDebt } from "./shop-debt";
+import { overdueHold } from "./overdue-hold";
+import { joinHoldReasons } from "@contracts/hold-reason";
 import { NotificationService } from "./NotificationService";
 import { invalidateReports } from "../lib/report-cache";
 import { logger } from "../lib/logger";
@@ -11,7 +13,7 @@ import { isDuplicateEntry } from "../lib/db-errors";
 import type { Db } from "./order-shared";
 import { mergeDuplicateItems, resolveOrderWarehouse, nextOrderNumber, isIdempotencyDuplicate } from "./order-shared";
 
-export async function create(db: Db, tenantId: number, agentId: number, input: { shopId: number; warehouseId?: number; items: Array<{ productId: number; quantity: string }>; notes?: string; discount?: string; idempotencyKey?: string; paymentMethod?: "cash" | "card" | "transfer" | "debt"; promisedDeliveryAt?: Date | null; /** Причина, по которой заказ ждёт офиса: создаётся в pending. */ holdReason?: string | null; /** Прайс-лист заказа; пусто — списки магазина. */ priceListId?: number | null }) {
+export async function create(db: Db, tenantId: number, agentId: number, input: { shopId: number; warehouseId?: number; items: Array<{ productId: number; quantity: string }>; notes?: string; discount?: string; idempotencyKey?: string; paymentMethod?: "cash" | "card" | "transfer" | "debt"; promisedDeliveryAt?: Date | null; /** Причина, по которой заказ ждёт офиса: создаётся в pending. */ holdReason?: string | null; /** Прайс-лист заказа; пусто — списки магазина. */ priceListId?: number | null; /** Просроченный долг магазина ставит заказ в «ожидает» (полевые роли; офис решает сам). */ checkOverdueDebt?: boolean }) {
   // discount is a percentage (0-100) entered by the user — converted to a
   // money amount below and stored as such (orders.discount stays a money
   // column so revenue/P&L reports that SUM it keep meaning "money discounted").
@@ -50,6 +52,9 @@ export async function create(db: Db, tenantId: number, agentId: number, input: {
   // Номер присваивается внутри транзакции (см. nextOrderNumber) и возвращается
   // наружу: он нужен и для уведомлений, и в ответе клиенту.
   let orderNumber: string;
+  // Итоговая причина ожидания: присланная роутером (скидка) и найденная здесь
+  // (просрочка) — через «; ». Наружу — чтобы офис и агент узнали обе.
+  let holdReason: string | null;
   try {
     const txResult = await db.transaction(async (tx) => {
     // #FIX1: Look up prices from the database, never trust client
@@ -187,6 +192,20 @@ export async function create(db: Db, tenantId: number, agentId: number, input: {
       }
     }
 
+    /*
+      Просроченный долг — не отказ, а «ждёт офиса» (services/overdue-hold.ts).
+
+      Здесь, под тем же замком строки магазина, что и лимит: два заказа
+      одного магазина, оформленные одновременно, не проскочат оба мимо
+      проверки, и оплата, закоммиченная до замка, уже видна — магазин,
+      который рассчитался, не встаёт.
+    */
+    let txHold = input.holdReason ?? null;
+    if (input.checkOverdueDebt) {
+      const overdue = await overdueHold(tx, tenantId, input.shopId);
+      if (overdue) txHold = joinHoldReasons(txHold, overdue.reason);
+    }
+
     let number = await nextOrderNumber(tx, tenantId);
     let id = 0;
     for (let attempt = 0; ; attempt++) {
@@ -196,8 +215,8 @@ export async function create(db: Db, tenantId: number, agentId: number, input: {
           // Склад резерва — с него же потом снимут или спишут (orderWarehouseId).
           warehouseId: reserveWarehouseId,
           // Заказ с причиной ждёт офиса: резерв держит, в работу не идёт.
-          status: input.holdReason ? "pending" : "new",
-          holdReason: input.holdReason ?? null,
+          status: txHold ? "pending" : "new",
+          holdReason: txHold,
           subtotal: subtotal.toFixed(2), discount: discount.toFixed(2), total: total.toFixed(2),
           notes: input.notes,
           idempotencyKey: input.idempotencyKey ?? null,
@@ -250,9 +269,10 @@ export async function create(db: Db, tenantId: number, agentId: number, input: {
     // balance picks it up.
     await recalcShopDebt(tx, tenantId, input.shopId);
 
-    return { id, total, number };
+    return { id, total, number, hold: txHold };
   });
     orderId = txResult.id;
+    holdReason = txResult.hold;
     orderTotal = txResult.total;
     orderNumber = txResult.number;
   } catch (err: unknown) {
@@ -285,7 +305,7 @@ export async function create(db: Db, tenantId: number, agentId: number, input: {
   inBackground(notifyAboutNewOrder(db, {
     tenantId, orderId, orderNumber, orderTotal, shopId: input.shopId, agentId,
     items: input.items.length, paymentMethod: input.paymentMethod ?? "cash",
-    discountPct: discountPercent, holdReason: input.holdReason ?? null,
+    discountPct: discountPercent, holdReason,
   }));
 
   // total возвращается наружу, чтобы клиент мог сверить его с суммой,
@@ -296,7 +316,10 @@ export async function create(db: Db, tenantId: number, agentId: number, input: {
   // время подняли прайс, накладная приходит на другую сумму, чем записано
   // на бумаге у владельца, и разбираться с этим агенту у двери магазина.
   // Зная итог, приложение сообщает о расхождении сразу после отправки.
-  return { id: orderId, orderNumber, total: orderTotal, held: Boolean(input.holdReason) };
+  //
+  // held — заказ ждёт офиса (телефон читает только его); holdReason — почему,
+  // чтобы сказать это агенту словами, а не «скидка выше порога» про всё.
+  return { id: orderId, orderNumber, total: orderTotal, held: Boolean(holdReason), holdReason };
 }
 
 async function notifyAboutNewOrder(db: Db, o: {

@@ -20,6 +20,8 @@ import { NotificationService } from "./services/NotificationService";
 import { reportCached, ReportTTL } from "./lib/report-cache";
 import { orderMatches, shopMatches } from "./lib/order-search";
 import { ORDER_SORT_KEYS, ORDER_SORT_DIRS } from "@contracts/order-list";
+import { holdReasonText } from "@contracts/hold-reason";
+import { overdueHold } from "./services/overdue-hold";
 
 /**
  * Скидка — процент от суммы заказа, от нуля до ста.
@@ -438,10 +440,19 @@ export const orderRouter = createRouter({
           ...input,
           promisedDeliveryAt: input.promisedDeliveryAt ? new Date(input.promisedDeliveryAt) : null,
           holdReason,
+          /*
+            Просроченный долг магазина (настройка организации) держит заказ
+            полевого сотрудника до решения офиса. Сам офис — тот, кто решает:
+            его заказ не ждёт сам себя, как и со скидкой выше порога.
+            Проверка — в службе, под замком строки магазина.
+          */
+          checkOverdueDebt: !["ceo", "operator"].includes(ctx.user.role),
         });
+        // Итоговая причина — от службы: к скидке могла добавиться просрочка.
+        const heldFor = "holdReason" in created ? created.holdReason : null;
 
         // Офису — уведомление: заказ ждёт решения, и без него не поедет.
-        if (holdReason && !created.idempotent) {
+        if (heldFor && !created.idempotent) {
           const office = await ctx.db.select({ id: users.id }).from(users)
             .where(and(eq(users.tenantId, ctx.tenant.id), eq(users.status, "active"), sql`${users.role} IN ('ceo', 'operator')`));
           await NotificationService.createBulk(ctx.db, {
@@ -450,8 +461,8 @@ export const orderRouter = createRouter({
             type: "order",
             title: { ru: `Заказ ${created.orderNumber} ждёт подтверждения`, uz: `Buyurtma ${created.orderNumber} tasdiqlashni kutmoqda` },
             message: {
-              ru: `${ctx.user.name}: ${holdReason}. Подтвердите переводом в «новый» или отмените.`,
-              uz: `${ctx.user.name}: ${holdReason}. «Yangi»ga o'tkazib tasdiqlang yoki bekor qiling.`,
+              ru: `${ctx.user.name}: ${heldFor}. Подтвердите переводом в «новый» или отмените.`,
+              uz: `${ctx.user.name}: ${holdReasonText(heldFor, "uz")}. «Yangi»ga o'tkazib tasdiqlang yoki bekor qiling.`,
             },
             link: `/orders/${created.id}`,
           });
@@ -501,6 +512,19 @@ export const orderRouter = createRouter({
     }).refine(v => (v.orderId == null) !== (v.shopId == null), "Укажите заказ или магазин — одно из двух"))
     .query(async ({ input, ctx }) => {
       return repeatDraft(ctx.db, ctx.tenant.id, input, { userId: ctx.user.id, userRole: ctx.user.role as string });
+    }),
+
+  /*
+    Просрочка магазина — заранее, на шаге выбора магазина: агент узнаёт у
+    прилавка, что заказ встанет на решение офиса, а не после отправки.
+    Тот же расчёт, что при создании (services/overdue-hold.ts), только без
+    замка. null — проверка у организации выключена или просрочки нет.
+  */
+  shopOverdue: fieldSalesQuery
+    .input(z.object({ shopId: z.number().int().positive() }))
+    .query(async ({ input, ctx }) => {
+      const hold = await overdueHold(ctx.db, ctx.tenant.id, input.shopId);
+      return hold ? { amount: hold.amount, oldestDays: hold.oldestDays, graceDays: hold.graceDays } : null;
     }),
 
   cancel: fieldSalesQuery

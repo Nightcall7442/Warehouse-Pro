@@ -98,6 +98,7 @@ export const AUDIT_ACTION_LABEL: Record<string, Label> = {
   "payment.bank_confirm": { ru: "Безнал подтверждён выпиской", uz: "Naqdsiz to'lov ko'chirma bilan tasdiqlandi" },
   "return.status": { ru: "Возврат: смена статуса", uz: "Qaytarish: holat o'zgardi" },
   "shop.credit_limit_changed": { ru: "Изменён кредитный лимит магазина", uz: "Do'kon kredit limiti o'zgartirildi" },
+  "shop.payment_grace_changed": { ru: "Изменена отсрочка оплаты магазина", uz: "Do'kon to'lov muddati o'zgartirildi" },
   "product.updated": { ru: "Обновлён товар", uz: "Tovar yangilandi" },
   "product.deleted": { ru: "Удалён товар", uz: "Tovar o'chirildi" },
   "price_list.item_set": { ru: "Цена в прайс-листе", uz: "Narxlar ro'yxatida narx" },
@@ -148,6 +149,8 @@ const FIELD_LABEL: Record<string, Label> = {
   packSize: { ru: "упаковка", uz: "qadoq" }, packLabel: { ru: "название упаковки", uz: "qadoq nomi" }, description: { ru: "описание", uz: "tavsif" },
   barcode: { ru: "штрих-код", uz: "shtrix-kod" }, companyName: { ru: "название компании", uz: "kompaniya nomi" }, logoUrl: { ru: "логотип", uz: "logotip" },
   currency: { ru: "валюта", uz: "valyuta" }, timezone: { ru: "часовой пояс", uz: "vaqt mintaqasi" },
+  overdueHoldEnabled: { ru: "просрочка держит заказ", uz: "muddati o'tgan qarz buyurtmani ushlab turadi" },
+  overdueGraceDays: { ru: "отсрочка оплаты, дней", uz: "to'lov muddati, kun" },
 };
 
 /** Статусы, которых нет среди статусов заказа: доступ, ключи, возвраты. */

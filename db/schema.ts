@@ -198,6 +198,12 @@ export const shops = mysqlTable("shops", {
     комиссией с оформленного, отгружал в долг магазину с просрочкой.
   */
   creditLimit: decimal("credit_limit", { precision: 12, scale: 2 }),
+  /*
+    Своя отсрочка оплаты магазина, в днях. NULL — берётся отсрочка организации
+    (settings.overdueGraceDays). Нужна там, где с магазином договорились иначе:
+    крупной сети дают тридцать дней, ларьку у рынка — неделю.
+  */
+  paymentGraceDays: int("payment_grace_days"),
   status:    mysqlEnum("status", ["active", "inactive"]).default("active").notNull(),
   notes:     text("notes"),
   /**
@@ -1524,6 +1530,23 @@ export const settings = mysqlTable("settings", {
   costMethod:          mysqlEnum("cost_method", ["last", "average"]).default("last").notNull(),
   /** Контроль: подтверждение доставки магазином и индекс риска по сотруднику. Pro/Exclusive. */
   controlEnabled:      boolean("control_enabled").default(false).notNull(),
+  /*
+    Просроченный долг останавливает отгрузку: заказ полевого сотрудника
+    магазину с просрочкой не отказывается, а встаёт в «ожидает» до решения
+    офиса — тем же путём, что скидка выше порога (services/overdue-hold.ts).
+
+    Выключено по умолчанию нарочно: включи это правкой схемы у всех сразу — и
+    у работающих организаций посреди дня встали бы заказы магазинов, о
+    просрочке которых никто не договаривался.
+  */
+  overdueHoldEnabled:  boolean("overdue_hold_enabled").default(false).notNull(),
+  /*
+    Отсрочка оплаты по умолчанию, в днях: столько магазин может не платить за
+    доставленный заказ без явного срока, прежде чем долг станет просроченным.
+    14 — две недели, два круга агента при еженедельном обходе: магазин
+    успевает продать товар и заплатить на следующем или через один визит.
+  */
+  overdueGraceDays:    int("overdue_grace_days").default(14).notNull(),
   createdAt:           timestamp("created_at").defaultNow().notNull(),
   updatedAt:           timestamp("updated_at").defaultNow().notNull().$onUpdate(() => new Date()),
 });
