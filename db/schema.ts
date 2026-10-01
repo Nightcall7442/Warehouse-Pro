@@ -2404,3 +2404,132 @@ export const onecJournal = mysqlTable("onec_journal", {
 export type OnecJournalRow = typeof onecJournal.$inferSelect;
 
 
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Консоль платформы, этап 2: журнал владельца, объявления, оплаты подписок.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/*
+  Журнал действий владельца платформы — над организациями и самой платформой:
+  создал, приостановил, сменил тариф, продлил, записал оплату, удалил.
+
+  Почему не audit_log: журнал организации стирается вместе с ней (уход
+  организации, services/tenant-offboard), а вопрос «кто и когда удалил
+  „Хорезм Опт“» задают именно после удаления. Поэтому здесь своя таблица:
+  tenant_id без внешнего ключа и название организации снимком — строка
+  переживает организацию. Читает только суперадмин; пишется в той же
+  транзакции, что и само действие, где это возможно (services/platform-audit).
+*/
+export const platformAudit = mysqlTable("platform_audit", {
+  id:          serial("id").primaryKey(),
+  actorId:     bigint("actor_id", { mode: "number", unsigned: true }),
+  actorName:   varchar("actor_name", { length: 100 }),
+  action:      varchar("action", { length: 64 }).notNull(),
+  // Без references: строка обязана пережить удаление организации.
+  tenantId:    bigint("tenant_id", { mode: "number", unsigned: true }),
+  tenantName:  varchar("tenant_name", { length: 200 }),
+  targetType:  varchar("target_type", { length: 50 }),
+  targetId:    bigint("target_id", { mode: "number", unsigned: true }),
+  targetLabel: varchar("target_label", { length: 200 }),
+  before:      json("before"),
+  after:       json("after"),
+  meta:        json("meta"),
+  ip:          varchar("ip", { length: 45 }),
+  createdAt:   timestamp("created_at").defaultNow().notNull(),
+}, (t) => ({
+  // Вкладка «Журнал» карточки организации — её строки, новые сверху.
+  tenantIdx:  index("idx_platform_audit_tenant").on(t.tenantId, t.createdAt),
+  // Раздел «Журнал» — вся платформа за период.
+  createdIdx: index("idx_platform_audit_created").on(t.createdAt),
+  // Отбор по типу действия.
+  actionIdx:  index("idx_platform_audit_action").on(t.action, t.createdAt),
+}));
+
+export type PlatformAuditRow = typeof platformAudit.$inferSelect;
+
+/*
+  Объявления организациям: «в субботу с 23:00 до 23:30 обновление», «новая
+  накладная». Раньше владелец писал каждому директору в Telegram.
+
+  Кому — всем, по тарифу или выбранным организациям (списки — JSON: их
+  читают целиком при сборке активных, искать по ним незачем). Срок — с
+  какого и до какого времени; «завершить сейчас» ставит ended_at, строка
+  остаётся в списке прошедших.
+*/
+export const announcements = mysqlTable("announcements", {
+  id:            serial("id").primaryKey(),
+  title:         varchar("title", { length: 160 }).notNull(),
+  body:          text("body").notNull(),
+  titleUz:       varchar("title_uz", { length: 160 }),
+  bodyUz:        text("body_uz"),
+  level:         mysqlEnum("level", ["info", "warning"]).default("info").notNull(),
+  audience:      mysqlEnum("audience", ["all", "plans", "tenants"]).default("all").notNull(),
+  plans:         json("plans"),
+  tenantIds:     json("tenant_ids"),
+  startsAt:      timestamp("starts_at").notNull(),
+  endsAt:        timestamp("ends_at"),
+  endedAt:       timestamp("ended_at"),
+  createdById:   bigint("created_by_id", { mode: "number", unsigned: true }),
+  createdByName: varchar("created_by_name", { length: 100 }),
+  createdAt:     timestamp("created_at").defaultNow().notNull(),
+}, (t) => ({
+  // Активные: не завершённые вручную, срок не вышел.
+  liveIdx: index("idx_announcements_live").on(t.endedAt, t.endsAt),
+}));
+
+export type Announcement = typeof announcements.$inferSelect;
+
+/*
+  Кто закрыл объявление. На сервере, а не в localStorage: директор заходит с
+  телефона и с компьютера, и закрытое на одном не должно всплывать на другом.
+  Закрытие одного человека не прячет объявление от его коллег.
+*/
+export const announcementDismissals = mysqlTable("announcement_dismissals", {
+  announcementId: bigint("announcement_id", { mode: "number", unsigned: true }).notNull().references(() => announcements.id, { onDelete: "cascade" }),
+  userId:         bigint("user_id", { mode: "number", unsigned: true }).notNull().references(() => users.id, { onDelete: "restrict" }),
+  tenantId:       bigint("tenant_id", { mode: "number", unsigned: true }).notNull().references(() => tenants.id, { onDelete: "restrict" }),
+  dismissedAt:    timestamp("dismissed_at").defaultNow().notNull(),
+}, (t) => ({
+  pk:      primaryKey({ columns: [t.announcementId, t.userId] }),
+  userIdx: index("idx_announcement_dismissals_user").on(t.userId),
+  tenantIdx: index("idx_announcement_dismissals_tenant").on(t.tenantId),
+}));
+
+/*
+  Оплаты подписок — деньги платформы.
+
+  Сумма целыми сумами, даты — днями (оплачено 12.10, период 15.10–15.11):
+  часы в бухгалтерии оплат никому не нужны и только сдвигают день по
+  часовому поясу. Тариф и число месяцев — на момент оплаты: тариф потом
+  меняют, а оплата должна помнить, за что была.
+
+  Удаление организации эти строки НЕ стирает: это выручка платформы, она
+  нужна для отчётности и после ухода клиента. Поэтому tenant_id без
+  внешнего ключа, а название — снимком (services/tenant-offboard,
+  KEPT_ON_OFFBOARD).
+*/
+export const subscriptionPayments = mysqlTable("subscription_payments", {
+  id:             serial("id").primaryKey(),
+  tenantId:       bigint("tenant_id", { mode: "number", unsigned: true }).notNull(),
+  tenantName:     varchar("tenant_name", { length: 200 }).notNull(),
+  amount:         bigint("amount", { mode: "number", unsigned: true }).notNull(),
+  paidAt:         date("paid_at", { mode: "string" }).notNull(),
+  method:         mysqlEnum("method", ["cash", "transfer", "card", "payme", "click", "other"]).notNull(),
+  plan:           mysqlEnum("plan", ["basic", "pro", "exclusive"]).notNull(),
+  months:         int("months").notNull(),
+  periodFrom:     date("period_from", { mode: "string" }).notNull(),
+  periodTo:       date("period_to", { mode: "string" }).notNull(),
+  note:           varchar("note", { length: 500 }),
+  recordedById:   bigint("recorded_by_id", { mode: "number", unsigned: true }),
+  recordedByName: varchar("recorded_by_name", { length: 100 }),
+  createdAt:      timestamp("created_at").defaultNow().notNull(),
+}, (t) => ({
+  // Список оплат организации на вкладке «Подписка».
+  tenantIdx: index("idx_sub_payments_tenant").on(t.tenantId, t.paidAt),
+  // «Поступило за месяц».
+  paidIdx:   index("idx_sub_payments_paid").on(t.paidAt),
+  // «MRR по оплатам»: периоды, задевающие месяц.
+  periodIdx: index("idx_sub_payments_period").on(t.periodTo, t.periodFrom),
+}));
+
+export type SubscriptionPayment = typeof subscriptionPayments.$inferSelect;

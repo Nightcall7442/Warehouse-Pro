@@ -3,6 +3,7 @@ import { tenants } from "@db/schema";
 import { getDb } from "../queries/connection";
 import { invalidateAuthTenant } from "../auth";
 import { recordAudit } from "./audit-log";
+import { recordPlatformAudit } from "./platform-audit";
 
 /** Выдать/забрать руководство: одна дверь для суперадмина и Telegram. */
 export async function setManualAccessFor(tenantId: number, enabled: boolean, actor: { id?: number; name: string }) {
@@ -11,7 +12,17 @@ export async function setManualAccessFor(tenantId: number, enabled: boolean, act
     .from(tenants).where(eq(tenants.id, tenantId)).limit(1);
   if (!tenant) return null;
   const manualEnabledAt = enabled ? (tenant.manualEnabledAt ?? new Date()) : null;
-  await db.update(tenants).set({ manualEnabledAt, updatedAt: new Date() }).where(eq(tenants.id, tenantId));
+  const was = Boolean(tenant.manualEnabledAt);
+  await db.transaction(async (tx) => {
+    await tx.update(tenants).set({ manualEnabledAt, updatedAt: new Date() }).where(eq(tenants.id, tenantId));
+    // Журнал владельца — в той же транзакции: выдача платной книги без следа хуже отказа.
+    if (was !== enabled) {
+      await recordPlatformAudit(tx, {
+        actor, action: "tenant.manual", tenantId, tenantName: tenant.name,
+        before: { manual: was }, after: { manual: enabled },
+      }, { strict: true });
+    }
+  });
   // Сессии держат организацию в кэше — без сброса «Справка» появится через минуты.
   invalidateAuthTenant(tenantId);
   await recordAudit(db, {

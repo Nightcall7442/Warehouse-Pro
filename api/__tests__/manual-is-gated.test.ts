@@ -105,17 +105,22 @@ describe("выдача и отзыв", () => {
     const rows = [{ id: 5, slug: "alfa", name: "Альфа", manualEnabledAt: null as Date | null }];
     const updates: Array<Record<string, unknown>> = [];
     const audits: Array<Record<string, unknown>> = [];
+    const platform: Array<Record<string, unknown>> = [];
     // Стенд знает одну организацию — #5; условие where здесь не разбирается,
     // поэтому «чужой» id отбивается по значению, которое ищет запрос.
     let asked = 5;
     vi.doMock("drizzle-orm", async (orig) => ({ ...(await orig<typeof import("drizzle-orm")>()), eq: (_c: unknown, v: unknown) => { if (typeof v === "number") asked = v; return {}; } }));
-    vi.doMock("../queries/connection", () => ({
-      getDb: () => ({
+    vi.doMock("../queries/connection", () => {
+      const db = {
         select: () => ({ from: () => ({ where: () => ({ limit: async () => rows.filter(r => r.id === asked) }) }) }),
         update: () => ({ set: (v: Record<string, unknown>) => ({ where: async () => { updates.push(v); rows[0].manualEnabledAt = v.manualEnabledAt as Date | null; } }) }),
-      }),
-    }));
+        // Выдача и след в журнале владельца — одной сделкой.
+        transaction: async (fn: (tx: unknown) => Promise<unknown>) => fn(db),
+      };
+      return { getDb: () => db };
+    });
     vi.doMock("../services/audit-log", () => ({ recordAudit: async (_db: unknown, e: Record<string, unknown>) => { audits.push(e); }, auditActor: () => ({}) }));
+    vi.doMock("../services/platform-audit", () => ({ recordPlatformAudit: async (_db: unknown, e: Record<string, unknown>, o?: { strict?: boolean }) => { platform.push({ ...e, strict: o?.strict }); } }));
     const { setManualAccessFor } = await import("../services/manual-access");
     const { invalidateAuthTenant } = await import("../auth");
 
@@ -127,6 +132,8 @@ describe("выдача и отзыв", () => {
     expect(off?.manualEnabledAt).toBeNull();
 
     expect(audits.map(a => a.action)).toEqual(["tenant.manual_granted", "tenant.manual_granted", "tenant.manual_revoked"]);
+    // Журнал владельца платформы: только настоящие перемены (повторная выдача — не событие), строго в сделке.
+    expect(platform.map(p => [p.action, (p.after as { manual: boolean }).manual, p.strict])).toEqual([["tenant.manual", true, true], ["tenant.manual", false, true]]);
     expect(vi.mocked(invalidateAuthTenant)).toHaveBeenCalledWith(5);
     expect(await setManualAccessFor(999, true, { id: 1, name: "x" })).toBeNull();
   });

@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { createRouter, authedQuery, superAdminQuery } from "./middleware";
+import { ipOf, recordPlatformAudit } from "./services/platform-audit";
 import { checkRateLimit, rateLimitSubject } from "./lib/rate-limit";
 import {
   MAX_BODY, RETENTION_DAYS, hasSupportChat, requireSupportChat, threadMessages,
@@ -176,8 +177,13 @@ export const supportRouter = createRouter({
    */
   purgeNow: superAdminQuery
     .input(z.object({ tenantId: z.number().int().positive(), userId: z.number().int().positive() }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       const { messages } = await purgeThreadNow(input.tenantId, input.userId);
+      // Стирание — несколькими запросами без общей сделки; след сразу за ним.
+      await recordPlatformAudit(ctx.db, {
+        actor: ctx.user, action: "support.purged", tenantId: input.tenantId,
+        targetType: "user", targetId: input.userId, meta: { messages, text: `стёрто сообщений: ${messages}` }, ip: ipOf(ctx),
+      });
       return { ok: true, messages };
     }),
 

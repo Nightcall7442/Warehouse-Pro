@@ -9,6 +9,7 @@ import { checkRateLimit, getClientIp, rateLimitSubject } from "./lib/rate-limit"
 import { sanitizeSearch } from "./lib/sanitize";
 import { isSafePhotoValue, PHOTO_VALUE_ERROR } from "./lib/photo-value";
 import { recordAudit, auditActor } from "./services/audit-log";
+import { ipOf, recordPlatformAudit } from "./services/platform-audit";
 import { generateTotpSecret, verifyTotpOnce, otpauthUrl } from "./lib/totp";
 import { seal, open as unseal } from "./lib/secret-box";
 import { ROLES } from "@contracts/types";
@@ -202,9 +203,16 @@ export const userRouter = createRouter({
       if (taken) throw new TRPCError({ code: "CONFLICT", message: "Этот логин уже занят — выберите другой" });
 
       try {
-        await db.update(users)
-          .set({ email: input.email, tokenVersion: sql`COALESCE(${users.tokenVersion}, 0) + 1`, updatedAt: new Date() })
-          .where(eq(users.id, me.id));
+        await db.transaction(async (tx) => {
+          await tx.update(users)
+            .set({ email: input.email, tokenVersion: sql`COALESCE(${users.tokenVersion}, 0) + 1`, updatedAt: new Date() })
+            .where(eq(users.id, me.id));
+          // Журнал владельца — в той же сделке: смена входа без следа хуже отказа.
+          await recordPlatformAudit(tx, {
+            actor: ctx.user, action: "superadmin.login_changed", targetType: "user", targetId: me.id,
+            before: { email: me.email }, after: { email: input.email }, meta: { withTotp: Boolean(me.totpEnabledAt) }, ip: ipOf(ctx),
+          }, { strict: true });
+        });
       } catch (e) {
         // Проверку выше и запись разделяет мгновение; уникальный ключ
         // (почта + организация) ловит того, кто успел в него вклиниться.

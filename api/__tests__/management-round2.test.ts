@@ -98,7 +98,11 @@ describe("журнал аудита", () => {
     for (const file of sources(path.resolve(process.cwd(), "api"))) {
       const src = read(file);
       if (!src.includes("recordAudit(")) continue;
-      for (const m of src.matchAll(/action:\s*"([a-z_]+\.[a-z_.]+)"/g)) written.add(m[1]);
+      // Следы журнала владельца платформы (recordPlatformAudit) — не журнал
+      // организации: у них свой словарь (contracts/platform-journal) и своя
+      // страница в консоли, только по-русски. Вырезаются их вызовы целиком.
+      const own = src.replace(/recordPlatformAudit\([\s\S]*?\}\s*(?:,\s*\{\s*strict:\s*true\s*\})?\)/g, "");
+      for (const m of own.matchAll(/action:\s*"([a-z_]+\.[a-z_.]+)"/g)) written.add(m[1]);
     }
     expect(written.size, "разбор не нашёл действий").toBeGreaterThan(30);
     const missing = [...written].filter(a => !configured.has(a));
