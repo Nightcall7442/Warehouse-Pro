@@ -3,6 +3,7 @@ import type { ReactElement } from "react";
 import { useSearchParams } from "react-router";
 import { useLang } from "@/i18n";
 import { useAuth } from "@/hooks/useAuth";
+import { ROLES } from "@contracts/types";
 import {
   User, Bell, Building2, SunMoon, Database, Warehouse, Palette, ShieldCheck, Tags, KeyRound, FileText,
 } from "lucide-react";
@@ -146,7 +147,13 @@ const SECTIONS: Section[] = [
     Comp: () => <OperatorAccess />,
   },
   {
-    key: "telegram", Icon: Bell,
+    /*
+      Всем, кроме суперадмина. Личный чат в Telegram ему ничего не приносит:
+      тревоги платформы, регистрации и сводка идут в чат владельца из
+      переменной TELEGRAM_ADMIN_CHAT_ID (lib/telegram.ts, notifyAdmin), а не
+      в чат учётной записи. Раздел, который ничего не меняет, — тупик.
+    */
+    key: "telegram", Icon: Bell, roles: ROLES.filter(r => r !== "superadmin"),
     titleRu: "Telegram",    titleUz: "Telegram",
     descRu: "Уведомления о заказах, статусах доставки и низких остатках в Telegram.",
     descUz: "Buyurtmalar, yetkazish holati va kam qoldiq haqida Telegram xabarlari.",

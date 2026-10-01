@@ -14,7 +14,8 @@
  *
  *   - второй фактор не включён — «Мой профиль» так и говорит и кнопка
  *     «Включить» ведёт в /settings?section=profile;
- *   - включён — «включён» и «Управлять», туда же;
+ *   - включён — «включён», а управлять — кнопкой «Настройки профиля»,
+ *     туда же (с 01.10.2026 карточка «Мой профиль» — без своей формы);
  *   - в окне удаления организации без второго фактора есть подсказка со
  *     ссылкой туда же.
  */
@@ -55,13 +56,14 @@ describe("«Мой профиль» суперадмина: второй фак�
     expect(state.navigated).toEqual(["/settings?section=profile"]);
   });
 
-  it("включён — «включён» и «Управлять» туда же", () => {
+  it("включён — «включён», лишней кнопки нет; управлять — через «Настройки профиля»", () => {
     state.totpEnabledAt = "2026-10-01T00:00:00Z";
     render(<AdminActions />);
     const row = screen.getByTestId("admin-totp");
     expect(row.textContent).toContain("включён");
     expect(row.textContent).not.toContain("не включён");
-    fireEvent.click(within(row).getByText("Управлять"));
+    expect(within(row).queryByRole("button")).toBeNull();
+    fireEvent.click(screen.getByText("Настройки профиля"));
     expect(state.navigated).toEqual(["/settings?section=profile"]);
   });
 });

@@ -1,80 +1,63 @@
-import { useState } from "react";
 import { useNavigate } from "react-router";
-import { trpc } from "@/providers/trpc";
 import { useAuth } from "@/hooks/useAuth";
-import { notify } from "@/lib/toast";
-import { User, Key, Save, Loader2, ShieldCheck } from "lucide-react";
+import { User, ShieldCheck, Settings } from "lucide-react";
 import { labelled, ROLE_LABEL } from "@/lib/entity-labels";
 import { F, COLORS } from "./types";
-import { Section, Input, BtnPrimary } from "./ui";
+import { Section, BtnPrimary, BtnSecondary } from "./ui";
+
+/*
+  «Мой профиль» суперадмина — карточка, а не вторая форма.
+
+  Здесь жила урезанная копия профиля: имя, телефон, пароль. Полный профиль —
+  Настройки → Профиль (ProfileSettings): там же вход с кодом из приложения,
+  выход на всех устройствах и — у суперадмина — смена логина. Две формы
+  одного и того же расходились: в копии не было ни второго фактора, ни
+  логина, и владелец искал их не там (01.10.2026). Теперь одно место для
+  всех настроек аккаунта, а здесь — кто вошёл, под каким логином, включён ли
+  второй фактор, и дорога туда.
+
+  Данные — из auth.me (useAuth), а не user.me: после смены логина профиль
+  сбрасывает именно auth.me, и карточка показывает новый логин сразу.
+*/
+const PROFILE = "/settings?section=profile";
 
 export function AdminActions() {
-  const { data: user } = trpc.user.me.useQuery();
-  const { user: me } = useAuth();
+  const { user } = useAuth();
   const navigate = useNavigate();
-  /*
-    Второй фактор включается в Настройки → Профиль (ProfileSettings), а в
-    меню суперадмина «Настроек» нет. Удаление организации и чистка обращений
-    требуют код — и суперадмин упирался в «сначала подключите двухфактор»,
-    не видя, где это сделать (01.10.2026). Логика включения — одна, там;
-    здесь — состояние и дорога к ней.
-  */
-  const totpOn = Boolean((me as { totpEnabledAt?: unknown } | null)?.totpEnabledAt);
-  const utils = trpc.useUtils();
-  const [name, setName] = useState("");
-  const [phone, setPhone] = useState("");
-  const [currentPw, setCurrentPw] = useState("");
-  const [newPw, setNewPw] = useState("");
-  const [confirmPw, setConfirmPw] = useState("");
-  const [showPwSection, setShowPwSection] = useState(false);
-  const [initialized, setInitialized] = useState(false);
-  if (user && !initialized) { setName(user.name ?? ""); setPhone(user.phone ?? ""); setInitialized(true); }
-
-  const updateProfile = trpc.user.updateMe.useMutation({ onSuccess: () => { utils.user.me.invalidate(); notify.success("Профиль обновлён"); }, onError: (e) => notify.error(e.message) });
-  const changePassword = trpc.user.changePassword.useMutation({ onSuccess: () => { notify.success("Пароль изменён"); setCurrentPw(""); setNewPw(""); setConfirmPw(""); setShowPwSection(false); }, onError: (e) => notify.error(e.message) });
+  const totpOn = Boolean((user as { totpEnabledAt?: unknown } | null)?.totpEnabledAt);
 
   return (
     <Section title="Мой профиль" icon={User}>
-      <div style={{ display: "flex", alignItems: "center", gap: "16px", marginBottom: "24px" }}>
-        <div style={{ width: "48px", height: "48px", borderRadius: "14px", background: "color-mix(in srgb, var(--color-primary) 10%, transparent)", display: "flex", alignItems: "center", justifyContent: "center" }}><User size={22} style={{ color: COLORS.primaryText }} /></div>
-        <div>
-          <p style={{ fontFamily: F.display, fontSize: "15px", fontWeight: 600, color: COLORS.textPrimary }}>{user?.name}</p>
-          <p style={{ fontSize: "12px", color: COLORS.textTertiary }}>{labelled(ROLE_LABEL, user?.role)} · {user?.email}</p>
+      <div data-testid="admin-profile-card" style={{ display: "flex", alignItems: "center", gap: "16px", flexWrap: "wrap" }}>
+        <div style={{ width: "48px", height: "48px", borderRadius: "14px", background: "color-mix(in srgb, var(--color-primary) 10%, transparent)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+          <User size={22} style={{ color: COLORS.primaryText }} />
         </div>
-      </div>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
-        <Input label="Имя" value={name} onChange={e => setName(e.target.value)} />
-        <Input label="Телефон" value={phone} onChange={e => setPhone(e.target.value)} placeholder="+998..." />
-      </div>
-      <BtnPrimary onClick={() => { if (!name.trim()) { notify.error("Имя обязательно"); return; } updateProfile.mutate({ name: name.trim(), phone: phone.trim() || undefined }); }} disabled={updateProfile.isPending} style={{ marginTop: "16px" }}>
-        {updateProfile.isPending ? <Loader2 size={14} style={{ animation: "spin 1s linear infinite" }} /> : <Save size={14} />} Сохранить
-      </BtnPrimary>
-      <div style={{ marginTop: "24px", paddingTop: "20px", borderTop: `1px solid ${COLORS.border}` }}>
-        <button onClick={() => setShowPwSection(!showPwSection)} style={{ display: "flex", alignItems: "center", gap: "8px", background: "none", border: "none", cursor: "pointer", color: COLORS.textSecondary, fontSize: "13px", fontWeight: 500, fontFamily: F.body }}>
-          <Key size={16} /> {showPwSection ? "Скрыть" : "Изменить пароль"}
-        </button>
-        {showPwSection && (
-          <div style={{ marginTop: "16px", display: "flex", flexDirection: "column", gap: "12px", maxWidth: "400px" }}>
-            <Input label="Текущий пароль" type="password" value={currentPw} onChange={e => setCurrentPw(e.target.value)} />
-            <Input label="Новый пароль" type="password" value={newPw} onChange={e => setNewPw(e.target.value)} minLength={8} />
-            <Input label="Подтвердите" type="password" value={confirmPw} onChange={e => setConfirmPw(e.target.value)} />
-            <BtnPrimary onClick={() => { if (!currentPw) { notify.error("Введите текущий пароль"); return; } if (newPw.length < 8) { notify.error("Пароль минимум 8 символов"); return; } if (newPw !== confirmPw) { notify.error("Пароли не совпадают"); return; } changePassword.mutate({ currentPassword: currentPw, newPassword: newPw }); }} disabled={changePassword.isPending}>
-              {changePassword.isPending ? <Loader2 size={14} style={{ animation: "spin 1s linear infinite" }} /> : <Key size={14} />} Изменить пароль
-            </BtnPrimary>
-          </div>
-        )}
-      </div>
-      <div data-testid="admin-totp" style={{ marginTop: "20px", paddingTop: "20px", borderTop: `1px solid ${COLORS.border}`, display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
-        <ShieldCheck size={16} style={{ color: totpOn ? COLORS.primaryText : COLORS.textTertiary }} />
-        <span style={{ fontSize: "13px", color: COLORS.textSecondary, fontFamily: F.body }}>
-          {totpOn
-            ? "Вход с кодом из приложения: включён"
-            : "Вход с кодом из приложения не включён — без него нельзя удалить организацию и очистить обращения"}
-        </span>
-        <BtnPrimary onClick={() => navigate("/settings?section=profile")}>
-          {totpOn ? "Управлять" : "Включить"}
+        <div style={{ minWidth: 0, flex: "1 1 220px" }}>
+          <p style={{ fontFamily: F.display, fontSize: "15px", fontWeight: 600, color: COLORS.textPrimary }}>{user?.name}</p>
+          <p style={{ fontSize: "12px", color: COLORS.textTertiary }}>{labelled(ROLE_LABEL, user?.role)}</p>
+          <p style={{ fontSize: "13px", color: COLORS.textSecondary, marginTop: "4px", overflowWrap: "anywhere" }}>
+            Логин: <span data-testid="admin-login" style={{ color: COLORS.textPrimary, fontWeight: 500 }}>{user?.email}</span>
+          </p>
+        </div>
+        <BtnPrimary onClick={() => navigate(PROFILE)} style={{ minHeight: "44px" }}>
+          <Settings size={14} /> Настройки профиля
         </BtnPrimary>
       </div>
+
+      <div data-testid="admin-totp" style={{ marginTop: "20px", paddingTop: "20px", borderTop: `1px solid ${COLORS.border}`, display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
+        <ShieldCheck size={16} style={{ color: totpOn ? COLORS.primaryText : COLORS.textTertiary }} />
+        <span style={{ fontSize: "13px", color: COLORS.textSecondary, fontFamily: F.body, flex: "1 1 240px" }}>
+          {totpOn
+            ? "Вход с кодом из приложения: включён"
+            : "Вход с кодом из приложения не включён — без него нельзя удалить организацию и очистить обращения, а логин меняется по одному паролю"}
+        </span>
+        {!totpOn && (
+          <BtnSecondary onClick={() => navigate(PROFILE)} style={{ minHeight: "44px" }}>Включить</BtnSecondary>
+        )}
+      </div>
+      <p style={{ fontSize: "12px", color: COLORS.textTertiary, marginTop: "12px", fontFamily: F.body }}>
+        Имя, телефон, логин, пароль и выход на всех устройствах — в настройках профиля.
+      </p>
     </Section>
   );
 }

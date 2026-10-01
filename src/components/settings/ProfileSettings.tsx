@@ -18,7 +18,8 @@ import { useConfirm } from "@/components/ConfirmDialog";
  * Ни ошибки, ни объяснения.
  *
  * Адрес — это логин: вход ищет пользователя именно по нему. Поэтому он показан
- * как значение, а не как поле, с подписью, к кому идти за изменением.
+ * как значение, а не как поле, с подписью, к кому идти за изменением. Кроме
+ * суперадмина: идти ему не к кому, и логин он меняет сам (MyLogin ниже).
  *
  * Зато телефон сервер принимает, а формы для него не было — добавлена.
  */
@@ -106,14 +107,16 @@ export function ProfileSettings() {
           </Field>
         </FieldRow>
 
-        <div className="mt-4">
-          <p className="text-[13px] font-medium text-secondary mb-1.5">Email</p>
-          <p className="text-sm text-primary font-medium">{user?.email}</p>
-          <p className="text-xs text-tertiary mt-1">
-            {t("Это логин для входа. Сменить его может администратор организации.",
-               "Bu — kirish uchun login. Uni tashkilot administratori o'zgartira oladi.")}
-          </p>
-        </div>
+        {user?.role === "superadmin" ? null : (
+          <div className="mt-4" data-testid="login-readonly">
+            <p className="text-[13px] font-medium text-secondary mb-1.5">Email</p>
+            <p className="text-sm text-primary font-medium">{user?.email}</p>
+            <p className="text-xs text-tertiary mt-1">
+              {t("Это логин для входа. Сменить его может администратор организации.",
+                 "Bu — kirish uchun login. Uni tashkilot administratori o'zgartira oladi.")}
+            </p>
+          </div>
+        )}
 
         <SaveBar
           onSave={() => updateProfile.mutate({ name: form.name, phone: form.phone })}
@@ -123,6 +126,8 @@ export function ProfileSettings() {
           hint={t("Имя видят коллеги в заказах и отчётах", "Ismni hamkasblar buyurtma va hisobotlarda ko'radi")}
         />
       </FieldGroup>
+
+      {user?.role === "superadmin" && <MyLogin email={user.email ?? ""} totpOn={totpOn} t={t} />}
 
       <FieldGroup title={t("Смена пароля", "Parolni o'zgartirish")}>
         <div className="max-w-sm space-y-4">
@@ -241,5 +246,71 @@ export function ProfileSettings() {
       </FieldGroup>
       {dialog}
     </div>
+  );
+}
+
+/*
+  Логин суперадмина — редактируемый.
+
+  У сотрудника организации логин меняет директор или суперадмин, а над
+  суперадмином никого нет: superadmin@system.local из засева оставался
+  навсегда (владелец, 01.10.2026). Смена — по текущему паролю и, если второй
+  фактор включён, по коду из приложения (user.changeMyLogin). Без второго
+  фактора хватает пароля — и поэтому здесь же прямо сказано, что его стоит
+  включить: подсмотренного пароля тогда хватило бы, чтобы увести и логин.
+
+  Прочие входы после смены гаснут, эта вкладка получает новую куку и
+  остаётся — выкидывать человека, который только что подтвердил себя
+  паролем, незачем.
+*/
+function MyLogin({ email, totpOn, t }: { email: string; totpOn: boolean; t: (ru: string, uz: string) => string }) {
+  const utils = trpc.useUtils();
+  const [form, setForm] = useState({ email: "", password: "", code: "" });
+  const change = trpc.user.changeMyLogin.useMutation({
+    onSuccess: (r) => {
+      setForm({ email: "", password: "", code: "" });
+      utils.auth.me.invalidate();
+      notify.success(t(`Логин изменён: ${r.email}. На других устройствах войдите заново с новым логином.`,
+                       `Login o'zgartirildi: ${r.email}. Boshqa qurilmalarda yangi login bilan qayta kiring.`));
+    },
+    onError: (e) => notify.error(e.message),
+  });
+  const next = form.email.trim().toLowerCase();
+  const ready = next.includes("@") && next !== email.toLowerCase() && form.password.length > 0 && (!totpOn || form.code.trim().length >= 6);
+
+  return (
+    <FieldGroup title={t("Логин для входа", "Kirish logini")}>
+      <div className="max-w-sm space-y-4" data-testid="my-login">
+        <p className="text-sm text-secondary">
+          {t("Сейчас: ", "Hozir: ")}<span className="text-primary font-medium" data-testid="my-login-current">{email}</span>
+        </p>
+        <Field label={t("Новый логин (почта)", "Yangi login (pochta)")}>
+          <input className="neo-input" type="email" autoComplete="username" placeholder="owner@example.com"
+            value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} data-testid="my-login-email" />
+        </Field>
+        <Field label={t("Текущий пароль", "Joriy parol")}>
+          <input className="neo-input" type="password" autoComplete="current-password"
+            value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} data-testid="my-login-password" />
+        </Field>
+        {totpOn ? (
+          <Field label={t("Код из приложения", "Ilovadagi kod")}>
+            <input className="neo-input" inputMode="numeric" autoComplete="one-time-code"
+              value={form.code} onChange={e => setForm({ ...form, code: e.target.value })} data-testid="my-login-code" />
+          </Field>
+        ) : (
+          <p className="text-sm" style={{ color: "var(--color-warning-text)" }} data-testid="my-login-no-totp">
+            {t("Вход с кодом из приложения не включён — логин сейчас меняется по одному паролю. Включите его ниже: тогда смену логина подтвердит и код.",
+               "Ilova kodi bilan kirish yoqilmagan — login hozir faqat parol bilan o'zgaradi. Uni quyida yoqing: shunda login o'zgarishini kod ham tasdiqlaydi.")}
+          </p>
+        )}
+      </div>
+      <SaveBar
+        onSave={() => change.mutate({ email: next, currentPassword: form.password, code: totpOn ? form.code.trim() : undefined })}
+        isPending={change.isPending}
+        disabled={!ready}
+        label={t("Сменить логин", "Loginni o'zgartirish")}
+        hint={t("Другие устройства выйдут; это останется в системе", "Boshqa qurilmalar chiqadi; bu qurilma tizimda qoladi")}
+      />
+    </FieldGroup>
   );
 }

@@ -437,8 +437,12 @@ const MobileHeader = memo(function MobileHeader({ onMenuClick, unreadCount }: { 
 
 // ── Mobile bottom navigation ──────────────────────────────────────────────────
 const BOTTOM_NAV: Record<string, Array<{ ru: string; uz: string; path: string; icon: string; exact?: boolean }>> = {
+  // Настройки — логин, пароль, вход с кодом из приложения, тема и язык.
+  // Раньше внизу была одна «Платформа», и до своего профиля суперадмин с
+  // телефона не добирался вовсе (01.10.2026).
   superadmin: [
-    { ru: "Платформа", uz: "Platforma", path: "/super-admin", icon: "Zap", exact: true },
+    { ru: "Платформа", uz: "Platforma",  path: "/super-admin", icon: "Zap", exact: true },
+    { ru: "Настройки", uz: "Sozlamalar", path: "/settings",    icon: "Settings" },
   ],
   /*
     Надзорные роли — вкладки мобилки (src/lib/tabs.ts в Warehouse-Pro-Mobile):

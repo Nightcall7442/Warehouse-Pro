@@ -52,7 +52,9 @@ vi.mock("../queries/tenants", () => ({
   listTenants:      vi.fn(),
 }));
 
-vi.mock("../auth/session", () => ({
+// Кука — настоящая (sessionCookie): её флаги и есть то, что выдаёт вход.
+vi.mock("../auth/session", async (orig) => ({
+  ...(await orig<object>()),
   signSessionToken:   vi.fn(async () => "тестовый-токен"),
   verifySessionToken: vi.fn(async () => null),
 }));

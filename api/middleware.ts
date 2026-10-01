@@ -220,12 +220,21 @@ const withProcedureMetrics = t.middleware(async ({ path, type, next }) => {
   return result;
 });
 
+/*
+  Номер запроса — в ctx, заголовки ответа — не трогать.
+
+  Здесь ctx.resHeaders подменялся копией (new Headers), и всё, что процедура
+  писала в заголовки ответа, уходило в копию, которую адаптер
+  (http/trpc-adapter.ts) не видит: он пересылает свой, исходный объект. Вышло
+  наружу 01.10.2026 — смена логина суперадмином выдавала вкладке новую куку, а
+  та не доезжала, и вкладка вылетала вместе с остальными сессиями. Заголовок
+  x-correlation-id из копии тоже никогда не уходил; в ответ его ставит
+  HTTP-слой (boot.ts), здесь он только для логов процедур.
+*/
 const withCorrelationId = t.middleware(async ({ ctx, next }) => {
-  const headers = new Headers(ctx.resHeaders);
   const corrId = ctx.req.headers.get("x-correlation-id")
     ?? crypto.randomUUID().slice(0, 12);
-  headers.set("x-correlation-id", corrId);
-  return next({ ctx: { ...ctx, resHeaders: headers, correlationId: corrId } });
+  return next({ ctx: { ...ctx, correlationId: corrId } });
 });
 
 // ── Tenant isolation verification ────────────────────────────────────────────

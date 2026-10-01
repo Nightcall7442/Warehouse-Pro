@@ -122,7 +122,7 @@ test.describe("вход", () => {
     await page.getByTestId("login-submit").click();
 
     await expect(page).toHaveURL(/\/login/);
-    expect(await trpcStatus(page, "user.me"), "сессия выдана при неверном пароле")
+    expect(await trpcStatus(page, "auth.me"), "сессия выдана при неверном пароле")
       .toBeGreaterThanOrEqual(400);
   });
 });

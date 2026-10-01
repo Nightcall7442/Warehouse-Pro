@@ -189,7 +189,10 @@ export function PhoneProfile() {
             </div>
           )}
           <Line />
-          <Row icon={Mail} title="Email" value={user?.email ?? "—"} />
+          {/* Суперадмин меняет логин сам — строка ведёт туда, где это делается. */}
+          {role === "superadmin"
+            ? <Row icon={Mail} title={t("Логин", "Login")} subtitle={user?.email ?? "—"} onClick={() => navigate("/settings?section=profile")} testId="profile-login-row" />
+            : <Row icon={Mail} title="Email" value={user?.email ?? "—"} />}
           <Line />
           <Row icon={Key} title={t("Пароль", "Parol")} subtitle={editPwd ? undefined : t("Сменить пароль входа", "Kirish parolini almashtirish")} onClick={() => setEditPwd(v => !v)}
             right={editPwd ? <ChevronDown size={18} color="var(--color-text-tertiary)" /> : <ChevronRight size={18} color="var(--color-text-tertiary)" />} />
@@ -222,15 +225,19 @@ export function PhoneProfile() {
       </div>
 
       {/* ── Уведомления и организация — разделы полной страницы настроек ── */}
-      <Group>
-        <Row icon={Bell} title="Telegram" subtitle={t("Уведомления в Telegram", "Telegram xabarnomalari")} onClick={() => navigate("/settings?section=telegram")} />
-        {isOffice && (
-          <>
-            <Line />
-            <Row icon={Building2} title={t("Организация", "Tashkilot")} subtitle={t("Реквизиты, склады, цены, накладные", "Rekvizitlar, omborlar, narxlar, nakladnoylar")} onClick={() => navigate(`/settings?section=${role === "ceo" ? "company" : "prices"}`)} />
-          </>
-        )}
-      </Group>
+      {/* Суперадмину личный Telegram ничего не приносит, организации у него нет —
+          группы ему нет вовсе (раздел Telegram скрыт и в pages/Settings.tsx). */}
+      {role !== "superadmin" && (
+        <Group>
+          <Row icon={Bell} title="Telegram" subtitle={t("Уведомления в Telegram", "Telegram xabarnomalari")} onClick={() => navigate("/settings?section=telegram")} />
+          {isOffice && (
+            <>
+              <Line />
+              <Row icon={Building2} title={t("Организация", "Tashkilot")} subtitle={t("Реквизиты, склады, цены, накладные", "Rekvizitlar, omborlar, narxlar, nakladnoylar")} onClick={() => navigate(`/settings?section=${role === "ceo" ? "company" : "prices"}`)} />
+            </>
+          )}
+        </Group>
+      )}
 
       {/* ── Выход ── */}
       <Group>

@@ -287,6 +287,15 @@ export const tgMessages = {
     `🚀 <b>Сервер запущен</b>\n🏷 ${tgEscape(version.slice(0, 12))}` +
     (caughtUp.length ? `\n🛠 Догнаны миграции: ${caughtUp.map(tgEscape).join(", ")}` : ""),
 
+  /*
+    Суперадмин сменил свой логин (user.changeMyLogin). Если это сделал не
+    владелец — украденной сессией и подсмотренным паролем, — узнать надо
+    сейчас, а не при следующем входе, который уже не пройдёт.
+  */
+  superadminLoginChanged: (who: string, oldLogin: string, newLogin: string, ip: string) =>
+    `🔐 <b>Сменён логин суперадмина</b>\n👤 ${tgEscape(who)}\n✉️ ${tgEscape(oldLogin)} → ${tgEscape(newLogin)}\n🌐 ${tgEscape(ip)}` +
+    "\nЕсли это были не вы — войдите с новым логином и прежним паролем, смените пароль и выйдите на всех устройствах.",
+
   usersLimitHit: (org: string, limit: number) =>
     `📈 <b>Упёрлись в лимит пользователей</b>\n🏢 ${tgEscape(org)}\n👥 Лимит ${tgEscape(limit)} — повод предложить тариф выше или сверхлимит`,
 

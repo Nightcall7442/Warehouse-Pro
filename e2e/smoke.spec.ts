@@ -22,6 +22,6 @@ test("страница входа отдаёт форму, а не пустую 
 
 test("после входа сервер знает, кто пришёл", async ({ page }) => {
   await login(page, "ceo");
-  const me = await trpcQuery<{ role: string }>(page, "user.me");
+  const me = await trpcQuery<{ role: string }>(page, "auth.me");
   expect(me.role, "роль в сессии не та, под которой вошли").toBe("ceo");
 });
