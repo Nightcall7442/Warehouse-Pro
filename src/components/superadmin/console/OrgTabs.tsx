@@ -2,7 +2,7 @@ import { useState, type ReactNode } from "react";
 import { Link } from "react-router";
 import {
   Users, ShoppingCart, Package, Store, Zap, CalendarPlus, PackagePlus, BookOpen, AtSign, KeyRound,
-  Power, Trash2, Eraser, ShieldCheck, ShieldAlert,
+  Power, Trash2, Eraser, ShieldCheck, ShieldAlert, ScrollText,
 } from "lucide-react";
 import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "../../../../api/router";
@@ -20,7 +20,10 @@ import { describeSignupSource } from "@contracts/signup";
 import { endsAt, daysLeft, statusOf, type OrgRow } from "./orgs";
 import { rowFromDetail, subOf, type Detail } from "./detail";
 import { ago, day, money } from "./format";
-import { FieldLabel, Panel, Pill, PlanPill, Tile } from "./ui";
+import { Empty, FieldLabel, Panel, Pill, PlanPill, Tile } from "./ui";
+import { HealthPanel } from "./health";
+import { PaymentForm, PaymentsList } from "./Payments";
+import { JournalList } from "./JournalList";
 
 /* ═══════════════════════════════════════════════════════════════════════════
    Вкладки карточки организации. Всё, что делала прежняя TenantDetail, —
@@ -59,6 +62,8 @@ export function OverviewTab({ d, row, usage }: { d: Detail; row: OrgRow | undefi
   const source = describeSignupSource(row?.signupSource ?? null, "ru");
   return (
     <div className="flex flex-col gap-4">
+      {/* Здоровье — первым: ради него открывают карточку, когда организация «уходит». */}
+      <HealthPanel h={row?.health} />
       <div className="grid gap-3 grid-cols-2 xl:grid-cols-4">
         <Tile label="Пользователей" value={d.users.length} icon={Users} tone="info" />
         <Tile label="Заказов" value={money(d.stats.orders)} hint={row ? `за 30 дней: ${money(row.orders30)}` : undefined} icon={ShoppingCart} tone="success" />
@@ -163,6 +168,13 @@ export function SubscriptionTab({ d, onChanged }: { d: Detail; onChanged: () => 
   });
 
   const extraSum = extraUsers * EXTRA_PRICES_UZS.user + extraProducts * EXTRA_PRICES_UZS.product;
+  /*
+    «Продлить пробный» — только пробным. У платящей он продлевал бы срок,
+    которого у неё нет: пробные дни лежат в trial_ends_at, а пускает её
+    оплаченный срок. Кнопка без действия на деле читалась как «продлить
+    подписку» — и подписка не продлевалась.
+  */
+  const isTrial = sub ? sub.status === "trialing" : t.plan === "trial";
 
   return (
     <div className="flex flex-col gap-4">
@@ -180,7 +192,9 @@ export function SubscriptionTab({ d, onChanged }: { d: Detail; onChanged: () => 
       </Panel>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <Card title="Изменить тариф" icon={Zap} hint="Новый тариф и срок оплаты с сегодняшнего дня." testId="sub-plan">
+        <PaymentForm d={d} onChanged={onChanged} />
+
+        <Card title="Изменить тариф" icon={Zap} hint="Без записи оплаты — подарок, исправление, переход на другой тариф. Срок продлевается от конца оплаченного." testId="sub-plan">
           <div className="grid gap-3 sm:grid-cols-[1fr_120px_auto] items-end">
             <div>
               <FieldLabel>Тариф</FieldLabel>
@@ -197,7 +211,7 @@ export function SubscriptionTab({ d, onChanged }: { d: Detail; onChanged: () => 
           </div>
         </Card>
 
-        <Card title="Продлить пробный" icon={CalendarPlus} hint="Дни добавляются к концу пробного; истёкший продлевается от сегодня." testId="sub-trial">
+        {isTrial && <Card title="Продлить пробный" icon={CalendarPlus} hint="Дни добавляются к концу пробного; истёкший продлевается от сегодня." testId="sub-trial">
           <div className="grid gap-3 grid-cols-[1fr_auto] items-end">
             <div>
               <FieldLabel htmlFor="trial-days">На сколько дней</FieldLabel>
@@ -208,7 +222,7 @@ export function SubscriptionTab({ d, onChanged }: { d: Detail; onChanged: () => 
               {extendTrial.isPending ? "Продлеваю…" : "Продлить"}
             </button>
           </div>
-        </Card>
+        </Card>}
 
         {/* Итоговое число докупленного, а не «добавить ещё»: поле совпадает с тем,
             что видно выше, и повторное «Сохранить» ничего не удваивает. */}
@@ -245,6 +259,8 @@ export function SubscriptionTab({ d, onChanged }: { d: Detail; onChanged: () => 
           </div>
         </Card>
       </div>
+
+      <PaymentsList tenantId={tenantId} />
     </div>
   );
 }
@@ -355,6 +371,8 @@ export function AccessTab({ d }: { d: Detail }) {
 */
 export function JournalTab({ d }: { d: Detail }) {
   const { confirm, dialog } = useConfirm();
+  // Действия владельца платформы над этой организацией (platform_audit).
+  const journal = trpc.platform.journal.useQuery({ tenantId: d.tenant.id, limit: 30 });
   const [days, setDays] = useState(90);
   const [code, setCode] = useState("");
   const purge = trpc.audit.purge.useMutation({
@@ -362,8 +380,15 @@ export function JournalTab({ d }: { d: Detail }) {
     onError: e => notify.error(e.message),
   });
   return (
-    <>
+    <div className="flex flex-col gap-4">
       {dialog}
+      <Panel title="Действия консоли" count={journal.data?.rows.length} flush testId="org-platform-journal"
+        action={<Link to={`/super-admin/journal?org=${d.tenant.id}`} style={{ fontSize: 13, fontWeight: 600, color: "var(--color-primary-text)", textDecoration: "none", minHeight: 44, display: "inline-flex", alignItems: "center" }}>Весь журнал</Link>}>
+        {journal.isLoading ? <p style={{ fontSize: 13, color: "var(--color-text-tertiary)", margin: 0, padding: "4px 20px 14px" }}>Загрузка…</p>
+          : !journal.data || journal.data.rows.length === 0
+            ? <Empty icon={ScrollText} title="Пока ничего" hint="Здесь появятся тарифы, оплаты, продления, сброс паролей и другие действия консоли над этой организацией." />
+            : <JournalList rows={journal.data.rows} showOrg={false} alive={() => true} />}
+      </Panel>
       <Card title="Убрать старый журнал" icon={Eraser} testId="org-journal"
         hint={<>Записи действий организации старше указанного срока удаляются безвозвратно. Сам журнал организация видит у себя: «Настройки → Журнал действий» у директора.</>}>
         <div className="grid gap-3 sm:grid-cols-[140px_200px_auto] items-end">
@@ -390,7 +415,7 @@ export function JournalTab({ d }: { d: Detail }) {
         </div>
         <TotpHint />
       </Card>
-    </>
+    </div>
   );
 }
 

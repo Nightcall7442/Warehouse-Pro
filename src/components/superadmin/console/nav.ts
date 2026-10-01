@@ -1,5 +1,5 @@
 import {
-  LayoutDashboard, Building2, Inbox, LifeBuoy, Activity, FlaskConical, MoreHorizontal,
+  LayoutDashboard, Building2, Inbox, LifeBuoy, Activity, FlaskConical, MoreHorizontal, Megaphone, ScrollText,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -14,7 +14,7 @@ import type { LucideIcon } from "lucide-react";
    ═══════════════════════════════════════════════════════════════════════════ */
 
 export type ConsoleSection = {
-  key: "overview" | "orgs" | "leads" | "support" | "system" | "sandboxes";
+  key: "overview" | "orgs" | "leads" | "support" | "announcements" | "journal" | "system" | "sandboxes";
   label: string;
   path: string;
   icon: LucideIcon;
@@ -27,6 +27,8 @@ export const CONSOLE_NAV: ConsoleSection[] = [
   { key: "orgs",      label: "Организации", path: "/super-admin/orgs",      icon: Building2 },
   { key: "leads",     label: "Заявки",      path: "/super-admin/leads",     icon: Inbox },
   { key: "support",   label: "Обращения",   path: "/super-admin/support",   icon: LifeBuoy },
+  { key: "announcements", label: "Объявления", path: "/super-admin/announcements", icon: Megaphone },
+  { key: "journal",   label: "Журнал",      path: "/super-admin/journal",   icon: ScrollText },
   { key: "system",    label: "Система",     path: "/super-admin/system",    icon: Activity },
   { key: "sandboxes", label: "Интеграторы", path: "/super-admin/sandboxes", icon: FlaskConical },
 ];
@@ -58,7 +60,7 @@ export function activeTab(pathname: string): string {
 export function consoleTitle(pathname: string): { title: string; back?: string } {
   if (/^\/super-admin\/orgs\/\d+/.test(pathname)) return { title: "Организация", back: "/super-admin/orgs" };
   const s = CONSOLE_NAV.find(n => n.key === activeSection(pathname));
-  if (s) return { title: s.label, back: ["leads", "system", "sandboxes"].includes(s.key) ? "/super-admin/more" : undefined };
+  if (s) return { title: s.label, back: ["leads", "announcements", "journal", "system", "sandboxes"].includes(s.key) ? "/super-admin/more" : undefined };
   if (pathname.startsWith("/super-admin/more")) return { title: "Ещё" };
   if (pathname.startsWith("/settings")) return { title: "Настройки", back: "/super-admin/more" };
   if (pathname.startsWith("/notifications")) return { title: "Уведомления" };

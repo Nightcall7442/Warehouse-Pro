@@ -30,3 +30,14 @@ export function ago(d: Date | string | null | undefined, now = new Date()): stri
   if (days < 30) return `${days} дн. назад`;
   return day(d);
 }
+
+/** «2026-10-15» (день без часов: оплата, период) → «15.10.2026» — без пересчёта поясов. */
+export const dayOf = (iso: string | null | undefined) => {
+  if (!iso) return "—";
+  const [y, m, d] = iso.slice(0, 10).split("-");
+  return `${d}.${m}.${y}`;
+};
+
+/** «12.10.2026 14:05» — когда в журнале. */
+export const dayTime = (d: Date | string | null | undefined) =>
+  d ? `${day(d)} ${new Date(d).toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" })}` : "—";

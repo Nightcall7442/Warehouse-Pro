@@ -74,6 +74,8 @@ const ConsoleSupport       = lazyWithRecovery(() => import("./pages/superadmin/S
 const ConsoleSystem        = lazyWithRecovery(() => import("./pages/superadmin/System"));
 const ConsoleSandboxes     = lazyWithRecovery(() => import("./pages/superadmin/Sandboxes"));
 const ConsoleMore          = lazyWithRecovery(() => import("./pages/superadmin/More"));
+const ConsoleJournal       = lazyWithRecovery(() => import("./pages/superadmin/Journal"));
+const ConsoleAnnouncements = lazyWithRecovery(() => import("./pages/superadmin/Announcements"));
 const PnL                  = lazyWithRecovery(() => import("./pages/PnL"));
 const Salaries             = lazyWithRecovery(() => import("./pages/Salaries"));
 const BarcodePage          = lazyWithRecovery(() => import("./pages/Barcode"));
@@ -282,6 +284,8 @@ export default function App() {
           <Route path="/super-admin/system"          element={<RoleGuard roles={["superadmin"]}><ConsoleSystem /></RoleGuard>} />
           <Route path="/super-admin/sandboxes"       element={<RoleGuard roles={["superadmin"]}><ConsoleSandboxes /></RoleGuard>} />
           <Route path="/super-admin/more"            element={<RoleGuard roles={["superadmin"]}><ConsoleMore /></RoleGuard>} />
+          <Route path="/super-admin/journal"         element={<RoleGuard roles={["superadmin"]}><ConsoleJournal /></RoleGuard>} />
+          <Route path="/super-admin/announcements"   element={<RoleGuard roles={["superadmin"]}><ConsoleAnnouncements /></RoleGuard>} />
           <Route path="/super-admin/*"               element={<Navigate to="/super-admin" replace />} />
           <Route path="/monitoring" element={<Navigate to="/super-admin/system" replace />} />
           {/* «Отчёты склада» — вкладка на странице склада; прежний адрес живёт в справке и закладках. */}

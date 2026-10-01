@@ -219,7 +219,7 @@ describe("обновить", () => {
     show();
     fireEvent.click(screen.getByTestId("overview-refresh"));
     expect(state.refetched.sort()).toEqual([
-      "lead.list", "support.inbox", "system.groupedErrors", "system.jobs", "tenant.featureUsage", "tenant.list", "tenant.ownerPanel",
+      "lead.list", "platform.paymentsSummary", "support.inbox", "system.groupedErrors", "system.jobs", "tenant.featureUsage", "tenant.list", "tenant.ownerPanel",
     ]);
   });
 });

@@ -1,4 +1,4 @@
-import { Inbox, Activity, FlaskConical, Bell, User, Moon, Sun, LogOut, ShieldCheck } from "lucide-react";
+import { Inbox, Activity, FlaskConical, Bell, User, Moon, Sun, LogOut, ShieldCheck, Megaphone, ScrollText } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useTheme } from "@/hooks/useTheme";
 import { useConfirm } from "@/components/ConfirmDialog";
@@ -25,6 +25,10 @@ export default function More() {
         <Group>
           <Row icon={Inbox} tone="primary" title="Заявки" subtitle="С сайта: ждут звонка" to="/super-admin/leads" testId="more-leads"
             right={badges.leads > 0 ? <Count n={badges.leads} tone="danger" /> : undefined} />
+          <Line />
+          <Row icon={Megaphone} tone="primary" title="Объявления" subtitle="Полоса вверху у всех организаций или у выбранных" to="/super-admin/announcements" testId="more-announcements" />
+          <Line />
+          <Row icon={ScrollText} tone="primary" title="Журнал" subtitle="Что и когда делалось в консоли: тарифы, оплаты, удаления" to="/super-admin/journal" testId="more-journal" />
           <Line />
           <Row icon={Activity} tone="primary" title="Система" subtitle="Сервер, фоновые задачи, резервная копия" to="/super-admin/system" testId="more-system" />
           <Line />
