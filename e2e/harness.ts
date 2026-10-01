@@ -42,7 +42,7 @@ export async function login(page: Page, role: SeedRole = "ceo"): Promise<void> {
 
   await page.waitForURL(url => new URL(url).pathname === who.home, { timeout: 20_000 });
   // Сессия действительно установлена, а не просто сработал переход.
-  const me = await trpcQuery(page, "user.me");
+  const me = await trpcQuery(page, "auth.me");
   expect(me, `вход под ${role} не дал сессии`).toMatchObject({ email: who.email });
 }
 
