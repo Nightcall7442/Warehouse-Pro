@@ -21,8 +21,11 @@ import { FieldGroup, Segmented } from "./ui";
 
 export function AppearanceSettings() {
   const { theme, setTheme } = useTheme();
-  const { lang, setLang } = useLang();
+  const { lang, setLang, fixed } = useLang();
   const t = (ru: string, uz: string) => lang === "uz" ? uz : ru;
+  // Язык закреплён оболочкой — консоль платформы только русская (владелец,
+  // 01.10.2026): выбор ничего бы не менял, и его нет.
+  const fixedRu = fixed === true;
 
   return (
     <div>
@@ -41,7 +44,7 @@ export function AppearanceSettings() {
         </p>
       </FieldGroup>
 
-      <FieldGroup title={t("Язык интерфейса", "Interfeys tili")}>
+      {!fixedRu && <FieldGroup title={t("Язык интерфейса", "Interfeys tili")}>
         <Segmented
           ariaLabel={t("Язык интерфейса", "Interfeys tili")}
           value={lang}
@@ -54,7 +57,7 @@ export function AppearanceSettings() {
         <p className="text-xs text-tertiary mt-2">
           {t("Меняется сразу, перезагрузка не нужна.", "Darhol o'zgaradi, sahifani yangilash shart emas.")}
         </p>
-      </FieldGroup>
+      </FieldGroup>}
     </div>
   );
 }

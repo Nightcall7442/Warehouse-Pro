@@ -1,94 +1,30 @@
 import React from "react";
 import type { LucideIcon } from "lucide-react";
-import { F, COLORS, PLAN_COLORS, STATUS_COLORS } from "./types";
-import { labelled, TENANT_PLAN_LABEL, ACTIVE_STATUS_LABEL } from "@/lib/entity-labels";
+import { COLORS } from "./types";
 import { AppModal } from "@/components/ui/AppModal";
 
-// ── Badge components ────────────────────────────────────────────────────────
-// Язык — по умолчанию русский, как у всей суперадминки; двуязычная панель
-// владельца (OwnerPanel) передаёт свой.
-export function PlanBadge({ plan, lang = "ru" }: { plan: string; lang?: "ru" | "uz" }) {
-  const c = PLAN_COLORS[plan] ?? PLAN_COLORS.basic;
-  return (
-    <span style={{ display: "inline-flex", alignItems: "center", padding: "3px 10px", borderRadius: "20px", fontSize: "10px", fontWeight: 700, fontFamily: F.body, color: c.fg, background: c.bg, letterSpacing: "0.04em" }}>
-      {labelled(TENANT_PLAN_LABEL, plan, lang)}
-    </span>
-  );
-}
-
-export function StatusBadge({ status }: { status: string }) {
-  const c = STATUS_COLORS[status] ?? STATUS_COLORS.active;
-  return (
-    <span style={{ display: "inline-flex", alignItems: "center", padding: "3px 10px", borderRadius: "20px", fontSize: "10px", fontWeight: 700, fontFamily: F.body, color: c.fg, background: c.bg, letterSpacing: "0.04em" }}>
-      {labelled(ACTIVE_STATUS_LABEL, status)}
-    </span>
-  );
-}
-
-// ── KPI Card ────────────────────────────────────────────────────────────────
-/**
- * Карточка показателя.
- *
- * Единица измерения идёт отдельным полем, а не приклеивается к числу строкой.
- * Раньше выручка приходила сюда как «872 265 169 сум» одним куском, в
- * двадцативосьмиточечном начертании это не влезало в ячейку, и «сум»
- * переносилось на вторую строку — карточка вырастала вдвое и стояла с дырой.
- *
- * Число ещё и уменьшается, когда оно длинное: девять цифр с разделителями не
- * помещаются ни в какую разумную ячейку, а обрезать показатель нельзя — его
- * читают целиком.
- */
-export function KpiCard({ label, value, suffix, icon: Icon, gradient, loading }: {
-  label: string; value: string | number; suffix?: string; icon: LucideIcon; gradient: string; loading?: boolean;
-}) {
-  const text = String(value);
-  const size = text.length > 11 ? "22px" : text.length > 8 ? "25px" : "28px";
-  return (
-    <div className="kpi-hero" style={{ padding: "22px", position: "relative", overflow: "hidden" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "16px" }}>
-        <span style={{ fontFamily: F.display, fontSize: "10px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", color: COLORS.textTertiary }}>{label}</span>
-        <div style={{ width: "40px", height: "40px", borderRadius: "12px", background: gradient, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-          <Icon size={18} color="#fff" />
-        </div>
-      </div>
-      {loading
-        ? <div style={{ height: "28px", borderRadius: "8px", background: COLORS.surfaceLight, animation: "pulse 1.5s infinite" }} />
-        : (
-          <div style={{ display: "flex", alignItems: "baseline", gap: "6px", flexWrap: "wrap" }}>
-            <span style={{
-              fontFamily: F.display, fontSize: size, fontWeight: 700, color: COLORS.textPrimary,
-              lineHeight: 1, letterSpacing: "-0.03em", fontVariantNumeric: "tabular-nums",
-            }}>
-              {text}
-            </span>
-            {suffix && (
-              <span style={{ fontFamily: F.body, fontSize: "12px", fontWeight: 600, color: COLORS.textTertiary }}>{suffix}</span>
-            )}
-          </div>
-        )
-      }
-    </div>
-  );
-}
-
-// ── Section wrapper ─────────────────────────────────────────────────────────
+/*
+  Секция, поле и кнопки суперадминки — на общих классах продукта (.neo-card,
+  .neo-input, .neo-btn, .neo-btn-primary), а не на своих рамках в одну точку:
+  обводка вокруг кнопок и полей читалась как чужой продукт («дёшево»).
+  Цели касания — 44 точки.
+*/
 export function Section({ title, icon: Icon, children }: {
   title: string; icon: LucideIcon; children: React.ReactNode;
 }) {
   return (
-    <div style={{ background: COLORS.surface, borderRadius: "20px", boxShadow: "var(--shadow-sm, 0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04))" }}>
-      <div style={{ padding: "16px 20px", display: "flex", alignItems: "center", gap: "10px", borderBottom: `1px solid ${COLORS.border}` }}>
-        <div style={{ width: "28px", height: "28px", borderRadius: "8px", display: "flex", alignItems: "center", justifyContent: "center", background: "color-mix(in srgb, var(--color-primary) 10%, transparent)", color: COLORS.primaryText }}>
-          <Icon size={14} />
+    <section className="neo-card neo-card-static" style={{ padding: 0, borderRadius: 20 }}>
+      <div style={{ padding: "16px 20px 0", display: "flex", alignItems: "center", gap: "10px", minHeight: 44 }}>
+        <div style={{ width: "32px", height: "32px", borderRadius: "10px", display: "flex", alignItems: "center", justifyContent: "center", background: "var(--color-primary-subtle)", color: COLORS.primaryText, flexShrink: 0 }}>
+          <Icon size={16} />
         </div>
-        <h3 style={{ fontFamily: F.display, fontSize: "13px", fontWeight: 600, color: COLORS.textPrimary }}>{title}</h3>
+        <h3 style={{ fontSize: "15px", fontWeight: 700, color: COLORS.textPrimary, margin: 0 }}>{title}</h3>
       </div>
-      <div style={{ padding: "20px" }}>{children}</div>
-    </div>
+      <div style={{ padding: "14px 20px 20px" }}>{children}</div>
+    </section>
   );
 }
 
-// ── Modal ───────────────────────────────────────────────────────────────────
 /**
  * Окно суперадмина — общий шелл приложения, а не свой.
  *
@@ -115,18 +51,17 @@ export function Modal({ onClose, title, subtitle, footer, maxWidth = 480, childr
 export function Input({ label, ...props }: { label: string } & React.InputHTMLAttributes<HTMLInputElement>) {
   return (
     <div>
-      <label style={{ fontFamily: F.body, fontSize: "10px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", color: COLORS.textTertiary, display: "block", marginBottom: "6px" }}>{label}</label>
-      <input {...props} style={{ width: "100%", padding: "10px 14px", borderRadius: "10px", border: `1px solid ${COLORS.border}`, background: COLORS.surfaceLight, color: COLORS.textPrimary, fontFamily: F.body, fontSize: "13px", outline: "none", transition: "border-color 0.15s", ...props.style }} />
+      <label style={{ fontSize: "12px", fontWeight: 600, color: COLORS.textSecondary, display: "block", marginBottom: "6px" }}>{label}</label>
+      <input {...props} className="neo-input w-full" style={{ minHeight: 44, fontSize: 14, ...props.style }} />
     </div>
   );
 }
 
-// ── Buttons ─────────────────────────────────────────────────────────────────
 export function BtnPrimary({ children, disabled, onClick, style: s }: {
   children: React.ReactNode; disabled?: boolean; onClick?: () => void; style?: React.CSSProperties;
 }) {
   return (
-    <button onClick={onClick} disabled={disabled} style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: "6px", padding: "10px 20px", borderRadius: "10px", fontSize: "13px", fontWeight: 600, fontFamily: F.body, color: "var(--color-on-primary)", background: "var(--color-primary)", border: "none", cursor: disabled ? "not-allowed" : "pointer", opacity: disabled ? 0.5 : 1, transition: "all 0.2s", ...s }}>
+    <button type="button" onClick={onClick} disabled={disabled} className="neo-btn-primary" style={{ minHeight: 44, ...s }}>
       {children}
     </button>
   );
@@ -136,7 +71,7 @@ export function BtnSecondary({ children, disabled, onClick, style: s }: {
   children: React.ReactNode; disabled?: boolean; onClick?: () => void; style?: React.CSSProperties;
 }) {
   return (
-    <button onClick={onClick} disabled={disabled} style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: "6px", padding: "10px 20px", borderRadius: "10px", fontSize: "13px", fontWeight: 600, fontFamily: F.body, color: COLORS.textSecondary, background: COLORS.surface, border: `1px solid ${COLORS.border}`, cursor: disabled ? "not-allowed" : "pointer", opacity: disabled ? 0.5 : 1, transition: "all 0.15s", ...s }}>
+    <button type="button" onClick={onClick} disabled={disabled} className="neo-btn" style={{ minHeight: 44, ...s }}>
       {children}
     </button>
   );

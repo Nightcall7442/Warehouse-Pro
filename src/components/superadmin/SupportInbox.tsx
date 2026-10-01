@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { Archive, Check, CheckCheck, Inbox, LifeBuoy, Loader2, Send, Trash2 } from "lucide-react";
+import { Archive, ArrowLeft, Check, CheckCheck, Inbox, Loader2, Send, Trash2 } from "lucide-react";
+import { useSearchParams } from "react-router";
 import { trpc } from "@/providers/trpc";
 import { notify } from "@/lib/toast";
 import { useConfirm } from "@/components/ConfirmDialog";
 import { labelled, ROLE_LABEL } from "@/lib/entity-labels";
 import { buildThread } from "@/lib/chat-thread";
-import { F, COLORS } from "./types";
-import { Section, PlanBadge } from "./ui";
+import { PlanPill } from "@/components/superadmin/console/ui";
 
 /**
  * Обращения в поддержку — сторона платформы.
@@ -33,7 +33,18 @@ import { Section, PlanBadge } from "./ui";
 export function SupportInbox() {
   const utils = trpc.useUtils();
   const { confirm, dialog } = useConfirm();
-  const [openThread, setOpenThread] = useState<{ tenantId: number; userId: number; name: string; tenant: string; plan: string } | null>(null);
+  /*
+    Открытый разговор — в адресе (?thread=организация-человек), а не в
+    состоянии: на телефоне список и разговор — два экрана, и «назад» в
+    браузере должен возвращать к очереди, а не уводить из раздела.
+  */
+  const [params, setParams] = useSearchParams();
+  const threadKey = /^(\d+)-(\d+)$/.exec(params.get("thread") ?? "");
+  const setOpenThread = (t: { tenantId: number; userId: number } | null) => setParams(prev => {
+    const next = new URLSearchParams(prev);
+    if (t) next.set("thread", `${t.tenantId}-${t.userId}`); else next.delete("thread");
+    return next;
+  }, { replace: !t });
   const [draft, setDraft] = useState("");
   const bottom = useRef<HTMLDivElement>(null);
   const field = useRef<HTMLTextAreaElement>(null);
@@ -43,6 +54,15 @@ export function SupportInbox() {
     // живого события у неё нет — она сидит вне организации.
     refetchInterval: 20_000,
   });
+
+  const list = threads ?? [];
+  const openRow = threadKey
+    ? list.find(t => t.tenantId === Number(threadKey[1]) && t.userId === Number(threadKey[2]))
+    : undefined;
+  const openThread = threadKey ? {
+    tenantId: Number(threadKey[1]), userId: Number(threadKey[2]),
+    name: openRow?.userName ?? "…", tenant: openRow?.tenantName ?? "", plan: openRow?.plan ?? "trial",
+  } : null;
 
   const { data: thread } = trpc.support.threadOf.useQuery(
     openThread ? { tenantId: openThread.tenantId, userId: openThread.userId } : { tenantId: 0, userId: 0 },
@@ -117,11 +137,6 @@ export function SupportInbox() {
   }, []);
   useEffect(fit, [draft, fit]);
 
-  const list = threads ?? [];
-  const waiting = list.filter(t => t.unread > 0).length;
-  const openRow = openThread
-    ? list.find(t => t.tenantId === openThread.tenantId && t.userId === openThread.userId)
-    : undefined;
   const closedAt = openRow?.closedAt ? new Date(openRow.closedAt) : null;
   const rows = useMemo(() => buildThread(messages, new Date()), [messages]);
 
@@ -132,30 +147,34 @@ export function SupportInbox() {
   };
 
   return (
-    <Section title={waiting > 0 ? `Обращения — ждут ответа: ${waiting}` : "Обращения"} icon={LifeBuoy}>
+    <div data-testid="support-inbox">
       {isLoading ? (
-        <div style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "13px", color: COLORS.textTertiary }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "13px", color: "var(--color-text-tertiary)" }}>
           <Loader2 size={14} style={{ animation: "spin 1s linear infinite" }} /> Загрузка…
         </div>
       ) : list.length === 0 ? (
         <EmptyInbox />
       ) : (
-        <div style={{ display: "grid", gridTemplateColumns: "minmax(270px, 340px) 1fr", gap: "16px", alignItems: "start" }}>
+        /*
+          Компьютер — очередь и разговор рядом. Телефон — два экрана: очередь,
+          а по нажатию разговор во всю ширину со стрелкой «к очереди»; рядом
+          на 390 точках они не помещались, и страница ехала вбок.
+        */
+        <div className="grid gap-4 md:grid-cols-[minmax(280px,360px)_minmax(0,1fr)] items-start">
           {/* ── Очередь ─────────────────────────────────────────────────── */}
-          <div className="premium-scrollbar" style={{ display: "flex", flexDirection: "column", gap: "8px", maxHeight: "520px", overflowY: "auto", padding: "2px" }}>
+          <div className={`premium-scrollbar flex-col gap-2 ${openThread ? "hidden md:flex" : "flex"}`} data-testid="support-queue"
+            style={{ maxHeight: "calc(100dvh - 190px)", minHeight: 0, overflowY: "auto", padding: "4px" }}>
             {list.map(t => {
               const active = openThread?.tenantId === t.tenantId && openThread?.userId === t.userId;
               return (
                 <button
                   key={`${t.tenantId}:${t.userId}`}
-                  onClick={() => setOpenThread({
-                    tenantId: t.tenantId, userId: t.userId,
-                    name: t.userName, tenant: t.tenantName, plan: t.plan,
-                  })}
+                  onClick={() => setOpenThread({ tenantId: t.tenantId, userId: t.userId })}
+                  data-testid="support-thread-row"
                   style={{
                     textAlign: "left", padding: "12px 14px", borderRadius: "16px", cursor: "pointer",
-                    border: "none", fontFamily: F.body, position: "relative", overflow: "hidden",
-                    background: active ? "var(--color-primary-subtle)" : COLORS.surfaceLight,
+                    border: "none", position: "relative", overflow: "hidden",
+                    background: active ? "var(--color-primary-subtle)" : "var(--color-surface-light)",
                     // Выбранная строка вдавлена, остальные приподняты. Раньше
                     // выбор отличался только заливкой и терялся среди прочих.
                     boxShadow: active ? "var(--shadow-pressed)" : "var(--shadow-sm)",
@@ -175,7 +194,7 @@ export function SupportInbox() {
                     <Avatar name={t.userName} />
                     <div style={{ minWidth: 0, flex: 1 }}>
                       <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                        <span style={{ fontSize: "13px", fontWeight: 600, color: COLORS.textPrimary, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        <span style={{ fontSize: "14px", fontWeight: 700, color: "var(--color-text-primary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                           {t.userName}
                         </span>
                         {/* Сколько вопросов без ответа. Ноль не рисуется:
@@ -189,10 +208,10 @@ export function SupportInbox() {
                         )}
                       </div>
                       <div style={{ display: "flex", alignItems: "center", gap: "6px", marginTop: "3px" }}>
-                        <span style={{ fontSize: "11px", color: COLORS.textTertiary, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>
+                        <span style={{ fontSize: "12.5px", color: "var(--color-text-secondary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>
                           {t.tenantName}
                         </span>
-                        <span style={{ fontSize: "10.5px", color: COLORS.textTertiary, flexShrink: 0, fontVariantNumeric: "tabular-nums" }}>
+                        <span style={{ fontSize: "12px", color: "var(--color-text-tertiary)", flexShrink: 0, fontVariantNumeric: "tabular-nums" }}>
                           {ago(new Date(t.lastAt))}
                         </span>
                       </div>
@@ -200,14 +219,14 @@ export function SupportInbox() {
                   </div>
 
                   <div style={{ display: "flex", alignItems: "center", gap: "6px", margin: "8px 0 5px" }}>
-                    <PlanBadge plan={t.plan} />
-                    <span style={{ fontSize: "10.5px", color: COLORS.textTertiary }}>{labelled(ROLE_LABEL, t.userRole)}</span>
+                    <PlanPill plan={t.plan} />
+                    <span style={{ fontSize: "12px", color: "var(--color-text-tertiary)" }}>{labelled(ROLE_LABEL, t.userRole)}</span>
                     {/* Завершённые видно сразу: браться за них незачем, а
                         через неделю от них останется только счёт. */}
                     {t.closedAt && (
                       <span style={{
                         marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: "3px",
-                        fontSize: "10px", fontWeight: 700, color: COLORS.textTertiary,
+                        fontSize: "10px", fontWeight: 700, color: "var(--color-text-tertiary)",
                       }}>
                         <Archive size={10} />
                         {t.closedBy === "silence" ? "молчит" : "завершён"}
@@ -215,7 +234,7 @@ export function SupportInbox() {
                     )}
                   </div>
 
-                  <p style={{ fontSize: "11.5px", lineHeight: 1.45, color: COLORS.textTertiary, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  <p style={{ fontSize: "12.5px", lineHeight: 1.45, color: "var(--color-text-secondary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", margin: 0 }}>
                     {t.lastFromPlatform ? "Вы: " : ""}{t.lastMessage}
                   </p>
                 </button>
@@ -224,23 +243,27 @@ export function SupportInbox() {
           </div>
 
           {/* ── Разговор ────────────────────────────────────────────────── */}
-          <div style={{ display: "flex", flexDirection: "column", minHeight: "380px", maxHeight: "520px", borderRadius: "18px", overflow: "hidden", boxShadow: "var(--shadow-sm)" }}>
+          <div className={`${openThread ? "flex" : "hidden md:flex"} flex-col support-thread`} data-testid="support-thread"
+            style={{ borderRadius: "20px", overflow: "hidden", boxShadow: "var(--shadow-sm)", background: "var(--color-surface)" }}>
             {!openThread ? (
               <div className="chat-well" style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <div style={{ textAlign: "center", color: COLORS.textTertiary }}>
+                <div style={{ textAlign: "center", color: "var(--color-text-tertiary)" }}>
                   <Inbox size={30} style={{ opacity: 0.5, marginBottom: "10px" }} />
                   <p style={{ fontSize: "13px" }}>Выберите обращение слева</p>
                 </div>
               </div>
             ) : (
               <>
-                <div style={{ padding: "12px 16px", background: COLORS.surface, display: "flex", alignItems: "center", gap: "10px" }}>
+                <div style={{ padding: "10px 12px", background: "var(--color-surface)", display: "flex", alignItems: "center", gap: "10px" }}>
+                  <button type="button" onClick={() => setOpenThread(null)} aria-label="К очереди" className="md:hidden neo-btn-icon flex-shrink-0" style={{ width: 44, height: 44, borderRadius: 14 }}>
+                    <ArrowLeft size={18} />
+                  </button>
                   <Avatar name={openThread.name} />
                   <div style={{ minWidth: 0, flex: 1 }}>
-                    <p style={{ fontSize: "13.5px", fontWeight: 700, color: COLORS.textPrimary, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    <p style={{ fontSize: "13.5px", fontWeight: 700, color: "var(--color-text-primary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                       {openThread.name}
                     </p>
-                    <p style={{ fontSize: "11px", color: COLORS.textTertiary, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    <p style={{ fontSize: "11px", color: "var(--color-text-tertiary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                       {openThread.tenant}
                     </p>
                   </div>
@@ -251,10 +274,10 @@ export function SupportInbox() {
                       onClick={() => closeIt.mutate({ tenantId: openThread.tenantId, userId: openThread.userId })}
                       disabled={closeIt.isPending}
                       className="neo-btn"
-                      style={{ fontSize: "11px", padding: "6px 12px", flexShrink: 0 }}
+                      style={{ fontSize: "12.5px", minHeight: 44, padding: "0 12px", flexShrink: 0 }}
                     >
-                      {closeIt.isPending ? <Loader2 size={12} style={{ animation: "spin 1s linear infinite" }} /> : <Archive size={12} />}
-                      Завершить
+                      {closeIt.isPending ? <Loader2 size={14} className="animate-spin" /> : <Archive size={14} />}
+                      <span className="hidden sm:inline">Завершить</span>
                     </button>
                   )}
                   <button
@@ -263,11 +286,11 @@ export function SupportInbox() {
                     className="neo-btn"
                     aria-label="Стереть переписку"
                     title="Стереть переписку без возврата"
-                    style={{ fontSize: "11px", padding: "6px 10px", flexShrink: 0, color: "var(--color-danger-text)" }}
+                    style={{ fontSize: "12.5px", minHeight: 44, minWidth: 44, padding: "0 12px", flexShrink: 0, color: "var(--color-danger-text)" }}
                   >
-                    {purge.isPending ? <Loader2 size={12} style={{ animation: "spin 1s linear infinite" }} /> : <Trash2 size={12} />}
+                    {purge.isPending ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
                   </button>
-                  <PlanBadge plan={openThread.plan} />
+                  <span className="hidden sm:inline-flex"><PlanPill plan={openThread.plan} /></span>
                 </div>
 
                 <div className="chat-well premium-scrollbar" style={{ flex: 1, overflowY: "auto", padding: "16px", display: "flex", flexDirection: "column", gap: "3px" }}>
@@ -309,14 +332,14 @@ export function SupportInbox() {
                           </div>
                           {row.last && (
                             <div style={{ display: "flex", alignItems: "center", gap: "4px", margin: "4px 4px 0", marginLeft: mine ? undefined : "34px" }}>
-                              <span style={{ fontSize: "10.5px", color: COLORS.textTertiary, fontVariantNumeric: "tabular-nums" }}>
+                              <span style={{ fontSize: "10.5px", color: "var(--color-text-tertiary)", fontVariantNumeric: "tabular-nums" }}>
                                 {time(row.at)}
                               </span>
                               {/* Прочитал ли клиент наш ответ. Отметка уже
                                   ставилась в базе и никуда не выводилась. */}
                               {mine && (m.readAt
                                 ? <CheckCheck size={12} style={{ color: "var(--color-primary-text)" }} />
-                                : <Check size={12} style={{ color: COLORS.textTertiary }} />
+                                : <Check size={12} style={{ color: "var(--color-text-tertiary)" }} />
                               )}
                             </div>
                           )}
@@ -341,7 +364,7 @@ export function SupportInbox() {
                     display: "flex", alignItems: "center", gap: "8px",
                   }}>
                     <Archive size={13} style={{ color: "var(--color-warning-text, var(--color-warning))", flexShrink: 0 }} />
-                    <span style={{ fontSize: "11.5px", lineHeight: 1.45, color: COLORS.textSecondary }}>
+                    <span style={{ fontSize: "11.5px", lineHeight: 1.45, color: "var(--color-text-secondary)" }}>
                       Разговор завершён {closedAt.toLocaleDateString("ru", { day: "numeric", month: "long" })}
                       {openRow?.closedBy === "silence" ? " — молчанием" : ""}. Переписка сотрётся{" "}
                       {new Date(closedAt.getTime() + 7 * 86_400_000).toLocaleDateString("ru", { day: "numeric", month: "long" })}.
@@ -350,7 +373,7 @@ export function SupportInbox() {
                   </div>
                 )}
 
-                <div style={{ padding: "12px", background: COLORS.surface, display: "flex", gap: "8px", alignItems: "flex-end" }}>
+                <div style={{ padding: "12px", background: "var(--color-surface)", display: "flex", gap: "8px", alignItems: "flex-end" }}>
                   <textarea
                     ref={field}
                     value={draft}
@@ -367,7 +390,7 @@ export function SupportInbox() {
                     disabled={!draft.trim() || reply.isPending}
                     aria-label="Отправить ответ"
                     className="neo-btn-primary"
-                    style={{ height: "42px", padding: "0 16px", borderRadius: "14px", flexShrink: 0 }}
+                    style={{ height: "44px", padding: "0 16px", borderRadius: "14px", flexShrink: 0 }}
                   >
                     {reply.isPending ? <Loader2 size={14} style={{ animation: "spin 1s linear infinite" }} /> : <Send size={14} />}
                     Ответить
@@ -379,7 +402,7 @@ export function SupportInbox() {
         </div>
       )}
       {dialog}
-    </Section>
+    </div>
   );
 }
 
@@ -398,7 +421,7 @@ function Avatar({ name, size = 34 }: { name: string; size?: number }) {
       width: `${size}px`, height: `${size}px`, borderRadius: `${Math.round(size / 2.8)}px`, flexShrink: 0,
       display: "flex", alignItems: "center", justifyContent: "center",
       background: "linear-gradient(135deg, var(--accent-teal, #3a9a8a), var(--color-primary))",
-      color: "#fff", fontSize: `${Math.round(size / 2.9)}px`, fontWeight: 700, fontFamily: F.body,
+      color: "#fff", fontSize: `${Math.round(size / 2.9)}px`, fontWeight: 700,
       letterSpacing: "0.02em",
     }}>
       {initials}
@@ -412,12 +435,12 @@ function EmptyInbox() {
       <div style={{
         width: "52px", height: "52px", borderRadius: "18px", margin: "0 auto 14px",
         display: "flex", alignItems: "center", justifyContent: "center",
-        background: COLORS.surfaceLight, color: COLORS.textTertiary, boxShadow: "var(--shadow-sm)",
+        background: "var(--color-surface-light)", color: "var(--color-text-tertiary)", boxShadow: "var(--shadow-sm)",
       }}>
         <Inbox size={24} />
       </div>
-      <p style={{ fontSize: "13.5px", fontWeight: 600, color: COLORS.textPrimary, marginBottom: "4px" }}>Пока никто не писал</p>
-      <p style={{ fontSize: "12px", color: COLORS.textTertiary, margin: 0 }}>
+      <p style={{ fontSize: "13.5px", fontWeight: 600, color: "var(--color-text-primary)", marginBottom: "4px" }}>Пока никто не писал</p>
+      <p style={{ fontSize: "12px", color: "var(--color-text-tertiary)", margin: 0 }}>
         Чат доступен организациям на тарифе Exclusive.
       </p>
     </div>

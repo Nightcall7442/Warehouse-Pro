@@ -62,8 +62,9 @@ describe("подтверждение удаления", () => {
     const body = router.slice(at, at + 2500);
     expect(body).toContain("offboardConfirmWord(t)");
     expect(body).not.toContain("!== t.slug");
-    const ui = readFileSync(resolve(__dirname, "../../src/components/superadmin/TenantDetail.tsx"), "utf8");
-    expect(ui).toContain("offboardSlug.trim() !== offboardConfirmWord(tenant)");
-    expect(ui).toContain("Для подтверждения наберите: ${offboardConfirmWord(tenant)}");
+    const ui = readFileSync(resolve(__dirname, "../../src/components/superadmin/console/OrgTabs.tsx"), "utf8");
+    expect(ui).toContain("const confirmWord = offboardConfirmWord(t);");
+    expect(ui).toContain("word.trim() !== confirmWord");
+    expect(ui).toContain("Для подтверждения наберите: <b style={{ color: \"var(--color-text-primary)\" }}>{confirmWord}</b>");
   });
 });

@@ -72,7 +72,9 @@ describe("строки меню", () => {
   });
 
   it("роли без групп (агент, супервайзер, курьер) — как были: плоский список", () => {
-    for (const role of ["agent", "supervisor", "merchandiser", "courier", "superadmin"]) {
+    // Суперадмина здесь нет: у него своя колонка консоли платформы
+    // (components/superadmin/console/nav.ts), без групп по определению.
+    for (const role of ["agent", "supervisor", "merchandiser", "courier"]) {
       const rows = navRows(NAV_ITEMS[role], "/x", undefined);
       expect(rows.every(r => r.kind === "item" && !r.nested), role).toBe(true);
       expect(rows).toHaveLength(NAV_ITEMS[role].length);

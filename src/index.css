@@ -1326,6 +1326,21 @@
     background: var(--color-primary-subtle);
   }
 
+  /* Консоль платформы (components/console): отступы страницы и отклик строк.
+     Телефон — 16 по краям и место под нижние вкладки; компьютер — шире. */
+  .console-page { padding: 16px 16px calc(84px + env(safe-area-inset-bottom, 0px)); }
+  @media (min-width: 768px) { .console-page { padding: 16px 24px 40px; } }
+  .console-row { transition: background 0.15s ease; }
+  @media (hover: hover) { .console-row:hover { background: var(--color-surface-light); } }
+  .console-row:active { background: var(--color-surface-hover, var(--color-surface-light)); }
+  .console-form .neo-input, .console-form .premium-select-trigger { height: 46px; min-height: 46px; }
+  /* Разговор поддержки — во всю высоту окна: на телефоне под шапкой и над
+     вкладками, на компьютере под заголовком раздела. */
+  .support-thread { height: calc(100dvh - 60px - 116px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)); min-height: 360px; }
+  @media (min-width: 768px) { .support-thread { height: calc(100dvh - 210px); min-height: 460px; } }
+  .console-table tbody tr { transition: background 0.15s ease; }
+  @media (hover: hover) { .console-table tbody tr:hover { background: var(--color-surface-light); } }
+
   /* ══════════════════════════════════════════════════════════════════════
      RANGE PILLS — Neumorphic
      ══════════════════════════════════════════════════════════════════════ */

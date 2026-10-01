@@ -1,9 +1,10 @@
 import { useState } from "react";
 import { trpc } from "@/providers/trpc";
 import { notify } from "@/lib/toast";
-import { F, COLORS } from "@/components/superadmin/types";
+import { Chip, Empty, Pill } from "@/components/superadmin/console/ui";
 import { format } from "date-fns";
 import { Check, Inbox, PhoneCall } from "lucide-react";
+import { formatUzPhone } from "@contracts/signup";
 
 /**
  * Заявки с лендинга.
@@ -43,90 +44,55 @@ export function LeadInbox() {
   const rows = listQ.data ?? [];
 
   return (
-    <div style={{ background: COLORS.surface, borderRadius: "20px", padding: "20px", boxShadow: "var(--shadow-sm)" }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "12px", marginBottom: "14px" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-          <Inbox size={18} style={{ color: COLORS.textTertiary }} />
-          <div>
-            <h2 style={{ fontFamily: F.display, fontSize: "16px", fontWeight: 700, color: COLORS.textPrimary }}>
-              Заявки с сайта
-            </h2>
-            <p style={{ fontSize: "12px", color: COLORS.textSecondary }}>
-              Оставили телефон и ждут звонка
-            </p>
-          </div>
-        </div>
-        <button
-          onClick={() => setOnlyNew(v => !v)}
-          style={{
-            padding: "6px 12px", borderRadius: "8px", fontSize: "12px", fontWeight: 600,
-            fontFamily: F.body, cursor: "pointer", border: `1px solid ${COLORS.border}`,
-            background: onlyNew ? "var(--color-primary)" : COLORS.surfaceLight,
-            color: onlyNew ? "#fff" : COLORS.textSecondary,
-          }}
-        >
-          {onlyNew ? "Только новые" : "Все"}
-        </button>
+    <div data-testid="lead-inbox">
+      <div className="flex gap-2" style={{ marginBottom: 14 }}>
+        <Chip active={onlyNew} onClick={() => setOnlyNew(true)} testId="leads-only-new">Новые</Chip>
+        <Chip active={!onlyNew} onClick={() => setOnlyNew(false)} testId="leads-all">Все</Chip>
       </div>
 
       {listQ.isLoading ? (
-        <div style={{ height: "60px", background: COLORS.surfaceLight, borderRadius: "12px" }} />
+        <div className="neo-card neo-card-static" style={{ height: 96, borderRadius: 20 }} />
       ) : rows.length === 0 ? (
-        <p style={{ fontSize: "13px", color: COLORS.textTertiary }}>
-          {onlyNew ? "Неразобранных заявок нет" : "Заявок нет"}
-        </p>
+        <div className="neo-card neo-card-static" style={{ padding: 0, borderRadius: 20 }}>
+          <Empty icon={Inbox} title={onlyNew ? "Неразобранных заявок нет" : "Заявок нет"} hint="Заявки приходят с формы на сайте: имя, телефон и комментарий." />
+        </div>
       ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+        <div className="grid gap-3 lg:grid-cols-2">
           {rows.map(l => (
-            <div key={l.id} style={{
-              background: COLORS.surfaceLight, borderRadius: "14px", padding: "12px 14px",
-              display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "12px",
-            }}>
-              <div style={{ minWidth: 0 }}>
-                <div style={{ fontFamily: F.display, fontWeight: 600, color: COLORS.textPrimary }}>
-                  {l.name}
-                  {l.company ? <span style={{ color: COLORS.textSecondary, fontWeight: 400 }}> · {l.company}</span> : null}
+            <div key={l.id} className="neo-card neo-card-static" style={{ padding: 16, borderRadius: 20 }} data-testid="lead-row">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div style={{ fontSize: 15, fontWeight: 700, color: "var(--color-text-primary)", overflowWrap: "anywhere" }}>
+                    {l.name}
+                    {l.company ? <span style={{ color: "var(--color-text-secondary)", fontWeight: 500 }}> · {l.company}</span> : null}
+                  </div>
+                  <div style={{ fontSize: 12.5, color: "var(--color-text-tertiary)", marginTop: 3 }}>
+                    {l.createdAt ? format(new Date(l.createdAt), "dd.MM.yyyy HH:mm") : ""}
+                    {l.source ? ` · ${l.source}` : ""}
+                  </div>
                 </div>
-                <a href={`tel:${l.phone}`} style={{
-                  display: "inline-flex", alignItems: "center", gap: "5px",
-                  fontSize: "13px", color: "var(--color-primary-text)", fontVariantNumeric: "tabular-nums",
-                }}>
-                  <PhoneCall size={12} />{l.phone}
-                </a>
-                {l.comment ? (
-                  <p style={{ fontSize: "12px", color: COLORS.textSecondary, marginTop: "4px" }}>{l.comment}</p>
-                ) : null}
-                <div style={{ fontSize: "11px", color: COLORS.textTertiary, marginTop: "4px" }}>
-                  {l.createdAt ? format(new Date(l.createdAt), "dd.MM.yyyy HH:mm") : ""}
-                  {l.source ? ` · ${l.source}` : ""}
-                  {/*
-                    Не дошло в телеграм — значит канал сломан, и это другая
-                    беда, чем «не успели позвонить».
-                  */}
-                  {l.notified === false ? (
-                    <span style={{ color: "var(--color-danger-text)" }}> · в телеграм не ушло</span>
-                  ) : null}
-                  {l.handledAt ? (
-                    <span style={{ color: "var(--color-success-text)" }}>
-                      {" "}· разобрана {format(new Date(l.handledAt), "dd.MM.yyyy")}
-                    </span>
-                  ) : null}
+                <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                  {/* Не дошло в телеграм — значит канал сломан, и это другая
+                      беда, чем «не успели позвонить». */}
+                  {l.notified === false && <Pill tone="danger">в телеграм не ушло</Pill>}
+                  {l.handledAt && <Pill tone="success">разобрана {format(new Date(l.handledAt), "dd.MM.yyyy")}</Pill>}
                 </div>
               </div>
-              {!l.handledAt && (
-                <button
-                  onClick={() => markHandled.mutate({ id: l.id })}
-                  disabled={markHandled.isPending}
-                  style={{
-                    flexShrink: 0, display: "flex", alignItems: "center", gap: "5px",
-                    padding: "6px 12px", borderRadius: "8px", fontSize: "12px", fontWeight: 600,
-                    fontFamily: F.body, cursor: "pointer", border: `1px solid ${COLORS.border}`,
-                    background: COLORS.surface, color: COLORS.textSecondary,
-                  }}
-                >
-                  <Check size={13} /> Разобрана
-                </button>
-              )}
+              {l.comment ? (
+                <p style={{ fontSize: 13, color: "var(--color-text-secondary)", margin: "10px 0 0", lineHeight: 1.5, overflowWrap: "anywhere" }}>{l.comment}</p>
+              ) : null}
+              <div className="flex gap-2 flex-wrap" style={{ marginTop: 12 }}>
+                <a href={`tel:${l.phone.replace(/[^\d+]/g, "")}`} className="neo-btn" data-testid="lead-call"
+                  style={{ minHeight: 44, padding: "0 14px", fontSize: 13.5, color: "var(--color-primary-text)", textDecoration: "none", fontVariantNumeric: "tabular-nums" }}>
+                  <PhoneCall size={15} /> {formatUzPhone(l.phone)}
+                </a>
+                {!l.handledAt && (
+                  <button type="button" onClick={() => markHandled.mutate({ id: l.id })} disabled={markHandled.isPending}
+                    className="neo-btn" style={{ minHeight: 44, padding: "0 14px", fontSize: 13.5 }} data-testid="lead-handled">
+                    <Check size={15} /> Разобрана
+                  </button>
+                )}
+              </div>
             </div>
           ))}
         </div>

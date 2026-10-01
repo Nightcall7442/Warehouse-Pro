@@ -151,59 +151,30 @@ export default function Monitoring() {
       {/* Error detail modal */}
       {selectedErrorId && <ErrorDetailModal errorId={selectedErrorId} onClose={() => setSelectedErrorId(null)} />}
 
-      {/* Header */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "12px", animation: "slideUp 0.4s ease" }}>
-        <div>
-          <h1 style={{ fontFamily: F.display, fontSize: "24px", fontWeight: 700, color: COLORS.textPrimary, letterSpacing: "-0.02em" }}>Мониторинг системы</h1>
-          <p style={{ fontSize: "13px", marginTop: "4px", color: COLORS.textSecondary, fontFamily: F.body }}>
-            {data?.server.nodeVersion} &middot; PID {data?.server.pid} &middot; v{data?.server.version}
-          </p>
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-          <button
-            onClick={() => setAutoRefresh(!autoRefresh)}
-            style={{
-              display: "flex", alignItems: "center", gap: "8px", padding: "6px 12px",
-              borderRadius: "8px", fontSize: "12px", fontWeight: 600, fontFamily: F.body,
-              background: autoRefresh ? "rgba(74,222,128,.10)" : COLORS.surfaceLight,
-              color: autoRefresh ? COLORS.success : COLORS.textSecondary,
-              border: `1px solid ${autoRefresh ? "rgba(74,222,128,.20)" : COLORS.border}`,
-              cursor: "pointer", transition: "all 0.2s",
-            }}
-          >
-            <div style={{
-              width: "6px", height: "6px", borderRadius: "50%",
-              background: autoRefresh ? COLORS.success : "var(--color-text-tertiary, #6b6760)",
-              animation: autoRefresh ? "pulse 2s infinite" : undefined,
-            }} />
-            {autoRefresh ? "Live" : "Paused"}
+      {/*
+        Шапка — строка состояния и действия. Заголовок «Мониторинг системы»
+        ушёл в раздел «Система» консоли платформы (/super-admin/system), где
+        это вкладка «Состояние»; кнопки — на общих классах .neo-btn, без своих
+        рамок в одну точку, высотой 44.
+      */}
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <p style={{ fontSize: "13px", margin: 0, color: COLORS.textSecondary }}>
+          Node {data?.server.nodeVersion} &middot; PID {data?.server.pid} &middot; v{data?.server.version}
+        </p>
+        <div className="flex items-center gap-2 flex-wrap">
+          <button type="button" onClick={() => setAutoRefresh(!autoRefresh)} className="neo-btn" data-testid="monitoring-live"
+            style={{ minHeight: 44, padding: "0 14px", fontSize: 13, color: autoRefresh ? "var(--color-success-text)" : "var(--color-text-secondary)" }}>
+            <span style={{ width: 8, height: 8, borderRadius: "50%", background: autoRefresh ? "var(--color-success)" : "var(--color-text-tertiary)", animation: autoRefresh ? "pulse 2s infinite" : undefined }} />
+            {autoRefresh ? "Обновляется" : "На паузе"}
           </button>
-          <button onClick={() => { refetch(); refetchErrors(); }} disabled={isRefetching} style={{
-            display: "flex", alignItems: "center", gap: "6px", padding: "6px 12px",
-            borderRadius: "8px", fontSize: "12px", fontWeight: 600, fontFamily: F.body,
-            background: COLORS.surface, color: COLORS.textSecondary,
-            border: `1px solid ${COLORS.border}`, cursor: "pointer",
-            opacity: isRefetching ? 0.4 : 1, transition: "all 0.2s",
-          }}>
-            <RefreshCw size={12} style={{ animation: isRefetching ? "spin 1s linear infinite" : undefined }} /> Обновить
+          <button type="button" onClick={() => { refetch(); refetchErrors(); }} disabled={isRefetching} className="neo-btn" style={{ minHeight: 44, padding: "0 14px", fontSize: 13 }}>
+            <RefreshCw size={15} style={{ animation: isRefetching ? "spin 1s linear infinite" : undefined }} /> Обновить
           </button>
-          <button onClick={runAlertCheck} disabled={checkingAlerts} style={{
-            display: "flex", alignItems: "center", gap: "6px", padding: "6px 12px",
-            borderRadius: "8px", fontSize: "12px", fontWeight: 600, fontFamily: F.body,
-            background: COLORS.surface, color: COLORS.textSecondary,
-            border: `1px solid ${COLORS.border}`, cursor: "pointer",
-            opacity: checkingAlerts ? 0.4 : 1, transition: "all 0.2s",
-          }}>
-            <AlertCircle size={12} /> Проверить алерты
+          <button type="button" onClick={runAlertCheck} disabled={checkingAlerts} className="neo-btn" style={{ minHeight: 44, padding: "0 14px", fontSize: 13 }}>
+            <AlertCircle size={15} /> Проверить алерты
           </button>
-          <button onClick={() => clearCacheMutation.mutate()} disabled={clearCacheMutation.isPending} style={{
-            display: "flex", alignItems: "center", gap: "6px", padding: "6px 12px",
-            borderRadius: "8px", fontSize: "12px", fontWeight: 600, fontFamily: F.body,
-            background: COLORS.surface, color: COLORS.textSecondary,
-            border: `1px solid ${COLORS.border}`, cursor: "pointer",
-            opacity: clearCacheMutation.isPending ? 0.4 : 1, transition: "all 0.2s",
-          }}>
-            <RefreshCw size={12} /> Очистить кэш
+          <button type="button" onClick={() => clearCacheMutation.mutate()} disabled={clearCacheMutation.isPending} className="neo-btn" style={{ minHeight: 44, padding: "0 14px", fontSize: 13 }}>
+            <RefreshCw size={15} /> Очистить кэш
           </button>
         </div>
       </div>
@@ -216,7 +187,7 @@ export default function Monitoring() {
       />
 
       {/* KPI Row */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "16px" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "16px" }}>
         <KpiCard label="RPS" value={data?.requests.rps ?? "0.0"} delta={null} sub="запросов/сек" icon={Zap} gradient="linear-gradient(135deg, var(--kpi-indigo), var(--kpi-indigo))" delay={0} />
         <KpiCard label="Avg" value={`${data?.requests.avgResponseTime ?? 0}мс`} delta={null} sub="среднее время" icon={Timer} gradient="linear-gradient(135deg, var(--kpi-green), var(--kpi-green))" delay={0.1} />
         <KpiCard label="P95" value={`${data?.requests.p95 ?? 0}мс`} delta={null} sub="95-й перцентиль" icon={Gauge} gradient="linear-gradient(135deg, var(--kpi-blue), var(--kpi-blue))" delay={0.2} />
@@ -309,8 +280,8 @@ export default function Monitoring() {
               { label: "Магазинов", value: data.business.totalShops, icon: "🏪", color: COLORS.primaryText },
             ].map((item, i) => (
               <div key={i} style={{
-                padding: "12px", borderRadius: "10px", background: COLORS.surfaceLight,
-                border: `1px solid ${COLORS.border}`,
+                padding: "12px", borderRadius: "12px", background: COLORS.surfaceLight,
+                boxShadow: "var(--shadow-pressed)",
               }}>
                 <div style={{ fontSize: "12px", color: COLORS.textSecondary, fontFamily: F.body, marginBottom: "4px" }}>{item.icon} {item.label}</div>
                 <div style={{ fontFamily: F.display, fontSize: "18px", fontWeight: 700, color: item.color }}>{item.value}</div>

@@ -102,10 +102,14 @@ describe("сама процедура", () => {
     expect(body).toContain("const step = await checkTotpStepUp(db, ctx.user.id, input.totpCode);");
     // и всё это — ДО вызова службы
     expect(body.indexOf("checkTotpStepUp(")).toBeLessThan(body.indexOf("await offboardTenant("));
-    const ui = readFileSync("src/components/superadmin/TenantDetail.tsx", "utf8");
+    // Окно — «Опасная зона» карточки организации в консоли платформы; что
+    // кнопка закрыта у работающей, проверено и отрисовкой
+    // (src/__tests__/platform-console-org-card.test.tsx).
+    const ui = readFileSync("src/components/superadmin/console/OrgTabs.tsx", "utf8");
     expect(ui).toContain("trpc.tenant.offboardPreview.useQuery");
     expect(ui).toContain("trpc.tenant.offboard.useMutation");
-    expect(ui).toContain('disabled={tenant.status !== "suspended"}');
+    expect(ui).toContain('const active = t.status === "active";');
+    expect(ui).toContain('disabled={active} data-testid="danger-offboard-open"');
   });
 
   it("выгрузка дампа и уход организации проверяют второй фактор одним помощником", () => {

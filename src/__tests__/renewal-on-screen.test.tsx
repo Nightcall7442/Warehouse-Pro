@@ -17,8 +17,8 @@
  *   · оплаченный (не Stripe) — полоса за 7 дней и в день конца, с «Продлить»
  *     на /billing; за 10 дней — тишина; Stripe продлевает сам — тишина;
  *   · у текущего тарифа — «Продлить», и оно просит тот же тариф;
- *   · planStatus без подписки: платный — по оплаченному сроку, а не по
- *     давнему пробному.
+ *   · срок в консоли платформы (statusOf/daysLeft, бывший planStatus) без
+ *     подписки: платный — по оплаченному сроку, а не по давнему пробному.
  *
  * Нарочная поломка: вернуть в полосе `if (sub.status === "active") return
  * null` — падает первый; вернуть «Активен» без кнопки — второй; вернуть
@@ -26,7 +26,7 @@
  */
 import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
 import { render, screen, fireEvent, cleanup } from "@testing-library/react";
-import { planStatus } from "@/components/superadmin/types";
+import { statusOf, daysLeft, type OrgRow } from "@/components/superadmin/console/orgs";
 import { SubscriptionPlanCard } from "@/components/billing/SubscriptionPlanCard";
 
 const state = vi.hoisted(() => ({ navigated: [] as string[], sub: {} as Record<string, unknown> }));
@@ -107,18 +107,24 @@ describe("карточка текущего тарифа", () => {
   });
 });
 
-describe("метка срока у суперадмина", () => {
-  const row = { id: 1, name: "Орг", slug: "org", status: "active", createdAt: new Date(), userCount: 1, orderCount: 1, orderTotal: 1 };
+describe("метка срока у суперадмина (консоль платформы)", () => {
+  const row = (o: Record<string, unknown>) => ({
+    id: 1, name: "Орг", slug: "org", status: "active", isSandbox: false, createdAt: new Date(), userCount: 1, orderCount: 1, orderTotal: 1,
+    trialEndsAt: null, planExpiresAt: null, subscription: null,
+    segment: { client: true, paying: false, trial: false, trialLive: false, renewalDays: null, silentDays: null, active7: true, price: 0 }, ...o,
+  }) as unknown as OrgRow;
 
   it("платный без строки подписки — по оплаченному, не по давнему пробному", () => {
-    const s = planStatus({ ...row, plan: "basic", trialEndsAt: new Date(Date.now() - 40 * DAY), planExpiresAt: new Date(Date.now() + 20 * DAY + 3_600_000) });
-    expect(s.label).toBe("20 дн.");
+    const r = row({ plan: "basic", trialEndsAt: new Date(Date.now() - 40 * DAY), planExpiresAt: new Date(Date.now() + 20 * DAY + 3_600_000) });
+    expect(daysLeft(r)).toBe(21);
+    expect(statusOf(r).label).toBe("Платит");
   });
 
   it("с подпиской — по ней: пробный по концу пробного, отменённая — «Не оплачена»", () => {
-    const trial = planStatus({ ...row, plan: "basic", subscription: { status: "trialing", trialEndsAt: new Date(Date.now() + 5 * DAY + 3_600_000), currentPeriodEnds: null } });
-    expect(trial.label).toBe("Trial 5д.");
-    const canceled = planStatus({ ...row, plan: "pro", subscription: { status: "canceled", trialEndsAt: null, currentPeriodEnds: new Date(Date.now() + DAY) } });
-    expect(canceled.label).toBe("Не оплачена");
+    const trial = row({ plan: "basic", subscription: { status: "trialing", trialEndsAt: new Date(Date.now() + 5 * DAY + 3_600_000), currentPeriodEnds: null } });
+    expect(daysLeft(trial)).toBe(6);
+    expect(statusOf(trial).label).toBe("Пробный");
+    const canceled = row({ plan: "pro", subscription: { status: "canceled", trialEndsAt: null, currentPeriodEnds: new Date(Date.now() + DAY) } });
+    expect(statusOf(canceled).label).toBe("Не оплачена");
   });
 });

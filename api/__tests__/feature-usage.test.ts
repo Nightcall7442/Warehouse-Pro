@@ -196,14 +196,22 @@ describe("отчёт виден суперадмину", () => {
       арендаторов мимо. Раздел, который ждёт решения по каждой строке, не
       должен стоять за тем, что просто просматривают.
     */
-    const page = read("src/pages/SuperAdmin.tsx");
-    expect(page.indexOf("<FeatureUsage />")).toBeLessThan(page.indexOf("<TenantList"));
+    // С 01.10.2026 — на первом экране консоли («Обзор» → «Требует
+    // внимания»: «Пользуются сверх тарифа N из M»), а не блоком страницы.
+    const page = read("src/pages/superadmin/Overview.tsx");
+    expect(page).toContain("trpc.tenant.featureUsage.useQuery()");
+    expect(page).toContain('testId="attn-overreach"');
+    expect(page.indexOf('testId="attn-overreach"')).toBeLessThan(page.indexOf("<CallList"));
   });
 
   it("экран вызывает её и стоит на странице", () => {
     // Ручка без экрана — то же самое, что ручки нет: этой болезнью уже
     // болели погрузочные листы и вебхук бота.
-    expect(read("src/components/superadmin/FeatureUsage.tsx")).toContain("tenant.featureUsage");
-    expect(read("src/pages/SuperAdmin.tsx")).toContain("<FeatureUsage />");
+    // Сводка — на «Обзоре», фильтр «Сверх тарифа» — в списке, следы по
+    // каждой функции — во вкладке «Обзор» карточки организации.
+    expect(read("src/pages/superadmin/Orgs.tsx")).toContain("trpc.tenant.featureUsage.useQuery()");
+    expect(read("src/pages/superadmin/Orgs.tsx")).toContain('testId="filter-overreach"');
+    expect(read("src/pages/superadmin/OrgCard.tsx")).toContain("trpc.tenant.featureUsage.useQuery(");
+    expect(read("src/components/superadmin/console/OrgTabs.tsx")).toContain("usage.traces.map(");
   });
 });
