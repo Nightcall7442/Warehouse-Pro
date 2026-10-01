@@ -12,8 +12,9 @@
  *
  * ── Что проверяется ─────────────────────────────────────────────────────────
  *
- *   - второй фактор не включён — «Мой профиль» так и говорит и кнопка
- *     «Включить» ведёт в /settings?section=profile;
+ *   - второй фактор не включён — «Мой профиль» так и говорит («Выключен»), и
+ *     кнопка «Включить» ведёт прямо к блоку второго фактора в профиле
+ *     (/settings?section=profile&block=totp);
  *   - включён — «включён», а управлять — кнопкой «Настройки профиля»,
  *     туда же (с 01.10.2026 карточка «Мой профиль» — без своей формы);
  *   - в окне удаления организации без второго фактора есть подсказка со
@@ -48,20 +49,20 @@ beforeEach(() => { state.totpEnabledAt = null; state.navigated = []; });
 afterEach(cleanup);
 
 describe("«Мой профиль» суперадмина: второй фактор", () => {
-  it("не включён — сказано и кнопка «Включить» ведёт в профиль настроек", () => {
+  it("не включён — сказано и кнопка «Включить» ведёт к блоку второго фактора", () => {
     render(<AdminActions />);
     const row = screen.getByTestId("admin-totp");
-    expect(row.textContent).toContain("не включён");
+    expect(row.textContent).toContain("Выключен");
     fireEvent.click(within(row).getByText("Включить"));
-    expect(state.navigated).toEqual(["/settings?section=profile"]);
+    expect(state.navigated).toEqual(["/settings?section=profile&block=totp"]);
   });
 
   it("включён — «включён», лишней кнопки нет; управлять — через «Настройки профиля»", () => {
     state.totpEnabledAt = "2026-10-01T00:00:00Z";
     render(<AdminActions />);
     const row = screen.getByTestId("admin-totp");
-    expect(row.textContent).toContain("включён");
-    expect(row.textContent).not.toContain("не включён");
+    expect(row.textContent).toContain("Включён");
+    expect(row.textContent).not.toContain("Выключен");
     expect(within(row).queryByRole("button")).toBeNull();
     fireEvent.click(screen.getByText("Настройки профиля"));
     expect(state.navigated).toEqual(["/settings?section=profile"]);

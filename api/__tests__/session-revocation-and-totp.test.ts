@@ -111,7 +111,9 @@ describe("TOTP", () => {
 
   it("веб: поле кода на входе и раздел в профиле", () => {
     expect(readFileSync("src/pages/Login.tsx", "utf-8")).toContain('data.code === "TOTP_REQUIRED"');
-    const profile = readFileSync("src/components/settings/ProfileSettings.tsx", "utf-8");
+    // Блок «Вход с кодом из приложения» профиля живёт отдельным файлом (01.10.2026).
+    expect(readFileSync("src/components/settings/ProfileSettings.tsx", "utf-8")).toContain("<TotpBlock");
+    const profile = readFileSync("src/components/settings/TotpBlock.tsx", "utf-8");
     for (const id of ["totp-start", "totp-secret", "totp-enable", "totp-disable"]) expect(profile).toContain(`"${id}"`);
   });
 });

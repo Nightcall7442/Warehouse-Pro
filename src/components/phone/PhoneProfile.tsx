@@ -1,8 +1,8 @@
-import { useRef, useState, type ReactNode } from "react";
+import { useRef, type ReactNode } from "react";
 import { useNavigate } from "react-router";
 import {
-  AlertCircle, Bell, Building2, Camera, ChevronDown, ChevronRight, DollarSign, Globe, Key, Loader2,
-  LogOut, Mail, Moon, ShieldCheck, Sun, User,
+  AlertCircle, Bell, Building2, Camera, ChevronRight, DollarSign, Globe, KeyRound, Loader2,
+  LogOut, MonitorSmartphone, Moon, ShieldCheck, Sun, User,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { trpc } from "@/providers/trpc";
@@ -24,9 +24,16 @@ import { QuotaCard } from "./PhonePlan";
   Строки 56 точек на белых плоскостях, действие открывается нажатием на
   строку. Владелец, 25.09.2026: «все сделай абсолютно».
 
-  Всё остальное из настроек (организация, накладные, Telegram, вторая защита
-  входа) никуда не делось — строки ведут в соответствующий раздел полной
-  страницы настроек (/settings?section=…).
+  Всё остальное из настроек (организация, накладные, Telegram) никуда не
+  делось — строки ведут в соответствующий раздел полной страницы настроек
+  (/settings?section=…).
+
+  «Аккаунт» — четыре строки в том же порядке, что блоки профиля
+  (settings/ProfileSettings): «Имя и телефон», «Логин и пароль», «Вход с
+  кодом из приложения», «Сеансы». Каждая ведёт к своему блоку
+  (?block=…). Раньше имя и пароль правились прямо здесь, а логин, второй
+  фактор и выход — там: две формы одного и того же, и владелец (01.10.2026)
+  искал нужное не в той.
 */
 
 function Group({ children }: { children: ReactNode }) {
@@ -49,7 +56,7 @@ function Row({ icon: Icon, tone, title, subtitle, value, right, onClick, danger,
       </span>
       <span className="flex-1 min-w-0">
         <span className="block truncate" style={{ fontSize: 15, fontWeight: 500, color: danger ? "var(--color-danger-text)" : "var(--color-text-primary)" }}>{title}</span>
-        {subtitle && <span className="block" style={{ fontSize: 12, color: "var(--color-text-secondary)", marginTop: 2 }}>{subtitle}</span>}
+        {subtitle && <span className="block" style={{ fontSize: 12, color: "var(--color-text-secondary)", marginTop: 2, overflowWrap: "anywhere" }}>{subtitle}</span>}
       </span>
       {value && <span className="truncate" style={{ fontSize: 13, color: "var(--color-text-secondary)", maxWidth: "45%" }}>{value}</span>}
       {right ?? (onClick ? <ChevronRight size={18} color="var(--color-text-tertiary)" /> : null)}
@@ -75,7 +82,6 @@ function Segment<T extends string>({ value, options, onChange }: { value: T; opt
     </div>
   );
 }
-const input = "neo-input";
 
 export function PhoneProfile() {
   const { user, logout } = useAuth();
@@ -94,22 +100,12 @@ export function PhoneProfile() {
   const isOffice = role === "ceo" || role === "operator";
   const avatar = (user as { avatar?: string | null } | null)?.avatar ?? null;
 
-  const [editName, setEditName] = useState(false);
-  const [form, setForm] = useState({ name: user?.name ?? "", phone: user?.phone ?? "" });
-  const [editPwd, setEditPwd] = useState(false);
-  const [pw, setPw] = useState({ current: "", next: "", confirm: "" });
+  const totpOn = Boolean((user as { totpEnabledAt?: unknown } | null)?.totpEnabledAt);
+  const toBlock = (block: string) => navigate(`/settings?section=profile&block=${block}`);
 
+  // Здесь — только фото: всё остальное об аккаунте правится в блоках профиля.
   const updateMe = trpc.user.updateMe.useMutation({
-    onSuccess: () => { utils.auth.me.invalidate(); setEditName(false); notify.success(t("Сохранено", "Saqlandi")); },
-    onError: e => notify.error(e.message),
-  });
-  const changePassword = trpc.user.changePassword.useMutation({
-    onSuccess: () => {
-      setPw({ current: "", next: "", confirm: "" });
-      notify.success(t("Пароль изменён. Войдите заново.", "Parol o'zgartirildi. Qaytadan kiring."));
-      // Смена пароля гасит все сессии, включая эту, — уводим на вход сами.
-      setTimeout(() => window.location.replace("/login"), 1500);
-    },
+    onSuccess: () => { utils.auth.me.invalidate(); notify.success(t("Сохранено", "Saqlandi")); },
     onError: e => notify.error(e.message),
   });
 
@@ -117,12 +113,6 @@ export function PhoneProfile() {
     if (!f) return;
     try { updateMe.mutate({ avatar: await compressImage(f, { maxDimension: 400 }) }); }
     catch { notify.error(t("Не удалось обработать снимок", "Rasmni qayta ishlab bo'lmadi")); }
-  };
-  const submitPwd = () => {
-    if (!pw.current || !pw.next) return notify.error(t("Заполните все поля", "Barcha maydonlarni to'ldiring"));
-    if (pw.next !== pw.confirm) return notify.error(t("Пароли не совпадают", "Parollar mos emas"));
-    if (pw.next.length < 8) return notify.error(t("Минимум 8 символов", "Kamida 8 ta belgi"));
-    changePassword.mutate({ currentPassword: pw.current, newPassword: pw.next });
   };
   const askLogout = async () => {
     if (await confirm({ title: t("Выйти из аккаунта?", "Hisobdan chiqasizmi?"), message: t("Вы уверены?", "Ishonchingiz komilmi?"), confirmText: t("Выйти", "Chiqish"), danger: true })) logout();
@@ -176,38 +166,14 @@ export function PhoneProfile() {
       <div>
         <Label>{t("Аккаунт", "Hisob")}</Label>
         <Group>
-          <Row icon={User} title={t("Имя и телефон", "Ism va telefon")} value={editName ? undefined : user?.name ?? "—"} onClick={() => setEditName(v => !v)}
-            right={editName ? <ChevronDown size={18} color="var(--color-text-tertiary)" /> : <ChevronRight size={18} color="var(--color-text-tertiary)" />} testId="profile-name-row" />
-          {editName && (
-            <div className="px-4 pb-4 space-y-2">
-              <input className={input} value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder={t("Как вас зовут", "Ismingiz")} autoComplete="name" />
-              <input className={input} type="tel" value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} placeholder="+998 XX XXX XX XX" autoComplete="tel" />
-              <button type="button" className="neo-btn-primary w-full" disabled={form.name.trim().length < 2 || updateMe.isPending}
-                onClick={() => updateMe.mutate({ name: form.name.trim(), phone: form.phone.trim() })}>
-                {t("Сохранить", "Saqlash")}
-              </button>
-            </div>
-          )}
+          <Row icon={User} title={t("Имя и телефон", "Ism va telefon")} subtitle={user?.name ?? "—"} onClick={() => toBlock("name")} testId="profile-name-row" />
           <Line />
-          {/* Суперадмин меняет логин сам — строка ведёт туда, где это делается. */}
-          {role === "superadmin"
-            ? <Row icon={Mail} title={t("Логин", "Login")} subtitle={user?.email ?? "—"} onClick={() => navigate("/settings?section=profile")} testId="profile-login-row" />
-            : <Row icon={Mail} title="Email" value={user?.email ?? "—"} />}
+          <Row icon={KeyRound} title={t("Логин и пароль", "Login va parol")} subtitle={user?.email ?? "—"} onClick={() => toBlock("login")} testId="profile-login-row" />
           <Line />
-          <Row icon={Key} title={t("Пароль", "Parol")} subtitle={editPwd ? undefined : t("Сменить пароль входа", "Kirish parolini almashtirish")} onClick={() => setEditPwd(v => !v)}
-            right={editPwd ? <ChevronDown size={18} color="var(--color-text-tertiary)" /> : <ChevronRight size={18} color="var(--color-text-tertiary)" />} />
-          {editPwd && (
-            <div className="px-4 pb-4 space-y-2">
-              <input className={input} type="password" autoComplete="current-password" value={pw.current} onChange={e => setPw({ ...pw, current: e.target.value })} placeholder={t("Текущий пароль", "Joriy parol")} />
-              <input className={input} type="password" autoComplete="new-password" value={pw.next} onChange={e => setPw({ ...pw, next: e.target.value })} placeholder={t("Новый пароль (не короче 8)", "Yangi parol (kamida 8)")} />
-              <input className={input} type="password" autoComplete="new-password" value={pw.confirm} onChange={e => setPw({ ...pw, confirm: e.target.value })} placeholder={t("Повторите новый пароль", "Yangi parolni takrorlang")} />
-              <button type="button" className="neo-btn-primary w-full" disabled={!pw.current || !pw.next || changePassword.isPending} onClick={submitPwd}>
-                {t("Изменить пароль", "Parolni o'zgartirish")}
-              </button>
-            </div>
-          )}
+          <Row icon={ShieldCheck} tone={totpOn ? "var(--color-success-text)" : undefined} title={t("Вход с кодом из приложения", "Ilova kodi bilan kirish")}
+            subtitle={totpOn ? t("Включён", "Yoqilgan") : t("Выключен", "O'chirilgan")} onClick={() => toBlock("totp")} testId="profile-totp-row" />
           <Line />
-          <Row icon={ShieldCheck} title={t("Защита входа", "Kirish himoyasi")} subtitle={t("Код из приложения, выход на всех устройствах", "Ilovadagi kod, barcha qurilmalardan chiqish")} onClick={() => navigate("/settings?section=profile")} />
+          <Row icon={MonitorSmartphone} title={t("Сеансы", "Seanslar")} subtitle={t("Выйти на всех устройствах", "Barcha qurilmalardan chiqish")} onClick={() => toBlock("sessions")} testId="profile-sessions-row" />
         </Group>
       </div>
 
