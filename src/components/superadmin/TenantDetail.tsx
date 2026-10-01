@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { offboardConfirmWord } from "@contracts/tenant-slug";
 import { useAuth } from "@/hooks/useAuth";
 import { OperatorAccess } from "@/components/settings/OperatorAccess";
 import { format } from "date-fns";
@@ -345,7 +346,7 @@ export function TenantDetail({ tenantId, onBack }: TenantDetailProps) {
               <BtnSecondary onClick={() => setShowOffboard(false)} style={{ padding: "8px 14px", fontSize: "12px" }}>Отмена</BtnSecondary>
               <BtnPrimary
                 onClick={() => offboard.mutate({ tenantId, confirmSlug: offboardSlug.trim(), totpCode: offboardCode.trim() })}
-                disabled={offboard.isPending || offboardSlug.trim() !== tenant.slug || offboardCode.trim().length < 6}
+                disabled={offboard.isPending || offboardSlug.trim() !== offboardConfirmWord(tenant) || offboardCode.trim().length < 6}
                 style={{ padding: "8px 14px", fontSize: "12px", background: COLORS.danger }}
               >
                 {offboard.isPending ? "Удаляю…" : "Удалить безвозвратно"}
@@ -362,7 +363,7 @@ export function TenantDetail({ tenantId, onBack }: TenantDetailProps) {
                   : <>Будет стёрто <b>{offboardPreview.data.total}</b> строк: {Object.entries(offboardPreview.data.rows).map(([t, n]) => `${t} — ${n}`).join(", ")}.</>
               )}
             </div>
-            <Input label={`Slug организации (${tenant.slug})`} value={offboardSlug} onChange={e => setOffboardSlug(e.target.value)} autoComplete="off" data-testid="offboard-slug" />
+            <Input label={`Для подтверждения наберите: ${offboardConfirmWord(tenant)}`} value={offboardSlug} onChange={e => setOffboardSlug(e.target.value)} autoComplete="off" data-testid="offboard-slug" />
             <Input label="Код из приложения" value={offboardCode} onChange={e => setOffboardCode(e.target.value)} inputMode="numeric" autoComplete="one-time-code" data-testid="offboard-totp" />
             {!totpOn && (
               <p data-testid="offboard-totp-hint" style={{ fontSize: "12px", color: COLORS.textSecondary, lineHeight: 1.6 }}>
