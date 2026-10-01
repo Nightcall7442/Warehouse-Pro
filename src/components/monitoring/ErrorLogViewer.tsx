@@ -74,12 +74,8 @@ export function ErrorLogViewer({ groupedErrors, errorStats, errorTrend, onSelect
             </span>
           )}
           {onPurgeErrors && (
-            <button onClick={onPurgeErrors} style={{
-              display: "flex", alignItems: "center", gap: "4px", padding: "4px 8px",
-              borderRadius: "6px", fontSize: "10px", fontWeight: 600, cursor: "pointer",
-              background: COLORS.surfaceLight, color: COLORS.textTertiary, border: `1px solid ${COLORS.border}`,
-            }}>
-              <Trash2 size={10} /> Очистить
+            <button onClick={onPurgeErrors} className="neo-btn" style={{ minHeight: 44, padding: "0 12px", fontSize: "12px", color: COLORS.textSecondary }}>
+              <Trash2 size={13} /> Очистить
             </button>
           )}
         </div>
@@ -160,7 +156,7 @@ export function ErrorLogViewer({ groupedErrors, errorStats, errorTrend, onSelect
 
               return (
                 <div key={err.key} style={{
-                  borderRadius: "10px", border: `1px solid ${COLORS.border}`,
+                  borderRadius: "10px", boxShadow: "var(--shadow-xs)",
                   background: COLORS.surface, overflow: "hidden",
                 }}>
                   {/* Header row */}
@@ -242,7 +238,7 @@ export function ErrorLogViewer({ groupedErrors, errorStats, errorTrend, onSelect
                           display: "flex", alignItems: "center", gap: "4px", padding: "5px 10px",
                           borderRadius: "6px", fontSize: "11px", fontWeight: 600, cursor: "pointer",
                           background: "color-mix(in srgb, var(--color-primary) 10%, transparent)", color: COLORS.primaryText,
-                          border: `1px solid color-mix(in srgb, var(--color-primary) 20%, transparent)`,
+                          border: "none",
                         }}
                       >
                         <ChevronRight size={12} /> Полный стектрейс
