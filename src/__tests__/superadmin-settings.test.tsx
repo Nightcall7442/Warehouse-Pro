@@ -16,14 +16,16 @@
  *   - на /settings ему видны «Профиль» и «Внешний вид», а разделов
  *     организации и Telegram (личный чат ему ничего не приносит) — нет;
  *     оператору Telegram по-прежнему виден;
- *   - в профиле логин суперадмина — поле: без второго фактора просит пароль
+ *   - в профиле логин суперадмина меняется в блоке «Логин и пароль» по кнопке
+ *     «Сменить логин» (раскрывается отдельно от смены пароля): без второго фактора просит пароль
  *     и уговаривает включить код, со вторым фактором — просит и код; кнопка
  *     отправляет в user.changeMyLogin почту в нижнем регистре;
  *   - у оператора логин — надпись, поля нет;
  *   - «Мой профиль» на /super-admin — карточка без формы: логин, состояние
  *     второго фактора и «Настройки профиля» → /settings?section=profile;
- *   - на телефоне (/settings без раздела — PhoneProfile) строка логина ведёт
- *     туда же, а строки Telegram у суперадмина нет; у оператора — есть.
+ *   - на телефоне (/settings без раздела — PhoneProfile) строка «Логин и
+ *     пароль» ведёт к тому же блоку профиля (с 01.10.2026 — у всех ролей), а
+ *     строки Telegram у суперадмина нет; у оператора — есть.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, cleanup, within } from "@testing-library/react";
@@ -148,8 +150,9 @@ describe("/settings у суперадмина", () => {
 describe("логин в профиле", () => {
   it("суперадмин без второго фактора: поле, пароль, настойчивый совет включить код; отправка — в changeMyLogin", () => {
     show(<ProfileSettings />);
+    fireEvent.click(screen.getByTestId("my-login-toggle"));
     const block = within(screen.getByTestId("my-login"));
-    expect(block.getByTestId("my-login-current").textContent).toBe("superadmin@system.local");
+    expect(screen.getByTestId("my-login-current").textContent).toBe("superadmin@system.local");
     expect(screen.queryByTestId("login-readonly")).toBeNull();
     expect(block.queryByTestId("my-login-code")).toBeNull();
     expect(block.getByTestId("my-login-no-totp").textContent).toMatch(/Включите/);
@@ -166,6 +169,7 @@ describe("логин в профиле", () => {
   it("суперадмин со вторым фактором: без кода кнопка не жмёт, с кодом — код уходит", () => {
     h.state.user = superadmin(true);
     show(<ProfileSettings />);
+    fireEvent.click(screen.getByTestId("my-login-toggle"));
     const block = within(screen.getByTestId("my-login"));
     expect(block.queryByTestId("my-login-no-totp")).toBeNull();
     fireEvent.change(block.getByTestId("my-login-email"), { target: { value: "owner@warehouse.uz" } });
@@ -179,6 +183,7 @@ describe("логин в профиле", () => {
 
   it("свой же логин — кнопка не жмёт", () => {
     show(<ProfileSettings />);
+    fireEvent.click(screen.getByTestId("my-login-toggle"));
     const block = within(screen.getByTestId("my-login"));
     fireEvent.change(block.getByTestId("my-login-email"), { target: { value: "SuperAdmin@System.local" } });
     fireEvent.change(block.getByTestId("my-login-password"), { target: { value: "тестовый-пароль-1" } });
@@ -188,9 +193,10 @@ describe("логин в профиле", () => {
   it("у оператора логин — надпись, поля нет", () => {
     h.state.user = operator;
     show(<ProfileSettings />);
-    expect(screen.queryByTestId("my-login")).toBeNull();
-    expect(screen.queryByRole("button", { name: "Сменить логин" })).toBeNull();
-    expect(screen.getByTestId("login-readonly").textContent).toContain("op@velora.uz");
+    expect(screen.queryByTestId("my-login-toggle")).toBeNull();
+    expect(screen.queryByRole("button", { name: /Сменить логин/ })).toBeNull();
+    expect(screen.getByTestId("my-login-current").textContent).toBe("op@velora.uz");
+    expect(screen.getByTestId("login-readonly").textContent).toContain("администратор организации");
   });
 });
 
@@ -198,7 +204,7 @@ describe("«Мой профиль» на /super-admin", () => {
   it("карточка без формы: логин, второй фактор, «Настройки профиля» → профиль настроек", () => {
     show(<AdminActions />);
     expect(screen.getByTestId("admin-login").textContent).toBe("superadmin@system.local");
-    expect(screen.getByTestId("admin-totp").textContent).toContain("не включён");
+    expect(screen.getByTestId("admin-totp").textContent).toContain("Выключен");
     expect(document.querySelectorAll("input").length, "дубль формы профиля вернулся").toBe(0);
     fireEvent.click(screen.getByRole("button", { name: /Настройки профиля/ }));
     expect(h.state.navigated).toEqual(["/settings?section=profile"]);
@@ -207,17 +213,18 @@ describe("«Мой профиль» на /super-admin", () => {
 });
 
 describe("профиль на телефоне", () => {
-  it("суперадмин: строка логина ведёт в профиль настроек, Telegram нет", () => {
+  it("суперадмин: строка логина ведёт к блоку «Логин и пароль», Telegram нет", () => {
     show(<PhoneProfile />);
     fireEvent.click(screen.getByTestId("profile-login-row"));
-    expect(h.state.navigated).toEqual(["/settings?section=profile"]);
+    expect(h.state.navigated).toEqual(["/settings?section=profile&block=login"]);
     expect(screen.queryByText("Telegram")).toBeNull();
   });
 
-  it("оператор: логин — надпись, Telegram на месте", () => {
+  it("оператор: строка логина ведёт к тому же блоку, Telegram на месте", () => {
     h.state.user = operator;
     show(<PhoneProfile />);
-    expect(screen.queryByTestId("profile-login-row")).toBeNull();
+    fireEvent.click(screen.getByTestId("profile-login-row"));
+    expect(h.state.navigated).toEqual(["/settings?section=profile&block=login"]);
     expect(screen.getByText("Telegram")).toBeTruthy();
   });
 });

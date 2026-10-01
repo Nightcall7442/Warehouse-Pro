@@ -72,10 +72,30 @@ export const userRouter = createRouter({
   */
 
   /*
-    user.me убран 01.10.2026: его звал один экран — «Мой профиль»
-    суперадмина, а тот теперь читает auth.me (useAuth), который отдаёт то же
-    самое и ещё права. Мобилка его не зовёт (contracts/mobile-procedures.json).
+    user.me — оставлена для закэшированных копий сайта.
+
+    Новый веб её не зовёт: «Мой профиль» суперадмина читает auth.me
+    (useAuth) — там то же самое и ещё права. #150 (01.10.2026) её убрал, и в
+    тот же день у владельца на телефоне вышла ошибка: установленный сайт
+    (PWA) — это копия, которую телефон хранит у себя и обновляет только по
+    согласию человека (registerType: "prompt" в vite.config.ts). Старая копия
+    просила user.me в одной пачке с tenant.platformStats и прочими, получала
+    207 с отказом — и /super-admin показывал ошибку.
+
+    Ответ ровно прежний: ctx.user — без хеша пароля и секрета второго
+    фактора (AuthenticatedUser).
+
+    Убирать не раньше 01.11.2026 (четыре недели) и только когда в журнале
+    Railway за последние две недели нет ни одного запроса user.me. Убрали —
+    вычеркните её из KEPT_FOR_CACHED_CLIENTS в
+    api/__tests__/api-surface-is-reachable.test.ts.
+
+    Правило на будущее: ручку, которую зовёт веб, убирают в два шага. Сначала
+    экран перестаёт её звать (ручка остаётся и вписывается в
+    KEPT_FOR_CACHED_CLIENTS с датой), потом, когда старые копии сайта
+    обновились, — убирается сама ручка.
   */
+  me: authedQuery.query(({ ctx }) => ctx.user),
 
   // Update own profile (name, phone, avatar)
   updateMe: authedQuery
@@ -424,6 +444,14 @@ export const userRouter = createRouter({
       if (!row?.totpSecret) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Сначала получите секрет (totpSetup)" });
       if (!verifyTotpOnce(ctx.user.id, unseal(row.totpSecret), input.code)) throw new TRPCError({ code: "BAD_REQUEST", message: "Неверный код — проверьте время на телефоне" });
       await db.update(users).set({ totpEnabledAt: new Date() }).where(eq(users.id, ctx.user.id));
+      /*
+        Вход держит прочитанного человека в памяти несколько секунд
+        (auth/index.ts). Без сброса auth.me сразу после включения отдавал
+        прежнее «выключено», и «Мой профиль» на /super-admin показывал
+        «Выключен» у только что включившего — нашлось на стенде, снимком
+        (01.10.2026).
+      */
+      invalidateAuthUser(ctx.user.id);
       await recordAudit(db, { tenantId: ctx.tenant.id, actorId: ctx.user.id, actorName: ctx.user.name, action: "user.totp_enable", targetType: "user", targetId: ctx.user.id });
       return { success: true };
     }),
@@ -437,6 +465,7 @@ export const userRouter = createRouter({
         throw new TRPCError({ code: "BAD_REQUEST", message: "Неверный код" });
       }
       await db.update(users).set({ totpSecret: null, totpEnabledAt: null }).where(eq(users.id, ctx.user.id));
+      invalidateAuthUser(ctx.user.id);
       await recordAudit(db, { tenantId: ctx.tenant.id, actorId: ctx.user.id, actorName: ctx.user.name, action: "user.totp_disable", targetType: "user", targetId: ctx.user.id });
       return { success: true };
     }),
@@ -447,6 +476,9 @@ export const userRouter = createRouter({
       await db.update(users)
         .set({ tokenVersion: sql`COALESCE(${users.tokenVersion}, 0) + 1` })
         .where(eq(users.id, ctx.user.id));
+      // Вход держит прочитанного человека в памяти несколько секунд
+      // (auth/index.ts): без сброса прочие устройства жили бы ещё столько же.
+      invalidateAuthUser(ctx.user.id);
       return { success: true };
     }),
 

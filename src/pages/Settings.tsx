@@ -65,8 +65,8 @@ const SECTIONS: Section[] = [
   {
     key: "profile", Icon: User,
     titleRu: "Профиль",     titleUz: "Profil",
-    descRu: "Ваше имя, контакты и пароль для входа.",
-    descUz: "Ismingiz, aloqa ma'lumotlari va kirish paroli.",
+    descRu: "Имя и телефон, логин и пароль, вход с кодом из приложения и сеансы.",
+    descUz: "Ism va telefon, login va parol, ilova kodi bilan kirish va seanslar.",
     Comp: ProfileSettings,
   },
   {
@@ -222,7 +222,10 @@ function FullSettings() {
           {t("Настройки", "Sozlamalar")}
         </h1>
         <p className="text-sm text-secondary mt-1">
-          {t("Организация, оформление и подключения", "Tashkilot, ko'rinish va ulanishlar")}
+          {/* У суперадмина организации и подключений здесь нет — только свой профиль и вид. */}
+          {user?.role === "superadmin"
+            ? t("Ваш профиль и внешний вид", "Profilingiz va ko'rinish")
+            : t("Организация, оформление и подключения", "Tashkilot, ko'rinish va ulanishlar")}
         </p>
       </header>
 
