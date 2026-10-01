@@ -16,8 +16,8 @@ vi.mock("../lib/telegram", () => ({ sendTelegram: vi.fn(async (chat: string, tex
 vi.mock("../lib/logger", () => ({ logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() } }));
 vi.mock("../lib/rate-limit", () => ({ checkRateLimit: async () => true }));
 vi.mock("drizzle-orm", async (orig) => ({ ...(await orig<typeof import("drizzle-orm")>()), eq: (_c: unknown, v: unknown) => ({ v }), ne: () => ({}), and: () => ({}) }));
-vi.mock("../queries/connection", () => ({
-  getDb: () => ({
+vi.mock("../queries/connection", () => {
+  const self = {
     select: () => ({
       from: () => ({
         where: (cond: { v?: unknown }) => {
@@ -28,9 +28,13 @@ vi.mock("../queries/connection", () => ({
       }),
     }),
     update: () => ({ set: (v: { manualEnabledAt: Date | null }) => ({ where: async (cond: { v: unknown }) => { const t = db.tenants.find(x => x.id === cond.v); if (t) t.manualEnabledAt = v.manualEnabledAt; } }) }),
-  }),
-}));
+    // Выдача и след в журнале владельца платформы — одной сделкой (services/manual-access).
+    transaction: async (fn: (tx: unknown) => Promise<unknown>) => fn(self),
+  };
+  return { getDb: () => self };
+});
 vi.mock("../services/audit-log", () => ({ recordAudit: vi.fn(async () => undefined), auditActor: () => ({}) }));
+vi.mock("../services/platform-audit", () => ({ recordPlatformAudit: vi.fn(async () => undefined) }));
 vi.mock("../auth", () => ({ invalidateAuthTenant: vi.fn() }));
 
 const { telegramBot } = await import("../telegram/bot");
@@ -63,6 +67,10 @@ describe("/manual в Telegram", () => {
     expect(sent.at(-1)?.[1]).toMatch(/Альфа: руководство отключено/);
     const { invalidateAuthTenant } = await import("../auth");
     expect(vi.mocked(invalidateAuthTenant)).toHaveBeenCalledWith(5);
+    // Выдача из Telegram видна и в журнале консоли — та же дверь.
+    const { recordPlatformAudit } = await import("../services/platform-audit");
+    const writes = vi.mocked(recordPlatformAudit).mock.calls.map(c => [c[1].action, c[1].tenantId, c[1].after?.manual]);
+    expect(writes).toEqual([["tenant.manual", 5, true], ["tenant.manual", 5, false]]);
   });
 
   it("неизвестная организация и кривой формат — понятный ответ, ничего не меняется", async () => {

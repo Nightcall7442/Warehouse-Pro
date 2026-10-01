@@ -16,6 +16,8 @@
  *   · шапка: телефон tel: и почта mailto:, срок и тариф;
  *   · «Подписка»: тариф со сроком, продление пробного, «сверх тарифа» с
  *     суммой в месяц, руководство — каждое в свою ручку с верными доводами;
+ *     «Продлить пробный» — только у пробной (этап 2: у платящей он продлевал
+ *     пробные дни, которых у неё нет, и читался как «продлить подписку»);
  *   · «Пользователи»: смена логина и сброс пароля — в свои ручки, без
  *     годной почты и короче 8 знаков не отправляются;
  *   · «Журнал»: уборка — только с кодом и после подтверждения;
@@ -64,7 +66,7 @@ const detail = (status: "active" | "suspended" = "active") => ({
     ownerEmail: "boss@buxs.uz", ownerPhone: "+998935554433", maxUsers: null, maxProducts: null, maxOrdersMonth: null,
     extraUsers: 2, extraProducts: 0, manualEnabledAt: null, createdAt: new Date(now - 200 * DAY), updatedAt: new Date(now - DAY),
   },
-  subscription: [{ id: "s", plan: "exclusive", status: "active", trialEndsAt: null, currentPeriodEnds: new Date(now + 9 * DAY + 3_600_000) }],
+  subscription: [{ id: "s", plan: "exclusive", status: "active", trialEndsAt: null as Date | null, currentPeriodEnds: new Date(now + 9 * DAY + 3_600_000) as Date | null }],
   users: [
     { id: 50, name: "Шахноза Юсупова", email: "boss@buxs.uz", role: "ceo", status: "active", lastSignInAt: new Date(now - DAY), createdAt: new Date() },
     { id: 51, name: "Агент 1", email: "a1@buxs.uz", role: "agent", status: "active", lastSignInAt: null, createdAt: new Date() },
@@ -129,16 +131,15 @@ describe("вкладки по адресу", () => {
 });
 
 describe("подписка", () => {
-  it("тариф со сроком, продление пробного, сверх тарифа с суммой, руководство", () => {
+  it("тариф со сроком, сверх тарифа с суммой, руководство; «Продлить пробный» — только пробной", () => {
     show("/super-admin/orgs/5/subscription");
     const plan = within(screen.getByTestId("sub-plan"));
     fireEvent.change(plan.getByLabelText("Дней"), { target: { value: "90" } });
     fireEvent.click(screen.getByTestId("sub-plan-save"));
     expect(call("tenant.updatePlan")).toEqual([{ tenantId: 5, plan: "exclusive", expiryDays: 90 }]);
 
-    fireEvent.change(within(screen.getByTestId("sub-trial")).getByLabelText("На сколько дней"), { target: { value: "7" } });
-    fireEvent.click(screen.getByTestId("sub-trial-save"));
-    expect(call("tenant.extendTrial")).toEqual([{ tenantId: 5, days: 7 }]);
+    // Платящая (Эксклюзив, active): пробных дней у неё нет — и блока нет.
+    expect(screen.queryByTestId("sub-trial")).toBeNull();
 
     // Поле открывается с уже докупленным, а не с нулём.
     const extra = within(screen.getByTestId("sub-extra"));
@@ -150,6 +151,17 @@ describe("подписка", () => {
 
     fireEvent.click(screen.getByTestId("sub-manual-toggle"));
     expect(call("tenant.setManualAccess")).toEqual([{ tenantId: 5, enabled: true }]);
+
+    // Пробная — продлевается пробный, в свою ручку.
+    cleanup();
+    const trial = detail();
+    trial.tenant.plan = "trial";
+    trial.subscription = [{ id: "s", plan: "trial", status: "trialing", trialEndsAt: new Date(now + 3 * DAY), currentPeriodEnds: null }];
+    h.state.data["tenant.getDetail"] = trial;
+    show("/super-admin/orgs/5/subscription");
+    fireEvent.change(within(screen.getByTestId("sub-trial")).getByLabelText("На сколько дней"), { target: { value: "7" } });
+    fireEvent.click(screen.getByTestId("sub-trial-save"));
+    expect(call("tenant.extendTrial")).toEqual([{ tenantId: 5, days: 7 }]);
   });
 });
 

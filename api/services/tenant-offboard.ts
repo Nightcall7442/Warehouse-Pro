@@ -45,6 +45,8 @@ export type OffboardStep =
 export const OFFBOARD_ORDER: readonly OffboardStep[] = [
   "agent_locations",
   "agent_territories",
+  // Кто закрыл объявление платформы — люди организации уходят вместе с ней.
+  "announcement_dismissals",
   "api_export_log",
   "api_keys",
   { table: "arrival_items", via: { column: "arrival_id", parent: "arrivals" } },
@@ -106,7 +108,24 @@ export const OFFBOARD_ORDER: readonly OffboardStep[] = [
 ];
 
 /** Платформенные таблицы без tenant_id — их уход организации не касается. */
-export const NOT_TENANT_OWNED = ["tenants", "leads", "cron_runs"] as const;
+export const NOT_TENANT_OWNED = ["tenants", "leads", "cron_runs", "announcements"] as const;
+
+/*
+  Таблицы С tenant_id, которые уход организации НАМЕРЕННО не трогает.
+
+  Страж ниже (api/__tests__/tenant-offboard.test.ts) требует стирать всё с
+  tenant_id — и правильно: забытая таблица оставила бы в базе сироту с
+  персональными данными. Здесь — осознанные исключения, у каждого причина,
+  и у каждой такой таблицы нет внешнего ключа на tenants (иначе удаление
+  самой организации упёрлось бы в restrict). Персональных данных клиента в
+  них нет: название организации, суммы, кто из владельцев платформы что делал.
+*/
+export const KEPT_ON_OFFBOARD: Record<string, string> = {
+  subscription_payments:
+    "Оплаты подписок — выручка платформы: нужны для отчётности и сверки и после ухода клиента. Название организации хранится снимком.",
+  platform_audit:
+    "Журнал владельца платформы: «кто и когда удалил организацию» спрашивают как раз после удаления. Строка удаления пишется в той же транзакции.",
+};
 
 function stepTable(step: OffboardStep): string {
   return typeof step === "string" ? step : step.table;
@@ -133,7 +152,14 @@ export class TenantNotSuspendedError extends Error {
  * Стереть организацию целиком. Вызывающий обязан проверить статус, slug и
  * второй фактор — здесь только сама работа и её отчёт.
  */
-export async function offboardTenant(db: Db, tenantId: number): Promise<{ deleted: Record<string, number>; total: number }> {
+export async function offboardTenant(
+  db: Db,
+  tenantId: number,
+  opts?: {
+    /** Внутри той же транзакции, после стирания: след в журнале владельца (откатит всё при ошибке). */
+    onDeleted?: (tx: Db, report: { deleted: Record<string, number>; total: number }) => Promise<void>;
+  },
+): Promise<{ deleted: Record<string, number>; total: number }> {
   const deleted: Record<string, number> = {};
   await db.transaction(async (tx) => {
     const status = firstRow<{ status: string }>(await tx.execute(sql`SELECT status FROM tenants WHERE id = ${tenantId} FOR UPDATE`))?.status;
@@ -149,6 +175,7 @@ export async function offboardTenant(db: Db, tenantId: number): Promise<{ delete
     }
     const n = affectedRows(await tx.execute(sql`DELETE FROM tenants WHERE id = ${tenantId}`));
     if (n !== 1) throw new Error("Организация не удалилась — откат");
+    if (opts?.onDeleted) await opts.onDeleted(tx as unknown as Db, { deleted, total: Object.values(deleted).reduce((a, b) => a + b, 0) });
   });
   const total = Object.values(deleted).reduce((a, b) => a + b, 0);
   logger.warn("tenant offboarded", { tenantId, total, deleted });

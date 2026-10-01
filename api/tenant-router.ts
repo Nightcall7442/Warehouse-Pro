@@ -4,6 +4,9 @@ import { slugify, offboardConfirmWord } from "@contracts/tenant-slug";
 import { randomUUID, randomBytes, createHash } from "crypto";
 import { TRPCError } from "@trpc/server";
 import { recordAudit } from "./services/audit-log";
+import { ipOf, recordPlatformAudit } from "./services/platform-audit";
+import { invalidateOrgHealth, orgHealth } from "./services/org-health";
+import { paidUntilBase } from "@contracts/subscription-payment";
 import { createRouter, publicQuery, adminQuery, authedQuery, superAdminQuery } from "./middleware";
 import { getDb } from "./queries/connection";
 import { tenants, users, settings, orders, products, shops, subscriptions, warehouses, apiKeys } from "@db/schema";
@@ -319,7 +322,7 @@ export const tenantRouter = createRouter({
   list: superAdminQuery.query(async () => {
     const db = getDb();
 
-    const [allTenants, userStats, orderStats, subs, ceos, innRows] = await Promise.all([
+    const [allTenants, userStats, orderStats, subs, ceos, innRows, health] = await Promise.all([
       listTenants(),
       // Люди: сколько и когда кто-то входил последним. max() построителя, а не
       // сырой SQL — drizzle сам читает время как UTC (см. services/owner-panel).
@@ -350,6 +353,12 @@ export const tenantRouter = createRouter({
       db.select({ tenantId: users.tenantId, phone: users.phone, email: users.email })
         .from(users).where(eq(users.role, "ceo")).orderBy(users.id),
       db.select({ tenantId: settings.tenantId, inn: settings.companyInn }).from(settings),
+      // «Здоровье» и флаг «уходит» — services/org-health, копия на минуту.
+      // Сбой оценки не должен ронять список организаций: без неё — без столбца.
+      orgHealth(db).catch(err => {
+        logger.error("org health failed", { error: String(err) });
+        return new Map<number, import("./services/org-health").OrgHealth>();
+      }),
     ]);
 
     const userMap  = new Map(userStats.map(r => [Number(r.tenantId), r]));
@@ -411,6 +420,8 @@ export const tenantRouter = createRouter({
         contactPhone: t.ownerPhone || ceo?.phone || null,
         contactEmail: t.ownerEmail || ceo?.email || null,
         inn: innMap.get(t.id) || null,
+        // Только у клиентов: у песочницы и приостановленной оценивать нечего.
+        health: client ? health.get(t.id) ?? null : null,
       };
     });
   }),
@@ -437,13 +448,20 @@ export const tenantRouter = createRouter({
     }))
     .mutation(async ({ input, ctx }) => {
       const db = getDb();
-      const [tenant] = await db.select({ id: tenants.id })
+      const [tenant] = await db.select({ id: tenants.id, name: tenants.name, extraUsers: tenants.extraUsers, extraProducts: tenants.extraProducts })
         .from(tenants).where(eq(tenants.id, input.tenantId)).limit(1);
       if (!tenant) throw new TRPCError({ code: "NOT_FOUND", message: "Организация не найдена" });
 
-      await db.update(tenants)
-        .set({ extraUsers: input.extraUsers, extraProducts: input.extraProducts })
-        .where(eq(tenants.id, input.tenantId));
+      await db.transaction(async (tx) => {
+        await tx.update(tenants)
+          .set({ extraUsers: input.extraUsers, extraProducts: input.extraProducts })
+          .where(eq(tenants.id, input.tenantId));
+        await recordPlatformAudit(tx, {
+          actor: ctx.user, action: "tenant.extra_limits", tenantId: tenant.id, tenantName: tenant.name,
+          before: { extraUsers: Number(tenant.extraUsers ?? 0), extraProducts: Number(tenant.extraProducts ?? 0) },
+          after: { extraUsers: input.extraUsers, extraProducts: input.extraProducts }, ip: ipOf(ctx),
+        }, { strict: true });
+      });
 
       /*
         Кто и когда раздал места — вопрос денег, и ответ на него должен
@@ -538,7 +556,7 @@ export const tenantRouter = createRouter({
       plan:          z.enum(["trial", "basic", "pro", "exclusive"]).default("trial"),
       trialDays:     z.number().min(1).max(365).default(14),
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       const db = getDb();
 
       let slug = slugify(input.orgName);
@@ -589,6 +607,11 @@ export const tenantRouter = createRouter({
           status: isTrial ? "trialing" : "active",
           trialEndsAt, currentPeriodEnds: trialEndsAt ?? planExpiresAt,
         });
+        await recordPlatformAudit(tx, {
+          actor: ctx.user, action: "tenant.created", tenantId, tenantName: input.orgName,
+          after: { plan: input.plan, ...(isTrial ? { trialEndsAt } : { periodEnds: planExpiresAt }), email: input.ownerEmail },
+          meta: { slug }, ip: ipOf(ctx),
+        }, { strict: true });
       });
 
       return { success: true, slug, tenantId: tenantId! };
@@ -668,6 +691,11 @@ export const tenantRouter = createRouter({
           id: randomUUID(), tenantId, plan: "exclusive",
           status: "active", currentPeriodEnds: expiresAt,
         });
+        await recordPlatformAudit(tx, {
+          actor: ctx.user, action: "tenant.sandbox_created", tenantId, tenantName: name,
+          after: { plan: "exclusive", periodEnds: expiresAt, email: input.ownerEmail },
+          meta: { slug, partner: input.partnerName }, ip: ipOf(ctx),
+        }, { strict: true });
       });
 
       // Данные — вне сделки: их триста двадцать заказов с позициями, и держать
@@ -726,7 +754,7 @@ export const tenantRouter = createRouter({
       plan:       z.enum(["trial", "basic", "pro", "exclusive"]),
       expiryDays: z.number().min(1).max(3650).default(30),
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       const db  = getDb();
       const now = new Date();
       /*
@@ -736,9 +764,10 @@ export const tenantRouter = createRouter({
         терял эту неделю. Пробные дни не оплачены и не переносятся: переход с
         пробного на платный идёт от дня включения.
       */
-      const [sub] = await db.select({ status: subscriptions.status, ends: subscriptions.currentPeriodEnds })
+      const [sub] = await db.select({ status: subscriptions.status, plan: subscriptions.plan, currentPeriodEnds: subscriptions.currentPeriodEnds })
         .from(subscriptions).where(eq(subscriptions.tenantId, input.tenantId)).limit(1);
-      const paidUntil   = sub?.status === "active" && sub.ends && sub.ends > now ? sub.ends : now;
+      // Правило одно с «Записать оплату» (contracts/subscription-payment).
+      const paidUntil   = paidUntilBase(sub, now);
       const planExpires = new Date(paidUntil.getTime() + input.expiryDays * 86_400_000);
 
       await db.transaction(async (tx) => {
@@ -748,9 +777,16 @@ export const tenantRouter = createRouter({
         await tx.update(subscriptions)
           .set({ plan: input.plan, status: "active", currentPeriodEnds: planExpires, updatedAt: new Date() })
           .where(eq(subscriptions.tenantId, input.tenantId));
+        await recordPlatformAudit(tx, {
+          actor: ctx.user, action: "tenant.plan", tenantId: input.tenantId,
+          before: { plan: sub?.plan ?? null, periodEnds: sub?.currentPeriodEnds ?? null },
+          after: { plan: input.plan, periodEnds: planExpires },
+          meta: { days: input.expiryDays }, ip: ipOf(ctx),
+        }, { strict: true });
       });
       // Заплатившего пускаем сразу, а не через минуту кеша доступа.
       invalidateSubscriptionAccess(input.tenantId);
+      invalidateOrgHealth();
 
       return { success: true, planExpiresAt: planExpires };
     }),
@@ -761,12 +797,24 @@ export const tenantRouter = createRouter({
       tenantId: z.number(),
       status:   z.enum(["active", "suspended"]),
     }))
-    .mutation(async ({ input }) => {
-      await getDb().update(tenants)
-        .set({ status: input.status, updatedAt: new Date() })
-        .where(eq(tenants.id, input.tenantId));
+    .mutation(async ({ input, ctx }) => {
+      await getDb().transaction(async (tx) => {
+        const [t] = await tx.select({ name: tenants.name, status: tenants.status })
+          .from(tenants).where(eq(tenants.id, input.tenantId)).limit(1);
+        if (!t) throw new TRPCError({ code: "NOT_FOUND", message: "Организация не найдена" });
+        await tx.update(tenants)
+          .set({ status: input.status, updatedAt: new Date() })
+          .where(eq(tenants.id, input.tenantId));
+        if (t.status !== input.status) {
+          await recordPlatformAudit(tx, {
+            actor: ctx.user, action: "tenant.status", tenantId: input.tenantId, tenantName: t.name,
+            before: { status: t.status }, after: { status: input.status }, ip: ipOf(ctx),
+          }, { strict: true });
+        }
+      });
       // Приостановка действует на следующий же запрос, а не через десять секунд.
       invalidateAuthTenant(input.tenantId);
+      invalidateOrgHealth();
       return { success: true };
     }),
 
@@ -833,12 +881,19 @@ export const tenantRouter = createRouter({
 
       let result;
       try {
-        result = await offboardTenant(db, t.id);
+        // След — в той же транзакции, что и стирание: удаление без следа хуже отказа.
+        result = await offboardTenant(db, t.id, {
+          onDeleted: (tx, report) => recordPlatformAudit(tx, {
+            actor: ctx.user, action: "tenant.offboarded", tenantId: t.id, tenantName: t.name,
+            before: { status: t.status }, meta: { slug: t.slug, total: report.total, deleted: report.deleted }, ip: ipOf(ctx),
+          }, { strict: true }),
+        });
       } catch (e) {
         if (e instanceof TenantNotSuspendedError) throw new TRPCError({ code: "PRECONDITION_FAILED", message: e.message });
         throw e;
       }
       invalidateAuthTenant(t.id);
+      invalidateOrgHealth();
       logger.warn("tenant offboarded by superadmin", { tenantId: t.id, slug: t.slug, by: ctx.user.id, total: result.total });
       inBackground(notifyAdmin(tgMessages.tenantOffboarded(t.name, t.slug, ctx.user.name, result.total)));
       return { success: true, ...result };
@@ -850,9 +905,9 @@ export const tenantRouter = createRouter({
       tenantId: z.number(),
       days:     z.number().min(1).max(365),
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       const db = getDb();
-      const [tenant] = await db.select({ trialEndsAt: tenants.trialEndsAt })
+      const [tenant] = await db.select({ name: tenants.name, trialEndsAt: tenants.trialEndsAt })
         .from(tenants).where(eq(tenants.id, input.tenantId)).limit(1);
 
       const base    = tenant?.trialEndsAt && tenant.trialEndsAt > new Date()
@@ -867,7 +922,13 @@ export const tenantRouter = createRouter({
         await tx.update(subscriptions)
           .set({ trialEndsAt: newDate, updatedAt: new Date() })
           .where(eq(subscriptions.tenantId, input.tenantId));
+        await recordPlatformAudit(tx, {
+          actor: ctx.user, action: "tenant.trial_extended", tenantId: input.tenantId, tenantName: tenant?.name,
+          before: { trialEndsAt: tenant?.trialEndsAt ?? null }, after: { trialEndsAt: newDate },
+          meta: { days: input.days }, ip: ipOf(ctx),
+        }, { strict: true });
       });
+      invalidateOrgHealth();
 
       return { success: true, trialEndsAt: newDate };
     }),
@@ -884,9 +945,19 @@ export const tenantRouter = createRouter({
       const passwordHash = await hashPassword(input.newPassword);
       // Сессии по старому паролю гаснут (tokenVersion) — как при смене
       // пароля самим человеком; и след в журнале организации (аудит 20.09.2026).
-      await db.update(users)
-        .set({ passwordHash, updatedAt: new Date(), tokenVersion: sql`COALESCE(${users.tokenVersion}, 0) + 1` })
-        .where(and(eq(users.id, input.userId), eq(users.tenantId, input.tenantId)));
+      await db.transaction(async (tx) => {
+        const [u] = await tx.select({ name: users.name, email: users.email })
+          .from(users).where(and(eq(users.id, input.userId), eq(users.tenantId, input.tenantId))).limit(1);
+        if (!u) throw new TRPCError({ code: "NOT_FOUND", message: "Сотрудник не найден в этой организации" });
+        await tx.update(users)
+          .set({ passwordHash, updatedAt: new Date(), tokenVersion: sql`COALESCE(${users.tokenVersion}, 0) + 1` })
+          .where(and(eq(users.id, input.userId), eq(users.tenantId, input.tenantId)));
+        // Пароль в журнал не пишется ни в каком виде — только кому сброшен.
+        await recordPlatformAudit(tx, {
+          actor: ctx.user, action: "user.password_reset", tenantId: input.tenantId,
+          targetType: "user", targetId: input.userId, targetLabel: `${u.name} (${u.email})`, ip: ipOf(ctx),
+        }, { strict: true });
+      });
       invalidateAuthUser(input.userId);
       await recordAudit(db, {
         tenantId: input.tenantId, actorId: ctx.user.id, actorName: ctx.user.name,
@@ -922,15 +993,22 @@ export const tenantRouter = createRouter({
         .from(users).where(and(eq(users.tenantId, input.tenantId), eq(users.email, input.email))).limit(1);
       if (taken) throw new TRPCError({ code: "CONFLICT", message: "Такая почта уже есть у другого сотрудника этой организации" });
 
-      await db.update(users)
-        .set({ email: input.email, tokenVersion: sql`COALESCE(${users.tokenVersion}, 0) + 1`, updatedAt: new Date() })
-        .where(and(eq(users.id, input.userId), eq(users.tenantId, input.tenantId)));
+      const ownerToo = await db.transaction(async (tx) => {
+        await tx.update(users)
+          .set({ email: input.email, tokenVersion: sql`COALESCE(${users.tokenVersion}, 0) + 1`, updatedAt: new Date() })
+          .where(and(eq(users.id, input.userId), eq(users.tenantId, input.tenantId)));
+        const [tenant] = await tx.select({ ownerEmail: tenants.ownerEmail }).from(tenants).where(eq(tenants.id, input.tenantId)).limit(1);
+        const owner = Boolean(tenant?.ownerEmail && tenant.ownerEmail.toLowerCase() === target.email.toLowerCase());
+        if (owner) await tx.update(tenants).set({ ownerEmail: input.email, updatedAt: new Date() }).where(eq(tenants.id, input.tenantId));
+        await recordPlatformAudit(tx, {
+          actor: ctx.user, action: "user.login_changed", tenantId: input.tenantId,
+          targetType: "user", targetId: input.userId, targetLabel: target.name,
+          before: { email: target.email }, after: { email: input.email }, ip: ipOf(ctx),
+        }, { strict: true });
+        return owner;
+      });
       invalidateAuthUser(input.userId);
-      const [tenant] = await db.select({ ownerEmail: tenants.ownerEmail }).from(tenants).where(eq(tenants.id, input.tenantId)).limit(1);
-      if (tenant?.ownerEmail && tenant.ownerEmail.toLowerCase() === target.email.toLowerCase()) {
-        await db.update(tenants).set({ ownerEmail: input.email, updatedAt: new Date() }).where(eq(tenants.id, input.tenantId));
-        invalidateAuthTenant(input.tenantId);
-      }
+      if (ownerToo) invalidateAuthTenant(input.tenantId);
       await recordAudit(db, {
         tenantId: input.tenantId, actorId: ctx.user.id, actorName: ctx.user.name,
         action: "user.login_changed", targetType: "user", targetId: input.userId,

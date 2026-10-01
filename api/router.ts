@@ -44,6 +44,7 @@ import { geoRouter } from "./geo-router";
 import { forecastRouter } from "./forecast-router";
 import { createRouter, publicQuery } from "./middleware";
 import { supportRouter } from "./support-router";
+import { platformRouter, announcementRouter } from "./platform-router";
 
 export const appRouter = createRouter({
   ping:         publicQuery.query(() => ({ ok: true, ts: Date.now(), version: "1.0.0" })),
@@ -63,6 +64,8 @@ export const appRouter = createRouter({
   lead:         leadRouter,
   notification: notificationRouter,
   support:      supportRouter,
+  platform:     platformRouter,
+  announcement: announcementRouter,
   settings:     settingsRouter,
   billing:      billingRouter,
   stripe:       stripeRouter,

@@ -8,6 +8,7 @@ import { FILTERS, daysLeft, endsAt, inFilter, matches, planOf, readListParams, s
 import { PremiumSelect } from "@/components/PremiumSelect";
 import { Chip, Empty, PageHead, Pill, PlanPill, Tile } from "@/components/superadmin/console/ui";
 import { ago, day, money } from "@/components/superadmin/console/format";
+import { HealthPill } from "@/components/superadmin/console/health";
 
 /* ═══════════════════════════════════════════════════════════════════════════
    «Организации» — все клиенты платформы одной таблицей (/super-admin/orgs).
@@ -26,19 +27,23 @@ import { ago, day, money } from "@/components/superadmin/console/format";
    любому столбцу, заказы и выручка за 30 дней, последняя активность. Фильтр,
    поиск и сортировка — в адресе (?f=…&q=…&sort=…&dir=…): «назад» из карточки
    возвращает ровно тот список. На телефоне — карточки вместо таблицы.
+
+   Этап 2: столбец «Здоровье» (оценка 0–100 и уровень, api/services/
+   org-health.ts) и чип «Уходят» (?f=churn) — платящие, которых теряем.
    ═══════════════════════════════════════════════════════════════════════════ */
 
 const COLS: Array<{ key: SortKey; label: string; numeric?: boolean; width?: number }> = [
   { key: "name",      label: "Организация" },
-  { key: "plan",      label: "Тариф", width: 140 },
-  { key: "ends",      label: "Срок до", width: 130 },
-  { key: "users",     label: "Польз.", numeric: true, width: 80 },
-  { key: "orders30",  label: "Заказы 30 дн", numeric: true, width: 110 },
-  { key: "revenue30", label: "Выручка 30 дн", numeric: true, width: 150 },
-  { key: "activity",  label: "Активность", width: 130 },
+  { key: "health",    label: "Здоровье", width: 124 },
+  { key: "plan",      label: "Тариф", width: 128 },
+  { key: "ends",      label: "Срок до", width: 116 },
+  { key: "users",     label: "Польз.", numeric: true, width: 72 },
+  { key: "orders30",  label: "Заказы 30 дн", numeric: true, width: 104 },
+  { key: "revenue30", label: "Выручка 30 дн", numeric: true, width: 140 },
+  { key: "activity",  label: "Активность", width: 116 },
 ];
 /** Направление по умолчанию: имя и срок — по возрастанию, числа и активность — сверху большие и свежие. */
-const DEFAULT_DIR: Record<SortKey, "asc" | "desc"> = { name: "asc", plan: "desc", ends: "asc", users: "desc", orders30: "desc", revenue30: "desc", activity: "desc" };
+const DEFAULT_DIR: Record<SortKey, "asc" | "desc"> = { name: "asc", health: "asc", plan: "desc", ends: "asc", users: "desc", orders30: "desc", revenue30: "desc", activity: "desc" };
 
 const th: CSSProperties = {
   fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: "var(--color-text-tertiary)",
@@ -233,6 +238,9 @@ function TableRow({ o, over, onOpen }: { o: OrgRow; over: boolean; onOpen: () =>
           </div>
         </div>
       </td>
+      <td style={td} data-testid="org-health-cell">
+        {o.health ? <HealthPill h={o.health} /> : <span style={{ color: "var(--color-text-tertiary)" }}>—</span>}
+      </td>
       <td style={td}>
         <PlanPill plan={o.subscription?.plan ?? o.plan} />
         {o.segment.price > 0 && <div style={{ fontSize: 12, color: "var(--color-text-tertiary)", marginTop: 4, fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>{money(o.segment.price)} сум/мес</div>}
@@ -262,6 +270,7 @@ function OrgCardRow({ o, over }: { o: OrgRow; over: boolean }) {
             <div style={{ fontSize: 12.5, color: "var(--color-text-tertiary)", marginTop: 2 }}>{o.slug}</div>
             <div className="flex items-center gap-1.5 flex-wrap" style={{ marginTop: 8 }}>
               <PlanPill plan={o.subscription?.plan ?? o.plan} />
+              {o.health && <HealthPill h={o.health} />}
               {st.label !== "Пробный" && <Pill tone={st.tone}>{st.label}</Pill>}
               {o.segment.silentDays !== null && <Pill tone="warning">молчит {o.segment.silentDays} дн.</Pill>}
               {over && <Pill tone="warning">сверх тарифа</Pill>}

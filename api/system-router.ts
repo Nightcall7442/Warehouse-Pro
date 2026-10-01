@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { createRouter, superAdminQuery } from "./middleware";
+import { ipOf, recordPlatformAudit } from "./services/platform-audit";
 import { getDb } from "./queries/connection";
 import { cache } from "./lib/cache";
 import { sseBus } from "./lib/sse";
@@ -301,8 +302,10 @@ export const systemRouter = createRouter({
   }),
 
   /** Quick action: purge old errors from memory */
-  purgeErrors: superAdminQuery.mutation(() => {
-    return purgeOldErrors(100);
+  purgeErrors: superAdminQuery.mutation(async ({ ctx }) => {
+    const r = purgeOldErrors(100);
+    await recordPlatformAudit(getDb(), { actor: ctx.user, action: "system.errors_purged", ip: ipOf(ctx) });
+    return r;
   }),
 
   /** Quick action: DB health check */

@@ -2,6 +2,7 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { desc, eq, isNull } from "drizzle-orm";
 import { createRouter, publicQuery, superAdminQuery } from "./middleware";
+import { ipOf, recordPlatformAudit } from "./services/platform-audit";
 import { checkRateLimit, rateLimitSubject, getClientIp } from "./lib/rate-limit";
 import { leads } from "@db/schema";
 import { recordLead } from "./services/leads";
@@ -96,7 +97,17 @@ export const leadRouter = createRouter({
   markHandled: superAdminQuery
     .input(z.object({ id: z.number().int().positive() }))
     .mutation(async ({ input, ctx }) => {
-      await ctx.db.update(leads).set({ handledAt: new Date() }).where(eq(leads.id, input.id));
+      await ctx.db.transaction(async (tx) => {
+        const [lead] = await tx.select({ name: leads.name, company: leads.company, phone: leads.phone, handledAt: leads.handledAt })
+          .from(leads).where(eq(leads.id, input.id)).limit(1);
+        await tx.update(leads).set({ handledAt: new Date() }).where(eq(leads.id, input.id));
+        if (lead && !lead.handledAt) {
+          await recordPlatformAudit(tx, {
+            actor: ctx.user, action: "lead.handled", targetType: "lead", targetId: input.id,
+            targetLabel: [lead.name, lead.company, lead.phone].filter(Boolean).join(" · "), ip: ipOf(ctx),
+          }, { strict: true });
+        }
+      });
       return { ok: true };
     }),
 });

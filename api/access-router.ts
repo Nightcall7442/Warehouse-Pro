@@ -5,6 +5,7 @@ import { createRouter, adminQuery, superAdminQuery } from "./middleware";
 import { getDb } from "./queries/connection";
 import { rolePermissions, tenants } from "@db/schema";
 import { recordAudit } from "./services/audit-log";
+import { ipOf, recordPlatformAudit } from "./services/platform-audit";
 import { capabilityMap, forgetCapabilities, type ConfigurableRole } from "./lib/role-permissions";
 import { OPERATOR_CAPABILITIES, type OperatorCapability } from "@contracts/constants";
 
@@ -106,7 +107,13 @@ export const accessRouter = createRouter({
     .input(z.object({ tenantId: z.number().int().positive(), capabilities: capabilitiesInput }))
     .mutation(async ({ input, ctx }) => {
       await requireTenant(input.tenantId);
-      return writeAccess(input.tenantId, input.capabilities, { id: ctx.user.id, name: ctx.user.name });
+      const r = await writeAccess(input.tenantId, input.capabilities, { id: ctx.user.id, name: ctx.user.name });
+      const off = Object.entries(input.capabilities).filter(([, v]) => v === false).map(([k]) => k);
+      await recordPlatformAudit(getDb(), {
+        actor: ctx.user, action: "tenant.operator_access", tenantId: input.tenantId,
+        meta: { capabilities: input.capabilities, text: off.length ? `закрыто оператору: ${off.join(", ")}` : "оператору открыто всё" }, ip: ipOf(ctx),
+      });
+      return r;
     }),
 });
 

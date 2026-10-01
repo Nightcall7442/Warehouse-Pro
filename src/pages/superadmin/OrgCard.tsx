@@ -7,6 +7,7 @@ import { AccessTab, DangerTab, JournalTab, OverviewTab, SubscriptionTab, UsersTa
 import { rowFromDetail } from "@/components/superadmin/console/detail";
 import { day } from "@/components/superadmin/console/format";
 import { Empty, Loading, Pill, PlanPill, TabBar } from "@/components/superadmin/console/ui";
+import { HealthPill } from "@/components/superadmin/console/health";
 
 /* ═══════════════════════════════════════════════════════════════════════════
    Карточка организации — /super-admin/orgs/:id/:tab.
@@ -94,6 +95,7 @@ export default function OrgCard() {
             </div>
             <div className="flex items-center gap-1.5 flex-wrap" style={{ marginTop: 10 }}>
               <PlanPill plan={base.subscription?.plan ?? t.plan} />
+              {row?.health && <HealthPill h={row.health} testId="org-header-health" />}
               {/* «Пробный» уже сказан тарифом — второй такой же метки не нужно. */}
               {st.label !== "Пробный" && <Pill tone={st.tone}>{st.label}</Pill>}
               <Pill tone={left !== null && left <= (base.segment.trial ? 3 : 14) ? (left <= 0 ? "danger" : "warning") : "neutral"}>

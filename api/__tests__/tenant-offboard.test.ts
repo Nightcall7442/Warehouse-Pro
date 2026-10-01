@@ -11,10 +11,19 @@
  * Нарочная поломка: убери "payments" из OFFBOARD_ORDER — первый тест назовёт
  * его; поменяй местами "orders" и "payments" — третий покажет, кто на кого
  * ссылается.
+ *
+ * Исключения (этап 2 консоли, 01.10.2026): оплаты подписок и журнал владельца
+ * платформы ПЕРЕЖИВАЮТ уход организации — это выручка и след самого удаления.
+ * Они не выпадают из стража молча: каждое названо в KEPT_ON_OFFBOARD с
+ * причиной, и страж проверяет, что у такой таблицы нет внешнего ключа на
+ * tenants (иначе удаление организации упёрлось бы в него). Нарочная поломка:
+ * добавь в subscription_payments `.references(() => tenants.id)` — падает
+ * «без внешнего ключа»; убери subscription_payments из KEPT_ON_OFFBOARD —
+ * первый тест назовёт её.
  */
 import { describe, it, expect, vi } from "vitest";
 import { readFileSync } from "node:fs";
-import { OFFBOARD_ORDER, NOT_TENANT_OWNED, offboardTenant, TenantNotSuspendedError } from "../services/tenant-offboard";
+import { OFFBOARD_ORDER, NOT_TENANT_OWNED, KEPT_ON_OFFBOARD, offboardTenant, TenantNotSuspendedError } from "../services/tenant-offboard";
 
 const schema = readFileSync("db/schema.ts", "utf8").replace(/\r\n/g, "\n");
 
@@ -48,8 +57,22 @@ describe("список таблиц ухода организации", () => {
   it("каждая таблица с tenant_id стирается, кроме самой tenants", () => {
     const withTenant = tables.filter(t => t.tenant).map(t => t.name);
     expect(withTenant.length).toBeGreaterThan(40);
-    const missing = withTenant.filter(n => !listed.includes(n));
+    const missing = withTenant.filter(n => !listed.includes(n) && !(n in KEPT_ON_OFFBOARD));
     expect(missing, "таблицы с tenant_id, которых нет в OFFBOARD_ORDER").toEqual([]);
+  });
+
+  it("оставляемые таблицы — названы с причиной, без внешнего ключа на tenants и не стираются", () => {
+    expect(Object.keys(KEPT_ON_OFFBOARD).sort()).toEqual(["platform_audit", "subscription_payments"]);
+    for (const [name, why] of Object.entries(KEPT_ON_OFFBOARD)) {
+      const at = schema.indexOf(`mysqlTable("${name}"`);
+      expect(at, `${name} нет в db/schema.ts`).toBeGreaterThan(0);
+      // До конца списка столбцов: «\n}» закрывает их объект (дальше — индексы или конец таблицы).
+      const body = schema.slice(at, schema.indexOf("\n}", at));
+      expect(body, `${name} с tenant_id`).toContain('"tenant_id"');
+      expect(body, `${name}: внешний ключ на tenants не даст удалить организацию`).not.toMatch(/references\(\(\)\s*=>\s*tenants\./);
+      expect(why.length, `${name}: причина словами`).toBeGreaterThan(40);
+      expect(listed, `${name} стирается, хотя объявлена оставляемой`).not.toContain(name);
+    }
   });
 
   it("таблица без tenant_id, но с ключом на таблицу арендатора, стирается через родителя", () => {

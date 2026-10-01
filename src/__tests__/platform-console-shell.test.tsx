@@ -109,13 +109,15 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("разделы", () => {
-  it("шесть разделов по порядку, у каждого свой адрес", () => {
+  it("восемь разделов по порядку, у каждого свой адрес", () => {
     show();
     const nav = within(screen.getByTestId("console-nav"));
     const labels = nav.getAllByRole("button").map(b => b.textContent?.replace(/\d+$/, ""));
-    expect(labels).toEqual(["Обзор", "Организации", "Заявки", "Обращения", "Система", "Интеграторы"]);
+    // Этап 2: «Объявления» и «Журнал» — между обращениями и системой.
+    expect(labels).toEqual(["Обзор", "Организации", "Заявки", "Обращения", "Объявления", "Журнал", "Система", "Интеграторы"]);
     const go: Array<[string, string]> = [
       ["orgs", "/super-admin/orgs"], ["leads", "/super-admin/leads"], ["support", "/super-admin/support"],
+      ["announcements", "/super-admin/announcements"], ["journal", "/super-admin/journal"],
       ["system", "/super-admin/system"], ["sandboxes", "/super-admin/sandboxes"], ["overview", "/super-admin"],
     ];
     for (const [key, path] of go) {

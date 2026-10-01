@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { Link } from "react-router";
 import {
   Wallet, TrendingUp, Activity, FlaskConical, PhoneOff, CalendarClock, Inbox, LifeBuoy,
-  AlertTriangle, Database, ShieldAlert, Building2, ChevronRight, RefreshCw,
+  AlertTriangle, Database, ShieldAlert, Building2, ChevronRight, RefreshCw, Banknote, Receipt, HeartCrack,
 } from "lucide-react";
 import { trpc } from "@/providers/trpc";
 import { describeSignupSource } from "@contracts/signup";
@@ -23,7 +23,14 @@ import { STAGE_LABEL, ago, day, money } from "@/components/superadmin/console/fo
    Числа плиток — панель владельца (tenant.ownerPanel, правила в
    api/services/owner-panel.ts); «Пробные» и последние регистрации — список
    организаций (tenant.list), сегменты в нём посчитаны тем же правилом.
+
+   Этап 2: «Поступило» и «MRR по оплатам» — из записанных оплат
+   (platform.paymentsSummary) рядом с прежним «MRR по цене тарифа»; «Уходят»
+   во «Внимании» — флаг здоровья из списка организаций (services/org-health).
    ═══════════════════════════════════════════════════════════════════════════ */
+
+/** «Поступило в октябре». */
+const MONTH_IN = ["январе", "феврале", "марте", "апреле", "мае", "июне", "июле", "августе", "сентябре", "октябре", "ноябре", "декабре"];
 
 export default function Overview() {
   const panel = trpc.tenant.ownerPanel.useQuery();
@@ -33,16 +40,19 @@ export default function Overview() {
   const errors = trpc.system.groupedErrors.useQuery({ minutes: 24 * 60 });
   const jobs = trpc.system.jobs.useQuery(undefined, { refetchInterval: 5 * 60_000 });
   const usage = trpc.tenant.featureUsage.useQuery();
+  const pays = trpc.platform.paymentsSummary.useQuery();
   const utils = trpc.useUtils();
   // «Обновить» — как было в шапке прежней страницы: все числа обзора разом.
   const refresh = () => {
-    for (const q of [panel, list, leads, inbox, errors, jobs, usage]) void q.refetch();
+    for (const q of [panel, list, leads, inbox, errors, jobs, usage, pays]) void q.refetch();
     void utils.tenant.platformStats.invalidate();
   };
 
   const p = panel.data;
   const orgs = list.data;
   const trials = orgs?.filter(o => o.segment.trialLive).length ?? 0;
+  const churn = orgs?.filter(o => o.health?.churn).length ?? 0;
+  const month = pays.data ? MONTH_IN[Number(pays.data.month.slice(5, 7)) - 1] : "этом месяце";
   const trialsExpired = orgs?.filter(o => o.segment.trial && !o.segment.trialLive).length ?? 0;
   const recent = useMemo(
     () => [...(orgs ?? [])].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).slice(0, 6),
@@ -66,11 +76,15 @@ export default function Overview() {
         <p style={{ fontSize: 13, color: "var(--color-danger-text)" }}>Не удалось собрать панель. Обновите страницу.</p>
       ) : (
         <>
-          <div className="grid gap-3 md:gap-4 grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6" data-testid="overview-tiles">
+          <div className="grid gap-3 md:gap-4 grid-cols-2 lg:grid-cols-4" data-testid="overview-tiles">
             <Tile label="Платят сейчас" value={p?.paying.count ?? 0} icon={Wallet} tone="success" loading={panel.isLoading}
               to="/super-admin/orgs?f=paying" testId="tile-paying" />
             <Tile label="MRR по цене тарифа" value={money(p?.paying.mrr ?? 0)} suffix="сум" icon={TrendingUp} tone="primary" loading={panel.isLoading}
               to="/super-admin/orgs?f=paying&sort=plan" testId="tile-mrr" />
+            <Tile label="MRR по оплатам" value={money(pays.data?.mrrByPayments ?? 0)} suffix="сум" icon={Receipt} tone="success" loading={pays.isLoading}
+              hint={pays.data ? (pays.data.payers > 0 ? `оплат с периодом в ${month}: ${pays.data.payers}` : "оплат пока не записано") : undefined} testId="tile-mrr-payments" />
+            <Tile label={`Поступило в ${month}`} value={money(pays.data?.received ?? 0)} suffix="сум" icon={Banknote} tone="success" loading={pays.isLoading}
+              hint={pays.data ? `оплат: ${pays.data.receivedCount}` : undefined} to="/super-admin/journal?type=money" testId="tile-received" />
             <Tile label="Активны за 7 дней" value={p?.activeLast7 ?? 0} suffix={p ? `из ${p.clients}` : undefined} icon={Activity} tone="info" loading={panel.isLoading}
               to="/super-admin/orgs?sort=activity" testId="tile-active" />
             <Tile label="Пробные" value={trials} icon={FlaskConical} tone="info" loading={list.isLoading}
@@ -83,7 +97,7 @@ export default function Overview() {
           </div>
           {/* Подпись к MRR честная: это прайс, а не деньги на счёте. */}
           <p style={{ fontSize: 12, color: "var(--color-text-tertiary)", margin: "10px 4px 0", lineHeight: 1.5 }} data-testid="owner-mrr-note">
-            MRR — сумма месячных цен тарифов у платящих, по прайсу: без скидок и без докупленных мест. «Активны» — был заказ или вход.
+            «MRR по цене тарифа» — сумма месячных цен тарифов у платящих, по прайсу: без скидок и без докупленных мест. «MRR по оплатам» — записанные оплаты, разложенные по дням своих периодов: доля, что приходится на этот месяц. «Поступило» — оплаты с датой в этом месяце. «Активны» — был заказ или вход.
           </p>
 
           <div className="grid gap-4 lg:grid-cols-2 items-start" style={{ marginTop: 20 }}>
@@ -91,6 +105,9 @@ export default function Overview() {
             <section data-testid="attention">
               <h2 style={{ fontSize: 15, fontWeight: 700, color: "var(--color-text-primary)", margin: "0 0 10px 4px" }}>Требует внимания</h2>
               <Group>
+                <Row icon={HeartCrack} tone={t(churn, "danger")} title="Уходят" subtitle="Платят, но тишина 7+ дней, заказы упали вдвое или срок кончается без продления"
+                  right={<Count n={list.data ? churn : "…"} tone={t(churn, "danger")} testId="attn-churn-count" />} to="/super-admin/orgs?f=churn&sort=health&dir=asc" testId="attn-churn" />
+                <Line />
                 <Row icon={CalendarClock} tone={t(p?.renewals.length ?? 0)} title="Истекают ≤14 дней" subtitle="Оплаченный срок кончается — продлить"
                   right={<Count n={p?.renewals.length ?? "…"} tone={t(p?.renewals.length ?? 0)} />} to="/super-admin/orgs?f=expiring&sort=ends&dir=asc" testId="attn-expiring" />
                 <Line />

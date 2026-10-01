@@ -4,6 +4,7 @@ import { getAuditLog, exportAuditCsv, purgeOldAuditLogs, auditActors } from "./s
 import { checkTotpStepUp } from "./auth/step-up";
 import { TRPCError } from "@trpc/server";
 import { recordAudit, auditActor } from "./services/audit-log";
+import { ipOf, recordPlatformAudit } from "./services/platform-audit";
 
 export const auditRouter = createRouter({
   /** List audit log entries with extended filters */
@@ -61,6 +62,10 @@ export const auditRouter = createRouter({
       if (!step.ok) throw new TRPCError({ code: step.code === "TOTP_NOT_ENROLLED" ? "FORBIDDEN" : "UNAUTHORIZED", message: step.message });
       const deleted = await purgeOldAuditLogs(ctx.db, input.tenantId, input.retentionDays);
       await recordAudit(ctx.db, { ...auditActor(ctx), action: "audit.purged", targetType: "tenant", targetId: input.tenantId, meta: { retentionDays: input.retentionDays, deleted } });
+      await recordPlatformAudit(ctx.db, {
+        actor: ctx.user, action: "audit.purged", tenantId: input.tenantId,
+        meta: { retentionDays: input.retentionDays, deleted, text: `старше ${input.retentionDays} дн., удалено записей: ${deleted}` }, ip: ipOf(ctx),
+      });
       return { deleted, retentionDays: input.retentionDays };
     }),
 });
