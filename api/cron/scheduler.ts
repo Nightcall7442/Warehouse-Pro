@@ -270,6 +270,15 @@ const RETRY_MS = 60 * 60_000;
 
 const lastSuccess = new Map<string, number>();   // из cron_runs; мс
 const lastAttempt = new Map<string, number>();   // только память; мс
+/*
+  Сколько шёл последний запуск — только память этого процесса.
+
+  В cron_runs длительности нет, а заводить столбец ради одной цифры на экране
+  «Система» — миграция на боевую базу. Консоль показывает её с честной
+  оговоркой «с последнего перезапуска»: после выкладки строка пустая, пока
+  работа не пройдёт хотя бы раз.
+*/
+const lastDurationMs = new Map<string, number>();
 const notified = new Map<string, number>();      // работа → назначенный момент, о провале которого уже сказано
 let stateLoaded = false;
 let ticking = false;
@@ -436,9 +445,10 @@ async function runLocked(job: Job, due?: Date): Promise<void> {
       }
     }
 
+    const started = Date.now();
     try {
-      const started = Date.now();
       const result = await job.run();
+      lastDurationMs.set(job.name, Date.now() - started);
       logger.info("cron job finished", { job: job.name, ms: Date.now() - started, result });
       const at = new Date();
       lastSuccess.set(job.name, at.getTime());
@@ -460,6 +470,7 @@ async function runLocked(job: Job, due?: Date): Promise<void> {
         }
       }
     } catch (e) {
+      lastDurationMs.set(job.name, Date.now() - started);
       const error = rootMessage(e);
       logger.error("cron job failed", { job: job.name, error });
       await store.saveFailure(job.name, new Date(), error).catch(() => {});
@@ -526,12 +537,33 @@ export function scheduledJobs(): Array<{ name: string; when: string }> {
   }));
 }
 
+/**
+ * Расписание для консоли платформы: как часто идёт работа, когда был её
+ * последний назначенный момент и сколько шёл последний запуск в этом процессе.
+ *
+ * Только чтение: ничего не запускает и отметок не трогает. Последний
+ * назначенный момент — тот же расчёт, что у догона (lastDue), поэтому экран
+ * называет работу просроченной ровно тогда, когда её догоняет планировщик.
+ */
+export function jobsSnapshot(now = new Date()): Array<{
+  name: string; everyMinutes: number | null; daily: { hour: number; minute: number; weekday: number | null } | null;
+  lastDueAt: Date | null; lastDurationMs: number | null;
+}> {
+  return JOBS.map(j => ({
+    name: j.name,
+    everyMinutes: j.everyMinutes ?? null,
+    daily: j.daily ? { hour: j.daily.hour, minute: j.daily.minute, weekday: j.daily.weekday ?? null } : null,
+    lastDueAt: j.daily ? lastDue(j, now) : null,
+    lastDurationMs: lastDurationMs.get(j.name) ?? null,
+  }));
+}
+
 /** Оставлено ради проверки: тот же расчёт, что и в тике. */
 export const _internals = {
   isDue, stamp, JOBS, runExclusively, tick, lastDue, dueSlot, store,
   /** Забыть всё между проверками: отметки, попытки, флаг загрузки. */
   reset(): void {
-    lastRun.clear(); lastSuccess.clear(); lastAttempt.clear(); notified.clear();
+    lastRun.clear(); lastSuccess.clear(); lastAttempt.clear(); notified.clear(); lastDurationMs.clear();
     stateLoaded = false; ticking = false; stopped = false;
   },
 };

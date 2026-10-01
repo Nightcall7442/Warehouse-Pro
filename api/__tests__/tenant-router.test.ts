@@ -9,9 +9,11 @@ const andFn = (...conds: unknown[]) => ({ __kind: "and", conds });
 const sqlTag = (strings: TemplateStringsArray, ...values: unknown[]) => ({ __kind: "sql", strings, values });
 const countFn = (col: unknown) => ({ __kind: "count", col });
 const sumFn   = (col: unknown) => ({ __kind: "sum", col });
+// Последний вход и последний заказ в списке консоли (tenant.list) — max().
+const maxFn   = (col: unknown) => ({ __kind: "max", col });
 
 vi.mock("drizzle-orm", () => ({
-  eq: eqFn, ne: neFn, and: andFn, sql: sqlTag, count: countFn, sum: sumFn, relations: () => ({}),
+  eq: eqFn, ne: neFn, and: andFn, sql: sqlTag, count: countFn, sum: sumFn, max: maxFn, relations: () => ({}),
 }));
 
 // ─── module mocks ─────────────────────────────────────────────────────────────
@@ -140,7 +142,8 @@ reg(tenants, "createdAt"); reg(tenants, "updatedAt");
 reg(users, "id"); reg(users, "tenantId"); reg(users, "name"); reg(users, "email");
 reg(users, "passwordHash"); reg(users, "role"); reg(users, "status"); reg(users, "emailVerifiedAt");
 reg(users, "lastSignInAt"); reg(users, "createdAt"); reg(users, "updatedAt");
-reg(settings, "id"); reg(settings, "tenantId"); reg(settings, "companyName");
+reg(settings, "id"); reg(settings, "tenantId"); reg(settings, "companyName"); reg(settings, "companyInn");
+reg(users, "phone"); reg(tenants, "isSandbox"); reg(orders, "deletedAt");
 reg(orders, "id"); reg(orders, "tenantId"); reg(orders, "status"); reg(orders, "total"); reg(orders, "createdAt");
 reg(products, "id"); reg(products, "tenantId");
 reg(shops, "id"); reg(shops, "tenantId");
@@ -196,6 +199,10 @@ function applyAggToGroup(rows: Record<string, unknown>[], fields: any): Record<s
     } else if (typeof def === "object" && def !== null && (def as any).__kind === "sum") {
       const f = mapCol((def as any).col);
       out[alias] = String(rows.reduce((s, r) => s + Number(r[f] ?? 0), 0));
+    } else if (typeof def === "object" && def !== null && (def as any).__kind === "max") {
+      const f = mapCol((def as any).col);
+      const vals = rows.map(r => r[f]).filter(v => v != null) as Array<string | number | Date>;
+      out[alias] = vals.length ? vals.reduce((a, b) => (new Date(b) > new Date(a) ? b : a)) : null;
     } else {
       out[alias] = rows[0]?.[mapCol(def)] ?? null;
     }
@@ -561,6 +568,10 @@ describe("tenant.list (superAdmin)", () => {
     expect(acme).toBeDefined();
     expect(typeof acme!.userCount).toBe("number");
     expect(typeof acme!.orderCount).toBe("number");
+    // Поля консоли платформы — рядом с прежними, а не вместо них.
+    expect(typeof acme!.orders30).toBe("number");
+    expect(typeof acme!.revenue30).toBe("number");
+    expect(acme!.segment).toMatchObject({ client: expect.any(Boolean), paying: expect.any(Boolean) });
   });
 });
 

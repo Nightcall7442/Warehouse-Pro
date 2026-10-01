@@ -82,6 +82,29 @@ export interface OwnerPanel {
   funnel: { stages: Array<{ key: TrialStage; reached: number }>; trials: TrialRow[] };
 }
 
+/**
+ * Положение одного клиента — одно правило на панель и на список организаций.
+ *
+ * Панель владельца (числа сверху консоли) и фильтры списка организаций
+ * отвечают на одни и те же вопросы: платит ли, жив ли пробный, молчит ли,
+ * когда продлевать. Посчитанные в двух местах, они однажды разошлись бы:
+ * плитка «Молчат 5+ дней: 3», а фильтр показывает четыре строки. Поэтому
+ * правило здесь, а список (tenant.list) зовёт его же.
+ */
+export function clientFlags(t: {
+  plan: PlanKey; subStatus: string | null; subPeriodEnds: Date | null; trialEnds: Date | null; lastActivityAt: Date;
+}, now: Date): { isPaying: boolean; trialLive: boolean; renewalDays: number | null; silentDays: number | null; active7: boolean } {
+  const isPaying = t.subStatus === "active" && t.plan !== "trial"
+    && (!t.subPeriodEnds || t.subPeriodEnds > now);
+  const trialLive = t.subStatus === "trialing" && (!t.trialEnds || t.trialEnds > now);
+  const renewalDays = isPaying && t.subPeriodEnds && t.subPeriodEnds.getTime() <= now.getTime() + RENEWAL_DAYS * DAY
+    ? Math.ceil((t.subPeriodEnds.getTime() - now.getTime()) / DAY) : null;
+  const silentDays = (isPaying || trialLive) && t.lastActivityAt.getTime() < now.getTime() - SILENT_DAYS * DAY
+    ? Math.floor((now.getTime() - t.lastActivityAt.getTime()) / DAY) : null;
+  const active7 = t.lastActivityAt.getTime() >= now.getTime() - ACTIVE_DAYS * DAY;
+  return { isPaying, trialLive, renewalDays, silentDays, active7 };
+}
+
 const latest = (...ds: Array<Date | null | undefined>): Date | null =>
   ds.reduce<Date | null>((a, d) => (d && (!a || d > a) ? d : a), null);
 
@@ -171,27 +194,27 @@ export async function collectOwnerPanel(db: Db, now = new Date()): Promise<Owner
     const contact: Contact = { phone: t.ownerPhone || ceo?.phone || null, email: t.ownerEmail || ceo?.email || null };
     const lastActivityAt = latest(lastOrderOf.get(t.id), who?.lastLogin) ?? t.createdAt;
 
-    const isPaying = t.subStatus === "active" && plan !== "trial"
-      && (!t.subPeriodEnds || t.subPeriodEnds > now);
     const trialEnds = t.subTrialEndsAt ?? t.trialEndsAt;
-    const trialLive = t.subStatus === "trialing" && (!trialEnds || trialEnds > now);
+    const { isPaying, renewalDays, silentDays, active7 } = clientFlags({
+      plan, subStatus: t.subStatus, subPeriodEnds: t.subPeriodEnds, trialEnds, lastActivityAt,
+    }, now);
 
-    if (lastActivityAt.getTime() >= now.getTime() - ACTIVE_DAYS * DAY) activeLast7++;
+    if (active7) activeLast7++;
 
     if (isPaying) {
       paying.push({ tenantId: t.id, name: t.name, plan, price: PLAN_PRICES_UZS[plan] ?? 0, periodEnds: t.subPeriodEnds, ...contact });
-      if (t.subPeriodEnds && t.subPeriodEnds.getTime() <= now.getTime() + RENEWAL_DAYS * DAY) {
+      if (t.subPeriodEnds && renewalDays !== null) {
         renewals.push({
           tenantId: t.id, name: t.name, plan, price: PLAN_PRICES_UZS[plan] ?? 0, periodEnds: t.subPeriodEnds,
-          daysLeft: Math.ceil((t.subPeriodEnds.getTime() - now.getTime()) / DAY), ...contact,
+          daysLeft: renewalDays, ...contact,
         });
       }
     }
 
-    if ((isPaying || trialLive) && lastActivityAt.getTime() < now.getTime() - SILENT_DAYS * DAY) {
+    if (silentDays !== null) {
       silent.push({
         tenantId: t.id, name: t.name, kind: isPaying ? "paying" : "trial", plan, lastActivityAt,
-        silentDays: Math.floor((now.getTime() - lastActivityAt.getTime()) / DAY), ...contact,
+        silentDays, ...contact,
       });
     }
 

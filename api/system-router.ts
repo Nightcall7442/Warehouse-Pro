@@ -272,6 +272,28 @@ export const systemRouter = createRouter({
       return getErrorTrend(input?.minutes ?? 60);
     }),
 
+  /*
+    Фоновые задачи — для раздела «Система» консоли платформы.
+
+    Расписание (api/cron/scheduler.ts) плюс журнал cron_runs: когда работа
+    удалась в последний раз, когда упала и с какой ошибкой. Раньше узнать, идёт
+    ли ночная копия базы, можно было только по тревоге через 26 часов или по
+    логам. Только чтение и только суперадмину: текст ошибки бывает с адресами
+    и именами хранилищ.
+
+    Итог считается на сервере (services/cron-jobs.ts, describeJobs), а не на
+    экране: «упала», «просрочена», «не запускалась» — одно правило для всех,
+    кто откроет раздел.
+  */
+  jobs: superAdminQuery.query(async () => {
+    const { jobsSnapshot } = await import("./cron/scheduler");
+    const { describeJobs } = await import("./services/cron-jobs");
+    const { cronRuns } = await import("@db/schema");
+    const now = new Date();
+    const rows = await getDb().select().from(cronRuns);
+    return { generatedAt: now, jobs: describeJobs(jobsSnapshot(now), rows, now) };
+  }),
+
   /** Quick action: clear cache */
   clearCache: superAdminQuery.mutation(() => {
     cache.clear();
