@@ -1,5 +1,6 @@
 import { inBackground } from "./lib/graceful-shutdown";
 import { z } from "zod";
+import { slugify, offboardConfirmWord } from "@contracts/tenant-slug";
 import { randomUUID, randomBytes, createHash } from "crypto";
 import { TRPCError } from "@trpc/server";
 import { recordAudit } from "./services/audit-log";
@@ -134,14 +135,6 @@ async function announceRegistration(card: Parameters<typeof tgMessages.newRegist
   }
 }
 
-function slugify(name: string): string {
-  return name
-    .toLowerCase()
-    .trim()
-    .replace(/[^\w\s-]/g, "")
-    .replace(/[\s_]+/g, "-")
-    .replace(/^-+|-+$/g, "");
-}
 
 export const tenantRouter = createRouter({
   // ── Публичная регистрация ──────────────────────────────────────────────────
@@ -753,8 +746,9 @@ export const tenantRouter = createRouter({
         .from(tenants).where(eq(tenants.id, input.tenantId)).limit(1);
       if (!t) throw new TRPCError({ code: "NOT_FOUND", message: "Организация не найдена" });
       if (t.status !== "suspended") throw new TRPCError({ code: "PRECONDITION_FAILED", message: new TenantNotSuspendedError().message });
-      if (input.confirmSlug.trim() !== t.slug) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: `Наберите slug организации точно: ${t.slug}` });
+      const word = offboardConfirmWord(t);
+      if (input.confirmSlug.trim() !== word) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: `Для подтверждения наберите точно: ${word}` });
       }
       const step = await checkTotpStepUp(db, ctx.user.id, input.totpCode);
       if (!step.ok) {

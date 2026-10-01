@@ -98,7 +98,7 @@ describe("сама процедура", () => {
     const at = router.indexOf("offboard: superAdminQuery");
     const body = router.slice(at, router.indexOf("extendTrial: superAdminQuery", at));
     expect(body).toContain('if (t.status !== "suspended") throw new TRPCError({ code: "PRECONDITION_FAILED"');
-    expect(body).toContain("if (input.confirmSlug.trim() !== t.slug)");
+    expect(body).toContain("if (input.confirmSlug.trim() !== word)");
     expect(body).toContain("const step = await checkTotpStepUp(db, ctx.user.id, input.totpCode);");
     // и всё это — ДО вызова службы
     expect(body.indexOf("checkTotpStepUp(")).toBeLessThan(body.indexOf("await offboardTenant("));
