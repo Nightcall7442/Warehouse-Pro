@@ -3,7 +3,7 @@ import { randomUUID } from "crypto";
 import { eq } from "drizzle-orm";
 import * as schema from "@db/schema";
 import { hasRealDb, connectRealDb, closeRealDb, truncateAll, seed, ctxFor, type ServiceDb, type Seeded } from "./harness";
-import { planStatus, type TenantRow } from "@/components/superadmin/types";
+import { statusOf, daysLeft } from "@/components/superadmin/console/orgs";
 
 /**
  * Продление оплаченного срока — на настоящей базе.
@@ -37,7 +37,7 @@ import { planStatus, type TenantRow } from "@/components/superadmin/types";
  * Нарочная поломка: срок от `new Date()` в updatePlan — падает «досрочно»;
  * убрать выборку оплаченных из крона — «за неделю»; вернуть past_due в
  * сводку — «просрочка»; вернуть daysLeft от trialEndsAt — «дни»; вернуть
- * planStatus на tenants.trialEndsAt — «метка».
+ * срок в консоли на tenants.trialEndsAt — «метка».
  */
 let current: ServiceDb;
 vi.mock("../../queries/connection", () => ({ getDb: () => current, getPool: () => null }));
@@ -213,8 +213,14 @@ describe.skipIf(!hasRealDb)("продление оплаченного срок�
     const row = rows.find(r => r.id === s.tenantId)!;
 
     expect(row.subscription).toMatchObject({ status: "active" });
-    const label = planStatus(row as unknown as TenantRow).label;
-    expect(label).not.toMatch(/Trial/);
-    expect(label).toMatch(/^(19|20) дн\.$/);
+    // Метка консоли (components/superadmin/console/orgs): по подписке, не по
+    // давнему trial_ends_at.
+    expect(statusOf(row).label).toBe("Платит");
+    // Дни — вверх, как «осталось N дн.» у панели владельца: 20 суток и доля
+    // секунды (MySQL округляет её вверх) — это 21. От давнего пробного было бы
+    // минус сорок.
+    expect(daysLeft(row)).toBeGreaterThanOrEqual(20);
+    expect(daysLeft(row)).toBeLessThanOrEqual(21);
+    expect(row.segment).toMatchObject({ paying: true, trial: false });
   });
 });

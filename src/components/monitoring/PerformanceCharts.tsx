@@ -59,7 +59,7 @@ function Fade({ id, color }: { id: string; color: string }) {
 
 export function PerformanceCharts({ chartData }: PerformanceChartsProps) {
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(400px, 1fr))", gap: "16px" }}>
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(400px, 100%), 1fr))", gap: "16px" }}>
       <Section title="Запросов в секунду" icon={Activity} delay={0.1}>
         <div style={{ height: "180px" }}>
           <ResponsiveContainer width="100%" height="100%">

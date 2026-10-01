@@ -7,7 +7,7 @@ import { recordAudit } from "./services/audit-log";
 import { createRouter, publicQuery, adminQuery, authedQuery, superAdminQuery } from "./middleware";
 import { getDb } from "./queries/connection";
 import { tenants, users, settings, orders, products, shops, subscriptions, warehouses, apiKeys } from "@db/schema";
-import { eq, and, ne, sql, count, sum } from "drizzle-orm";
+import { eq, and, ne, sql, count, sum, max } from "drizzle-orm";
 import { hashPassword } from "./auth/password";
 import { findTenantBySlug, listTenants } from "./queries/tenants";
 import { seedSandbox, SANDBOX_ORDER_COUNT } from "./services/sandbox";
@@ -19,6 +19,7 @@ import { env } from "./lib/env";
 import { notifyAdmin, tgMessages } from "./telegram-router";
 
 import { rowsOf } from "./lib/db-rows";
+import { PLAN_PRICES_UZS, type PlanKey } from "@contracts/constants";
 import { checkTotpStepUp } from "./auth/step-up";
 import { countTenantRows, offboardTenant, TenantNotSuspendedError } from "./services/tenant-offboard";
 import { setManualAccessFor } from "./services/manual-access";
@@ -293,50 +294,125 @@ export const tenantRouter = createRouter({
   // SUPER ADMIN endpoints
   // ══════════════════════════════════════════════════════════════════════════
 
-  /** Список всех тенантов с основной статистикой */
+  /**
+   * Список всех организаций — для раздела «Организации» консоли платформы.
+   *
+   * ── Что было ──────────────────────────────────────────────────────────────
+   *
+   * Счётчики за всё время (люди, заказы, сумма) и подписка. Чтобы понять,
+   * работает ли клиент сейчас, приходилось открывать карточку: ни заказов за
+   * месяц, ни последней активности, ни телефона, ни ИНН — а искать клиента
+   * владелец платформы чаще всего начинает именно по ним.
+   *
+   * ── Что добавлено ─────────────────────────────────────────────────────────
+   *
+   * Заказы и выручка за 30 дней (без отменённых и удалённых), последний заказ,
+   * последний вход, телефон и почта для связи (из карточки, иначе директора —
+   * то же правило, что в панели владельца), ИНН из реквизитов. Прежние поля
+   * не тронуты: старые копии страницы читают их как раньше.
+   *
+   * Всё — шестью сгруппированными запросами на весь список, без запроса на
+   * организацию: заказы одним проходом по (tenant_id, created_at) — прежние
+   * счётчики за всё время и новые за 30 дней в одном GROUP BY; «30 дней» —
+   * NOW() самой базы, чтобы граница не зависела от часового пояса сервера.
+   */
   list: superAdminQuery.query(async () => {
     const db = getDb();
 
-    const allTenants = await listTenants();
-
-    // Статистика: кол-во юзеров и заказов на тенант одним запросом
-    const userCounts = await db
-      .select({ tenantId: users.tenantId, cnt: count(users.id) })
-      .from(users)
-      .groupBy(users.tenantId);
-
-    const orderStats = await db
-      .select({
-        tenantId: orders.tenantId,
-        cnt:      count(orders.id),
-        total:    sum(orders.total),
+    const [allTenants, userStats, orderStats, subs, ceos, innRows] = await Promise.all([
+      listTenants(),
+      // Люди: сколько и когда кто-то входил последним. max() построителя, а не
+      // сырой SQL — drizzle сам читает время как UTC (см. services/owner-panel).
+      db.select({ tenantId: users.tenantId, cnt: count(users.id), lastLogin: max(users.lastSignInAt) })
+        .from(users)
+        .groupBy(users.tenantId),
+      db.select({
+        tenantId:  orders.tenantId,
+        cnt:       count(orders.id),
+        total:     sum(orders.total),
+        lastOrder: max(orders.createdAt),
+        cnt30:     sql<string>`SUM(${orders.createdAt} >= NOW() - INTERVAL 30 DAY AND ${orders.deletedAt} IS NULL AND ${orders.status} <> 'cancelled')`,
+        total30:   sql<string>`SUM(CASE WHEN ${orders.createdAt} >= NOW() - INTERVAL 30 DAY AND ${orders.deletedAt} IS NULL AND ${orders.status} <> 'cancelled' THEN ${orders.total} ELSE 0 END)`,
       })
-      .from(orders)
-      .groupBy(orders.tenantId);
-
-    /*
-      Подписка — то, что на деле пускает в работу (lib/feature-gating.ts).
-      Без неё список судил по tenants.trial_ends_at, который у организации
-      с сайта остаётся навсегда, и платящий клиент горел красным «Trial истёк».
-    */
-    const subs = await db
-      .select({
-        tenantId: subscriptions.tenantId, status: subscriptions.status,
+        .from(orders)
+        .groupBy(orders.tenantId),
+      /*
+        Подписка — то, что на деле пускает в работу (lib/feature-gating.ts).
+        Без неё список судил по tenants.trial_ends_at, который у организации
+        с сайта остаётся навсегда, и платящий клиент горел красным «Trial истёк».
+      */
+      db.select({
+        tenantId: subscriptions.tenantId, status: subscriptions.status, plan: subscriptions.plan,
         trialEndsAt: subscriptions.trialEndsAt, currentPeriodEnds: subscriptions.currentPeriodEnds,
       })
-      .from(subscriptions);
+        .from(subscriptions),
+      // Контакт на случай, если у организации своего нет (заведена до сбора телефона).
+      db.select({ tenantId: users.tenantId, phone: users.phone, email: users.email })
+        .from(users).where(eq(users.role, "ceo")).orderBy(users.id),
+      db.select({ tenantId: settings.tenantId, inn: settings.companyInn }).from(settings),
+    ]);
 
-    const userMap  = Object.fromEntries(userCounts.map(r  => [r.tenantId,  r.cnt]));
-    const orderMap = Object.fromEntries(orderStats.map(r => [r.tenantId, { cnt: r.cnt, total: r.total ?? "0" }]));
-    const subMap   = new Map(subs.map(({ tenantId, ...s }) => [tenantId, s]));
+    const userMap  = new Map(userStats.map(r => [Number(r.tenantId), r]));
+    const orderMap = new Map(orderStats.map(r => [Number(r.tenantId), r]));
+    const subMap   = new Map(subs.map(({ tenantId, ...s }) => [Number(tenantId), s]));
+    const innMap   = new Map(innRows.map(r => [Number(r.tenantId), r.inn]));
+    const ceoMap   = new Map<number, { phone: string | null; email: string }>();
+    for (const c of ceos) if (!ceoMap.has(Number(c.tenantId))) ceoMap.set(Number(c.tenantId), { phone: c.phone, email: c.email });
+    const asDate = (v: unknown): Date | null => (v ? new Date(v as string | Date) : null);
+    const { clientFlags } = await import("./services/owner-panel");
+    const now = new Date();
 
-    return allTenants.map(t => ({
-      ...t,
-      userCount:  Number(userMap[t.id]  ?? 0),
-      orderCount: Number(orderMap[t.id]?.cnt   ?? 0),
-      orderTotal: Number(orderMap[t.id]?.total ?? 0),
-      subscription: subMap.get(t.id) ?? null,
-    }));
+    return allTenants.map(t => {
+      const u = userMap.get(t.id);
+      const o = orderMap.get(t.id);
+      const ceo = ceoMap.get(t.id);
+      const lastOrderAt = asDate(o?.lastOrder);
+      const lastLoginAt = asDate(u?.lastLogin);
+      const latest = [lastOrderAt, lastLoginAt].filter((d): d is Date => d !== null)
+        .reduce<Date | null>((a, d) => (!a || d > a ? d : a), null);
+      const lastActivityAt = latest ?? t.createdAt;
+      const sub = subMap.get(t.id);
+      const plan = (sub?.plan ?? t.plan) as PlanKey;
+      const trialEnds = sub?.trialEndsAt ?? t.trialEndsAt ?? null;
+      /*
+        Сегменты для фильтров консоли — тем же правилом, что панель владельца
+        (services/owner-panel, clientFlags): плитка «Молчат 5+ дней» и фильтр
+        с тем же названием обязаны показывать одних и тех же. Клиент — не
+        песочница и не приостановленная (системную listTenants уже убрал).
+      */
+      const client = !t.isSandbox && t.status === "active";
+      const f = clientFlags({
+        plan, subStatus: sub?.status ?? null, subPeriodEnds: sub?.currentPeriodEnds ?? null, trialEnds, lastActivityAt,
+      }, now);
+      return {
+        ...t,
+        userCount:  Number(u?.cnt ?? 0),
+        orderCount: Number(o?.cnt ?? 0),
+        orderTotal: Number(o?.total ?? 0),
+        subscription: subMap.get(t.id) ?? null,
+        // Деньги — целыми сумами: копейки в списке никому не нужны, а дробь
+        // из DECIMAL расползается по ячейкам.
+        orders30:   Number(o?.cnt30 ?? 0),
+        revenue30:  Math.round(Number(o?.total30 ?? 0)),
+        lastOrderAt,
+        lastLoginAt,
+        lastActivityAt,
+        segment: {
+          client,
+          paying:       client && f.isPaying,
+          trial:        client && sub?.status === "trialing",
+          trialLive:    client && f.trialLive,
+          renewalDays:  client ? f.renewalDays : null,
+          silentDays:   client ? f.silentDays : null,
+          active7:      client && f.active7,
+          price:        client && f.isPaying ? PLAN_PRICES_UZS[plan] ?? 0 : 0,
+        },
+        // `||`, а не `??`: пустая строка в карточке — тоже «нет телефона».
+        contactPhone: t.ownerPhone || ceo?.phone || null,
+        contactEmail: t.ownerEmail || ceo?.email || null,
+        inn: innMap.get(t.id) || null,
+      };
+    });
   }),
 
   /**

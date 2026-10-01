@@ -243,7 +243,8 @@ describe("экраны знают, что закрыто", () => {
 
   it("настройка есть у директора и у суперадмина", () => {
     expect(read("src/pages/Settings.tsx")).toContain("<OperatorAccess />");
-    expect(read("src/components/superadmin/TenantDetail.tsx")).toContain("<OperatorAccess tenantId={tenantId} />");
+    // У суперадмина — вкладка «Права» карточки организации в консоли.
+    expect(read("src/components/superadmin/console/OrgTabs.tsx")).toContain("<OperatorAccess tenantId={d.tenant.id} />");
   });
 
   it("кнопки, которые могут не сработать, спрятаны", () => {

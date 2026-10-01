@@ -104,7 +104,7 @@ export function ObservabilityPanel() {
         {(data?.saturation ?? []).length === 0 ? (
           <p style={{ color: COLORS.textTertiary, fontSize: "13px", margin: 0 }}>Загрузка…</p>
         ) : (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: "12px" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(240px, 100%), 1fr))", gap: "12px" }}>
             {(data?.saturation ?? []).map(s => {
               const color = s.level === "hot" ? "var(--color-danger-text)"
                 : s.level === "warn" ? "var(--color-warning-text)"
@@ -112,7 +112,7 @@ export function ObservabilityPanel() {
               return (
                 <div key={s.key} title={s.hint} style={{
                   padding: "14px 16px", borderRadius: "12px",
-                  background: COLORS.surfaceLight, border: `1px solid ${COLORS.border}`,
+                  background: COLORS.surfaceLight, boxShadow: "var(--shadow-xs)",
                 }}>
                   <p style={{ fontSize: "11px", color: COLORS.textTertiary, margin: 0, textTransform: "uppercase", letterSpacing: "0.06em" }}>
                     {s.title}
@@ -151,7 +151,7 @@ export function ObservabilityPanel() {
 
       {/* ── Приборы ────────────────────────────────────────────────────────── */}
       <Section title="Служебные приборы" icon={Boxes} delay={0.1}>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: "12px" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(240px, 100%), 1fr))", gap: "12px" }}>
           {(data?.services ?? []).map(s => {
             const st = STATE_LABEL[s.state] ?? STATE_LABEL.unknown;
             const body = (
@@ -176,7 +176,7 @@ export function ObservabilityPanel() {
             );
             const box: React.CSSProperties = {
               display: "block", padding: "14px 16px", borderRadius: "12px",
-              background: COLORS.surfaceLight, border: `1px solid ${COLORS.border}`,
+              background: COLORS.surfaceLight, boxShadow: "var(--shadow-xs)",
               textDecoration: "none", color: "inherit",
             };
             return s.url

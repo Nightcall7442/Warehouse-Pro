@@ -129,7 +129,8 @@ describe("деталь за деталью", () => {
     expect(fn).toContain(".leftJoin(shops, and(eq(orders.shopId, shops.id), eq(shops.tenantId, tenantId)))");
   });
   it("стрелки дат видны: кнопки-значки, а не neo-btn шириной 35 с полями по 20", () => {
-    for (const f of readdirSync(join(root, "src/pages"))) {
+    // Только файлы: в src/pages есть и папки (pages/superadmin — консоль платформы).
+    for (const f of readdirSync(join(root, "src/pages"), { withFileTypes: true }).filter(e => e.isFile()).map(e => e.name)) {
       expect(read(`src/pages/${f}`), f).not.toContain("neo-btn w-10 h-10");
     }
   });

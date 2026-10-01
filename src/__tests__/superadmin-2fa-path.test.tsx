@@ -4,81 +4,77 @@
  *
  * ── Что было ────────────────────────────────────────────────────────────────
  *
- * Удаление организации и чистка обращений требуют код второго фактора
- * (api/auth/step-up.ts). Включается он в Настройки → Профиль, но в меню
- * суперадмина «Настроек» нет, а его «Мой профиль» (AdminActions) о втором
- * факторе молчал. 01.10.2026 владелец упёрся в «сначала подключите
- * двухфактор» и не нашёл, где.
+ * Удаление организации, выгрузка базы и уборка журнала требуют код второго
+ * фактора (api/auth/step-up.ts). Включается он в Настройки → Профиль, но
+ * 01.10.2026 владелец упёрся в «сначала подключите двухфактор» и не нашёл,
+ * где. Тогда появилась карточка «Мой профиль» на общей странице; с консолью
+ * платформы (01.10.2026) её место — карточка «кто вошёл» в колонке и строка
+ * в «Ещё» на телефоне.
  *
  * ── Что проверяется ─────────────────────────────────────────────────────────
  *
- *   - второй фактор не включён — «Мой профиль» так и говорит («Выключен»), и
- *     кнопка «Включить» ведёт прямо к блоку второго фактора в профиле
+ *   - второй фактор не включён — «Ещё» так и говорит («Выключен», и чем это
+ *     грозит), строка ведёт прямо к блоку второго фактора в профиле
  *     (/settings?section=profile&block=totp);
- *   - включён — «включён», а управлять — кнопкой «Настройки профиля»,
- *     туда же (с 01.10.2026 карточка «Мой профиль» — без своей формы);
- *   - в окне удаления организации без второго фактора есть подсказка со
- *     ссылкой туда же.
+ *   - включён — «Включён», туда же;
+ *   - подсказка в окне удаления организации проверяется отрисовкой в
+ *     platform-console-org-card.test.tsx (раньше — чтением исходника).
+ *
+ * Нарочная поломка: в More.tsx вести строку на /settings без block=totp —
+ * падает «ведёт к блоку»; показывать «Включён» по любому значению — падает
+ * «не включён».
  */
 import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
-import { render, screen, fireEvent, cleanup, within } from "@testing-library/react";
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { render, screen, cleanup } from "@testing-library/react";
+import { MemoryRouter } from "react-router";
 
-const state = vi.hoisted(() => ({ totpEnabledAt: null as string | null, navigated: [] as string[] }));
-
+const state = vi.hoisted(() => ({ totpEnabledAt: null as string | null }));
 vi.mock("@/providers/trpc", () => {
-  const nothing = () => {};
-  return {
-    trpc: {
-      useUtils: () => ({ user: { me: { invalidate: nothing } } }),
-      user: {
-        me: { useQuery: () => ({ data: { name: "Super Admin", role: "superadmin", email: "superadmin@system.local", phone: "" } }) },
-        updateMe: { useMutation: () => ({ mutate: nothing, isPending: false }) },
-        changePassword: { useMutation: () => ({ mutate: nothing, isPending: false }) },
-      },
+  const make = (path: string[]): unknown => new Proxy(() => {}, {
+    get: (_t, k: string | symbol) => {
+      if (typeof k === "symbol") return undefined;
+      if (k === "useQuery") return () => ({ data: undefined, isLoading: false });
+      return make([...path, k]);
     },
-  };
+  });
+  return { trpc: make([]) };
 });
-vi.mock("react-router", () => ({ useNavigate: () => (to: string) => state.navigated.push(to) }));
-vi.mock("@/hooks/useAuth", () => ({ useAuth: () => ({ user: { id: 1, role: "superadmin", totpEnabledAt: state.totpEnabledAt } }) }));
+vi.mock("@/hooks/useAuth", () => ({ useAuth: () => ({ user: { id: 1, name: "Владелец", email: "root@system.local", role: "superadmin", totpEnabledAt: state.totpEnabledAt }, logout: () => {} }) }));
+vi.mock("@/hooks/useTheme", () => ({ useTheme: () => ({ theme: "dark", toggle: () => {} }) }));
+vi.mock("@/hooks/useNotifications", () => ({ useNotifications: () => ({ unreadCount: 0 }) }));
+vi.mock("@/components/brand/AppBrand", () => ({ AppBrand: () => null }));
 
-const { AdminActions } = await import("@/components/superadmin/AdminActions");
+const More = (await import("@/pages/superadmin/More")).default;
 
-beforeEach(() => { state.totpEnabledAt = null; state.navigated = []; });
+beforeEach(() => { state.totpEnabledAt = null; });
 afterEach(cleanup);
+const show = () => render(<MemoryRouter><More /></MemoryRouter>);
 
-describe("«Мой профиль» суперадмина: второй фактор", () => {
-  it("не включён — сказано и кнопка «Включить» ведёт к блоку второго фактора", () => {
-    render(<AdminActions />);
-    const row = screen.getByTestId("admin-totp");
+describe("«Ещё»: второй фактор", () => {
+  it("не включён — сказано, чем грозит, и строка ведёт к блоку второго фактора", () => {
+    show();
+    const row = screen.getByTestId("more-totp");
     expect(row.textContent).toContain("Выключен");
-    fireEvent.click(within(row).getByText("Включить"));
-    expect(state.navigated).toEqual(["/settings?section=profile&block=totp"]);
+    expect(row.textContent).toContain("удаление организаций");
+    expect(row.getAttribute("href")).toBe("/settings?section=profile&block=totp");
   });
 
-  it("включён — «включён», лишней кнопки нет; управлять — через «Настройки профиля»", () => {
+  it("включён — «Включён», туда же", () => {
     state.totpEnabledAt = "2026-10-01T00:00:00Z";
-    render(<AdminActions />);
-    const row = screen.getByTestId("admin-totp");
+    show();
+    const row = screen.getByTestId("more-totp");
     expect(row.textContent).toContain("Включён");
     expect(row.textContent).not.toContain("Выключен");
-    expect(within(row).queryByRole("button")).toBeNull();
-    fireEvent.click(screen.getByText("Настройки профиля"));
-    expect(state.navigated).toEqual(["/settings?section=profile"]);
+    expect(row.getAttribute("href")).toBe("/settings?section=profile&block=totp");
   });
-});
 
-describe("окно удаления организации", () => {
-  it("без второго фактора подсказывает, где его включить", () => {
-    // Окно удаления тянет полкарточки организации; здесь достаточно того,
-    // что подсказка стоит под полем кода и зависит от totpEnabledAt.
-    const src = readFileSync(resolve(__dirname, "../components/superadmin/TenantDetail.tsx"), "utf8");
-    const at = src.indexOf('data-testid="offboard-totp"');
-    const hint = src.indexOf('data-testid="offboard-totp-hint"');
-    expect(at).toBeGreaterThan(0);
-    expect(hint, "подсказки под полем кода нет").toBeGreaterThan(at);
-    expect(src.slice(at, hint)).toContain("{!totpOn && (");
-    expect(src.slice(hint, hint + 400)).toContain('href="/settings?section=profile"');
+  it("остальные разделы и выход — тоже здесь", () => {
+    show();
+    expect(screen.getByTestId("more-leads").getAttribute("href")).toBe("/super-admin/leads");
+    expect(screen.getByTestId("more-system").getAttribute("href")).toBe("/super-admin/system");
+    expect(screen.getByTestId("more-sandboxes").getAttribute("href")).toBe("/super-admin/sandboxes");
+    expect(screen.getByTestId("more-profile").getAttribute("href")).toBe("/settings?section=profile");
+    expect(screen.getByTestId("more-logout")).toBeTruthy();
+    expect(screen.getByTestId("more-theme").textContent).toContain("Светлая тема");
   });
 });

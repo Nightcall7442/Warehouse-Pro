@@ -22,6 +22,8 @@ const APP = read("src/App.tsx");
 const CONST = read("src/const.ts");
 const LAYOUT = read("src/components/Layout.tsx");
 const PALETTE = read("src/components/CommandPalette.tsx");
+// У суперадмина своё меню — разделы консоли платформы (с 01.10.2026).
+const CONSOLE_NAV = read("src/components/superadmin/console/nav.ts");
 
 const ROLES = ["ceo", "operator", "supervisor", "agent", "merchandiser", "courier", "superadmin"];
 
@@ -53,6 +55,7 @@ function menuPaths(role: string): string[] {
   const body = LAYOUT.slice(LAYOUT.indexOf("const BOTTOM_NAV"));
   const botAt = body.indexOf(`  ${role}: [`);
   if (botAt > 0) for (const m of body.slice(botAt, body.indexOf("\n  ],", botAt)).matchAll(/path: "([^"]+)"/g)) paths.add(m[1]);
+  if (role === "superadmin") for (const m of CONSOLE_NAV.matchAll(/path: "([^"]+)"/g)) paths.add(m[1]);
   return [...paths];
 }
 

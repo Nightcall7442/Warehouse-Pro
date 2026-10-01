@@ -86,7 +86,7 @@ function Segment<T extends string>({ value, options, onChange }: { value: T; opt
 export function PhoneProfile() {
   const { user, logout } = useAuth();
   const { theme, toggle } = useTheme();
-  const { lang, setLang } = useLang();
+  const { lang, setLang, fixed: langFixed } = useLang();
   const { name: appName } = useAppBrand();
   const navigate = useNavigate();
   const { confirm, dialog } = useConfirm();
@@ -184,9 +184,14 @@ export function PhoneProfile() {
           <Row icon={theme === "dark" ? Moon : Sun} title={t("Тема", "Mavzu")}
             right={<Segment value={theme === "dark" ? "dark" : "light"} onChange={v => { if ((v === "dark") !== (theme === "dark")) toggle(); }}
               options={[{ key: "light", label: t("Светлая", "Yorug'") }, { key: "dark", label: t("Тёмная", "Qorong'i") }]} />} />
-          <Line />
-          <Row icon={Globe} title={t("Язык", "Til")}
-            right={<Segment value={lang} onChange={v => setLang(v)} options={[{ key: "ru", label: "Русский" }, { key: "uz", label: "O'zbekcha" }]} />} />
+          {/* Язык закреплён оболочкой (консоль платформы только русская) — выбора нет. */}
+          {!langFixed && (
+            <>
+              <Line />
+              <Row icon={Globe} title={t("Язык", "Til")}
+                right={<Segment value={lang} onChange={v => setLang(v)} options={[{ key: "ru", label: "Русский" }, { key: "uz", label: "O'zbekcha" }]} />} />
+            </>
+          )}
         </Group>
       </div>
 

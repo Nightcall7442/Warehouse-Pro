@@ -192,7 +192,7 @@ export default function Settings() {
 
 function FullSettings() {
   const [params, setParams] = useSearchParams();
-  const { lang } = useLang();
+  const { lang, fixed: langFixed } = useLang();
   const { user } = useAuth();
 
   // Разделы, доступные этой роли. Показывать пункт, который ведёт в отказ, —
@@ -241,7 +241,7 @@ function FullSettings() {
             return (
               <button key={s.key} onClick={() => select(s.key)}
                 aria-current={selected ? "page" : undefined}
-                className={`flex items-center gap-2.5 h-10 px-3 rounded-lg text-left text-sm whitespace-nowrap transition-colors flex-shrink-0 md:w-full ${
+                className={`flex items-center gap-2.5 h-[44px] px-3 rounded-lg text-left text-sm whitespace-nowrap transition-colors flex-shrink-0 md:w-full ${
                   selected
                     ? "font-semibold text-primary"
                     : "font-medium text-secondary hover:text-primary"
@@ -258,7 +258,12 @@ function FullSettings() {
         <div className="flex-1 min-w-0 p-6 sm:p-8">
           <SectionHeader
             title={lang === "uz" ? current.titleUz : current.titleRu}
-            description={lang === "uz" ? current.descUz : current.descRu}
+            description={
+              // Консоль платформы только русская — языка в «Внешнем виде» у суперадмина нет.
+              langFixed && current.key === "appearance"
+                ? "Тема оформления. Настройка личная, запоминается в этом браузере."
+                : lang === "uz" ? current.descUz : current.descRu
+            }
           />
           <Current />
         </div>

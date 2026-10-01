@@ -42,7 +42,7 @@ export function RawErrorLog({ onSelectError }: { onSelectError: (id: string) => 
     }}>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <button onClick={() => setOpen(o => !o)}
-          style={{ fontFamily: F.display, fontSize: "15px", fontWeight: 700, color: COLORS.textPrimary }}>
+          style={{ fontFamily: F.display, fontSize: "15px", fontWeight: 700, color: COLORS.textPrimary, minHeight: 44 }}>
           Сырой журнал {open ? "▾" : "▸"}
         </button>
         {open && (

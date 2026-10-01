@@ -15,6 +15,7 @@ import { useTheme } from "@/hooks/useTheme";
 import { useLang } from "@/i18n";
 import { ROLE_LABEL } from "@contracts/entity-labels";
 import { trpc } from "@/providers/trpc";
+import { ConsoleShell } from "@/components/superadmin/console/ConsoleShell";
 import {
   LayoutDashboard, Store, Package, ClipboardList, Truck,
   Warehouse, BarChart3, Users, Settings, PlusCircle, MapPin,
@@ -55,8 +56,6 @@ const PAGE_META: Record<string, { title: PageTitle; parent?: PageTitle; parentPa
   "/":                  { title: { ru: "Главная",       uz: "Bosh sahifa" } },
   "/dashboard":         { title: { ru: "Главная",       uz: "Bosh sahifa" } },
   "/courier":           { title: { ru: "Главная",       uz: "Bosh sahifa" } },
-  "/super-admin":       { title: { ru: "Super Admin",   uz: "Super Admin" } },
-  "/monitoring":        { title: { ru: "Мониторинг",    uz: "Monitoring" } },
   "/reports":           { title: { ru: "Отчёты",        uz: "Hisobotlar" } },
   "/shops":             { title: { ru: "Магазины",      uz: "Do'konlar" } },
   "/products":          { title: { ru: "Товары",        uz: "Mahsulotlar" } },
@@ -437,13 +436,8 @@ const MobileHeader = memo(function MobileHeader({ onMenuClick, unreadCount }: { 
 
 // ── Mobile bottom navigation ──────────────────────────────────────────────────
 const BOTTOM_NAV: Record<string, Array<{ ru: string; uz: string; path: string; icon: string; exact?: boolean }>> = {
-  // Настройки — логин, пароль, вход с кодом из приложения, тема и язык.
-  // Раньше внизу была одна «Платформа», и до своего профиля суперадмин с
-  // телефона не добирался вовсе (01.10.2026).
-  superadmin: [
-    { ru: "Платформа", uz: "Platforma",  path: "/super-admin", icon: "Zap", exact: true },
-    { ru: "Настройки", uz: "Sozlamalar", path: "/settings",    icon: "Settings" },
-  ],
+  // Суперадмина здесь нет: у консоли платформы свои вкладки внизу —
+  // «Обзор», «Организации», «Обращения», «Ещё» (superadmin/console/nav.ts).
   /*
     Надзорные роли — вкладки мобилки (src/lib/tabs.ts в Warehouse-Pro-Mobile):
     Главная, Карта, Планы, Магазины. Владелец, 25.09.2026: «все сделай
@@ -674,13 +668,21 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     </div>
   );
 
+  /*
+    Владелец платформы — в своей оболочке: консоль с разделами, только
+    по-русски, без «Справки», переключателя языка и поиска по складу
+    (components/superadmin/console/ConsoleShell). Настройки и уведомления
+    открываются в ней же — та же колонка слева и те же вкладки внизу.
+  */
+  if (user.role === "superadmin") return <ConsoleShell>{children}</ConsoleShell>;
+
   return (
     <div className="min-h-screen">
       <MobileHeader onMenuClick={openDrawer} unreadCount={unreadCount} />
       <MobileDrawer open={drawerOpen} onClose={closeDrawer} unreadCount={unreadCount} />
 
       <div className="md:ml-[280px]">
-        {user?.role !== "superadmin" && <TrialBanner />}
+        <TrialBanner />
       </div>
 
       {/* Floating sidebar — neumorphic card */}

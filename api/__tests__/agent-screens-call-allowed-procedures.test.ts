@@ -140,15 +140,27 @@ describe("запросы на пути агента", () => {
    открытую дверь тому, кому нельзя.
    ═══════════════════════════════════════════════════════════════════════════ */
 
-/** Экраны, которые открывает ТОЛЬКО суперадмин. */
+/**
+ * Экраны, которые открывает ТОЛЬКО суперадмин — консоль платформы
+ * (01.10.2026: разделы со своими адресами вместо одной страницы).
+ */
 const SUPERADMIN_FILES = [
-  "src/pages/SuperAdmin.tsx",
-  "src/components/superadmin/PlatformStats.tsx",
-  "src/components/superadmin/TenantList.tsx",
-  "src/components/superadmin/TenantDetail.tsx",
+  "src/pages/superadmin/Overview.tsx",
+  "src/pages/superadmin/Orgs.tsx",
+  "src/pages/superadmin/OrgCard.tsx",
+  "src/pages/superadmin/Leads.tsx",
+  "src/pages/superadmin/Support.tsx",
+  "src/pages/superadmin/System.tsx",
+  "src/pages/superadmin/Sandboxes.tsx",
+  "src/pages/superadmin/More.tsx",
+  "src/pages/Monitoring.tsx",
+  "src/components/superadmin/console/ConsoleShell.tsx",
+  "src/components/superadmin/console/OrgSearch.tsx",
+  "src/components/superadmin/console/OrgTabs.tsx",
   "src/components/superadmin/LeadInbox.tsx",
-  "src/components/superadmin/FeatureUsage.tsx",
+  "src/components/superadmin/SupportInbox.tsx",
   "src/components/superadmin/SandboxSection.tsx",
+  "src/components/superadmin/BackupSection.tsx",
   "src/components/superadmin/CreateTenantModal.tsx",
 ];
 

@@ -1,6 +1,6 @@
 import { ru } from "./ru";
 import { uz } from "./uz";
-import { createContext, useContext, useState, useCallback } from "react";
+import { createContext, useContext, useState, useCallback, useEffect, useMemo } from "react";
 import type { ReactNode } from "react";
 
 export type Lang = "ru" | "uz";
@@ -31,6 +31,8 @@ interface LangCtx {
   lang:    Lang;
   setLang: (l: Lang) => void;
   t:       (key: string) => string;
+  /** Язык закреплён оболочкой (FixedLang) — выбирать его негде и незачем. */
+  fixed?:  boolean;
 }
 
 import React from "react";
@@ -46,7 +48,34 @@ const LangContext = createContext<LangCtx>({
  * Тот же ключ, что у LangProvider; по умолчанию русский.
  */
 export function currentLang(): Lang {
+  if (fixedLang) return fixedLang;
   try { const s = localStorage.getItem("lang"); return s === "uz" ? "uz" : "ru"; } catch { return "ru"; }
+}
+
+/*
+  Язык, закреплённый оболочкой, — сильнее сохранённого.
+
+  Консоль платформы (роль superadmin) только русская: владелец, 01.10.2026,
+  «только русский оставь». Сохранённое «uz» в браузере (переключал, будучи
+  директором тестовой организации) не должно делать её узбекской ни в
+  разметке, ни в тостах вне компонентов (tt, currentLang) — поэтому
+  закрепление живёт и здесь, а не только в контексте.
+*/
+let fixedLang: Lang | null = null;
+
+/**
+ * Закрепить язык для всего, что внутри: контекст отдаёт его, setLang ничего
+ * не делает, tt/currentLang вне React отвечают им же. Сохранённый выбор не
+ * трогается — выйдя из консоли, человек получит свой язык обратно.
+ */
+export function FixedLang({ lang, children }: { lang: Lang; children: ReactNode }) {
+  useEffect(() => {
+    fixedLang = lang;
+    return () => { fixedLang = null; };
+  }, [lang]);
+  const translate = useCallback((key: string) => t(lang, key), [lang]);
+  const value = useMemo(() => ({ lang, setLang: () => {}, t: translate, fixed: true }), [lang, translate]);
+  return React.createElement(LangContext.Provider, { value }, children);
 }
 /** Пара «русский / узбекский» по текущему языку — для тостов вне компонентов. */
 export const tt = (ru: string, uz: string): string => (currentLang() === "uz" ? uz : ru);

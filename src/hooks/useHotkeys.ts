@@ -121,8 +121,10 @@ export function useHotkeys(role?: string) {
       if (areHotkeysBlocked(e.key)) return;
       if (e.metaKey || e.ctrlKey || e.altKey) return;
 
-      // N → new order
+      // N → new order. Суперадмину заказов не оформлять: у него нет
+      // организации, и N уводила бы его в «нет доступа».
       if (isNewOrderKey(e)) {
+        if (role === "superadmin") return;
         e.preventDefault();
         if (usesQuickOrder(role)) openQuickOrder();
         else navigate("/orders/new");

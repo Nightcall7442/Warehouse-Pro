@@ -93,7 +93,8 @@ describe("журнал действий", () => {
     const audit = read("api/audit-router.ts");
     expect(audit).toContain("const step = await checkTotpStepUp(ctx.db, ctx.user.id, input.totpCode);");
     expect(audit.indexOf("checkTotpStepUp(")).toBeLessThan(audit.indexOf("await purgeOldAuditLogs("));
-    expect(read("src/components/superadmin/TenantDetail.tsx")).toContain("totpCode: purgeCode.trim()");
+    // Окно уборки — вкладка «Журнал» карточки организации в консоли платформы.
+    expect(read("src/components/superadmin/console/OrgTabs.tsx")).toContain("purge.mutate({ tenantId: d.tenant.id, retentionDays: days, totpCode: code.trim() })");
   });
 
   it("пароль 1С в журнал не попадает", () => {

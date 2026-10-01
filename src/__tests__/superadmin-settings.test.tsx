@@ -12,7 +12,9 @@
  *
  * ── Что проверяется ─────────────────────────────────────────────────────────
  *
- *   - у суперадмина в боковом и нижнем меню есть «Настройки» → /settings;
+ *   - у суперадмина (консоль платформы, с 01.10.2026) в колонке слева —
+ *     карточка «кто вошёл» → /settings?section=profile; на телефоне вкладка
+ *     «Ещё» → /super-admin/more, а там строка профиля туда же;
  *   - на /settings ему видны «Профиль» и «Внешний вид», а разделов
  *     организации и Telegram (личный чат ему ничего не приносит) — нет;
  *     оператору Telegram по-прежнему виден;
@@ -21,15 +23,17 @@
  *     и уговаривает включить код, со вторым фактором — просит и код; кнопка
  *     отправляет в user.changeMyLogin почту в нижнем регистре;
  *   - у оператора логин — надпись, поля нет;
- *   - «Мой профиль» на /super-admin — карточка без формы: логин, состояние
- *     второго фактора и «Настройки профиля» → /settings?section=profile;
+ *   - вместо «Моего профиля» на /super-admin — карточка «кто вошёл» в колонке
+ *     консоли: логин и предупреждение без второго фактора, без своей формы;
+ *   - выбора языка у суперадмина нет ни в «Внешнем виде», ни на телефоне:
+ *     консоль только русская;
  *   - на телефоне (/settings без раздела — PhoneProfile) строка «Логин и
  *     пароль» ведёт к тому же блоку профиля (с 01.10.2026 — у всех ролей), а
  *     строки Telegram у суперадмина нет; у оператора — есть.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, cleanup, within } from "@testing-library/react";
-import { LangProvider } from "@/i18n";
+import { LangProvider, FixedLang } from "@/i18n";
 
 type TestUser = { id: number; name: string; email: string; phone: string; role: string; totpEnabledAt: string | null };
 const h = vi.hoisted(() => {
@@ -59,6 +63,8 @@ vi.mock("@/hooks/useAuth", () => ({
   hadSession: () => true,
 }));
 vi.mock("react-router", () => ({
+  Link: ({ to, children, ...rest }: { to: string; children: React.ReactNode } & Record<string, unknown>) =>
+    <a href={to} {...rest} onClick={(e) => { e.preventDefault(); h.state.navigated.push(to); }}>{children}</a>,
   useNavigate: () => (to: string) => h.state.navigated.push(to),
   useLocation: () => ({ pathname: "/super-admin", search: "", state: null }),
   useSearchParams: () => [new URLSearchParams(h.state.search), () => {}],
@@ -89,7 +95,8 @@ vi.mock("@/components/settings/OperatorAccess", () => ({ OperatorAccess: () => n
 const Layout = (await import("@/components/Layout")).default;
 const Settings = (await import("@/pages/Settings")).default;
 const { ProfileSettings } = await import("@/components/settings/ProfileSettings");
-const { AdminActions } = await import("@/components/superadmin/AdminActions");
+const More = (await import("@/pages/superadmin/More")).default;
+const { AppearanceSettings } = await import("@/components/settings/AppearanceSettings");
 const { PhoneProfile } = await import("@/components/phone/PhoneProfile");
 
 const superadmin = (totp: boolean): TestUser => ({ id: 1, name: "Владелец платформы", email: "superadmin@system.local", phone: "", role: "superadmin", totpEnabledAt: totp ? "2026-10-01T00:00:00Z" : null });
@@ -111,20 +118,25 @@ afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 const show = (node: React.ReactNode) => render(<LangProvider>{node}</LangProvider>);
 
 describe("меню суперадмина", () => {
-  it("сбоку есть «Настройки», и они ведут на /settings", () => {
+  it("в колонке консоли — карточка «кто вошёл», и она ведёт в профиль настроек", () => {
     const { container } = show(<Layout><div /></Layout>);
     const aside = container.querySelector("aside")!;
-    expect(aside, "боковое меню не отрисовалось").toBeTruthy();
-    fireEvent.click(within(aside as HTMLElement).getByRole("button", { name: "Настройки" }));
-    expect(h.state.navigated).toContain("/settings");
+    expect(aside, "колонка консоли не отрисовалась").toBeTruthy();
+    fireEvent.click(within(aside as HTMLElement).getByTestId("console-account"));
+    expect(h.state.navigated).toEqual(["/settings?section=profile"]);
   });
 
-  it("внизу на телефоне есть «Настройки», и они ведут на /settings", () => {
+  it("на телефоне — «Ещё», а там строка профиля туда же", () => {
     const { container } = show(<Layout><div /></Layout>);
     const bottom = container.querySelector("nav.bottom-nav-premium") as HTMLElement;
-    expect(bottom, "нижнее меню не отрисовалось").toBeTruthy();
-    fireEvent.click(within(bottom).getByRole("button", { name: "Настройки" }));
-    expect(h.state.navigated).toEqual(["/settings"]);
+    expect(bottom, "нижние вкладки не отрисовались").toBeTruthy();
+    fireEvent.click(within(bottom).getByRole("button", { name: "Ещё" }));
+    expect(h.state.navigated).toEqual(["/super-admin/more"]);
+    cleanup();
+    h.state.navigated = [];
+    show(<More />);
+    fireEvent.click(screen.getByTestId("more-profile"));
+    expect(h.state.navigated).toEqual(["/settings?section=profile"]);
   });
 });
 
@@ -200,15 +212,44 @@ describe("логин в профиле", () => {
   });
 });
 
-describe("«Мой профиль» на /super-admin", () => {
-  it("карточка без формы: логин, второй фактор, «Настройки профиля» → профиль настроек", () => {
-    show(<AdminActions />);
-    expect(screen.getByTestId("admin-login").textContent).toBe("superadmin@system.local");
-    expect(screen.getByTestId("admin-totp").textContent).toContain("Выключен");
-    expect(document.querySelectorAll("input").length, "дубль формы профиля вернулся").toBe(0);
-    fireEvent.click(screen.getByRole("button", { name: /Настройки профиля/ }));
-    expect(h.state.navigated).toEqual(["/settings?section=profile"]);
+describe("«кто вошёл» в консоли", () => {
+  it("карточка без формы: логин, второй фактор выключен — сказано", () => {
+    const { container } = show(<Layout><div /></Layout>);
+    const card = within(container.querySelector("aside") as HTMLElement).getByTestId("console-account");
+    expect(card.textContent).toContain("superadmin@system.local");
+    expect(card.textContent).toContain("Вход с кодом из приложения выключен");
+    expect(container.querySelector("aside input"), "дубль формы профиля вернулся").toBeNull();
     expect(h.state.mutations).toEqual([]);
+  });
+});
+
+describe("язык у суперадмина не выбирается", () => {
+  // Суперадмин видит настройки внутри консоли платформы — с закреплённым
+  // русским (Layout → ConsoleShell → FixedLang). Остальные — без закрепления.
+  it("«Внешний вид» в консоли — только тема; вне её — и язык", () => {
+    show(<FixedLang lang="ru"><AppearanceSettings /></FixedLang>);
+    expect(screen.queryByText("Язык интерфейса")).toBeNull();
+    expect(screen.getByText("Тема")).toBeTruthy();
+    cleanup();
+    h.state.user = operator;
+    show(<AppearanceSettings />);
+    expect(screen.getByText("Язык интерфейса")).toBeTruthy();
+  });
+
+  it("профиль на телефоне в консоли — без строки «Язык»; вне её — с ней", () => {
+    show(<FixedLang lang="ru"><PhoneProfile /></FixedLang>);
+    expect(screen.queryByText("Язык")).toBeNull();
+    cleanup();
+    h.state.user = operator;
+    show(<PhoneProfile />);
+    expect(screen.getByText("Язык")).toBeTruthy();
+  });
+
+  it("на /settings у суперадмина внутри Layout — «Внешний вид» без языка", () => {
+    h.state.search = "section=appearance";
+    show(<Layout><Settings /></Layout>);
+    expect(screen.queryByText("Язык интерфейса")).toBeNull();
+    expect(document.body.textContent).not.toContain("язык интерфейса");
   });
 });
 

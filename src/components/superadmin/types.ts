@@ -1,6 +1,7 @@
-import { differenceInDays } from "date-fns";
-
 // ── Design tokens ───────────────────────────────────────────────────────────
+// Остались у трёх форм (копия базы, песочница, новая организация). Список,
+// карточка и метки консоли — на общих классах (superadmin/console/ui.tsx),
+// а правило срока и статуса — superadmin/console/orgs.ts (statusOf, daysLeft).
 export const F = { display: "'Manrope', -apple-system, sans-serif", body: "'Manrope', -apple-system, sans-serif" };
 export const COLORS = {
   primary: "var(--color-primary)",
@@ -15,62 +16,3 @@ export const COLORS = {
   info: "#60a5fa",
 };
 export const SHADOW = "var(--shadow-sm, 0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04))";
-
-// ── Types ───────────────────────────────────────────────────────────────────
-export type TenantRow = {
-  id: number; name: string; slug: string;
-  plan: string; status: string; createdAt: Date;
-  trialEndsAt?: Date | null; planExpiresAt?: Date | null;
-  ownerEmail?: string | null;
-  userCount: number; orderCount: number; orderTotal: number;
-  subscription?: { status: string; trialEndsAt: Date | null; currentPeriodEnds: Date | null } | null;
-};
-
-// ── Helpers ─────────────────────────────────────────────────────────────────
-export function fmt(n: number): string {
-  if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + "M";
-  if (n >= 1_000) return (n / 1_000).toFixed(1) + "K";
-  return String(n);
-}
-
-export function money(n: number): string {
-  return new Intl.NumberFormat("ru").format(Math.round(n));
-}
-
-/*
-  Срок — по подписке: она и решает, пустят ли организацию в работу
-  (api/lib/feature-gating.ts). Раньше первым делом смотрелся
-  tenants.trial_ends_at, а он у организации с сайта остаётся навсегда: клиент,
-  перешедший на платный, горел красным «Trial истёк». Без подписки (старые
-  строки) — по тарифу: пробный по концу пробного, платный по оплаченному.
-*/
-export function planStatus(t: TenantRow): { label: string; color: string } {
-  const sub = t.subscription;
-  if (sub && sub.status !== "trialing" && sub.status !== "active") return { label: "Не оплачена", color: COLORS.danger };
-  const trial = sub ? sub.status === "trialing" : t.plan === "trial";
-  if (trial) {
-    const ends = sub ? sub.trialEndsAt : t.trialEndsAt;
-    if (!ends) return { label: "Trial", color: COLORS.info };
-    const d = differenceInDays(new Date(ends), new Date());
-    if (d < 0) return { label: "Trial истёк", color: COLORS.danger };
-    return { label: `Trial ${d}д.`, color: d < 3 ? COLORS.warning : COLORS.info };
-  }
-  const paid = sub ? sub.currentPeriodEnds : t.planExpiresAt;
-  const expires = paid ? new Date(paid) : null;
-  if (!expires) return { label: "Без лимита", color: COLORS.textSecondary };
-  const d = differenceInDays(expires, new Date());
-  if (d < 0) return { label: "Истёк", color: COLORS.danger };
-  return { label: `${d} дн.`, color: d < 7 ? COLORS.warning : COLORS.success };
-}
-
-export const PLAN_COLORS: Record<string, { fg: string; bg: string }> = {
-  trial:     { fg: "#94a3b8",    bg: "rgba(148,163,184,0.12)" },
-  basic:     { fg: "#60a5fa",    bg: "rgba(96,165,250,0.12)" },
-  pro:       { fg: "var(--color-success)",    bg: "rgba(74,222,128,0.12)" },
-  exclusive: { fg: "#a78bfa",    bg: "rgba(167,139,250,0.12)" },
-};
-
-export const STATUS_COLORS: Record<string, { fg: string; bg: string }> = {
-  active:    { fg: "var(--color-success)",    bg: "rgba(74,222,128,0.12)" },
-  suspended: { fg: "var(--color-danger)",    bg: "rgba(232,80,80,0.12)" },
-};

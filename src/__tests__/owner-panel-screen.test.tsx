@@ -1,43 +1,57 @@
 // @vitest-environment jsdom
 /**
- * «Кто платит и кто уходит» на странице суперадмина — на экране.
+ * «Обзор» консоли платформы — кто платит, кто уходит, что требует внимания.
  *
  * ── Что было ────────────────────────────────────────────────────────────────
  *
- * Наверху суперадминки — счётчики по всей платформе и ни одного ответа о
- * деньгах и уходе клиентов; телефон владельца организации — только в её
- * карточке, в двух щелчках от списка.
+ * Сначала наверху суперадминки стояли счётчики по всей платформе и ни одного
+ * ответа о деньгах и уходе клиентов. Потом появилась панель владельца
+ * (OwnerPanel) — четыре списка «кому звонить» подряд, на общей странице
+ * стопкой с обращениями, заявками и отчётом по тарифам. Ошибки сервера и
+ * ночная копия базы жили на другой странице, о новых заявках узнавали,
+ * долистав до них.
  *
  * ── Что проверяется ─────────────────────────────────────────────────────────
  *
- * Настоящий компонент OwnerPanel с ответом ручки tenant.ownerPanel (числа
- * посчитаны на настоящей базе в real-db/owner-panel.test.ts; здесь —
- * показ):
- *   · четыре числа и честная подпись к MRR («по прайсу, без скидок»);
- *   · у каждой строки «кому звонить» — телефон ссылкой tel:, цель касания не
- *     меньше 44 точек; без телефона — так и сказано;
- *   · пробные по этапам: счётчик у каждого этапа, этап у каждой строки;
- *   · на двух языках; пустые списки — честным «пусто».
+ * Настоящий экран «Обзор» с ответами ручек (числа посчитаны на настоящей
+ * базе в real-db/owner-panel.test.ts и real-db/tenant-list-aggregates; здесь
+ * — показ):
+ *   · шесть плиток (платят, MRR, активны из всех, пробные, молчат,
+ *     продления), каждая — ссылка на свой фильтр списка; подпись к MRR
+ *     честная («по прайсу, без скидок»);
+ *   · «Требует внимания»: истекают, молчат, новые заявки, обращения ждут
+ *     ответа, ошибки за сутки, копия базы (старше 26 ч — красным), сверх
+ *     тарифа — у каждого число и адрес, где с ним работают;
+ *   · «Кому позвонить»: у каждой строки телефон ссылкой tel:, цель касания не
+ *     меньше 44 точек; без телефона — так и сказано; пустой список — словами;
+ *   · воронка: счётчик у каждого этапа; у пробной — этап и источник.
  *
- * Нарочная поломка: заменить href на пустой — падает «телефон ссылкой»;
- * снять minHeight у кнопки звонка — «цель касания»; оставить заголовки только
- * по-русски — «по-узбекски»; убрать подпись к MRR — «подпись».
+ * Нарочная поломка (проверено): заменить href звонка на пустой — падает
+ * «телефон ссылкой»; снять minHeight — «цель касания»; убрать подпись к MRR
+ * — «подпись»; поставить порог копии 48 ч — «копия базы»; считать обращения
+ * по сообщениям — «требует внимания».
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, cleanup, within } from "@testing-library/react";
+import { render, screen, cleanup, within, fireEvent } from "@testing-library/react";
+import { MemoryRouter } from "react-router";
 
-const state = vi.hoisted(() => ({ lang: "ru" as "ru" | "uz", data: null as unknown }));
-vi.mock("@/providers/trpc", () => ({
-  trpc: { tenant: { ownerPanel: { useQuery: () => ({ data: state.data, isLoading: false, isError: false }) } } },
-}));
-vi.mock("@/i18n", () => ({
-  useLang: () => ({ lang: state.lang, t: (k: string) => k }),
-  useTranslate: () => (ru: string, uz: string) => (state.lang === "uz" ? uz : ru),
-}));
+const state = vi.hoisted(() => ({ data: {} as Record<string, unknown>, refetched: [] as string[] }));
+vi.mock("@/providers/trpc", () => {
+  const make = (path: string[]): unknown => new Proxy(() => {}, {
+    get: (_t, k: string | symbol) => {
+      if (typeof k === "symbol") return undefined;
+      if (k === "useQuery") return () => ({ data: state.data[path.join(".")], isLoading: false, isError: false, refetch: () => state.refetched.push(path.join(".")) });
+      if (k === "useUtils") return () => make(["utils"]);
+      return make([...path, k]);
+    },
+  });
+  return { trpc: make([]) };
+});
 
-import { OwnerPanel } from "@/components/superadmin/OwnerPanel";
+const Overview = (await import("@/pages/superadmin/Overview")).default;
 
 const DAY = 86_400_000;
+const HOUR = 3_600_000;
 const now = Date.now();
 const panel = () => ({
   generatedAt: new Date(now),
@@ -69,30 +83,87 @@ const panel = () => ({
     ],
   },
 });
+const seg = (s: Record<string, unknown>) => ({ client: true, paying: false, trial: false, trialLive: false, renewalDays: null, silentDays: null, active7: true, price: 0, ...s });
+const org = (id: number, name: string, s: Record<string, unknown>, createdDaysAgo: number) =>
+  ({ id, name, slug: `o${id}`, plan: "trial", isSandbox: false, createdAt: new Date(now - createdDaysAgo * DAY), signupSource: null, subscription: null, segment: seg(s) });
 
-beforeEach(() => { state.lang = "ru"; state.data = panel(); });
+beforeEach(() => {
+  state.data = {
+    "tenant.ownerPanel": panel(),
+    "tenant.list": [
+      org(5, "Пробный Оператор", { trial: true, trialLive: true }, 12),
+      org(6, "Свежий пробный", { trial: true, trialLive: true }, 1),
+      org(7, "Истёкший пробный", { trial: true, trialLive: false }, 30),
+    ],
+    "lead.list": [{ id: 1 }, { id: 2 }],
+    "support.inbox": [{ unread: 4 }, { unread: 0 }, { unread: 1 }],
+    "system.groupedErrors": [{ count: 3 }, { count: 2 }],
+    "system.jobs": { generatedAt: new Date(), jobs: [{ name: "backup", lastSuccessAt: new Date(now - 5 * HOUR) }] },
+    "tenant.featureUsage": [{ tenantId: 1, overreach: ["gps"] }, { tenantId: 2, overreach: [] }],
+  };
+});
 afterEach(cleanup);
+const show = () => render(<MemoryRouter><Overview /></MemoryRouter>);
 
-describe("числа", () => {
-  it("платят, MRR с суммой, активные из всех, молчат", () => {
-    render(<OwnerPanel />);
-    const root = screen.getByTestId("owner-panel");
-    // Первое «Платят сейчас» — карточка числа, второе — заголовок списка.
-    const kpi = within(root).getAllByText("Платят сейчас")[0].closest(".kpi-hero");
-    expect(kpi?.textContent).toBe("Платят сейчас2");
-    expect(root.textContent).toMatch(/898\s000/);
-    expect(root.textContent).toContain("из 12");
+describe("плитки", () => {
+  it("платят, MRR с суммой, активные из всех, пробные, молчат, продления — и ведут в свой фильтр", () => {
+    show();
+    const tile = (k: string) => screen.getByTestId(`tile-${k}`);
+    expect(tile("paying").textContent).toBe("Платят сейчас2");
+    expect(tile("mrr").textContent).toMatch(/898\s000\s?сум/);
+    expect(tile("active").textContent).toContain("из 12");
+    expect(tile("trials").textContent).toContain("2");
+    expect(tile("trials").textContent).toContain("ещё 1 с истёкшим сроком");
+    expect(tile("silent").textContent).toContain("2");
+    expect(tile("paying").getAttribute("href")).toBe("/super-admin/orgs?f=paying");
+    expect(tile("silent").getAttribute("href")).toBe("/super-admin/orgs?f=silent");
+    expect(tile("renewals").getAttribute("href")).toBe("/super-admin/orgs?f=expiring&sort=ends&dir=asc");
+    expect(tile("trials").getAttribute("href")).toBe("/super-admin/orgs?f=trial");
   });
 
   it("подпись к MRR честная: прайс, без скидок и докупленных мест", () => {
-    render(<OwnerPanel />);
+    show();
     expect(screen.getByTestId("owner-mrr-note").textContent).toMatch(/по прайсу: без скидок и без докупленных мест/);
+  });
+});
+
+describe("требует внимания", () => {
+  const row = (k: string) => screen.getByTestId(`attn-${k}`);
+  it("у каждого пункта число и адрес, где с ним работают", () => {
+    show();
+    expect(row("expiring").getAttribute("href")).toBe("/super-admin/orgs?f=expiring&sort=ends&dir=asc");
+    expect(row("silent").textContent).toContain("2");
+    expect(row("leads").getAttribute("href")).toBe("/super-admin/leads");
+    expect(row("leads").textContent).toContain("2");
+    // Обращения — числом разговоров, где ждут, а не сообщений (4 + 1).
+    expect(row("support").textContent).toMatch(/ответа.*2$/);
+    expect(row("support").getAttribute("href")).toBe("/super-admin/support");
+    expect(row("errors").textContent).toContain("5");
+    expect(row("errors").getAttribute("href")).toBe("/super-admin/system");
+    expect(row("overreach").textContent).toContain("1 из 2");
+    expect(row("overreach").getAttribute("href")).toBe("/super-admin/orgs?f=overreach");
+  });
+
+  it("копия базы: свежая — без тревоги; старше 26 часов — красная метка", () => {
+    show();
+    expect(row("backup").getAttribute("href")).toBe("/super-admin/system?tab=jobs");
+    expect(row("backup").textContent).toContain("5 ч назад");
+    expect(screen.queryByTestId("attn-backup-stale")).toBeNull();
+    cleanup();
+    state.data["system.jobs"] = { generatedAt: new Date(), jobs: [{ name: "backup", lastSuccessAt: new Date(now - 27 * HOUR) }] };
+    show();
+    expect(screen.getByTestId("attn-backup-stale").textContent).toBe("старше 26 ч");
+    cleanup();
+    state.data["system.jobs"] = { generatedAt: new Date(), jobs: [] };
+    show();
+    expect(row("backup").textContent).toContain("Удачных копий нет");
+    expect(screen.getByTestId("attn-backup-stale")).toBeTruthy();
   });
 });
 
 describe("кому звонить", () => {
   it("телефон ссылкой tel:, номер группами; без номера — так и сказано", () => {
-    render(<OwnerPanel />);
+    show();
     const silent = screen.getByTestId("owner-silent");
     const call = within(silent).getAllByTestId("owner-call")[0] as HTMLAnchorElement;
     expect(call.getAttribute("href")).toBe("tel:+998901110005");
@@ -101,49 +172,62 @@ describe("кому звонить", () => {
     expect(silent.textContent).toContain("телефона нет");
 
     // Номер из карточки директора, записанный с пробелами, — в ссылке без них.
+    fireEvent.click(screen.getByTestId("owner-tab-paying"));
     const paying = screen.getByTestId("owner-paying");
     expect(within(paying).getAllByTestId("owner-call")[0].getAttribute("href")).toBe("tel:+998910000001");
     expect(paying.textContent).toContain("бессрочно");
   });
 
-  it("цель касания у звонка — не меньше 44 точек", () => {
-    render(<OwnerPanel />);
+  it("цель касания у звонка и у названия — не меньше 44 точек", () => {
+    show();
     for (const a of screen.getAllByTestId("owner-call")) {
       expect(parseInt((a as HTMLElement).style.minHeight, 10)).toBeGreaterThanOrEqual(44);
+    }
+    for (const r of screen.getAllByTestId("owner-row")) {
+      expect(parseInt((r.querySelector("a") as HTMLElement).style.minHeight, 10)).toBeGreaterThanOrEqual(44);
     }
   });
 
   it("пустой список — честным «пусто», а не пропавшим разделом", () => {
-    render(<OwnerPanel />);
+    show();
+    fireEvent.click(screen.getByTestId("owner-tab-renewals"));
     expect(screen.getByTestId("owner-renewals").textContent).toContain("оплаченный срок не кончается ни у кого");
+  });
+
+  it("название ведёт в карточку организации", () => {
+    show();
+    expect(within(screen.getAllByTestId("owner-row")[0]).getByText("Молчит Про").closest("a")?.getAttribute("href")).toBe("/super-admin/orgs/3");
   });
 });
 
 describe("пробные по этапам", () => {
   it("счётчик у каждого этапа, этап и источник у строки", () => {
-    render(<OwnerPanel />);
+    show();
     expect(screen.getByTestId("owner-stage-registered").textContent).toContain("6");
     expect(screen.getByTestId("owner-stage-agent").textContent).toContain("Заведён агент");
     expect(screen.getByTestId("owner-stage-paid").textContent).toContain("1");
+    fireEvent.click(screen.getByTestId("owner-tab-trials"));
     const trials = screen.getByTestId("owner-trials");
     expect(trials.textContent).toContain("Пробный Оператор");
     expect(trials.textContent).toContain("Знакомые, рекомендация · ref: bekzod");
   });
 });
 
-describe("по-узбекски", () => {
-  it("заголовки, этапы и сведения строк — на языке экрана", () => {
-    state.lang = "uz";
-    render(<OwnerPanel />);
-    const root = screen.getByTestId("owner-panel");
-    expect(root.textContent).toContain("Kim to'layapti va kim ketyapti");
-    expect(root.textContent).toContain("5+ kun jim — qo'ng'iroq qiling");
-    expect(screen.getByTestId("owner-stage-agent").textContent).toContain("Agent qo'shildi");
-    expect(root.textContent).toContain("7 kun jim");
-    expect(root.textContent).toContain("Tanishlar, tavsiya");
-    expect(root.textContent).toContain("so'm");
-    // «9 из 12» по-узбекски — «12 tadan»; «12 dan» читалось бы «от 12».
-    expect(root.textContent).toContain("12 tadan");
-    expect(root.textContent).not.toContain("Платят сейчас");
+describe("обновить", () => {
+  it("кнопка в шапке перечитывает все числа обзора разом", () => {
+    state.refetched = [];
+    show();
+    fireEvent.click(screen.getByTestId("overview-refresh"));
+    expect(state.refetched.sort()).toEqual([
+      "lead.list", "support.inbox", "system.groupedErrors", "system.jobs", "tenant.featureUsage", "tenant.list", "tenant.ownerPanel",
+    ]);
+  });
+});
+
+describe("последние регистрации", () => {
+  it("свежие сверху, ссылкой в карточку", () => {
+    show();
+    const links = within(screen.getByTestId("recent-signups")).getAllByRole("link").filter(a => a.getAttribute("href")?.startsWith("/super-admin/orgs/"));
+    expect(links.map(a => a.getAttribute("href"))).toEqual(["/super-admin/orgs/6", "/super-admin/orgs/5", "/super-admin/orgs/7"]);
   });
 });

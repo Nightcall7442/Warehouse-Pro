@@ -65,13 +65,20 @@ const SupervisorPlans      = lazyWithRecovery(() => import("./pages/SupervisorPl
 const Settings             = lazyWithRecovery(() => import("./pages/Settings"));
 const BillingPage          = lazyWithRecovery(() => import("./pages/Billing"));
 const BillingSettings      = lazyWithRecovery(() => import("./pages/BillingSettings"));
-const SuperAdmin           = lazyWithRecovery(() => import("./pages/SuperAdmin"));
+/* Консоль платформы (роль superadmin) — у каждого раздела свой адрес. */
+const ConsoleOverview      = lazyWithRecovery(() => import("./pages/superadmin/Overview"));
+const ConsoleOrgs          = lazyWithRecovery(() => import("./pages/superadmin/Orgs"));
+const ConsoleOrgCard       = lazyWithRecovery(() => import("./pages/superadmin/OrgCard"));
+const ConsoleLeads         = lazyWithRecovery(() => import("./pages/superadmin/Leads"));
+const ConsoleSupport       = lazyWithRecovery(() => import("./pages/superadmin/Support"));
+const ConsoleSystem        = lazyWithRecovery(() => import("./pages/superadmin/System"));
+const ConsoleSandboxes     = lazyWithRecovery(() => import("./pages/superadmin/Sandboxes"));
+const ConsoleMore          = lazyWithRecovery(() => import("./pages/superadmin/More"));
 const PnL                  = lazyWithRecovery(() => import("./pages/PnL"));
 const Salaries             = lazyWithRecovery(() => import("./pages/Salaries"));
 const BarcodePage          = lazyWithRecovery(() => import("./pages/Barcode"));
 const OfflineOrders        = lazyWithRecovery(() => import("./pages/OfflineOrders"));
 const Notifications        = lazyWithRecovery(() => import("./pages/Notifications"));
-const Monitoring           = lazyWithRecovery(() => import("./pages/Monitoring"));
 const Support              = lazyWithRecovery(() => import("./pages/Support"));
 const Returns              = lazyWithRecovery(() => import("./pages/Returns"));
 const AuditLog             = lazyWithRecovery(() => import("./pages/AuditLog"));
@@ -157,6 +164,12 @@ function RootGate() {
 function AppShortcuts() {
   const { user } = useAuth();
   if (!user) return null;
+  /*
+    Суперадмину — свой поиск (консоль платформы: организации по Ctrl+K,
+    components/superadmin/console/OrgSearch). Палитра склада ищет товары,
+    магазины и заказы — ему закрытые, и одно сочетание открывало бы два окна.
+  */
+  if (user.role === "superadmin") return <HotkeysListener role={user.role} />;
   return (
     <>
       <HotkeysListener role={user.role} />
@@ -255,9 +268,22 @@ export default function App() {
           <Route path="/offline-orders" element={<RoleGuard roles={["ceo","operator","supervisor","agent","merchandiser"]}><OfflineOrders /></RoleGuard>} />
           <Route path="/notifications"  element={<Notifications />} />
 
-          {/* SuperAdmin only */}
-          <Route path="/super-admin" element={<RoleGuard roles={["superadmin"]}><SuperAdmin /></RoleGuard>} />
-          <Route path="/monitoring" element={<RoleGuard roles={["superadmin"]}><Monitoring /></RoleGuard>} />
+          {/*
+            Консоль платформы — только суперадмин. /super-admin по-прежнему
+            открывает её (это «Обзор»); прежний /monitoring живёт в закладках
+            и ведёт в «Систему», где мониторинг теперь вкладка.
+          */}
+          <Route path="/super-admin"                 element={<RoleGuard roles={["superadmin"]}><ConsoleOverview /></RoleGuard>} />
+          <Route path="/super-admin/orgs"            element={<RoleGuard roles={["superadmin"]}><ConsoleOrgs /></RoleGuard>} />
+          <Route path="/super-admin/orgs/:id"        element={<RoleGuard roles={["superadmin"]}><ConsoleOrgCard /></RoleGuard>} />
+          <Route path="/super-admin/orgs/:id/:tab"   element={<RoleGuard roles={["superadmin"]}><ConsoleOrgCard /></RoleGuard>} />
+          <Route path="/super-admin/leads"           element={<RoleGuard roles={["superadmin"]}><ConsoleLeads /></RoleGuard>} />
+          <Route path="/super-admin/support"         element={<RoleGuard roles={["superadmin"]}><ConsoleSupport /></RoleGuard>} />
+          <Route path="/super-admin/system"          element={<RoleGuard roles={["superadmin"]}><ConsoleSystem /></RoleGuard>} />
+          <Route path="/super-admin/sandboxes"       element={<RoleGuard roles={["superadmin"]}><ConsoleSandboxes /></RoleGuard>} />
+          <Route path="/super-admin/more"            element={<RoleGuard roles={["superadmin"]}><ConsoleMore /></RoleGuard>} />
+          <Route path="/super-admin/*"               element={<Navigate to="/super-admin" replace />} />
+          <Route path="/monitoring" element={<Navigate to="/super-admin/system" replace />} />
           {/* «Отчёты склада» — вкладка на странице склада; прежний адрес живёт в справке и закладках. */}
           <Route path="/warehouse-reports" element={<Navigate to="/warehouse?tab=reports" replace />} />
           {/*
