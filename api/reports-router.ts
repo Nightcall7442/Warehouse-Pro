@@ -1,8 +1,10 @@
 import { photoRef } from "./lib/photo-url";
 import { z } from "zod";
-import { createRouter, reportsQuery, managementQuery } from "./middleware";
+import { createRouter, reportsQuery, managementQuery, financeQuery, FINANCE_ROLES } from "./middleware";
 import { TRPCError } from "@trpc/server";
 import { noOrderReport } from "./services/no-order-visits";
+import { marginReport } from "./services/margin-report";
+import { abcReport } from "./services/abc-report";
 import { getDb } from "./queries/connection";
 import { orders, users, dailyPlans, agentLocations, subscriptions, shops, products, stockMovements } from "@db/schema";
 import { eq, and, sql, gte, desc , inArray, isNull } from "drizzle-orm";
@@ -11,6 +13,22 @@ import { REVENUE_ORDER_STATUSES } from "./lib/order-status";
 import { subDays, format } from "date-fns";
 import { onDate } from "./lib/date-range";
 import { reportCached, ReportTTL } from "./lib/report-cache";
+
+/** День «ГГГГ-ММ-ДД». */
+const DAY = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+
+/** Период отчёта — от одного дня до года; иначе отказ, а не минутный запрос. */
+function periodOrThrow(from: string, to: string) {
+  const days = (Date.parse(to) - Date.parse(from)) / 86_400_000;
+  if (!(days >= 0) || days > 366) {
+    throw new TRPCError({ code: "BAD_REQUEST", message: "Период — от одного дня до года." });
+  }
+}
+
+/** Кому открыты себестоимость и прибыль — тот же круг, что у financeQuery. */
+function seesFinance(role: string | undefined): boolean {
+  return role != null && FINANCE_ROLES.includes(role);
+}
 
 export const reportsRouter = createRouter({
   /** KPI summary for the Reports page */
@@ -191,6 +209,52 @@ export const reportsRouter = createRouter({
     его работа, а «Отчёты» ему открыты ради полки. Правило «визит с заказом»
     и разбивки — services/no-order-visits.ts.
   */
+  /*
+    «Прибыль»: выручка, себестоимость и валовая прибыль по товарам, магазинам
+    или агентам за период, со сверкой с P&L (services/margin-report.ts).
+
+    financeQuery — себестоимость и маржа только тем, кому открыт P&L: наценка
+    в руках поля — это то, насколько магазин может давить на цену.
+    Кэш — как у P&L: пять минут, сброс заказами, оплатами, возвратами и
+    приходами. Ключ без пользователя: финансы видит один круг людей.
+  */
+  margin: financeQuery
+    .input(z.object({
+      from: DAY,
+      to: DAY,
+      by: z.enum(["product", "shop", "agent"]),
+    }))
+    .query(({ input, ctx }) => {
+      periodOrThrow(input.from, input.to);
+      return reportCached(ctx.tenant.id, "reports.margin", input, ReportTTL.fiveMin,
+        () => marginReport(getDb(), ctx.tenant.id, input.from, input.to, input.by));
+    }),
+
+  /*
+    ABC-анализ товаров или магазинов (services/abc-report.ts).
+
+    По выручке — всем, кому открыты «Продажи»; по прибыли — только финансам
+    (как «Прибыль»): прибыль строки — та же наценка. Себестоимость остатка
+    C-товаров тоже только финансам, остальным — по цене продажи; поэтому
+    «финансы или нет» — часть ключа кэша, а не пользователь целиком.
+  */
+  abc: reportsQuery
+    .input(z.object({
+      from: DAY,
+      to: DAY,
+      of: z.enum(["product", "shop"]),
+      metric: z.enum(["revenue", "profit"]).default("revenue"),
+    }))
+    .query(({ input, ctx }) => {
+      periodOrThrow(input.from, input.to);
+      const finance = seesFinance(ctx.user.role);
+      if (input.metric === "profit" && !finance) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "ABC по прибыли открыт тем, кому открыт P&L." });
+      }
+      return reportCached(ctx.tenant.id, "reports.abc", { ...input, finance }, ReportTTL.fiveMin,
+        () => abcReport(getDb(), ctx.tenant.id, { ...input, finance }));
+    }),
+
   noOrderVisits: managementQuery
     .input(z.object({
       dateFrom: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),

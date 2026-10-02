@@ -9,7 +9,8 @@
  * управляемой базе; две тысячи строк — минуты внутри одного запроса.
  *
  * Нарочная поломка: замени в analytics-router `Promise.all([` у calcPeriod
- * на последовательные await — первый тест назовёт место.
+ * (или в services/period-gross.ts у periodGross) на последовательные await —
+ * первый тест назовёт место.
  */
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
@@ -21,8 +22,13 @@ describe("прибыль", () => {
     const src = read("api/analytics-router.ts");
     const at = src.indexOf("async function calcPeriod(");
     const body = src.slice(at, src.indexOf("const delta = (curr", at));
-    expect(body).toContain("revRowP, cogsRowP, expenseRowP, payrollRowP, returnsInPeriod(db, tid, dateFrom, dateTo),");
+    // Выручка, себестоимость и возвраты — внутри periodGross (services/period-gross.ts,
+    // общий расчёт с отчётом «Прибыль»), расходы и зарплата — здесь; всё разом.
+    expect(body).toContain("periodGross(db, tid, dateFrom, dateTo), expenseRowP, payrollRowP,");
     expect(body).not.toMatch(/const (revRow|cogsRow|expenseRow|payrollRow) = await db\.select/);
+    const gross = read("api/services/period-gross.ts");
+    expect(gross).toMatch(/await Promise\.all\(\[\s*revRowP, cogsRowP, preloadedReturns \?/);
+    expect(gross).not.toMatch(/const (revRow|cogsRow) = await db\.select/);
     // previousRaw: пустой прошлый период превращается в null строкой ниже, но читается разом.
     expect(body).toMatch(/const \[current, previousRaw\] = await Promise\.all\(\[/);
   });

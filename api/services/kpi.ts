@@ -1178,7 +1178,13 @@ export function kpiScoreOf(metrics: {
   returnRate: number;
   debtCollection: number;
 }, fraudRate: number): number {
-  return Math.max(0, calculateCompositeScore(metrics) - fraudRate * FRAUD_PENALTY_WEIGHT);
+  /*
+    Целым — как и состав. Штраф дробный (7% подозрительных × 0,3 = 2,1), и
+    без округления телефон агента печатал «27.900000000000002/100»: двоичная
+    дробь вычитания, выведенная как есть. Округляется здесь, а не на экране:
+    балл — одно число на все экраны, на мобилку и в зарплату.
+  */
+  return Math.max(0, Math.round(calculateCompositeScore(metrics) - fraudRate * FRAUD_PENALTY_WEIGHT));
 }
 
 function getGrade(score: number): "A" | "B" | "C" | "D" | "F" {

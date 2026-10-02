@@ -98,6 +98,8 @@ export const NOTHING_RETURNED: ReturnedValue = { amount: 0, cost: 0, count: 0 };
  * нечего. Складывают строки функции ниже, и только они знают счёт.
  */
 export interface ReturnRow {
+  /** Документ возврата — чтобы разложить его по строкам (returnedByProduct). */
+  id: number;
   /** Месяц проведения, «ГГГГ-ММ» — для месячного графика. */
   month: string;
   /** Способ оплаты ЗАКАЗА — для разбивки «чем платят». */
@@ -179,6 +181,7 @@ export async function returnsInPeriod(
   }
 
   return rows.map(r => ({
+    id:            Number(r.id),
     month:         r.month,
     paymentMethod: r.paymentMethod ?? "unknown",
     agentId:       r.agentId ?? null,
@@ -238,4 +241,75 @@ export function returnedByAgent(rows: ReturnRow[]): Map<number, ReturnedValue> {
 /** Что вернулось у одного агента — ноль, если ничего. */
 export function returnedOf(byAgent: Map<number, ReturnedValue>, agentId: number): ReturnedValue {
   return byAgent.get(agentId) ?? NOTHING_RETURNED;
+}
+
+/**
+ * Возвраты периода по ТОВАРАМ — для отчёта «Прибыль» и ABC по товарам.
+ *
+ * Отбор тот же, что у returnsInPeriod (тот же запрос шапок), и только
+ * поэтому сумма по товарам сходится с суммой по документам. Сумма документа
+ * (returns.total_amount) делится между его строками пропорционально их сумме:
+ * документ мог быть проведён по цене, отличной от строк (оператор поправил
+ * цену агента), а вычесть из выручки надо именно сумму документа. Строки с
+ * нулевой суммой делят по количеству.
+ *
+ * Документ без строк товара не имеет — его сумма уходит в `unassigned`, чтобы
+ * итог по товарам всё равно сходился с P&L, а не терял её молча.
+ */
+export async function returnedByProduct(
+  db: Db, tenantId: number, from: string, to: string,
+  /** Шапки, уже прочитанные returnsInPeriod, — не читать их второй раз. */
+  headers?: ReturnRow[],
+): Promise<{ byProduct: Map<number, ReturnedValue>; unassigned: ReturnedValue }> {
+  const heads = headers ?? await returnsInPeriod(db, tenantId, from, to);
+  const byProduct = new Map<number, ReturnedValue>();
+  const unassigned: ReturnedValue = { ...NOTHING_RETURNED };
+  if (heads.length === 0) return { byProduct, unassigned };
+
+  const ids = heads.map(h => h.id);
+  const lines = await db.select({
+    returnId:    returnItems.returnId,
+    productId:   returnItems.productId,
+    quantity:    returnItems.quantity,
+    subtotal:    returnItems.subtotal,
+    orderCost:   orderItems.costPrice,
+    productCost: products.costPrice,
+  })
+    .from(returnItems)
+    .leftJoin(returns, eq(returns.id, returnItems.returnId))
+    .leftJoin(orderItems, and(
+      eq(orderItems.orderId, returns.orderId),
+      eq(orderItems.productId, returnItems.productId),
+    ))
+    .leftJoin(products, and(eq(products.id, returnItems.productId), eq(products.tenantId, tenantId)))
+    .where(inArray(returnItems.returnId, ids));
+
+  const linesOf = new Map<number, typeof lines>();
+  for (const l of lines) {
+    const k = Number(l.returnId);
+    linesOf.set(k, [...(linesOf.get(k) ?? []), l]);
+  }
+  for (const h of heads) {
+    const own = linesOf.get(h.id) ?? [];
+    if (own.length === 0) {
+      unassigned.amount += h.amount;
+      unassigned.count += 1;
+      continue;
+    }
+    const bySum = own.reduce((s, l) => s + (Number(l.subtotal) || 0), 0);
+    const byQty = own.reduce((s, l) => s + (Number(l.quantity) || 0), 0);
+    for (const l of own) {
+      const weight = bySum > 0 ? (Number(l.subtotal) || 0) / bySum
+        : byQty > 0 ? (Number(l.quantity) || 0) / byQty : 1 / own.length;
+      const unit = Number(l.orderCost ?? l.productCost ?? 0) || 0;
+      const pid = Number(l.productId);
+      const prev = byProduct.get(pid) ?? NOTHING_RETURNED;
+      byProduct.set(pid, {
+        amount: prev.amount + h.amount * weight,
+        cost:   prev.cost + (Number(l.quantity) || 0) * unit,
+        count:  prev.count + 1,
+      });
+    }
+  }
+  return { byProduct, unassigned };
 }

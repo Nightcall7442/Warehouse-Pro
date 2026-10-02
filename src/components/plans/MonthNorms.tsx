@@ -4,6 +4,8 @@ import { trpc } from "@/providers/trpc";
 import { notify } from "@/lib/toast";
 import { useCurrency } from "@/hooks/useCurrency";
 import { monthEnd, monthLabel } from "./month";
+import { ForecastCell } from "@/components/plans/PlanForecast";
+import { useForecastByUser } from "@/components/plans/forecast-data";
 
 /*
   ── Нормы на месяц ──────────────────────────────────────────────────────────
@@ -93,6 +95,9 @@ export function MonthNorms({ month, lang }: { month: string; lang: string }) {
     periodType: "monthly", dateFrom: monthStart, dateTo: periodEnd,
   });
   const { data: overview } = trpc.schedule.monthOverview.useQuery({ month });
+  // Прогноз — только у текущего месяца: у прошлого есть итог, у будущего — ничего.
+  const { forecast, byUser: forecastBy } = useForecastByUser();
+  const showForecast = forecast?.month === month;
   const suggest = trpc.salesTarget.autoSuggest.useQuery(
     { targetMonth: monthStart },
     { enabled: false },
@@ -226,7 +231,7 @@ export function MonthNorms({ month, lang }: { month: string; lang: string }) {
         </p>
       ) : (
         <div style={{ overflowX: "auto" }}>
-          <table className="data-table" style={{ minWidth: "760px" }}>
+          <table className="data-table" style={{ minWidth: showForecast ? "900px" : "760px" }}>
             <thead>
               <tr>
                 <th style={{ textAlign: "left" }}>{t("Сотрудник", "Xodim")}</th>
@@ -235,6 +240,7 @@ export function MonthNorms({ month, lang }: { month: string; lang: string }) {
                 <th style={{ textAlign: "right" }}>{t("Заказов", "Buyurtma")}</th>
                 <th style={{ textAlign: "right" }}>{t("Визиты", "Tashrif")}</th>
                 <th style={{ textAlign: "right" }}>{t("Факт за месяц", "Oylik fakt")}</th>
+                {showForecast && <th style={{ textAlign: "right" }}>{t("Прогноз", "Prognoz")}</th>}
               </tr>
             </thead>
             <tbody>
@@ -272,6 +278,11 @@ export function MonthNorms({ month, lang }: { month: string; lang: string }) {
                         <Fact label={t("визитов", "tashrif")} value={`${Math.round(r.factVisitPct)}%`} ok={r.factVisitPct >= num(r.visitPct) && num(r.visitPct) > 0} />
                       </span>
                     </td>
+                    {showForecast && (
+                      <td style={{ textAlign: "right" }}>
+                        {forecastBy.get(r.userId) ? <ForecastCell line={forecastBy.get(r.userId)!} lang={lang} fmt={n => fmt(n)} /> : "—"}
+                      </td>
+                    )}
                   </tr>
                 );
               })}

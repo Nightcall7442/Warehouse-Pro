@@ -46,7 +46,10 @@ describe("карточки прибыли и график считают по о
     // revenueOrderConditions. Из двух доставленных заказов по 9 000 000, один
     // из которых удалён, карточка показывала 18 000 000, а график под ней —
     // 9 000 000.
-    expect(SRC).toContain("revenuePeriodConditions(tid, dateFrom, dateTo)");
+    // Верх P&L вынесен в services/period-gross.ts (его же раскладывает отчёт
+    // «Прибыль»): P&L обязан звать его, а он — общий помощник.
+    expect(SRC).toContain("periodGross(db, tid, dateFrom, dateTo)");
+    expect(read("services/period-gross.ts")).toContain("revenuePeriodConditions(tenantId, from, to)");
   });
 
   it("помощник несёт и статус, и фильтр удалённых, и конец дня", () => {

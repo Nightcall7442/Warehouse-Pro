@@ -460,6 +460,13 @@ export const auditQuery      = authedQuery.use(requireRole(["ceo", "superadmin"]
  * never quietly widens who may read the margin.
  */
 export const financeQuery    = authedQuery.use(requireRole(["ceo"]));
+/**
+ * Тот же круг, что у financeQuery, — для ручек, открытых шире, но с частью
+ * ответа «только финансам» (ABC по прибыли в reports.abc). Список выписан
+ * вторым разом, потому что стражи ролей читают requireRole([...]) из текста;
+ * совпадение держит api/__tests__/director-reports-access.test.ts.
+ */
+export const FINANCE_ROLES: readonly string[] = ["ceo"];
 
 /**
  * The team's numbers, as opposed to your own.

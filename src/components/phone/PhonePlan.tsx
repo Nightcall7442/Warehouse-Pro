@@ -161,13 +161,15 @@ function KpiCard() {
     { label: `${t("Долги", "Qarz")} (10%)`, pct: kpi.debtCollectionRate, color: "var(--color-danger)" },
   ];
   const total = salary && typeof salary === "object" && "totalSalary" in salary ? Number(salary.totalSalary) : null;
+  // Балл — целым и здесь, не только на сервере: «27.900000000000002/100» на
+  // телефоне агента — двоичная дробь штрафа, выведенная как есть (kpiScoreOf).
   return (
     <Section
       title={t("Показатели", "Ko'rsatkichlar")}
       aside={
         <span className="flex items-center gap-1.5">
           <span className="flex items-center justify-center" style={{ width: 28, height: 28, borderRadius: 8, background: `color-mix(in srgb, ${gradeColor} 14%, transparent)`, color: gradeColor, fontSize: 14, fontWeight: 800 }}>{kpi.kpiGrade}</span>
-          <span className="font-data" style={{ fontSize: 13, fontWeight: 700, color: "var(--color-text-primary)" }}>{kpi.kpiScore}/100</span>
+          <span className="font-data" style={{ fontSize: 13, fontWeight: 700, color: "var(--color-text-primary)" }}>{Math.round(kpi.kpiScore)}/100</span>
         </span>
       }
     >
