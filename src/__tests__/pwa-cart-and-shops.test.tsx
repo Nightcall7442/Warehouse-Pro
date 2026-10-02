@@ -15,6 +15,8 @@ import { render, screen, cleanup, fireEvent, within } from "@testing-library/rea
  * падает «поиск показывает точки сразу».
  */
 vi.mock("@/i18n", () => ({ useLang: () => ({ lang: "ru" }) }));
+// Светофоры видимых карточек (components/shops/shop-light-ui) — здесь не проверяются.
+vi.mock("@/providers/trpc", () => ({ trpc: { shop: { lights: { useQuery: () => ({ data: [] }) } } } }));
 
 import { addToCart, loadCart, clearCart, cartToItems } from "@/lib/catalog-cart";
 import { ShopBrowser } from "@/components/phone/ShopBrowser";

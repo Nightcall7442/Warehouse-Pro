@@ -185,14 +185,40 @@ export async function recalcShopDebt(tx: Tx, tenantId: number, shopId: number): 
 export async function overdueDebt(
   db: Db | Tx, tenantId: number, shopId: number, graceDays: number,
 ): Promise<{ amount: number; oldestDays: number }> {
-  const grace = Math.max(0, Math.floor(graceDays));
+  const byShop = await overdueDebtByShop(db, tenantId, new Map([[shopId, graceDays]]));
+  return byShop.get(shopId) ?? { amount: 0, oldestDays: 0 };
+}
+
+/**
+ * Та же просрочка — сразу по многим магазинам, одним запросом.
+ *
+ * Светофору магазинов (services/shop-light.ts) нужна просрочка каждой строки
+ * списка, а звать overdueDebt в цикле — запрос на магазин. Второго правила
+ * здесь нет: overdueDebt выше — это ровно этот запрос с одним магазином.
+ *
+ * Отсрочка у каждого магазина своя, поэтому приходит картой «магазин →
+ * отсрочка» и подставляется в запрос через CASE. Какую отсрочку брать (своя
+ * магазина или организации), решает вызывающий — services/overdue-hold.ts.
+ * В ответе только магазины с просрочкой; нет строки — нет просрочки.
+ */
+export async function overdueDebtByShop(
+  db: Db | Tx, tenantId: number, graceByShop: Map<number, number>,
+): Promise<Map<number, { amount: number; oldestDays: number }>> {
+  const out = new Map<number, { amount: number; oldestDays: number }>();
+  const ids = [...graceByShop.keys()];
+  if (ids.length === 0) return out;
+  const grace = sql`CASE o.shop_id ${sql.join(
+    ids.map(id => sql`WHEN ${id} THEN ${Math.max(0, Math.floor(graceByShop.get(id) ?? 0))}`), sql` `,
+  )} ELSE 0 END`;
   const result = await db.execute(sql`
     SELECT
+      x.shop_id                AS shopId,
       COALESCE(SUM(x.owed), 0) AS amount,
       COALESCE(MAX(x.age), 0)  AS oldestDays,
-      (SELECT CAST(s.debt AS DECIMAL(15,2)) FROM shops s WHERE s.id = ${shopId} AND s.tenant_id = ${tenantId}) AS shopDebt
+      (SELECT CAST(s.debt AS DECIMAL(15,2)) FROM shops s WHERE s.id = x.shop_id AND s.tenant_id = ${tenantId}) AS shopDebt
     FROM (
       SELECT
+        o.shop_id,
         GREATEST(0, CAST(o.total AS DECIMAL(15,2)) - ${PAID_ON_ORDER} - COALESCE((
           SELECT SUM(CAST(r.total_amount AS DECIMAL(15,2))) FROM returns r
           WHERE r.order_id = o.id AND r.tenant_id = o.tenant_id AND r.status = 'completed'
@@ -204,14 +230,16 @@ export async function overdueDebt(
           DATE_ADD(DATE(COALESCE(o.delivered_at, o.first_ordered_at, o.created_at)), INTERVAL ${grace} DAY)
         ) AS due
       FROM orders o
-      WHERE o.shop_id = ${shopId} AND o.tenant_id = ${tenantId}
+      WHERE o.shop_id IN (${sql.join(ids.map(id => sql`${id}`), sql`, `)}) AND o.tenant_id = ${tenantId}
         AND o.deleted_at IS NULL AND o.status = 'delivered'
     ) x
     WHERE x.owed > 0 AND x.due < CURDATE()
+    GROUP BY x.shop_id
   `);
-  const rows = (Array.isArray(result) ? result[0] : result) as unknown as Array<{ amount: unknown; oldestDays: unknown; shopDebt: unknown }>;
-  const row = Array.isArray(rows) ? rows[0] : undefined;
-  const amount = Math.round(Math.min(Number(row?.amount ?? 0), Number(row?.shopDebt ?? 0)));
-  if (!(amount >= 1)) return { amount: 0, oldestDays: 0 };
-  return { amount, oldestDays: Number(row?.oldestDays ?? 0) };
+  const rows = (Array.isArray(result) ? result[0] : result) as unknown as Array<{ shopId: unknown; amount: unknown; oldestDays: unknown; shopDebt: unknown }>;
+  for (const row of Array.isArray(rows) ? rows : []) {
+    const amount = Math.round(Math.min(Number(row.amount ?? 0), Number(row.shopDebt ?? 0)));
+    if (amount >= 1) out.set(Number(row.shopId), { amount, oldestDays: Number(row.oldestDays ?? 0) });
+  }
+  return out;
 }

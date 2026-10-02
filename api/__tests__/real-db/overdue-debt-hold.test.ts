@@ -28,7 +28,7 @@
  * 10. Повтор из офлайн-очереди тем же ключом — тот же заказ, не ошибка.
  *
  * Нарочные поломки (каждая роняет свою проверку):
- *   • в services/overdue-hold.ts `shop.grace ?? cfg.grace` → `cfg.grace` — 4;
+ *   • в services/overdue-hold.ts `shop.grace ?? orgGrace` → `orgGrace` — 4;
  *   • в services/shop-debt.ts убрать `o.tenant_id = ${tenantId}` — 7;
  *   • в services/shop-debt.ts убрать подзапрос debt_reminders из COALESCE — 3;
  *   • в services/order-create.ts `status: txHold ? …` → `input.holdReason ? …` — 2.

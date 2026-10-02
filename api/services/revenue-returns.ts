@@ -103,6 +103,8 @@ export interface ReturnRow {
   /** Способ оплаты ЗАКАЗА — для разбивки «чем платят». */
   paymentMethod: string;
   agentId: number | null;
+  /** Магазин заказа — для среднего чека магазина (светофор, services/shop-light.ts). */
+  shopId: number;
   /** Сумма продажи, вернувшаяся магазину. */
   amount: number;
   /** Себестоимость вернувшегося товара. */
@@ -119,13 +121,17 @@ export interface ReturnRow {
  */
 export async function returnsInPeriod(
   db: Db, tenantId: number, from: string, to: string,
+  /** Только эти магазины — светофору не нужны возвраты всей организации. */
+  opts: { shopIds?: number[] } = {},
 ): Promise<ReturnRow[]> {
+  if (opts.shopIds && opts.shopIds.length === 0) return [];
   const rows = await db.select({
     id:            returns.id,
     month:         sql<string>`DATE_FORMAT(${returns.createdAt}, '%Y-%m')`,
     amount:        returns.totalAmount,
     paymentMethod: orders.paymentMethod,
     agentId:       orders.agentId,
+    shopId:        orders.shopId,
   })
     .from(returns)
     // innerJoin, а не leftJoin: возврат без заказа выручку не уменьшает —
@@ -138,6 +144,7 @@ export async function returnsInPeriod(
       sql`${returns.createdAt} <= ${to + " 23:59:59"}`,
       // Тот же отбор, что у выручки: доставлен, не удалён.
       ...revenueOrderConditions(tenantId),
+      ...(opts.shopIds ? [inArray(orders.shopId, opts.shopIds)] : []),
     ));
 
   if (rows.length === 0) return [];
@@ -175,6 +182,7 @@ export async function returnsInPeriod(
     month:         r.month,
     paymentMethod: r.paymentMethod ?? "unknown",
     agentId:       r.agentId ?? null,
+    shopId:        Number(r.shopId),
     amount:        Number(r.amount) || 0,
     cost:          costByReturn.get(Number(r.id)) ?? 0,
   }));

@@ -31,6 +31,7 @@ import { OversightShops } from "@/components/phone/OversightShops";
 
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useUrlState, urlString, urlMaybeString, urlNumber, urlPage, urlBool, urlEnum } from "@/hooks/useUrlState";
+import { useShopLights } from "@/components/shops/shop-light-ui";
 
 // Наборы допустимых значений объявлены вне компонента: иначе на каждой
 // отрисовке это новый объект, и useCallback внутри хука пересобирался бы
@@ -103,6 +104,9 @@ function DesktopShops() {
     // ввод — именно это и выглядело как перезагрузка.
     placeholderData: keepPreviousData,
   });
+  // Светофор каждой строки страницы — одним запросом, не по магазину.
+  const pageIds = useMemo(() => (data?.data ?? []).map(s => s.id), [data]);
+  const lights = useShopLights(pageIds);
   const { data: territories } = trpc.shop.territories.useQuery();
   const { data: realTerritories } = trpc.territory.list.useQuery();
   /*
@@ -423,7 +427,7 @@ function DesktopShops() {
             )}
 
             <ShopList
-              data={data?.data} isLoading={isLoading} lang={lang} fmt={fmt}
+              data={data?.data} isLoading={isLoading} lang={lang} fmt={fmt} lights={lights}
               selectable={canEdit}
               selected={selected} allSelected={allSelected}
               onSelectAll={toggleSelectAll} onToggleSelect={toggleSelect}
