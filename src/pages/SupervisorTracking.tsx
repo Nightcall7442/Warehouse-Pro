@@ -17,6 +17,7 @@ import { AgentDayPanel } from "@/components/tracking/AgentDayPanel";
 import { buildAgentDays } from "@/components/tracking/agent-day";
 import { drawTrail } from "@/lib/tracking-motion";
 import { pathLengthKm } from "@contracts/geo";
+import { YANDEX_MAPS_API_KEY, loadYandexMaps } from "@/lib/yandex-maps";
 
 /**
  * ЧТО ЭТО ЗА ЭКРАН
@@ -34,20 +35,10 @@ import { pathLengthKm } from "@contracts/geo";
  * обычный день, и экран обязан объяснять именно его.
  */
 
-/**
- * Ключ Яндекс.Карт.
- *
- * Значение в коде — запасное, на случай сборки без переменной: локально, из
- * форка, в тесте. Секретом оно не является — ключ карт уходит в браузер
- * вместе с бандлом при любом способе хранения, и ограничен на стороне
- * Яндекса списком доменов, а не тайной.
- *
- * Переменную читать всё равно нужно: у разных сред разные списки доменов, и
- * ключ иногда меняют. До сих пор эта строка была бесполезной — Dockerfile не
- * передавал VITE_YANDEX_MAPS_API_KEY в сборку, Vite её не видел, и в
- * продакшн всегда уезжало запасное значение.
- */
-const YANDEX_MAPS_API_KEY = import.meta.env.VITE_YANDEX_MAPS_API_KEY || "dd072e98-24e7-4b2e-b328-2989bd981fa5";
+/*
+  Ключ и загрузка скрипта Яндекс.Карт — src/lib/yandex-maps.ts: тот же
+  скрипт нужен карте продаж в «Отчётах», а тег на странице должен быть один.
+*/
 
 /**
  * Карта во всю доступную высоту.
@@ -241,29 +232,16 @@ export default function SupervisorTracking() {
       });
     };
 
-    if (window.ymaps) { start(); return () => { cancelled = true; }; }
-
     /*
-      Скрипт грузится один раз на страницу. Второй <script> с тем же API —
-      «api is already enabled on this page with same namespace» в консоли:
-      так бывало при повторном монтировании, пока первый ещё не загрузился
-      (StrictMode в разработке, быстрый уход и возврат на карту). Если тег
-      уже есть — ждём его загрузки.
+      Скрипт грузится один раз на страницу (lib/yandex-maps.ts): второй
+      <script> с тем же API — «api is already enabled on this page with same
+      namespace». Отказ загрузки и ненастроенный ключ — разные беды с разным
+      лечением, поэтому и сообщения у них разные.
     */
-    const existing = document.querySelector<HTMLScriptElement>("script[data-ymaps]");
-    if (existing) {
-      existing.addEventListener("load", start, { once: true });
-      return () => { cancelled = true; existing.removeEventListener("load", start); };
-    }
-    const script = document.createElement("script");
-    script.dataset.ymaps = "1";
-    script.src = `https://api-maps.yandex.ru/2.1/?apikey=${YANDEX_MAPS_API_KEY}&lang=ru_RU`;
-    script.onload  = () => start();
-    // Отказ загрузки и ненастроенный ключ — разные беды с разным лечением, а
-    // сообщение было одно на оба: «Настройте VITE_YANDEX_MAPS_API_KEY» при
-    // отсутствии интернета отправляло чинить то, что не сломано.
-    script.onerror = () => setMapError("script");
-    document.head.appendChild(script);
+    loadYandexMaps().then(
+      () => { if (!cancelled) start(); },
+      () => { if (!cancelled) setMapError("script"); },
+    );
     return () => { cancelled = true; };
   }, []);
 
