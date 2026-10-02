@@ -135,7 +135,7 @@ describe.skipIf(!hasRealDb)("«Принять по заявленному»: в�
       await courier.markOutForDelivery({ orderId: id });
       await courier.completeDelivery({ orderId: id, result: "paid", paymentMethod: "cash", paidAmount: "200" });
       const split = await delivered("250.50", [["150.50", "cash"], ["100.00", "card"]], { shopId });
-      await (db as any).insert(schema.debtReminders).values({ tenantId: s.tenantId, shopId, orderId: split, amount: "100.00", dueDate: sql`'2026-10-10'` });
+      await (db as any).insert(schema.debtReminders).values({ tenantId: s.tenantId, shopId, orderId: split, amount: "100.00", dueDate: sql`'2099-10-10'` });
       return [id, split];
     };
     const [batchIds, singleIds] = [await build(shops[0]), await build(shops[1])];
@@ -171,7 +171,7 @@ describe.skipIf(!hasRealDb)("«Принять по заявленному»: в�
       expect(await remindersOf(x), `напоминания заказа ${i}`).toEqual(await remindersOf(y));
     }
     expect((await moneyOf(batchIds[0])).awaiting).toBe(false);
-    expect(await remindersOf(batchIds[1]), "срок долга потерялся").toEqual([{ amount: 100, dueDate: "2026-10-10", status: "pending" }]);
+    expect(await remindersOf(batchIds[1]), "срок долга потерялся").toEqual([{ amount: 100, dueDate: "2099-10-10", status: "pending" }]);
     const debt = async (shopId: number) => (await (db as any).select({ d: schema.shops.debt }).from(schema.shops).where(eq(schema.shops.id, shopId)))[0].d;
     expect(await debt(shops[0]), "долг магазина").toBe(await debt(shops[1]));
   });
