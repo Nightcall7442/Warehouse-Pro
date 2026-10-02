@@ -12,6 +12,9 @@ import { compressImage } from "@/lib/compress-image";
 import { dateLocale } from "@/lib/date-locale";
 import { Donut, ProgressBar, EmptyState, StatusPill } from "./kit";
 import { CARD } from "./tones";
+import { useNoOrderGate } from "@/components/visits/useNoOrderGate";
+import type { NoOrderChoice } from "@/components/visits/NoOrderReason";
+import { noOrderReasonText } from "@contracts/no-order-reason";
 
 /*
   «План» на телефоне — экран мобилки v8 (Warehouse-Pro-Mobile,
@@ -47,7 +50,8 @@ export function useVisitPhoto() {
   const t = (ru: string, uz: string) => (lang === "uz" ? uz : ru);
   const utils = trpc.useUtils();
   const fileRef = useRef<HTMLInputElement>(null);
-  const [photoFor, setPhotoFor] = useState<number | null>(null);
+  // Какой план снимаем и с какой причиной «без заказа» (её спросили до камеры).
+  const [photoFor, setPhotoFor] = useState<{ planId: number; choice?: NoOrderChoice } | null>(null);
 
   const save = trpc.agent.saveVisitPhoto.useMutation({
     onSuccess: () => {
@@ -66,7 +70,7 @@ export function useVisitPhoto() {
     try {
       // Сжатие обязательно: камера телефона отдаёт снимок на несколько
       // мегабайт, а ручка принимает не больше пяти и хранит строку в базе.
-      save.mutate({ planId: photoFor, photoUrl: await compressImage(file) });
+      save.mutate({ planId: photoFor.planId, photoUrl: await compressImage(file), ...(photoFor.choice ?? {}) });
     } catch {
       notify.error(t("Не удалось обработать снимок", "Rasmni qayta ishlab bo'lmadi"));
       setPhotoFor(null);
@@ -75,9 +79,9 @@ export function useVisitPhoto() {
 
   return {
     input: <input ref={fileRef} type="file" accept="image/*" capture="environment" onChange={onFile} style={{ display: "none" }} data-testid="visit-photo-input" />,
-    start: (planId: number) => { setPhotoFor(planId); fileRef.current?.click(); },
+    start: (planId: number, choice?: NoOrderChoice) => { setPhotoFor({ planId, choice }); fileRef.current?.click(); },
     isPending: save.isPending,
-    busyFor: save.isPending ? photoFor : null,
+    busyFor: save.isPending ? photoFor?.planId ?? null : null,
   };
 }
 const tone = (pct: number) => pct >= 100 ? "var(--color-success-text)" : pct >= 70 ? "var(--color-warning-text)" : "var(--color-danger-text)";
@@ -200,6 +204,8 @@ export function PhonePlan() {
     onError: e => notify.error(t(`Отметка не сохранена: ${e.message}`, `Belgi saqlanmadi: ${e.message}`)),
   });
   const photo = useVisitPhoto();
+  // Визит без заказа закрывается только с причиной — и «Готово», и снимок.
+  const gate = useNoOrderGate({ busy: update.isPending || photo.isPending });
 
   const visited = plans?.filter(p => p.status === "visited").length ?? 0;
   const total = plans?.length ?? 0;
@@ -212,7 +218,7 @@ export function PhonePlan() {
       navigate(`/agent/visit/${p.id}?shopId=${p.shopId ?? ""}&shopName=${encodeURIComponent(p.shopName ?? "")}`);
       return;
     }
-    update.mutate({ planId: p.id, status: "visited" });
+    gate.ask(p, choice => update.mutate({ planId: p.id, status: "visited", ...(choice ?? {}) }));
   };
 
   return (
@@ -224,6 +230,7 @@ export function PhonePlan() {
       <QuotaCard />
 
       {photo.input}
+      {gate.dialog}
 
       {/* ── День: назад / вперёд; середина возвращает к сегодня ── */}
       <div className="flex items-center gap-2" data-testid="phone-plan-day">
@@ -287,6 +294,12 @@ export function PhonePlan() {
                     {hasDebt && <p className="font-data" style={{ fontSize: 11, fontWeight: 500, color: "var(--color-danger-text)", margin: "2px 0 0" }}>{t("Долг", "Qarz")}: {fmt(p.shopDebt)}</p>}
                     {/* Заметка супервайзера к визиту: «спросить про возврат», «новый владелец». */}
                     {p.notes && <p className="break-words" style={{ fontSize: 12, fontStyle: "italic", color: "var(--color-text-secondary)", margin: "4px 0 0" }} data-testid="phone-plan-note">«{p.notes}»</p>}
+                    {/* Закрыт без заказа — с какой причиной: агент видит, что сказал. */}
+                    {p.status === "visited" && !p.hasOrder && p.noOrderReason && (
+                      <p className="break-words" style={{ fontSize: 12, color: "var(--color-warning-text)", margin: "4px 0 0" }} data-testid="phone-plan-no-order">
+                        {t("Без заказа", "Buyurtmasiz")}: {noOrderReasonText(p.noOrderReason, p.noOrderNote, lang)}
+                      </p>
+                    )}
                   </div>
                   {p.status !== "planned" && <StatusPill dot={meta.fill} text={meta.text} label={meta.label} />}
                 </div>
@@ -303,7 +316,7 @@ export function PhonePlan() {
                           <PlusCircle size={14} />{t("Заказ", "Buyurtma")}
                         </button>
                         {/* Отметить со снимком — то же «Готово», но с доказательством. */}
-                        <button type="button" disabled={busy} onClick={() => photo.start(p.id)}
+                        <button type="button" disabled={busy} onClick={() => gate.ask(p, choice => photo.start(p.id, choice))}
                           aria-label={t("Отметить с фото", "Foto bilan belgilash")}
                           className="flex items-center justify-center rounded-lg" style={{ ...ghost, minWidth: 40, color: "var(--color-text-primary)" }}>
                           {photo.busyFor === p.id ? <Loader2 size={16} className="animate-spin" /> : <Camera size={16} />}
