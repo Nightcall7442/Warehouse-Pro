@@ -1202,6 +1202,23 @@ export const dailyPlans = mysqlTable("daily_plans", {
   visitedAt: timestamp("visited_at"),
   photoUrl:  mediumtext("photo_url"),
   notes:     text("notes"),
+  /*
+    Почему визит прошёл без заказа — слово агента.
+
+    Агент был в магазине, а заказа нет, и директор не знал почему: «закрыто»,
+    «нет денег» и «берёт у конкурента» требуют разных действий, а в журнале
+    стояло одно «посещён». Список причин — contracts/no-order-reason.ts (там же
+    подписи на двух языках); здесь он повторён буквально, потому что схему
+    читает drizzle-kit своим загрузчиком. Совпадение держит тест.
+
+    Пусто — либо заказ был, либо отметку прислала мобилка старой версии, не
+    знающая поля. Записанная причина не делает визит «без заказа» сама: отчёт
+    смотрит на заказ того же агента в тот же день (services/no-order-visits.ts),
+    и заказ, оформленный после отметки, перекрывает причину.
+  */
+  noOrderReason: mysqlEnum("no_order_reason", ["closed", "no_money", "has_stock", "competitor", "no_owner", "other"]),
+  /** Пояснение к причине «Другое» — обязательно для неё, короткое. */
+  noOrderNote: varchar("no_order_note", { length: 200 }),
   createdBy: bigint("created_by", { mode: "number", unsigned: true }).references(() => users.id, { onDelete: "restrict" }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull().$onUpdate(() => new Date()),

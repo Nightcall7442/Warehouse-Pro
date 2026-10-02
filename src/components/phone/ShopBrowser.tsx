@@ -7,6 +7,9 @@ import { CARD } from "./tones";
 import { EmptyState, SearchField } from "./kit";
 import { haversineKm } from "@contracts/geo";
 import { useRenderWindow } from "@/hooks/useRenderWindow";
+import { ShopLightDot } from "@/components/shops/ShopLight";
+import { useShopLights } from "@/components/shops/shop-light-ui";
+import type { ShopLight } from "@contracts/shop-light";
 
 /*
   Магазины на телефоне — экран «Магазины» мобилки v8 (Warehouse-Pro-Mobile,
@@ -26,8 +29,10 @@ export type BrowserShop = {
 
 const roundBtn = "flex items-center justify-center rounded-full flex-shrink-0 active:scale-95 transition-transform";
 
-export function ShopCard({ shop, distance, onOpen, onOrder }: {
+export function ShopCard({ shop, distance, onOpen, onOrder, light }: {
   shop: BrowserShop; distance?: number; onOpen: () => void; onOrder?: () => void;
+  /** Светофор магазина — значок перед названием (components/shops/ShopLight). */
+  light?: ShopLight;
 }) {
   const { lang } = useLang();
   const t = (ru: string, uz: string) => (lang === "uz" ? uz : ru);
@@ -43,7 +48,10 @@ export function ShopCard({ shop, distance, onOpen, onOrder }: {
         <span className="flex-1 min-w-0">
           <span className="flex items-start justify-between gap-2">
             <span className="min-w-0">
-              <span className="block truncate" style={{ fontSize: 15, fontWeight: 600, color: "var(--color-text-primary)" }}>{shop.name}</span>
+              <span className="flex items-center gap-2 min-w-0">
+                <ShopLightDot light={light} />
+                <span className="block truncate" style={{ fontSize: 15, fontWeight: 600, color: "var(--color-text-primary)" }}>{shop.name}</span>
+              </span>
               {shop.ownerName && <span className="block truncate" style={{ fontSize: 12, color: "var(--color-text-secondary)", marginTop: 2 }}>{shop.ownerName}</span>}
             </span>
             <span className="flex items-center gap-1.5 flex-shrink-0">
@@ -146,13 +154,16 @@ export function ShopBrowser({ shops, loading, onOpen, onOrder, onAdd, note }: {
   */
   const listed = flat ? filtered : territory ? inside : [];
   const win = useRenderWindow(listed, `${flat ? "flat" : territory ?? ""}|${search.trim()}|${here ? `${here.lat},${here.lng}` : ""}`);
+  // Светофоры нарисованного окна — одним запросом shop.lights, не по карточке.
+  const shownIds = useMemo(() => win.shown.map(x => x.s.id), [win.shown]);
+  const lights = useShopLights(shownIds);
 
   const cards = () => listed.length === 0
     ? <div style={{ ...CARD, borderRadius: 20 }}><EmptyState icon={ShoppingBag} title={t("Ничего не найдено", "Hech narsa topilmadi")} /></div>
     : (
       <>
         {win.shown.map(({ s, d }) => (
-          <ShopCard key={s.id} shop={s} distance={here ? d : undefined} onOpen={() => onOpen(s.id)} onOrder={onOrder ? () => onOrder(s.id) : undefined} />
+          <ShopCard key={s.id} shop={s} distance={here ? d : undefined} onOpen={() => onOpen(s.id)} onOrder={onOrder ? () => onOrder(s.id) : undefined} light={lights.get(s.id)} />
         ))}
         {win.hidden > 0 && (
           <button type="button" className="neo-btn tap w-full" onClick={win.more} data-testid="phone-shops-show-more">

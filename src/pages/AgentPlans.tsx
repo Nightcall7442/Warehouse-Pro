@@ -14,6 +14,8 @@ import { useNavigate } from "react-router";
 import { QueryErrorFallback } from "@/components/QueryErrorFallback";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { PhonePlan, useVisitPhoto } from "@/components/phone/PhonePlan";
+import { useNoOrderGate } from "@/components/visits/useNoOrderGate";
+import { noOrderReasonText } from "@contracts/no-order-reason";
 
 const STATUS_CONFIG = {
   visited: { ru: "Посещён",         uz: "Borildi",              color: "text-success", border: "border-success", dot: "var(--color-success)" },
@@ -60,6 +62,8 @@ function DesktopAgentPlans() {
     Здесь её когда-то просто не звали — в вебе кнопки не было вовсе.
   */
   const photo = useVisitPhoto();
+  // Визит без заказа закрывается только с причиной (components/visits/NoOrderReason).
+  const gate = useNoOrderGate({ busy: update.isPending || photo.isPending });
 
   const visited = plans?.filter(p => p.status === "visited").length ?? 0;
   const total   = plans?.length ?? 0;
@@ -69,6 +73,7 @@ function DesktopAgentPlans() {
   return (
     <div className="space-y-4 max-w-lg mx-auto animate-fade-up">
       {photo.input}
+      {gate.dialog}
 
       {/* Заголовок */}
       <div className="flex items-center justify-between">
@@ -220,6 +225,12 @@ function DesktopAgentPlans() {
                           </p>
                         )}
 
+                        {plan.status === "visited" && !plan.hasOrder && plan.noOrderReason && (
+                          <p className="text-xs mt-1" style={{ color: "var(--color-warning-text)" }} data-testid="plan-no-order">
+                            {t("Без заказа", "Buyurtmasiz")}: {noOrderReasonText(plan.noOrderReason, plan.noOrderNote, lang)}
+                          </p>
+                        )}
+
                         {/* Кнопки действий */}
                         {plan.status === "planned" && (
                           <div className="flex gap-2 mt-3">
@@ -243,7 +254,7 @@ function DesktopAgentPlans() {
                             ) : (
                               <>
                                 <button
-                                  onClick={() => update.mutate({ planId: plan.id, status: "visited" })}
+                                  onClick={() => gate.ask(plan, choice => update.mutate({ planId: plan.id, status: "visited", ...(choice ?? {}) }))}
                                   disabled={update.isPending || photo.isPending}
                                   className="neo-btn-primary tap flex-1 text-xs flex items-center justify-center gap-1.5"
                                 >
@@ -252,7 +263,7 @@ function DesktopAgentPlans() {
                                 </button>
                                 {/* Отметить со снимком — то же действие, но с доказательством. */}
                                 <button
-                                  onClick={() => photo.start(plan.id)}
+                                  onClick={() => gate.ask(plan, choice => photo.start(plan.id, choice))}
                                   disabled={update.isPending || photo.isPending}
                                   title={t("Отметить с фото", "Foto bilan belgilash")}
                                   className="neo-btn py-2 px-3 text-xs flex items-center gap-1"

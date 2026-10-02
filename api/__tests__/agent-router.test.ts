@@ -6,7 +6,15 @@ vi.mock("drizzle-orm", () => ({
   lte: (col: unknown, val: unknown) => ({ __kind: "lte", col, val }),
   and: (...conds: unknown[]) => ({ __kind: "and", conds }),
   desc: (col: unknown) => ({ __kind: "desc", col }),
-  sql: (strings: TemplateStringsArray, ...values: unknown[]) => ({ __kind: "sql", strings, values }),
+  // Признак «у визита был заказ» в getPlans (services/no-order-visits.ts):
+  // фрагмент с псевдонимом таблицы (sql.raw) и приведением к boolean (mapWith).
+  sql: Object.assign(
+    (strings: TemplateStringsArray, ...values: unknown[]) => {
+      const node = { __kind: "sql", strings, values, mapWith: () => node };
+      return node;
+    },
+    { raw: (text: string) => ({ __kind: "raw", text }) },
+  ),
   isNull: (col: unknown) => ({ __kind: "isNull", col }),
   inArray: (col: unknown, vals: unknown[]) => ({ __kind: "inArray", col, vals }),
 }));

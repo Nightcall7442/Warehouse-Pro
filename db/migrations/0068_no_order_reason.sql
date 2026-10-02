@@ -1,0 +1,2 @@
+ALTER TABLE `daily_plans` ADD `no_order_reason` enum('closed','no_money','has_stock','competitor','no_owner','other');--> statement-breakpoint
+ALTER TABLE `daily_plans` ADD `no_order_note` varchar(200);

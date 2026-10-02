@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useCurrency } from "@/hooks/useCurrency";
 import { trpc } from "@/providers/trpc";
 import { useNavigate } from "react-router";
@@ -15,6 +15,8 @@ import { AppModal, modalFieldLabel } from "@/components/ui/AppModal";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { ShopBrowser } from "@/components/phone/ShopBrowser";
 import { useRenderWindow } from "@/hooks/useRenderWindow";
+import { ShopLightDot } from "@/components/shops/ShopLight";
+import { useShopLights } from "@/components/shops/shop-light-ui";
 
 // ── Форма добавления магазина агентом ─────────────────────────────────────────
 function AddShopModal({ onClose }: { onClose: () => void }) {
@@ -242,6 +244,9 @@ export default function AgentShops() {
     });
   // Рисуется сотня, дальше по кнопке; поиск выше идёт по всему списку.
   const win = useRenderWindow(filtered ?? [], search.trim().toLowerCase());
+  // Светофоры нарисованного окна — одним запросом (телефон берёт свои в ShopBrowser).
+  const shownIds = useMemo(() => (phone ? [] : win.shown.map(s => s.id)), [phone, win.shown]);
+  const lights = useShopLights(shownIds);
 
   // Копия спасает и здесь: запрос не удался, но магазины с прошлого раза
   // на устройстве есть.
@@ -358,8 +363,11 @@ export default function AgentShops() {
 
               <div className="flex-1 min-w-0">
                 <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <p className="font-medium text-primary">{shop.name}</p>
+                  <div className="min-w-0">
+                    <p className="font-medium text-primary flex items-center gap-2">
+                      <ShopLightDot light={lights.get(shop.id)} />
+                      <span className="truncate">{shop.name}</span>
+                    </p>
                     <p className="text-sm text-secondary">{shop.ownerName ?? t("Владелец не указан", "Egasi ko'rsatilmagan")}</p>
                   </div>
                   {Number(shop.debt ?? 0) > 0 && (

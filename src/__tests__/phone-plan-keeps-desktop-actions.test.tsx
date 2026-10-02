@@ -76,6 +76,9 @@ beforeEach(() => {
   state.plans = [{
     id: 7, shopId: 3, status: "planned", shopName: "Хумо", shopAddress: "Юнусабад, 4",
     shopDebt: "0.00", notes: "Спросить про возврат", planDate: new Date(),
+    // Заказ у визита был: здесь проверяется путь снимка, а вопрос «почему
+    // без заказа» — в no-order-reason-gate.test.tsx.
+    hasOrder: true,
   }];
 });
 afterEach(cleanup);

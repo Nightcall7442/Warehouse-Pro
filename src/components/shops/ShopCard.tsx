@@ -9,6 +9,8 @@ import { canOperate } from "@/lib/permissions";
 import { useTranslate } from "@/i18n";
 import { PhotoOrIcon } from "@/components/PhotoOrIcon";
 import { ShopAvatar } from "./ShopAvatar";
+import { ShopLightDot } from "./ShopLight";
+import type { ShopLight } from "@contracts/shop-light";
 
 export interface ShopCardData { id: number; name: string; ownerName: string | null; phone: string | null; city: string | null; district: string | null; status: string; debt: string | null; photoUrl: string | null; agentName: string | null; }
 
@@ -81,9 +83,11 @@ export function ShopPhoto({ shopId, shopName = "", photoUrl, size = "md" }: { sh
   );
 }
 
-export const ShopCard = memo(function ShopCard({ s, onClick, selected, onToggleSelect, lang, fmt, delay }: {
+export const ShopCard = memo(function ShopCard({ s, onClick, selected, onToggleSelect, lang, fmt, delay, light }: {
   s: ShopCardData; onClick: () => void; selected?: boolean; onToggleSelect?: () => void;
   lang: string; fmt: (v: number | string | null | undefined, opts?: { decimals?: number }) => string; delay: number;
+  /** Светофор магазина (shop.lights) — значок перед названием; нет — нет значка. */
+  light?: ShopLight;
 }) {
   const t = (ru: string, uz: string) => lang === "uz" ? uz : ru;
   const hasDebt = Number(s.debt ?? 0) > 0;
@@ -133,9 +137,10 @@ export const ShopCard = memo(function ShopCard({ s, onClick, selected, onToggleS
       <div style={{ flex: 1, minWidth: 0 }}>
         <p style={{
           fontFamily: F.display, fontWeight: 700, color: COLORS.textPrimary, fontSize: "16px",
-          letterSpacing: "-0.01em", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+          letterSpacing: "-0.01em", display: "flex", alignItems: "center", gap: "8px", minWidth: 0,
         }}>
-          {s.name}
+          <ShopLightDot light={light} />
+          <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.name}</span>
         </p>
         {s.ownerName && (
           <p style={{ fontSize: "12px", color: COLORS.textSecondary, marginTop: "2px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>

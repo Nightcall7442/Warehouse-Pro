@@ -16,6 +16,7 @@ import {
 } from "@/components/phone/kit";
 import { CARD, orderTone, orderStatusWord, planStatus } from "@/components/phone/tones";
 import type { LucideIcon } from "lucide-react";
+import { useNoOrderGate } from "@/components/visits/useNoOrderGate";
 
 /*
   «Мой день» — раскладка главной мобилки v8 (Warehouse-Pro-Mobile,
@@ -137,6 +138,8 @@ export default function AgentDashboard() {
   const updatePlan = trpc.agent.updatePlanStatus.useMutation({
     onSuccess: () => utils.agent.getPlans.invalidate(),
   });
+  // Визит без заказа закрывается только с причиной (components/visits/NoOrderReason).
+  const gate = useNoOrderGate({ busy: updatePlan.isPending });
 
   const todayVisited = plans?.filter(p => p.status === "visited").length ?? 0;
   const todayPlanned = plans?.length ?? 0;
@@ -163,6 +166,7 @@ export default function AgentDashboard() {
     <div className="space-y-5 animate-fade-up">
 
       <HomeGreeting title={t("Мой день", "Mening kunim")} />
+      {gate.dialog}
 
       {/* ── Визиты сегодня ── */}
       <section>
@@ -183,7 +187,10 @@ export default function AgentDashboard() {
                 plan={plan}
                 first={i === 0}
                 isPending={updatePlan.isPending}
-                onDone={() => updatePlan.mutate({ planId: plan.id, status: "visited" })}
+                // Мерчендайзер заказов не берёт — «без заказа» у него не вопрос.
+                onDone={() => sells
+                  ? gate.ask(plan, choice => updatePlan.mutate({ planId: plan.id, status: "visited", ...(choice ?? {}) }))
+                  : updatePlan.mutate({ planId: plan.id, status: "visited" })}
                 onSkip={() => updatePlan.mutate({ planId: plan.id, status: "skipped" })}
               />
             ))

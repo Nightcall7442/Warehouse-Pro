@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { s3Client, publicUrl } from "./lib/s3";
 import { isSafePhotoValue, PHOTO_VALUE_ERROR } from "./lib/photo-value";
-import { createRouter, operatorQuery, supervisorQuery, managementQuery, can } from "./middleware";
+import { createRouter, operatorQuery, supervisorQuery, managementQuery, fieldSalesQuery, can } from "./middleware";
 import { getDb } from "./queries/connection";
 import { receivablesAging } from "./services/receivables";
 import { shops, users, orders, payments, territories } from "@db/schema";
@@ -24,6 +24,21 @@ import { reportCached, ReportTTL } from "./lib/report-cache";
 import { dayKey } from "./lib/period";
 import { recordAudit, auditActor, changedFields } from "./services/audit-log";
 import { taxIdInput, vatPayerInput } from "./lib/tax-requisites-input";
+import { shopLights, ownShopIds } from "./services/shop-light";
+
+/**
+ * Каких магазинов светофор можно показать спрашивающему.
+ *
+ * Директор, офис и супервайзер видят всю организацию — как в shop.list.
+ * Полевые роли (агент, мерчендайзер) — только свои точки (services/
+ * shop-light.ts → ownShopIds): закреплённые за ними, ничьи и стоящие у них в
+ * плане. Чужой магазин молча выпадает из ответа, как чужой заказ из «Моих
+ * заказов», — карточка без светофора, а не ошибка на весь список.
+ */
+async function lightScope(ctx: { tenant: { id: number }; user: { id: number; role: string } }, shopIds: number[]): Promise<number[]> {
+  if (["agent", "merchandiser"].includes(ctx.user.role)) return ownShopIds(getDb(), ctx.tenant.id, ctx.user.id, shopIds);
+  return shopIds;
+}
 
 /**
  * Проверить, что чужие идентификаторы в запросе принадлежат этой организации.
@@ -58,6 +73,36 @@ async function assertTenantOwnsRefs(
 
 
 export const shopRouter = createRouter({
+  /**
+   * Светофор одного магазина — для карточки (веб ShopDetail, агентская
+   * AgentShopDetail, мобилка). Правила — contracts/shop-light.ts, расчёт —
+   * services/shop-light.ts. null — магазина нет или он чужой полевому
+   * сотруднику.
+   */
+  light: fieldSalesQuery
+    .input(z.object({ shopId: z.number().int().positive() }))
+    .query(async ({ input, ctx }) => {
+      const ids = await lightScope(ctx, [input.shopId]);
+      const lights = await shopLights(getDb(), ctx.tenant.id, ids);
+      return lights.get(input.shopId) ?? null;
+    }),
+
+  /**
+   * Светофоры списка магазинов — пакетом, за постоянное число запросов (без
+   * цикла по магазинам). Значки в «Магазинах» директора и агента. Порядок
+   * ответа — как в запросе; чужих и несуществующих в нём нет.
+   */
+  lights: fieldSalesQuery
+    .input(z.object({ shopIds: z.array(z.number().int().positive()).max(500) }))
+    .query(async ({ input, ctx }) => {
+      const uniq = [...new Set(input.shopIds)];
+      const lights = await shopLights(getDb(), ctx.tenant.id, await lightScope(ctx, uniq));
+      return uniq.flatMap(id => {
+        const l = lights.get(id);
+        return l ? [l] : [];
+      });
+    }),
+
   /**
    * Долг магазинов, разложенный по возрасту.
    *

@@ -1,11 +1,10 @@
 import { useCallback, useMemo, useState } from "react";
-import { useSearchParams } from "react-router";
 import { trpc } from "@/providers/trpc";
 import { useCurrency } from "@/hooks/useCurrency";
 import { useLang } from "@/i18n";
 import { useAuth } from "@/hooks/useAuth";
 import { format, subDays } from "date-fns";
-import { FileDown, Printer, LayoutDashboard, ShoppingCart, Award, LayoutGrid, Wallet } from "lucide-react";
+import { FileDown, Printer, LayoutDashboard, ShoppingCart, Award, LayoutGrid, Wallet, CircleSlash } from "lucide-react";
 import { exportToExcel } from "@/lib/excel";
 import { exportToPDF, escapeHtml } from "@/lib/export";
 import { unitShort } from "@/lib/units";
@@ -19,6 +18,11 @@ import { AgentProductsTab } from "@/components/reports/AgentProductsTab";
 import { ReportsHub } from "@/components/reports/ReportsHub";
 import { DebtorsPanel } from "@/components/debts/DebtorsPanel";
 import { DebtJournalPanel } from "@/components/debts/DebtJournalPanel";
+import { NoOrderVisitsTab } from "@/components/reports/NoOrderVisitsTab";
+import { useUrlState, urlEnum } from "@/hooks/useUrlState";
+
+const TAB_KEYS: readonly TabKey[] = ["overview", "sales", "agents", "debts", "noorder", "all"];
+const TAB_CODEC = urlEnum<TabKey>(TAB_KEYS, "overview");
 
 /**
  * «Отчёты» — рабочее место директора, а не витрина чисел.
@@ -82,12 +86,20 @@ function totalsOf(rows: { orderCount: number; totalRevenue: string }[] | undefin
 }
 
 export default function Reports() {
-  // Вкладка из адреса: плитка «Долг» на главной ведёт сразу в «Долги», а не в «Обзор».
-  const [searchParams] = useSearchParams();
-  const [tab, setTab] = useState<TabKey>(() => {
-    const want = searchParams.get("tab");
-    return want === "sales" || want === "agents" || want === "debts" || want === "overview" ? want : "overview";
-  });
+  /*
+    Вкладка — в адресе: плитка «Долг» на главной ведёт сразу в «Долги», а
+    ссылка на «Визиты без заказа» с периодом и агентом открывается тем же
+    разделом. Раньше вкладка читалась из адреса один раз и дальше жила в
+    памяти — переключение в адрес не попадало, и обновление страницы
+    возвращало в «Обзор».
+
+    «Без заказа» — директору, офису и супервайзеру (reports.noOrderVisits —
+    managementQuery); мерчендайзеру «Отчёты» открыты ради полки.
+  */
+  const { user } = useAuth();
+  const seesNoOrder = user?.role === "ceo" || user?.role === "operator" || user?.role === "supervisor";
+  const [urlTab, setTab] = useUrlState<TabKey>("tab", "overview", TAB_CODEC);
+  const tab: TabKey = urlTab === "noorder" && !seesNoOrder ? "overview" : urlTab;
   const [days, setDays] = useState(30);
   const { fmt } = useCurrency();
   const { lang } = useLang();
@@ -116,7 +128,6 @@ export default function Reports() {
   // debtReport на сервере.
   const debtQ = trpc.analytics.debtReport.useQuery();
 
-  const { user } = useAuth();
   const isCeo = user?.role === "ceo";
 
   // Carries gross profit and margin per payment method, so it is CEO-only on
@@ -215,6 +226,7 @@ export default function Reports() {
     { key: "sales" as const, ru: "Продажи", uz: "Sotuvlar", icon: <ShoppingCart size={16} /> },
     { key: "agents" as const, ru: "Агенты", uz: "Agentlar", icon: <Award size={16} /> },
     { key: "debts" as const, ru: "Долги", uz: "Qarzlar", icon: <Wallet size={16} /> },
+    ...(seesNoOrder ? [{ key: "noorder" as const, ru: "Без заказа", uz: "Buyurtmasiz", icon: <CircleSlash size={16} /> }] : []),
   ];
 
   const handleExportAgentProducts = async () => {
@@ -396,10 +408,15 @@ export default function Reports() {
           {/* Здесь стояла сегодняшняя дата — сведение, которое на странице
               отчётов не значит ничего. Значит другое: какой промежуток сейчас
               на экране. Его человек и пересказывает, когда пересылает цифры. */}
+          {/* У «Без заказа» свой период и свои выгрузки — внутри раздела; общий
+              переключатель дней и «Сводка» там ничего не меняют и только путают. */}
+          {tab !== "noorder" && (
           <p style={{ fontSize: "13px", color: COLORS.textSecondary, margin: "4px 0 0" }}>
             {format(subDays(new Date(), days), "dd.MM.yyyy")} — {format(new Date(), "dd.MM.yyyy")}
           </p>
+          )}
         </div>
+        {tab !== "noorder" && (
         <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
           <PeriodPicker days={days} onChange={setDays} t={t} />
           {/* Кнопки были 33 точки высотой при 13px шрифта и отступе 8px.
@@ -436,6 +453,7 @@ export default function Reports() {
             <Printer size={14} aria-hidden /> {t("Печать", "Chop etish")}
           </button>
         </div>
+        )}
       </div>
 
       {/*
@@ -458,7 +476,8 @@ export default function Reports() {
           другой радиус, другой цвет выбранного. Именно из таких «почти» и
           складывается ощущение, что страница сделана не тем же человеком.
         */}
-        <div role="tablist" className="range-pills">
+        {/* Пять разделов на телефоне в строку не входят: лента переносится, а не уезжает за край. */}
+        <div role="tablist" className="range-pills" style={{ flexWrap: "wrap", maxWidth: "100%" }}>
           {TABS.map(tb => (
             <button key={tb.key} type="button" role="tab" aria-selected={tab === tb.key} onClick={() => setTab(tb.key)}
               className={"range-pill tap" + (tab === tb.key ? " active" : "")}
@@ -486,6 +505,8 @@ export default function Reports() {
       {tab === "all" && (
         <ReportsHub role={user?.role} t={t} lang={lang} />
       )}
+
+      {tab === "noorder" && <NoOrderVisitsTab />}
 
       {tab === "overview" && (
         <OverviewTab

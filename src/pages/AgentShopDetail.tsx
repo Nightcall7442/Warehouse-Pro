@@ -10,6 +10,7 @@ import { compressImage } from "@/lib/compress-image";
 import { PhotoOrIcon } from "@/components/PhotoOrIcon";
 import { ListCard, ListRow, EmptyState, StatusPill } from "@/components/phone/kit";
 import { CARD } from "@/components/phone/tones";
+import { ShopLightPanel } from "@/components/shops/ShopLight";
 
 /*
   Карточка магазина для агента — экран мобилки v8 (Warehouse-Pro-Mobile,
@@ -120,6 +121,9 @@ export default function AgentShopDetail() {
         </div>
         {hasDebt ? <AlertCircle size={28} color="var(--color-danger-text)" /> : <CheckCircle2 size={28} color="var(--color-success-text)" />}
       </div>
+
+      {/* ── Светофор: можно ли грузить; долг уже показан выше ── */}
+      <ShopLightPanel shopId={shop.id} hideDebt />
 
       {/* ── Сведения ── */}
       <ListCard>

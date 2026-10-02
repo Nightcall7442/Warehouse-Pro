@@ -16,6 +16,8 @@ import { photoRef } from "./lib/photo-url";
 import { isDuplicateEntry } from "./lib/db-errors";
 import { affectedRows } from "./lib/db-rows";
 import { recordedAtInput, eventTime } from "./lib/event-time";
+import { NO_ORDER_REASONS } from "@contracts/no-order-reason";
+import { visitHasOrderSql, noOrderFields } from "./services/no-order-visits";
 
 
 /**
@@ -226,6 +228,37 @@ async function requirePlan(conditions: SQL[]) {
     throw new TRPCError({ code: "NOT_FOUND", message: "План не найден или назначен другому сотруднику" });
   }
   return plan;
+}
+
+/*
+  Причина «без заказа» во входе отметки визита — необязательна.
+
+  Мобилка старой версии полей не знает и продолжает отмечать визиты как
+  раньше; экраны агента (веб и PWA) без причины визит без заказа не закроют
+  сами. Не прислано (undefined) — столбцы не трогаются: повтор отметки из
+  офлайн-очереди старой мобилки не стирает причину, записанную с веба.
+*/
+const noOrderInput = {
+  noOrderReason: z.enum(NO_ORDER_REASONS).nullish(),
+  noOrderNote: z.string().max(1000).nullish(),
+};
+
+/**
+ * Что записать в столбцы причины при отметке. Визит, у которого заказ уже
+ * есть, причины не получает: «посещён с заказом» и «без заказа, потому что…»
+ * одновременно не бывает (правило заказа — services/no-order-visits.ts).
+ */
+async function noOrderPatch(
+  planId: number, status: string,
+  input: { noOrderReason?: (typeof NO_ORDER_REASONS)[number] | null; noOrderNote?: string | null },
+): Promise<{ noOrderReason?: (typeof NO_ORDER_REASONS)[number] | null; noOrderNote?: string | null }> {
+  if (status !== "visited") return { noOrderReason: null, noOrderNote: null };
+  if (input.noOrderReason === undefined) return {};
+  const fields = noOrderFields(status, input.noOrderReason, input.noOrderNote);
+  if (!fields.noOrderReason) return fields;
+  const [row] = await getDb().select({ hasOrder: sql<number>`${visitHasOrderSql("daily_plans")}` })
+    .from(dailyPlans).where(eq(dailyPlans.id, planId)).limit(1);
+  return Number(row?.hasOrder) === 1 ? { noOrderReason: null, noOrderNote: null } : fields;
 }
 
 export const agentRouter = createRouter({
@@ -581,6 +614,13 @@ export const agentRouter = createRouter({
         // `p.agentId ?? 0` давало ноль для каждой строки. Заметить было нечем —
         // вывод типов на клиенте был сломан и отдавал {} (см. lib/cache.ts).
         agentId: dailyPlans.agentId,
+        /*
+          Был ли у визита заказ — тем же правилом, что в отчёте «Визиты без
+          заказа». Экран агента спрашивает причину, только когда заказа нет.
+        */
+        hasOrder: sql<boolean>`${visitHasOrderSql("daily_plans")}`.mapWith(v => Number(v) === 1),
+        noOrderReason: dailyPlans.noOrderReason,
+        noOrderNote: dailyPlans.noOrderNote,
       })
         .from(dailyPlans)
         .leftJoin(shops, and(eq(dailyPlans.shopId, shops.id), eq(shops.tenantId, ctx.tenant.id)))
@@ -704,7 +744,7 @@ export const agentRouter = createRouter({
     дало бы ноль при живом и своём плане.
   */
   updatePlanStatus: merchVisitQuery
-    .input(z.object({ planId: z.number(), status: z.enum(["planned", "visited", "skipped"]), recordedAt: recordedAtInput }))
+    .input(z.object({ planId: z.number(), status: z.enum(["planned", "visited", "skipped"]), recordedAt: recordedAtInput, ...noOrderInput }))
     .mutation(async ({ input, ctx }) => {
       const isPrivileged = ["ceo", "supervisor", "superadmin"].includes(ctx.user.role);
       const conditions = [
@@ -716,6 +756,7 @@ export const agentRouter = createRouter({
         conditions.push(eq(dailyPlans.agentId, ctx.user.id));
       }
       await requirePlan(conditions);
+      const reason = await noOrderPatch(input.planId, input.status, input);
       // Stamped only on the way in to "visited", and cleared if the plan is
       // moved back — a stale timestamp on a plan that is no longer visited
       // would show up in the report as a visit that never happened.
@@ -723,6 +764,7 @@ export const agentRouter = createRouter({
         .set({
           status: input.status,
           visitedAt: input.status === "visited" ? eventTime(input.recordedAt) : null,
+          ...reason,
         })
         .where(and(...conditions));
       return { success: true };
@@ -739,6 +781,7 @@ export const agentRouter = createRouter({
         .refine(isSafePhotoValue, PHOTO_VALUE_ERROR),
       notes: z.string().optional(),
       recordedAt: recordedAtInput,
+      ...noOrderInput,
     }))
     .mutation(async ({ input, ctx }) => {
       const isPrivileged = ["ceo", "supervisor", "superadmin"].includes(ctx.user.role);
@@ -752,6 +795,8 @@ export const agentRouter = createRouter({
       }
       const db = getDb();
       const plan = await requirePlan(conditions);
+      // Причину проверяем до снимка и подлога: «Другое» без текста — отказ сразу.
+      const reason = await noOrderPatch(input.planId, "visited", input);
 
       // Run fraud check before saving visit
       if (!isPrivileged) {
@@ -795,6 +840,7 @@ export const agentRouter = createRouter({
         visitedAt: eventTime(input.recordedAt),
         photoUrl: input.photoUrl,
         notes: input.notes ?? undefined,
+        ...reason,
       }).where(and(...conditions));
       return { success: true };
     }),

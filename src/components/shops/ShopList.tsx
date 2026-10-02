@@ -2,8 +2,9 @@ import { MapPin, CheckSquare, Square, Archive, RotateCcw } from "lucide-react";
 import { ShopCard } from "./ShopCard";
 import type { ShopCardData } from "./ShopCard";
 import { COLORS } from "./constants";
+import type { ShopLight } from "@contracts/shop-light";
 
-export function ShopList({ data, isLoading, lang, fmt, selectable = true, selected, allSelected, onSelectAll, onToggleSelect, onNavigate, page, setPage, total, t }: {
+export function ShopList({ data, isLoading, lang, fmt, selectable = true, selected, allSelected, onSelectAll, onToggleSelect, onNavigate, page, setPage, total, t, lights }: {
   data: ShopCardData[] | undefined; isLoading: boolean; lang: string;
   fmt: (v: number | string | null | undefined, opts?: { decimals?: number }) => string;
   /** Выделение нужно только для удаления пачкой — у кого его нет, тому и галочки ни к чему. */
@@ -12,6 +13,8 @@ export function ShopList({ data, isLoading, lang, fmt, selectable = true, select
   onNavigate: (id: number) => void;
   page: number; setPage: (v: number | ((p: number) => number)) => void;
   total: number; city?: string; district?: string; t: (ru: string, uz: string) => string;
+  /** Светофоры строк страницы — одним запросом shop.lights (components/shops/ShopLight). */
+  lights?: Map<number, ShopLight>;
 }) {
   return (
     <>
@@ -38,7 +41,7 @@ export function ShopList({ data, isLoading, lang, fmt, selectable = true, select
           <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
             {data?.length === 0
               ? <p style={{ textAlign: "center", color: COLORS.textSecondary, padding: "48px 0", fontSize: "14px" }}>{t("Нет магазинов", "Do'kon yo'q")}</p>
-              : data?.map((s, i) => <ShopCard key={s.id} s={s} lang={lang} fmt={fmt} delay={i * 0.03}
+              : data?.map((s, i) => <ShopCard key={s.id} s={s} lang={lang} fmt={fmt} delay={i * 0.03} light={lights?.get(s.id)}
                 onClick={() => onNavigate(s.id)}
                 selected={selected.has(s.id)}
                 onToggleSelect={selectable ? () => onToggleSelect(s.id) : undefined}

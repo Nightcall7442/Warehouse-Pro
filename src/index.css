@@ -1334,6 +1334,8 @@
   @media (hover: hover) { .console-row:hover { background: var(--color-surface-light); } }
   .console-row:active { background: var(--color-surface-hover, var(--color-surface-light)); }
   .console-form .neo-input, .console-form .premium-select-trigger { height: 46px; min-height: 46px; }
+  /* Фильтры отчёта (reports/NoOrderVisitsTab): поле и выбор — не ниже цели касания. */
+  .report-filters .neo-input, .report-filters .premium-select-trigger { min-height: 44px; }
   /* Разговор поддержки — во всю высоту окна: на телефоне под шапкой и над
      вкладками, на компьютере под заголовком раздела. */
   .support-thread { height: calc(100dvh - 60px - 116px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)); min-height: 360px; }

@@ -26,6 +26,7 @@ const row = (over: Partial<ReturnRow> = {}): ReturnRow => ({
   month: "2026-08",
   paymentMethod: "cash",
   agentId: 1,
+  shopId: 1,
   amount: 0,
   cost: 0,
   ...over,

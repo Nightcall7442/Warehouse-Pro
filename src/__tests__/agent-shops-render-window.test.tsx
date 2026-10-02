@@ -34,6 +34,8 @@ const h = vi.hoisted(() => ({ shops: [] as Array<Record<string, unknown>>, phone
 vi.mock("@/providers/trpc", () => ({
   trpc: {
     agent: { myShops: { useQuery: () => ({ data: h.shops, isLoading: false, isLoadingError: false, refetch: vi.fn() }) } },
+    // Светофоры видимого окна (components/shops/shop-light-ui) — здесь пусто.
+    shop: { lights: { useQuery: () => ({ data: [] }) } },
     useUtils: () => ({}),
   },
 }));

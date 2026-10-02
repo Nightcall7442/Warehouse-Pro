@@ -48,7 +48,8 @@ describe("агент может приложить снимок", () => {
     for (const [name, src] of [["большой экран", AGENT_PLANS], ["телефон", PHONE_PLAN]]) {
       expect(src, `${name}: снимок не снять — useVisitPhoto не позван`).toMatch(/const photo = useVisitPhoto\(\)/);
       expect(src, `${name}: выбора файла нет в разметке`).toMatch(/\{photo\.input\}/);
-      expect(src, `${name}: кнопки снимка нет`).toMatch(/photo\.start\(\w+\.id\)/);
+      // Вторым аргументом может идти причина «без заказа» (components/visits/useNoOrderGate).
+      expect(src, `${name}: кнопки снимка нет`).toMatch(/photo\.start\(\w+\.id[,)]/);
     }
   });
 

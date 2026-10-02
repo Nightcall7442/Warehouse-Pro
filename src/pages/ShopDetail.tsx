@@ -31,6 +31,7 @@ import { AppModal, modalFieldLabel } from "@/components/ui/AppModal";
 import { ShopOrderButtons } from "@/components/orders/RepeatOrderButtons";
 import { usesQuickOrder } from "@/lib/quick-order";
 import { ShopReturnButton } from "@/components/returns/WebReturn";
+import { ShopLightPanel } from "@/components/shops/ShopLight";
 
 
 // ── Форма платежа ─────────────────────────────────────────────────────────────
@@ -467,6 +468,14 @@ export default function ShopDetail() {
         заказов: разговор с магазином начинается с «вы должны столько-то», а
         карточка показывала это одним числом без объяснения.
       */}
+      {/*
+        Светофор — сразу под долгом: «можно ли грузить» — первый вопрос,
+        с которым открывают карточку, и ответ на него складывается из долга,
+        просрочки, лимита и ритма заказов (components/shops/ShopLight).
+      */}
+      {/* Долг крупно — блоком выше; в цифрах светофора его не повторяем. */}
+      <ShopLightPanel shopId={Number(id)} hideDebt />
+
       <ShopPriceList shopId={Number(id)} />
 
       <ShopMoney shopId={Number(id)} />

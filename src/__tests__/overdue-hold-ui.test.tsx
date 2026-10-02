@@ -60,6 +60,8 @@ vi.mock("@/providers/trpc", () => {
         uploadPhoto: { useMutation: mutation() }, archive: { useMutation: mutation() },
         restore: { useMutation: mutation() }, deleteForever: { useMutation: mutation() },
         addPayment: { useMutation: mutation() },
+        // Светофор карточки (components/shops/ShopLight) — здесь не проверяется.
+        light: { useQuery: query(null) },
       },
       user: { list: { useQuery: query({ data: [] }) } },
       order: { shopOverdue: { useQuery: () => ({ data: h.overdue }) } },
