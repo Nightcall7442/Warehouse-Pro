@@ -3,10 +3,11 @@ import { createRouter, reportsQuery, financeQuery } from "./middleware";
 import { getDb } from "./queries/connection";
 import { orders, orderItems, products, shops, users, dailyPlans, arrivals, agentTerritories, salaryPayouts } from "@db/schema";
 import { eq, and, sql, desc , inArray, isNull } from "drizzle-orm";
-import { REVENUE_ORDER_STATUSES, revenueOrderConditions, revenuePeriodConditions, deliveredQty } from "./lib/order-status";
+import { REVENUE_ORDER_STATUSES, revenueOrderConditions, deliveredQty } from "./lib/order-status";
 import { MS_PER_DAY } from "./lib/constants";
-import { returnsInPeriod, totalReturned, groupReturned, type ReturnRow } from "./services/revenue-returns";
+import { returnsInPeriod, groupReturned, type ReturnRow } from "./services/revenue-returns";
 import { reportCached, ReportTTL } from "./lib/report-cache";
+import { periodGross } from "./services/period-gross";
 
 /*
   Кэш отчётов.
@@ -326,46 +327,10 @@ export const analyticsRouter = createRouter({
       const prevTo = new Date(currFromMs - MS_PER_DAY).toISOString().slice(0, 10);
 
       async function calcPeriod(dateFrom: string, dateTo: string) {
-        // Через общий помощник — вместе с фильтром удалённых заказов.
-        // Здесь набор был выписан руками и isNull(deletedAt) в нём не было,
-        // тогда как месячный график на том же экране считает через
-        // revenueOrderConditions. Две цифры на одной странице расходились:
-        // удалённый заказ попадал в карточку прибыли и не попадал в график.
-        const orderConds = revenuePeriodConditions(tid, dateFrom, dateTo);
-        const revRowP = db.select({
-          totalRevenue: sql<string>`COALESCE(SUM(${orders.total}), 0)`,
-          totalDiscount: sql<string>`COALESCE(SUM(${orders.discount}), 0)`,
-          orderCount: sql<number>`count(*)`,
-        })
-          .from(orders)
-          .where(and(...orderConds));
-
-        // Себестоимость — по ТОМУ ЖЕ набору заказов, что и выручка выше.
-        //
-        // Здесь набор оставался выписанным руками, и isNull(deletedAt) в нём
-        // не было. Удаление — штатный способ исправить ошибочно проведённый
-        // заказ: оператор удалял delivered-заказ на 9 000 000 с
-        // себестоимостью 6 000 000, выручка периода честно падала на
-        // 9 000 000, а COGS оставался с этими 6 000 000 внутри. Валовая и
-        // чистая прибыль в карточке занижались ровно на себестоимость
-        // удалённого заказа, а месячный график на том же экране считал через
-        // общие условия и показывал другую цифру.
-        const cogsRowP = db.select({
-          totalCOGS: sql<string>`COALESCE(SUM(${deliveredQty()} * ${orderItems.costPrice}), 0)`,
-        })
-          .from(orderItems)
-          .leftJoin(products, and(eq(orderItems.productId, products.id), eq(products.tenantId, ctx.tenant.id)))
-          .leftJoin(orders, eq(orderItems.orderId, orders.id))
-          .where(and(
-            // Тот же помощник, что у выручки строкой выше: набор условий
-            // выписывался здесь руками, и фильтр удалённых заказов из него
-            // выпал. Помощник на то и заведён, чтобы такие наборы не
-            // расходились между двумя запросами одного экрана.
-            ...revenueOrderConditions(tid),
-            sql`${orders.createdAt} >= ${dateFrom}`,
-            sql`${orders.createdAt} <= ${dateTo + " 23:59:59"}`,
-          ));
-
+        // Выручка и себестоимость — общим расчётом (services/period-gross.ts):
+        // отчёт «Прибыль» раскладывает ту же валовую прибыль по товарам,
+        // магазинам и агентам и сверяется с ней, а не с копией этих запросов.
+        // Там же — почему наборы условий у выручки и COGS обязаны совпадать.
         const expenseRowP = db.select({
           totalExpenses: sql<string>`COALESCE(SUM(${arrivals.totalExpense}), 0)`,
           arrivalCount: sql<number>`count(*)`,
@@ -428,17 +393,12 @@ export const analyticsRouter = createRouter({
           Себестоимость вычитается вместе с выручкой: вернуть первое, забыв
           второе, значит показать убыток там, где его нет.
         */
-        // Пять независимых чтений — разом, а не друг за другом: страница
-        // прибыли ждала сумму пяти задержек базы, теперь — самую долгую из них.
-        const [revRow, cogsRow, expenseRow, payrollRow, returnsRows] = await Promise.all([
-          revRowP, cogsRowP, expenseRowP, payrollRowP, returnsInPeriod(db, tid, dateFrom, dateTo),
+        // Независимые чтения — разом, а не друг за другом: страница
+        // прибыли ждала сумму задержек базы, теперь — самую долгую из них.
+        const [gross, expenseRow, payrollRow] = await Promise.all([
+          periodGross(db, tid, dateFrom, dateTo), expenseRowP, payrollRowP,
         ]);
-        const returned = totalReturned(returnsRows);
-
-        const revenue = Number(revRow[0]?.totalRevenue ?? 0) - returned.amount;
-        const discount = Number(revRow[0]?.totalDiscount ?? 0);
-        const orderCount = Number(revRow[0]?.orderCount ?? 0);
-        const cogs = Number(cogsRow[0]?.totalCOGS ?? 0) - returned.cost;
+        const { revenue, discount, orderCount, cogs } = gross;
         /*
           Закупочные траты и фонд оплаты труда — раздельными числами, а
           сумма из них. Одним числом директор видел бы «расходы выросли» и не

@@ -23,6 +23,7 @@ import {
 } from "../services/revenue-returns";
 
 const row = (over: Partial<ReturnRow> = {}): ReturnRow => ({
+  id: 1,
   month: "2026-08",
   paymentMethod: "cash",
   agentId: 1,
