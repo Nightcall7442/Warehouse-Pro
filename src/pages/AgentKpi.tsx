@@ -2,6 +2,8 @@ import { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import { useCan } from "@/hooks/useCan";
 import { trpc } from "@/providers/trpc";
 import { CardTable } from "@/components/CardTable";
+import { ForecastCell } from "@/components/plans/PlanForecast";
+import { useForecastByUser } from "@/components/plans/forecast-data";
 import { useLang, type Lang } from "@/i18n";
 import { useCurrency } from "@/hooks/useCurrency";
 import { notify } from "@/lib/toast";
@@ -262,7 +264,7 @@ function AgentView({ kpi, salary, self = false, fmt, t, lang }: { kpi: KpiData; 
     <>
       {/* Hero KPI Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 stagger-children">
-        <KpiHero label={t("Общий балл", "Umumiy ball")} value={`${kpi.kpiScore}`} sub={grade[lang]} color={grade.color} progress={kpi.kpiScore / 100} icon={<Star size={20} color={grade.color} />} />
+        <KpiHero label={t("Общий балл", "Umumiy ball")} value={`${Math.round(kpi.kpiScore)}`} sub={grade[lang]} color={grade.color} progress={kpi.kpiScore / 100} icon={<Star size={20} color={grade.color} />} />
         <KpiHero label={t("План", "Reja")} value={`${kpi.visitCompletionRate}%`} sub={`${kpi.visitedPlans}/${kpi.totalPlans}`} color="var(--color-primary-text)" progress={kpi.visitCompletionRate / 100} icon={<Target size={20} color="var(--color-primary-text)" />} />
         <KpiHero label={t("Заказы", "Buyurtma")} value={String(kpi.orderCount)} sub={fmt(kpi.revenue)} color="var(--color-success-text)" progress={Math.min(1, kpi.orderCount / 50)} icon={<ShoppingCart size={20} color="var(--color-success-text)" />} />
         <KpiHero label={t("Средний чек", "O'rtacha")} value={fmt(kpi.avgOrderValue)} color="var(--color-warning-text)" progress={Math.min(1, kpi.avgOrderValue / 100000)} icon={<DollarSign size={20} color="var(--color-warning-text)" />} />
@@ -448,7 +450,7 @@ function SalarySection({ salary, fmt, t }: { salary: SalaryData; fmt: (v: number
             премия платилась по двум процентам, зашитым в код, которых
             никто не назначал.
           */}
-          <div className="flex justify-between"><span>{t("KPI балл", "KPI bali")}</span><span className="font-semibold" style={{ color: COLORS.textPrimary }}>{salary.kpiScore}/100</span></div>
+          <div className="flex justify-between"><span>{t("KPI балл", "KPI bali")}</span><span className="font-semibold" style={{ color: COLORS.textPrimary }}>{Math.round(salary.kpiScore)}/100</span></div>
           {salary.breakdown.fraudDeduction < 0 && (
             <div className="flex justify-between"><span>{t("Штраф за фрод", "Frod uchun jazo")}</span><span className="font-semibold" style={{ color: "var(--color-danger-text)" }}>{fmt(salary.baseSalary)} × {Math.round((Math.abs(salary.breakdown.fraudDeduction) / salary.baseSalary) * 100)}% = {fmt(salary.breakdown.fraudDeduction)}</span></div>
           )}
@@ -515,6 +517,9 @@ function SupervisorView({ kpi, period, selectedKpi, selectedSalary, detailLoadin
   );
 
   const filteredKpi = territoryFilter === "all" ? kpi : (territoryKpiData?.agents ?? []);
+  // Прогноз месячного плана — всегда за текущий месяц, какой бы период ни
+  // стоял в фильтре: «дотянет ли до конца месяца» за неделю не спрашивают.
+  const { byUser: forecastBy } = useForecastByUser();
 
   const totalRevenue = filteredKpi.reduce((s, k) => s + k.revenue, 0);
   const totalOrders = filteredKpi.reduce((s, k) => s + k.orderCount, 0);
@@ -669,6 +674,7 @@ function SupervisorView({ kpi, period, selectedKpi, selectedSalary, detailLoadin
               <col style={{ width: "92px" }} />
               <col style={{ width: "160px" }} />
               <col style={{ width: "104px" }} />
+              <col style={{ width: "150px" }} />
               <col style={{ width: "104px" }} />
             </colgroup>
             <thead>
@@ -686,6 +692,7 @@ function SupervisorView({ kpi, period, selectedKpi, selectedSalary, detailLoadin
                   { h: t("Заказы", "Buyurtma"), right: true },
                   { h: t("Выручка", "Tushum"), right: true },
                   { h: t("Визиты", "Tashrif"), right: true },
+                  { h: t("Прогноз месяца", "Oy prognozi"), right: true },
                   { h: "GPS", right: true },
                 ].map((c, i) => (
                   <th key={i} className={`px-3 py-2.5 text-[10px] font-semibold uppercase tracking-wider ${c.right ? "text-right" : "text-left"}`}
@@ -730,7 +737,7 @@ function SupervisorView({ kpi, period, selectedKpi, selectedSalary, detailLoadin
                     <td className="px-3 py-2.5">
                       {measurable ? (
                         <span className="px-2 py-0.5 rounded text-xs font-bold" style={{ background: colorMix(grade.color, 8), color: grade.color }}>
-                          {a.kpiScore} • {a.kpiGrade}
+                          {Math.round(a.kpiScore)} • {a.kpiGrade}
                         </span>
                       ) : (
                         <span className="text-xs" style={{ color: COLORS.textTertiary }}>{t("нет данных", "ma'lumot yo'q")}</span>
@@ -742,6 +749,11 @@ function SupervisorView({ kpi, period, selectedKpi, selectedSalary, detailLoadin
                         назначали, и сравнивать не с чем. */}
                     <td className="px-3 py-2.5 text-right tabular-nums" style={{ color: a.totalPlans > 0 ? COLORS.textPrimary : COLORS.textTertiary }}>
                       {a.totalPlans > 0 ? `${a.visitedPlans}/${a.totalPlans}` : "—"}
+                    </td>
+                    <td className="px-3 py-2.5 text-right">
+                      {forecastBy.get(a.agentId)
+                        ? <ForecastCell line={forecastBy.get(a.agentId)!} lang={lang} fmt={fmt} />
+                        : <span className="text-xs" style={{ color: COLORS.textTertiary }}>—</span>}
                     </td>
                     <td className="px-3 py-2.5 text-right">
                       {/* Красное «N (100%)» здесь было приговором за выключенный

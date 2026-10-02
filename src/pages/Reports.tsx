@@ -4,7 +4,7 @@ import { useCurrency } from "@/hooks/useCurrency";
 import { useLang } from "@/i18n";
 import { useAuth } from "@/hooks/useAuth";
 import { format, subDays } from "date-fns";
-import { FileDown, Printer, LayoutDashboard, ShoppingCart, Award, LayoutGrid, Wallet, CircleSlash } from "lucide-react";
+import { FileDown, Printer, LayoutDashboard, ShoppingCart, Award, LayoutGrid, Wallet, CircleSlash, TrendingUp, ChartBarStacked } from "lucide-react";
 import { exportToExcel } from "@/lib/excel";
 import { exportToPDF, escapeHtml } from "@/lib/export";
 import { unitShort } from "@/lib/units";
@@ -19,9 +19,14 @@ import { ReportsHub } from "@/components/reports/ReportsHub";
 import { DebtorsPanel } from "@/components/debts/DebtorsPanel";
 import { DebtJournalPanel } from "@/components/debts/DebtJournalPanel";
 import { NoOrderVisitsTab } from "@/components/reports/NoOrderVisitsTab";
+import { ProfitTab } from "@/components/reports/ProfitTab";
+import { AbcTab } from "@/components/reports/AbcTab";
+import { PlanForecastCard } from "@/components/plans/PlanForecast";
 import { useUrlState, urlEnum } from "@/hooks/useUrlState";
 
-const TAB_KEYS: readonly TabKey[] = ["overview", "sales", "agents", "debts", "noorder", "all"];
+const TAB_KEYS: readonly TabKey[] = ["overview", "sales", "agents", "debts", "noorder", "profit", "abc", "all"];
+/** Разделы со своим периодом в адресе: общий переключатель дней, «Сводка» и печать там ничего не меняют. */
+const OWN_PERIOD: readonly TabKey[] = ["noorder", "profit", "abc"];
 const TAB_CODEC = urlEnum<TabKey>(TAB_KEYS, "overview");
 
 /**
@@ -99,7 +104,16 @@ export default function Reports() {
   const { user } = useAuth();
   const seesNoOrder = user?.role === "ceo" || user?.role === "operator" || user?.role === "supervisor";
   const [urlTab, setTab] = useUrlState<TabKey>("tab", "overview", TAB_CODEC);
-  const tab: TabKey = urlTab === "noorder" && !seesNoOrder ? "overview" : urlTab;
+  /*
+    «Прибыль» — только директору (reports.margin — financeQuery, как P&L);
+    «ABC» — всем, кому открыты отчёты, но «по прибыли» внутри — директору.
+    Прогноз плана во «Всех агентах» — тем, кто видит планы всех
+    (salesTarget.forecast — managementQuery), то есть не мерчендайзеру.
+  */
+  const seesProfit = user?.role === "ceo";
+  const seesForecast = seesNoOrder;
+  const tab: TabKey = (urlTab === "noorder" && !seesNoOrder) || (urlTab === "profit" && !seesProfit) ? "overview" : urlTab;
+  const ownPeriod = OWN_PERIOD.includes(tab);
   const [days, setDays] = useState(30);
   const { fmt } = useCurrency();
   const { lang } = useLang();
@@ -227,6 +241,8 @@ export default function Reports() {
     { key: "agents" as const, ru: "Агенты", uz: "Agentlar", icon: <Award size={16} /> },
     { key: "debts" as const, ru: "Долги", uz: "Qarzlar", icon: <Wallet size={16} /> },
     ...(seesNoOrder ? [{ key: "noorder" as const, ru: "Без заказа", uz: "Buyurtmasiz", icon: <CircleSlash size={16} /> }] : []),
+    ...(seesProfit ? [{ key: "profit" as const, ru: "Прибыль", uz: "Foyda", icon: <TrendingUp size={16} /> }] : []),
+    { key: "abc" as const, ru: "ABC", uz: "ABC", icon: <ChartBarStacked size={16} /> },
   ];
 
   const handleExportAgentProducts = async () => {
@@ -410,13 +426,13 @@ export default function Reports() {
               на экране. Его человек и пересказывает, когда пересылает цифры. */}
           {/* У «Без заказа» свой период и свои выгрузки — внутри раздела; общий
               переключатель дней и «Сводка» там ничего не меняют и только путают. */}
-          {tab !== "noorder" && (
+          {!ownPeriod && (
           <p style={{ fontSize: "13px", color: COLORS.textSecondary, margin: "4px 0 0" }}>
             {format(subDays(new Date(), days), "dd.MM.yyyy")} — {format(new Date(), "dd.MM.yyyy")}
           </p>
           )}
         </div>
-        {tab !== "noorder" && (
+        {!ownPeriod && (
         <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
           <PeriodPicker days={days} onChange={setDays} t={t} />
           {/* Кнопки были 33 точки высотой при 13px шрифта и отступе 8px.
@@ -507,6 +523,8 @@ export default function Reports() {
       )}
 
       {tab === "noorder" && <NoOrderVisitsTab />}
+      {tab === "profit" && <ProfitTab />}
+      {tab === "abc" && <AbcTab />}
 
       {tab === "overview" && (
         <OverviewTab
@@ -551,6 +569,8 @@ export default function Reports() {
           }}
         />
       )}
+
+      {tab === "agents" && seesForecast && <PlanForecastCard />}
 
       {tab === "agents" && (
         <AgentsTab

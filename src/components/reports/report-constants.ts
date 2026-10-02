@@ -54,7 +54,7 @@ export const PAYMENT_MAP: Record<string, { label: string; color: string }> =
   «забрать с собой», а не «посмотреть», и стоять с ними в одном ряду ему
   незачем.
 */
-export type TabKey = "overview" | "sales" | "agents" | "debts" | "noorder" | "all";
+export type TabKey = "overview" | "sales" | "agents" | "debts" | "noorder" | "profit" | "abc" | "all";
 
 export const thStyle: React.CSSProperties = {
   fontFamily: F.display, fontSize: "10px", fontWeight: 600, textTransform: "uppercase",

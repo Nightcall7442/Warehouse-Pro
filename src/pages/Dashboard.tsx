@@ -17,6 +17,7 @@ import { STATUS } from "@/components/orders/theme-tokens";
 import { labelled, ORDER_STATUS_LABEL } from "@/lib/entity-labels";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { OversightHome } from "@/components/phone/OversightHome";
+import { PlanForecastCompact } from "@/components/plans/PlanForecast";
 
 type Range = "7d" | "30d" | "month";
 
@@ -282,6 +283,13 @@ function DesktopDashboard() {
           </div>
         </div>
       </div>
+
+      {/*
+        Прогноз месячного плана — сразу под итогами дня: «сегодня продали» без
+        «а к концу месяца дотянем?» отвечает на полвопроса. Нет ни одного
+        плана — карточки нет совсем (PlanForecastCompact решает сам).
+      */}
+      <PlanForecastCompact />
 
       {/* Smart Alerts — каждая карточка ведёт туда, где на неё отвечают */}
       {alerts && alerts.length > 0 && (

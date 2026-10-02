@@ -9,6 +9,7 @@ import {
   ListCard, ListRow, SectionHead, Tile, CtaTile, EmptyState, HomeGreeting, Segmented, Sparkline, Donut,
 } from "./kit";
 import { CARD, orderTone, orderStatusWord, tone } from "./tones";
+import { PlanForecastCompact } from "@/components/plans/PlanForecast";
 
 /*
   Главная надзорных ролей на телефоне — SupervisorHome мобилки v8
@@ -70,6 +71,9 @@ export function OversightHome() {
           })}
         </div>
       )}
+
+      {/* ── Прогноз плана: кто не дотягивает — тоже «что делать сегодня» ── */}
+      <PlanForecastCompact />
 
       {/* ── Долги магазинов — выше графиков: это «что делать сегодня» ── */}
       {aging && aging.totalDebt > 0 && (
