@@ -13,16 +13,18 @@ import { AppModal, modalFieldLabel } from "@/components/ui/AppModal";
   Раньше — своя копия с bottom-sheet без прокрутки: на телефоне с открытой
   клавиатурой кнопки уезжали за край, а страница под окном ехала.
 */
-export const AdjustModal = memo(function AdjustModal({ productId, productName, currentStock, unitWeight, warehouseId, onSave, onClose, isPending }: {
+export const AdjustModal = memo(function AdjustModal({ productId, productName, currentStock, unitWeight, warehouseId, onSave, onClose, isPending, initial }: {
   productId: number; productName: string; currentStock: number;
   unitWeight: number; warehouseId?: number;
   onSave: (d: unknown) => void; onClose: () => void; isPending: boolean;
+  /** Заполнить заранее: «Сроки» открывают окно списанием просроченной партии. */
+  initial?: { type: "in" | "out" | "adjustment"; qty: string; notes: string };
 }) {
   const { lang } = useLang();
   const t = (ru: string, uz: string) => lang === "uz" ? uz : ru;
-  const [qty, setQty] = useState("");
-  const [type, setType] = useState<"in" | "out" | "adjustment">("in");
-  const [notes, setNotes] = useState("");
+  const [qty, setQty] = useState(initial?.qty ?? "");
+  const [type, setType] = useState<"in" | "out" | "adjustment">(initial?.type ?? "in");
+  const [notes, setNotes] = useState(initial?.notes ?? "");
 
   const types = [
     { value: "in" as const, icon: TrendingUp, labelRu: "Приход", labelUz: "Kirim", color: "var(--color-success-text)", descRu: "Добавить на склад", descUz: "Omborga qo'shish" },
@@ -37,7 +39,7 @@ export const AdjustModal = memo(function AdjustModal({ productId, productName, c
   const valid = numQty > 0 && !overdraft;
 
   return (
-    <AppModal open onClose={onClose} dirty={qty !== "" || notes !== ""} maxWidth={520}
+    <AppModal open onClose={onClose} dirty={qty !== (initial?.qty ?? "") || notes !== (initial?.notes ?? "")} maxWidth={520}
       title={t("Движение товара", "Mahsulot harakati")} subtitle={productName}
       footer={<>
         <button type="button" onClick={onClose} className="neo-btn flex-1">{t("Отмена", "Bekor")}</button>

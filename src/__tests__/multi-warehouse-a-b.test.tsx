@@ -39,6 +39,8 @@ const stub = vi.hoisted(() => {
         createTransfer: { useMutation: m(state.createTransfer) },
         completeTransfer: { useMutation: m(state.completeTransfer) },
       },
+      // Счётчик раздела «Сроки» на ленте разделов.
+      warehouseReports: { expiringSummary: { useQuery: q(() => ({ riskCount: 0, riskCost: 0, riskSale: 0, expiredCount: 0, expiredCost: 0, expiredSale: 0, sellsCount: 0, markedDown: 0 })) } },
       stockCount: {
         list: { useQuery: q(() => []) },
         create: { useMutation: m(state.createCount) },
@@ -88,7 +90,8 @@ describe("A — один склад: ничего лишнего", () => {
 
   it("страница склада: фишки, «Сравнение» и «Перемещения» — только при multi", () => {
     const page = read("src/pages/Warehouse.tsx");
-    expect(page).toContain("{multi && activeTab !== \"compare\" && activeTab !== \"transfers\" && activeTab !== \"reports\" && (");
+    // «Сроки» тоже без фишек: продают только с основного, раздел сам говорит, где лежит партия.
+    expect(page).toContain("{multi && activeTab !== \"compare\" && activeTab !== \"transfers\" && activeTab !== \"reports\" && activeTab !== \"expiry\" && (");
     expect(page).toContain("...(multi ? [");
     expect(page).toContain('{ key: "compare" as const');
     expect(page).toContain('{activeTab === "transfers" && multi && (');

@@ -69,9 +69,14 @@ export function ProductSelector({ items, onChange, cartOpen = false, onCartOpenC
     });
   }, [products, copy, shopPrices]);
 
-  const filtered = (catalog ?? []).filter((p) =>
+  const matched = (catalog ?? []).filter((p) =>
     !search || p.name?.toLowerCase().includes(search.toLowerCase()) || (p.code ?? "").toLowerCase().includes(search.toLowerCase())
   );
+  // Уценённые по сроку — первыми: директор уценил партию, которая иначе сгорит
+  // (services/markdown.ts), и агенту её предлагать раньше прочих.
+  const filtered = matched.some(p => p.markdown)
+    ? [...matched.filter(p => p.markdown), ...matched.filter(p => !p.markdown)]
+    : matched;
 
   /*
     Сканер добавляет в корзину сразу: каждый код — плюс единица. Ищем по
@@ -619,6 +624,11 @@ export function ProductSelector({ items, onChange, cartOpen = false, onCartOpenC
                         ? <span data-testid={`product-out-${product.id}`} style={{ color: "var(--color-danger-text)", marginLeft: "6px", fontWeight: 600 }}>{t("товар закончился", "mahsulot tugadi")}</span>
                         : lowStock && <span style={{ color: "var(--color-warning-text)", marginLeft: "6px" }}>⚠ {t("осталось", "qoldi")} {formatQty(product.available)}</span>}
                     </p>
+                    {product.markdown && !out && (
+                      <p data-testid={`product-sell-first-${product.id}`} style={{ fontSize: "11px", fontWeight: 600, color: "var(--color-warning-text)", margin: "2px 0 0" }}>
+                        {t("Продать первым", "Birinchi sotish")} · {t("уценка до", "arzon")} {product.markdown.endsOn.slice(8, 10)}.{product.markdown.endsOn.slice(5, 7)}{lang === "uz" ? " gacha" : ""}
+                      </p>
+                    )}
                     {lastTimeOf.has(product.id) && (
                       <p data-testid={`product-last-${product.id}`} style={{ fontSize: "11px", color: "var(--color-text-tertiary)", margin: "2px 0 0" }}>
                         {t("в прошлый раз", "o'tgan safar")}: {formatQty(lastTimeOf.get(product.id)!.quantity)} {unitLabel(product.unit, lang)}

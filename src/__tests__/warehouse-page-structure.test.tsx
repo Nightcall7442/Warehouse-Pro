@@ -34,6 +34,7 @@ const stub = vi.hoisted(() => {
     dead: [] as Array<Record<string, unknown>>,
     canAdjust: true,
     multi: false,
+    expiry: { riskCount: 0, expiredCount: 0 },
     exportToExcel: vi.fn(),
     backfill: vi.fn(),
   };
@@ -53,6 +54,8 @@ const stub = vi.hoisted(() => {
         adjustStock: { useMutation: m(() => {}) },
         backfillStock: { useMutation: m(state.backfill) },
       },
+      // Счётчик раздела «Сроки» на ленте разделов.
+      warehouseReports: { expiringSummary: { useQuery: q(() => ({ riskCost: 0, riskSale: 0, expiredCost: 0, expiredSale: 0, sellsCount: 0, markedDown: 0, ...state.expiry })) } },
       product: { delete: { useMutation: m(() => {}) } },
       useUtils: () => ({ warehouseMulti: { getStock: { invalidate: vi.fn() } } }),
     },
@@ -79,6 +82,7 @@ vi.mock("@/components/warehouse/StockCounts", () => ({ StockCounts: () => <div d
 vi.mock("@/components/warehouse/StockTransfers", () => ({ StockTransfers: () => <div data-testid="tab-transfers" /> }));
 vi.mock("@/components/warehouse/WarehouseCompare", () => ({ WarehouseCompare: () => <div data-testid="tab-compare" /> }));
 vi.mock("@/pages/WarehouseReports", () => ({ default: () => <div data-testid="tab-reports" /> }));
+vi.mock("@/components/warehouse/ExpiringBatches", () => ({ ExpiringBatches: () => <div data-testid="tab-expiry" /> }));
 
 const { default: Warehouse } = await import("@/pages/Warehouse");
 
@@ -94,6 +98,7 @@ beforeEach(() => {
   stub.state.dead = [{ productId: 9, productName: "Кефир", productCode: "P-9", category: "Молочные", currentStock: "40", value: "120000", lastOrderDate: null, daysSinceOrder: null }];
   stub.state.canAdjust = true;
   stub.state.multi = false;
+  stub.state.expiry = { riskCount: 0, expiredCount: 0 };
   stub.state.exportToExcel.mockReset();
   stub.state.backfill.mockReset();
 });
@@ -147,11 +152,22 @@ describe("каркас страницы", () => {
   it("лента разделов: счётчик только там, где число зовёт действовать; «Инвентаризация» — только с правом", () => {
     mount();
     const tabs = screen.getAllByRole("tab").map(el => el.textContent);
-    expect(tabs).toEqual(["Остатки", "Дозаказ1", "Мёртвый сток1", "Прогноз", "Отчёты", "Инвентаризация"]);
+    expect(tabs).toEqual(["Остатки", "Дозаказ1", "Сроки", "Мёртвый сток1", "Прогноз", "Отчёты", "Инвентаризация"]);
     cleanup();
     stub.state.canAdjust = false;
     mount();
     expect(screen.queryByRole("tab", { name: /Инвентаризация/ })).toBeNull();
+  });
+
+  it("«Сроки»: счётчик — не успеют до срока плюс просрочено; из адреса ?tab=expiry; фишек складов нет", () => {
+    stub.state.expiry = { riskCount: 2, expiredCount: 1 };
+    stub.state.multi = true;
+    mount("/warehouse?tab=expiry");
+    const tab = screen.getByRole("tab", { name: /^Сроки/ });
+    expect(tab.textContent).toBe("Сроки3");
+    expect(tab.getAttribute("aria-selected")).toBe("true");
+    expect(screen.getByTestId("tab-expiry")).toBeTruthy();
+    expect(screen.queryByTestId("warehouse-chips"), "продают только с основного — выбор склада здесь ни к чему").toBeNull();
   });
 
   it("при нескольких складах — «Сравнение» и «Перемещения» в ленте, фишки складов над ней", () => {

@@ -9,7 +9,7 @@ import { useLang, useTranslate } from "@/i18n";
 import { format } from "date-fns";
 import {
   AlertTriangle, Package, FileDown, Trash2, Loader2, Boxes, Banknote, Clock,
-  ShoppingCart, Layers, TrendingUp, Columns3, ArrowLeftRight, ClipboardCheck, SlidersHorizontal, BarChart3,
+  ShoppingCart, Layers, TrendingUp, Columns3, ArrowLeftRight, ClipboardCheck, SlidersHorizontal, BarChart3, CalendarClock,
 } from "lucide-react";
 import { exportToExcel, formatWarehouseForExport, formatStockValuationForExport, formatDeadStockForExport, formatReorderForExport } from "@/lib/excel";
 import { useCurrency } from "@/hooks/useCurrency";
@@ -28,6 +28,7 @@ import { StockTransfers } from "@/components/warehouse/StockTransfers";
 import { WarehouseCompare } from "@/components/warehouse/WarehouseCompare";
 import { StockCounts } from "@/components/warehouse/StockCounts";
 import { DemandForecast } from "@/components/warehouse/DemandForecast";
+import { ExpiringBatches } from "@/components/warehouse/ExpiringBatches";
 import WarehouseReports from "@/pages/WarehouseReports";
 
 // warehouseMulti.getStock is raw SQL behind db.execute, so tRPC infers its rows
@@ -56,8 +57,8 @@ type StockSummary = {
   lowStockCount: number;
 };
 
-type Tab = "stock" | "reorder" | "deadstock" | "forecast" | "reports" | "compare" | "transfers" | "counts";
-const TABS: readonly Tab[] = ["stock", "reorder", "deadstock", "forecast", "reports", "compare", "transfers", "counts"];
+type Tab = "stock" | "reorder" | "expiry" | "deadstock" | "forecast" | "reports" | "compare" | "transfers" | "counts";
+const TABS: readonly Tab[] = ["stock", "reorder", "expiry", "deadstock", "forecast", "reports", "compare", "transfers", "counts"];
 
 /** Порог — тот же, что у сервера (lowStockCondition): свободный остаток не выше порога, порог задан. */
 const isLow = (r: StockRow) => Number(r.reorderPoint ?? 0) > 0 && Number(r.available ?? 0) <= Number(r.reorderPoint ?? 0);
@@ -279,6 +280,10 @@ export default function Warehouse() {
   */
   const pendingQ = trpc.warehouseMulti.listTransfers.useQuery({ status: "pending", limit: 100 }, { enabled: multi });
   const pendingTransfers = pendingQ.data?.length ?? 0;
+  // «Сроки» — список дел: счётчик — партии, с которыми надо что-то сделать
+  // (не успеют до срока и просроченные). Тот же ключ, что у самого раздела.
+  const expiryQ = trpc.warehouseReports.expiringSummary.useQuery({ withinDays: 30 });
+  const expiryCount = (expiryQ.data?.riskCount ?? 0) + (expiryQ.data?.expiredCount ?? 0);
 
   /*
     Лента разделов — тот же .range-pills, что на «Отчётах» и главной. Счётчик
@@ -290,6 +295,8 @@ export default function Warehouse() {
     { key: "stock" as const, label: t("Остатки", "Qoldiqlar"), icon: <Layers size={15} />, count: 0, warn: false },
     // «Дозаказ» отвечает «что УЖЕ ниже порога» — состояние на сегодня.
     { key: "reorder" as const, label: t("Дозаказ", "Qayta buyurtma"), icon: <ShoppingCart size={15} />, count: reorderSuggestions?.length ?? 0, warn: true },
+    // «Сроки» — что не успеет продаться до срока и что с этим делать.
+    { key: "expiry" as const, label: t("Сроки", "Muddatlar"), icon: <CalendarClock size={15} />, count: expiryCount, warn: true },
     { key: "deadstock" as const, label: t("Мёртвый сток", "O'lik stok"), icon: <Clock size={15} />, count: deadCount, warn: false },
     // «Прогноз» — другой вопрос: КОГДА кончится и сколько заказать с учётом доставки.
     { key: "forecast" as const, label: t("Прогноз", "Prognoz"), icon: <TrendingUp size={15} />, count: 0, warn: false },
@@ -303,7 +310,7 @@ export default function Warehouse() {
     ] : []),
     // Инвентаризация — документ: снимок, счёт (в т. ч. сканером), применение разом.
     ...(canAdjust ? [{ key: "counts" as const, label: t("Инвентаризация", "Inventarizatsiya"), icon: <ClipboardCheck size={15} />, count: 0, warn: false }] : []),
-  ], [deadCount, reorderSuggestions, pendingTransfers, multi, canAdjust, t]);
+  ], [deadCount, reorderSuggestions, expiryCount, pendingTransfers, multi, canAdjust, t]);
 
   if (isLoadingError) return <QueryErrorFallback onRetry={refetch} />;
 
@@ -373,7 +380,7 @@ export default function Warehouse() {
           <p style={{ fontSize: "13px", color: COLORS.textSecondary, margin: "4px 0 0" }}>
             {t("Остатки, дозаказ и движение товара", "Qoldiqlar, qayta buyurtma va tovar harakati")}
           </p>
-          {multi && activeTab !== "compare" && activeTab !== "transfers" && activeTab !== "reports" && (
+          {multi && activeTab !== "compare" && activeTab !== "transfers" && activeTab !== "reports" && activeTab !== "expiry" && (
             <div className="flex flex-wrap gap-2 mt-3" role="tablist" aria-label={t("Склад", "Ombor")} data-testid="warehouse-chips">
               {warehouses.map(w => {
                 const active = w.id === warehouseId;
@@ -619,6 +626,9 @@ export default function Warehouse() {
       {activeTab === "forecast" && <DemandForecast />}
 
       {activeTab === "reports" && <WarehouseReports />}
+
+      {/* Продают только с основного склада — раздел сам показывает, где лежит партия. */}
+      {activeTab === "expiry" && <ExpiringBatches onOpenTransfers={() => setActiveTab("transfers")} />}
 
       {activeTab === "transfers" && multi && (
         <StockTransfers warehouses={warehouses} canTransfer={canAdjust} />
