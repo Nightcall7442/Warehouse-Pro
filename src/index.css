@@ -1852,6 +1852,15 @@ textarea:focus-visible {
 /* ════════════════════════════════════════════════════════════════════════
    DARK MODE OVERRIDES
    ════════════════════════════════════════════════════════════════════════ */
+/*
+  Карта продаж в тёмной теме: у Яндекс.Карт 2.1 тёмной подложки нет, и
+  белый лист улиц горел посреди тёмной страницы. Инвертируется только
+  подложка (ground-pane) — кружки магазинов лежат в другом слое и цвета не
+  меняют.
+*/
+.dark .sales-map-canvas [class*="ground-pane"] {
+  filter: invert(0.9) hue-rotate(180deg) saturate(0.55) brightness(0.95);
+}
 .dark .recharts-tooltip-wrapper .recharts-default-tooltip {
   background: var(--color-surface-raised) !important;
   border: 1px solid rgba(255,255,255,0.06) !important;

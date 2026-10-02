@@ -4,7 +4,7 @@ import { useCurrency } from "@/hooks/useCurrency";
 import { useLang } from "@/i18n";
 import { useAuth } from "@/hooks/useAuth";
 import { format, subDays } from "date-fns";
-import { FileDown, Printer, LayoutDashboard, ShoppingCart, Award, LayoutGrid, Wallet, CircleSlash, TrendingUp, ChartBarStacked } from "lucide-react";
+import { FileDown, Printer, LayoutDashboard, ShoppingCart, Award, LayoutGrid, Wallet, CircleSlash, TrendingUp, ChartBarStacked, MapPinned } from "lucide-react";
 import { exportToExcel } from "@/lib/excel";
 import { exportToPDF, escapeHtml } from "@/lib/export";
 import { unitShort } from "@/lib/units";
@@ -21,12 +21,13 @@ import { DebtJournalPanel } from "@/components/debts/DebtJournalPanel";
 import { NoOrderVisitsTab } from "@/components/reports/NoOrderVisitsTab";
 import { ProfitTab } from "@/components/reports/ProfitTab";
 import { AbcTab } from "@/components/reports/AbcTab";
+import { SalesMapTab } from "@/components/reports/SalesMapTab";
 import { PlanForecastCard } from "@/components/plans/PlanForecast";
 import { useUrlState, urlEnum } from "@/hooks/useUrlState";
 
-const TAB_KEYS: readonly TabKey[] = ["overview", "sales", "agents", "debts", "noorder", "profit", "abc", "all"];
+const TAB_KEYS: readonly TabKey[] = ["overview", "sales", "agents", "debts", "noorder", "profit", "abc", "map", "all"];
 /** Разделы со своим периодом в адресе: общий переключатель дней, «Сводка» и печать там ничего не меняют. */
-const OWN_PERIOD: readonly TabKey[] = ["noorder", "profit", "abc"];
+const OWN_PERIOD: readonly TabKey[] = ["noorder", "profit", "abc", "map"];
 const TAB_CODEC = urlEnum<TabKey>(TAB_KEYS, "overview");
 
 /**
@@ -112,7 +113,13 @@ export default function Reports() {
   */
   const seesProfit = user?.role === "ceo";
   const seesForecast = seesNoOrder;
-  const tab: TabKey = (urlTab === "noorder" && !seesNoOrder) || (urlTab === "profit" && !seesProfit) ? "overview" : urlTab;
+  /*
+    «Карта» продаж — тому же кругу, что «Без заказа» (reports.salesMap —
+    managementQuery): директору, офису, супервайзеру. Визиты с неё ставят
+    директор и супервайзер — кнопку раздел прячет сам.
+  */
+  const seesMap = seesNoOrder;
+  const tab: TabKey = (urlTab === "noorder" && !seesNoOrder) || (urlTab === "profit" && !seesProfit) || (urlTab === "map" && !seesMap) ? "overview" : urlTab;
   const ownPeriod = OWN_PERIOD.includes(tab);
   const [days, setDays] = useState(30);
   const { fmt } = useCurrency();
@@ -243,6 +250,7 @@ export default function Reports() {
     ...(seesNoOrder ? [{ key: "noorder" as const, ru: "Без заказа", uz: "Buyurtmasiz", icon: <CircleSlash size={16} /> }] : []),
     ...(seesProfit ? [{ key: "profit" as const, ru: "Прибыль", uz: "Foyda", icon: <TrendingUp size={16} /> }] : []),
     { key: "abc" as const, ru: "ABC", uz: "ABC", icon: <ChartBarStacked size={16} /> },
+    ...(seesMap ? [{ key: "map" as const, ru: "Карта продаж", uz: "Savdo xaritasi", icon: <MapPinned size={16} /> }] : []),
   ];
 
   const handleExportAgentProducts = async () => {
@@ -525,6 +533,7 @@ export default function Reports() {
       {tab === "noorder" && <NoOrderVisitsTab />}
       {tab === "profit" && <ProfitTab />}
       {tab === "abc" && <AbcTab />}
+      {tab === "map" && <SalesMapTab />}
 
       {tab === "overview" && (
         <OverviewTab
