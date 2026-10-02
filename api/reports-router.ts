@@ -1,6 +1,8 @@
 import { photoRef } from "./lib/photo-url";
 import { z } from "zod";
-import { createRouter, reportsQuery } from "./middleware";
+import { createRouter, reportsQuery, managementQuery } from "./middleware";
+import { TRPCError } from "@trpc/server";
+import { noOrderReport } from "./services/no-order-visits";
 import { getDb } from "./queries/connection";
 import { orders, users, dailyPlans, agentLocations, subscriptions, shops, products, stockMovements } from "@db/schema";
 import { eq, and, sql, gte, desc , inArray, isNull } from "drizzle-orm";
@@ -181,6 +183,31 @@ export const reportsRouter = createRouter({
    * multi-megabyte blob and no spreadsheet wants it, but whether one exists is
    * exactly the question being asked.
    */
+  /*
+    «Визиты без заказа» за период: доля, причины, агенты, магазины.
+
+    Директору, офису и супервайзеру — тем, кто решает, что делать с
+    причиной (отсрочка, меньший заказ, цена). Мерчендайзеру — нет: заказы не
+    его работа, а «Отчёты» ему открыты ради полки. Правило «визит с заказом»
+    и разбивки — services/no-order-visits.ts.
+  */
+  noOrderVisits: managementQuery
+    .input(z.object({
+      dateFrom: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+      dateTo: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+      agentId: z.number().int().positive().optional(),
+      territoryId: z.number().int().positive().optional(),
+    }))
+    .query(async ({ input, ctx }) => {
+      const days = (Date.parse(input.dateTo) - Date.parse(input.dateFrom)) / 86_400_000;
+      if (!(days >= 0) || days > 366) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Период — от одного дня до года." });
+      }
+      return noOrderReport(getDb(), ctx.tenant.id, {
+        from: input.dateFrom, to: input.dateTo, agentId: input.agentId, territoryId: input.territoryId,
+      });
+    }),
+
   getVisitsLog: reportsQuery
     .input(z.object({
       dateFrom: z.string(),
