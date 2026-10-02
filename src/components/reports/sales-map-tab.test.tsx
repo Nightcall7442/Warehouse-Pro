@@ -26,6 +26,7 @@ import { addDays, format } from "date-fns";
 
 const state = vi.hoisted(() => ({
   role: "ceo",
+  phone: false,
   inputs: [] as Array<Record<string, unknown>>,
   plans: [] as Array<Record<string, unknown>>,
   data: undefined as unknown,
@@ -44,7 +45,7 @@ vi.mock("@/providers/trpc", () => ({
 vi.mock("@/i18n", () => ({ useLang: () => ({ lang: "ru" }), useTranslate: () => (ru: string) => ru }));
 vi.mock("@/hooks/useAuth", () => ({ useAuth: () => ({ user: { id: 1, role: state.role } }) }));
 vi.mock("@/hooks/useCurrency", () => ({ useCurrency: () => ({ fmt: (v: number) => `${v} сум` }) }));
-vi.mock("@/hooks/use-mobile", () => ({ useIsMobile: () => false }));
+vi.mock("@/hooks/use-mobile", () => ({ useIsMobile: () => state.phone }));
 vi.mock("@/lib/excel", () => ({ exportToExcel: vi.fn() }));
 vi.mock("@/lib/toast", () => ({ notify: { success: vi.fn(), error: vi.fn() } }));
 // Яндекса в jsdom нет: карта — заглушка с кнопками-точками.
@@ -83,10 +84,13 @@ const map = () => ({
   noGps: [{ id: 5, name: "Навруз", areaKey: "d:ташкент|чиланзар", revenue: 900, state: "buying" }],
 });
 
+/** Текст без неразрывных пробелов: суммы на экране склеены ими, чтобы не рваться. */
+const txt = (el: Element) => (el.textContent ?? "").replace(/\u00a0/g, " ");
+
 function Where() { return <div data-testid="where">{useLocation().search}</div>; }
 const mount = (url = "/reports?tab=map") => render(<MemoryRouter initialEntries={[url]}><SalesMapTab /><Where /></MemoryRouter>);
 
-beforeEach(() => { state.role = "ceo"; state.inputs = []; state.plans = []; state.data = map(); });
+beforeEach(() => { state.role = "ceo"; state.phone = false; state.inputs = []; state.plans = []; state.data = map(); });
 afterEach(cleanup);
 
 describe("«Карта»: адрес, действия, права", () => {
@@ -99,10 +103,10 @@ describe("«Карта»: адрес, действия, права", () => {
     mount();
     const rows = screen.getAllByTestId("sales-map-area");
     expect(rows.map(r => r.dataset.status)).toEqual(["send", "ok"]);
-    expect(rows[0].textContent).toContain("Отправить агента");
-    expect(rows[0].textContent).toContain("Перестали заказывать 1 из 2 — в прошлом периоде дали 500 сум");
-    expect(rows[0].textContent).toContain("Выручка упала на 72% к прошлому периоду (−1800 сум)");
-    expect(rows[1].textContent).toContain("Чиланзар, Ташкент");
+    expect(txt(rows[0])).toContain("Отправить агента");
+    expect(txt(rows[0])).toContain("Перестали заказывать 1 из 2 — в прошлом периоде дали 500 сум");
+    expect(txt(rows[0])).toContain("Выручка упала на 72% к прошлому периоду (−1800 сум)");
+    expect(txt(rows[1])).toContain("Чиланзар, Ташкент");
     // «Магазины района» — список с тем же отбором.
     expect(within(rows[0]).getByRole("link", { name: /Магазины/ }).getAttribute("href")).toBe("/shops?view=list&territory=1");
     expect(within(rows[1]).getByRole("link", { name: /Магазины/ }).getAttribute("href")).toBe("/shops?view=list&district=%D0%A7%D0%B8%D0%BB%D0%B0%D0%BD%D0%B7%D0%B0%D1%80&city=%D0%A2%D0%B0%D1%88%D0%BA%D0%B5%D0%BD%D1%82");
@@ -146,11 +150,23 @@ describe("«Карта»: адрес, действия, права", () => {
     mount();
     fireEvent.click(screen.getByRole("button", { name: "точка Барака" }));
     const card = screen.getByTestId("sales-map-selected");
-    expect(card.textContent).toContain("Перестал заказывать · Юнусабад · Азиз");
-    expect(card.textContent).toContain("Не заказывает 46 дн., обычно — раз в 7 дн.");
-    expect(card.textContent).toContain("Визит без заказа 27.09.2099: Берёт у конкурента");
+    expect(txt(card)).toContain("Перестал заказывать · Юнусабад · Азиз");
+    expect(txt(card)).toContain("Не заказывает 46 дн., обычно — раз в 7 дн.");
+    expect(txt(card)).toContain("Визит без заказа 27.09.2099: Берёт у конкурента");
     expect(within(card).getByRole("link", { name: /Открыть/ }).getAttribute("href")).toBe("/shops/2");
     expect(within(card).getByRole("button", { name: /Визит/ })).toBeTruthy();
+  });
+
+  it("телефон: районы и замолчавшие — карточками со счётом словами и действиями", () => {
+    state.phone = true;
+    mount();
+    expect(screen.queryByRole("table")).toBeNull();
+    const card = screen.getAllByTestId("sales-map-area")[0];
+    expect(txt(card)).toContain("Магазинов 2: заказывают 1, перестали 1, не заказывают 0");
+    expect(within(card).getByRole("button", { name: /Визиты/ })).toBeTruthy();
+    const shop = screen.getByTestId("sales-map-silent-row");
+    expect(txt(shop)).toContain("Юнусабад · последний заказ 15.08.2099");
+    expect(within(shop).getByRole("link", { name: /Открыть/ }).getAttribute("href")).toBe("/shops/2");
   });
 
   it("Excel районов — по-русски, с причинами словами", () => {

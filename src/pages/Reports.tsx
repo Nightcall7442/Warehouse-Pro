@@ -250,7 +250,7 @@ export default function Reports() {
     ...(seesNoOrder ? [{ key: "noorder" as const, ru: "Без заказа", uz: "Buyurtmasiz", icon: <CircleSlash size={16} /> }] : []),
     ...(seesProfit ? [{ key: "profit" as const, ru: "Прибыль", uz: "Foyda", icon: <TrendingUp size={16} /> }] : []),
     { key: "abc" as const, ru: "ABC", uz: "ABC", icon: <ChartBarStacked size={16} /> },
-    ...(seesMap ? [{ key: "map" as const, ru: "Карта", uz: "Xarita", icon: <MapPinned size={16} /> }] : []),
+    ...(seesMap ? [{ key: "map" as const, ru: "Карта продаж", uz: "Savdo xaritasi", icon: <MapPinned size={16} /> }] : []),
   ];
 
   const handleExportAgentProducts = async () => {

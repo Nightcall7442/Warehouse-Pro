@@ -73,10 +73,12 @@ const SIZE: Record<SalesShopState, (grade: number) => number> = {
 function icon(state: SalesShopState, grade: number, selected: boolean): IconOptions {
   const d = SIZE[state](grade) + (selected ? 8 : 0);
   const r = d / 2;
-  const color = state === "buying" ? cssVar("--color-success", "#22a861")
-    : state === "silent" ? cssVar("--color-danger", "#e05050")
-    : cssVar("--color-text-tertiary", "#8a8680");
-  const ring = selected ? cssVar("--color-primary", "#3b6ea5") : color;
+  // Цвета — токены темы, прочитанные сейчас: внутри картинки-SVG переменные CSS
+  // не работают. Запасной — именованный: токен есть всегда, а число темы не знает.
+  const color = state === "buying" ? cssVar("--color-success", "green")
+    : state === "silent" ? cssVar("--color-danger", "red")
+    : cssVar("--color-text-tertiary", "gray");
+  const ring = selected ? cssVar("--color-primary", "steelblue") : color;
   const fillOpacity = state === "buying" ? 0.42 : state === "silent" ? 0.16 : 0.55;
   const stroke = state === "idle" && !selected ? 0 : selected ? 3 : 2;
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${d}" height="${d}" viewBox="0 0 ${d} ${d}">`
@@ -205,16 +207,16 @@ export function SalesMapView({ points, fitKey, focus, selectedId, onSelect, phon
   return (
     <div style={{ position: "relative", height }}>
       {/* zIndex: 0 запирает слои Яндекса внутри карты — их панели идут с z-index в сотни. */}
-      <div ref={divRef} style={{ width: "100%", height: "100%", position: "relative", zIndex: 0 }} data-testid="sales-map" />
+      <div ref={divRef} className="sales-map-canvas" style={{ width: "100%", height: "100%", position: "relative", zIndex: 0 }} data-testid="sales-map" />
       {phone && !active && (
-        <div style={{ position: "absolute", inset: 0, zIndex: 1, display: "flex", alignItems: "flex-end", justifyContent: "center", padding: 12 }}>
+        <div style={{ position: "absolute", inset: 0, zIndex: 1, display: "flex", alignItems: "flex-start", justifyContent: "flex-end", padding: 10 }}>
           <button type="button" onClick={() => setActive(true)} className="neo-btn tap" style={{ minHeight: 44, padding: "0 16px", gap: 8 }} data-testid="sales-map-activate">
             <Hand size={16} aria-hidden />{t("Работать с картой", "Xarita bilan ishlash")}
           </button>
         </div>
       )}
       {phone && active && (
-        <button type="button" onClick={() => setActive(false)} className="neo-btn tap" style={{ position: "absolute", left: 10, top: 10, zIndex: 1, minHeight: 44, padding: "0 14px", gap: 6 }} data-testid="sales-map-done">
+        <button type="button" onClick={() => setActive(false)} className="neo-btn tap" style={{ position: "absolute", right: 10, top: 10, zIndex: 1, minHeight: 44, padding: "0 14px", gap: 6 }} data-testid="sales-map-done">
           <Check size={16} aria-hidden />{t("Готово", "Tayyor")}
         </button>
       )}

@@ -12,7 +12,6 @@ import { exportToExcel } from "@/lib/excel";
 import { notify } from "@/lib/toast";
 import { canOperate } from "@/lib/permissions";
 import { PremiumSelect } from "@/components/PremiumSelect";
-import { CardTable } from "@/components/CardTable";
 import { QueryErrorFallback } from "@/components/QueryErrorFallback";
 import { AppModal, modalFieldLabel } from "@/components/ui/AppModal";
 import { F, COLORS, thStyle, tdStyle } from "@/components/users/types";
@@ -61,6 +60,10 @@ const PLAN_MAX = 500;
 
 const plainMoney = (n: number) => Math.round(n).toLocaleString("ru-RU");
 const pctSigned = (v: number) => `${v > 0 ? "+" : v < 0 ? "−" : ""}${Math.abs(v)}%`;
+/** Изменение для столбца: от удвоения — «×52,5», а не «+5147%». */
+const changeLabel = (v: number) => (v >= 100 ? `×${String(Math.round((100 + v) / 10) / 10).replace(".", ",")}` : pctSigned(v));
+/** Число с валютой одной строкой: перенос между «7 522 700» и «сум» рвал сумму на телефоне. */
+const nb = (s: string) => s.replace(/ /g, "\u00a0");
 
 interface PlanTarget { title: string; agentId: number | null; silentIds: number[]; idleIds: number[] }
 
@@ -79,6 +82,27 @@ function ActionBtn({ onClick, to, icon, label, testid }: { onClick?: () => void;
   return to
     ? <Link to={to} className="neo-btn tap" style={style} data-testid={testid}>{icon}{label}</Link>
     : <button type="button" onClick={onClick} className="neo-btn tap" style={style} data-testid={testid}>{icon}{label}</button>;
+}
+
+function ChangeText({ pct }: { pct: number | null }) {
+  return (
+    <div className="font-data" style={{ fontWeight: 700, whiteSpace: "nowrap", color: pct == null ? COLORS.textTertiary : pct < 0 ? "var(--color-danger-text)" : "var(--color-success-text)" }}>
+      {pct == null ? "—" : changeLabel(pct)}
+    </div>
+  );
+}
+
+function SilentName({ s, lang }: { s: SilentShop; lang: string }) {
+  return (
+    <span className="flex items-start gap-2 min-w-0">
+      <span aria-hidden title={s.light ? lightColorLabel(s.light.color, lang) : undefined}
+        style={{ width: 10, height: 10, borderRadius: 999, background: s.light ? LIGHT_DOT[s.light.color] : STATE_DOT.silent, flexShrink: 0, marginTop: 5 }} />
+      <span className="min-w-0">
+        <span style={{ fontWeight: 600, color: COLORS.textPrimary }}>{s.name}</span>
+        {s.agentName && <span style={{ color: COLORS.textTertiary, fontSize: 12 }}> · {s.agentName}</span>}
+      </span>
+    </span>
+  );
 }
 
 /** «Магазины района» — список «Магазинов» с тем же отбором; у квартала сетки списка нет. */
@@ -120,7 +144,7 @@ function PlanVisitsModal({ target, onClose, t }: { target: PlanTarget; onClose: 
           <button type="button" className="neo-btn neo-btn-primary tap" style={{ minHeight: 44, padding: "0 16px" }} data-testid="sales-map-plan-save"
             disabled={!agentId || send.length === 0 || !day || m.isPending}
             onClick={() => m.mutate({ agentId: Number(agentId), shopIds: send, planDate: day, notes: t("Карта продаж: вернуть магазин", "Savdo xaritasi: do'konni qaytarish") })}>
-            {t(`Поставить ${send.length}`, `${send.length} ta qo'yish`)}
+            {t(`Поставить визиты: ${send.length}`, `Tashriflarni qo'yish: ${send.length}`)}
           </button>
         </div>
       )}>
@@ -206,6 +230,13 @@ export function SalesMapTab() {
     setFocus(f => ({ key: (f?.key ?? 0) + 1, bounds: a.bounds! }));
     mapBox.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
+  /** «На карте» у магазина: выбрать его и подвести карту к нему. */
+  const showShop = (id: number) => {
+    const p = r?.points.find(x => x.id === id);
+    setSelectedId(id);
+    if (p) setFocus(f => ({ key: (f?.key ?? 0) + 1, bounds: [[p.lat, p.lng], [p.lat, p.lng]] }));
+    mapBox.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
   const planArea = (a: SalesArea) => setPlan({ title: areaTitle(a, lang), agentId: a.suggestedAgentId, silentIds: a.silentShopIds, idleIds: a.idleShopIds });
   const planShop = (s: { id: number; name: string; agentId: number | null }) => setPlan({ title: s.name, agentId: s.agentId, silentIds: [s.id], idleIds: [] });
 
@@ -247,10 +278,46 @@ export function SalesMapTab() {
     `Перестали заказывать ${dmy(r.from)} — ${dmy(r.to)}: за ${SALES_MAP_RULES.SILENT_LOOKBACK_DAYS} дней до периода заказывали, в периоде — нет`);
   };
 
+  /* Части строки района и магазина — общие для таблицы и карточек телефона. */
+  const areaPeople = (a: SalesArea) => (
+    <div style={{ fontSize: 12, color: a.agents.length ? COLORS.textTertiary : "var(--color-warning-text)", marginTop: 2 }}>
+      {a.agents.length
+        ? a.agents.slice(0, 2).map(x => x.name).join(", ") + (a.agents.length > 2 ? ` +${a.agents.length - 2}` : "")
+        : t("Агент не закреплён", "Agent biriktirilmagan")}
+      {phone && (
+        <span style={{ display: "block", color: COLORS.textTertiary }}>
+          {nb(t(`Магазинов ${a.shops}:`, `Do'konlar ${a.shops}:`))} {nb(t(`заказывают ${a.buying},`, `buyurtma beradi ${a.buying},`))} {nb(t(`перестали ${a.silent},`, `to'xtatgan ${a.silent},`))} {nb(t(`не заказывают ${a.idle}`, `bermaydi ${a.idle}`))}
+        </span>
+      )}
+    </div>
+  );
+  const areaReasons = (a: SalesArea) => a.reasons.map((x, i) => (
+    <div key={i} style={{ fontSize: 12, color: COLORS.textSecondary, marginTop: 4 }}>{areaReasonText(x, lang, n => nb(fmt(n)))}</div>
+  ));
+  const areaActions = (a: SalesArea) => {
+    const link = areaShopsLink(a);
+    const canPlanHere = canPlan && a.silentShopIds.length + a.idleShopIds.length > 0;
+    if (!a.bounds && !link && !canPlanHere) return null;
+    return (
+      <div className="flex flex-wrap gap-2" style={{ marginTop: 10 }}>
+        {a.bounds && <ActionBtn onClick={() => showOnMap(a)} icon={<Crosshair size={15} aria-hidden />} label={t("На карте", "Xaritada")} />}
+        {link && <ActionBtn to={link} icon={<Store size={15} aria-hidden />} label={t("Магазины", "Do'konlar")} />}
+        {canPlanHere && <ActionBtn onClick={() => planArea(a)} icon={<CalendarPlus size={15} aria-hidden />} label={t("Визиты", "Tashriflar")} testid="sales-map-plan-area" />}
+      </div>
+    );
+  };
+  const silentActions = (s: SilentShop) => (
+    <>
+      {s.hasGps && <ActionBtn onClick={() => showShop(s.id)} icon={<Crosshair size={15} aria-hidden />} label={t("На карте", "Xaritada")} />}
+      <ActionBtn to={`/shops/${s.id}`} icon={<ExternalLink size={15} aria-hidden />} label={t("Открыть", "Ochish")} />
+      {canPlan && <ActionBtn onClick={() => planShop(s)} icon={<CalendarPlus size={15} aria-hidden />} label={t("Визит", "Tashrif")} />}
+    </>
+  );
+
   const silentLine = (s: SilentShop) => (
     <>
       {s.light && s.light.reasons.length > 0 && (
-        <span style={{ display: "block", fontSize: 12, color: COLORS.textTertiary }}>{s.light.reasons.map(x => lightReasonText(x, lang, n => fmt(n))).join(" · ")}</span>
+        <span style={{ display: "block", fontSize: 12, color: COLORS.textTertiary }}>{s.light.reasons.map(x => lightReasonText(x, lang, n => nb(fmt(n)))).join(" · ")}</span>
       )}
       {s.lastNoOrder && (
         <span style={{ display: "block", fontSize: 12, color: COLORS.textTertiary }}>
@@ -360,68 +427,71 @@ export function SalesMapTab() {
               <div className="min-w-0">
                 <h3 style={{ fontFamily: F.display, fontSize: 16, fontWeight: 700, color: COLORS.textPrimary, margin: 0 }}>{t("Куда отправить агента", "Agentni qayerga yuborish")}</h3>
                 <p style={{ fontSize: 12, color: COLORS.textTertiary, margin: "4px 0 0" }}>
-                  {t(`Сначала районы, где деньги уходят. Сравнение — с ${dmy(r.prevFrom)} — ${dmy(r.prevTo)}.`, `Avval pul ketayotgan hududlar. Taqqoslash — ${dmy(r.prevFrom)} — ${dmy(r.prevTo)} bilan.`)}
+                  {t(`Сначала районы, где деньги уходят. Прошлый период — с ${dmy(r.prevFrom)} по ${dmy(r.prevTo)}.`, `Avval pul ketayotgan hududlar. O'tgan davr — ${dmy(r.prevFrom)} dan ${dmy(r.prevTo)} gacha.`)}
                 </p>
               </div>
               <button type="button" onClick={exportAreas} disabled={r.areas.length === 0} className="neo-btn tap disabled:opacity-40" style={{ minHeight: 44, padding: "0 16px", gap: 7 }}>
                 <FileDown size={15} aria-hidden />Excel
               </button>
             </div>
-            <CardTable style={{ overflowX: "auto" }}>
-              <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0 }} data-testid="sales-map-areas-table">
-                <thead><tr>
-                  {[t("РАЙОН", "HUDUD"), t("МАГАЗИНЫ", "DO'KONLAR"), t("ВЫРУЧКА", "TUSHUM"), t("К ПРОШЛОМУ", "O'TGANGA"), t("ЧТО ДЕЛАТЬ", "NIMA QILISH"), ""].map((h, i) => (
-                    <th key={i} style={{ ...thStyle, textAlign: i === 2 || i === 3 ? "right" : "left" }}>{h}</th>
-                  ))}
-                </tr></thead>
-                <tbody>
-                  {r.areas.slice(0, areasShown).map(a => {
-                    const link = areaShopsLink(a);
-                    const canPlanHere = canPlan && a.silentShopIds.length + a.idleShopIds.length > 0;
-                    return (
+            {phone ? (
+              <div data-testid="sales-map-areas-table">
+                {r.areas.slice(0, areasShown).map(a => (
+                  <div key={a.key} data-testid="sales-map-area" data-status={a.status} style={{ padding: "14px 16px", borderTop: `1px solid ${COLORS.border}` }}>
+                    <div className="flex items-center justify-between gap-3">
+                      <StatusChip status={a.status} lang={lang} />
+                      <ChangeText pct={a.changePct} />
+                    </div>
+                    <div style={{ fontFamily: F.display, fontWeight: 700, fontSize: 15, color: COLORS.textPrimary, marginTop: 8 }}>{areaTitle(a, lang)}</div>
+                    {areaPeople(a)}
+                    <div className="flex flex-wrap items-baseline gap-x-2" style={{ marginTop: 6 }}>
+                      <span className="font-data" style={{ fontWeight: 700, fontSize: 15, whiteSpace: "nowrap", color: COLORS.textPrimary }}>{fmt(a.revenue)}</span>
+                      <span style={{ fontSize: 12, color: COLORS.textTertiary, whiteSpace: "nowrap" }}>{t(`до периода ${fmt(a.prevRevenue)}`, `davrdan oldin ${fmt(a.prevRevenue)}`)}</span>
+                    </div>
+                    {areaReasons(a)}
+                    {areaActions(a)}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div style={{ overflowX: "auto" }}>
+                <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0 }} data-testid="sales-map-areas-table">
+                  <thead><tr>
+                    {[t("РАЙОН", "HUDUD"), t("МАГАЗИНЫ", "DO'KONLAR"), t("ВЫРУЧКА", "TUSHUM"), t("К ПРОШЛОМУ", "O'TGANGA"), t("ЧТО ДЕЛАТЬ", "NIMA QILISH")].map((h, i) => (
+                      <th key={i} style={{ ...thStyle, textAlign: i === 2 || i === 3 ? "right" : "left" }}>{h}</th>
+                    ))}
+                  </tr></thead>
+                  <tbody>
+                    {r.areas.slice(0, areasShown).map(a => (
                       <tr key={a.key} data-testid="sales-map-area" data-status={a.status}>
-                        <td style={tdStyle}>
+                        <td style={{ ...tdStyle, verticalAlign: "top" }}>
                           <div style={{ fontWeight: 700 }}>{areaTitle(a, lang)}</div>
-                          <div style={{ fontSize: 12, color: a.agents.length ? COLORS.textTertiary : "var(--color-warning-text)" }}>
-                            {a.agents.length
-                              ? a.agents.slice(0, 2).map(x => x.name).join(", ") + (a.agents.length > 2 ? ` +${a.agents.length - 2}` : "")
-                              : t("Агент не закреплён", "Agent biriktirilmagan")}
-                          </div>
+                          {areaPeople(a)}
                         </td>
-                        <td style={tdStyle}>
+                        <td style={{ ...tdStyle, verticalAlign: "top" }}>
                           <div className="font-data" style={{ fontWeight: 700 }}>{a.shops}</div>
-                          <div style={{ fontSize: 12, color: COLORS.textTertiary, whiteSpace: "nowrap" }}>
+                          <div style={{ fontSize: 12, color: COLORS.textTertiary, whiteSpace: "nowrap" }} title={t("заказывают · перестали · не заказывают", "buyurtma beradi · to'xtatgan · bermaydi")}>
                             <span style={{ color: "var(--color-success-text)" }}>{a.buying}</span>
                             {" · "}<span style={{ color: a.silent ? "var(--color-danger-text)" : undefined }}>{a.silent}</span>
                             {" · "}{a.idle}
                           </div>
                         </td>
-                        <td style={{ ...tdStyle, textAlign: "right", whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums", fontWeight: 700 }}>{fmt(a.revenue)}</td>
-                        <td style={{ ...tdStyle, textAlign: "right", whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }}>
-                          <div style={{ fontWeight: 700, color: a.changePct == null ? COLORS.textTertiary : a.changePct < 0 ? "var(--color-danger-text)" : "var(--color-success-text)" }}>
-                            {a.changePct == null ? "—" : pctSigned(a.changePct)}
-                          </div>
+                        <td style={{ ...tdStyle, verticalAlign: "top", textAlign: "right", whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums", fontWeight: 700 }}>{fmt(a.revenue)}</td>
+                        <td style={{ ...tdStyle, verticalAlign: "top", textAlign: "right", whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }}>
+                          <ChangeText pct={a.changePct} />
                           <div style={{ fontSize: 12, color: COLORS.textTertiary }}>{fmt(a.prevRevenue)}</div>
                         </td>
-                        <td style={{ ...tdStyle, minWidth: phone ? undefined : 260 }}>
+                        <td style={{ ...tdStyle, verticalAlign: "top", minWidth: 340 }}>
                           <StatusChip status={a.status} lang={lang} />
-                          {a.reasons.map((x, i) => (
-                            <div key={i} style={{ fontSize: 12, color: COLORS.textSecondary, marginTop: 4 }}>{areaReasonText(x, lang, n => fmt(n))}</div>
-                          ))}
-                        </td>
-                        <td style={tdStyle}>
-                          <div className="flex flex-wrap gap-2" style={{ justifyContent: phone ? "flex-start" : "flex-end" }}>
-                            {a.bounds && <ActionBtn onClick={() => showOnMap(a)} icon={<Crosshair size={15} aria-hidden />} label={t("На карте", "Xaritada")} />}
-                            {link && <ActionBtn to={link} icon={<Store size={15} aria-hidden />} label={t("Магазины", "Do'konlar")} />}
-                            {canPlanHere && <ActionBtn onClick={() => planArea(a)} icon={<CalendarPlus size={15} aria-hidden />} label={t("Визиты", "Tashriflar")} testid="sales-map-plan-area" />}
-                          </div>
+                          {areaReasons(a)}
+                          {areaActions(a)}
                         </td>
                       </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </CardTable>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
             {r.areas.length > areasShown && (
               <div style={{ padding: 16 }}>
                 <button type="button" onClick={() => setAreasShown(n => n + 20)} className="neo-btn tap w-full" style={{ minHeight: 44 }}>
@@ -456,42 +526,53 @@ export function SalesMapTab() {
               </p>
             ) : (
               <>
-                <CardTable style={{ overflowX: "auto" }}>
-                  <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0 }} data-testid="sales-map-silent-table">
-                    <thead><tr>
-                      {[t("МАГАЗИН", "DO'KON"), t("РАЙОН", "HUDUD"), t("ДО ПЕРИОДА", "DAVRDAN OLDIN"), t("ПОСЛЕДНИЙ ЗАКАЗ", "OXIRGI BUYURTMA"), ""].map((h, i) => (
-                        <th key={i} style={{ ...thStyle, textAlign: i === 2 ? "right" : "left" }}>{h}</th>
-                      ))}
-                    </tr></thead>
-                    <tbody>
-                      {r.silent.slice(0, silentShown).map(s => (
-                        <tr key={s.id} data-testid="sales-map-silent-row">
-                          <td style={tdStyle}>
-                            <span className="flex items-start gap-2">
-                              <span aria-hidden title={s.light ? lightColorLabel(s.light.color, lang) : undefined}
-                                style={{ width: 10, height: 10, borderRadius: 999, background: s.light ? LIGHT_DOT[s.light.color] : STATE_DOT.silent, flexShrink: 0, marginTop: 5 }} />
-                              <span className="min-w-0">
-                                <span style={{ fontWeight: 600 }}>{s.name}</span>
-                                {s.agentName && <span style={{ color: COLORS.textTertiary, fontSize: 12 }}> · {s.agentName}</span>}
-                                {silentLine(s)}
-                              </span>
-                            </span>
-                          </td>
-                          <td style={{ ...tdStyle, fontSize: 13, color: COLORS.textSecondary }}>{titleOf(s.areaKey)}</td>
-                          <td style={{ ...tdStyle, textAlign: "right", whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums", fontWeight: 700 }}>{fmt(s.prevRevenue)}</td>
-                          <td style={{ ...tdStyle, whiteSpace: "nowrap", fontSize: 13 }}>{s.lastOrderDay ? dmy(s.lastOrderDay) : "—"}</td>
-                          <td style={tdStyle}>
-                            <div className="flex flex-wrap gap-2" style={{ justifyContent: phone ? "flex-start" : "flex-end" }}>
-                              {s.hasGps && <ActionBtn onClick={() => { setSelectedId(s.id); mapBox.current?.scrollIntoView({ behavior: "smooth", block: "start" }); }} icon={<Crosshair size={15} aria-hidden />} label={t("На карте", "Xaritada")} />}
-                              <ActionBtn to={`/shops/${s.id}`} icon={<ExternalLink size={15} aria-hidden />} label={t("Открыть", "Ochish")} />
-                              {canPlan && <ActionBtn onClick={() => planShop(s)} icon={<CalendarPlus size={15} aria-hidden />} label={t("Визит", "Tashrif")} />}
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </CardTable>
+                {phone ? (
+                  <div data-testid="sales-map-silent-table">
+                    {r.silent.slice(0, silentShown).map(s => (
+                      <div key={s.id} data-testid="sales-map-silent-row" style={{ padding: "14px 16px", borderTop: `1px solid ${COLORS.border}` }}>
+                        <div className="flex items-start justify-between gap-3">
+                          <SilentName s={s} lang={lang} />
+                          <span className="font-data" style={{ fontWeight: 700, whiteSpace: "nowrap", color: COLORS.textPrimary }}>{fmt(s.prevRevenue, true)}</span>
+                        </div>
+                        <div style={{ fontSize: 12, color: COLORS.textTertiary, marginTop: 4 }}>
+                          {titleOf(s.areaKey)}{s.lastOrderDay ? ` · ${t("последний заказ", "oxirgi buyurtma")} ${dmy(s.lastOrderDay)}` : ""}
+                        </div>
+                        {silentLine(s)}
+                        <div className="flex flex-wrap gap-2" style={{ marginTop: 10 }}>
+                          {silentActions(s)}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div style={{ overflowX: "auto" }}>
+                    <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0 }} data-testid="sales-map-silent-table">
+                      <thead><tr>
+                        {[t("МАГАЗИН", "DO'KON"), t("РАЙОН", "HUDUD"), t("ДО ПЕРИОДА", "DAVRDAN OLDIN"), t("ПОСЛЕДНИЙ ЗАКАЗ", "OXIRGI BUYURTMA"), ""].map((h, i) => (
+                          <th key={i} style={{ ...thStyle, textAlign: i === 2 ? "right" : "left" }}>{h}</th>
+                        ))}
+                      </tr></thead>
+                      <tbody>
+                        {r.silent.slice(0, silentShown).map(s => (
+                          <tr key={s.id} data-testid="sales-map-silent-row">
+                            <td style={tdStyle}>
+                              <SilentName s={s} lang={lang} />
+                              {silentLine(s)}
+                            </td>
+                            <td style={{ ...tdStyle, fontSize: 13, color: COLORS.textSecondary }}>{titleOf(s.areaKey)}</td>
+                            <td style={{ ...tdStyle, textAlign: "right", whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums", fontWeight: 700 }}>{fmt(s.prevRevenue)}</td>
+                            <td style={{ ...tdStyle, whiteSpace: "nowrap", fontSize: 13 }}>{s.lastOrderDay ? dmy(s.lastOrderDay) : "—"}</td>
+                            <td style={tdStyle}>
+                              <div className="flex gap-2" style={{ justifyContent: "flex-end", flexWrap: "nowrap" }}>
+                                {silentActions(s)}
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
                 {r.silent.length > silentShown && (
                   <div style={{ padding: 16 }}>
                     <button type="button" onClick={() => setSilentShown(n => n + 20)} className="neo-btn tap w-full" style={{ minHeight: 44 }}>
@@ -509,7 +590,7 @@ export function SalesMapTab() {
               <div className="flex items-start gap-3" style={{ padding: "12px 14px", borderRadius: 16, background: "var(--color-warning-subtle)" }}>
                 <MapPinOff size={18} color="var(--color-warning-text)" style={{ flexShrink: 0, marginTop: 1 }} aria-hidden />
                 <span style={{ fontSize: 13, color: COLORS.textPrimary }}>
-                  {t(`Без координат — ${r.totals.noGps} маг. На карте их нет, в районах и списках выше они есть.`, `Koordinatasiz — ${r.totals.noGps} ta do'kon. Xaritada ular yo'q, yuqoridagi hududlar va ro'yxatlarda bor.`)}
+                  {t(`Магазинов без координат: ${r.totals.noGps}. На карте их нет, в районах и списках выше они есть.`, `Koordinatasiz do'konlar: ${r.totals.noGps}. Xaritada ular yo'q, yuqoridagi hududlar va ro'yxatlarda bor.`)}
                   {" "}
                   {canFixGps
                     ? t("Координаты ставят в карточке магазина: «Изменить» → «Координаты» (точка или ссылка на карту).", "Koordinata do'kon kartasida qo'yiladi: «O'zgartirish» → «Koordinatalar» (nuqta yoki xarita havolasi).")
@@ -541,8 +622,8 @@ export function SalesMapTab() {
 
           {r.outside && (
             <p style={{ fontSize: 12, color: COLORS.textTertiary, margin: 0 }} data-testid="sales-map-outside">
-              {t(`Ещё ${fmt(r.outside.revenue)} за период — продажи магазинов, убранных в архив; на карте их нет, в P&L они есть.`,
-                 `Davrda yana ${fmt(r.outside.revenue)} — arxivga olingan do'konlar savdosi; xaritada yo'q, P&L da bor.`)}
+              {t(`Ещё ${nb(fmt(r.outside.revenue))} за период — продажи магазинов, убранных в архив; на карте их нет, в P&L они есть.`,
+                 `Davrda yana ${nb(fmt(r.outside.revenue))} — arxivga olingan do'konlar savdosi; xaritada yo'q, P&L da bor.`)}
             </p>
           )}
         </>

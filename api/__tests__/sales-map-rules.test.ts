@@ -8,7 +8,8 @@
  *  • район: территория → район из карточки (с городом, без регистра) →
  *    квадрат сетки → «без района»;
  *  • вердикт района на границах: 30% падения — ехать, 29,9% — нет;
- *    замолчавшие + 15% — ехать, замолчавшие без падения — присмотреться;
+ *    замолчавшие + 15% — ехать; замолчавшие, дававшие 30% денег района, —
+ *    ехать, даже если остальные перекрыли; меньше — присмотреться;
  *    «заказывают меньше 30%» — от трёх магазинов; нет агента — присмотреться;
  *  • порядок районов «куда ехать первым», отбор по агенту с его зонами,
  *    точки — только с координатами, замолчавшие — по деньгам;
@@ -18,7 +19,8 @@
  *
  *  • `drop >= R.DROP_SEND_PCT` → `>` — падает «ровно 30%»;
  *  • в areaKeyOf район раньше территории — падает «территория главнее»;
- *  • shopStateOf по выручке вместо заказов — падает «заказ ещё везут»;
+ *  • shopStateOf: «заказывает» только при заказах и до периода (первый
+ *    заказ нового магазина не в счёт) — падает «заказ ещё везут»;
  *  • filterShops без зон агента — падает «агент: свои и зоны».
  */
 import { describe, it, expect } from "vitest";
@@ -100,11 +102,16 @@ describe("вердикт района", () => {
   });
 
   it("замолчавшие и падение от 15% — ехать; замолчавшие при деньгах на месте — присмотреться", () => {
-    expect(v({ silent: 2, silentLost: 400, revenue: 850, prevRevenue: 1000 }).status).toBe("send");
-    expect(v({ silent: 2, silentLost: 400, revenue: 851, prevRevenue: 1000 }).status).toBe("watch");
-    const quiet = v({ silent: 2, silentLost: 400 });
+    expect(v({ silent: 2, silentLost: 100, revenue: 850, prevRevenue: 1000 }).status).toBe("send");
+    expect(v({ silent: 2, silentLost: 100, revenue: 851, prevRevenue: 1000 }).status).toBe("watch");
+    const quiet = v({ silent: 2, silentLost: 299 });
     expect(quiet.status).toBe("watch");
-    expect(quiet.reasons).toEqual([{ code: "silent", count: 2, shops: 10, lost: 400 }]);
+    expect(quiet.reasons).toEqual([{ code: "silent", count: 2, shops: 10, lost: 299 }]);
+  });
+
+  it("замолчавшие давали ровно 30% денег района — ехать, хотя остальные перекрыли", () => {
+    expect(v({ silent: 5, silentLost: 300, revenue: 1030, prevRevenue: 1000 })).toMatchObject({ status: "send", reasons: [{ code: "silent", count: 5, lost: 300 }] });
+    expect(v({ silent: 5, silentLost: 299, revenue: 1030, prevRevenue: 1000 }).status).toBe("watch");
   });
 
   it("мало кто заказывает — от трёх магазинов и ниже 30%; нет агента — присмотреться", () => {
@@ -181,12 +188,18 @@ describe("карта целиком", () => {
       "Выручка упала на 70% к прошлому периоду (−700 сум)",
     ]);
     expect(areaReasonText({ code: "low_coverage", buying: 2, shops: 15 }, "uz", fmt)).toBe("15 ta do'kondan faqat 2 tasi buyurtma beradi");
+    // Рост от удвоения — «в N раз», а не «+5147%».
+    expect(areaReasonText({ code: "growth", pct: 99 }, "ru", fmt)).toBe("Выручка выросла на 99%");
+    expect(areaReasonText({ code: "growth", pct: 100 }, "ru", fmt)).toBe("Выручка выросла в 2 раза");
+    expect(areaReasonText({ code: "growth", pct: 400 }, "ru", fmt)).toBe("Выручка выросла в 5 раз");
+    expect(areaReasonText({ code: "growth", pct: 5147 }, "ru", fmt)).toBe("Выручка выросла в 52,5 раза");
+    expect(areaReasonText({ code: "growth", pct: 5147 }, "uz", fmt)).toBe("Tushum 52,5 baravar o'sdi");
     expect(areaTitle(grid, "ru")).toBe("Квартал у «Умид»");
     expect(areaTitle(m.areas[1], "ru")).toBe("Чиланзар, Ташкент");
     expect(areaTitle({ kind: "none", name: null, city: null, anchor: null }, "uz")).toBe("Hududi va koordinatasi yo'q");
   });
 
   it("пороги — одним местом", () => {
-    expect(SALES_MAP_RULES).toMatchObject({ SILENT_LOOKBACK_DAYS: 90, DROP_SEND_PCT: 30, DROP_WATCH_PCT: 15, LOW_COVERAGE_PCT: 30 });
+    expect(SALES_MAP_RULES).toMatchObject({ SILENT_LOOKBACK_DAYS: 90, DROP_SEND_PCT: 30, DROP_WATCH_PCT: 15, SILENT_SHARE_SEND_PCT: 30, LOW_COVERAGE_PCT: 30 });
   });
 });

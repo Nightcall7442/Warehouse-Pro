@@ -36,8 +36,10 @@
  *  • в services/sales-map.ts убрать вычитание возвратов — падает 1;
  *  • в запросе активности убрать `status <> 'cancelled'` — «Гамма» становится
  *    «заказывает», падает 2;
- *  • revenuePeriodConditions → без статуса (любой заказ) — «Дельта» даёт
- *    выручку, падает 1;
+ *  • активность только по доставленным — «Дельта» (заказ везут) становится
+ *    «не заказывает», падает 2;
+ *  • соединение с агентом без `status = 'active'` — уволенный становится
+ *    агентом района, падает 2;
  *  • reports.salesMap на reportsQuery — падает 4 (мерчендайзер).
  */
 import { describe, it, expect, beforeAll, beforeEach, afterAll, vi } from "vitest";
@@ -81,13 +83,8 @@ describe.skipIf(!hasRealDb)("Карта продаж", () => {
   }
 
   beforeEach(async () => {
+    // Территории и зоны агентов чистит harness (truncateAll).
     await truncateAll();
-    // Территории и зоны агентов harness не чистит — а идентификаторы организаций
-    // после очистки начинаются заново, и чужая зона «прилипла» бы к нашей.
-    await db.execute(sql`SET FOREIGN_KEY_CHECKS = 0`);
-    await db.execute(sql`TRUNCATE TABLE agent_territories`);
-    await db.execute(sql`TRUNCATE TABLE territories`);
-    await db.execute(sql`SET FOREIGN_KEY_CHECKS = 1`);
     s = await seed();
     await invalidateReports(s.tenantId, "test");
 

@@ -36,6 +36,12 @@ export const SALES_MAP_RULES = {
   DROP_SEND_PCT: 30,
   /** На столько и больше — присмотреться; вместе с замолчавшими магазинами — ехать. */
   DROP_WATCH_PCT: 15,
+  /**
+   * Замолчавшие дали в прошлом периоде такую долю выручки района и больше —
+   * ехать, даже если остальные точки перекрыли потерю: перекрыли сегодня, а
+   * пять ушедших магазинов из девяти — это уже не случайность.
+   */
+  SILENT_SHARE_SEND_PCT: 30,
   /** Заказывает меньше этой доли магазинов района — «здесь покупают мало». */
   LOW_COVERAGE_PCT: 30,
   /** …если магазинов в районе хотя бы столько: в районе из двух точек доля ничего не значит. */
@@ -200,7 +206,8 @@ export function changePct(revenue: number, prev: number): number | null {
  * Что с районом и почему — цвет и причины кодами с числами.
  *
  *  • ехать — выручка упала на DROP_SEND_PCT% и больше, или магазины замолчали
- *    и это уже видно в деньгах (падение от DROP_WATCH_PCT%);
+ *    и это уже видно в деньгах: район просел от DROP_WATCH_PCT%, или
+ *    замолчавшие давали SILENT_SHARE_SEND_PCT% его выручки и больше;
  *  • присмотреться — замолчавшие есть, но деньги держатся; или падение от
  *    DROP_WATCH_PCT%; или заказывает меньше LOW_COVERAGE_PCT% точек; или за
  *    районом никто не закреплён;
@@ -221,7 +228,8 @@ export function areaVerdict(a: {
   }
   if (a.agents === 0 && a.shops > 0) reasons.push({ code: "no_agent" });
 
-  if (drop >= R.DROP_SEND_PCT || (a.silent > 0 && drop >= R.DROP_WATCH_PCT)) return { status: "send", reasons };
+  const silentHeavy = a.prevRevenue > 0 && a.silentLost * 100 >= a.prevRevenue * R.SILENT_SHARE_SEND_PCT;
+  if (drop >= R.DROP_SEND_PCT || (a.silent > 0 && (drop >= R.DROP_WATCH_PCT || silentHeavy))) return { status: "send", reasons };
   if (reasons.length > 0) return { status: "watch", reasons };
   const up = changePct(a.revenue, a.prevRevenue);
   if (up != null && up > 0) return { status: "ok", reasons: [{ code: "growth", pct: up }] };
@@ -517,8 +525,16 @@ export function areaReasonText(r: SalesAreaReason, lang: string, fmt: Money): st
         : `Заказывают только ${r.buying} из ${r.shops} магазинов`;
     case "no_agent":
       return uz ? "Hududga agent biriktirilmagan" : "За районом не закреплён агент";
-    case "growth":
+    case "growth": {
+      // «+5147%» не читается; от удвоения — «в 52,5 раза».
+      if (r.pct >= 100) {
+        const x = Math.round((100 + r.pct) / 10) / 10;
+        const xs = String(x).replace(".", ",");
+        const word = Number.isInteger(x) && !(x % 10 >= 2 && x % 10 <= 4 && (x % 100 < 12 || x % 100 > 14)) ? "раз" : "раза";
+        return uz ? `Tushum ${xs} baravar o'sdi` : `Выручка выросла в ${xs} ${word}`;
+      }
       return uz ? `Tushum ${r.pct}% ga o'sdi` : `Выручка выросла на ${r.pct}%`;
+    }
     case "steady":
       return uz ? `${r.shops} tadan ${r.buying} tasi buyurtma beradi` : `Заказывают ${r.buying} из ${r.shops}`;
   }
