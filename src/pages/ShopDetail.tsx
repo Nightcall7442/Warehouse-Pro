@@ -20,6 +20,7 @@ import { PhotoOrIcon } from "@/components/PhotoOrIcon";
 import { ShopAvatar } from "@/components/shops/ShopAvatar";
 import { TaxRequisitesFields } from "@/components/shops/TaxRequisitesFields";
 import { isBadTaxId } from "@contracts/tax-requisites";
+import { parseLocationFromUrl } from "@contracts/parse-location";
 import { ShopStatement } from "@/components/shops/ShopStatement";
 import { PremiumSelect } from "@/components/PremiumSelect";
 import { QueryErrorFallback } from "@/components/QueryErrorFallback";
@@ -160,7 +161,9 @@ export default function ShopDetail() {
   const { confirm, dialog } = useConfirm();
   const t = (ru: string, uz: string) => lang === "uz" ? uz : ru;
 
-  const [editing, setEditing]       = useState(false);
+  // «Указать координаты» с карты продаж (?edit=gps) открывает карточку сразу в правке.
+  const [editing, setEditing]       = useState(() => new URLSearchParams(location.search).get("edit") === "gps");
+  const [gpsText, setGpsText]       = useState<string | null>(null);
   const [showPayment, setShowPayment] = useState(false);
   const [editData, setEditData]     = useState<Record<string, unknown>>({});
   const fileRef = useRef<HTMLInputElement>(null);
@@ -317,7 +320,7 @@ export default function ShopDetail() {
 
       {/* Карточка магазина */}
       <div className="neo-card p-5">
-        {editing ? (
+        {editing && canEdit ? (
           <div className="space-y-3">
             <p className="font-label text-[10px] text-primary tracking-wider">{t("РЕДАКТИРОВАНИЕ", "TAHRIRLASH")}</p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -341,6 +344,37 @@ export default function ShopDetail() {
                   onChange={e => setEditData((d: Record<string, unknown>) => ({ ...d, [f.key]: e.target.value }))} />
               ))}
             </div>
+            {/*
+              Координаты — точкой «41.55, 60.63» или ссылкой на карту (Яндекс,
+              Google, Telegram). Без них магазина нет на карте продаж, и
+              поставить их, кроме как при создании, было негде.
+            */}
+            <label className="block">
+              <span className="font-label text-[10px] text-secondary tracking-wider block mb-1.5">{t("КООРДИНАТЫ", "KOORDINATALAR")}</span>
+              <input className="neo-input w-full" data-testid="shop-gps-input"
+                aria-label={t("Координаты", "Koordinatalar")}
+                placeholder={t("41.5530, 60.6318 или ссылка на карту", "41.5530, 60.6318 yoki xarita havolasi")}
+                defaultValue={shop.gpsLat && shop.gpsLng ? `${Number(shop.gpsLat)}, ${Number(shop.gpsLng)}` : ""}
+                autoFocus={new URLSearchParams(location.search).get("edit") === "gps"}
+                onChange={e => {
+                  const raw = e.target.value;
+                  setGpsText(raw);
+                  const at = parseLocationFromUrl(raw);
+                  setEditData((d: Record<string, unknown>) => {
+                    const rest = { ...d };
+                    delete rest.gpsLat;
+                    delete rest.gpsLng;
+                    return at ? { ...rest, gpsLat: at.lat.toFixed(8), gpsLng: at.lng.toFixed(8) } : rest;
+                  });
+                }} />
+              {gpsText != null && gpsText.trim() !== "" && (
+                <span style={{ display: "block", fontSize: 12, marginTop: 4, color: editData.gpsLat ? "var(--color-success-text)" : "var(--color-danger-text)" }}>
+                  {editData.gpsLat
+                    ? t(`Точка: ${Number(editData.gpsLat).toFixed(5)}, ${Number(editData.gpsLng).toFixed(5)}`, `Nuqta: ${Number(editData.gpsLat).toFixed(5)}, ${Number(editData.gpsLng).toFixed(5)}`)
+                    : t("Не похоже на координаты — нужна точка «широта, долгота» или ссылка на карту", "Koordinataga o'xshamaydi — «kenglik, uzunlik» yoki xarita havolasi kerak")}
+                </span>
+              )}
+            </label>
             <TaxRequisitesFields lang={lang}
               taxId={String(editData.taxId ?? shop.taxId ?? "")}
               vatPayer={Boolean(editData.vatPayer ?? shop.vatPayer)}
@@ -364,7 +398,7 @@ export default function ShopDetail() {
             )}
             <div className="flex gap-2">
               <button onClick={() => updateShop.mutate({ id: shop.id, ...editData })}
-                disabled={updateShop.isPending || isBadTaxId(String(editData.taxId ?? ""))}
+                disabled={updateShop.isPending || isBadTaxId(String(editData.taxId ?? "")) || (gpsText != null && gpsText.trim() !== "" && !editData.gpsLat)}
                 className="neo-btn-primary flex items-center gap-2 disabled:opacity-40">
                 {updateShop.isPending && <Loader2 size={14} className="animate-spin" />}
                 {t("Сохранить", "Saqlash")}

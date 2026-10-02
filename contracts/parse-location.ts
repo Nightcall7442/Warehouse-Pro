@@ -1,6 +1,10 @@
 /**
  * Parse GPS coordinates from various location URL formats.
  * Supports: Google Maps, Yandex Maps, Telegram share links, direct coordinates.
+ *
+ * В contracts, а не в api/lib: координаты магазина ставят и сервер (ссылка из
+ * Telegram при создании), и карточка магазина в вебе (поле «Координаты») —
+ * одна функция на обе стороны, без зависимостей.
  */
 export function parseLocationFromUrl(url: string): { lat: number; lng: number } | null {
   if (!url || typeof url !== "string") return null;
