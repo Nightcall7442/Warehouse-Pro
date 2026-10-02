@@ -800,6 +800,40 @@ export const stockBatches = mysqlTable("stock_batches", {
 export type StockBatch       = typeof stockBatches.$inferSelect;
 export type InsertStockBatch = typeof stockBatches.$inferInsert;
 
+/* ============================================
+   MARKDOWNS — уценка партии, которая не успеет продаться до срока
+
+   Директор видит «не успеет: останется 180 шт.» и ставит цену ниже. Цена —
+   ПОТОЛОК для всех магазинов: заказ не дороже неё, а у кого по прайс-листу и
+   так дешевле — остаётся дешевле (services/price-resolver.ts). Прайс-листом
+   это не сделать: у магазина ровно один список, и «распродажа», назначенная
+   всем, сняла бы магазины с их собственных цен.
+
+   Уценка живёт, пока жива партия, ради которой её поставили: партия продана
+   (FEFO уводит её первой, и дверь остатка удаляет опустевшую строку) или
+   наступил её срок — цена сама возвращается к обычной. Поэтому у batch_id
+   нет внешнего ключа: строка партии исчезает, когда партия кончилась, и
+   это и есть конец уценки, а не ошибка ссылки.
+
+   Одна уценка на товар: две цены одного товара в одном заказе не бывают.
+   ============================================ */
+export const markdowns = mysqlTable("markdowns", {
+  id:        serial("id").primaryKey(),
+  tenantId:  bigint("tenant_id", { mode: "number", unsigned: true }).notNull().references(() => tenants.id, { onDelete: "restrict" }),
+  productId: bigint("product_id", { mode: "number", unsigned: true }).notNull().references(() => products.id, { onDelete: "cascade" }),
+  /** Партия, ради которой уценили. Кончилась — уценки нет. */
+  batchId:   bigint("batch_id", { mode: "number", unsigned: true }).notNull(),
+  price:     decimal("price", { precision: 10, scale: 2 }).notNull(),
+  /** Последний день уценки — срок партии. */
+  endsOn:    date("ends_on").notNull(),
+  createdBy: bigint("created_by", { mode: "number", unsigned: true }).references(() => users.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (t) => ({
+  onePerProduct: uniqueIndex("uq_markdown_tenant_product").on(t.tenantId, t.productId),
+}));
+
+export type Markdown = typeof markdowns.$inferSelect;
+
 // ============================================
 // STOCK MOVEMENTS
 // ============================================

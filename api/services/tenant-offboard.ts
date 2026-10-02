@@ -92,6 +92,8 @@ export const OFFBOARD_ORDER: readonly OffboardStep[] = [
   "warehouse_stock",
   "daily_plans",
   "loading_lists",
+  // Уценка по сроку ссылается на товар и на того, кто её поставил.
+  "markdowns",
   "products",
   "returns",
   "stock_counts",

@@ -123,6 +123,8 @@ const ACTION_CONFIG: Record<string, { icon: LucideIcon; gradient: string }> = {
   "product.updated":                 { icon: Tag, gradient: PRIMARY },
   "product.deleted":                 { icon: Trash2, gradient: DANGER },
   "price_list.item_set":             { icon: Tag, gradient: PRIMARY },
+  "price.markdown_set":              { icon: Tag, gradient: PRIMARY },
+  "price.markdown_cleared":          { icon: Tag, gradient: PRIMARY },
   "price_list.deleted":              { icon: Trash2, gradient: DANGER },
   // Склад
   "stock.adjusted":                  { icon: Package, gradient: WARNING },

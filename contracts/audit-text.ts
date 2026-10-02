@@ -104,6 +104,8 @@ export const AUDIT_ACTION_LABEL: Record<string, Label> = {
   "product.updated": { ru: "Обновлён товар", uz: "Tovar yangilandi" },
   "product.deleted": { ru: "Удалён товар", uz: "Tovar o'chirildi" },
   "price_list.item_set": { ru: "Цена в прайс-листе", uz: "Narxlar ro'yxatida narx" },
+  "price.markdown_set": { ru: "Уценка по сроку годности", uz: "Yaroqlilik muddati bo'yicha arzonlashtirish" },
+  "price.markdown_cleared": { ru: "Уценка снята", uz: "Arzonlashtirish bekor qilindi" },
   "price_list.deleted": { ru: "Удалён прайс-лист", uz: "Narxlar ro'yxati o'chirildi" },
   "stock.adjusted": { ru: "Корректировка склада", uz: "Ombor tahrirlandi" },
   "stock.transfer_completed": { ru: "Перемещение между складами", uz: "Omborlar orasida ko'chirish" },

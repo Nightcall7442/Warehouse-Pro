@@ -28,10 +28,20 @@
  * resolveCatalog: цену при количестве 1 и ступени «от N» товара. Ступень
  * выбирает pickTier из contracts/price-tiers.ts — одна функция на сервер и
  * экран, поэтому «Итог» и офлайн-итог совпадают с тем, что посчитает заказ.
+ *
+ * ── Уценка по сроку ─────────────────────────────────────────────────────────
+ *
+ * Поверх всего — потолок уценки (services/markdown.ts): партия не успевает
+ * продаться до срока, директор поставил цену ниже. Цена строки не выше её, в
+ * какой бы список ни попал магазин; кому по списку и так дешевле — остаётся
+ * дешевле. Строка, срезанная потолком, идёт без прайс-листа (priceListId null):
+ * цену дал не список. В каталоге потолок срезает и ступени — тогда pickTier
+ * на экране выбирает ту же строку, что и сервер, и даёт ту же цену.
  */
 import { and, eq, inArray, desc } from "drizzle-orm";
 import { priceLists, priceListItems, priceListAssignments } from "@db/schema";
 import { pickTier, type PriceTier } from "@contracts/price-tiers";
+import { activeMarkdowns, capAtMarkdown, type ActiveMarkdown } from "./markdown";
 
 export { pickTier };
 
@@ -114,11 +124,20 @@ export async function resolvePrices(
   for (const it of items) out.set(it.productId, { price: fallback.get(it.productId) ?? "0", priceListId: null });
   if (items.length === 0) return out;
 
-  const { lists, byProduct } = await scopeRows(db, tenantId, sc, items.map(i => i.productId));
-  if (lists.length === 0) return out;
+  const ids = items.map(i => i.productId);
+  const { lists, byProduct } = await scopeRows(db, tenantId, sc, ids);
+  if (lists.length > 0) {
+    for (const it of items) {
+      const p = priceOf(byProduct.get(it.productId) ?? [], lists, Number(it.quantity), fallback.get(it.productId));
+      if (p) out.set(it.productId, p);
+    }
+  }
+  // Потолок уценки — после списков: он про партию, а не про магазин.
+  const marks = await activeMarkdowns(db, tenantId, ids);
   for (const it of items) {
-    const p = priceOf(byProduct.get(it.productId) ?? [], lists, Number(it.quantity), fallback.get(it.productId));
-    if (p) out.set(it.productId, p);
+    const now = out.get(it.productId)!;
+    const capped = capAtMarkdown(now.price, marks.get(it.productId));
+    if (capped.capped) out.set(it.productId, { price: capped.price, priceListId: null });
   }
   return out;
 }
@@ -132,17 +151,22 @@ export async function resolvePrices(
  */
 export async function resolveCatalog(
   db: Db | Tx, tenantId: number, scope: PriceScope, fallback: Map<number, string>,
-): Promise<Map<number, ResolvedPrice & { tiers: PriceTier[] | null }>> {
+): Promise<Map<number, ResolvedPrice & { tiers: PriceTier[] | null; markdown: ActiveMarkdown | null }>> {
   const ids = [...fallback.keys()];
-  const out = new Map<number, ResolvedPrice & { tiers: PriceTier[] | null }>();
+  const out = new Map<number, ResolvedPrice & { tiers: PriceTier[] | null; markdown: ActiveMarkdown | null }>();
   const { lists, byProduct } = await scopeRows(db, tenantId, scope, ids);
+  const marks = await activeMarkdowns(db, tenantId, ids);
   for (const id of ids) {
     const rows = byProduct.get(id) ?? [];
-    const p = priceOf(rows, lists, 1, fallback.get(id)) ?? { price: fallback.get(id) ?? "0", priceListId: null };
+    const mark = marks.get(id);
+    const listed = priceOf(rows, lists, 1, fallback.get(id)) ?? { price: fallback.get(id) ?? "0", priceListId: null };
+    const capped = capAtMarkdown(listed.price, mark);
+    const p = capped.capped ? { price: capped.price, priceListId: null } : listed;
+    // Ступени — тоже не выше потолка: pickTier выбирает ту же строку, цена срезана.
     const tiers = rows.some(r => Number(r.minQuantity) > 1)
-      ? rows.map(r => ({ minQuantity: r.minQuantity, price: r.price, priority: r.priority }))
+      ? rows.map(r => ({ minQuantity: r.minQuantity, price: capAtMarkdown(r.price, mark).price, priority: r.priority }))
       : null;
-    out.set(id, { ...p, tiers });
+    out.set(id, { ...p, tiers, markdown: mark ?? null });
   }
   return out;
 }

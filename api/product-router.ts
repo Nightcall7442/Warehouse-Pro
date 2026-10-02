@@ -20,7 +20,12 @@ import { TRPCError } from "@trpc/server";
 import { recordAudit, auditActor, changedFields } from "./services/audit-log";
 import { defaultReorderPoint } from "./services/reorder";
 import { resolveCatalog } from "./services/price-resolver";
+import { activeMarkdowns, capAtMarkdown, type ActiveMarkdown } from "./services/markdown";
 import { invalidateReports } from "./lib/report-cache";
+
+/** Уценка для экрана: цена и последний день — партия и служебное не нужны. */
+const markdownView = (m: ActiveMarkdown | null): { price: string; endsOn: string } | null =>
+  m ? { price: m.price, endsOn: m.endsOn } : null;
 
 /**
  * Код товара занят — это ответ оператору, а не внутренний сбой.
@@ -161,10 +166,20 @@ export const productRouter = createRouter({
 
       // tiers — ступени «от N» товара: экран выбирает по ним цену строки тем же
       // pickTier, что и заказ (contracts/price-tiers). Без магазина ступеней нет.
-      if (!input?.shopId) return data.map(r => ({ ...r, basePrice: r.unitPrice, priceListId: null as number | null, tiers: null as PriceTier[] | null }));
+      //
+      // markdown — уценка по сроку (services/markdown.ts): агент видит «продать
+      // первым» и цену, по которой уйдёт заказ. Без магазина цена — карточка,
+      // срезанная потолком уценки: заказ любому магазину не дороже её.
+      if (!input?.shopId) {
+        const marks = await activeMarkdowns(db, tenantId, data.map(r => Number(r.id)));
+        return data.map(r => {
+          const mark = marks.get(Number(r.id)) ?? null;
+          return { ...r, basePrice: r.unitPrice, unitPrice: capAtMarkdown(String(r.unitPrice), mark ?? undefined).price, priceListId: null as number | null, tiers: null as PriceTier[] | null, markdown: markdownView(mark) };
+        });
+      }
       const priced = await resolveCatalog(db, tenantId, { shopId: input.shopId, priceListId: input.priceListId ?? null },
         new Map(data.map(r => [Number(r.id), String(r.unitPrice)])));
-      return data.map(r => { const p = priced.get(Number(r.id)); return { ...r, basePrice: r.unitPrice, unitPrice: p?.price ?? r.unitPrice, priceListId: p?.priceListId ?? null, tiers: p?.tiers ?? null }; });
+      return data.map(r => { const p = priced.get(Number(r.id)); return { ...r, basePrice: r.unitPrice, unitPrice: p?.price ?? r.unitPrice, priceListId: p?.priceListId ?? null, tiers: p?.tiers ?? null, markdown: markdownView(p?.markdown ?? null) }; });
       });
     }),
 
@@ -278,6 +293,7 @@ export const productRouter = createRouter({
           unitPrice: r?.price ?? row.unitPrice,
           priceListId: r?.priceListId ?? null,
           tiers: r?.tiers ?? null,
+          markdown: markdownView(r?.markdown ?? null),
         };
       });
       return { data: visible, total: Number(countResult[0]?.count ?? 0), page, pageSize };
