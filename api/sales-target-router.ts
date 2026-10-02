@@ -8,6 +8,9 @@ import { TRPCError } from "@trpc/server";
 import { cache, CacheKeys } from "./lib/cache";
 import { suggestQuotas } from "./services/quota-suggest";
 import { actualsForTargets } from "./services/sales-target-actuals";
+import { planForecast } from "./services/plan-forecast";
+import { reportCached, ReportTTL, invalidateReports } from "./lib/report-cache";
+import { dayKey } from "./lib/period";
 
 /**
  * Норму ставят только своему сотруднику.
@@ -122,6 +125,8 @@ export const salesTargetRouter = createRouter({
           })
           .where(and(eq(salesTargets.id, input.id), eq(salesTargets.tenantId, ctx.tenant.id)));
         cache.invalidate(CacheKeys.salesTargets(ctx.tenant.id));
+        // Прогноз плана (forecast) живёт в кэше отчётов — новый план виден сразу.
+        await invalidateReports(ctx.tenant.id, "план продаж изменён");
         return { success: true, id: input.id };
       }
 
@@ -144,6 +149,8 @@ export const salesTargetRouter = createRouter({
       });
 
       cache.invalidate(CacheKeys.salesTargets(ctx.tenant.id));
+      // Прогноз плана (forecast) живёт в кэше отчётов — новый план виден сразу.
+      await invalidateReports(ctx.tenant.id, "план продаж изменён");
       return { success: true, id: Number(result.insertId) };
     }),
 
@@ -201,6 +208,8 @@ export const salesTargetRouter = createRouter({
       }
 
       cache.invalidate(CacheKeys.salesTargets(ctx.tenant.id));
+      // Прогноз плана (forecast) живёт в кэше отчётов — новый план виден сразу.
+      await invalidateReports(ctx.tenant.id, "план продаж изменён");
       return { success: true, created, updated };
     }),
 
@@ -314,6 +323,23 @@ export const salesTargetRouter = createRouter({
     }),
 
   // Get sales target summary for dashboard
+  /*
+    Прогноз выполнения месячного плана: факт на сегодня, темп, прогноз в сумах
+    и в % плана, сколько нужно в день до конца месяца — по каждому агенту и
+    по компании (services/plan-forecast.ts, формула — contracts/plan-forecast).
+
+    managementQuery — тот же круг, что видит планы всех (summary ниже).
+    Деньги — только выручка, себестоимости здесь нет. Кэш — минута, ключ —
+    сегодняшний день: в полночь прогноз считает новый день сам; новые
+    заказы, оплаты, возвраты и сами планы сбрасывают его раньше.
+  */
+  forecast: managementQuery
+    .query(({ ctx }) => {
+      const now = new Date();
+      return reportCached(ctx.tenant.id, "salesTarget.forecast", { today: dayKey(now) }, ReportTTL.minute,
+        () => planForecast(getDb(), ctx.tenant.id, now));
+    }),
+
   summary: managementQuery
     .query(async ({ ctx }) => {
       const db = getDb();
