@@ -272,11 +272,12 @@ describe("пустых партий на полке не остаётся", () =
       вторая линия: она переживёт и чужую правку, и строку, доставшуюся из
       базы, которая жила до этого решения.
     */
-    const REPORTS = fs.readFileSync(
-      path.resolve(process.cwd(), "api/warehouse-reports-router.ts"), "utf8",
-    );
-    const guards = REPORTS.split('gt(stockBatches.quantity, "0")').length - 1;
-    expect(guards, "отчёт по партиям перестал отбрасывать пустые").toBeGreaterThanOrEqual(3);
+    const read = (f: string) => fs.readFileSync(path.resolve(process.cwd(), f), "utf8");
+    const guards = (src: string) => src.split('gt(stockBatches.quantity, "0")').length - 1;
+    // Карточка товара (productBatches) — в роутере; список и свод «Сроков» —
+    // один план в services/expiry-plan.ts.
+    expect(guards(read("api/warehouse-reports-router.ts")), "карточка партий перестала отбрасывать пустые").toBeGreaterThanOrEqual(1);
+    expect(guards(read("api/services/expiry-plan.ts")), "«Сроки» перестали отбрасывать пустые").toBe(1);
   });
 });
 

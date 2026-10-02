@@ -3,10 +3,13 @@ import { resolvePrices } from "./services/price-resolver";
 import { createRouter, operatorQuery, authedQuery, managementQuery, fieldSalesQuery, can } from "./middleware";
 import { getDb } from "./queries/connection";
 import { assertProductsBelongToTenant } from "./lib/tenant-refs";
-import { priceLists, priceListItems, priceListAssignments, products, shops } from "@db/schema";
+import { priceLists, priceListItems, priceListAssignments, products, shops, markdowns, stockBatches, warehouses } from "@db/schema";
 import { eq, and, desc, sql, inArray } from "drizzle-orm";
+import { TRPCError } from "@trpc/server";
 import { recordAudit, auditActor } from "./services/audit-log";
 import { cache } from "./lib/cache";
+import { invalidateReports } from "./lib/report-cache";
+import { dayKey } from "./lib/period";
 
 /*
   Каталог (product.list/listAll с shopId) кэширует уже посчитанные цены
@@ -368,6 +371,79 @@ export const priceListRouter = createRouter({
         meta: { total: wanted.length, ...result },
       });
       return { success: true, ...result };
+    }),
+
+  /*
+    Уценка партии, которая не успеет продаться до срока (экран «Сроки»).
+
+    Цена — потолок для всех магазинов, пока партия жива и не наступил её срок
+    (services/markdown.ts, правило — в price-resolver). Права — те же, что у
+    прайс-листов (prices.manage). Ниже закупки — только директор: продать в
+    минус бывает лучше списания, но это решение о деньгах, и закупку видит
+    только он (как P&L).
+  */
+  setMarkdown: operatorQuery.use(can("prices.manage"))
+    .input(z.object({
+      batchId: z.number().int().positive(),
+      price: z.number().positive("Цена должна быть больше нуля").max(1_000_000_000),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const db = getDb();
+      const tenantId = ctx.tenant.id;
+      const today = dayKey(new Date());
+      const [b] = await db.select({
+        productId: stockBatches.productId,
+        quantity:  stockBatches.quantity,
+        expiresAt: sql<string | null>`DATE_FORMAT(${stockBatches.expiresAt}, '%Y-%m-%d')`,
+        isDefault: warehouses.isDefault,
+        unitPrice: products.unitPrice,
+        cost:      sql<string>`COALESCE(${stockBatches.costPrice}, ${products.costPrice})`,
+      })
+        .from(stockBatches)
+        .innerJoin(products, and(eq(products.id, stockBatches.productId), eq(products.tenantId, tenantId)))
+        .leftJoin(warehouses, and(eq(warehouses.id, stockBatches.warehouseId), eq(warehouses.tenantId, tenantId)))
+        .where(and(eq(stockBatches.id, input.batchId), eq(stockBatches.tenantId, tenantId)))
+        .limit(1);
+      if (!b || !(Number(b.quantity) > 0)) throw new TRPCError({ code: "NOT_FOUND", message: "Партия не найдена или уже продана" });
+      if (!b.expiresAt) throw new TRPCError({ code: "BAD_REQUEST", message: "У партии нет срока — уценять её незачем" });
+      if (b.expiresAt < today) throw new TRPCError({ code: "BAD_REQUEST", message: "Срок партии вышел — её не продают, а списывают" });
+      if (!b.isDefault) throw new TRPCError({ code: "BAD_REQUEST", message: "Партия не на основном складе — с него не продают. Сначала переместите её" });
+      const card = Number(b.unitPrice);
+      const price = Math.round(input.price * 100) / 100;
+      if (!(price < card)) throw new TRPCError({ code: "BAD_REQUEST", message: "Уценка — это цена ниже цены карточки" });
+      if (price < Number(b.cost) && ctx.user.role !== "ceo") {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Цена ниже закупки — такую уценку ставит директор" });
+      }
+      const productId = Number(b.productId);
+      await db.insert(markdowns)
+        .values({ tenantId, productId, batchId: input.batchId, price: price.toFixed(2), endsOn: sql`${b.expiresAt}`, createdBy: ctx.user.id })
+        .onDuplicateKeyUpdate({ set: { batchId: input.batchId, price: price.toFixed(2), endsOn: sql`${b.expiresAt}`, createdBy: ctx.user.id, createdAt: sql`CURRENT_TIMESTAMP` } });
+      dropCatalogCache(tenantId);
+      await invalidateReports(tenantId, "price.markdown");
+      await recordAudit(db, {
+        ...auditActor(ctx), action: "price.markdown_set", targetType: "product", targetId: productId,
+        meta: { productId, price: price.toFixed(2), was: card.toFixed(2), discountPct: Math.round((1 - price / card) * 1000) / 10, expiresAt: b.expiresAt },
+      });
+      return { success: true, productId, endsOn: b.expiresAt };
+    }),
+
+  /** Снять уценку раньше срока — цена товара снова обычная. */
+  clearMarkdown: operatorQuery.use(can("prices.manage"))
+    .input(z.object({ productId: z.number().int().positive() }))
+    .mutation(async ({ input, ctx }) => {
+      const db = getDb();
+      const tenantId = ctx.tenant.id;
+      const [was] = await db.select({ price: markdowns.price }).from(markdowns)
+        .where(and(eq(markdowns.tenantId, tenantId), eq(markdowns.productId, input.productId))).limit(1);
+      if (!was) return { success: true, removed: false };
+      await db.delete(markdowns).where(and(eq(markdowns.tenantId, tenantId), eq(markdowns.productId, input.productId)));
+      dropCatalogCache(tenantId);
+      await invalidateReports(tenantId, "price.markdown");
+      await recordAudit(db, {
+        ...auditActor(ctx), action: "price.markdown_cleared", targetType: "product", targetId: input.productId,
+        meta: { productId: input.productId, was: Number(was.price).toFixed(2) },
+      });
+      return { success: true, removed: true };
     }),
 
   /** Какой список у какого магазина — чтобы при назначении видеть, откуда магазин уйдёт. */

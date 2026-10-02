@@ -11,6 +11,8 @@ import { dateLocale } from "@/lib/date-locale";
 import { ClipboardList, TrendingUp, TrendingDown, Plus, AlertCircle, ArrowRight, PieChart, Activity } from "lucide-react";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart as RePieChart, Pie, Cell, BarChart, Bar } from "recharts";
 import { ProgressRing } from "@/components/ProgressRing";
+import { ExpiryHomeCard } from "@/components/warehouse/ExpiryHomeCard";
+import { useExpiryHome, EXPIRY_ALERT_TYPES } from "@/components/warehouse/use-expiry-home";
 import { QueryErrorFallback } from "@/components/QueryErrorFallback";
 // Слово и цвет состояния — оттуда же, откуда их берёт экран заказов.
 import { STATUS } from "@/components/orders/theme-tokens";
@@ -145,7 +147,10 @@ function DesktopDashboard() {
   const { data: trends } = trpc.dashboard.trends.useQuery({ range });
   const { data: statusData } = trpc.dashboard.statusBreakdown.useQuery();
   const { data: activity } = trpc.dashboard.activity.useQuery();
-  const { data: alerts } = trpc.notification.smartAlerts.useQuery({ lang });
+  const { data: allAlerts } = trpc.notification.smartAlerts.useQuery({ lang });
+  // Карточка «Сгорит на складе» ниже говорит о сроках подробнее — подсказки о том же не дублируют её.
+  const expiryCard = useExpiryHome() != null;
+  const alerts = useMemo(() => (expiryCard ? allAlerts?.filter(a => !EXPIRY_ALERT_TYPES.has(a.type)) : allAlerts), [allAlerts, expiryCard]);
 
   const chartData = useMemo(() => trends?.map(tr => ({ date: format(new Date(tr.date), "dd/MM"), orders: tr.orderCount, revenue: Number(tr.revenue) })) ?? [], [trends]);
   const revenueTrend = useMemo(() => (trends ?? []).slice(-7).map(tr => Number(tr.revenue)), [trends]);
@@ -297,7 +302,7 @@ function DesktopDashboard() {
           {alerts.slice(0, 4).map((alert, i) => {
             const target: Record<string, string> = {
               low_stock: "/warehouse", pending_orders: "/orders?status=new", plan_summary: "/supervisor/plans",
-              high_debt: "/reports?tab=debts", expired_stock: "/warehouse?tab=reports", expiring_stock: "/warehouse?tab=reports",
+              high_debt: "/reports?tab=debts", expired_stock: "/warehouse?tab=expiry", expiring_stock: "/warehouse?tab=expiry",
             };
             const link = target[alert.type];
             const colors: Record<string, { bg: string; icon: string }> = {
@@ -328,6 +333,9 @@ function DesktopDashboard() {
           })}
         </div>
       )}
+
+      {/* Сгорит на складе — только директору и только когда есть что делать (ExpiryHomeCard решает сам). */}
+      <ExpiryHomeCard variant="desk" />
 
       {/* Charts Row */}
       <div className="dashboard-charts-grid">

@@ -191,6 +191,40 @@ export async function returnsInPeriod(
   }));
 }
 
+/**
+ * Вернулось ШТУК по товарам за окно — для темпа продаж («Сроки»: продастся
+ * ли партия до срока).
+ *
+ * Отбор тот же, что у returnsInPeriod: проведённые, по дате проведения, только
+ * против заказов, которые сами считаются выручкой. Иначе темп вычитал бы
+ * возврат отменённого заказа, который и так не попал в «продано».
+ * Окно — [from, to): с начала дня from до начала дня to.
+ */
+export async function returnedQtyByProduct(
+  db: Db, tenantId: number, from: Date, to: Date, productIds: number[],
+): Promise<Map<number, number>> {
+  const out = new Map<number, number>();
+  if (productIds.length === 0) return out;
+  const rows = await db.select({
+    productId: returnItems.productId,
+    quantity:  sql<string>`SUM(${returnItems.quantity})`,
+  })
+    .from(returnItems)
+    .innerJoin(returns, eq(returns.id, returnItems.returnId))
+    .innerJoin(orders, eq(orders.id, returns.orderId))
+    .where(and(
+      eq(returns.tenantId, tenantId),
+      eq(returns.status, "completed"),
+      sql`${returns.createdAt} >= ${from}`,
+      sql`${returns.createdAt} < ${to}`,
+      ...revenueOrderConditions(tenantId),
+      inArray(returnItems.productId, productIds),
+    ))
+    .groupBy(returnItems.productId);
+  for (const r of rows) out.set(Number(r.productId), Number(r.quantity) || 0);
+  return out;
+}
+
 const plus = (a: ReturnedValue, b: ReturnedValue): ReturnedValue => ({
   amount: a.amount + b.amount,
   cost:   a.cost + b.cost,

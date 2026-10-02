@@ -67,6 +67,9 @@ vi.mock("../queries/connection", () => ({ getDb: () => mockDb }));
 
 import { warehouseStock, stockMovements, arrivals, stockBatches, orderItems } from "@db/schema";
 
+/** Срок партии на стенде — через три дня от сегодня по календарю сервера. */
+const IN_THREE_DAYS = (() => { const d = new Date(); d.setDate(d.getDate() + 3); return dayKey(d); })();
+
 /** Сколько раз код сходил в базу (select … from). */
 let selects = 0;
 /** Из каких таблиц читали — по порядку. */
@@ -92,8 +95,8 @@ function rowsFor(table: unknown, fields: Record<string, unknown> | undefined): u
     return [{ totalArrivals: 2, totalFuelCost: "1500.50", totalTollCost: "200.00", totalOtherCost: "0.00", totalExpense: "1700.50", totalUnits: "40.000" }];
   }
   if (table === stockBatches) {
-    if (has("expiredCount")) return [{ expiredCount: 1, expiredValue: 960, urgentCount: 2, soonCount: 3, liveValue: 5000.5 }];
-    if (has("batchId") && has("productName")) return [{ batchId: 7, productId: 1, productName: "Сахар", productCode: "S-1", unit: "кг", warehouseId: 1, warehouseName: "Основной", batchNumber: "L-1", expiresAt: "2026-09-17", quantity: "12.000", costPrice: "80.00", daysLeft: 3 }];
+    // План «Сроков»: партия через три дня, закупка 80, цена 100, продаж нет.
+    if (has("batchId") && has("productName")) return [{ batchId: 7, productId: 1, productName: "Сахар", productCode: "S-1", unit: "кг", unitPrice: "100.00", warehouseId: 1, warehouseName: "Основной", isDefault: 1, batchNumber: "L-1", expiresAt: IN_THREE_DAYS, quantity: "12.000", costPrice: "80.00" }];
     return [{ batchId: 7, warehouseId: 1, batchNumber: "L-1", expiresAt: "2026-09-17", quantity: "4.000", receivedAt: "2026-09-01", daysLeft: 3 }];
   }
   return [];
@@ -114,19 +117,19 @@ function makeMockDb() {
   };
 }
 
-function ctx(tenantId = 1) {
+function ctx(tenantId = 1, role = "ceo") {
   return asTestContext({
     req: new Request("http://localhost/"),
     resHeaders: new Headers(),
     db: mockDb,
     tenant: { id: tenantId, slug: "t", name: "T", plan: "trial" as const, status: "active" as const, createdAt: new Date(), updatedAt: new Date() },
-    user: { id: 1, tenantId, role: "ceo", status: "active" as const, name: "T", email: "t@t.com", passwordHash: "x", avatar: null, phone: null, createdAt: new Date(), updatedAt: new Date(), lastSignInAt: new Date() },
+    user: { id: 1, tenantId, role, status: "active" as const, name: "T", email: "t@t.com", passwordHash: "x", avatar: null, phone: null, createdAt: new Date(), updatedAt: new Date(), lastSignInAt: new Date() },
   });
 }
 
-async function caller(tenantId = 1) {
+async function caller(tenantId = 1, role = "ceo") {
   const { warehouseReportsRouter } = await import("../warehouse-reports-router");
-  return warehouseReportsRouter.createCaller(ctx(tenantId));
+  return warehouseReportsRouter.createCaller(ctx(tenantId, role));
 }
 
 beforeEach(() => {
@@ -189,16 +192,33 @@ describe("warehouseReports: восемь ручек кэшируются, чис
     expect(first[0]).toMatchObject({ productCode: "S-1", dailyVelocity: "1.67", daysUntilStockout: 60, dynamicReorderPoint: 12, alertLevel: "ok" });
   });
 
-  it("expiring — партии с состоянием", async () => {
+  it("expiring — партии с прогнозом, подсказкой и деньгами", async () => {
     const c = await caller();
     const { first } = await twice(() => c.expiring({ withinDays: 30 }));
-    expect(first[0]).toMatchObject({ batchId: 7, quantity: 12, daysLeft: 3, value: 960, state: "urgent" });
+    // Продаж нет — «нет продаж», весь остаток сгорит; через три дня — скидка 30 %.
+    expect(first[0]).toMatchObject({
+      batchId: 7, quantity: 12, daysLeft: 3, value: 960, state: "urgent",
+      verdict: "no_sales", unsold: 12, atRiskCost: 960, atRiskSale: 1200, advice: { pct: 30, price: 70 }, needsDirector: true,
+    });
   });
 
-  it("expiringSummary — плитка", async () => {
+  it("expiringSummary — плитки и главная директора из тех же строк", async () => {
     const c = await caller();
     const { first } = await twice(() => c.expiringSummary({ withinDays: 30 }));
-    expect(first).toEqual({ expiredCount: 1, expiredValue: 960, urgentCount: 2, soonCount: 3, liveValue: 5000.5 });
+    expect(first).toEqual({ riskCount: 1, riskCost: 960, riskSale: 1200, expiredCount: 0, expiredCost: 0, expiredSale: 0, sellsCount: 0, markedDown: 0 });
+  });
+
+  it("в кэше полные строки, закупку срезает роль ПОСЛЕ кэша: оператор после директора закупки не видит", async () => {
+    await (await caller(1, "ceo")).expiring({ withinDays: 30 });
+    const calls = selects;
+    const op = await (await caller(1, "operator")).expiring({ withinDays: 30 });
+    expect(selects, "оператор не попал в тот же кэш").toBe(calls);
+    expect(op[0]).toMatchObject({ costPrice: null, value: null, atRiskCost: null, adviceMoney: null, atRiskSale: 1200, needsDirector: true });
+    const sum = await (await caller(1, "operator")).expiringSummary({ withinDays: 30 });
+    expect(sum).toMatchObject({ riskCost: null, expiredCost: null, riskSale: 1200 });
+    // И обратно: директор после оператора закупку видит — кэш не обеднел.
+    const ceo = await (await caller(1, "ceo")).expiring({ withinDays: 30 });
+    expect(ceo[0]).toMatchObject({ costPrice: 80, atRiskCost: 960 });
   });
 });
 
@@ -263,7 +283,8 @@ describe("warehouseReports: ключ и срок", () => {
       { withinDays: 30, day: today },
     ]);
     // Склад — отдельный ключ: список по одному складу не подменяет общий.
-    expect(selects).toBe(3);
+    // Партии читаются один раз на расчёт (темп и уценки — своими запросами).
+    expect(tables.filter(t => t === stockBatches)).toHaveLength(3);
   });
 
   it("скользящее окно «now − days» в ключ не попадает — иначе промах всегда", async () => {

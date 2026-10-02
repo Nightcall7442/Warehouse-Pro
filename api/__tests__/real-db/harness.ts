@@ -83,7 +83,7 @@ const TABLES = [
   // Партии остатка: по ним считается FEFO и отчёт «что сгорает». Оставленная
   // чужая партия увела бы списание в другой порядок — молча, потому что
   // остаток при этом сходится.
-  "stock_batches",
+  "stock_batches", "markdowns",
   "stock_movements", "products", "shops", "warehouses", "users", "tenants",
   // Расчёты с контрагентами: платежи, поставки, сами контрагенты, приходы.
   "supplier_payments", "supplies", "suppliers", "arrival_items", "arrivals",

@@ -4,13 +4,15 @@ import { getDb } from "./queries/connection";
 import {
   warehouseStock, products, stockMovements,
   orderItems, orders, arrivals, arrivalItems,
-  stockBatches, warehouses,
+  stockBatches,
 } from "@db/schema";
 import { eq, and, sql, desc, gt } from "drizzle-orm";
 import { revenueOrderConditions } from "./lib/order-status";
 import { dayKey } from "./lib/period";
 import { onDefaultWarehouse } from "./services/reorder";
 import { reportCached, ReportTTL } from "./lib/report-cache";
+import { expiryPlan, forViewer } from "./services/expiry-plan";
+import { summarizeExpiry } from "@contracts/expiry";
 
 /*
   Кэш отчётов: один пересчёт на организацию, а не по одному на каждого, кто
@@ -323,6 +325,13 @@ export const warehouseReportsRouter = createRouter({
      это разные действия. По сгорающему ещё можно что-то сделать — сдвинуть в
      акцию, отгрузить ближнему магазину. Просроченное списывают. Одним списком
      человек их путает.
+
+     ── «Продастся ли до срока» (октябрь 2026) ─────────────────────────────────
+
+     Дата и сумма не говорили главного: уйдёт ли это само. Йогурт по 40 штук
+     в день успеет, соус по бутылке в неделю — нет. Теперь у каждой партии
+     прогноз по темпу продаж с учётом FEFO, деньги под риском, подсказка
+     скидки и действие рядом (уценка — services/markdown.ts).
      ══════════════════════════════════════════════════════════════════════════ */
   expiring: operatorQuery
     .input(z.object({
@@ -330,118 +339,35 @@ export const warehouseReportsRouter = createRouter({
       withinDays: z.number().int().min(1).max(365).default(30),
       warehouseId: z.number().int().positive().optional(),
     }).optional())
-    .query(({ input, ctx }) => {
+    .query(async ({ input, ctx }) => {
       const withinDays = input?.withinDays ?? 30;
-      // День — в ключе: границы «просрочено/горит» считаются от сегодня.
+      const warehouseId = input?.warehouseId ?? null;
+      // День — в ключе: границы «просрочено/горит» и окно темпа считаются от сегодня.
       const today = dayKey(new Date());
-      return reportCached(ctx.tenant.id, "warehouse.expiring", { withinDays, warehouseId: input?.warehouseId ?? null, day: today }, ReportTTL.fiveMin, async () => {
-        const db = getDb();
-        const tenantId = ctx.tenant.id;
-
-        /*
-          Граница считается по календарю сервера, а не через toISOString.
-
-          Колонка expires_at — DATE, и сравнивается со строкой «ГГГГ-ММ-ДД».
-          Печать через UTC при восточном смещении даёт вчерашний день, и партия,
-          сгорающая сегодня, попала бы в «просроченные». Тот же случай, что с
-          ключом месяца в api/lib/period.ts.
-        */
-        const horizon = new Date();
-        horizon.setDate(horizon.getDate() + withinDays);
-        const until = dayKey(horizon);
-
-        const conditions = [
-          eq(stockBatches.tenantId, tenantId),
-          // Партия с нулевым остатком уже ушла: показать её сгорающей значит
-          // позвать человека списывать то, чего нет.
-          gt(stockBatches.quantity, "0"),
-          sql`${stockBatches.expiresAt} IS NOT NULL`,
-          sql`${stockBatches.expiresAt} <= ${until}`,
-        ];
-        if (input?.warehouseId) conditions.push(eq(stockBatches.warehouseId, input.warehouseId));
-
-        const rows = await db.select({
-          batchId:       stockBatches.id,
-          productId:     stockBatches.productId,
-          productName:   products.name,
-          productCode:   products.code,
-          unit:          products.unit,
-          warehouseId:   stockBatches.warehouseId,
-          warehouseName: warehouses.name,
-          batchNumber:   stockBatches.batchNumber,
-          expiresAt:     stockBatches.expiresAt,
-          quantity:      stockBatches.quantity,
-          // Цена ЗАКУПКИ этой партии (карточка — только у партий без своей):
-          // столько денег сгорает вместе с товаром. Цена продажи здесь ни при
-          // чём — непроданный товар выручки не приносил.
-          costPrice:     sql<string>`COALESCE(${stockBatches.costPrice}, ${products.costPrice})`,
-          daysLeft:      sql`DATEDIFF(${stockBatches.expiresAt}, ${today})`.mapWith(Number),
-        })
-          .from(stockBatches)
-          .innerJoin(products, and(eq(stockBatches.productId, products.id), eq(products.tenantId, tenantId)))
-          .leftJoin(warehouses, and(eq(stockBatches.warehouseId, warehouses.id), eq(warehouses.tenantId, tenantId)))
-          .where(and(...conditions))
-          .orderBy(stockBatches.expiresAt)
-          .limit(500);
-
-        return rows.map(r => {
-          const daysLeft = Number(r.daysLeft ?? 0);
-          const quantity = Number(r.quantity ?? 0);
-          return {
-            ...r,
-            quantity,
-            daysLeft,
-            value: Number((quantity * Number(r.costPrice ?? 0)).toFixed(2)),
-            /*
-              Три состояния, а не число дней: по ним принимают РАЗНЫЕ решения.
-              Просроченное — списать, горящее — двигать сегодня, остальное —
-              держать в виду.
-            */
-            state: daysLeft < 0 ? "expired" as const
-                 : daysLeft <= 7 ? "urgent" as const
-                 : "soon" as const,
-          };
-        });
+      /*
+        Продастся ли до срока — contracts/expiry.ts (темп, FEFO, вердикт,
+        скидка), чтение — services/expiry-plan.ts. В кэше — полные строки с
+        закупкой; срезает её forViewer ПОСЛЕ кэша, по роли спросившего.
+      */
+      const rows = await reportCached(ctx.tenant.id, "warehouse.expiring", { withinDays, warehouseId, day: today }, ReportTTL.fiveMin, async () => {
+        const all = await expiryPlan(getDb(), ctx.tenant.id, { withinDays, today });
+        return warehouseId ? all.filter(r => r.warehouseId === warehouseId) : all;
       });
+      return forViewer(rows, ctx.user.role);
     }),
 
-  /** Свод по сгорающему — для плитки, чтобы не тянуть весь список. */
+  /**
+   * Свод по сгорающему — для плиток экрана и карточки на главной директора.
+   * Из тех же строк, что и список (summarizeExpiry), — числа не разойдутся.
+   */
   expiringSummary: operatorQuery
     .input(z.object({ withinDays: z.number().int().min(1).max(365).default(30) }).optional())
-    .query(({ input, ctx }) => {
+    .query(async ({ input, ctx }) => {
       const withinDays = input?.withinDays ?? 30;
       const today = dayKey(new Date());
-      return reportCached(ctx.tenant.id, "warehouse.expiringSummary", { withinDays, day: today }, ReportTTL.fiveMin, async () => {
-        const db = getDb();
-        const tenantId = ctx.tenant.id;
-        const horizon = new Date();
-        horizon.setDate(horizon.getDate() + withinDays);
-        const until = dayKey(horizon);
-
-        const [row] = await db.select({
-          expiredCount: sql`COUNT(CASE WHEN ${stockBatches.expiresAt} < ${today} THEN 1 END)`.mapWith(Number),
-          expiredValue: sql`COALESCE(SUM(CASE WHEN ${stockBatches.expiresAt} < ${today} THEN ${stockBatches.quantity} * COALESCE(${stockBatches.costPrice}, ${products.costPrice}, 0) ELSE 0 END), 0)`.mapWith(Number),
-          urgentCount:  sql`COUNT(CASE WHEN ${stockBatches.expiresAt} >= ${today} AND DATEDIFF(${stockBatches.expiresAt}, ${today}) <= 7 THEN 1 END)`.mapWith(Number),
-          soonCount:    sql`COUNT(CASE WHEN DATEDIFF(${stockBatches.expiresAt}, ${today}) > 7 THEN 1 END)`.mapWith(Number),
-          liveValue:    sql`COALESCE(SUM(CASE WHEN ${stockBatches.expiresAt} >= ${today} THEN ${stockBatches.quantity} * COALESCE(${stockBatches.costPrice}, ${products.costPrice}, 0) ELSE 0 END), 0)`.mapWith(Number),
-        })
-          .from(stockBatches)
-          .innerJoin(products, and(eq(stockBatches.productId, products.id), eq(products.tenantId, tenantId)))
-          .where(and(
-            eq(stockBatches.tenantId, tenantId),
-            gt(stockBatches.quantity, "0"),
-            sql`${stockBatches.expiresAt} IS NOT NULL`,
-            sql`${stockBatches.expiresAt} <= ${until}`,
-          ));
-
-        return {
-          expiredCount: Number(row?.expiredCount ?? 0),
-          expiredValue: Number(row?.expiredValue ?? 0),
-          urgentCount:  Number(row?.urgentCount ?? 0),
-          soonCount:    Number(row?.soonCount ?? 0),
-          liveValue:    Number(row?.liveValue ?? 0),
-        };
-      });
+      const rows = await reportCached(ctx.tenant.id, "warehouse.expiringSummary", { withinDays, day: today }, ReportTTL.fiveMin,
+        () => expiryPlan(getDb(), ctx.tenant.id, { withinDays, today }));
+      return summarizeExpiry(forViewer(rows, ctx.user.role));
     }),
 
   /*

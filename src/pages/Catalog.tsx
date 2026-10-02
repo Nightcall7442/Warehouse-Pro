@@ -49,7 +49,14 @@ type CatalogProduct = {
   available: string | null;
   unit: string | null;
   photoUrl: string | null;
+  /** Цена карточки — до уценки. */
+  basePrice?: string;
+  /** Уценка по сроку: партию надо продать первой (services/markdown.ts). */
+  markdown?: { price: string; endsOn: string } | null;
 };
+
+/** «12.10» — последний день уценки. */
+const dayMonth = (day: string) => day.slice(8, 10) + "." + day.slice(5, 7);
 
 /** Карточка в сетке — ProductCard мобилки: фото, бирка наличия, корзина на фото. */
 function ProductCard({ product, onOpen, inCart, onAdd, onRemove }: {
@@ -72,13 +79,16 @@ function ProductCard({ product, onOpen, inCart, onAdd, onRemove }: {
         <button type="button" onClick={onOpen} aria-label={product.name} style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
           <PhotoOrIcon src={product.photoUrl} fallback={<Package size={28} style={{ color: "var(--color-text-tertiary)" }} />} />
         </button>
-        <span style={{
+        {/* Уценка по сроку — вместо «В наличии»: агенту важнее «продать первым». */}
+        <span data-testid={product.markdown && !out ? `catalog-sell-first-${product.id}` : undefined} style={{
           position: "absolute", top: 8, left: 8, borderRadius: 999, padding: "4px 8px", fontSize: 11, fontWeight: 600,
-          background: out ? "var(--color-danger-subtle)" : "var(--color-success-subtle)",
-          color: out ? "var(--color-danger-text)" : "var(--color-success-text)",
+          // У «Продать первым» фон плотный: полупрозрачный терялся на тёмном фото.
+          background: out ? "var(--color-danger-subtle)" : product.markdown ? "var(--color-surface)" : "var(--color-success-subtle)",
+          color: out ? "var(--color-danger-text)" : product.markdown ? "var(--color-warning-text)" : "var(--color-success-text)",
+          boxShadow: product.markdown && !out ? "var(--shadow-sm)" : undefined,
           backdropFilter: "blur(6px)",
         }}>
-          {out ? tr("Нет", "Yo'q") : tr("В наличии", "Bor")}
+          {out ? tr("Нет", "Yo'q") : product.markdown ? tr("Продать первым", "Birinchi sotish") : tr("В наличии", "Bor")}
         </span>
         {!out && (inCart > 0 ? (
           <div data-testid={`catalog-stepper-${product.id}`} style={{ position: "absolute", right: 8, bottom: 8, display: "flex", alignItems: "center", height: 36, borderRadius: 18, background: "var(--color-primary)", color: "var(--color-on-primary)" }}>
@@ -105,7 +115,7 @@ function ProductCard({ product, onOpen, inCart, onAdd, onRemove }: {
           <span className="font-data" style={{ fontSize: 11, color: "var(--color-text-tertiary)" }}>{tr("Артикул", "Artikul")}: {product.code}</span>
         )}
         <span style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 6, marginTop: 2 }}>
-          <span className="font-data" style={{ fontSize: 16, fontWeight: 700, color: "var(--color-primary-text)", whiteSpace: "nowrap" }}>
+          <span className="font-data" style={{ fontSize: 16, fontWeight: 700, color: product.markdown ? "var(--color-warning-text)" : "var(--color-primary-text)", whiteSpace: "nowrap" }}>
             {fmt(product.unitPrice)}<span style={{ fontSize: 11, fontWeight: 500, color: "var(--color-text-tertiary)" }}>/{unit}</span>
           </span>
           <span style={{ fontSize: 11, fontWeight: 500, color: out ? "var(--color-danger-text)" : "var(--color-success-text)", whiteSpace: "nowrap" }}>
@@ -172,9 +182,14 @@ function ProductSheet({ product, onClose, onOrder }: {
             <p style={{ margin: 0, fontSize: "10px", letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--color-text-tertiary)" }}>
               {tr("Цена", "Narx")}
             </p>
-            <p style={{ margin: "2px 0 0", fontSize: "19px", fontWeight: 700, color: "var(--color-primary-text)" }}>
+            <p style={{ margin: "2px 0 0", fontSize: "19px", fontWeight: 700, color: product.markdown ? "var(--color-warning-text)" : "var(--color-primary-text)", whiteSpace: "nowrap" }}>
               {fmt(product.unitPrice)}
             </p>
+            {product.markdown && product.basePrice && Number(product.basePrice) > Number(product.unitPrice) && (
+              <p className="font-data" style={{ margin: 0, fontSize: "12px", color: "var(--color-text-tertiary)", textDecoration: "line-through", whiteSpace: "nowrap" }}>
+                {fmt(product.basePrice)}
+              </p>
+            )}
           </div>
           <div>
             <p style={{ margin: 0, fontSize: "10px", letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--color-text-tertiary)" }}>
@@ -185,6 +200,13 @@ function ProductSheet({ product, onClose, onOrder }: {
             </p>
           </div>
         </div>
+
+        {product.markdown && (
+          <p data-testid="catalog-sheet-markdown" style={{ margin: "0 0 16px", padding: "10px 12px", borderRadius: 12, fontSize: 13, lineHeight: 1.45, background: "var(--color-warning-subtle)", color: "var(--color-text-primary)" }}>
+            <b style={{ color: "var(--color-warning-text)" }}>{tr("Продать первым.", "Birinchi sotish.")}</b>{" "}
+            {tr(`Уценка до ${dayMonth(product.markdown.endsOn)}: у партии кончается срок — предложите магазину в первую очередь.`, `${dayMonth(product.markdown.endsOn)} gacha arzonlashtirilgan: partiya muddati tugayapti — do'konga birinchi taklif qiling.`)}
+          </p>
+        )}
 
         {/* Счётчик: кнопки 44 точки — нижняя граница уверенного попадания.
             У кончившегося товара его нет вовсе: нажимать в нём нечего, а
@@ -268,6 +290,7 @@ export default function Catalog() {
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState<string | null>(null);
   const [opened, setOpened] = useState<CatalogProduct | null>(null);
+  const [sellFirst, setSellFirst] = useState(false);
   const { user } = useAuth();
   const navigate = useNavigate();
   const cart = useCatalogCart(user?.id);
@@ -292,13 +315,21 @@ export default function Catalog() {
     return [...set].sort((a, b) => a.localeCompare(b));
   }, [products]);
 
+  /*
+    «Продать первым» — товары с уценкой по сроку: директор уценил партию,
+    которая иначе сгорит. Они стоят в начале списка и собраны в отдельный
+    фильтр — агент предлагает их магазину первыми.
+  */
+  const sellFirstCount = useMemo(() => products.filter(p => p.markdown).length, [products]);
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return products.filter(p =>
+    const list = products.filter(p =>
       (!q || p.name.toLowerCase().includes(q) || (p.code ?? "").toLowerCase().includes(q)) &&
-      (!category || p.category === category)
+      (!category || p.category === category) &&
+      (!sellFirst || p.markdown)
     );
-  }, [products, search, category]);
+    return sellFirstCount > 0 ? [...list.filter(p => p.markdown), ...list.filter(p => !p.markdown)] : list;
+  }, [products, search, category, sellFirst, sellFirstCount]);
 
   /*
     Экран ошибки — только когда показывать нечего.
@@ -355,15 +386,33 @@ export default function Catalog() {
         )}
       </div>
 
-      {categories.length > 1 && (
+      {/* Фишки — 44 точки, как все цели касания (стояло 36: мимо попадали). */}
+      {(categories.length > 1 || sellFirstCount > 0) && (
         <div style={{ display: "flex", gap: "8px", overflowX: "auto", paddingBottom: "2px" }}>
-          {[null, ...categories].map(c => (
+          {sellFirstCount > 0 && (
+            <button
+              type="button"
+              data-testid="catalog-chip-sell-first"
+              aria-pressed={sellFirst}
+              onClick={() => setSellFirst(v => !v)}
+              style={{
+                flexShrink: 0, minHeight: "44px", padding: "0 14px", borderRadius: "999px",
+                fontSize: "13px", fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap",
+                border: `1px solid ${sellFirst ? "var(--color-warning)" : "var(--color-border)"}`,
+                background: sellFirst ? "var(--color-warning-subtle)" : "var(--color-surface)",
+                color: "var(--color-warning-text)",
+              }}
+            >
+              {tr("Продать первым", "Birinchi sotish")} · {sellFirstCount}
+            </button>
+          )}
+          {categories.length > 1 && [null, ...categories].map(c => (
             <button
               key={c ?? "*"}
               type="button"
               onClick={() => setCategory(c)}
               style={{
-                flexShrink: 0, minHeight: "36px", padding: "0 14px", borderRadius: "999px",
+                flexShrink: 0, minHeight: "44px", padding: "0 14px", borderRadius: "999px",
                 fontSize: "13px", fontWeight: 600, cursor: "pointer",
                 border: `1px solid ${category === c ? "var(--color-primary)" : "var(--color-border)"}`,
                 background: category === c ? "var(--color-primary)" : "var(--color-surface)",

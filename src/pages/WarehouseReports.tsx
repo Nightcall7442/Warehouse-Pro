@@ -14,7 +14,6 @@ import { SectionNotice } from "@/components/SectionNotice";
 import { CHART_PALETTE } from "@/lib/chartTheme";
 import { unitShort } from "@/lib/units";
 import { notify } from "@/lib/toast";
-import { ExpiringBatches } from "@/components/warehouse/ExpiringBatches";
 import { useWarehouse } from "@/providers/WarehouseContext";
 
 /*
@@ -330,13 +329,10 @@ export default function WarehouseReports() {
       )}
 
       {/*
-        Сроки годности — выше графиков.
-
-        Это единственный раздел страницы, по которому надо ДЕЙСТВОВАТЬ сегодня:
-        просроченное списывают, горящее двигают. Остальные пять отвечают на
-        вопросы «как идут дела» и терпят до конца недели.
+        Сроки годности ушли отсюда в свой раздел склада «Сроки» (?tab=expiry):
+        это рабочее место с действием у каждой партии, а не отчёт. Здесь
+        остаются вопросы «как идут дела».
       */}
-      <ExpiringBatches />
 
       {/* Charts Row 1 */}
       <div className="grid lg:grid-cols-2 gap-4">

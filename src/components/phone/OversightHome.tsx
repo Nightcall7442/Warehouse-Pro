@@ -5,6 +5,8 @@ import { AlertCircle, TrendingDown, TrendingUp, ChevronRight, PieChart, MapPin, 
 import { trpc } from "@/providers/trpc";
 import { useLang } from "@/i18n";
 import { useCurrency } from "@/hooks/useCurrency";
+import { ExpiryHomeCard } from "@/components/warehouse/ExpiryHomeCard";
+import { useExpiryHome, EXPIRY_ALERT_TYPES } from "@/components/warehouse/use-expiry-home";
 import {
   ListCard, ListRow, SectionHead, Tile, CtaTile, EmptyState, HomeGreeting, Segmented, Sparkline, Donut,
 } from "./kit";
@@ -38,7 +40,10 @@ export function OversightHome() {
   const { data: trends } = trpc.dashboard.trends.useQuery({ range });
   const { data: statusData } = trpc.dashboard.statusBreakdown.useQuery();
   const { data: activity } = trpc.dashboard.activity.useQuery();
-  const { data: alerts } = trpc.notification.smartAlerts.useQuery({ lang });
+  const { data: allAlerts } = trpc.notification.smartAlerts.useQuery({ lang });
+  // О сроках говорит карточка «Сгорит на складе» — подсказка о том же лишняя.
+  const expiryCard = useExpiryHome() != null;
+  const alerts = expiryCard ? allAlerts?.filter(a => !EXPIRY_ALERT_TYPES.has(a.type)) : allAlerts;
   const { data: aging } = trpc.shop.receivablesAging.useQuery(undefined, { retry: false });
 
   const revenue = (trends ?? []).map(r => Number(r.revenue));
@@ -102,6 +107,9 @@ export function OversightHome() {
           )}
         </button>
       )}
+
+      {/* ── Сгорит на складе — директору, когда есть что делать ── */}
+      <ExpiryHomeCard variant="phone" />
 
       {/* ── Динамика продаж ── */}
       <section style={{ ...CARD, borderRadius: 24, padding: 20 }}>
