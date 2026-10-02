@@ -5,6 +5,8 @@ import { TRPCError } from "@trpc/server";
 import { noOrderReport } from "./services/no-order-visits";
 import { marginReport } from "./services/margin-report";
 import { abcReport } from "./services/abc-report";
+import { salesMapBase } from "./services/sales-map";
+import { buildSalesMap } from "@contracts/sales-map";
 import { getDb } from "./queries/connection";
 import { orders, users, dailyPlans, agentLocations, subscriptions, shops, products, stockMovements } from "@db/schema";
 import { eq, and, sql, gte, desc , inArray, isNull } from "drizzle-orm";
@@ -253,6 +255,30 @@ export const reportsRouter = createRouter({
       }
       return reportCached(ctx.tenant.id, "reports.abc", { ...input, finance }, ReportTTL.fiveMin,
         () => abcReport(getDb(), ctx.tenant.id, { ...input, finance }));
+    }),
+
+  /*
+    «Карта продаж» (services/sales-map.ts → contracts/sales-map.ts): где
+    покупают, где перестали, куда отправить агента.
+
+    managementQuery — как «Без заказа»: директор, офис, супервайзер; выручка
+    по ценам продажи, без себестоимости. Кэш — по периоду и без пользователя
+    (супервайзер видит всю организацию, как во всех «Отчётах»); агент и
+    территория накладываются на готовое — пересчитывать базу ради фильтра
+    незачем.
+  */
+  salesMap: managementQuery
+    .input(z.object({
+      from: DAY,
+      to: DAY,
+      agentId: z.number().int().positive().optional(),
+      territoryId: z.number().int().positive().optional(),
+    }))
+    .query(async ({ input, ctx }) => {
+      periodOrThrow(input.from, input.to);
+      const base = await reportCached(ctx.tenant.id, "reports.salesMap", { from: input.from, to: input.to }, ReportTTL.fiveMin,
+        () => salesMapBase(getDb(), ctx.tenant.id, input.from, input.to));
+      return buildSalesMap(base, { agentId: input.agentId, territoryId: input.territoryId });
     }),
 
   noOrderVisits: managementQuery

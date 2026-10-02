@@ -49,3 +49,24 @@ describe("импорт товаров", () => {
     expect(body).toMatch(/for \(const row of chunk\) \{\s*if \(room <= 0\)[\s\S]*?try \{[\s\S]*?\} catch \(err: unknown\) \{\s*noteRowError\(row, err\);/);
   });
 });
+
+/*
+  Карта продаж: шесть чтений — разом, светофор — одним пакетом после них;
+  кэш — по периоду, а агент и территория накладываются на готовое.
+  Нарочная поломка: вынести любое чтение из Promise.all в свой await, или
+  положить agentId в ключ кэша — упадёт.
+*/
+describe("карта продаж", () => {
+  it("шесть чтений разом, кэш по периоду без фильтров", () => {
+    const src = read("api/services/sales-map.ts");
+    const at = src.indexOf("const [shopRows, zoneRows, revenueRows, returnedNow, returnedBefore, activityRes] = await Promise.all([");
+    expect(at, "чтения не собраны в один Promise.all").toBeGreaterThan(0);
+    const body = src.slice(src.indexOf("export async function salesMapBase("), src.indexOf("return {\n    from, to, prevFrom, prevTo,"));
+    expect(body.match(/await /g)?.length, "лишний последовательный await").toBe(2);
+    expect(body).toContain("await shopLights(db, tenantId, silent.map(f => f.id))");
+    const router = read("api/reports-router.ts");
+    const proc = router.slice(router.indexOf("salesMap: managementQuery"), router.indexOf("noOrderVisits: managementQuery"));
+    expect(proc).toContain('reportCached(ctx.tenant.id, "reports.salesMap", { from: input.from, to: input.to }, ReportTTL.fiveMin,');
+    expect(proc).toContain("return buildSalesMap(base, { agentId: input.agentId, territoryId: input.territoryId });");
+  });
+});
