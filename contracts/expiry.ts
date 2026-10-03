@@ -275,9 +275,11 @@ export function paceText(pace: number, lang: string): string {
  * Почему партия в этом состоянии — словами. Экран и выгрузка (по-русски)
  * берут одну фразу, чтобы бумага и экран не расходились.
  */
-export function expiryReasonText(r: ReasonFacts, lang: string, qty: (n: number) => string): string {
+export function expiryReasonText(r: ReasonFacts, lang: string, qty: (n: number) => string, unit = ""): string {
   const uz = lang === "uz";
   const window = EXPIRY_RULES.PACE_WINDOW_DAYS;
+  // Темп — с единицей товара: «0,5 в день» не говорит, полбутылки это или полтонны.
+  const pace = unit ? `${paceText(r.pacePerDay, lang)}\u00A0${unit}` : paceText(r.pacePerDay, lang);
   switch (r.verdict) {
     case "expired":
       return uz
@@ -296,8 +298,8 @@ export function expiryReasonText(r: ReasonFacts, lang: string, qty: (n: number) 
         return uz ? "Muddati bugun — bugun sotish yoki hisobdan chiqarish" : "Срок сегодня — продать сегодня или списать";
       }
       return uz
-        ? `Kuniga ${paceText(r.pacePerDay, lang)} sotilmoqda: muddatgacha ${qty(r.quantity)} dan ~${qty(r.sold)} ketadi, ${qty(r.unsold)} qoladi`
-        : `Уходит ${paceText(r.pacePerDay, lang)} в день: до срока продастся ~${qty(r.sold)} из ${qty(r.quantity)}, останется ${qty(r.unsold)}`;
+        ? `Kuniga ${pace} sotilmoqda: muddatgacha ${qty(r.quantity)} dan ~${qty(r.sold)} ketadi, ${qty(r.unsold)} qoladi`
+        : `Уходит ${pace} в\u00A0день: до срока продастся ~${qty(r.sold)} из ${qty(r.quantity)}, останется ${qty(r.unsold)}`;
     case "sells":
       return uz
         ? `Ulguradi: ~${r.sellOutDays ?? 0} kunda tugaydi, muddatgacha ${r.daysLeft} kun`

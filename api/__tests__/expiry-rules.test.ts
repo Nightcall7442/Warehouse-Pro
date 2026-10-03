@@ -135,7 +135,10 @@ describe("сроки: правила", () => {
   it("9. причина словами — ru и uz, с числами", () => {
     const q = (n: number) => `${n} шт`;
     const base = { daysLeft: 8, quantity: 100, sold: 50, unsold: 50, pacePerDay: 6.25, sellOutDays: null, warehouseName: "Второй" };
-    expect(expiryReasonText({ ...base, verdict: "short" }, "ru", q)).toBe("Уходит 6,3 в день: до срока продастся ~50 шт из 100 шт, останется 50 шт");
+    expect(expiryReasonText({ ...base, verdict: "short" }, "ru", q)).toBe("Уходит 6,3 в\u00A0день: до срока продастся ~50 шт из 100 шт, останется 50 шт");
+    // С единицей: «6,3 шт», а не голое «6,3» — полбутылки или полтонны.
+    expect(expiryReasonText({ ...base, verdict: "short" }, "ru", q, "шт")).toBe("Уходит 6,3\u00A0шт в\u00A0день: до срока продастся ~50 шт из 100 шт, останется 50 шт");
+    expect(expiryReasonText({ ...base, verdict: "short" }, "uz", q, "dona")).toBe("Kuniga 6.3\u00A0dona sotilmoqda: muddatgacha 100 шт dan ~50 шт ketadi, 50 шт qoladi");
     expect(expiryReasonText({ ...base, verdict: "short" }, "uz", q)).toBe("Kuniga 6.3 sotilmoqda: muddatgacha 100 шт dan ~50 шт ketadi, 50 шт qoladi");
     expect(expiryReasonText({ ...base, verdict: "short", daysLeft: 0 }, "ru", q)).toBe("Срок сегодня — продать сегодня или списать");
     expect(expiryReasonText({ ...base, verdict: "expired", daysLeft: -3 }, "ru", q)).toContain("3 дн. назад");

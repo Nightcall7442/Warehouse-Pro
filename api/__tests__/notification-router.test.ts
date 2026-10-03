@@ -442,6 +442,15 @@ describe("notification.smartAlerts", () => {
     expect(CacheKeys.smartAlerts(1, 10, "uz")).not.toBe(CacheKeys.smartAlerts(1, 10, "ru"));
   });
 
+  it("роль из сессии доходит до getSmartAlerts — закупку в подсказке видит только директор", async () => {
+    const { NotificationService } = await import("../services/NotificationService");
+    const spy = vi.spyOn(NotificationService, "getSmartAlerts").mockResolvedValue([]);
+    const { notificationRouter } = await import("../notification-router");
+    await notificationRouter.createCaller(makeCtx(1, 10, "supervisor")).smartAlerts({ lang: "ru" });
+    expect(spy).toHaveBeenCalledWith(expect.anything(), 1, 10, "ru", "supervisor");
+    spy.mockRestore();
+  });
+
   it("empty when no issues", async () => {
     stockTable = [
       { id: 1, productId: 1, tenantId: 1, currentStock: "100.00", reserved: "0.00", available: "100.00" },

@@ -61,6 +61,6 @@ export const notificationRouter = createRouter({
   smartAlerts: authedQuery
     .input(z.object({ lang: z.enum(["ru", "uz"]).default("ru") }).optional())
     .query(async ({ ctx, input }) => {
-      return NotificationService.getSmartAlerts(ctx.db, ctx.tenant.id, ctx.user.id, input?.lang ?? "ru");
+      return NotificationService.getSmartAlerts(ctx.db, ctx.tenant.id, ctx.user.id, input?.lang ?? "ru", ctx.user.role);
     }),
 });

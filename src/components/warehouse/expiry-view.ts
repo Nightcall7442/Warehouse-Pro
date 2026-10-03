@@ -72,7 +72,7 @@ export function withUnit<T extends { unit: string | null }>(r: T, lang: string):
 export function reasonOf(r: ExpiryRowServer, lang: string): string {
   const u = unitShort(r.unit ?? undefined, lang);
   // Число и единица — неразрывным пробелом: «70 шт» не рвётся между строками.
-  return expiryReasonText(r, lang, n => `${formatQty(n, 1)}${NBSP}${u}`);
+  return expiryReasonText(r, lang, n => `${formatQty(n, 1)}${NBSP}${u}`, u);
 }
 
 /**

@@ -7,8 +7,25 @@ import { DEBT_NOTIFICATION_THRESHOLD } from "../lib/constants";
 import { logger } from "../lib/logger";
 import { onDate } from "../lib/date-range";
 import { lowStockCondition, onDefaultWarehouse } from "./reorder";
+import { seesCost } from "./expiry-plan";
 
 type Db = ReturnType<typeof import("../queries/connection").getDb>;
+
+/**
+ * Подсказка о просрочке: сумма по закупке — только тому, кто видит закупку.
+ *
+ * Подсказки приходят всем, кто открыл главную (директору, супервайзеру,
+ * оператору), а закупку и маржу видит только директор — то же правило, что
+ * у «Сроков» и «Прибыли» (expiry-plan.seesCost). Сумма «по себестоимости»
+ * в подсказке обходила это правило: супервайзер узнавал закупку через
+ * главную, хотя на экране сроков её не видел.
+ */
+export function expiredStockMessage(expiredValue: number, role: string, T: (ru: string, uz: string) => string): string {
+  if (expiredValue > 0 && seesCost(role)) {
+    return T(`На ${expiredValue.toLocaleString("ru")} по себестоимости — списать`, `Tannarx bo'yicha ${expiredValue.toLocaleString("ru")} — hisobdan chiqarish`);
+  }
+  return T("Списать, в отгрузку не уйдут", "Hisobdan chiqarish, jo'natishga chiqmaydi");
+}
 
 type NotificationType = "order" | "payment" | "stock" | "system";
 
@@ -326,7 +343,7 @@ export const NotificationService = {
     return { success: true };
   },
 
-  async getSmartAlerts(db: Db, tenantId: number, userId: number, lang: "ru" | "uz" = "ru") {
+  async getSmartAlerts(db: Db, tenantId: number, userId: number, lang: "ru" | "uz" = "ru", role = "") {
     const cacheKey = CacheKeys.smartAlerts(tenantId, userId, lang);
     // Подсказки — экран, не бумага: строятся на языке интерфейса, который
     // прислал клиент. Кэш — по языку, иначе узбекский экран получал бы
@@ -389,9 +406,7 @@ export const NotificationService = {
       alerts.push({
         type: "expired_stock",
         title: T(`Просрочено партий: ${expiredN}`, `Muddati o'tgan partiyalar: ${expiredN}`),
-        message: expiredValue > 0
-          ? T(`На ${expiredValue.toLocaleString("ru")} по себестоимости — списать`, `Tannarx bo'yicha ${expiredValue.toLocaleString("ru")} — hisobdan chiqarish`)
-          : T("Списать, в отгрузку не уйдут", "Hisobdan chiqarish, jo'natishga chiqmaydi"),
+        message: expiredStockMessage(expiredValue, role, T),
         severity: "danger",
       });
     } else if (urgentN > 0) {

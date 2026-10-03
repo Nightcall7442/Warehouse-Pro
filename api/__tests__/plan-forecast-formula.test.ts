@@ -27,7 +27,7 @@
  *  • EARLY_WORKDAYS = 0 — падает «рано судить».
  */
 import { describe, it, expect } from "vitest";
-import { FORECAST_RULES, forecastLine, workDaysOf } from "@contracts/plan-forecast";
+import { FORECAST_RULES, forecastLine, needPerDayText, workDaysOf } from "@contracts/plan-forecast";
 
 describe("рабочие дни месяца", () => {
   it("март 2031: 26 рабочих дней — без пяти воскресений", () => {
@@ -105,5 +105,20 @@ describe("рано судить", () => {
 
   it("выполненный план зелёный и в первые дни", () => {
     expect(forecastLine(3_000_000, 2_600_000, workDaysOf("2031-03-03")).tone).toBe("green");
+  });
+});
+
+describe("«Нужно в день» — не рвётся на телефоне", () => {
+  const fmt = (n: number) => `${n.toLocaleString("ru")}\u00A0сум`;
+  it("сумма, «в» и «день» — неразрывными пробелами (было «7 711 711 сум в / день»)", () => {
+    const s = needPerDayText({ needPerDay: 7711711 }, "ru", fmt);
+    expect(s.endsWith("\u00A0в\u00A0день")).toBe(true);
+    expect(s).not.toMatch(/ /);
+    expect(needPerDayText({ needPerDay: 5 }, "uz", fmt)).not.toMatch(/ /);
+  });
+  it("без плана — прочерк, выполнен — словом", () => {
+    expect(needPerDayText({ needPerDay: null }, "ru", fmt)).toBe("—");
+    expect(needPerDayText({ needPerDay: 0 }, "ru", fmt)).toBe("выполнен");
+    expect(needPerDayText({ needPerDay: 0 }, "uz", fmt)).toBe("bajarildi");
   });
 });
