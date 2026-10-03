@@ -10,7 +10,7 @@ import { QueryErrorFallback } from "@/components/QueryErrorFallback";
 import { F, COLORS, thStyle, tdStyle } from "@/components/users/types";
 import { monthLabel } from "@/components/plans/month";
 import {
-  FORECAST_RULES, FORECAST_TONE_COLOR, forecastToneLabel,
+  FORECAST_RULES, FORECAST_TONE_COLOR, forecastToneLabel, needPerDayText,
   type ForecastLine, type ForecastTone, type WorkDays,
 } from "@contracts/plan-forecast";
 
@@ -50,11 +50,6 @@ function daysText(d: WorkDays, lang: string): string {
     : `рабочий день ${d.passed} из ${d.total}, осталось ${d.left}`;
 }
 
-function needText(line: ForecastLine, lang: string, fmt: Fmt): string {
-  if (line.needPerDay == null) return "—";
-  if (line.needPerDay === 0) return lang === "uz" ? "bajarildi" : "выполнен";
-  return lang === "uz" ? `${fmt(line.needPerDay)} / kun` : `${fmt(line.needPerDay)} в день`;
-}
 
 /** Полоса «факт → прогноз» относительно плана. */
 function PlanBar({ line }: { line: ForecastLine }) {
@@ -88,7 +83,7 @@ function CompanyLine({ line, days, early, lang, fmt }: { line: ForecastLine; day
         <span>{t("Факт", "Fakt")}: <b className="font-data" style={{ color: COLORS.textPrimary }}>{fmt(line.fact)}</b></span>
         <span>{t("План", "Reja")}: <b className="font-data" style={{ color: COLORS.textPrimary }}>{line.plan != null ? fmt(line.plan) : "—"}</b></span>
         <span>{t("Прогноз", "Prognoz")}: <b className="font-data" style={{ color: COLORS.textPrimary }}>{fmt(line.forecast)}</b></span>
-        <span>{t("Нужно", "Kerak")}: <b className="font-data" style={{ color: COLORS.textPrimary }}>{needText(line, lang, fmt)}</b></span>
+        <span>{t("Нужно", "Kerak")}: <b className="font-data" style={{ color: COLORS.textPrimary }}>{needPerDayText(line, lang, fmt)}</b></span>
       </div>
       <p style={{ fontSize: 11, color: COLORS.textTertiary, margin: "8px 0 0" }}>
         {daysText(days, lang)}
@@ -140,7 +135,7 @@ export function PlanForecastCompact({ to = "/reports?tab=agents" }: { to?: strin
             <div key={a.userId} className="flex items-center justify-between gap-3" style={{ padding: "7px 0", fontSize: 13 }} data-testid="forecast-lagging-row">
               <span className="min-w-0 truncate" style={{ color: COLORS.textPrimary, fontWeight: 600 }}>{a.name}</span>
               <span className="font-data flex-shrink-0" style={{ color: FORECAST_TONE_COLOR[a.tone], fontWeight: 700 }}>
-                {pctText(a.forecastPct)} <span style={{ color: COLORS.textTertiary, fontWeight: 500 }}>· {t("нужно", "kerak")} {needText(a, lang, money)}</span>
+                {pctText(a.forecastPct)} <span style={{ color: COLORS.textTertiary, fontWeight: 500 }}>· {t("нужно", "kerak")} {needPerDayText(a, lang, money)}</span>
               </span>
             </div>
           ))}
@@ -216,7 +211,7 @@ export function PlanForecastCard() {
                     <td style={cell}>{fmt(a.fact)}</td>
                     <td style={{ ...cell, color: a.plan == null ? COLORS.textTertiary : COLORS.textSecondary }}>{a.plan != null ? fmt(a.plan) : t("нет плана", "reja yo'q")}</td>
                     <td style={cell}><ForecastCell line={a} lang={lang} fmt={fmt} /></td>
-                    <td style={{ ...cell, color: COLORS.textSecondary }}>{needText(a, lang, fmt)}</td>
+                    <td style={{ ...cell, color: COLORS.textSecondary }}>{needPerDayText(a, lang, fmt)}</td>
                   </tr>
                 ))}
               </tbody>

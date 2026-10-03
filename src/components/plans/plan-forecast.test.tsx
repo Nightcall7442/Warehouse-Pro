@@ -78,7 +78,8 @@ describe("прогноз плана на экране", () => {
     const rows = screen.getAllByTestId("forecast-lagging-row").map(r => r.textContent ?? "");
     expect(rows.map(r => r.split(/\d/)[0].trim())).toEqual(["Сабина", "Агент", "Жасур"]);
     expect(rows[1]).toContain("83%");
-    expect(rows[1]).toContain("нужно 114286 сум в день");
+    // «в» и «день» — неразрывными пробелами, чтобы не рвались на телефоне.
+    expect(rows[1]).toContain("нужно 114286 сум\u00A0в\u00A0день");
     expect(screen.getByTestId("forecast-company").dataset.tone).toBe("red");
   });
 

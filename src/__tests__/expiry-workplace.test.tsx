@@ -121,7 +121,7 @@ describe("«Сроки» — рабочее место", () => {
     expect(text(screen.getByTestId("expiry-tile-risk"))).toContain("сгорит 5 050 сум по закупке");
     expect(names()).toEqual(["Соус", "Йогурт", "Кефир"]);
     const yog = screen.getByTestId("expiry-row-1");
-    expect(text(yog)).toContain("Уходит 6 в день: до срока продастся ~60 шт из 100 шт, останется 40 шт");
+    expect(text(yog)).toContain("Уходит 6 шт в день: до срока продастся ~60 шт из 100 шт, останется 40 шт");
     expect(text(yog)).toContain("Совет: скидка 20 %");
     expect(text(yog)).toContain("80 сум 100 сум"); // цена со скидкой и зачёркнутая карточка
     expect(text(yog)).toContain("Маржа останется 30 сум за шт");

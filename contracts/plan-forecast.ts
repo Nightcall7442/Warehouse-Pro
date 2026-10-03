@@ -126,3 +126,13 @@ export function forecastToneLabel(tone: ForecastTone, lang: string): string {
     case "none": return uz ? "Reja yo'q" : "Нет плана";
   }
 }
+
+/**
+ * «Нужно в день» словами. Пробелы неразрывные: на телефоне «в» оставалось в
+ * строке, а «день» уезжал на следующую («7 711 711 сум в / день»).
+ */
+export function needPerDayText(line: Pick<ForecastLine, "needPerDay">, lang: string, fmt: (n: number) => string): string {
+  if (line.needPerDay == null) return "—";
+  if (line.needPerDay === 0) return lang === "uz" ? "bajarildi" : "выполнен";
+  return lang === "uz" ? `${fmt(line.needPerDay)}\u00A0/\u00A0kun` : `${fmt(line.needPerDay)}\u00A0в\u00A0день`;
+}
