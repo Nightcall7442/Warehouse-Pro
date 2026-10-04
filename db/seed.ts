@@ -7,13 +7,14 @@
  */
 import "dotenv/config";
 import { getDb } from "../api/queries/connection";
-import { eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import * as schema from "./schema";
 import { hashPassword } from "../api/auth/password";
 import { daysAgo, hoursAfter } from "./seed-dates";
 import { assertSeedTarget, wipeAll } from "./seed-reset";
 import { actualsForTargets } from "../api/services/sales-target-actuals";
-import { monthRange } from "../api/lib/period";
+import { dayKey, monthRange } from "../api/lib/period";
+import { workDaysOf } from "../contracts/plan-forecast";
 import { env } from "../api/lib/env";
 
 const PLACEHOLDER_PHOTO =
@@ -448,13 +449,17 @@ async function seed() {
   const orderDays: number[] = [];
   for (let d = 0; d < 30; d++) {
     const dow = new Date(Date.now() - d * 86_400_000).getDay();
-    if (dow === 0) continue;
+    // Сегодня — всегда рабочий: съёмка справки в воскресенье давала «0 заказов»
+    // и пустой «Мой день» (04.10.2026). Прошлые воскресенья — выходные.
+    if (dow === 0 && d > 0) continue;
     const n = d === 0 ? 5 : 2 + Math.floor(rnd() * 3);
     for (let k = 0; k < n && orderDays.length < 90; k++) orderDays.push(d);
   }
   while (orderDays.length < 160) orderDays.push(31 + Math.floor(rnd() * 150));
   orderDays.sort((a, b) => a - b);
 
+  /** Товар без продаж за последний месяц — партия «Нет продаж» в «Сроках». */
+  const NO_SALES_CODE = "MLK-005";
   let orderCount = 0;
   for (let i = 0; i < orderDays.length; i++) {
     const daysBack = orderDays[i];
@@ -485,6 +490,12 @@ async function seed() {
       do {
         prodIdx = Math.floor(rnd() * productIds.length);
       } while (usedProducts.has(prodIdx) && usedProducts.size < productIds.length);
+      // Сыр последний месяц не продавался ни разу: его партия в «Сроках» —
+      // «Нет продаж» (см. «Сроки» ниже). Замена — соседний товар, без rnd():
+      // случайный ряд остаётся прежним.
+      if (productDefs[prodIdx].code === NO_SALES_CODE && daysBack < 30) {
+        do { prodIdx = (prodIdx + 1) % productIds.length; } while (usedProducts.has(prodIdx));
+      }
       usedProducts.add(prodIdx);
 
       const price = Number(productDefs[prodIdx].unitPrice!);
@@ -543,6 +554,142 @@ async function seed() {
     orderCount++;
   }
   console.log(`✓ ${orderCount} orders created\n`);
+
+  // ── Отчёты директора: карта продаж, «Прибыль», ABC ──────────────────────────
+  /*
+    Разделы «Отчётов» 02–04.10.2026 ищут то, чего в ровном засеве нет: все
+    магазины заказывают, маржа везде 25–40 %. Здесь — отдельные точки и
+    заказы под каждый вопрос, без rnd(): случайный ряд выше прежний, и
+    остальные снимки справки не съезжают.
+
+      · Бешмерган (Ургенч): три точки заказывали полтора месяца назад и
+        замолчали — «Перестали заказывать», район «Отправить агента»;
+      · оптовик «Хоразм Улгуржи»: крупный заказ 18 дней назад со скидкой
+        18 % и арбузом ниже закупки — A-магазин, который молчит 14+ дней
+        (ABC), строки «В минус / низкая маржа» («Прибыль»);
+      · Нукус: две точки без координат — список «Без координат» на карте;
+        их свежие заказы держат темп кефира, сметаны и молока для «Сроков».
+
+    Оптовик заводится последним: e2e берёт первый магазин списка «сначала
+    новые», и им должна быть обычная точка с координатами, без долга.
+  */
+  console.log("Creating report shops...");
+  const idxOf = (code: string) => productDefs.findIndex(p => p.code === code);
+  const extraShops: Array<{
+    def: typeof schema.shops.$inferInsert;
+    orders: Array<{ daysBack: number; discountPct?: number; lines: Array<[code: string, qty: number, price?: number]> }>;
+  }> = [
+    { def: { tenantId, name: "Нукус Савдо", ownerName: "Ережепов Азамат", phone: "+998 91 400 00 01", city: "Nukus", district: "Марказ", address: "Дўстлик кўчаси, 4", agentId: agentIds[3], debt: "0.00", photoUrl: PLACEHOLDER_PHOTO },
+      orders: [
+        { daysBack: 2, lines: [["MLK-001", 20], ["MLK-004", 6], ["MLK-002", 4], ["BEV-001", 24]] },
+        { daysBack: 9, lines: [["MLK-001", 18], ["MLK-004", 6], ["GRC-002", 15]] },
+      ] },
+    { def: { tenantId, name: "Арал Маркет", ownerName: "Калимбетова Гулшат", phone: "+998 91 400 00 02", city: "Nukus", district: "Марказ", address: "Бердах кўчаси, 17", agentId: agentIds[3], debt: "0.00", photoUrl: PLACEHOLDER_PHOTO },
+      orders: [{ daysBack: 5, lines: [["MLK-001", 12], ["MLK-002", 4], ["SWE-001", 10]] }] },
+    { def: { tenantId, name: "Бешмерган Савдо", ownerName: "Матёқубов Шерзод", phone: "+998 91 100 00 11", city: "Urgench", district: "Бешмерган", address: "Бешмерган кўчаси, 40", agentId: agentIds[0], debt: "640000.00", gpsLat: "41.5612", gpsLng: "60.6461", photoUrl: PLACEHOLDER_PHOTO },
+      orders: [
+        { daysBack: 38, lines: [["GRC-002", 60], ["GRC-004", 40], ["BEV-003", 12]] },
+        { daysBack: 52, lines: [["GRC-001", 120], ["GRC-003", 80]] },
+      ] },
+    { def: { tenantId, name: "Хонқа Маркет", ownerName: "Бобожонова Нодира", phone: "+998 91 100 00 12", city: "Urgench", district: "Бешмерган", address: "Хонқа йўли, 61", agentId: agentIds[0], debt: "0.00", gpsLat: "41.5641", gpsLng: "60.6512", photoUrl: PLACEHOLDER_PHOTO },
+      orders: [{ daysBack: 44, lines: [["BEV-005", 48], ["BEV-002", 30], ["SWE-002", 40]] }] },
+    { def: { tenantId, name: "Янги Бозор do'koni", ownerName: "Отажонов Санжар", phone: "+998 91 100 00 13", city: "Urgench", district: "Бешмерган", address: "Янги бозор, 3", agentId: agentIds[0], debt: "210000.00", gpsLat: "41.5598", gpsLng: "60.6523", photoUrl: PLACEHOLDER_PHOTO },
+      orders: [{ daysBack: 41, lines: [["MEA-004", 20], ["MLK-004", 24], ["BRD-001", 40]] }] },
+    { def: { tenantId, name: "Хоразм Улгуржи", ownerName: "Собиров Даврон", phone: "+998 91 100 00 14", city: "Urgench", district: "Марказ", address: "Марказий бозор, 1-қатор", agentId: agentIds[0], debt: "0.00", gpsLat: "41.5566", gpsLng: "60.6372", photoUrl: PLACEHOLDER_PHOTO },
+      orders: [
+        // Опт со скидкой 18 % — сахар уходит в ноль, арбуз ниже закупки.
+        { daysBack: 18, discountPct: 18, lines: [["GRC-003", 1000], ["GRC-001", 800], ["GRC-002", 300], ["FRU-004", 600, 2900]] },
+        { daysBack: 47, lines: [["GRC-003", 400], ["GRC-001", 300]] },
+      ] },
+  ];
+  let extraOrderNo = 1001 + orderDays.length;
+  for (const [k, s] of extraShops.entries()) {
+    const [sr] = await db.insert(schema.shops).values({ ...s.def, status: "active" });
+    const shopId = Number(sr.insertId);
+    shopIds.push(shopId);
+    for (const o of s.orders) {
+      const createdAt = daysAgo(o.daysBack, 2);
+      const lines = o.lines.map(([code, qty, price]) => {
+        const def = productDefs[idxOf(code)];
+        const unitPrice = price ?? Number(def.unitPrice);
+        return { productId: productIds[idxOf(code)], qty, unitPrice, costPrice: def.costPrice!, subtotal: unitPrice * qty };
+      });
+      const subtotal = lines.reduce((sum, l) => sum + l.subtotal, 0);
+      const discount = o.discountPct ? Math.round(subtotal * o.discountPct) / 100 : 0;
+      const [orR] = await db.insert(schema.orders).values({
+        tenantId,
+        orderNumber: `ORD-${String(extraOrderNo++).padStart(5, "0")}`,
+        shopId,
+        agentId: s.def.agentId!,
+        status: "delivered",
+        subtotal: subtotal.toFixed(2),
+        discount: discount.toFixed(2),
+        total: (subtotal - discount).toFixed(2),
+        courierId: k % 2 === 0 ? courier1Id : courier2Id,
+        deliveryStatus: "delivered",
+        deliveredAt: hoursAfter(createdAt, 4),
+        createdAt,
+        updatedAt: createdAt,
+        notes: o.discountPct ? "Оптовая отгрузка" : null,
+      });
+      const orderId = Number(orR.insertId);
+      await db.insert(schema.orderItems).values(lines.map(l => ({
+        orderId, productId: l.productId, quantity: String(l.qty),
+        unitPrice: l.unitPrice.toFixed(2), costPrice: l.costPrice, subtotal: l.subtotal.toFixed(2),
+      })));
+      orderCount++;
+    }
+  }
+  console.log(`✓ ${extraShops.length} report shops created\n`);
+
+  // ── Сроки: партии, которые не успеют, и уценка ──────────────────────────────
+  /*
+    «Склад» → «Сроки» и карточка «Сгорит на складе» на главной директора
+    живут партиями (stock_batches), а засев их не заводил — экран был пуст.
+    Партия на каждый вердикт:
+      · кефир — 5 дней, 120 шт.: «Не успеет», совет −30 % ниже закупки
+        (уценку ставит директор);
+      · сметана — 9 дней: «Не успеет», уже уценена — агенты видят «Продать первым»;
+      · сыр — 12 дней, продаж нет месяц (заказы выше его не берут): «Нет продаж»;
+      · морковь на складе Самарканда — «Не на основном складе»;
+      · лаваш — срок вышел два дня назад: «Просрочено»;
+      · молоко — 20 дней, 12 шт.: «Успеет».
+    Остаток на складе не меньше партии: иначе «Списать» предлагал бы больше,
+    чем лежит.
+  */
+  console.log("Creating expiring batches...");
+  const dayFromNow = (n: number) => { const d = new Date(); d.setHours(12, 0, 0, 0); d.setDate(d.getDate() + n); return d; };
+  const batchDefs = [
+    { code: "MLK-004", warehouseId: warehouseIds[0], qty: 120, days: 5, no: "K-0927" },
+    { code: "MLK-002", warehouseId: warehouseIds[0], qty: 150, days: 9, no: "S-0921" },
+    { code: NO_SALES_CODE, warehouseId: warehouseIds[0], qty: 40, days: 12, no: "R-0915" },
+    { code: "VEG-004", warehouseId: warehouseIds[1], qty: 12, days: 10, no: "M-0928" },
+    { code: "BRD-002", warehouseId: warehouseIds[0], qty: 18, days: -2, no: "L-0926" },
+    { code: "MLK-001", warehouseId: warehouseIds[0], qty: 12, days: 20, no: "E-0930" },
+  ];
+  const batchIdOf = new Map<string, number>();
+  for (const b of batchDefs) {
+    const def = productDefs[idxOf(b.code)];
+    const productId = productIds[idxOf(b.code)];
+    const expiresAt = dayFromNow(b.days);
+    const [br] = await db.insert(schema.stockBatches).values({
+      tenantId, warehouseId: b.warehouseId, productId,
+      batchNumber: b.no, expiresAt, batchKey: `${b.no}|${dayKey(expiresAt)}`,
+      quantity: String(b.qty), costPrice: def.costPrice!, receivedAt: daysAgo(20),
+    });
+    batchIdOf.set(b.code, Number(br.insertId));
+    const ws = schema.warehouseStock;
+    await db.update(ws).set({
+      currentStock: sql`GREATEST(${ws.currentStock}, ${b.qty + 10})`,
+      available: sql`GREATEST(${ws.currentStock}, ${b.qty + 10}) - ${ws.reserved}`,
+    }).where(and(eq(ws.tenantId, tenantId), eq(ws.warehouseId, b.warehouseId), eq(ws.productId, productId)));
+  }
+  // Уценка сметаны: −20 % до срока партии, выше закупки — её мог поставить и офис.
+  await db.insert(schema.markdowns).values({
+    tenantId, productId: productIds[idxOf("MLK-002")], batchId: batchIdOf.get("MLK-002")!,
+    price: "10800.00", endsOn: dayFromNow(9), createdBy: ceoId,
+  });
+  console.log(`✓ ${batchDefs.length} batches, 1 markdown created\n`);
 
   // ── Payments (15) ────────────────────────────────────────────────────────────
   console.log("Creating payments...");
@@ -746,7 +893,7 @@ async function seed() {
     if (own.length === 0) continue;
     for (let d = 0; d < 30; d++) {
       const dow = new Date(Date.now() - d * 86_400_000).getDay();
-      if (dow === 0) continue;
+      if (dow === 0 && d > 0) continue; // сегодня — рабочий, как у заказов выше
       const take = Math.min(own.length, 3 + Math.floor(rnd() * 3));
       const offset = Math.floor(rnd() * own.length);
       for (let k = 0; k < take; k++) {
@@ -814,7 +961,7 @@ async function seed() {
     «Нет норм. Создайте нормы в табе „Планы“» — на демо это читалось как
     незаполненная программа (25.09.2026). План ставится от настоящего факта
     месяца — того же actualsForTargets, что считает сервер, — с разным
-    множителем: кто-то перевыполнил, кто-то отстаёт, как в жизни.
+    множителем: кто-то выполнит, кто-то отстаёт, как в жизни (ниже).
   */
   console.log("Creating monthly targets...");
   const month = monthRange(new Date());
@@ -828,7 +975,16 @@ async function seed() {
     targetIds.push({ id: Number(r.insertId), agentId });
   }
   const actuals = await actualsForTargets(db, tenantId, targetIds.map(x => x.id));
-  const pace = [0.85, 1.1, 1.35, 1.6, 0.95];
+  /*
+    План — от темпа, а не от факта: «Прогноз плана» (факт ÷ прошедшие рабочие
+    дни × все рабочие дни) с планом «факт × k» середине месяца показывал всем
+    зелёный. Множитель к прогнозу даёт как в жизни: двое выполнят, один чуть
+    не дотягивает, двое не дотягивают. В первые три рабочих дня прогноз —
+    «рано судить» у всех, так и задумано (contracts/plan-forecast.ts).
+  */
+  const days = workDaysOf(dayKey(new Date()));
+  const toMonthEnd = days.passed > 0 ? days.total / days.passed : 1;
+  const pace = [0.85, 1.05, 1.3, 0.9, 1.2].map(k => k * toMonthEnd);
   let targetCount = 0;
   for (const [i, { id }] of targetIds.entries()) {
     const a = actuals.get(id);

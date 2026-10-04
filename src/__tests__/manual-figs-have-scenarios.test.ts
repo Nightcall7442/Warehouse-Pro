@@ -54,7 +54,7 @@ const scenarios: Record<string, Record<string, Record<string, Set<string>>>> = {
     if (!kind || !role) continue;
     for (const chunk of line.split("{ name: \"").slice(1)) {
       const name = chunk.slice(0, chunk.indexOf("\""));
-      const keys = new Set([...chunk.matchAll(/\["(\w+)", /g)].map(x => x[1]).filter(k => !["click", "fill", "key", "wait"].includes(k)));
+      const keys = new Set([...chunk.matchAll(/\["(\w+)", /g)].map(x => x[1]).filter(k => !["click", "fill", "key", "wait", "scroll"].includes(k)));
       scenarios[kind][role][name] = keys;
     }
     // метки многострочного сценария — строка с marks: после строки с name
