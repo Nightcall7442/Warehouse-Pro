@@ -100,8 +100,12 @@ function ShopFilter({ value, onChange, t, style }: {
       <input
         value={search}
         onChange={e => setSearch(e.target.value)}
-        placeholder={t("Найти магазин: название, владелец, телефон", "Do'konni topish: nomi, egasi, telefon")}
+        // Подсказка короткая: в строке выгрузки поле шириной в 180 точек, и
+        // длинная обрывалась на «названи». Чем искать — во всплывающей.
+        placeholder={t("Найти магазин", "Do'konni topish")}
+        title={t("Название, владелец или телефон", "Nomi, egasi yoki telefon")}
         aria-label={t("Поиск магазина", "Do'kon qidirish")}
+        className="report-filter-search"
         style={style}
       />
       <Select

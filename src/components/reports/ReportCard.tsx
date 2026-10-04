@@ -1,32 +1,33 @@
 import { useMemo, useState } from "react";
-import { FileDown, Loader2 } from "lucide-react";
-import { format, subDays } from "date-fns";
+import { CalendarRange, Clock, FileDown, Loader2 } from "lucide-react";
 import { exportToExcel } from "@/lib/excel";
 import { notify } from "@/lib/toast";
-import { F, COLORS, SHADOW } from "./report-constants";
+import { F, COLORS } from "./report-constants";
 import { reportColumns, type ReportDef, type ReportParams } from "./report-registry";
 import { ReportFilter } from "./ReportFilters";
 import { errorText } from "@/lib/error-text";
 
-const today = () => format(new Date(), "yyyy-MM-dd");
-const monthAgo = () => format(subDays(new Date(), 30), "yyyy-MM-dd");
+/** «04.09 – 04.10»: какой промежуток попадёт в файл, коротко — год виден в поле периода сверху. */
+const short = (iso: string) => `${iso.slice(8, 10)}.${iso.slice(5, 7)}`;
 
 /**
- * One report, one card, one file.
+ * Одна выгрузка — одна строка, один файл.
  *
- * The query is declared but left disabled, and only runs when the button is
- * pressed. That is the whole reason the hub can show every report at once:
- * these are the heaviest aggregate queries in the product, and firing all of
- * them the moment the tab opens would make the catalogue itself the slowest
- * page on the site.
+ * Запрос объявлен, но выключен и идёт только по нажатию. Только поэтому
+ * каталог и может показать все выгрузки сразу: это самые тяжёлые сводные
+ * запросы продукта, и запусти их все при открытии вкладки — каталог сам стал
+ * бы самой медленной страницей.
+ *
+ * Период приходит сверху, из каталога: он один на все файлы «за период».
+ * Отборы — свои у каждой строки.
  */
-export function ReportCard({ def, t, lang }: {
+export function ReportCard({ def, from, to, t, lang }: {
   def: ReportDef;
+  from: string;
+  to: string;
   t: (ru: string, uz: string) => string;
   lang: string;
 }) {
-  const [from, setFrom] = useState(monthAgo);
-  const [to, setTo] = useState(today);
   const [filters, setFilters] = useState<Partial<ReportParams>>({});
   const [busy, setBusy] = useState(false);
 
@@ -61,97 +62,87 @@ export function ReportCard({ def, t, lang }: {
     }
   };
 
-  // 44px — не украшение: базовый шрифт приложения 14px, и поле с отступом
-  // 8px выходило 33px высотой. Пальцем по такому выбирают дату с третьего раза.
+  /*
+    Поле поиска магазина — того же вида, что выбор рядом (.premium-select-
+    trigger): та же подложка, скругление и высота. Раньше у поля была своя
+    рамка и свой радиус, и пара «поиск + список» читалась как два разных
+    прибора. Ширину задаёт сетка строки.
+  */
   const field: React.CSSProperties = {
-    padding: "8px 10px", minHeight: "44px", borderRadius: "8px", border: `1px solid ${COLORS.border}`,
-    background: COLORS.surfaceLight, color: COLORS.textPrimary,
-    fontFamily: F.body, fontSize: "13px", outline: "none", width: "100%",
+    width: "100%", minHeight: "44px", padding: "10px 14px", borderRadius: "10px",
+    border: "1.5px solid transparent", background: COLORS.surfaceLight, color: COLORS.textPrimary,
+    fontFamily: F.body, fontSize: "13px", fontWeight: 500, outline: "none",
   };
+  const working = busy || query.isFetching;
 
   return (
-    <div style={{
-      display: "flex", flexDirection: "column", gap: "12px",
-      background: COLORS.surface, borderRadius: "16px", padding: "18px",
-      border: `1px solid ${COLORS.border}`, boxShadow: SHADOW,
-    }}>
-      <div style={{ display: "flex", alignItems: "flex-start", gap: "10px" }}>
-        <div style={{
-          display: "flex", alignItems: "center", justifyContent: "center",
-          width: "36px", height: "36px", borderRadius: "10px", flexShrink: 0,
-          background: COLORS.surfaceLight, color: COLORS.primaryText,
-        }}>
-          <Icon size={17} />
-        </div>
-        <div style={{ minWidth: 0 }}>
-          <div style={{ fontFamily: F.display, fontSize: "14px", fontWeight: 600, color: COLORS.textPrimary }}>
-            {t(def.title.ru, def.title.uz)}
-          </div>
-          <div style={{ fontFamily: F.body, fontSize: "12px", color: COLORS.textTertiary, marginTop: "2px" }}>
-            {t(def.description.ru, def.description.uz)}
-          </div>
-        </div>
-      </div>
+    <div className="export-row" data-testid={`export-${def.id}`}>
+      <div className="export-row-icon" aria-hidden><Icon size={18} /></div>
 
-      {/* Что окажется в файле.
-          Названия и одной строки описания не хватало, чтобы отличить
-          «Продажи по товарам» от «Себестоимости по товарам»: выяснялось это
-          скачиванием обеих. Шапка берётся из того же toRows, что строит файл,
-          поэтому обещание здесь и содержимое файла разойтись не могут. */}
-      {columns.length > 0 && (
-        <div style={{ fontFamily: F.body, fontSize: "11px", color: COLORS.textTertiary, lineHeight: 1.5 }}>
-          <span style={{ fontWeight: 600 }}>{t("В файле", "Faylda")}: </span>
-          {columns.join(" · ")}
-          {!def.needsPeriod && (
-            // Отсутствие полей даты выглядело как недоделка. Оно осмысленно:
-            // остаток и справочник — это «на сейчас», периода у них нет.
-            <span> · {t("на сейчас, без периода", "hozirgi holat, davrsiz")}</span>
+      <div className="export-row-text">
+        <div className="export-row-title">
+          <span>{t(def.title.ru, def.title.uz)}</span>
+          {/* За какой промежуток файл — словами, у каждой строки. Отсутствие
+              дат выглядело недоделкой; оно осмысленно: остаток, долг и
+              справочник — это «на сегодня», периода у них нет. */}
+          {def.needsPeriod ? (
+            <span className="export-chip" title={t("Берёт период сверху", "Yuqoridagi davrni oladi")}>
+              <CalendarRange size={12} aria-hidden /> {short(from)} – {short(to)}
+            </span>
+          ) : (
+            <span className="export-chip export-chip-now">
+              <Clock size={12} aria-hidden /> {t("на сегодня", "bugungi holat")}
+            </span>
           )}
         </div>
-      )}
+        <div className="export-row-desc">{t(def.description.ru, def.description.uz)}</div>
+        {/* Что окажется в файле. Названия и одной строки описания не хватало,
+            чтобы отличить «Продажи по товарам» от «Себестоимости по товарам»:
+            выяснялось это скачиванием обеих. Шапка берётся из того же toRows,
+            что строит файл, поэтому обещание и содержимое разойтись не могут. */}
+        {columns.length > 0 && (
+          <div className="export-row-cols">
+            <b>{t("В файле", "Faylda")}:</b> {columns.join(" · ")}
+          </div>
+        )}
+      </div>
 
-      {def.needsPeriod && (
-        <div style={{ display: "flex", gap: "8px" }}>
-          <input type="date" value={from} max={to} onChange={e => setFrom(e.target.value)}
-            aria-label={t("С даты", "Sanadan")} style={field} />
-          <input type="date" value={to} min={from} onChange={e => setTo(e.target.value)}
-            aria-label={t("По дату", "Sanagacha")} style={field} />
+      {def.filters && def.filters.length > 0 && (
+        <div className="export-row-filters report-filters">
+          {def.filters.map(kind => (
+            <ReportFilter
+              key={kind}
+              kind={kind}
+              value={filters}
+              onChange={patch => setFilters(f => ({ ...f, ...patch }))}
+              t={t}
+              style={field}
+            />
+          ))}
         </div>
       )}
 
-      {def.filters?.map(kind => (
-        <ReportFilter
-          key={kind}
-          kind={kind}
-          value={filters}
-          onChange={patch => setFilters(f => ({ ...f, ...patch }))}
-          t={t}
-          style={field}
-        />
-      ))}
-
+      {/*
+        Одна кнопка на строку, спокойная, а не залитая: шестнадцать залитых
+        «Excel» подряд и были той стеной, на которую жаловались. Столбец у
+        всех строк один — глаз находит кнопку там же, где у соседней. На
+        узком экране подпись прячется, остаётся значок файла в 44 точки.
+      */}
       <button
         type="button"
         onClick={handleExport}
-        disabled={busy || query.isFetching}
-        // Заливка фирменным цветом с надписью «#fff» поверх — ровно тот приём,
-        // из-за которого у арендатора со светлым цветом кнопка выходила белым
-        // по белому. Цвет надписи задан темой (--color-on-primary), и в
-        // .neo-btn-primary он уже учтён.
-        //
-        // Высота: 13px в кнопке с отступом 10px давала 37 точек. Поля дат
-        // рядом уже дотянуты до 44, а кнопка под ними оставалась мельче — и
-        // это единственное, по чему в карточке вообще нажимают.
-        className="neo-btn-primary tap"
-        style={{
-          width: "100%", marginTop: "auto", padding: "0 14px",
-          cursor: busy || query.isFetching ? "wait" : "pointer",
-        }}
+        disabled={working}
+        aria-label={`${t("Скачать Excel", "Excel yuklab olish")}: ${t(def.title.ru, def.title.uz)}`}
+        aria-busy={working}
+        className="neo-btn tap export-row-action"
+        style={{ cursor: working ? "wait" : "pointer" }}
       >
-        {busy || query.isFetching
-          ? <Loader2 size={15} className="animate-spin" />
-          : <FileDown size={15} />}
-        {busy || query.isFetching ? t("Формируем…", "Tayyorlanmoqda…") : "Excel"}
+        {working
+          ? <Loader2 size={16} className="animate-spin" aria-hidden />
+          : <FileDown size={16} aria-hidden />}
+        <span className="export-row-action-label">
+          {working ? t("Готовим…", "Tayyorlanmoqda…") : t("Скачать", "Yuklab olish")}
+        </span>
       </button>
     </div>
   );
