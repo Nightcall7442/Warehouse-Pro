@@ -50,6 +50,9 @@ routes.post("/api/login", async (c) => {
   */
   const lang = parseUiLang(c.req.header("x-lang"));
   const say = (text: string) => localizeServerMessage(text, lang) ?? text;
+  // Язык ответа — заголовком: по нему клиент понимает, что текст уже на его
+  // языке (у tRPC для этого data.lang). Старый сервер его не ставит.
+  c.header("Content-Language", lang);
   try {
     // tenantId необязателен и нужен только для одного случая: адрес и пароль
     // совпали сразу в нескольких организациях. Тогда первый запрос отвечает
