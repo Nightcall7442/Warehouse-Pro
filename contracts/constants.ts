@@ -3,6 +3,16 @@ export const Session = {
   maxAgeMs:   30 * 24 * 60 * 60 * 1000,  // 30 days — matches JWT expiry
 } as const;
 
+/**
+ * Отказ по подписке на обоих языках интерфейса. Русский — тот, что сервер
+ * бросает; узбекский подставляет форматтер ошибок по заголовку x-lang
+ * (contracts/error-messages.ts). Клиент узнаёт отказ по любому из двух.
+ */
+export const SUBSCRIPTION_REQUIRED = {
+  ru: "Требуется активная подписка. Обновите тариф в настройках.",
+  uz: "Faol obuna kerak. Sozlamalarda tarifni yangilang.",
+} as const;
+
 export const ErrorMessages = {
   unauthenticated:  "Authentication required",
   insufficientRole: "Insufficient permissions",
@@ -12,7 +22,7 @@ export const ErrorMessages = {
    * показывает его агенту. Две копии одной строки разъехались бы при первой же
    * правке формулировки, и увод на оплату молча перестал бы работать.
    */
-  subscriptionRequired: "Требуется активная подписка. Обновите тариф в настройках.",
+  subscriptionRequired: SUBSCRIPTION_REQUIRED.ru,
 } as const;
 
 export const Paths = {

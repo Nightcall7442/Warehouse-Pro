@@ -1,4 +1,5 @@
 import { ErrorMessages, type OperatorCapability } from "@contracts/constants";
+import { INTERNAL_ERROR_TEXT, localizeServerMessage, parseUiLang, type UiLang } from "@contracts/error-messages";
 import { initTRPC, TRPCError } from "@trpc/server";
 import superjson from "superjson";
 import type { TrpcContext } from "./context";
@@ -8,26 +9,38 @@ import { hasSubscriptionAccess } from "./lib/feature-gating";
 import { checkRateLimit, rateLimitSubject } from "./lib/rate-limit";
 import { trpcProcedureDurationSeconds, trpcProcedureErrorsTotal } from "./prometheus-metrics";
 
-// ── Translate ZodError codes into user-friendly Russian messages ─────────────
-const FIELD_LABELS: Record<string, string> = {
-  name: "Название", code: "Код", phone: "Телефон", email: "Email",
-  password: "Пароль", orgName: "Название организации", ownerName: "Имя владельца",
-  category: "Категория", description: "Описание", city: "Город",
-  district: "Район", address: "Адрес", barcode: "Штрихкод",
-  unitPrice: "Цена продажи", costPrice: "Себестоимость",
-  unit: "Единица измерения", unitWeight: "Вес", reorderPoint: "Порог дозаказа",
-  photoUrl: "Фото", dataUrl: "Фото", base64: "Файл", filename: "Имя файла",
-  type: "Тип", title: "Заголовок", message: "Сообщение", notes: "Заметки",
-  role: "Роль", status: "Статус", debt: "Долг",
+// ── Ошибки проверки входа (zod) — словами, на языке интерфейса ───────────────
+const FIELD_LABELS: Record<string, { ru: string; uz: string }> = {
+  name: { ru: "Название", uz: "Nomi" }, code: { ru: "Код", uz: "Kod" },
+  phone: { ru: "Телефон", uz: "Telefon" }, email: { ru: "Email", uz: "Email" },
+  password: { ru: "Пароль", uz: "Parol" }, orgName: { ru: "Название организации", uz: "Tashkilot nomi" },
+  ownerName: { ru: "Имя владельца", uz: "Egasining ismi" }, category: { ru: "Категория", uz: "Kategoriya" },
+  description: { ru: "Описание", uz: "Tavsif" }, city: { ru: "Город", uz: "Shahar" },
+  district: { ru: "Район", uz: "Tuman" }, address: { ru: "Адрес", uz: "Manzil" },
+  barcode: { ru: "Штрихкод", uz: "Shtrixkod" }, unitPrice: { ru: "Цена продажи", uz: "Sotuv narxi" },
+  costPrice: { ru: "Себестоимость", uz: "Tannarx" }, unit: { ru: "Единица измерения", uz: "O'lchov birligi" },
+  unitWeight: { ru: "Вес", uz: "Og'irlik" }, reorderPoint: { ru: "Порог дозаказа", uz: "Qayta buyurtma chegarasi" },
+  photoUrl: { ru: "Фото", uz: "Foto" }, dataUrl: { ru: "Фото", uz: "Foto" },
+  base64: { ru: "Файл", uz: "Fayl" }, filename: { ru: "Имя файла", uz: "Fayl nomi" },
+  type: { ru: "Тип", uz: "Turi" }, title: { ru: "Заголовок", uz: "Sarlavha" },
+  message: { ru: "Сообщение", uz: "Xabar" }, notes: { ru: "Заметки", uz: "Izohlar" },
+  role: { ru: "Роль", uz: "Rol" }, status: { ru: "Статус", uz: "Holat" }, debt: { ru: "Долг", uz: "Qarz" },
 };
 
-function friendlyFieldName(path: (string | number)[]): string {
+function friendlyFieldName(path: (string | number)[], lang: UiLang): string {
   const last = String(path[path.length - 1] ?? "");
-  return FIELD_LABELS[last] ?? last;
+  return FIELD_LABELS[last]?.[lang] ?? last;
 }
 
-/** Handle ZodError from tRPC input validation — convert to friendly Russian messages */
-function translateZodErrorFromCause(cause: unknown): string | null {
+/**
+ * Ошибки zod из cause — по одной фразе на поле.
+ *
+ * Свой текст проверки (`.min(1, "Введите пароль")`, `.refine(f, "…")`)
+ * написан для человека и точнее общей фразы — он и показывается, через
+ * словарь переводов. Общая фраза — только там, где своего текста нет и zod
+ * отдал английский по умолчанию.
+ */
+function translateZodErrorFromCause(cause: unknown, lang: UiLang): string | null {
   if (!cause || typeof cause !== "object") return null;
   const obj = cause as Record<string, unknown>;
   // ZodError has an `issues` array
@@ -35,86 +48,78 @@ function translateZodErrorFromCause(cause: unknown): string | null {
 
   const issues = obj.issues as Array<{
     code: string; path: (string | number)[];
-    minimum?: number; maximum?: number;
-    message: string; type?: string;
-    received?: string; options?: string[];
+    minimum?: number | bigint; maximum?: number | bigint;
+    message: string; type?: string; origin?: string;
+    received?: string; options?: string[]; values?: unknown[];
   }>;
 
+  const uz = lang === "uz";
   const messages: string[] = [];
   for (const issue of issues) {
-    const field = friendlyFieldName(issue.path);
+    if (issue.message && /[А-Яа-яЁё]/.test(issue.message)) {
+      messages.push(localizeServerMessage(issue.message, lang) ?? issue.message);
+      continue;
+    }
+    const field = friendlyFieldName(issue.path, lang);
+    const kind = issue.type ?? issue.origin;
 
     if (issue.code === "too_small" && issue.minimum !== undefined) {
-      if (issue.type === "string") {
-        messages.push(`«${field}» должно содержать минимум ${issue.minimum} ${issue.minimum === 1 ? "символ" : "символа"}`);
+      const min = Number(issue.minimum);
+      if (kind === "string") {
+        messages.push(uz
+          ? `«${field}» kamida ${min} belgidan iborat bo'lishi kerak`
+          : `«${field}» должно содержать минимум ${min} ${min === 1 ? "символ" : "символа"}`);
       } else {
-        messages.push(`«${field}» должно быть не менее ${issue.minimum}`);
+        messages.push(uz ? `«${field}» kamida ${min} bo'lishi kerak` : `«${field}» должно быть не менее ${min}`);
       }
     } else if (issue.code === "too_big" && issue.maximum !== undefined) {
-      messages.push(`«${field}» слишком длинное (макс. ${issue.maximum} символов)`);
+      const max = Number(issue.maximum);
+      messages.push(uz ? `«${field}» juda uzun (ko'pi bilan ${max} belgi)` : `«${field}» слишком длинное (макс. ${max} символов)`);
     } else if (issue.code === "invalid_type") {
-      if (issue.received === "undefined" || issue.received === "null") {
-        messages.push(`Поле «${field}» обязательно для заполнения`);
+      const missing = issue.received === "undefined" || issue.received === "null"
+        || /received (undefined|null)/i.test(issue.message ?? "");
+      if (missing) {
+        messages.push(uz ? `«${field}» maydonini to'ldirish shart` : `Поле «${field}» обязательно для заполнения`);
       } else {
-        messages.push(`Неверный формат поля «${field}»`);
+        messages.push(uz ? `«${field}» maydoni formati noto'g'ri` : `Неверный формат поля «${field}»`);
       }
-    } else if (issue.code === "invalid_enum_value") {
-      messages.push(`Неверное значение «${field}». Допустимые варианты: ${issue.options?.join(", ") ?? "проверьте форму"}`);
-    } else if (issue.message) {
-      messages.push(issue.message);
+    } else if (issue.code === "invalid_enum_value" || issue.code === "invalid_value") {
+      const options = issue.options ?? issue.values?.map(String);
+      messages.push(uz
+        ? `«${field}» qiymati noto'g'ri. Mumkin bo'lganlari: ${options?.join(", ") ?? "shaklni tekshiring"}`
+        : `Неверное значение «${field}». Допустимые варианты: ${options?.join(", ") ?? "проверьте форму"}`);
+    } else {
+      messages.push(uz ? `«${field}» maydoni noto'g'ri to'ldirilgan` : `Поле «${field}» заполнено неверно`);
     }
   }
   return messages.length > 0 ? messages.join(". ") : null;
 }
 
 /** Fallback: match ZodError text patterns in the error message string */
-function translateZodError(zodMsg: string): string {
+function translateZodError(zodMsg: string, lang: UiLang): string {
   const msg = zodMsg.toLowerCase();
-  if (/too_small.*string.*have >=\s*2/.test(msg)) {
-    return "Поле должно содержать минимум 2 символа";
-  }
-  if (/too_small.*string.*have >=\s*1/.test(msg)) {
-    return "Поле не может быть пустым";
-  }
-  if (/too_small.*number.*have >=\s*1/.test(msg)) {
-    return "Значение должно быть не менее 1";
-  }
+  const bilingual = (ru: string, uz: string) => (lang === "uz" ? uz : ru);
+  if (/too_small.*string.*have >=\s*2/.test(msg)) return bilingual("Поле должно содержать минимум 2 символа", "Maydon kamida 2 belgidan iborat bo'lishi kerak");
+  if (/too_small.*string.*have >=\s*1/.test(msg)) return bilingual("Поле не может быть пустым", "Maydon bo'sh bo'lishi mumkin emas");
+  if (/too_small.*number.*have >=\s*1/.test(msg)) return bilingual("Значение должно быть не менее 1", "Qiymat kamida 1 bo'lishi kerak");
   if (/too_big.*string.*have <=\s*(\d+)/.test(msg)) {
     const m = msg.match(/have <=\s*(\d+)/);
-    return `Поле слишком длинное (максимум ${m?.[1] ?? ""} символов)`;
+    return bilingual(`Поле слишком длинное (максимум ${m?.[1] ?? ""} символов)`, `Maydon juda uzun (ko'pi bilan ${m?.[1] ?? ""} belgi)`);
   }
-  if (/invalid_type.*received.*undefined/.test(msg) || /required/.test(msg)) {
-    return "Обязательное поле не заполнено";
-  }
-  if (/invalid_type.*received.*number/.test(msg)) {
-    return "Ожидалось числовое значение";
-  }
-  if (/invalid_type.*received.*string/.test(msg)) {
-    return "Ожидался текст";
-  }
-  if (/invalid_enum_value|invalid_value.*options/.test(msg)) {
-    return "Выбрано недопустимое значение";
-  }
-  if (/invalid_email|not a valid email/.test(msg)) {
-    return "Некорректный email";
-  }
-  if (/too_small/.test(msg)) {
-    return "Значение слишком маленькое";
-  }
-  if (/too_big/.test(msg)) {
-    return "Значение слишком большое";
-  }
-  if (/invalid_string/.test(msg)) {
-    return "Некорректное значение";
-  }
-  if (/not.*valid/.test(msg)) {
-    return "Некорректное значение поля";
-  }
+  if (/invalid_type.*received.*undefined/.test(msg) || /required/.test(msg)) return bilingual("Обязательное поле не заполнено", "Majburiy maydon to'ldirilmagan");
+  if (/invalid_type.*received.*number/.test(msg)) return bilingual("Ожидалось числовое значение", "Son kutilgan edi");
+  if (/invalid_type.*received.*string/.test(msg)) return bilingual("Ожидался текст", "Matn kutilgan edi");
+  if (/invalid_enum_value|invalid_value.*options/.test(msg)) return bilingual("Выбрано недопустимое значение", "Ruxsat etilmagan qiymat tanlangan");
+  if (/invalid_email|not a valid email/.test(msg)) return bilingual("Некорректный email", "Email noto'g'ri");
+  if (/too_small/.test(msg)) return bilingual("Значение слишком маленькое", "Qiymat juda kichik");
+  if (/too_big/.test(msg)) return bilingual("Значение слишком большое", "Qiymat juda katta");
+  if (/invalid_string/.test(msg)) return bilingual("Некорректное значение", "Qiymat noto'g'ri");
+  if (/not.*valid/.test(msg)) return bilingual("Некорректное значение поля", "Maydon qiymati noto'g'ri");
   // Match human-readable Zod messages
-  if (/too small/.test(msg)) return "Значение слишком маленькое";
-  if (/too long/.test(msg)) return "Значение слишком длинное";
-  if (/expected/.test(msg) && /received/.test(msg)) return "Неверный формат данных";
-  return "Проверьте правильность заполнения полей";
+  if (/too small/.test(msg)) return bilingual("Значение слишком маленькое", "Qiymat juda kichik");
+  if (/too long/.test(msg)) return bilingual("Значение слишком длинное", "Qiymat juda uzun");
+  if (/expected/.test(msg) && /received/.test(msg)) return bilingual("Неверный формат данных", "Ma'lumot formati noto'g'ri");
+  return bilingual("Проверьте правильность заполнения полей", "Maydonlar to'g'ri to'ldirilganini tekshiring");
 }
 
 // ── Что можно показать человеку, а что обязано остаться «внутренней ошибкой» ──
@@ -159,7 +164,15 @@ function isOperatorFacingError(cause: unknown): boolean {
 
 const t = initTRPC.context<TrpcContext>().create({
   transformer: superjson,
-  errorFormatter: ({ shape, error }) => {
+  /*
+    Отказ — на языке интерфейса. Клиент шлёт его заголовком x-lang; без
+    заголовка (старое мобильное приложение) — русский, как было всегда.
+    `data.lang` говорит клиенту: текст уже на этом языке и написан для
+    человека, показывай как есть. Нет пометки — текст сервер не узнал, и
+    клиент скажет своё по коду отказа. Подробно — contracts/error-messages.ts.
+  */
+  errorFormatter: ({ shape, error, ctx }) => {
+    const lang = parseUiLang(ctx?.req?.headers?.get?.("x-lang"));
     const isInternal = error.code === "INTERNAL_SERVER_ERROR";
     const operatorFacing = isInternal && isOperatorFacingError(error.cause);
     if (isInternal) {
@@ -172,24 +185,33 @@ const t = initTRPC.context<TrpcContext>().create({
         console.error(`[tRPC INTERNAL] ${error.message}`, error.cause ?? error);
       }
     }
-    let message = isInternal && env.isProduction && !operatorFacing
-      ? "Внутренняя ошибка сервера. Попробуйте позже."
-      : shape.message;
 
-    // Translate ZodError to user-friendly text
-    // First try: parse structured issues from error.cause (most reliable)
-    const zodFriendly = translateZodErrorFromCause(error.cause);
-    if (zodFriendly) {
-      message = zodFriendly;
-    } else if (message && (
-      message.includes("ZodError") || message.includes("too_small") ||
-      message.includes("too_big") || message.includes("invalid_type") ||
-      message.includes("invalid_string") || message.includes("required") ||
-      message.includes("Expected") || message.includes("received") ||
-      message.includes("Too small") || message.includes("Too long")
-    )) {
-      // Fallback: pattern-match the message string
-      message = translateZodError(message);
+    let message = shape.message;
+    let localized = false;
+    if (isInternal && env.isProduction && !operatorFacing) {
+      message = INTERNAL_ERROR_TEXT[lang];
+      localized = true;
+    } else {
+      // Словарь — раньше разбора zod: «Authentication required» содержит
+      // «required», и разбор принимал вход без сессии за пустое поле формы.
+      const known = localizeServerMessage(message, lang);
+      const zodFriendly = known === null ? translateZodErrorFromCause(error.cause, lang) : null;
+      if (known !== null) {
+        message = known;
+        localized = true;
+      } else if (zodFriendly) {
+        message = zodFriendly;
+        localized = true;
+      } else if (message && (
+        message.includes("ZodError") || message.includes("too_small") ||
+        message.includes("too_big") || message.includes("invalid_type") ||
+        message.includes("invalid_string") || message.includes("required") ||
+        message.includes("Expected") || message.includes("received") ||
+        message.includes("Too small") || message.includes("Too long")
+      )) {
+        message = translateZodError(message, lang);
+        localized = true;
+      }
     }
 
     return {
@@ -198,6 +220,7 @@ const t = initTRPC.context<TrpcContext>().create({
       data: {
         ...shape.data,
         stack: env.isProduction ? undefined : shape.data.stack,
+        ...(localized ? { lang } : {}),
       },
     };
   },
