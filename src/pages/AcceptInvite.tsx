@@ -5,6 +5,7 @@ import { notify } from "@/lib/toast";
 import { UserPlus, Loader2, CheckCircle2, Eye, EyeOff } from "lucide-react";
 import { useTranslate, useLang } from "@/i18n";
 import { labelled, ROLE_LABEL } from "@/lib/entity-labels";
+import { errorText } from "@/lib/error-text";
 
 export default function AcceptInvite() {
   const tr = useTranslate();
@@ -22,7 +23,7 @@ export default function AcceptInvite() {
 
   const accept = trpc.invite.accept.useMutation({
     onSuccess: () => setDone(true),
-    onError:   (e) => notify.error(e.message),
+    onError:   (e) => notify.error(errorText(e)),
   });
 
   if (isLoading) return (

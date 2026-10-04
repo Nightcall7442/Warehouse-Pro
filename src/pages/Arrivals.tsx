@@ -19,6 +19,7 @@ import { CounterpartiesSection } from "@/components/counterparties";
 import { money } from "@/components/counterparties/constants";
 import { useUrlState, urlEnum } from "@/hooks/useUrlState";
 import { colorMix } from "@/lib/color-mix";
+import { errorText } from "@/lib/error-text";
 
 
 /** Вкладка живёт в адресе: ссылку на раздел долгов можно переслать. */
@@ -134,7 +135,7 @@ export default function Arrivals() {
       const all = await utils.arrival.list.fetch({ page: 1, pageSize: 5000 });
       await exportToExcel(formatArrivalsForExport(all.data), "arrivals");
     } catch (e) {
-      notify.error(e instanceof Error ? e.message : String(e));
+      notify.error(errorText(e));
     } finally {
       setExporting(false);
     }
@@ -142,11 +143,11 @@ export default function Arrivals() {
 
   const updateStatus = trpc.arrival.update.useMutation({
     onSuccess: () => { utils.arrival.list.invalidate(); notify.success(t("Статус обновлён", "Holat yangilandi")); },
-    onError: (e) => notify.error(e.message),
+    onError: (e) => notify.error(errorText(e)),
   });
   const deleteMutation = trpc.arrival.delete.useMutation({
     onSuccess: () => { utils.arrival.list.invalidate(); notify.success(t("Приход удалён", "Kelish o'chirildi")); },
-    onError: (e) => notify.error(e.message),
+    onError: (e) => notify.error(errorText(e)),
   });
 
   const arrivals = useMemo(() => data?.data ?? [], [data]);

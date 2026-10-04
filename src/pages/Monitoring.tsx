@@ -19,6 +19,7 @@ import { ErrorLogViewer } from "@/components/monitoring/ErrorLogViewer";
 import { RealTimeMetrics } from "@/components/monitoring/RealTimeMetrics";
 import { RawErrorLog } from "@/components/monitoring/RawErrorLog";
 import { buildMetricGrid } from "@/lib/metric-grid";
+import { errorText } from "@/lib/error-text";
 
 const REFRESH_INTERVAL = 3_000;
 
@@ -99,7 +100,7 @@ export default function Monitoring() {
         notify.success("Все нормально — алертов нет");
       }
     } catch (e) {
-      notify.error(e instanceof Error ? e.message : "Не удалось проверить алерты");
+      notify.error(errorText(e, "Не удалось проверить алерты"));
     } finally {
       setCheckingAlerts(false);
     }

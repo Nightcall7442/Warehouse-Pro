@@ -7,6 +7,7 @@ import { SectionNotice } from "@/components/SectionNotice";
 import { notify } from "@/lib/toast";
 import { F, COLORS } from "@/components/users/types";
 import { Loader2, Percent, Plus, X } from "lucide-react";
+import { errorText } from "@/lib/error-text";
 
 /**
  * Проценты по товарам.
@@ -59,7 +60,7 @@ export function ProductRates({ t }: { t: (ru: string, uz: string) => string }) {
       utils.commission.productRates.invalidate();
       notify.success(t("Ставка сохранена", "Stavka saqlandi"));
     },
-    onError: (e) => notify.error(e.message),
+    onError: (e) => notify.error(errorText(e)),
   });
 
   const remove = trpc.commission.deleteProductRate.useMutation({
@@ -67,7 +68,7 @@ export function ProductRates({ t }: { t: (ru: string, uz: string) => string }) {
       utils.commission.productRates.invalidate();
       notify.success(t("Ставка убрана", "Stavka olib tashlandi"));
     },
-    onError: (e) => notify.error(e.message),
+    onError: (e) => notify.error(errorText(e)),
   });
 
   const commit = (productId: number, raw: string | undefined, saved: number) => {

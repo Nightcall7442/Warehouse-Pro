@@ -20,6 +20,7 @@ import { QueryErrorFallback } from "@/components/QueryErrorFallback";
 import { AppModal } from "@/components/ui/AppModal";
 import { F, COLORS, SHADOW, thStyle, tdStyle } from "@/components/users/types";
 import { labelled, ROLE_LABEL } from "@/lib/entity-labels";
+import { errorText } from "@/lib/error-text";
 
 /**
  * Зарплаты — сколько организация начислила за период, сколько отдала и сколько
@@ -147,7 +148,7 @@ function FraudDeductionLine({ row, period, offset, fmt, t }: {
   const utils = trpc.useUtils();
   const set = trpc.kpi.setFraudDeduction.useMutation({
     onSuccess: () => utils.kpi.salaryReport.invalidate(),
-    onError: (e) => notify.error(e.message),
+    onError: (e) => notify.error(errorText(e)),
   });
   if (period !== "month") return null;
   const applied = -Number(row.breakdown?.fraudDeduction ?? 0);
@@ -1104,7 +1105,7 @@ function PayoutModal({ row, due, onClose, onDone }: { row: Row; due: number; onC
       notify.success(t("Выплата записана", "To'lov yozildi"));
       onDone();
     },
-    onError: e => notify.error(e.message),
+    onError: e => notify.error(errorText(e)),
   });
 
   const value = Number(amount);
@@ -1220,7 +1221,7 @@ function SalaryModal({ row, onClose, onDone }: { row: Row; onClose: () => void; 
       notify.success(t("Оклад сохранён", "Maosh saqlandi"));
       onDone();
     },
-    onError: e => notify.error(e.message),
+    onError: e => notify.error(errorText(e)),
   });
 
   const baseNum = Number(base);

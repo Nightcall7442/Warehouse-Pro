@@ -337,7 +337,7 @@ app.use(secureHeaders({
 app.use("/api/*", cors({
   origin: (origin) => (origin && env.allowedOrigins.includes(origin)) ? origin : null,
   allowMethods: ["GET", "POST", "OPTIONS"],
-  allowHeaders: ["Content-Type", "Authorization", "ngrok-skip-browser-warning", "x-correlation-id", "x-csrf-token", "x-client-version", "Last-Event-ID"],
+  allowHeaders: ["Content-Type", "Authorization", "ngrok-skip-browser-warning", "x-correlation-id", "x-csrf-token", "x-client-version", "x-lang", "Last-Event-ID"],
   credentials: true,
   maxAge: 86400,
 }));

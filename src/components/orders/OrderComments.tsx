@@ -6,6 +6,7 @@ import { trpc } from "@/providers/trpc";
 import { notify } from "@/lib/toast";
 import { useTranslate } from "@/i18n";
 import { F, COLORS } from "./theme-tokens";
+import { errorText } from "@/lib/error-text";
 
 interface CommentNode {
   id: number;
@@ -78,7 +79,7 @@ export function OrderComments({ orderId }: Props) {
       setReplyTo(null);
       utils.order.listComments.invalidate({ orderId });
     },
-    onError: (e) => notify.error(e.message),
+    onError: (e) => notify.error(errorText(e)),
   });
 
   const handleSubmit = () => {

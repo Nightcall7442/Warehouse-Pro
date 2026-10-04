@@ -100,6 +100,16 @@
     "kind": "mutation"
   },
   {
+    "fn": "getActiveAnnouncements",
+    "path": "announcement.active",
+    "kind": "query"
+  },
+  {
+    "fn": "dismissAnnouncement",
+    "path": "announcement.dismiss",
+    "kind": "mutation"
+  },
+  {
     "fn": "getMe",
     "path": "auth.me",
     "kind": "query"
@@ -320,6 +330,11 @@
     "kind": "mutation"
   },
   {
+    "fn": "getRepeatDraft",
+    "path": "order.repeatDraft",
+    "kind": "query"
+  },
+  {
     "fn": "restoreOrder",
     "path": "order.restore",
     "kind": "mutation"
@@ -417,6 +432,16 @@
   {
     "fn": "getTenantMoneySettings",
     "path": "settings.brandingAuth",
+    "kind": "query"
+  },
+  {
+    "fn": "getShopLight",
+    "path": "shop.light",
+    "kind": "query"
+  },
+  {
+    "fn": "getShopLights",
+    "path": "shop.lights",
     "kind": "query"
   },
   {

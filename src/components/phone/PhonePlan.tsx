@@ -15,6 +15,7 @@ import { CARD } from "./tones";
 import { useNoOrderGate } from "@/components/visits/useNoOrderGate";
 import type { NoOrderChoice } from "@/components/visits/NoOrderReason";
 import { noOrderReasonText } from "@contracts/no-order-reason";
+import { errorText } from "@/lib/error-text";
 
 /*
   «План» на телефоне — экран мобилки v8 (Warehouse-Pro-Mobile,
@@ -59,7 +60,7 @@ export function useVisitPhoto() {
       utils.salesTarget.myQuota.invalidate();
       notify.success(t("Визит отмечен с фото", "Tashrif foto bilan belgilandi"));
     },
-    onError: e => notify.error(e.message),
+    onError: e => notify.error(errorText(e)),
     onSettled: () => setPhotoFor(null),
   });
 
@@ -203,7 +204,7 @@ export function PhonePlan() {
   const update = trpc.agent.updatePlanStatus.useMutation({
     onSuccess: () => { utils.agent.getPlans.invalidate(); utils.salesTarget.myQuota.invalidate(); },
     // Отметка не должна пропадать молча: агент жмёт ещё раз и бросает.
-    onError: e => notify.error(t(`Отметка не сохранена: ${e.message}`, `Belgi saqlanmadi: ${e.message}`)),
+    onError: e => notify.error(t(`Отметка не сохранена: ${errorText(e)}`, `Belgi saqlanmadi: ${errorText(e)}`)),
   });
   const photo = useVisitPhoto();
   // Визит без заказа закрывается только с причиной — и «Готово», и снимок.

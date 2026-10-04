@@ -8,6 +8,7 @@ import { QueryErrorFallback } from "@/components/QueryErrorFallback";
 import { colorMix } from "@/lib/color-mix";
 import { derivePalette, CARD, PREVIEW, type Theme } from "@/lib/brand-palette";
 import { FieldGroup, Field, FieldRow, SaveBar } from "./ui";
+import { errorText } from "@/lib/error-text";
 
 /**
  * Брендинг: логотип, цвета, тексты.
@@ -95,7 +96,7 @@ export function BrandingSettings() {
       utils.branding.get.invalidate();
       notify.success(t("Брендинг сохранён", "Brending saqlandi"));
     },
-    onError: (e) => notify.error(e.message),
+    onError: (e) => notify.error(errorText(e)),
   });
 
   /*

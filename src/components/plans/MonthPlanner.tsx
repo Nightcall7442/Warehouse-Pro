@@ -5,6 +5,7 @@ import { notify } from "@/lib/toast";
 import { useConfirm } from "@/components/ConfirmDialog";
 import { PremiumSelect } from "@/components/PremiumSelect";
 import { currentMonth, monthDays, monthLabel, weekdayOf } from "./month";
+import { errorText } from "@/lib/error-text";
 
 /*
   ── Месяц целиком ───────────────────────────────────────────────────────────
@@ -109,7 +110,7 @@ function SetupPanel({ month, lang, onDone }: { month: string; lang: string; onDo
       );
       onDone();
     },
-    onError: (e) => notify.error(e.message),
+    onError: (e) => notify.error(errorText(e)),
   });
 
   const toggleDay = (dow: number) =>
@@ -373,7 +374,7 @@ export function MonthPlanner({ month, lang }: { month: string; lang: string }) {
         `${r.deleted} yopilmagan tashrif olib tashlandi${r.kept ? `, ${r.kept} belgilangan saqlandi` : ""}`,
       ));
     },
-    onError: (e) => notify.error(e.message),
+    onError: (e) => notify.error(errorText(e)),
   });
 
   const askClear = async () => {

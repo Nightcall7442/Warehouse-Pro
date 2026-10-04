@@ -5,6 +5,7 @@ import { notify } from "@/lib/toast";
 import { useLang } from "@/i18n";
 import { useAuth } from "@/hooks/useAuth";
 import { buildThread } from "@/lib/chat-thread";
+import { errorText } from "@/lib/error-text";
 
 /**
  * Чат с поддержкой платформы — возможность тарифа Exclusive.
@@ -59,14 +60,14 @@ export default function Support() {
 
   const send = trpc.support.send.useMutation({
     onSuccess: () => { setDraft(""); utils.support.thread.invalidate(); utils.support.unread.invalidate(); },
-    onError: (e) => notify.error(e.message),
+    onError: (e) => notify.error(errorText(e)),
   });
   const markRead = trpc.support.markRead.useMutation({
     onSuccess: () => utils.support.unread.invalidate(),
   });
   const close = trpc.support.close.useMutation({
     onSuccess: () => { utils.support.thread.invalidate(); utils.support.unread.invalidate(); },
-    onError: (e) => notify.error(e.message),
+    onError: (e) => notify.error(errorText(e)),
   });
 
   const available = data?.available ?? false;

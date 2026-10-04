@@ -12,6 +12,7 @@ import { QueryErrorFallback } from "@/components/QueryErrorFallback";
 import { AppModal } from "@/components/ui/AppModal";
 import { SearchField } from "@/components/phone/kit";
 import { CARD } from "@/components/phone/tones";
+import { errorText } from "@/lib/error-text";
 
 /**
  * «Мои долги» — то, что магазины должны по заказам этого агента.
@@ -201,7 +202,7 @@ function CollectModal({ debt, onClose, onDone }: { debt: Debt; onClose: () => vo
       notify.success(t("Оплата принята", "To'lov qabul qilindi"));
       onDone();
     },
-    onError: e => notify.error(e.message),
+    onError: e => notify.error(errorText(e)),
   });
 
   const value = Number(amount);

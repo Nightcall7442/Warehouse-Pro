@@ -7,6 +7,7 @@ import { Field, FieldRow } from "./ui";
 import { useConfirm } from "@/components/ConfirmDialog";
 import { TotpBlock } from "./TotpBlock";
 import { Block, Note, ActionButton, type Msg, type T } from "./profile-ui";
+import { errorText } from "@/lib/error-text";
 
 /**
  * Профиль: четыре отдельных блока — «Имя и телефон», «Логин и пароль»,
@@ -90,7 +91,7 @@ function NameBlock({ t, isSuper, name, phone }: { t: T; isSuper: boolean; name: 
   const [msg, setMsg] = useState<Msg>(null);
   const save = trpc.user.updateMe.useMutation({
     onSuccess: () => { utils.auth.me.invalidate(); setMsg({ kind: "ok", text: t("Сохранено", "Saqlandi") }); },
-    onError: (e) => setMsg({ kind: "error", text: e.message }),
+    onError: (e) => setMsg({ kind: "error", text: errorText(e) }),
   });
 
   return (
@@ -172,7 +173,7 @@ function ChangeLogin({ t, email, totpOn }: { t: T; email: string; totpOn: boolea
       setMsg({ kind: "ok", text: t(`Логин изменён: ${r.email}. На других устройствах войдите заново с новым логином.`,
                                    `Login o'zgartirildi: ${r.email}. Boshqa qurilmalarda yangi login bilan qayta kiring.`) });
     },
-    onError: (e) => setMsg({ kind: "error", text: e.message }),
+    onError: (e) => setMsg({ kind: "error", text: errorText(e) }),
   });
   const next = form.email.trim().toLowerCase();
   const ready = next.includes("@") && next !== email.toLowerCase() && form.password.length > 0 && (!totpOn || form.code.trim().length >= 6);
@@ -228,7 +229,7 @@ function ChangePassword({ t }: { t: T }) {
       setMsg({ kind: "ok", text: t("Пароль изменён. Сейчас откроется вход — войдите с новым паролем.", "Parol o'zgartirildi. Hozir kirish ochiladi — yangi parol bilan kiring.") });
       setTimeout(() => window.location.replace("/login"), 1500);
     },
-    onError: (e) => setMsg({ kind: "error", text: e.message }),
+    onError: (e) => setMsg({ kind: "error", text: errorText(e) }),
   });
   const edit = (patch: Partial<typeof pw>) => { setPw({ ...pw, ...patch }); setMsg(null); };
   const mismatch = pw.confirm.length > 0 && pw.next !== pw.confirm;
@@ -282,7 +283,7 @@ function SessionsBlock({ t }: { t: T }) {
       setMsg({ kind: "ok", text: t("Все входы завершены. Открываю вход…", "Barcha kirishlar tugatildi. Kirish ochilmoqda…") });
       window.location.href = "/login";
     },
-    onError: (e) => setMsg({ kind: "error", text: e.message }),
+    onError: (e) => setMsg({ kind: "error", text: errorText(e) }),
   });
 
   return (

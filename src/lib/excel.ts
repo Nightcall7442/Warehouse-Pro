@@ -15,6 +15,7 @@ import {
   labelled, ACTIVE_STATUS_LABEL, ARRIVAL_STATUS_LABEL,
   ORDER_STATUS_LABEL, ROLE_LABEL, STOCK_LEVEL_LABEL,
 } from "@/lib/entity-labels";
+import { errorText } from "@/lib/error-text";
 
 type Row = Record<string, string | number | null | undefined>;
 
@@ -342,11 +343,7 @@ export async function exportToExcel(
     a.click();
     URL.revokeObjectURL(url);
   } catch (e) {
-    notify.error(
-      e instanceof Error && e.message
-        ? `Не удалось собрать файл: ${e.message}`
-        : "Не удалось собрать файл выгрузки",
-    );
+    notify.error(errorText(e, tt("Не удалось собрать файл выгрузки", "Eksport faylini yig'ib bo'lmadi")));
   }
 }
 

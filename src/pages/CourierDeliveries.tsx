@@ -28,6 +28,7 @@ const DELIVERY_STATUS_STYLES: Record<string, string> = {
   ещё не назначили курьера, показывался словом «not_assigned».
 */
 import { labelled, DELIVERY_STATUS_LABEL } from "@/lib/entity-labels";
+import { errorText } from "@/lib/error-text";
 
 /*
   Итоги месяца — ПОД маршрутом, как в мобилке (MonthTotals, app/(tabs)/
@@ -81,7 +82,7 @@ export default function CourierDeliveries() {
       invalidateOrderCaches();
       notify.success(tKey("common.success"));
     },
-    onError: (e) => notify.error(e.message),
+    onError: (e) => notify.error(errorText(e)),
   });
 
   const markDelivered = trpc.courier.markDelivered.useMutation({
@@ -94,7 +95,7 @@ export default function CourierDeliveries() {
         return next;
       });
     },
-    onError: (e) => notify.error(e.message),
+    onError: (e) => notify.error(errorText(e)),
   });
 
   const markFailed = trpc.courier.markFailed.useMutation({
@@ -102,7 +103,7 @@ export default function CourierDeliveries() {
       invalidateOrderCaches();
       notify.success(t("Доставка отменена", "Yetkazish bekor qilindi"));
     },
-    onError: (e) => notify.error(e.message),
+    onError: (e) => notify.error(errorText(e)),
   });
 
   if (isLoadingError) return <QueryErrorFallback onRetry={refetch} />;

@@ -7,6 +7,7 @@ import { useConfirm } from "@/components/ConfirmDialog";
 import { labelled, ROLE_LABEL } from "@/lib/entity-labels";
 import { buildThread } from "@/lib/chat-thread";
 import { PlanPill } from "@/components/superadmin/console/ui";
+import { errorText } from "@/lib/error-text";
 
 /**
  * Обращения в поддержку — сторона платформы.
@@ -78,11 +79,11 @@ export function SupportInbox() {
       utils.support.threadOf.invalidate();
       utils.support.inbox.invalidate();
     },
-    onError: (e) => notify.error(e.message),
+    onError: (e) => notify.error(errorText(e)),
   });
   const closeIt = trpc.support.closeThread.useMutation({
     onSuccess: () => utils.support.inbox.invalidate(),
-    onError: (e) => notify.error(e.message),
+    onError: (e) => notify.error(errorText(e)),
   });
 
   /*
@@ -99,7 +100,7 @@ export function SupportInbox() {
       utils.support.threadOf.invalidate();
       notify.success(`Переписка стёрта: ${r.messages} сообщ.`);
     },
-    onError: (e) => notify.error(e.message),
+    onError: (e) => notify.error(errorText(e)),
   });
 
   const askAndPurge = async () => {

@@ -5,6 +5,7 @@ import { Chip, Empty, Pill } from "@/components/superadmin/console/ui";
 import { format } from "date-fns";
 import { Check, Inbox, PhoneCall } from "lucide-react";
 import { formatUzPhone } from "@contracts/signup";
+import { errorText } from "@/lib/error-text";
 
 /**
  * Заявки с лендинга.
@@ -38,7 +39,7 @@ export function LeadInbox() {
       notify.success("Заявка отмечена разобранной");
       utils.lead.list.invalidate();
     },
-    onError: (e) => notify.error(e.message),
+    onError: (e) => notify.error(errorText(e)),
   });
 
   const rows = listQ.data ?? [];

@@ -17,6 +17,7 @@ import { SupplierReturnForm } from "./SupplierReturnForm";
 import type { CounterpartyRow } from "./CounterpartyList";
 import type { PayableSupply } from "./PaymentForm";
 import { COLORS } from "./constants";
+import { errorText } from "@/lib/error-text";
 
 /**
  * Раздел «Контрагенты и долги» — вкладка страницы «Приходы».
@@ -78,7 +79,7 @@ export function CounterpartiesSection() {
       setFormOpen(false);
       notify.success(t("Контрагент добавлен", "Kontragent qo'shildi"));
     },
-    onError: (e) => notify.error(e.message),
+    onError: (e) => notify.error(errorText(e)),
   });
 
   const updateMutation = trpc.supplier.update.useMutation({
@@ -88,7 +89,7 @@ export function CounterpartiesSection() {
       setEditing(null);
       notify.success(t("Сохранено", "Saqlandi"));
     },
-    onError: (e) => notify.error(e.message),
+    onError: (e) => notify.error(errorText(e)),
   });
 
   const returnMutation = trpc.supplier.returnGoods.useMutation({
@@ -99,7 +100,7 @@ export function CounterpartiesSection() {
         ? t("Этот возврат уже был записан", "Bu qaytarish allaqachon yozilgan")
         : t(`Возврат записан: долг уменьшен на ${res.credited}`, `Qaytarish yozildi: qarz ${res.credited} ga kamaydi`));
     },
-    onError: (e) => notify.error(e.message),
+    onError: (e) => notify.error(errorText(e)),
   });
 
   const payMutation = trpc.supplier.pay.useMutation({
@@ -110,7 +111,7 @@ export function CounterpartiesSection() {
         ? t("Этот платёж уже был записан", "Bu to'lov allaqachon yozilgan")
         : t("Платёж записан", "To'lov yozildi"));
     },
-    onError: (e) => notify.error(e.message),
+    onError: (e) => notify.error(errorText(e)),
   });
 
   if (listQuery.isError) return <QueryErrorFallback onRetry={listQuery.refetch} />;

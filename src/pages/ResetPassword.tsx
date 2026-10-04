@@ -3,6 +3,7 @@ import { useSearchParams, Link, useNavigate } from "react-router";
 import { trpc } from "@/providers/trpc";
 import { useLang } from "@/i18n";
 import { Lock, Loader2, ArrowLeft, CheckCircle2, Eye, EyeOff } from "lucide-react";
+import { errorText } from "@/lib/error-text";
 
 function PasswordStrength({ password }: { password: string }) {
   const { t } = useLang();
@@ -53,7 +54,7 @@ export default function ResetPassword() {
 
   const resetPassword = trpc.auth.confirmPasswordReset.useMutation({
     onSuccess: () => setDone(true),
-    onError: (e) => setError(e.message),
+    onError: (e) => setError(errorText(e)),
   });
 
   if (!token) {

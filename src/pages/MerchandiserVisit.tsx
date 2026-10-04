@@ -4,6 +4,7 @@ import { useTranslate } from "@/i18n";
 import { useState, useEffect } from "react";
 import { ArrowLeft, Camera, CheckCircle2, Circle, Save, Trash2 } from "lucide-react";
 import { notify } from "@/lib/toast";
+import { errorText } from "@/lib/error-text";
 
 interface ChecklistItem {
   productId: number;
@@ -37,7 +38,7 @@ export default function MerchandiserVisit() {
       notify.success(t("Отчёт отправлен!", "Hisobot yuborildi!"));
       navigate("/agent/plans");
     },
-    onError: (e) => notify.error(e.message),
+    onError: (e) => notify.error(errorText(e)),
   });
 
   useEffect(() => {

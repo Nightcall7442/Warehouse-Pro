@@ -11,6 +11,7 @@ import { PhotoOrIcon } from "@/components/PhotoOrIcon";
 import { ShopAvatar } from "./ShopAvatar";
 import { ShopLightDot } from "./ShopLight";
 import type { ShopLight } from "@contracts/shop-light";
+import { errorText } from "@/lib/error-text";
 
 export interface ShopCardData { id: number; name: string; ownerName: string | null; phone: string | null; city: string | null; district: string | null; status: string; debt: string | null; photoUrl: string | null; agentName: string | null; }
 
@@ -30,7 +31,7 @@ export function ShopPhoto({ shopId, shopName = "", photoUrl, size = "md" }: { sh
   const utils = trpc.useUtils();
   const upload = trpc.shop.uploadPhoto.useMutation({
     onSuccess: () => { utils.shop.list.invalidate(); utils.shop.getById.invalidate({ id: shopId }); notify.success(t("Фото обновлено", "Rasm yangilandi")); },
-    onError: (e) => notify.error(e.message),
+    onError: (e) => notify.error(errorText(e)),
   });
   /*
     Плашка крупнее прежней: в списке она была 80 точек и терялась рядом с

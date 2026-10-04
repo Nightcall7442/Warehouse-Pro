@@ -13,6 +13,7 @@ import { colorMix } from "@/lib/color-mix";
 import { priceAt } from "@contracts/price-tiers";
 import { holdReasonText } from "@contracts/hold-reason";
 import type { QuickOrderLine, QuickOrderStart } from "@/lib/quick-order";
+import { errorText } from "@/lib/error-text";
 
 type CartItem = QuickOrderLine;
 
@@ -181,7 +182,7 @@ export function QuickOrderModal({ open, onOpenChange, preselectedShopId, initial
       onOpenChange(false);
       resetForm();
     },
-    onError: (e) => notify.error(e.message),
+    onError: (e) => notify.error(errorText(e)),
   });
 
   const resetForm = () => {

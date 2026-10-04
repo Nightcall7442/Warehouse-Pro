@@ -18,6 +18,7 @@ import { priceAt } from "@contracts/price-tiers";
 import { holdReasonText } from "@contracts/hold-reason";
 import { OverdueNotice } from "@/components/orders/OverdueNotice";
 import { useShopPrices } from "@/hooks/useOfflineCopy";
+import { errorText } from "@/lib/error-text";
 
 const LABELS_RU = ["Магазин", "Товары", "Итог"];
 const LABELS_UZ = ["Do'kon", "Mahsulotlar", "Xulosa"];
@@ -363,7 +364,7 @@ export default function NewOrder() {
         navigate("/agent");
       }
     },
-    onError: (e) => notify.error(e.message),
+    onError: (e) => notify.error(errorText(e)),
   });
 
   const canNext = () => {

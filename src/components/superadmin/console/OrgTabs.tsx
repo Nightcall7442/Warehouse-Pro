@@ -24,6 +24,7 @@ import { Empty, FieldLabel, Panel, Pill, PlanPill, Tile } from "./ui";
 import { HealthPanel } from "./health";
 import { PaymentForm, PaymentsList } from "./Payments";
 import { JournalList } from "./JournalList";
+import { errorText } from "@/lib/error-text";
 
 /* ═══════════════════════════════════════════════════════════════════════════
    Вкладки карточки организации. Всё, что делала прежняя TenantDetail, —
@@ -159,12 +160,12 @@ export function SubscriptionTab({ d, onChanged }: { d: Detail; onChanged: () => 
   const [extraUsers, setExtraUsers] = useState(Number(t.extraUsers ?? 0));
   const [extraProducts, setExtraProducts] = useState(Number(t.extraProducts ?? 0));
 
-  const updatePlan = trpc.tenant.updatePlan.useMutation({ onSuccess: () => { onChanged(); notify.success("Тариф обновлён"); }, onError: e => notify.error(e.message) });
-  const extendTrial = trpc.tenant.extendTrial.useMutation({ onSuccess: r => { onChanged(); notify.success(`Пробный продлён до ${day(r.trialEndsAt)}`); }, onError: e => notify.error(e.message) });
-  const setExtra = trpc.tenant.setExtraLimits.useMutation({ onSuccess: () => { onChanged(); notify.success("Лимиты обновлены"); }, onError: e => notify.error(e.message) });
+  const updatePlan = trpc.tenant.updatePlan.useMutation({ onSuccess: () => { onChanged(); notify.success("Тариф обновлён"); }, onError: e => notify.error(errorText(e)) });
+  const extendTrial = trpc.tenant.extendTrial.useMutation({ onSuccess: r => { onChanged(); notify.success(`Пробный продлён до ${day(r.trialEndsAt)}`); }, onError: e => notify.error(errorText(e)) });
+  const setExtra = trpc.tenant.setExtraLimits.useMutation({ onSuccess: () => { onChanged(); notify.success("Лимиты обновлены"); }, onError: e => notify.error(errorText(e)) });
   const setManual = trpc.tenant.setManualAccess.useMutation({
     onSuccess: r => { onChanged(); notify.success(r.manualEnabledAt ? "Руководство выдано" : "Руководство отключено"); },
-    onError: e => notify.error(e.message),
+    onError: e => notify.error(errorText(e)),
   });
 
   const extraSum = extraUsers * EXTRA_PRICES_UZS.user + extraProducts * EXTRA_PRICES_UZS.product;
@@ -276,11 +277,11 @@ export function UsersTab({ d, onChanged }: { d: Detail; onChanged: () => void })
 
   const changeLogin = trpc.tenant.changeUserLogin.useMutation({
     onSuccess: r => { notify.success(r.unchanged ? "Логин не изменился" : `Новый логин: ${r.email}`); setLoginEdit(null); setNewLogin(""); onChanged(); },
-    onError: e => notify.error(e.message),
+    onError: e => notify.error(errorText(e)),
   });
   const resetPassword = trpc.tenant.resetOwnerPassword.useMutation({
     onSuccess: () => { notify.success("Пароль сброшен"); setResetPwd(null); setNewPwd(""); },
-    onError: e => notify.error(e.message),
+    onError: e => notify.error(errorText(e)),
   });
 
   return (
@@ -377,7 +378,7 @@ export function JournalTab({ d }: { d: Detail }) {
   const [code, setCode] = useState("");
   const purge = trpc.audit.purge.useMutation({
     onSuccess: r => notify.success(r.deleted > 0 ? `Удалено записей: ${r.deleted}` : `Записей старше ${r.retentionDays} дней нет`),
-    onError: e => notify.error(e.message),
+    onError: e => notify.error(errorText(e)),
   });
   return (
     <div className="flex flex-col gap-4">
@@ -446,11 +447,11 @@ export function DangerTab({ d, onChanged, onGone }: { d: Detail; onChanged: () =
   const [open, setOpen] = useState(false);
   const [word, setWord] = useState("");
   const [code, setCode] = useState("");
-  const setStatus = trpc.tenant.setStatus.useMutation({ onSuccess: () => { onChanged(); notify.success("Статус обновлён"); }, onError: e => notify.error(e.message) });
+  const setStatus = trpc.tenant.setStatus.useMutation({ onSuccess: () => { onChanged(); notify.success("Статус обновлён"); }, onError: e => notify.error(errorText(e)) });
   const preview = trpc.tenant.offboardPreview.useQuery({ tenantId: t.id }, { enabled: open });
   const offboard = trpc.tenant.offboard.useMutation({
     onSuccess: r => { notify.success(`Организация удалена: стёрто ${r.total} строк`); onGone(); },
-    onError: e => notify.error(e.message),
+    onError: e => notify.error(errorText(e)),
   });
   const confirmWord = offboardConfirmWord(t);
   const active = t.status === "active";

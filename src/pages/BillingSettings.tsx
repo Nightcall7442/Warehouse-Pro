@@ -11,6 +11,7 @@ import { plural } from "@/lib/plural";
 import { labelled, SUBSCRIPTION_STATUS_LABEL } from "@/lib/entity-labels";
 import type { Label } from "@/lib/entity-labels";
 import { useLang, useTranslate } from "@/i18n";
+import { errorText } from "@/lib/error-text";
 
 /*
   Числа тарифа берутся из PLANS, а не переписываются словами.
@@ -89,12 +90,12 @@ export default function BillingSettings() {
 
   const checkout = trpc.stripe.createCheckoutSession.useMutation({
     onSuccess: (d) => { window.location.href = d.url; },
-    onError:   (e) => notify.error(e.message),
+    onError:   (e) => notify.error(errorText(e)),
   });
 
   const portal = trpc.stripe.createBillingPortalSession.useMutation({
     onSuccess: (d) => { window.location.href = d.url; },
-    onError:   (e) => notify.error(e.message),
+    onError:   (e) => notify.error(errorText(e)),
   });
 
   useEffect(() => {

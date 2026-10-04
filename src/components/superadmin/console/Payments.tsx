@@ -12,6 +12,7 @@ import {
 import { subOf, type Detail } from "./detail";
 import { dayOf, money } from "./format";
 import { Empty, FieldLabel, Panel, Pill, PlanPill } from "./ui";
+import { errorText } from "@/lib/error-text";
 
 /* ═══════════════════════════════════════════════════════════════════════════
    «Записать оплату» и список оплат — вкладка «Подписка» карточки.
@@ -55,7 +56,7 @@ export function PaymentForm({ d, onChanged }: { d: Detail; onChanged: () => void
       void utils.platform.journal.invalidate();
       onChanged();
     },
-    onError: e => notify.error(e.message),
+    onError: e => notify.error(errorText(e)),
   });
 
   const valid = amount > 0 && months >= 1 && months <= 36 && /^\d{4}-\d{2}-\d{2}$/.test(paidAt);

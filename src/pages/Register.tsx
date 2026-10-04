@@ -8,6 +8,7 @@ import {
   UZ_PHONE_PREFIX, PHONE_ERROR, SIGNUP_ANSWERS, SIGNUP_ANSWER_LABEL, maskUzPhoneNational, normalizeUzPhone,
   cleanSignupTag, type SignupAnswer,
 } from "@contracts/signup";
+import { errorText } from "@/lib/error-text";
 
 /**
  * Метки из адреса страницы: /register?utm_source=ig_sept&ref=bekzod.
@@ -82,7 +83,8 @@ export default function Register() {
   const registerMutation = trpc.tenant.register.useMutation({
     onSuccess: () => setSentTo(form.email),
     // Отказ по телефону сервер пишет по-русски — показываем его на языке экрана.
-    onError:   (e) => setError(e.message === PHONE_ERROR.ru ? phoneError : (e.message || t("auth.register.error"))),
+    // Отказ по телефону сервер присылает уже на языке интерфейса (x-lang).
+    onError:   (e) => setError(errorText(e, t("auth.register.error"))),
   });
   const resend = trpc.auth.resendVerification.useMutation();
 

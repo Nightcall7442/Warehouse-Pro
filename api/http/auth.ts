@@ -3,6 +3,7 @@ import { sql } from "drizzle-orm";
 import { logger } from "../lib/logger";
 import * as cookie from "cookie";
 import { Session } from "@contracts/constants";
+import { localizeServerMessage, parseUiLang } from "@contracts/error-messages";
 import { verifyPassword, hashPassword, needsRehash, ITERATIONS } from "../auth/password";
 import { findUsersByEmailAnyTenant, updateUserLastSignIn, updateUserPasswordHash } from "../queries/users";
 import { findTenantById } from "../queries/tenants";
@@ -42,6 +43,16 @@ const LOGIN_RATE_LIMIT = { windowMs: 15 * 60 * 1000, limit: 20, namespace: "logi
 const LOGIN_IP_RATE_LIMIT = { windowMs: 15 * 60 * 1000, limit: 100, namespace: "login-ip" };
 
 routes.post("/api/login", async (c) => {
+  /*
+    Вход — первый экран, и отказ на нём читают на языке интерфейса: клиент
+    шлёт x-lang, текст переводится тем же словарём, что и отказы tRPC
+    (contracts/error-messages.ts). Без заголовка — русский.
+  */
+  const lang = parseUiLang(c.req.header("x-lang"));
+  const say = (text: string) => localizeServerMessage(text, lang) ?? text;
+  // Язык ответа — заголовком: по нему клиент понимает, что текст уже на его
+  // языке (у tRPC для этого data.lang). Старый сервер его не ставит.
+  c.header("Content-Language", lang);
   try {
     // tenantId необязателен и нужен только для одного случая: адрес и пароль
     // совпали сразу в нескольких организациях. Тогда первый запрос отвечает
@@ -49,7 +60,7 @@ routes.post("/api/login", async (c) => {
     // code — одноразовый код из приложения-аутентификатора, только у тех,
     // кто включил двухфакторную защиту (user.totpEnabledAt).
     const { email, password, tenantId: tenantIdFromBody, code: totpFromBody } = await c.req.json();
-    if (!email || !password) return c.json({ error: "Email and password required" }, 400);
+    if (!email || !password) return c.json({ error: say("Email and password required") }, 400);
 
     // Per account, read after the body so the address is available. Brute force
     // targets one account, so counting attempts against that account is both
@@ -58,7 +69,7 @@ routes.post("/api/login", async (c) => {
     // anyone locked every tenant out of the product for fifteen minutes.
     const subject = rateLimitSubject(c.req.raw, `email:${String(email).trim().toLowerCase()}`);
     if (!(await checkRateLimit(subject, LOGIN_RATE_LIMIT))) {
-      return c.json({ error: "Too many login attempts. Please try again in 15 minutes." }, 429);
+      return c.json({ error: say("Too many login attempts. Please try again in 15 minutes.") }, 429);
     }
 
     /*
@@ -69,7 +80,7 @@ routes.post("/api/login", async (c) => {
     */
     const fromAddress = rateLimitSubject(c.req.raw);
     if (fromAddress && !(await checkRateLimit(fromAddress, LOGIN_IP_RATE_LIMIT))) {
-      return c.json({ error: "Too many login attempts. Please try again in 15 minutes." }, 429);
+      return c.json({ error: say("Too many login attempts. Please try again in 15 minutes.") }, 429);
     }
 
     const GENERIC_AUTH_ERROR = "Неверный email или пароль";
@@ -94,7 +105,7 @@ routes.post("/api/login", async (c) => {
     // и перебором можно было бы узнать, кто здесь зарегистрирован.
     if (candidates.length === 0) {
       await verifyPassword(password, dummyHash);
-      return c.json({ error: GENERIC_AUTH_ERROR }, 401);
+      return c.json({ error: say(GENERIC_AUTH_ERROR) }, 401);
     }
 
     const matched: typeof candidates = [];
@@ -103,14 +114,14 @@ routes.post("/api/login", async (c) => {
         matched.push(candidate);
       }
     }
-    if (matched.length === 0) return c.json({ error: GENERIC_AUTH_ERROR }, 401);
+    if (matched.length === 0) return c.json({ error: say(GENERIC_AUTH_ERROR) }, 401);
 
     // Отключённые записи отсеиваются уже после сверки пароля: ответ на
     // отключённую запись должен приходить за то же время, что и на живую.
     // Заодно они не попадают в список организаций ниже — предлагать выбрать
     // ту, куда всё равно не пустят, незачем.
     const usable = matched.filter(u => u.status === "active");
-    if (usable.length === 0) return c.json({ error: GENERIC_AUTH_ERROR }, 401);
+    if (usable.length === 0) return c.json({ error: say(GENERIC_AUTH_ERROR) }, 401);
 
     // Пароль подошёл к нескольким организациям сразу — то есть человек завёл
     // один адрес и один пароль в двух местах. Выбрать за него нельзя: любой
@@ -129,7 +140,7 @@ routes.post("/api/login", async (c) => {
           return { tenantId: u.tenantId, name: t?.name ?? `Организация #${u.tenantId}` };
         }));
         return c.json({
-          error: "Этот адрес используется в нескольких организациях. Выберите нужную.",
+          error: say("Этот адрес используется в нескольких организациях. Выберите нужную."),
           code: "TENANT_REQUIRED",
           organizations: orgs,
         }, 409);
@@ -138,7 +149,7 @@ routes.post("/api/login", async (c) => {
     }
 
     const tenant = await findTenantById(user.tenantId);
-    if (!tenant || tenant.status !== "active") return c.json({ error: GENERIC_AUTH_ERROR }, 401);
+    if (!tenant || tenant.status !== "active") return c.json({ error: say(GENERIC_AUTH_ERROR) }, 401);
 
     /*
       Регистрация с сайта: адрес подтверждают по ссылке из письма. Пароль
@@ -147,7 +158,7 @@ routes.post("/api/login", async (c) => {
     */
     if (!user.emailVerifiedAt) {
       return c.json({
-        error: "Подтвердите адрес почты: откройте ссылку из письма, отправленного при регистрации.",
+        error: say("Подтвердите адрес почты: откройте ссылку из письма, отправленного при регистрации."),
         code: "EMAIL_UNVERIFIED",
       }, 403);
     }
@@ -159,12 +170,12 @@ routes.post("/api/login", async (c) => {
     */
     if (user.totpEnabledAt && user.totpSecret) {
       if (!totpFromBody) {
-        return c.json({ error: "Введите код из приложения-аутентификатора", code: "TOTP_REQUIRED" }, 401);
+        return c.json({ error: say("Введите код из приложения-аутентификатора"), code: "TOTP_REQUIRED" }, 401);
       }
       const { verifyTotpOnce } = await import("../lib/totp");
       const { open } = await import("../lib/secret-box");
       if (!verifyTotpOnce(user.id, open(user.totpSecret), String(totpFromBody))) {
-        return c.json({ error: "Неверный код подтверждения", code: "TOTP_INVALID" }, 401);
+        return c.json({ error: say("Неверный код подтверждения"), code: "TOTP_INVALID" }, 401);
       }
     }
 
@@ -208,7 +219,7 @@ routes.post("/api/login", async (c) => {
     });
   } catch (e) {
     console.error("[LOGIN ERROR]", e instanceof Error ? e.message : String(e), e instanceof Error ? e.stack : "");
-    return c.json({ error: "Login failed" }, 500);
+    return c.json({ error: say("Login failed") }, 500);
   }
 });
 

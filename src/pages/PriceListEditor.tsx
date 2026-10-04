@@ -13,6 +13,7 @@ import { PriceTiers } from "@/components/price-lists/PriceTiers";
 import { gridKey, pastedRange, normalizeNumber } from "@/lib/grid-nav";
 import { markupPct, pctText } from "@/lib/arrival-sheet";
 import { type PriceRow, effective, toCardPct, belowCost, changes, ruled } from "@/lib/price-sheet";
+import { errorText } from "@/lib/error-text";
 
 const GRID = "price";
 /** Строк сетки за раз: каталог бывает на тысячи позиций, нужное находят поиском. */
@@ -113,7 +114,7 @@ export default function PriceListEditor() {
       await Promise.all([utils.priceList.invalidate(), utils.product.invalidate()]);
       setEdits(new Map());
       notify.success(t(`Цены сохранены: ${r.set}, убрано: ${r.cleared}`, `Narxlar saqlandi: ${r.set}, olib tashlandi: ${r.cleared}`));
-    } catch (e) { notify.error(e instanceof Error ? e.message : String(e)); }
+    } catch (e) { notify.error(errorText(e)); }
   };
 
   /* ── Магазины ───────────────────────────────────────────────────────── */
@@ -141,7 +142,7 @@ export default function PriceListEditor() {
       await utils.priceList.invalidate();
       setShopSel(null);
       notify.success(t(`Магазины сохранены: +${r.added}, −${r.removed}${r.moved ? `, перешли из других списков: ${r.moved}` : ""}`, `Do'konlar saqlandi: +${r.added}, −${r.removed}`));
-    } catch (e) { notify.error(e instanceof Error ? e.message : String(e)); }
+    } catch (e) { notify.error(errorText(e)); }
   };
 
   /* ── Список: правило, приоритет, включён ────────────────────────────── */
@@ -157,12 +158,12 @@ export default function PriceListEditor() {
       await utils.priceList.invalidate();
       setRuleDraft(null);
       notify.success(t("Правило сохранено", "Qoida saqlandi"));
-    } catch (e) { notify.error(e instanceof Error ? e.message : String(e)); }
+    } catch (e) { notify.error(errorText(e)); }
   };
   const toggleActive = async () => {
     if (!detail) return;
     try { await update.mutateAsync({ id: listId, isActive: !detail.isActive }); await utils.priceList.invalidate(); }
-    catch (e) { notify.error(e instanceof Error ? e.message : String(e)); }
+    catch (e) { notify.error(errorText(e)); }
   };
   const onDelete = async () => {
     if (!detail) return;
@@ -173,7 +174,7 @@ export default function PriceListEditor() {
     });
     if (!ok) return;
     try { await remove.mutateAsync({ id: listId }); await utils.priceList.list.invalidate(); navigate("/settings?section=prices"); }
-    catch (e) { notify.error(e instanceof Error ? e.message : String(e)); }
+    catch (e) { notify.error(errorText(e)); }
   };
 
   const [tab, setTab] = useState<"prices" | "shops">("prices");

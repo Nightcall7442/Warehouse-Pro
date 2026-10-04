@@ -4,6 +4,7 @@ import { notify } from "@/lib/toast";
 import { PremiumSelect } from "@/components/PremiumSelect";
 import { F, COLORS } from "./types";
 import { Modal, Input, BtnPrimary, BtnSecondary } from "./ui";
+import { errorText } from "@/lib/error-text";
 
 interface CreateTenantModalProps {
   onClose: () => void;
@@ -16,7 +17,7 @@ export function CreateTenantModal({ onClose, onCreated }: CreateTenantModalProps
   const [form, setForm] = useState({ orgName: "", ownerName: "", ownerEmail: "", ownerPassword: "", plan: "trial" as Plan, trialDays: 14 });
   const create = trpc.tenant.create.useMutation({
     onSuccess: (d) => { notify.success(`Создан: ${d.slug}`); onCreated(); onClose(); },
-    onError: (e) => notify.error(e.message),
+    onError: (e) => notify.error(errorText(e)),
   });
   const f = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) => setForm(p => ({ ...p, [k]: e.target.value }));
   return (

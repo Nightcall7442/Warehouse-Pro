@@ -16,6 +16,7 @@ import { labelled, ROLE_LABEL } from "@/lib/entity-labels";
 import {
   RotateCcw, Check, X, PackageCheck, FileSpreadsheet, ChevronDown, ChevronRight,
 } from "lucide-react";
+import { errorText } from "@/lib/error-text";
 
 /**
  * Возвраты: приём, рассмотрение, проведение.
@@ -127,7 +128,7 @@ export default function Returns() {
       utils.returns.summary.invalidate();
       utils.returns.getById.invalidate();
     },
-    onError: e => notify.error(e.message),
+    onError: e => notify.error(errorText(e)),
   });
 
   /*

@@ -2,6 +2,7 @@ import { trpc } from "@/providers/trpc";
 import { useLang } from "@/i18n";
 import { notify } from "@/lib/toast";
 import { Bell } from "lucide-react";
+import { errorText } from "@/lib/error-text";
 
 /**
  * Кому какие уведомления уходят в Telegram — решает директор.
@@ -78,7 +79,7 @@ export function TelegramRules() {
   const { data: rules, isLoading } = trpc.telegram.rules.useQuery();
   const setRule = trpc.telegram.setRule.useMutation({
     onSuccess: () => utils.telegram.rules.invalidate(),
-    onError: (e) => notify.error(e.message),
+    onError: (e) => notify.error(errorText(e)),
   });
 
   if (isLoading || !rules) return null;

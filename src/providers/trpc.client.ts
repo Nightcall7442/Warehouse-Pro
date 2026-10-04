@@ -3,7 +3,8 @@ import { httpBatchLink, httpLink, splitLink } from "@trpc/client";
 import { QueryClient } from "@tanstack/react-query";
 import superjson from "superjson";
 import type { AppRouter } from "../../api/router";
-import { ErrorMessages } from "@contracts/constants";
+import { SUBSCRIPTION_REQUIRED } from "@contracts/constants";
+import { uiLang } from "@/lib/ui-text";
 
 export const trpc = createTRPCReact<AppRouter>();
 
@@ -60,7 +61,8 @@ export const queryClient = new QueryClient({
  * узнаёт об истечении с задержкой; здесь же реакция идёт на сам отказ.
  *
  * Сравнение по общей строке из contracts/constants — тот же текст, который
- * сервер кладёт в ошибку.
+ * сервер кладёт в ошибку, на любом из двух языков интерфейса (сервер
+ * переводит отказ по заголовку x-lang).
  *
  * Переход жёсткий, через location: этот модуль живёт вне дерева React и
  * роутера у него нет. Для разовой переброски на экран оплаты полная
@@ -70,7 +72,7 @@ export const queryClient = new QueryClient({
 const BLOCKED_PATH = "/subscription-blocked";
 
 function redirectIfSubscriptionExpired(message: string): boolean {
-  if (message !== ErrorMessages.subscriptionRequired) return false;
+  if (message !== SUBSCRIPTION_REQUIRED.ru && message !== SUBSCRIPTION_REQUIRED.uz) return false;
   if (window.location.pathname === BLOCKED_PATH) return true; // уже там — не зациклиться
   window.location.assign(BLOCKED_PATH);
   return true;
@@ -95,10 +97,14 @@ queryClient.getMutationCache().config.onError = (error: Error) => {
 
 // Версия сборки — в каждом запросе: по ней сервер считает, кто на какой
 // сборке (client_requests_total), и Sentry получает ту же строку.
+// Язык интерфейса — тоже: на нём сервер отвечает отказом (x-lang, см.
+// contracts/error-messages.ts). Берётся в момент запроса, а не при загрузке:
+// язык переключают без перезагрузки.
 const CLIENT_VERSION = `web/${import.meta.env.VITE_APP_VERSION || "dev"}`;
 const customFetch = (input: RequestInfo | URL, init?: RequestInit) => {
   const headers = new Headers(init?.headers);
   headers.set("x-client-version", CLIENT_VERSION);
+  headers.set("x-lang", uiLang());
   return globalThis.fetch(input, { ...init, credentials: "include", headers });
 };
 

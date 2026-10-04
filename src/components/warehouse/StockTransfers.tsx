@@ -11,6 +11,7 @@ import { unitShort } from "@/lib/units";
 import { F, COLORS, thStyle, tdStyle } from "@/components/users/types";
 import { format } from "date-fns";
 import { ArrowRight, Check, Plus, Trash2, Truck, X } from "lucide-react";
+import { errorText } from "@/lib/error-text";
 
 /**
  * Перемещения между складами — документ в один шаг.
@@ -69,12 +70,12 @@ export function StockTransfers({ warehouses, canTransfer = true }: { warehouses:
       invalidateStock();
       setOpen(false); setLines([]); setNotes(""); setSearch("");
     },
-    onError: e => notify.error(e.message),
+    onError: e => notify.error(errorText(e)),
   });
 
   const complete = trpc.warehouseMulti.completeTransfer.useMutation({
     onSuccess: () => { notify.success(t("Перемещение проведено", "Ko'chirish o'tkazildi")); invalidateStock(); },
-    onError: e => notify.error(e.message),
+    onError: e => notify.error(errorText(e)),
   });
 
   const addLine = (p: { productId: number; productName: string; unit: string | null; available: number }) => {

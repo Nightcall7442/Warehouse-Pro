@@ -16,6 +16,7 @@ import { useAppBrand } from "@/hooks/useAppBrand";
 import { ROLE_LABEL, labelled } from "@contracts/entity-labels";
 import { APP_VERSION } from "@contracts/constants";
 import { QuotaCard } from "./PhonePlan";
+import { errorText } from "@/lib/error-text";
 
 /*
   Профиль на телефоне — вкладка «Профиль» мобилки v8 (Warehouse-Pro-Mobile,
@@ -106,7 +107,7 @@ export function PhoneProfile() {
   // Здесь — только фото: всё остальное об аккаунте правится в блоках профиля.
   const updateMe = trpc.user.updateMe.useMutation({
     onSuccess: () => { utils.auth.me.invalidate(); notify.success(t("Сохранено", "Saqlandi")); },
-    onError: e => notify.error(e.message),
+    onError: e => notify.error(errorText(e)),
   });
 
   const pickAvatar = async (f: File | undefined) => {

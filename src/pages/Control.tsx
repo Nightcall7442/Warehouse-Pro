@@ -13,6 +13,7 @@ import { RISK_LABEL, LEVEL_LABEL, riskDetail, type RiskFactor, type RiskLevel } 
 import { F, COLORS, thStyle, tdStyle } from "@/components/users/types";
 import { format, subDays, addDays } from "date-fns";
 import { ShieldCheck, ShieldAlert, MessageSquareWarning, HandCoins, FileSpreadsheet, ChevronDown, ChevronRight, ExternalLink, Wallet } from "lucide-react";
+import { errorText } from "@/lib/error-text";
 
 /*
   Контроль — рабочее место директора.
@@ -87,7 +88,7 @@ export default function Control() {
 
       {status.data && !on ? (
         <SectionNotice kind="empty" message={status.data.planAllows ? t("Контроль выключен — включите его в Настройки → Контроль", "Nazorat o'chiq — Sozlamalar → Nazorat da yoqing") : t("Контроль доступен на тарифах Pro и Exclusive", "Nazorat Pro va Exclusive tariflarida")} />
-      ) : overview.isError ? <QueryErrorFallback message={overview.error.message} onRetry={() => overview.refetch()} /> : (
+      ) : overview.isError ? <QueryErrorFallback message={errorText(overview.error)} onRetry={() => overview.refetch()} /> : (
         <>
           {/* Деньги в поле — первой строкой: это и есть то, за чем директор приходит вечером. */}
           <div className="grid grid-cols-2 lg:grid-cols-3 gap-3" data-testid="control-money">

@@ -4,6 +4,7 @@ import { notify } from "@/lib/toast";
 import { useLang } from "@/i18n";
 import { useInvalidateOrderCaches } from "./useOrderCacheSync";
 import type { CompletionData, CompletionMode } from "@/components/orders/CompletionFlowModal";
+import { errorText } from "@/lib/error-text";
 
 // Statuses that require the completion flow modal
 export const COMPLETION_STATUSES: Record<string, CompletionMode> = {
@@ -77,7 +78,7 @@ export function useCompletionFlow({ orderId, onSuccess }: UseCompletionFlowOptio
       notify.success(lang === "uz" ? "Buyurtma tugatildi" : "Заказ завершён");
       return true;
     } catch (e) {
-      notify.error(e instanceof Error ? e.message : (lang === "uz" ? "Xatolik yuz berdi" : "Произошла ошибка"));
+      notify.error(errorText(e, (lang === "uz" ? "Xatolik yuz berdi" : "Произошла ошибка")));
       return false;
     }
   }, [orderId, recordDeliveryAndPayment, recordPartialDelivery, updateStatus, lang]);

@@ -24,6 +24,7 @@ import { isNoOrderReason, noOrderReasonText } from "@contracts/no-order-reason";
 import { PeriodControls, ReportTile } from "./ReportPeriod";
 import { dmy, useReportPeriod } from "./report-period";
 import { SalesMapView } from "./SalesMapView";
+import { errorText } from "@/lib/error-text";
 
 /*
   «Карта» — раздел «Отчётов»: где покупают, где пусто, куда отправить агента.
@@ -130,7 +131,7 @@ function PlanVisitsModal({ target, onClose, t }: { target: PlanTarget; onClose: 
         : t(`Визиты поставлены: ${res.created}`, `Tashriflar qo'yildi: ${res.created}`));
       onClose();
     },
-    onError: e => notify.error(e.message),
+    onError: e => notify.error(errorText(e)),
   });
   const agentOptions = [
     { value: "", label: t("Выберите агента", "Agentni tanlang") },

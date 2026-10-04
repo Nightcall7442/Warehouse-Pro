@@ -105,10 +105,14 @@ export class OneCBridge {
       text = body["odata.error"]?.message?.value ?? "";
       if (text) return new OneCError(`1С: ${text}`, response.status, body["odata.error"]?.code);
     } catch { /* тело не JSON */ }
-    const hint = response.status === 401 ? "неверный логин или пароль" :
-      response.status === 404 ? `нет такого объекта или OData не включён для него (${path.split("?")[0]})` :
-      response.status === 403 ? "у пользователя нет прав" : `HTTP ${response.status}`;
-    return new OneCError(`1С: ${hint}`, response.status);
+    // Каждая формулировка целиком — так её видит словарь переводов
+    // (contracts/error-messages.ts) и его страж.
+    return new OneCError(
+      response.status === 401 ? "1С: неверный логин или пароль" :
+      response.status === 404 ? `1С: нет такого объекта или OData не включён для него (${path.split("?")[0]})` :
+      response.status === 403 ? "1С: у пользователя нет прав" : `1С: HTTP ${response.status}`,
+      response.status,
+    );
   }
 
   /** Выборка с параметрами OData ($filter, $select, $top, $skip, $orderby, $expand). */

@@ -3,6 +3,7 @@ import { trpc } from "@/providers/trpc";
 import { useTranslate } from "@/i18n";
 import { notify } from "@/lib/toast";
 import { openQuickOrder } from "@/lib/quick-order";
+import { errorText } from "@/lib/error-text";
 
 /**
  * «Повторить» — в окно быстрого заказа с магазином и строками.
@@ -40,7 +41,7 @@ export function useRepeatOrder() {
         repeatOf: d.source.orderNumber,
       });
     } catch (e) {
-      notify.error(e instanceof Error ? e.message : String(e));
+      notify.error(errorText(e));
     } finally {
       setPending(false);
     }

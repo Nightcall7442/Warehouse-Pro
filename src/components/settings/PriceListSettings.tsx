@@ -10,6 +10,7 @@ import { notify } from "@/lib/toast";
 import { F, COLORS } from "@/components/users/types";
 import { FieldGroup, FieldRow } from "@/components/settings/ui";
 import { Plus, Trash2 } from "lucide-react";
+import { errorText } from "@/lib/error-text";
 
 /**
  * Прайс-листы: свои цены для магазина, категории или объёма.
@@ -63,12 +64,12 @@ export function PriceListSettings() {
       setForm({ name: "", type: "shop", priority: "0", description: "", markupPct: "" });
       navigate(`/price-lists/${r.id}`);
     },
-    onError: e => notify.error(e.message),
+    onError: e => notify.error(errorText(e)),
   });
 
   const update = trpc.priceList.update.useMutation({
     onSuccess: () => { utils.priceList.list.invalidate(); },
-    onError: e => notify.error(e.message),
+    onError: e => notify.error(errorText(e)),
   });
 
   const remove = trpc.priceList.delete.useMutation({
@@ -76,7 +77,7 @@ export function PriceListSettings() {
       notify.success(t("Прайс-лист удалён", "Narx ro'yxati o'chirildi"));
       utils.priceList.list.invalidate();
     },
-    onError: e => notify.error(e.message),
+    onError: e => notify.error(errorText(e)),
   });
 
   const onDelete = async (id: number, name: string) => {

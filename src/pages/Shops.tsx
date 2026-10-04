@@ -32,6 +32,7 @@ import { OversightShops } from "@/components/phone/OversightShops";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useUrlState, urlString, urlMaybeString, urlNumber, urlPage, urlBool, urlEnum } from "@/hooks/useUrlState";
 import { useShopLights } from "@/components/shops/shop-light-ui";
+import { errorText } from "@/lib/error-text";
 
 // Наборы допустимых значений объявлены вне компонента: иначе на каждой
 // отрисовке это новый объект, и useCallback внутри хука пересобирался бы
@@ -126,7 +127,7 @@ function DesktopShops() {
 
   const createMutation = trpc.shop.create.useMutation({
     onSuccess: () => { utils.shop.list.invalidate(); utils.shop.cities.invalidate(); setShowForm(false); notify.success(lang === "uz" ? "Do'kon qo'shildi" : "Магазин добавлен"); },
-    onError: (e) => notify.error(e.message),
+    onError: (e) => notify.error(errorText(e)),
   });
   /*
     Убрать в архив — одним запросом на все отмеченные точки.
@@ -146,7 +147,7 @@ function DesktopShops() {
           : t(`В архиве: ${r.archived}`, `Arxivda: ${r.archived}`),
       );
     },
-    onError: (e: { message: string }) => notify.error(e.message),
+    onError: (e: { message: string }) => notify.error(errorText(e)),
   });
 
   const restoreMutation = trpc.shop.restore.useMutation({
@@ -155,7 +156,7 @@ function DesktopShops() {
       setSelected(new Set());
       notify.success(t("Возвращено в работу", "Ishga qaytarildi"));
     },
-    onError: (e: { message: string }) => notify.error(e.message),
+    onError: (e: { message: string }) => notify.error(errorText(e)),
   });
   const { confirm, dialog } = useConfirm();
 

@@ -7,6 +7,8 @@ import { useLang, useTranslate } from "@/i18n";
 import { trpc } from "@/providers/trpc";
 import { ROLE_ROUTES } from "@/const";
 import { AuthShell, AuthError } from "@/components/auth/AuthShell";
+import { errorText, humanError } from "@/lib/error-text";
+import { uiLang } from "@/lib/ui-text";
 
 type Organization = { tenantId: number; name: string };
 
@@ -74,7 +76,8 @@ export default function Login() {
     try {
       const res = await fetch("/api/login", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        // x-lang — отказ входа приходит на языке интерфейса (api/http/auth.ts).
+        headers: { "Content-Type": "application/json", "x-lang": uiLang() },
         credentials: "include",
         body: JSON.stringify({
           email, password,
@@ -95,10 +98,10 @@ export default function Login() {
         setUnverified(true);
         resend.reset();
       }
-      if (!res.ok) throw new Error(data.error || "Login failed");
+      if (!res.ok) throw humanError(data.error || t("auth.login.error"));
       window.location.replace("/");
     } catch (err) {
-      setError(err instanceof Error ? err.message : t("auth.login.error"));
+      setError(errorText(err, t("auth.login.error")));
     } finally {
       setIsPending(false);
     }

@@ -10,6 +10,7 @@ import { useCurrency } from "@/hooks/useCurrency";
 import { F, COLORS, thStyle, tdStyle } from "@/components/users/types";
 import { format } from "date-fns";
 import { ClipboardList, Plus, ScanLine, Check, X } from "lucide-react";
+import { errorText } from "@/lib/error-text";
 
 /**
  * Инвентаризация — документ, а не кнопка по одному товару.
@@ -34,7 +35,7 @@ export function StockCounts({ warehouses }: { warehouses: Warehouse[] }) {
   const listQ = trpc.stockCount.list.useQuery({ limit: 50 });
   const create = trpc.stockCount.create.useMutation({
     onSuccess: (r) => { utils.stockCount.list.invalidate(); setOpenId(r.id); notify.success(t(`Черновик ${r.number} создан`, `${r.number} qoralamasi yaratildi`)); },
-    onError: (e) => notify.error(e.message),
+    onError: (e) => notify.error(errorText(e)),
   });
 
   if (openId != null) return <StockCountSheet id={openId} onBack={() => { setOpenId(null); utils.stockCount.list.invalidate(); }} />;
@@ -121,7 +122,7 @@ function StockCountSheet({ id, onBack }: { id: number; onBack: () => void }) {
 
   const setCounted = trpc.stockCount.setCounted.useMutation({
     onSuccess: () => utils.stockCount.get.invalidate({ id }),
-    onError: (e) => notify.error(e.message),
+    onError: (e) => notify.error(errorText(e)),
   });
   const apply = trpc.stockCount.applyCount.useMutation({
     onSuccess: (r) => {
@@ -129,11 +130,11 @@ function StockCountSheet({ id, onBack }: { id: number; onBack: () => void }) {
       notify.success(t(`${r.number} применена: изменено ${r.changed} из ${r.applied}, излишек ${formatQty(r.surplus)}, недостача ${formatQty(r.shortage)}`,
         `${r.number} qo'llandi: ${r.applied} dan ${r.changed} o'zgardi`));
     },
-    onError: (e) => notify.error(e.message),
+    onError: (e) => notify.error(errorText(e)),
   });
   const cancel = trpc.stockCount.cancel.useMutation({
     onSuccess: () => { notify.info(t("Инвентаризация отменена", "Inventarizatsiya bekor qilindi")); onBack(); },
-    onError: (e) => notify.error(e.message),
+    onError: (e) => notify.error(errorText(e)),
   });
 
   const items = useMemo(() => q.data?.items ?? [], [q.data]);
