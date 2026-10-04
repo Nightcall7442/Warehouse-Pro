@@ -121,6 +121,12 @@ export default function Reports() {
   const seesMap = seesNoOrder;
   const tab: TabKey = (urlTab === "noorder" && !seesNoOrder) || (urlTab === "profit" && !seesProfit) || (urlTab === "map" && !seesMap) ? "overview" : urlTab;
   const ownPeriod = OWN_PERIOD.includes(tab);
+  /*
+    У каталога выгрузок тоже свой период — одно поле сверху на все файлы.
+    Рядом с ним переключатель дней страницы, «Сводка» и «Печать» давали на
+    одном экране два периода, и непонятно было, какой уйдёт в файл.
+  */
+  const pagePeriod = !ownPeriod && tab !== "all";
   const [days, setDays] = useState(30);
   const { fmt } = useCurrency();
   const { lang } = useLang();
@@ -434,14 +440,16 @@ export default function Reports() {
               на экране. Его человек и пересказывает, когда пересылает цифры. */}
           {/* У «Без заказа» свой период и свои выгрузки — внутри раздела; общий
               переключатель дней и «Сводка» там ничего не меняют и только путают. */}
-          {!ownPeriod && (
+          {pagePeriod && (
           <p style={{ fontSize: "13px", color: COLORS.textSecondary, margin: "4px 0 0" }}>
             {format(subDays(new Date(), days), "dd.MM.yyyy")} — {format(new Date(), "dd.MM.yyyy")}
           </p>
           )}
         </div>
-        {!ownPeriod && (
-        <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
+        {pagePeriod && (
+        // На телефоне — сеткой: период во всю ширину, «Сводка» и «Печать»
+        // поровну под ним. Раньше «Печать» переносилась одна на свою строку.
+        <div className="reports-head-actions">
           <PeriodPicker days={days} onChange={setDays} t={t} />
           {/* Кнопки были 33 точки высотой при 13px шрифта и отступе 8px.
               .neo-btn плюс .tap дают домашний вид и настоящие 44. */}
@@ -514,7 +522,7 @@ export default function Reports() {
 
         <button type="button" onClick={() => setTab(tab === "all" ? "overview" : "all")}
           aria-pressed={tab === "all"}
-          className="neo-btn tap" style={{
+          className="neo-btn tap reports-hub-toggle" style={{
             padding: "0 16px", gap: "7px",
             color: tab === "all" ? COLORS.primaryText : COLORS.textSecondary,
           }}>

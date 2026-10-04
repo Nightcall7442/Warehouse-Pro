@@ -17,7 +17,13 @@ import {
  * report should be one entry in this array, not another file to keep in step.
  */
 
-export type ReportCategory = "sales" | "shops" | "agents" | "warehouse" | "finance" | "users";
+/**
+ * Группы каталога — по тому, за чем приходят, а не по тому, какой роутер
+ * отдаёт данные: долги и прибыль лежат вместе («деньги»), агенты и
+ * сотрудники — вместе («команда»). Раньше «Сотрудники» стояли отдельной
+ * группой из одной карточки, а долги — среди справочников магазинов.
+ */
+export type ReportCategory = "sales" | "money" | "shops" | "team" | "warehouse";
 
 export type FilterKind = "agent" | "shop" | "territory" | "category";
 
@@ -164,7 +170,7 @@ export const REPORTS: ReportDef[] = [
   },
   {
     id: "debt-report",
-    category: "shops",
+    category: "money",
     title: { ru: "Долги магазинов", uz: "Do'konlar qarzi" },
     description: { ru: "Все магазины с долгом, от большего к меньшему", uz: "Qarzi bor barcha do'konlar" },
     icon: Wallet,
@@ -200,7 +206,7 @@ export const REPORTS: ReportDef[] = [
   */
   {
     id: "debt-journal",
-    category: "shops",
+    category: "money",
     title: { ru: "Журнал задолженности", uz: "Qarzdorlik jurnali" },
     description: {
       ru: "Кто когда взял в долг и кто когда заплатил, за период",
@@ -343,7 +349,7 @@ export const REPORTS: ReportDef[] = [
   },
   {
     id: "agent-efficiency",
-    category: "agents",
+    category: "team",
     title: { ru: "Эффективность агентов", uz: "Agentlar samaradorligi" },
     description: { ru: "Визиты, заказы, выручка и конверсия по каждому", uz: "Tashriflar, buyurtmalar va konversiya" },
     icon: Award,
@@ -373,7 +379,7 @@ export const REPORTS: ReportDef[] = [
   },
   {
     id: "agent-product-sales",
-    category: "agents",
+    category: "team",
     title: { ru: "Агент × Товар", uz: "Agent × Mahsulot" },
     description: { ru: "Что и сколько продал каждый агент", uz: "Har bir agent nima sotgani" },
     icon: Users,
@@ -450,7 +456,7 @@ export const REPORTS: ReportDef[] = [
   },
   {
     id: "pnl",
-    category: "finance",
+    category: "money",
     title: { ru: "P&L по месяцам", uz: "Oylar bo'yicha P&L" },
     description: { ru: "Выручка, себестоимость, расходы и прибыль помесячно", uz: "Oylik tushum, tannarx va foyda" },
     icon: TrendingUp,
@@ -479,7 +485,7 @@ export const REPORTS: ReportDef[] = [
   },
   {
     id: "cogs-by-product",
-    category: "finance",
+    category: "money",
     title: { ru: "Себестоимость по товарам", uz: "Mahsulot tannarxi" },
     description: { ru: "Выручка, себестоимость и маржа по каждому товару", uz: "Har bir mahsulot bo'yicha marja" },
     icon: Coins,
@@ -509,7 +515,7 @@ export const REPORTS: ReportDef[] = [
   },
   {
     id: "staff",
-    category: "users",
+    category: "team",
     title: { ru: "Сотрудники", uz: "Xodimlar" },
     description: { ru: "Роли, контакты и последний вход", uz: "Rollar, kontaktlar va oxirgi kirish" },
     icon: Users,
@@ -619,18 +625,22 @@ export const REPORTS: ReportDef[] = [
   },
 ];
 
-export const CATEGORY_TITLES: Record<ReportCategory, { ru: string; uz: string }> = {
-  sales:     { ru: "Продажи",          uz: "Sotuvlar" },
-  shops:     { ru: "Магазины и визиты", uz: "Do'konlar va tashriflar" },
-  agents:    { ru: "Агенты",            uz: "Agentlar" },
-  warehouse: { ru: "Склад и закупки",   uz: "Ombor va xaridlar" },
-  finance:   { ru: "Финансы",           uz: "Moliya" },
-  users:     { ru: "Сотрудники",        uz: "Xodimlar" },
+export const CATEGORY_TITLES: Record<ReportCategory, { ru: string; uz: string; hint: { ru: string; uz: string } }> = {
+  sales:     { ru: "Продажи", uz: "Sotuvlar",
+               hint: { ru: "Что продали, кому и как заплатили", uz: "Nima, kimga sotildi va qanday to'landi" } },
+  money:     { ru: "Деньги и долги", uz: "Pul va qarzlar",
+               hint: { ru: "Кто сколько должен, прибыль и маржа", uz: "Kim qancha qarzdor, foyda va marja" } },
+  shops:     { ru: "Магазины и визиты", uz: "Do'konlar va tashriflar",
+               hint: { ru: "Клиентская база и работа в поле", uz: "Mijozlar bazasi va dala ishi" } },
+  team:      { ru: "Команда", uz: "Jamoa",
+               hint: { ru: "Агенты и сотрудники", uz: "Agentlar va xodimlar" } },
+  warehouse: { ru: "Склад и закупки", uz: "Ombor va xaridlar",
+               hint: { ru: "Остатки, приходы и движения товара", uz: "Qoldiqlar, kirimlar va tovar harakati" } },
 };
 
-/** Category display order — the hub renders them in this sequence. */
+/** Порядок групп в каталоге. */
 export const CATEGORY_ORDER: ReportCategory[] = [
-  "sales", "shops", "agents", "warehouse", "finance", "users",
+  "sales", "money", "shops", "team", "warehouse",
 ];
 
 export function visibleReports(role: string | undefined): ReportDef[] {
