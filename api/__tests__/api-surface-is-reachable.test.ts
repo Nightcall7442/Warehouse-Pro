@@ -43,26 +43,44 @@ const SRC_DIR = join(API_DIR, "..", "src");
 const read = (p: string) => readFileSync(p, "utf8").replace(/\r\n/g, "\n");
 
 /** Пространство имён → файл роутера, как их смонтировал api/router.ts. */
-function mountedRouters(): Map<string, string> {
+function mountedRouters(): Map<string, { file: string; router: string }> {
   const src = read(join(API_DIR, "router.ts"));
   const imports = new Map<string, string>();
-  for (const m of src.matchAll(/import\s*\{\s*(\w+)\s*\}\s*from\s*"\.\/([\w/-]+)"/g)) {
-    imports.set(m[1], m[2]);
+  // Несколько имён из одного файла тоже: `import { platformRouter,
+  // announcementRouter } from "./platform-router"` — иначе второй роутер
+  // выпадал из перечня, и его ручки считались несуществующими.
+  for (const m of src.matchAll(/import\s*\{([^}]+)\}\s*from\s*"\.\/([\w/-]+)"/g)) {
+    for (const name of m[1].split(",").map(n => n.trim()).filter(Boolean)) imports.set(name, m[2]);
   }
-  const mounted = new Map<string, string>();
+  const mounted = new Map<string, { file: string; router: string }>();
   for (const m of src.matchAll(/^\s*(\w+):\s*(\w+Router),/gm)) {
     const file = imports.get(m[2]);
-    if (file) mounted.set(m[1], join(API_DIR, ...file.split("/")) + ".ts");
+    if (file) mounted.set(m[1], { file: join(API_DIR, ...file.split("/")) + ".ts", router: m[2] });
   }
   return mounted;
+}
+
+/**
+ * Тело одного роутера в файле. В platform-router.ts их два (platformRouter и
+ * announcementRouter), и весь файл целиком приписывал ручки одного другому.
+ */
+function routerBody(src: string, router: string): string {
+  const start = src.search(new RegExp(`export const ${router}\\b[^=]*=\\s*createRouter\\(`));
+  if (start < 0) return src;
+  let depth = 0;
+  for (let i = src.indexOf("(", start); i < src.length; i++) {
+    if (src[i] === "(") depth++;
+    else if (src[i] === ")" && --depth === 0) return src.slice(start, i + 1);
+  }
+  return src.slice(start);
 }
 
 /** Все ручки: «пространство.имя». */
 function allProcedures(): Map<string, string> {
   const out = new Map<string, string>();
-  for (const [ns, file] of mountedRouters()) {
+  for (const [ns, { file, router }] of mountedRouters()) {
     let src: string;
-    try { src = read(file); } catch { continue; }
+    try { src = routerBody(read(file), router); } catch { continue; }
     for (const m of src.matchAll(/^ {2}(\w+):\s*(?:\w+Query|\w+Procedure|publicProcedure|t\.procedure)/gm)) {
       out.set(`${ns}.${m[1]}`, file);
     }
