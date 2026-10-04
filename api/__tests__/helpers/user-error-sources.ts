@@ -169,7 +169,7 @@ export function collectMessageSites(dirs: string[], root: string): MessageSite[]
             const { forms, unresolved } = evaluate(msg, consts, sf);
             sites.push({ file: rel, line, kind: "trpc", code, forms, unresolved });
           }
-        } else if (n.expression.text === "Error" && arg) {
+        } else if ((n.expression.text === "Error" || /^[A-Z]\w*Error$/.test(n.expression.text)) && arg && !ts.isObjectLiteralExpression(arg)) {
           const { forms, unresolved } = evaluate(arg, consts, sf);
           const human = forms.filter((f) => CYRILLIC.test(f));
           if (human.length) sites.push({ file: rel, line, kind: "error", forms: human, unresolved });

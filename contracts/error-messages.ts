@@ -390,6 +390,21 @@ export const SERVER_ERROR_TEXT: Record<string, ErrorText> = {
   "ABC по прибыли открыт тем, кому открыт P&L.": { uz: "Foyda bo'yicha ABC P&L ochiq bo'lganlarga ochiq." },
 
   // ── 1С ────────────────────────────────────────────────────────────────────
+  "1С не подключена: заполните подключение в настройках": { uz: "1C ulanmagan: sozlamalarda ulanishni to'ldiring" },
+  "В настройках 1С не выбраны организация и склад": { uz: "1C sozlamalarida tashkilot va ombor tanlanmagan" },
+  "1С не вернула Ref_Key созданного документа": { uz: "1C yaratilgan hujjatning Ref_Key qiymatini qaytarmadi" },
+  "В этой конфигурации приходный ордер не настроен": { uz: "Bu konfiguratsiyada kirim orderi sozlanmagan" },
+  "1С: неверный логин или пароль": { uz: "1C: login yoki parol noto'g'ri" },
+  "1С: у пользователя нет прав": { uz: "1C: foydalanuvchida huquq yo'q" },
+  "1С: нет такого объекта или OData не включён для него ({0})": { uz: "1C: bunday obyekt yo'q yoki unga OData yoqilmagan ({0})" },
+  "1С: HTTP {0}": { uz: "1C: HTTP {0}" },
+  // Текст самой 1С — её словами: это ответ чужой программы, как строка из базы.
+  "1С: {0}": { uz: "1C: {0}" },
+  "Некорректный адрес.": { uz: "Manzil noto'g'ri." },
+  "Разрешены только адреса http и https, получено «{0}».": { uz: "Faqat http va https manzillarga ruxsat bor, «{0}» berildi." },
+  "Адрес указывает во внутреннюю сеть.": { uz: "Manzil ichki tarmoqqa ishora qiladi." },
+  "Не удалось определить адрес хоста.": { uz: "Xost manzilini aniqlab bo'lmadi." },
+  "Слишком много перенаправлений.": { uz: "Qayta yo'naltirishlar juda ko'p." },
   "Введите пароль": { uz: "Parolni kiriting" },
   "Введите пароль пользователя 1С": { uz: "1C foydalanuvchisi parolini kiriting" },
   "Сначала сохраните настройки подключения к 1С.": { uz: "Avval 1C ga ulanish sozlamalarini saqlang." },

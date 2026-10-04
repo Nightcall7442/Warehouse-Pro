@@ -87,6 +87,19 @@ describe("отказ сервера на языке интерфейса", () =>
     expect((await ask("mine")).message).toBe("Сессия закончилась. Войдите снова.");
   });
 
+  it("отказ подключения к 1С доходит словами, а не «внутренней ошибкой»", async () => {
+    // Экран 1С, узбекский интерфейс, 04.10.2026: мастер без сохранённого
+    // подключения отвечал «Внутренняя ошибка сервера…» — OneCError не класс
+    // Error, и форматтер прятал его как сбой.
+    const { OneCError } = await import("../lib/onec-bridge");
+    const notConnected = () => new OneCError("1С не подключена: заполните подключение в настройках");
+    expect(await refuse(notConnected(), "uz")).toMatchObject({ message: "1C ulanmagan: sozlamalarda ulanishni to'ldiring", lang: "uz" });
+    expect((await refuse(notConnected())).message).toBe("1С не подключена: заполните подключение в настройках");
+    expect((await refuse(new OneCError("1С: неверный логин или пароль", 401), "uz")).message).toBe("1C: login yoki parol noto'g'ri");
+    // Многострочный текст 1С — уже не фраза для человека.
+    expect((await refuse(new OneCError("1С: ошибка\n  at Module.Call", 500), "uz")).message).toBe(INTERNAL_ERROR_TEXT.uz);
+  });
+
   describe("внутренняя ошибка остаётся спрятанной — на обоих языках", () => {
     it("ошибка кода", async () => {
       const thrown = () => new TypeError("Cannot read properties of undefined (reading 'id')");

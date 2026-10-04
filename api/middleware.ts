@@ -148,9 +148,20 @@ const RUNTIME_FAILURE_MARKERS = /\b(ER_[A-Z_]+|E[A-Z]{3,}|PROTOCOL_[A-Z_]+|SQLST
  * Error (TypeError и RangeError — это ошибки кода), без полей драйвера, одна
  * короткая строка, по-русски и без технических маркеров. Всё прочее, включая
  * любую ошибку mysql2 с русским значением внутри, по-прежнему маскируется.
+ *
+ * Отдельно — отказы подключения к 1С (OneCError, BlockedAddressError): их
+ * тексты написаны для того, кто настраивает обмен («1С не подключена:
+ * заполните подключение в настройках», «1С: неверный логин или пароль»), а
+ * экран 1С видел вместо них «Внутреннюю ошибку сервера» (04.10.2026).
  */
+const OPERATOR_FACING_CLASSES = new Set(["OneCError", "BlockedAddressError"]);
+
 function isOperatorFacingError(cause: unknown): boolean {
-  if (!(cause instanceof Error) || cause.constructor !== Error) return false;
+  if (!(cause instanceof Error)) return false;
+  if (OPERATOR_FACING_CLASSES.has(cause.name)) {
+    return !!cause.message && cause.message.length <= 300 && !/[\n\r]/.test(cause.message);
+  }
+  if (cause.constructor !== Error) return false;
 
   const fields = cause as unknown as Record<string, unknown>;
   if (fields.code !== undefined || fields.errno !== undefined
