@@ -39,6 +39,12 @@ const PASSWORD = "password123";
   берёт.
 */
 const SHOT_SCALE = Number(process.env.SHOT_SCALE ?? 1);
+/*
+  ONLY=имя,имя — снять только эти сценарии (проверка на своём стенде перед
+  часовым прогоном CI). Сценарий без path продолжает предыдущий: берите их
+  вместе. В CI не задаётся.
+*/
+const ONLY = process.env.ONLY ? new Set(process.env.ONLY.split(",")) : null;
 
 /** Учётные записи из db/seed.ts — засев, не чьи-то настоящие данные. */
 const ACCOUNTS = {
@@ -146,6 +152,12 @@ const WEB_SCENARIOS = {
     { name: "warehouse-transfer-form", path: null, do: [["click", "testid=transfer-new"], ["wait", 1000]],
       marks: [["search", "testid=transfer-search"], ["lines", "testid=transfer-lines"], ["submit", "testid=transfer-submit"]], after: [] },
     { name: "warehouse-counts", path: "/warehouse", do: [["click", T.tab("Инвентаризация|Inventarizatsiya")], ["wait", 1500]], marks: [["new", "testid=stock-count-new"]], after: [] },
+    /* «Сроки» глазами офиса: деньги по цене продажи, уценку ниже закупки ставит директор (засев: партии и уценка сметаны). */
+    { name: "warehouse-expiry", path: "/warehouse?tab=expiry", do: [["scroll", "text=/^(Сроки годности|Yaroqlilik muddati)$/", "start"], ["wait", 700]], after: [],
+      marks: [["risk", "testid=expiry-tile-risk"], ["expired", "testid=expiry-tile-expired"], ["sells", "testid=expiry-tile-sells"], ["row", "css=[data-testid^=expiry-row-] >> nth=0"], ["marked", "text=/^(Уценено:|Arzonlashtirilgan:)/ >> nth=0"], ["director", "text=/^(Эта цена ниже закупки — уценку ставит директор|Bu narx xariddan past — arzonlashtirishni direktor qo'yadi)$/ >> nth=0"], ["excel", "role=button:/^Excel$/"]] },
+    // Координаты магазина: с карты продаж «Указать координаты» → карточка сразу в правке (?edit=gps).
+    { name: "shop-gps", path: "/reports?tab=map", do: [["wait", 1500], ["click", "testid=sales-map-fix-gps >> nth=0"], ["wait", 2000], ["fill", "testid=shop-gps-input", "42.4619, 59.6103"], ["wait", 500]],
+      marks: [["gps", "testid=shop-gps-input"], ["save", "role=button:/^(Сохранить|Saqlash)$/"]] },
   ],
   ceo: [
     { name: "dashboard", path: "/",
@@ -172,7 +184,9 @@ const WEB_SCENARIOS = {
     { name: "notifications", path: "/notifications" },
     /* ── вторая волна: отчёты по вкладкам, выплаты, разделы настроек ────── */
     { name: "reports-sales", path: "/reports?tab=sales" },
-    { name: "reports-agents", path: "/reports?tab=agents" },
+    // Сверху — прогноз плана; в первые три рабочих дня месяца вместо цветов «рано судить».
+    { name: "reports-agents", path: "/reports?tab=agents",
+      marks: [["forecast", "testid=forecast-card"], ["tones", "role=radiogroup:/^(Цвет прогноза|Prognoz rangi)$/"], ["need", "text=/^(НУЖНО В ДЕНЬ|KUNIGA KERAK)$/"], ["row", "testid=forecast-row >> nth=0"]] },
     { name: "salaries-payouts", path: "/salaries", do: [["click", "testid=salaries-tab-payouts"], ["wait", 1200]], after: [] },
     { name: "users-invite", path: "/users", do: [["click", "role=button:/^(Создать|Yaratish)$/"], ["wait", 1000]] },
     { name: "settings-company", path: "/settings?section=company" },
@@ -198,6 +212,33 @@ const WEB_SCENARIOS = {
     { name: "plans-reports", path: "/supervisor/plans", do: [["click", "role=tab:/^(Отчёты|Hisobotlar)$/"], ["wait", 1500]], after: [] },
     { name: "map-shops", path: "/supervisor", do: [["click", "role=button:/^(Магазины|Do'konlar)$/"], ["wait", 1500]], after: [] },
     { name: "support", path: "/support" },
+    /* ── «Отчёты» директора 02–04.10.2026: прибыль, ABC, прогноз, карта продаж; «Сроки» ──
+       Засев: оптовик со скидкой и арбузом ниже закупки (тревожные строки), замолчавший
+       Бешмерган и Нукус без координат (карта), партии со сроком и уценка сметаны. */
+    { name: "reports-profit", path: "/reports?tab=profit",
+      marks: [["period", "role=group:/^(Период|Davr)$/ >> nth=0"], ["excel", "role=button:/^Excel$/"], ["totals", "testid=profit-totals"], ["reconcile", "testid=profit-reconcile"], ["by", "role=radiogroup:/^(Разрез|Kesim)$/"], ["alarm", "testid=profit-alarm"]] },
+    { name: "reports-profit-alarm", path: "/reports?tab=profit&alarm=1",
+      marks: [["alarm", "testid=profit-alarm"], ["loss", "css=[data-testid=profit-row][data-flag=loss] >> nth=0"], ["low", "css=[data-testid=profit-row][data-flag=low] >> nth=0"], ["why", "text=/^(ПОЧЕМУ|NEGA)$/"]] },
+    { name: "reports-abc", path: "/reports?tab=abc",
+      marks: [["of", "role=radiogroup:/^(Что делим|Nimani bo'lamiz)$/"], ["metric", "role=radiogroup:/^(По чему|Nima bo'yicha)$/"], ["tiles", "testid=abc-totals"], ["cStock", "testid=abc-c-stock"], ["cls", "role=radiogroup:/^(Класс|Sinf)$/"], ["excel", "role=button:/^Excel$/"]] },
+    { name: "reports-abc-shops", path: "/reports?tab=abc&of=shop",
+      marks: [["tiles", "testid=abc-totals"], ["idle", "testid=abc-idle-a"], ["idleShop", "testid=abc-idle-shop >> nth=0"]] },
+    // Главная ниже плиток: прогноз плана и «Сгорит на складе».
+    { name: "dashboard-forecast", path: "/", do: [["scroll", "testid=forecast-compact", "start"], ["wait", 900]],
+      marks: [["forecast", "testid=forecast-compact"], ["early", "testid=forecast-early-note"], ["lagging", "testid=forecast-lagging"], ["allAgents", "role=button:/^(Все агенты|Barcha agentlar)$/"], ["expiry", "testid=expiry-home-card"]] },
+    { name: "warehouse-expiry", path: "/warehouse?tab=expiry", do: [["scroll", "text=/^(Сроки годности|Yaroqlilik muddati)$/", "start"], ["wait", 700]], after: [],
+      marks: [["risk", "testid=expiry-tile-risk"], ["expired", "testid=expiry-tile-expired"], ["row", "css=[data-testid^=expiry-row-] >> nth=0"], ["markdown", "css=[data-testid^=expiry-markdown-] >> nth=0"], ["belowCost", "text=/^(Ниже закупки на|Xariddan .+ past)/ >> nth=0"], ["marked", "text=/^(Уценено:|Arzonlashtirilgan:)/ >> nth=0"]] },
+    { name: "warehouse-expiry-markdown", path: "/warehouse?tab=expiry", do: [["click", "css=[data-testid^=expiry-markdown-] >> nth=1"], ["wait", 900]],
+      marks: [["pct", "testid=markdown-pct"], ["price", "testid=markdown-price"], ["belowCost", "testid=markdown-below-cost"], ["submit", "testid=markdown-submit"]] },
+    // Карта продаж: верх (период, плитки, карта всей сети), магазин на карте, районы, списки.
+    { name: "reports-map", path: "/reports?tab=map", do: [["wait", 2500]],
+      marks: [["period", "role=group:/^(Период|Davr)$/ >> nth=0"], ["totals", "testid=sales-map-totals"], ["legend", "testid=sales-map-legend"]] },
+    { name: "reports-map-shop", path: "/reports?tab=map", do: [["wait", 1500], ["click", "css=[data-testid=sales-map-silent-row] button >> nth=0"], ["wait", 3000]],
+      marks: [["legend", "testid=sales-map-legend"], ["selected", "testid=sales-map-selected"], ["open", "css=[data-testid=sales-map-selected] a >> nth=0"], ["visit", "css=[data-testid=sales-map-selected] button >> nth=0"]] },
+    { name: "reports-map-areas", path: "/reports?tab=map", do: [["wait", 1500], ["scroll", "testid=sales-map-areas", "start"], ["wait", 900]],
+      marks: [["areas", "testid=sales-map-areas"], ["area", "testid=sales-map-area >> nth=0"], ["plan", "testid=sales-map-plan-area >> nth=0"]] },
+    { name: "reports-map-lists", path: "/reports?tab=map", do: [["wait", 1500], ["scroll", "testid=sales-map-silent", "start"], ["wait", 900]],
+      marks: [["silent", "testid=sales-map-silent"], ["silentRow", "testid=sales-map-silent-row >> nth=0"], ["nogps", "testid=sales-map-nogps"], ["fixGps", "testid=sales-map-fix-gps >> nth=0"]] },
   ],
   supervisor: [
     { name: "map", path: "/supervisor" },
@@ -243,7 +284,7 @@ const MOBILE_SCENARIOS = {
     { name: "product", path: "/product/1", do: [["wait", 1500]], marks: [["price", "text=/^(ЦЕНА ЗА|.* NARXI)/"], ["stock", "text=/^(ОСТАТОК|QOLDIQ)$/"], ["qty", "testid=qty"], ["toOrder", "text=/^(В заказ|Buyurtmaga) · /"]] },
     /* Окно выбора открывается само, пока корзина пуста; товар добавляется нажатием на строку, «−»/«+» появляются после. */
     { name: "order-picker", path: "/order/new?shopId=1&shopName=Demo", do: [["wait", 1800]],
-      marks: [["row", "css=[data-testid^=picker-stock-] >> nth=0"], ["done", "testid=picker-done"]], after: [] },
+      marks: [["row", "css=[data-testid^=picker-stock-] >> nth=0"], ["done", "testid=picker-done"], ["likeLast", "testid=like-last-time"], ["sellFirst", "testid=picker-chip-sell-first"], ["sellRow", "css=[data-testid^=picker-sell-first-] >> nth=0"], ["was", "css=[data-testid^=picker-was-] >> nth=0"], ["lastTime", "css=[data-testid^=last-time-]:not([data-testid=last-time-skipped]) >> nth=0"]], after: [] },
     { name: "order-step3", path: null,
       do: [["click", "css=[data-testid^=picker-stock-] >> nth=0"], ["wait", 400], ["click", "css=[data-testid^=stepper-plus-] >> nth=0"], ["click", "testid=picker-done"], ["wait", 800], ["click", "text=/Продолжить|Davom etish/"], ["wait", 1200]],
       marks: [["confirm", "text=/Подтвердить заказ|Buyurtmani tasdiqlash/"]], after: [] },
@@ -251,6 +292,9 @@ const MOBILE_SCENARIOS = {
     { name: "shop-detail", path: "/shop/1", do: [["wait", 1500]] },
     { name: "shop-new", path: "/shop/new", do: [["wait", 1200]] },
     { name: "barcode", path: "/barcode", do: [["wait", 1200]] },
+    // «Продать первым»: фишка в каталоге, бирка на фото, цена до уценки зачёркнута (засев: уценка сметаны).
+    { name: "catalog-sell-first", path: "/catalog", do: [["wait", 1200], ["click", "testid=catalog-chip-sell-first"], ["wait", 800]],
+      marks: [["chip", "testid=catalog-chip-sell-first"], ["badge", "css=[data-testid^=catalog-sell-first-] >> nth=0"], ["was", "css=[data-testid^=catalog-was-] >> nth=0"]] },
   ],
   courier: [
     { name: "home", path: "/" },
@@ -305,6 +349,14 @@ const PWA_SCENARIOS = {
       marks: [["search", "ph=/Название или код|Nomi yoki kodi/"], ["stepper", "css=[data-testid^=catalog-stepper-] >> nth=0"], ["add", "css=[data-testid^=catalog-add-] >> nth=0"], ["cart", "testid=catalog-cart-bar"], ["checkout", "testid=catalog-checkout"]], after: [] },
     { name: "orders", path: "/orders",
       marks: [["refresh", "role=button:/^(Обновить|Yangilash)$/"], ["new", "role=button:/^(Новый|Yangi)$/"], ["rings", "text=/^(Всего|Jami)$/"], ["row", "testid=agent-order-row >> nth=0"], ["fab", "testid=agent-orders-fab"]] },
+    /* «Продать первым» (засев: уценка сметаны): фишка оставляет уценённые; карточка товара — цена до уценки зачёркнута. */
+    { name: "catalog-sell-first", path: "/catalog", do: [["click", "testid=catalog-chip-sell-first"], ["wait", 700]],
+      marks: [["chip", "testid=catalog-chip-sell-first"], ["badge", "css=[data-testid^=catalog-sell-first-] >> nth=0"]], after: [] },
+    { name: "catalog-sheet-sell-first", path: null, do: [["click", "css=[data-testid^=catalog-card-] button >> nth=0"], ["wait", 900]],
+      marks: [["sheet", "testid=catalog-sheet-markdown"]] },
+    // Заказ магазину №1: у агента засева есть его прошлые заказы — «Как в прошлый раз» и «в прошлый раз: N».
+    { name: "order-new", path: "/orders/new?shopId=1", do: [["wait", 1500]],
+      marks: [["like", "testid=order-like-last-time"], ["search", "testid=product-search"], ["sellFirst", "css=[data-testid^=product-sell-first-] >> nth=0"], ["last", "css=[data-testid^=product-last-] >> nth=0"]] },
     // Профиль длиннее экрана: снимаем низ — «Оформление» с языком и выход.
     { name: "profile", path: "/settings", do: [["click", "text=/^(Язык|Til)$/"], ["key", "End"], ["wait", 600]],
       marks: [["theme", "text=/^(Тема|Mavzu)$/"], ["lang", "text=/^(Язык|Til)$/"], ["logout", "testid=profile-logout"]], after: [] },
@@ -338,6 +390,8 @@ async function act(page, [what, spec, value]) {
   const l = loc(page, spec);
   if (what === "click") return l.click({ timeout: 8_000 }).catch(() => l.click({ timeout: 4_000, force: true }));
   if (what === "fill") return l.fill(value, { timeout: 8_000 });
+  // Блок ниже первого экрана: снимок — окно, а не вся страница. value — "start" или "center" (по умолчанию).
+  if (what === "scroll") return l.evaluate((el, block) => el.scrollIntoView({ block: block || "center" }), value ?? null, { timeout: 8_000 });
 }
 
 async function marksOf(page, marks = []) {
@@ -353,6 +407,7 @@ async function marksOf(page, marks = []) {
 
 async function runScenarios(page, base, scenarios, dir, entry, kind, role) {
   for (const sc of scenarios) {
+    if (ONLY && !ONLY.has(sc.name)) continue;
     try {
       if (sc.path) { await page.goto(`${base}${sc.path}`, { waitUntil: "domcontentloaded" }); await settle(page); }
       for (const step of sc.do ?? []) await act(page, step);
@@ -360,6 +415,9 @@ async function runScenarios(page, base, scenarios, dir, entry, kind, role) {
       // Телефонный кадр — один экран, а страница длиннее: метка ниже края
       // легла бы цифрой на нижнюю кромку снимка. Такой выноски просто нет.
       if (kind === "pwa") marks = marks.filter(m => m.y >= 0 && m.y + m.h <= PWA_VIEW.viewport.height);
+      // Остальным — хотя бы верх элемента в окне: метка ниже края рисовалась
+      // цифрой на нижней кромке снимка, у пустого места.
+      else { const vh = page.viewportSize()?.height ?? 0; if (vh) marks = marks.filter(m => m.y + Math.min(m.h, 40) > 0 && m.y < vh - 8); }
       await page.screenshot({ path: join(dir, `${sc.name}.png`) });
       entry.push({ screen: sc.name, path: sc.path, marks });
       console.log(`  ${dir}/${sc.name} (${marks.length} меток)`);
