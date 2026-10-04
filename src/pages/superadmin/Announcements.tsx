@@ -12,6 +12,7 @@ import { localized } from "@/components/announcement-text";
 import { TENANT_PLAN_LABEL } from "@contracts/entity-labels";
 import { Chip, Empty, FieldLabel, PageHead, Panel, Pill, type Tone } from "@/components/superadmin/console/ui";
 import { dayTime } from "@/components/superadmin/console/format";
+import { errorText } from "@/lib/error-text";
 
 /* ═══════════════════════════════════════════════════════════════════════════
    «Объявления» — сообщения платформы организациям (/super-admin/announcements).
@@ -108,7 +109,7 @@ function Item({ a, first, names, now }: { a: Row; first: boolean; names: Map<num
   const st = stateOf(a, now);
   const end = trpc.platform.endAnnouncement.useMutation({
     onSuccess: () => { notify.success("Объявление завершено"); void utils.platform.announcements.invalidate(); void utils.platform.journal.invalidate(); },
-    onError: e => notify.error(e.message),
+    onError: e => notify.error(errorText(e)),
   });
   return (
     <div className="flex items-start gap-3 flex-wrap" style={{ padding: "14px 20px", borderTop: first ? undefined : "1px solid var(--color-border-subtle)" }} data-testid="announcement-row">
@@ -157,7 +158,7 @@ function CreateForm({ onDone }: { onDone: () => void }) {
 
   const create = trpc.platform.createAnnouncement.useMutation({
     onSuccess: () => { notify.success("Объявление опубликовано"); void utils.platform.announcements.invalidate(); void utils.platform.journal.invalidate(); onDone(); },
-    onError: e => notify.error(e.message),
+    onError: e => notify.error(errorText(e)),
   });
 
   const orgOptions = useMemo(() => [...(orgs.data ?? [])].filter(o => !o.isSandbox)

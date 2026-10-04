@@ -9,6 +9,7 @@ import { formatQty } from "@/lib/format";
 import { discountMoney, discountedPrice } from "@contracts/expiry";
 import { AppModal, modalFieldLabel } from "@/components/ui/AppModal";
 import type { ExpiryRowView } from "./expiry-view";
+import { errorText } from "@/lib/error-text";
 
 /*
   Уценка партии — одно окно: скидка или цена (одно считает другое), что
@@ -42,7 +43,7 @@ export function MarkdownDialog({ row, seesCost, onClose }: { row: ExpiryRowView;
       notify.success(t("Уценка поставлена — агенты видят «Продать первым»", "Arzonlashtirildi — agentlar «Birinchi sotish»ni ko'radi"));
       onClose();
     },
-    onError: (e) => notify.error(e.message),
+    onError: (e) => notify.error(errorText(e)),
   });
 
   const onPct = (raw: string) => {

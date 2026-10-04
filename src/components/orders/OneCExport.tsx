@@ -5,6 +5,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useConfirm } from "@/components/ConfirmDialog";
 import { notify } from "@/lib/toast";
 import { Loader2, Upload } from "lucide-react";
+import { errorText } from "@/lib/error-text";
 
 /**
  * Выгрузить заказ в 1С.
@@ -66,7 +67,7 @@ export function OneCExport({ orderId, orderNumber }: { orderId: number; orderNum
         «новый документ» нельзя было нажать по инерции.
       */
       if (e.data?.code === "BAD_REQUEST") setNeedsNewDocument(true);
-      notify.error(e.message);
+      notify.error(errorText(e));
     },
   });
 

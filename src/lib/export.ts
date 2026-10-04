@@ -2,6 +2,7 @@ import { unitShort } from "./units";
 import { openPrintWindowOrExplain } from "./print";
 import { notify } from "./toast";
 import { tt } from "@/i18n";
+import { errorText } from "@/lib/error-text";
 
 /**
  * Export data to Excel (.xlsx) file.
@@ -88,11 +89,7 @@ export async function exportToExcel(sheets: Array<{
     a.click();
     URL.revokeObjectURL(url);
   } catch (e) {
-    notify.error(
-      e instanceof Error && e.message
-        ? `Не удалось собрать файл: ${e.message}`
-        : "Не удалось собрать файл выгрузки",
-    );
+    notify.error(errorText(e, tt("Не удалось собрать файл выгрузки", "Eksport faylini yig'ib bo'lmadi")));
   }
 }
 

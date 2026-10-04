@@ -3,6 +3,7 @@ import { ArrowRight, Check, Loader2 } from "lucide-react";
 import { trpc } from "@/providers/trpc";
 import { useTranslate } from "@/i18n";
 import { LX, MONO } from "./landing-tokens";
+import { errorText } from "@/lib/error-text";
 
 /* ═══════════════════════════════════════════════════════════════════════════
    Заявка: «перезвоните мне».
@@ -48,7 +49,7 @@ export default function LeadForm({ compact = false, onInk = false, stack = false
   const [error, setError] = useState<string | null>(null);
 
   const create = trpc.lead.create.useMutation({
-    onError: (e) => setError(e.message),
+    onError: (e) => setError(errorText(e)),
   });
 
   const text = onInk ? LX.paperOnInk : LX.ink;

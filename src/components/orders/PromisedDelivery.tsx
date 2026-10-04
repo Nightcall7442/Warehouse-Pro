@@ -5,6 +5,7 @@ import { notify } from "@/lib/toast";
 import { useTranslate } from "@/i18n";
 import { OPEN_ORDER_STATUSES } from "@contracts/constants";
 import { toLocalInput, promiseState } from "@/lib/promised-delivery";
+import { errorText } from "@/lib/error-text";
 
 /* ═══════════════════════════════════════════════════════════════════════════
    Обещанный срок доставки.
@@ -56,7 +57,7 @@ export function PromisedDelivery({ orderId, promisedDeliveryAt, status, delivere
       utils.order.getById.invalidate({ id: orderId });
       notify.success(t("Срок сохранён", "Muddat saqlandi"));
     },
-    onError: e => notify.error(e.message),
+    onError: e => notify.error(errorText(e)),
   });
 
   const submit = (raw: string) => {

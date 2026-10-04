@@ -6,6 +6,7 @@ import { useCurrency } from "@/hooks/useCurrency";
 import { monthEnd, monthLabel } from "./month";
 import { ForecastCell } from "@/components/plans/PlanForecast";
 import { useForecastByUser } from "@/components/plans/forecast-data";
+import { errorText } from "@/lib/error-text";
 
 /*
   ── Нормы на месяц ──────────────────────────────────────────────────────────
@@ -142,7 +143,7 @@ export function MonthNorms({ month, lang }: { month: string; lang: string }) {
         `Normalar saqlandi: ${r.created} yangi, ${r.updated} yangilandi`,
       ));
     },
-    onError: (e) => notify.error(e.message),
+    onError: (e) => notify.error(errorText(e)),
   });
 
   const dirty = Object.keys(pending).length > 0;

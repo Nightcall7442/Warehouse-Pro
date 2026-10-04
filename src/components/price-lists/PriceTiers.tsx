@@ -5,6 +5,7 @@ import { useLang } from "@/i18n";
 import { useCurrency } from "@/hooks/useCurrency";
 import { notify } from "@/lib/toast";
 import { DecimalInput } from "@/components/ui/DecimalInput";
+import { errorText } from "@/lib/error-text";
 
 type Tier = { id: number; productId: number; productName: string | null; price: string; minQuantity: string; unitPrice: string | null };
 type Product = { id: number; name: string; code?: string | null; unitPrice?: string | null };
@@ -29,9 +30,9 @@ export function PriceTiers({ listId, tiers, products }: { listId: number; tiers:
   const refresh = () => utils.priceList.invalidate();
   const upsert = trpc.priceList.upsertItem.useMutation({
     onSuccess: async () => { await refresh(); setPicked(null); setQ(""); setPrice(""); notify.success(t("Ступень сохранена", "Pog'ona saqlandi")); },
-    onError: e => notify.error(e.message),
+    onError: e => notify.error(errorText(e)),
   });
-  const removeItem = trpc.priceList.removeItem.useMutation({ onSuccess: () => void refresh(), onError: e => notify.error(e.message) });
+  const removeItem = trpc.priceList.removeItem.useMutation({ onSuccess: () => void refresh(), onError: e => notify.error(errorText(e)) });
 
   const found = useMemo(() => {
     const s = q.trim().toLowerCase();

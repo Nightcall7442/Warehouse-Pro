@@ -20,6 +20,7 @@ import { CommissionLedger } from "@/components/kpi/CommissionLedger";
 import { ProductRates } from "@/components/kpi/ProductRates";
 import { MyPayouts } from "@/components/kpi/MyPayouts";
 import { GamificationCard } from "@/components/GamificationCard";
+import { errorText } from "@/lib/error-text";
 
 interface KpiData {
   agentId: number; agentName: string; period: string;
@@ -970,12 +971,12 @@ function SalaryConfig({ t }: { t: (r: string, u: string) => string }) {
 
   const setRateMutation = trpc.commission.setRate.useMutation({
     onSuccess: () => { utils.commission.list.invalidate(); notify.success(t("Ставка сохранена", "Stavka saqlandi")); },
-    onError: (e) => notify.error(e.message),
+    onError: (e) => notify.error(errorText(e)),
   });
 
   const calcMutation = trpc.commission.calculate.useMutation({
     onSuccess: () => { utils.commission.list.invalidate(); notify.success(t("Комиссия рассчитана", "Komissiya hisoblandi")); },
-    onError: (e) => notify.error(e.message),
+    onError: (e) => notify.error(errorText(e)),
   });
 
   /** Что лежит на сервере для этого человека. */

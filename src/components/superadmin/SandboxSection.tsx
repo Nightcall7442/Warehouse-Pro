@@ -4,6 +4,7 @@ import { notify } from "@/lib/toast";
 import { FlaskConical, Copy, Loader2, Check } from "lucide-react";
 import { F, COLORS } from "./types";
 import { Section, Input, BtnPrimary } from "./ui";
+import { errorText } from "@/lib/error-text";
 
 /**
  * Песочница для интеграторов.
@@ -36,7 +37,7 @@ export function SandboxSection() {
       utils.tenant.list.invalidate();
       notify.success("Песочница готова");
     },
-    onError: (e) => notify.error(e.message),
+    onError: (e) => notify.error(errorText(e)),
   });
 
   const submit = () => {

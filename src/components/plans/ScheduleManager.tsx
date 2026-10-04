@@ -5,6 +5,7 @@ import { notify } from "@/lib/toast";
 import { COLORS, SHADOW, F } from "./constants";
 import { PremiumSelect } from "@/components/PremiumSelect";
 import { useShopSearch } from "@/hooks/useShopSearch";
+import { errorText } from "@/lib/error-text";
 
 const DAY_NAMES_RU = ["ВС", "ПН", "ВТ", "СР", "ЧТ", "ПТ", "СБ"];
 const DAY_NAMES_UZ = ["Yak", "Dush", "Sesh", "Chor", "Pay", "Jum", "Shan"];
@@ -87,7 +88,7 @@ export function ScheduleManager({ lang }: { lang: string }) {
       utils.schedule.list.setData(listKey, (old) => [...((old ?? []) as Row[]), { id: -Date.now(), agentId: v.agentId, agentName: null, shopId: v.shopId, shopName: null, dayOfWeek: v.dayOfWeek, active: true }]);
       return { prev };
     },
-    onError: (e, _v, ctx) => { utils.schedule.list.setData(listKey, ctx?.prev); notify.error(e.message); },
+    onError: (e, _v, ctx) => { utils.schedule.list.setData(listKey, ctx?.prev); notify.error(errorText(e)); },
     onSettled: () => utils.schedule.list.invalidate(listKey),
   });
 
@@ -98,7 +99,7 @@ export function ScheduleManager({ lang }: { lang: string }) {
       utils.schedule.list.setData(listKey, (old) => ((old ?? []) as Row[]).filter(s => s.id !== v.id));
       return { prev };
     },
-    onError: (e, _v, ctx) => { utils.schedule.list.setData(listKey, ctx?.prev); notify.error(e.message); },
+    onError: (e, _v, ctx) => { utils.schedule.list.setData(listKey, ctx?.prev); notify.error(errorText(e)); },
     onSettled: () => utils.schedule.list.invalidate(listKey),
   });
 
@@ -107,7 +108,7 @@ export function ScheduleManager({ lang }: { lang: string }) {
       utils.schedule.list.invalidate();
       notify.success(t(`Создано ${data.created} планов, пропущено ${data.skipped}`, `${data.created} reja yaratildi, ${data.skipped} o'tkazildi`));
     },
-    onError: (e) => notify.error(e.message),
+    onError: (e) => notify.error(errorText(e)),
   });
 
   const toggleSchedule = (shopId: number, day: number) => {

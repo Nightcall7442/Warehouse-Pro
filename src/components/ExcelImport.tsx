@@ -5,6 +5,7 @@ import { notify } from "@/lib/toast";
 import { Upload, FileSpreadsheet, X, CheckCircle2, AlertTriangle, Loader2, Download } from "lucide-react";
 import type { AppRouter } from "../../api/router";
 import { useTranslate } from "@/i18n";
+import { errorText } from "@/lib/error-text";
 
 type ImportType = "products" | "shops";
 
@@ -70,7 +71,7 @@ export function ExcelImport({ type, onDone, onCancel }: Props) {
       setTotalRows(result.totalRows);
     } catch (e: unknown) {
       const failed = t("Ошибка чтения файла", "Faylni o'qishda xatolik");
-      setErrors([e instanceof Error && e.message !== FILE_READ_FAILED ? e.message : failed]);
+      setErrors([e instanceof Error && e.message === FILE_READ_FAILED ? failed : errorText(e, failed)]);
     }
   };
 
@@ -102,7 +103,7 @@ export function ExcelImport({ type, onDone, onCancel }: Props) {
         notify.error(t("Импорт не удался", "Import amalga oshmadi"));
       }
     } catch (e: unknown) {
-      setErrors([e instanceof Error ? e.message : t("Ошибка импорта", "Import xatosi")]);
+      setErrors([errorText(e, t("Ошибка импорта", "Import xatosi"))]);
       notify.error(t("Ошибка импорта", "Import xatosi"));
     } finally {
       setImporting(false);
@@ -116,9 +117,7 @@ export function ExcelImport({ type, onDone, onCancel }: Props) {
     }
     if (templateQuery.isError || !templateQuery.data) {
       notify.error(
-        templateQuery.error instanceof Error
-          ? templateQuery.error.message
-          : t("Не удалось загрузить шаблон. Проверьте права доступа.", "Shablonni yuklab bo'lmadi. Kirish huquqlarini tekshiring.")
+        errorText(templateQuery.error, t("Не удалось загрузить шаблон. Проверьте права доступа.", "Shablonni yuklab bo'lmadi. Kirish huquqlarini tekshiring."))
       );
       return;
     }

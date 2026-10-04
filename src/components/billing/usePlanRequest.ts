@@ -2,6 +2,7 @@ import { useState } from "react";
 import { trpc } from "@/providers/trpc";
 import { notify } from "@/lib/toast";
 import { useTranslate } from "@/i18n";
+import { errorText } from "@/lib/error-text";
 
 /**
  * Заявка на тариф или продление — одна на экран подписки и экран блокировки.
@@ -22,7 +23,7 @@ export function usePlanRequest() {
       setSent(text);
       notify.success(text);
     },
-    onError: (e) => notify.error(e.message),
+    onError: (e) => notify.error(errorText(e)),
   });
   return { request, sent };
 }

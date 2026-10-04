@@ -6,6 +6,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { notify } from "@/lib/toast";
 import { PremiumSelect } from "@/components/PremiumSelect";
 import { F, COLORS } from "@/components/users/types";
+import { errorText } from "@/lib/error-text";
 
 /*
   Прайс-лист магазина — на его карточке, а не только в настройках.
@@ -24,7 +25,7 @@ export function ShopPriceList({ shopId }: { shopId: number }) {
   const q = trpc.priceList.forShop.useQuery({ shopId });
   const set = trpc.priceList.setForShop.useMutation({
     onSuccess: () => { utils.priceList.forShop.invalidate({ shopId }); utils.product.invalidate(); notify.success(t("Прайс-лист магазина изменён", "Do'kon narxlar ro'yxati o'zgartirildi")); },
-    onError: e => notify.error(e.message),
+    onError: e => notify.error(errorText(e)),
   });
   const canManage = (user?.role === "ceo" || user?.role === "operator") && can("prices.manage");
   if (!q.data) return null;

@@ -6,6 +6,7 @@ import { useCurrency } from "@/hooks/useCurrency";
 import { useInvalidateOrderCaches } from "@/hooks/useOrderCacheSync";
 import { notify } from "@/lib/toast";
 import { AppModal, modalSectionLabel } from "@/components/ui/AppModal";
+import { errorText } from "@/lib/error-text";
 
 /*
   «Принять по заявленному» — вечерняя сдача курьера пачкой
@@ -65,7 +66,7 @@ export function AcceptClaimedModal({ open, orderIds, onClose, onDone }: {
   const snapshot = useRef<PlanRow[]>([]);
   const accept = trpc.order.acceptClaimed.useMutation({
     onSuccess: r => { setDone({ rows: snapshot.current, ...r }); invalidateOrderCaches(); },
-    onError: e => notify.error(e.message),
+    onError: e => notify.error(errorText(e)),
   });
 
   const close = () => {

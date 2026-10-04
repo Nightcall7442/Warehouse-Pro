@@ -20,6 +20,7 @@ import { currentMonth, monthLabel, shiftMonth } from "@/components/plans/month";
 import { MonthNorms } from "@/components/plans/MonthNorms";
 import { VisitReports } from "@/components/plans/VisitReports";
 import { GeoDay } from "@/components/plans/GeoDay";
+import { errorText } from "@/lib/error-text";
 
 /** Пустой набор одной ссылкой: новый Set в каждой отрисовке ломал бы сравнения. */
 const EMPTY_SET: ReadonlySet<number> = new Set<number>();
@@ -61,7 +62,7 @@ function CreatePlanForm({ date, onDone, lang }: { date: string; onDone: () => vo
       );
       onDone();
     },
-    onError: (e) => notify.error(e.message),
+    onError: (e) => notify.error(errorText(e)),
   });
 
   const selectedTerritory = territories?.find((tr) => tr.id === territoryId);
@@ -283,7 +284,7 @@ export default function SupervisorPlans() {
   const utils      = trpc.useUtils();
   const updatePlan = trpc.agent.updatePlanStatus.useMutation({
     onSuccess: () => { utils.agent.getPlans.invalidate(); notify.success(t("Статус обновлён", "Holat yangilandi")); },
-    onError:   (e) => notify.error(e.message),
+    onError:   (e) => notify.error(errorText(e)),
   });
 
   const visited = plans?.filter(p => p.status === "visited").length ?? 0;

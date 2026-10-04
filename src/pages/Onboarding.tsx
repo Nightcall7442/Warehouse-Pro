@@ -5,6 +5,7 @@ import { trpc } from "@/providers/trpc";
 import { notify } from "@/lib/toast";
 import { CheckCircle2, Warehouse, Package, Users, ChevronRight, Loader2, Sparkles } from "lucide-react";
 import { useTranslate } from "@/i18n";
+import { errorText } from "@/lib/error-text";
 
 const STEPS = [
   { key: "warehouse", num: 1, iconRu: "Склад",         iconUz: "Ombor",            Icon: Warehouse },
@@ -51,7 +52,7 @@ function StepWarehouse({ onNext }: { onNext: () => void }) {
   const utils = trpc.useUtils();
   const create = trpc.warehouse.create.useMutation({
     onSuccess: () => { utils.warehouse.list.invalidate(); onNext(); },
-    onError:   (e) => notify.error(e.message),
+    onError:   (e) => notify.error(errorText(e)),
   });
 
   return (
@@ -102,7 +103,7 @@ function StepProduct({ onNext }: { onNext: () => void }) {
   const utils = trpc.useUtils();
   const create = trpc.product.create.useMutation({
     onSuccess: () => { utils.product.list.invalidate(); onNext(); },
-    onError:   (e) => notify.error(e.message),
+    onError:   (e) => notify.error(errorText(e)),
   });
 
   return (
@@ -161,7 +162,7 @@ function StepInvite({ onFinish }: { onFinish: () => void }) {
   const [sent,  setSent]  = useState(false);
   const invite = trpc.invite.send.useMutation({
     onSuccess: () => setSent(true),
-    onError:   (e) => notify.error(e.message),
+    onError:   (e) => notify.error(errorText(e)),
   });
 
   if (sent) return (

@@ -9,6 +9,7 @@ import { useTranslate } from "@/i18n";
 import { PhotoOrIcon } from "@/components/PhotoOrIcon";
 import { ShopAvatar } from "@/components/shops/ShopAvatar";
 import { productInitials } from "@/lib/shop-avatar";
+import { errorText } from "@/lib/error-text";
 
 export interface ProductPhotoProps {
   productId: number;
@@ -37,7 +38,7 @@ export function ProductPhoto({ productId, productName = "", photoUrl, size = "md
   const utils = trpc.useUtils();
   const upload = trpc.product.uploadPhoto.useMutation({
     onSuccess: () => { utils.product.list.invalidate(); utils.product.getById.invalidate({ id: productId }); notify.success(t("Фото обновлено", "Rasm yangilandi")); },
-    onError: (e) => notify.error(e.message),
+    onError: (e) => notify.error(errorText(e)),
   });
   const px = size === "sm" ? 52 : size === "lg" ? 96 : 72;
   const radius = `${Math.round(px * 0.28)}px`;

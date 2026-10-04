@@ -23,6 +23,7 @@ import { ROLES, type Role } from "@contracts/types";
 
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { AppModal, modalFieldLabel } from "@/components/ui/AppModal";
+import { errorText } from "@/lib/error-text";
 // The filter select carries "" for "all roles"; the list query wants no role at all.
 const isRole = (value: string): value is Role => ROLES.some(r => r === value);
 
@@ -77,7 +78,7 @@ function InviteForm({ onDone, lang }: { onDone: () => void; lang: "ru" | "uz" })
       notify.success(t("Пользователь создан", "Foydalanuvchi yaratildi"));
       onDone();
     },
-    onError: (e) => notify.error(e.message),
+    onError: (e) => notify.error(errorText(e)),
   });
 
   const handleSubmit = async () => {
@@ -201,7 +202,7 @@ function ResetPasswordModal({ userId, userName, onClose, lang }: {
       notify.success(t(`Пароль изменён для ${userName}`, `${userName} uchun parol o'zgartirildi`));
       onClose();
     },
-    onError: (e) => notify.error(e.message),
+    onError: (e) => notify.error(errorText(e)),
   });
   const ok = pw.length >= 8;
 
@@ -274,12 +275,12 @@ export default function Users() {
 
   const updateUser = trpc.user.update.useMutation({
     onSuccess: () => { utils.user.list.invalidate(); notify.success(t("Пользователь обновлён", "Foydalanuvchi yangilandi")); },
-    onError: (e) => notify.error(e.message),
+    onError: (e) => notify.error(errorText(e)),
   });
 
   const deactivate = trpc.user.deactivate.useMutation({
     onSuccess: () => { utils.user.list.invalidate(); notify.success(t("Пользователь деактивирован", "Foydalanuvchi deaktiv qilindi")); },
-    onError: (e) => notify.error(e.message),
+    onError: (e) => notify.error(errorText(e)),
   });
 
   const handleDeactivate = async (id: number, name: string) => {

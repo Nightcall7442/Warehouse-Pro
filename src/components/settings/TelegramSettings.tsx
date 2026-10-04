@@ -6,6 +6,7 @@ import { Loader2, Send, CheckCircle2, XCircle, CalendarDays, ShoppingCart, Packa
 import { useAuth } from "@/hooks/useAuth";
 import { TelegramRules } from "./TelegramRules";
 import { TelegramTeam } from "./TelegramTeam";
+import { errorText } from "@/lib/error-text";
 
 export function TelegramSettings() {
   const [chatId, setChatId] = useState("");
@@ -55,15 +56,15 @@ export function TelegramSettings() {
         "Yetkazilmadi. Botni ochib «Ishga tushirish»ni bosing",
       ));
     },
-    onError: (e) => notify.error(e.message),
+    onError: (e) => notify.error(errorText(e)),
   });
   const save   = trpc.telegram.saveChatId.useMutation({
     onSuccess: () => { utils.telegram.myStatus.invalidate(); notify.success(t("Telegram подключён!", "Telegram ulandi!")); },
-    onError:   (e) => notify.error(e.message),
+    onError:   (e) => notify.error(errorText(e)),
   });
   const remove = trpc.telegram.removeChatId.useMutation({
     onSuccess: () => { utils.telegram.myStatus.invalidate(); notify.success(t("Telegram отключён", "Telegram uzildi")); },
-    onError:   (e) => notify.error(e.message),
+    onError:   (e) => notify.error(errorText(e)),
   });
 
   return (

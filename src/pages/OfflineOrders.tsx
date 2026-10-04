@@ -14,6 +14,7 @@ import { useOfflineSync } from "@/hooks/useOfflineSync";
 import { useConfirm } from "@/components/ConfirmDialog";
 import { useInvalidateOrderCaches } from "@/hooks/useOrderCacheSync";
 import type { PaymentMethod } from "@/components/orders";
+import { errorText } from "@/lib/error-text";
 
 // Pending orders come back from IndexedDB as untyped records — narrow the
 // stored method back to the union order.create accepts before syncing.
@@ -84,7 +85,7 @@ export default function OfflineOrders() {
       await deletePendingOrder(order.localId as number);
       notify.success(lang === "uz" ? "Buyurtma yuborildi" : "Заказ отправлен");
     } catch (e: unknown) {
-      notify.error(e instanceof Error ? e.message : (lang === "uz" ? "Yuborib bo'lmadi" : "Не удалось отправить"));
+      notify.error(errorText(e, (lang === "uz" ? "Yuborib bo'lmadi" : "Не удалось отправить")));
     } finally {
       setSendingId(null);
       await reload();

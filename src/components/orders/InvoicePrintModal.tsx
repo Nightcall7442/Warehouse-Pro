@@ -8,6 +8,7 @@ import { useSellerCompany } from "@/hooks/useSellerCompany";
 import { useTranslate } from "@/i18n";
 import { StatusBadge } from "./theme";
 import { colorMix } from "@/lib/color-mix";
+import { errorText } from "@/lib/error-text";
 
 interface Props {
   open: boolean;
@@ -57,7 +58,7 @@ export function InvoicePrintModal({ open, onOpenChange, orderIds, onDone }: Prop
       });
       setResult(res as { orders: BatchOrderData[] });
     } catch (e) {
-      notify.error(e instanceof Error ? e.message : "Ошибка генерации");
+      notify.error(errorText(e, t("Не удалось подготовить накладные", "Yuk xatlarini tayyorlab bo'lmadi")));
     }
   };
 

@@ -3,6 +3,7 @@ import { useLang } from "@/i18n";
 import { notify } from "@/lib/toast";
 import { FieldGroup } from "./ui";
 import { ShieldCheck, QrCode, Gauge } from "lucide-react";
+import { errorText } from "@/lib/error-text";
 
 /*
   Контроль — один тумблер.
@@ -16,7 +17,7 @@ export function ControlSettings() {
   const t = (ru: string, uz: string) => (lang === "uz" ? uz : ru);
   const utils = trpc.useUtils();
   const status = trpc.control.status.useQuery();
-  const setEnabled = trpc.control.setEnabled.useMutation({ onSuccess: (_, v) => { utils.control.status.invalidate(); notify.success(v.enabled ? t("Контроль включён", "Nazorat yoqildi") : t("Контроль выключен", "Nazorat o'chirildi")); }, onError: e => notify.error(e.message) });
+  const setEnabled = trpc.control.setEnabled.useMutation({ onSuccess: (_, v) => { utils.control.status.invalidate(); notify.success(v.enabled ? t("Контроль включён", "Nazorat yoqildi") : t("Контроль выключен", "Nazorat o'chirildi")); }, onError: e => notify.error(errorText(e)) });
   const enabled = status.data?.enabled ?? false;
   const planAllows = status.data?.planAllows ?? true;
   const rows = [

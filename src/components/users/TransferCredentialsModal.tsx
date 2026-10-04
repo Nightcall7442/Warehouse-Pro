@@ -5,6 +5,7 @@ import { trpc } from "@/providers/trpc";
 import { notify } from "@/lib/toast";
 import { COLORS, F, type Lang } from "./types";
 import { useOverlay } from "@/lib/overlay";
+import { errorText } from "@/lib/error-text";
 
 interface Props {
   userId: number;
@@ -43,7 +44,7 @@ export function TransferCredentialsModal({
       utils.user.list.invalidate();
       onDone();
     },
-    onError: (e) => notify.error(e.message),
+    onError: (e) => notify.error(errorText(e)),
   });
 
   const handleSubmit = () => {

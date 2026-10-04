@@ -19,6 +19,7 @@ import {
   sortRows, firstGroup, groupOf, moneyOf, reasonOf, showDay, withUnit, excelRows, excelColumns, VERDICT_LABEL,
   type ExpiryGroup, type ExpiryRowView,
 } from "./expiry-view";
+import { errorText } from "@/lib/error-text";
 
 /**
  * Сроки годности — рабочее место, а не список.
@@ -88,7 +89,7 @@ export function ExpiringBatches({ onOpenTransfers }: {
       utils.product.listAll.invalidate();
       notify.success(t("Уценка снята — цена снова обычная", "Arzonlashtirish bekor — narx yana odatiy"));
     },
-    onError: (e) => notify.error(e.message),
+    onError: (e) => notify.error(errorText(e)),
   });
   const adjust = trpc.warehouse.adjustStock.useMutation({
     onSuccess: () => {
@@ -97,7 +98,7 @@ export function ExpiringBatches({ onOpenTransfers }: {
       utils.warehouseReports.expiringSummary.invalidate();
       notify.success(t("Списано", "Hisobdan chiqarildi"));
     },
-    onError: (e) => notify.error(e.message),
+    onError: (e) => notify.error(errorText(e)),
   });
 
   /* Списание: окно движения нужно с настоящим остатком склада — берём его у карточки партий. */

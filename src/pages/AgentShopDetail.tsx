@@ -11,6 +11,7 @@ import { PhotoOrIcon } from "@/components/PhotoOrIcon";
 import { ListCard, ListRow, EmptyState, StatusPill } from "@/components/phone/kit";
 import { CARD } from "@/components/phone/tones";
 import { ShopLightPanel } from "@/components/shops/ShopLight";
+import { errorText } from "@/lib/error-text";
 
 /*
   Карточка магазина для агента — экран мобилки v8 (Warehouse-Pro-Mobile,
@@ -45,7 +46,7 @@ export default function AgentShopDetail() {
       utils.agent.myShops.invalidate();
       notify.success(t("Фото обновлено", "Rasm yangilandi"));
     },
-    onError: e => notify.error(e.message),
+    onError: e => notify.error(errorText(e)),
   });
 
   const pick = async (f: File | undefined) => {
@@ -53,7 +54,7 @@ export default function AgentShopDetail() {
     try {
       photo.mutate({ shopId, dataUrl: await compressImage(f) });
     } catch (e) {
-      notify.error(e instanceof Error ? e.message : t("Ошибка загрузки", "Yuklashda xato"));
+      notify.error(errorText(e, t("Ошибка загрузки", "Yuklashda xato")));
     }
   };
 

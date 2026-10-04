@@ -15,3 +15,15 @@ export function uiText(ru: string, uz: string): string {
     return ru;
   }
 }
+
+/**
+ * Язык интерфейса там, куда не дотягивается контекст: заголовок x-lang в
+ * каждом запросе к серверу и errorText (src/lib/error-text.ts).
+ */
+export function uiLang(): "ru" | "uz" {
+  try {
+    return localStorage.getItem("lang") === "uz" ? "uz" : "ru";
+  } catch {
+    return "ru";
+  }
+}

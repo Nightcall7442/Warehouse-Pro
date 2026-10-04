@@ -3,6 +3,7 @@ import { notify } from "@/lib/toast";
 import { Database, Download, Loader2 } from "lucide-react";
 import { F, COLORS } from "./types";
 import { Section, BtnPrimary } from "./ui";
+import { errorText } from "@/lib/error-text";
 
 /**
  * Резервная копия по требованию.
@@ -48,7 +49,7 @@ export function BackupSection() {
       URL.revokeObjectURL(url);
       notify.success("Резервная копия скачана");
     } catch (e) {
-      notify.error(e instanceof Error ? e.message : "Не удалось скачать копию");
+      notify.error(errorText(e, "Не удалось скачать копию"));
     } finally {
       setBusy(false);
     }

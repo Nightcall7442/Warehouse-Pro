@@ -18,6 +18,7 @@ import { CategoryManager } from "@/components/products/CategoryManager";
 import { QueryErrorFallback } from "@/components/QueryErrorFallback";
 
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
+import { errorText } from "@/lib/error-text";
 export default function Products() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [page, setPage] = useState(() => Math.max(1, parseInt(searchParams.get("page") || "1", 10) || 1));
@@ -75,11 +76,11 @@ export default function Products() {
   const utils = trpc.useUtils();
   const createMutation = trpc.product.create.useMutation({
     onSuccess: () => { utils.product.list.invalidate(); setShowForm(false); notify.success(lang === "uz" ? "Mahsulot qo'shildi" : "Товар добавлен"); },
-    onError: (e) => notify.error(e.message),
+    onError: (e) => notify.error(errorText(e)),
   });
   const deleteMutation = trpc.product.delete.useMutation({
     onSuccess: () => { utils.product.list.invalidate(); notify.success(lang === "uz" ? "Mahsulot o'chirildi" : "Товар удалён"); },
-    onError: (e) => notify.error(e.message),
+    onError: (e) => notify.error(errorText(e)),
   });
   const bulkDeleteMutation = trpc.product.bulkDelete.useMutation({
     onSuccess: (res) => {
@@ -90,7 +91,7 @@ export default function Products() {
         : t(`Удалено: ${res.deleted}`, `${res.deleted} o'chirildi`);
       notify.success(msg);
     },
-    onError: (e) => notify.error(e.message),
+    onError: (e) => notify.error(errorText(e)),
   });
   const { confirm, dialog } = useConfirm();
   const t = useCallback((ru: string, uz: string) => lang === "uz" ? uz : ru, [lang]);

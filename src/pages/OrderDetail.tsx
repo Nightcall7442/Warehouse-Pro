@@ -48,6 +48,7 @@ import { OrderPipeline } from "@/components/phone/OrderPipeline";
 import { RepeatOrderButton } from "@/components/orders/RepeatOrderButtons";
 import { usesQuickOrder } from "@/lib/quick-order";
 import { OrderReturnButton, OrderReturnMarks } from "@/components/returns/WebReturn";
+import { errorText } from "@/lib/error-text";
 
 /** Statuses where the goods have not been handed over yet — these can still be completed. */
 const OPEN_STATUSES = ["new", "processing", "shipped", "pending"];
@@ -168,7 +169,7 @@ export default function OrderDetail() {
       invalidateOrderCaches();
       notify.success(lang === "uz" ? "Holat yangilandi" : "Статус обновлён");
     },
-    onError: (e) => notify.error(e.message),
+    onError: (e) => notify.error(errorText(e)),
   });
 
   const updateOrder = trpc.order.update.useMutation({
@@ -177,7 +178,7 @@ export default function OrderDetail() {
       setEditing(false);
       notify.success(lang === "uz" ? "Buyurtma yangilandi" : "Заказ обновлён");
     },
-    onError: (e) => notify.error(e.message),
+    onError: (e) => notify.error(errorText(e)),
   });
 
   const assignCourier = trpc.courier.assignCourier.useMutation({
@@ -185,7 +186,7 @@ export default function OrderDetail() {
       invalidateOrderCaches();
       notify.success(lang === "uz" ? "Kuryer tayinlandi" : "Курьер назначен");
     },
-    onError: (e) => notify.error(e.message),
+    onError: (e) => notify.error(errorText(e)),
   });
 
   const deleteOrder = trpc.order.delete.useMutation({
@@ -194,7 +195,7 @@ export default function OrderDetail() {
       notify.success(lang === "uz" ? "Buyurtma o'chirildi" : "Заказ удалён");
       navigate("/orders");
     },
-    onError: (e) => notify.error(e.message),
+    onError: (e) => notify.error(errorText(e)),
   });
 
   // ── Completion flow (shared hook) ───────────────────────────────────────

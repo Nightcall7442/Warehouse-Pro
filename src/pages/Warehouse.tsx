@@ -30,6 +30,7 @@ import { StockCounts } from "@/components/warehouse/StockCounts";
 import { DemandForecast } from "@/components/warehouse/DemandForecast";
 import { ExpiringBatches } from "@/components/warehouse/ExpiringBatches";
 import WarehouseReports from "@/pages/WarehouseReports";
+import { errorText } from "@/lib/error-text";
 
 // warehouseMulti.getStock is raw SQL behind db.execute, so tRPC infers its rows
 // as `unknown` — these two mirror the SELECT lists in that procedure. Decimal
@@ -180,7 +181,7 @@ export default function Warehouse() {
       utils.warehouseMulti.getStock.invalidate();
       notify.success(t("Товар удалён", "Mahsulot o'chirildi"));
     },
-    onError: (e) => notify.error(e.message),
+    onError: (e) => notify.error(errorText(e)),
   });
 
   /**
@@ -215,7 +216,7 @@ export default function Warehouse() {
       setAdjusting(null);
       notify.success(t("Сток обновлён", "Stok yangilandi"));
     },
-    onError: (e) => notify.error(e.message),
+    onError: (e) => notify.error(errorText(e)),
   });
 
   /*
@@ -232,7 +233,7 @@ export default function Warehouse() {
         notify.success(t("Все товары уже имеют строки стока", "Barcha mahsulotlar allaqachon stokka ega"));
       }
     },
-    onError: (e) => notify.error(e.message),
+    onError: (e) => notify.error(errorText(e)),
   });
 
   const stockAll = data?.data as StockRow[] | undefined;

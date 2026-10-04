@@ -3,6 +3,7 @@ import { Plus, Minus, Loader2, PhoneCall } from "lucide-react";
 import { trpc } from "@/providers/trpc";
 import { notify } from "@/lib/toast";
 import { EXTRA_PRICES_UZS } from "@contracts/constants";
+import { errorText } from "@/lib/error-text";
 
 /**
  * Докупить места или позиции сверх тарифа.
@@ -42,7 +43,7 @@ export function ExtraLimitsCard({ t }: { t: (ru: string, uz: string) => string }
       // подписки обновить стоит: вдруг оператор уже отработал прошлую заявку.
       utils.billing.status.invalidate();
     },
-    onError: (e) => notify.error(e.message),
+    onError: (e) => notify.error(errorText(e)),
   });
 
   const priceMonthly = users * EXTRA_PRICES_UZS.user + products * EXTRA_PRICES_UZS.product;

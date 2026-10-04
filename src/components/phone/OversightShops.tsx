@@ -8,6 +8,7 @@ import { canOperate } from "@/lib/permissions";
 import { ShopForm } from "@/components/shops";
 import { QueryErrorFallback } from "@/components/QueryErrorFallback";
 import { ShopBrowser } from "./ShopBrowser";
+import { errorText } from "@/lib/error-text";
 
 /*
   «Магазины» руководства на телефоне — экран мобилки (app/(tabs)/shops.tsx)
@@ -30,7 +31,7 @@ export function OversightShops() {
   const { data: territories } = trpc.territory.list.useQuery(undefined, { enabled: adding });
   const create = trpc.shop.create.useMutation({
     onSuccess: () => { utils.shop.list.invalidate(); utils.shop.cities.invalidate(); setAdding(false); notify.success(lang === "uz" ? "Do'kon qo'shildi" : "Магазин добавлен"); },
-    onError: e => notify.error(e.message),
+    onError: e => notify.error(errorText(e)),
   });
 
   if (isLoadingError) return <QueryErrorFallback onRetry={refetch} />;

@@ -4,6 +4,7 @@ import { trpc } from "@/providers/trpc";
 import { useLang } from "@/i18n";
 import { notify } from "@/lib/toast";
 import { OPERATOR_CAPABILITIES, type OperatorCapability } from "@contracts/constants";
+import { errorText } from "@/lib/error-text";
 
 /*
   ── Права оператора ─────────────────────────────────────────────────────────
@@ -142,7 +143,7 @@ export function OperatorAccess({ tenantId }: { tenantId?: number }) {
     setDraft({});
     notify.success(label);
   };
-  const failed = (e: { message: string }) => notify.error(e.message);
+  const failed = (e: { message: string }) => notify.error(errorText(e));
 
   const saveOwn = trpc.access.setOperatorAccess.useMutation({
     onSuccess: () => done(t("Права оператора сохранены", "Operator huquqlari saqlandi")),

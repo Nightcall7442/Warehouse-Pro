@@ -10,6 +10,7 @@ import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { exportToExcel } from "@/lib/excel";
 import { SectionNotice } from "@/components/SectionNotice";
 import { PremiumSelect } from "@/components/PremiumSelect";
+import { errorText } from "@/lib/error-text";
 
 /**
  * Полный архив задолженности: кто когда взял в долг и кто когда погасил.
@@ -138,7 +139,7 @@ export function DebtJournalPanel() {
         kind="error"
         message={[
           t("Не удалось собрать архив.", "Arxivni yig'ib bo'lmadi."),
-          error?.message,
+          errorText(error),
         ].filter(Boolean).join(" ")}
         onRetry={refetch}
       />

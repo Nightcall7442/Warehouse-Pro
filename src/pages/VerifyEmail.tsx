@@ -4,6 +4,7 @@ import { trpc } from "@/providers/trpc";
 import { useTranslate } from "@/i18n";
 import { AlertCircle, Loader2 } from "lucide-react";
 import { AuthShell, AuthError, AuthDone } from "@/components/auth/AuthShell";
+import { errorText } from "@/lib/error-text";
 
 /**
  * Ссылка из письма после регистрации: подтверждает адрес и ведёт ко входу.
@@ -34,7 +35,7 @@ export default function VerifyEmail() {
     fired.current = true;
     client.auth.verifyEmail.mutate({ token }).then(
       () => setState({ kind: "done" }),
-      (e: unknown) => setState({ kind: "error", message: e instanceof Error ? e.message : String(e) }),
+      (e: unknown) => setState({ kind: "error", message: errorText(e) }),
     );
   }, [token, client]);
 

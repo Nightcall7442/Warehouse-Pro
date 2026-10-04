@@ -25,6 +25,7 @@ import { useConfirm } from "@/components/ConfirmDialog";
 import { ArrivalSheet } from "@/components/arrivals/ArrivalSheet";
 import { ProductMultiPicker, type PickerProduct } from "@/components/arrivals/ProductMultiPicker";
 import { SupplierDebtSection } from "@/components/arrivals/SupplierDebtSection";
+import { errorText } from "@/lib/error-text";
 
 type Head = ArrivalDraft["form"];
 
@@ -242,7 +243,7 @@ export default function ArrivalEditor() {
         },
       });
     } catch (e) {
-      notify.error(e instanceof Error ? e.message : String(e));
+      notify.error(errorText(e));
       return;
     }
     if (user) clearArrivalDraft(user.id);
@@ -251,7 +252,7 @@ export default function ArrivalEditor() {
       if (complete) await updateStatus.mutateAsync({ id: r.id, status: "completed" });
       notify.success(complete ? t("Приход сохранён и завершён", "Kelish saqlandi va yakunlandi") : t("Приход сохранён", "Kelish saqlandi"));
     } catch (e) {
-      const why = e instanceof Error ? e.message : String(e);
+      const why = errorText(e);
       notify.error(t(`Приход сохранён, но не проведён: ${why}`, `Kelish saqlandi, lekin yakunlanmadi: ${why}`));
     }
     await refresh();
@@ -277,7 +278,7 @@ export default function ArrivalEditor() {
       setEdit(null);
       return true;
     } catch (e) {
-      notify.error(e instanceof Error ? e.message : String(e));
+      notify.error(errorText(e));
       // Документ правили в другом месте: подтянуть свежий — набранное остаётся на экране, «Отменить правки» покажет чужое.
       if ((e as { data?: { code?: string } }).data?.code === "CONFLICT") { setStale(true); void refresh(); }
       return false;
@@ -304,7 +305,7 @@ export default function ArrivalEditor() {
       await refresh();
       notify.success(t("Приход завершён — остаток обновлён", "Kelish yakunlandi — qoldiq yangilandi"));
     } catch (e) {
-      notify.error(e instanceof Error ? e.message : String(e));
+      notify.error(errorText(e));
     }
   };
 
@@ -312,14 +313,14 @@ export default function ArrivalEditor() {
     if (!arrivalId) return;
     // Сначала правки: смена статуса двигает версию документа, и несохранённое потом не сохранилось бы.
     if (dirty && !(await saveDoc())) return;
-    try { await updateStatus.mutateAsync({ id: arrivalId, status: "unloading" }); await refresh(); } catch (e) { notify.error(e instanceof Error ? e.message : String(e)); }
+    try { await updateStatus.mutateAsync({ id: arrivalId, status: "unloading" }); await refresh(); } catch (e) { notify.error(errorText(e)); }
   };
 
   const remove = async () => {
     if (!arrivalId) return;
     const ok = await confirm({ title: t("Удалить приход?", "Kelish o'chirilsinmi?"), message: t("Данные будут удалены безвозвратно.", "Ma'lumotlar qaytarib bo'lmaydigan tarzda o'chiriladi."), confirmText: t("Удалить", "O'chirish"), danger: true });
     if (!ok) return;
-    try { await deleteMutation.mutateAsync({ id: arrivalId }); await utils.arrival.list.invalidate(); askLeave.current = null; navigate("/arrivals"); } catch (e) { notify.error(e instanceof Error ? e.message : String(e)); }
+    try { await deleteMutation.mutateAsync({ id: arrivalId }); await utils.arrival.list.invalidate(); askLeave.current = null; navigate("/arrivals"); } catch (e) { notify.error(errorText(e)); }
   };
 
   const discard = async () => {

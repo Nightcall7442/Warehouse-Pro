@@ -17,6 +17,7 @@ import { ShopBrowser } from "@/components/phone/ShopBrowser";
 import { useRenderWindow } from "@/hooks/useRenderWindow";
 import { ShopLightDot } from "@/components/shops/ShopLight";
 import { useShopLights } from "@/components/shops/shop-light-ui";
+import { errorText } from "@/lib/error-text";
 
 // ── Форма добавления магазина агентом ─────────────────────────────────────────
 function AddShopModal({ onClose }: { onClose: () => void }) {
@@ -36,7 +37,7 @@ function AddShopModal({ onClose }: { onClose: () => void }) {
       notify.success(t("Магазин добавлен!", "Do'kon qo'shildi!"));
       onClose();
     },
-    onError: (e) => notify.error(e.message),
+    onError: (e) => notify.error(errorText(e)),
   });
 
   const captureGps = () => {

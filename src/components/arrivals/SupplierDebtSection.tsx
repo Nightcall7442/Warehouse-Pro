@@ -7,6 +7,7 @@ import { notify } from "@/lib/toast";
 import { DecimalInput } from "@/components/ui/DecimalInput";
 import { PremiumSelect } from "@/components/PremiumSelect";
 import { labelled, PAYMENT_METHOD_LABEL } from "@/lib/entity-labels";
+import { errorText } from "@/lib/error-text";
 
 // ── Supplier Debt Section ────────────────────────────────────────────────────
 //
@@ -40,7 +41,7 @@ export function SupplierDebtSection({ arrivalId }: { arrivalId: number }) {
       setIdempotencyKey(crypto.randomUUID());
       notify.success(t("Платёж записан", "To'lov yozildi"));
     },
-    onError: (e) => notify.error(e.message),
+    onError: (e) => notify.error(errorText(e)),
   });
 
   if (isLoading) return null;

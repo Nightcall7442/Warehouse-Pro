@@ -33,6 +33,7 @@ import { ShopOrderButtons } from "@/components/orders/RepeatOrderButtons";
 import { usesQuickOrder } from "@/lib/quick-order";
 import { ShopReturnButton } from "@/components/returns/WebReturn";
 import { ShopLightPanel } from "@/components/shops/ShopLight";
+import { errorText } from "@/lib/error-text";
 
 
 // ── Форма платежа ─────────────────────────────────────────────────────────────
@@ -59,7 +60,7 @@ export function PaymentModal({ shopId, shopName, onClose }: { shopId: number; sh
       notify.success(t("Платёж записан", "To'lov kiritildi"));
       onClose();
     },
-    onError: (e) => notify.error(e.message),
+    onError: (e) => notify.error(errorText(e)),
   });
 
   const amt = Number(amount);
@@ -189,7 +190,7 @@ export default function ShopDetail() {
 
   const uploadPhoto = trpc.shop.uploadPhoto.useMutation({
     onSuccess: () => { utils.shop.getById.invalidate({ id: Number(id) }); notify.success(t("Фото обновлено", "Rasm yangilandi")); },
-    onError:   (e) => notify.error(e.message),
+    onError:   (e) => notify.error(errorText(e)),
   });
   const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]; if (!file) return;
@@ -203,7 +204,7 @@ export default function ShopDetail() {
 
   const updateShop = trpc.shop.update.useMutation({
     onSuccess: () => { utils.shop.getById.invalidate({ id: Number(id) }); setEditing(false); notify.success(t("Магазин обновлён", "Do'kon yangilandi")); },
-    onError:   (e) => notify.error(e.message),
+    onError:   (e) => notify.error(errorText(e)),
   });
   /*
     Что за точкой числится — спрашиваем до того, как предложить действие.
@@ -223,15 +224,15 @@ export default function ShopDetail() {
 
   const archiveShop = trpc.shop.archive.useMutation({
     onSuccess: () => { goBack(); notify.success(t("Магазин убран в архив", "Do'kon arxivga olindi")); },
-    onError:   (e: { message: string }) => notify.error(e.message),
+    onError:   (e: { message: string }) => notify.error(errorText(e)),
   });
   const restoreShopMutation = trpc.shop.restore.useMutation({
     onSuccess: () => { utils.shop.getById.invalidate({ id: Number(id) }); notify.success(t("Магазин вернулся в работу", "Do'kon ishga qaytdi")); },
-    onError:   (e: { message: string }) => notify.error(e.message),
+    onError:   (e: { message: string }) => notify.error(errorText(e)),
   });
   const deleteForever = trpc.shop.deleteForever.useMutation({
     onSuccess: () => { goBack(); notify.success(t("Магазин удалён", "Do'kon o'chirildi")); },
-    onError:   (e: { message: string }) => notify.error(e.message),
+    onError:   (e: { message: string }) => notify.error(errorText(e)),
   });
 
   const handleArchive = async () => {

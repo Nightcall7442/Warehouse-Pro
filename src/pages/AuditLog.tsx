@@ -16,6 +16,7 @@ import { notify } from "@/lib/toast";
 import { PremiumSelect } from "@/components/PremiumSelect";
 import { type Label, type Lang } from "@/lib/entity-labels";
 import { describeMeta, AUDIT_ACTION_LABEL } from "@/lib/audit-text";
+import { errorText } from "@/lib/error-text";
 
 /*
   Журнал действий директора.
@@ -251,7 +252,7 @@ export default function AuditLog() {
       URL.revokeObjectURL(url);
       notify.success(t(`Выгружено записей: ${res.rows}`, `Yozuvlar yuklandi: ${res.rows}`));
     } catch (e) {
-      notify.error(e instanceof Error ? e.message : String(e));
+      notify.error(errorText(e));
     } finally {
       setExporting(false);
     }

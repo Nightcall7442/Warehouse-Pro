@@ -5,6 +5,7 @@ import { trpc } from "@/providers/trpc";
 import { notify } from "@/lib/toast";
 import { COLORS, SHADOW, F } from "@/components/shops/constants";
 import { useOverlay } from "@/lib/overlay";
+import { errorText } from "@/lib/error-text";
 
 interface WorkZoneSelectorProps {
   agentId: number;
@@ -45,7 +46,7 @@ export function WorkZoneSelector({ agentId, agentName, lang, onClose, onSaved }:
       notify.success(t("Рабочая зона обновлена", "Ish zonasi yangilandi"));
       onSaved();
     },
-    onError: (e) => notify.error(e.message),
+    onError: (e) => notify.error(errorText(e)),
   });
 
   const toggle = (id: number) => {

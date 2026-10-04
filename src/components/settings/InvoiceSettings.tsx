@@ -10,6 +10,7 @@ import {
 } from "@contracts/invoice-template";
 import { invoicePreviewHtml, sampleInvoiceView } from "@/lib/invoice-templates";
 import { useSellerCompany } from "@/hooks/useSellerCompany";
+import { errorText } from "@/lib/error-text";
 
 /*
   Накладные — шаблон и галочки.
@@ -51,7 +52,7 @@ export function InvoiceSettings() {
 
   const save = trpc.branding.update.useMutation({
     onSuccess: () => { utils.branding.get.invalidate(); notify.success(t("Накладные сохранены", "Yuk xatlari saqlandi")); },
-    onError: e => notify.error(e.message),
+    onError: e => notify.error(errorText(e)),
   });
 
   const fallbackName = lang === "uz" ? "Sizning kompaniyangiz" : "Ваша компания";

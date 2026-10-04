@@ -53,6 +53,7 @@ import { F, COLORS, SHADOW, OPEN_STATUSES, PAYMENT, STATUS } from "@/components/
 import { colorMix } from "@/lib/color-mix";
 
 import { SearchInput } from "@/components/SearchInput";
+import { errorText } from "@/lib/error-text";
 /*
   Агенту — свой экран, всем остальным — этот.
 
@@ -301,15 +302,15 @@ function OperatorOrders() {
         ));
       }
     },
-    onError: (e) => notify.error(e.message),
+    onError: (e) => notify.error(errorText(e)),
   });
   const bulkAssignAgent = trpc.order.bulkAssignAgent.useMutation({
     onSuccess: (r) => { invalidateOrderCaches(); clearSelection(); notify.success(t(`Назначено: ${r.updated}`, `Tayinlandi: ${r.updated}`)); },
-    onError: (e) => notify.error(e.message),
+    onError: (e) => notify.error(errorText(e)),
   });
   const bulkAssignCourier = trpc.order.bulkAssignCourier.useMutation({
     onSuccess: (r) => { invalidateOrderCaches(); clearSelection(); notify.success(t(`Курьер назначен: ${r.updated}`, `Kuryer tayinlandi: ${r.updated}`)); },
-    onError: (e) => notify.error(e.message),
+    onError: (e) => notify.error(errorText(e)),
   });
   // Оба списка нужны только панели массовых действий, а user.list открыт
   // руководителю и оператору: у супервайзера эти два запроса уходили в отказ
@@ -397,7 +398,7 @@ function OperatorOrders() {
 
   const updateStatus = trpc.order.updateStatus.useMutation({
     onSuccess: () => { invalidateOrderCaches(); notify.success(t("Заказ обновлён", "Buyurtma yangilandi")); },
-    onError:   (e) => notify.error(e.message),
+    onError:   (e) => notify.error(errorText(e)),
   });
 
   // ── Массовое завершение: своя оплата и свой возврат по каждому заказу ──
@@ -426,7 +427,7 @@ function OperatorOrders() {
         ));
       }
     },
-    onError: (e) => notify.error(e.message),
+    onError: (e) => notify.error(errorText(e)),
   });
 
   // ── Completion flow for status changes ─────────────────────────────────
@@ -446,12 +447,12 @@ function OperatorOrders() {
 
   const recordPartialDelivery = trpc.order.recordPartialDelivery.useMutation({
     onSuccess: () => { invalidateOrderCaches(); },
-    onError: (e) => notify.error(e.message),
+    onError: (e) => notify.error(errorText(e)),
   });
 
   const recordDeliveryAndPayment = trpc.order.recordDeliveryAndPayment.useMutation({
     onSuccess: () => { invalidateOrderCaches(); },
-    onError: (e) => notify.error(e.message),
+    onError: (e) => notify.error(errorText(e)),
   });
 
   const completionSaving = recordPartialDelivery.isPending || recordDeliveryAndPayment.isPending || updateStatus.isPending;
@@ -508,12 +509,12 @@ function OperatorOrders() {
 
   const deleteOrder = trpc.order.delete.useMutation({
     onSuccess: () => { invalidateOrderCaches(); notify.success(t("Заказ удалён", "Buyurtma o'chirildi")); },
-    onError:   (e) => notify.error(e.message),
+    onError:   (e) => notify.error(errorText(e)),
   });
 
   const restoreOrder = trpc.order.restore.useMutation({
     onSuccess: () => { invalidateOrderCaches(); notify.success(t("Заказ восстановлен", "Buyurtma tiklandi")); },
-    onError:   (e) => notify.error(e.message),
+    onError:   (e) => notify.error(errorText(e)),
   });
 
   const handleExport = useCallback(async () => {

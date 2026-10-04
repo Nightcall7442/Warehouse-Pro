@@ -5,6 +5,7 @@ import { notify } from "@/lib/toast";
 import { Users, Copy, Check, Loader2, BellRing, Unlink, Link2, X } from "lucide-react";
 import { labelled, ROLE_LABEL } from "@/lib/entity-labels";
 import { FieldGroup } from "./ui";
+import { errorText } from "@/lib/error-text";
 
 /**
  * Подключение сотрудников к Telegram — то, чего директору не хватало.
@@ -49,7 +50,7 @@ export function TelegramTeam() {
           ? t("Напоминать некому — подключены все", "Eslatadigan odam yo'q — hammasi ulangan")
           : t(`Напоминание отправлено: ${r.sent}`, `Eslatma yuborildi: ${r.sent}`),
       ),
-    onError: (e) => notify.error(e.message),
+    onError: (e) => notify.error(errorText(e)),
   });
 
   /*
@@ -81,7 +82,7 @@ export function TelegramTeam() {
         "Yozildi, lekin xabar yetmadi: xodim botda «Ishga tushirish»ni bosmagan",
       ));
     },
-    onError: (e) => notify.error(e.message),
+    onError: (e) => notify.error(errorText(e)),
   });
 
   const unlink = trpc.telegram.unlinkGroup.useMutation({
@@ -89,7 +90,7 @@ export function TelegramTeam() {
       utils.telegram.groupStatus.invalidate();
       notify.success(t("Группа отключена", "Guruh uzildi"));
     },
-    onError: (e) => notify.error(e.message),
+    onError: (e) => notify.error(errorText(e)),
   });
 
   const rows = team.data ?? [];

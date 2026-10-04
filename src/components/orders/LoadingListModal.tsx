@@ -8,6 +8,7 @@ import { useTranslate, useLang } from "@/i18n";
 import { formatQty } from "@/lib/format";
 import { unitShort } from "@/lib/units";
 import { useSellerCompany } from "@/hooks/useSellerCompany";
+import { errorText } from "@/lib/error-text";
 
 interface Props {
   open: boolean;
@@ -43,7 +44,7 @@ export function LoadingListModal({ open, onOpenChange, orderIds, onDone }: Props
       });
       setResult(res as LoadingListData);
     } catch (e) {
-      notify.error(e instanceof Error ? e.message : t("Ошибка", "Xatolik"));
+      notify.error(errorText(e, t("Ошибка", "Xatolik")));
     } finally {
       setLoading(false);
     }

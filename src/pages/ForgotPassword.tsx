@@ -4,6 +4,7 @@ import { trpc } from "@/providers/trpc";
 import { useLang } from "@/i18n";
 import { Mail, Loader2, ArrowLeft } from "lucide-react";
 import { AuthShell, AuthError, AuthDone } from "@/components/auth/AuthShell";
+import { errorText } from "@/lib/error-text";
 
 /**
  * Забытый пароль.
@@ -71,7 +72,7 @@ export default function ForgotPassword() {
         </div>
 
         {requestReset.isError && (
-          <AuthError><span role="alert">{requestReset.error.message}</span></AuthError>
+          <AuthError><span role="alert">{errorText(requestReset.error)}</span></AuthError>
         )}
 
         <button

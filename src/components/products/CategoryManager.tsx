@@ -6,6 +6,7 @@ import { trpc } from "@/providers/trpc.client";
 import { notify } from "@/lib/toast";
 import { COLORS, SHADOW, F } from "./constants";
 import { useOverlay } from "@/lib/overlay";
+import { errorText } from "@/lib/error-text";
 
 interface CategoryManagerProps {
   lang: string;
@@ -39,7 +40,7 @@ export function CategoryManager({ lang, onClose }: CategoryManagerProps) {
       notify.success(t("Категория переименована", "Kategoriya yangilandi"));
       setEditingId(null);
     },
-    onError: (e) => notify.error(e.message),
+    onError: (e) => notify.error(errorText(e)),
   });
 
   const deleteMutation = trpc.product.deleteCategory.useMutation({
@@ -49,7 +50,7 @@ export function CategoryManager({ lang, onClose }: CategoryManagerProps) {
       notify.success(t("Категория удалена", "Kategoriya o'chirildi"));
       setDeleteConfirm(null);
     },
-    onError: (e) => notify.error(e.message),
+    onError: (e) => notify.error(errorText(e)),
   });
 
   return createPortal(

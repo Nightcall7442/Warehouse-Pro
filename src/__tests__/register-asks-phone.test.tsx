@@ -18,13 +18,15 @@
  *   · «откуда узнали» и utm_source/ref из адреса уходят вместе с формой, а
  *     если ничего нет — не уходят вовсе; длинная и грязная метка уходит
  *     чищенной (до 60 знаков), а не срывает регистрацию на сервере;
- *   · отказ сервера по телефону (по-русски) показывается на языке экрана.
+ *   · отказ сервера по телефону показывается на языке экрана: сервер
+ *     отвечает на языке из x-lang, а русский ответ узбекскому экрану не
+ *     печатается.
  *
  * Нарочная поломка: убрать проверку normalizeUzPhone перед mutate — падает
  * «без телефона»; поставить в onChange голое значение вместо маски — «маска»;
  * не читать адрес страницы — «метки из адреса»; брать ref из адреса без
- * cleanSignupTag — «длинная и грязная метка»; убрать перевод отказа
- * сервера в onError — «отказ сервера».
+ * cleanSignupTag — «длинная и грязная метка»; печатать в onError e.message
+ * вместо errorText — «отказ сервера».
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, cleanup, act } from "@testing-library/react";
@@ -33,7 +35,7 @@ import { PHONE_ERROR } from "@contracts/signup";
 const state = vi.hoisted(() => ({
   lang: "ru" as "ru" | "uz",
   calls: [] as Array<Record<string, unknown>>,
-  opts: null as null | { onError?: (e: { message: string }) => void; onSuccess?: () => void },
+  opts: null as null | { onError?: (e: unknown) => void; onSuccess?: () => void },
 }));
 
 vi.mock("@/providers/trpc", () => ({
@@ -153,15 +155,35 @@ describe("маска и источник", () => {
   });
 });
 
+/** Отказ так, как его отдаёт tRPC: текст и data от форматтера сервера. */
+function serverRefusal(message: string, lang?: "ru" | "uz") {
+  return Object.assign(new Error(message), { name: "TRPCClientError", data: { code: "BAD_REQUEST", httpStatus: 400, ...(lang ? { lang } : {}) } });
+}
+
 describe("отказ сервера", () => {
-  it("сервер отверг телефон по-русски — на экране по-узбекски", () => {
+  afterEach(() => localStorage.clear());
+
+  it("сервер отверг телефон на языке экрана — так и показано", () => {
     state.lang = "uz";
+    localStorage.setItem("lang", "uz");
     render(<Register />);
     fillBasics();
     fireEvent.change(screen.getByTestId("register-phone"), { target: { value: "901234567" } });
     submit();
-    act(() => state.opts?.onError?.({ message: PHONE_ERROR.ru }));
+    act(() => state.opts?.onError?.(serverRefusal(PHONE_ERROR.uz, "uz")));
 
     expect(screen.getByTestId("register-error").textContent).toContain(PHONE_ERROR.uz);
+  });
+
+  it("русский ответ старого сервера узбекскому экрану не печатается", () => {
+    state.lang = "uz";
+    localStorage.setItem("lang", "uz");
+    render(<Register />);
+    fillBasics();
+    fireEvent.change(screen.getByTestId("register-phone"), { target: { value: "901234567" } });
+    submit();
+    act(() => state.opts?.onError?.(serverRefusal(PHONE_ERROR.ru)));
+
+    expect(screen.getByTestId("register-error").textContent).not.toContain(PHONE_ERROR.ru);
   });
 });

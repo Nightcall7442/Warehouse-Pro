@@ -7,6 +7,7 @@ import { SectionNotice } from "@/components/SectionNotice";
 import { notify } from "@/lib/toast";
 import { F, COLORS, thStyle, tdStyle } from "@/components/users/types";
 import { Check, Wallet, Undo2 } from "lucide-react";
+import { errorText } from "@/lib/error-text";
 
 /**
  * Ведомость комиссий: утвердить и выплатить.
@@ -65,7 +66,7 @@ export function CommissionLedger({ t }: { t: (ru: string, uz: string) => string 
       );
       utils.commission.list.invalidate();
     },
-    onError: e => notify.error(e.message),
+    onError: e => notify.error(errorText(e)),
   });
 
   const pay = async (id: number, name: string, amount: string) => {

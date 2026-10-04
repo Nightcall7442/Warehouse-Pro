@@ -10,6 +10,7 @@ import { notify } from "@/lib/toast";
 import { normalizeDecimalInput } from "@/lib/decimal-input";
 import { SectionNotice } from "@/components/SectionNotice";
 import { F, COLORS, PAYMENT } from "@/components/orders/theme-tokens";
+import { errorText } from "@/lib/error-text";
 
 /*
   ДЕНЬГИ ПО ЗАКАЗУ — расчёт вместо кассы (services/order-close.ts).
@@ -70,11 +71,11 @@ export function MoneyBlock({ orderId, status, courierName }: { orderId: number; 
         : r.remainder > 0 ? t(`Расчёт закрыт. Долг магазина ${clean(r.remainder)} ${symbol}`, `Hisob-kitob yopildi. Do'kon qarzi ${clean(r.remainder)} ${symbol}`)
         : t("Расчёт закрыт — оплачено полностью", "Hisob-kitob yopildi — to'liq to'langan"));
     },
-    onError: e => notify.error(e.message),
+    onError: e => notify.error(errorText(e)),
   });
   const confirmBank = trpc.order.confirmBank.useMutation({
     onSuccess: () => { refresh(); notify.success(t("Отмечено: пришло на счёт", "Belgilandi: hisobga keldi")); },
-    onError: e => notify.error(e.message),
+    onError: e => notify.error(errorText(e)),
   });
 
   // Предпросмотр того, что запишет «Закрыть расчёт» — та же арифметика, что на сервере (closeMath).

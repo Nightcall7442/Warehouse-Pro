@@ -5,6 +5,7 @@ import { trpc } from "@/providers/trpc.client";
 import { notify } from "@/lib/toast";
 import { COLORS, F } from "./constants";
 import { useOverlay } from "@/lib/overlay";
+import { errorText } from "@/lib/error-text";
 
 interface TerritoryManagerProps {
   lang: string;
@@ -46,7 +47,7 @@ export function TerritoryManager({ lang, onClose }: TerritoryManagerProps) {
       setNewLng("");
       setNewRadius("10");
     },
-    onError: (e) => notify.error(e.message),
+    onError: (e) => notify.error(errorText(e)),
   });
 
   const updateMutation = trpc.territory.update.useMutation({
@@ -56,7 +57,7 @@ export function TerritoryManager({ lang, onClose }: TerritoryManagerProps) {
       notify.success(t("Территория обновлена", "Territoriya yangilandi"));
       setEditingId(null);
     },
-    onError: (e) => notify.error(e.message),
+    onError: (e) => notify.error(errorText(e)),
   });
 
   const deleteMutation = trpc.territory.delete.useMutation({
@@ -66,7 +67,7 @@ export function TerritoryManager({ lang, onClose }: TerritoryManagerProps) {
       notify.success(t("Территория удалена", "Territoriya o'chirildi"));
       setDeleteConfirm(null);
     },
-    onError: (e) => notify.error(e.message),
+    onError: (e) => notify.error(errorText(e)),
   });
 
   /*
@@ -92,7 +93,7 @@ export function TerritoryManager({ lang, onClose }: TerritoryManagerProps) {
         `Territoriyalar: ${r.created} ta, do'konlar: ${r.assigned} ta`,
       ));
     },
-    onError: (e) => notify.error(e.message),
+    onError: (e) => notify.error(errorText(e)),
   });
 
   const autoAssignMutation = trpc.territory.autoAssign.useMutation({
@@ -101,7 +102,7 @@ export function TerritoryManager({ lang, onClose }: TerritoryManagerProps) {
       utils.shop.list.invalidate();
       notify.success(t(`Назначено ${data.assigned} из ${data.total} магазинов`, `${data.assigned} / ${data.total} do'kon tayinlandi`));
     },
-    onError: (e) => notify.error(e.message),
+    onError: (e) => notify.error(errorText(e)),
   });
 
   /*

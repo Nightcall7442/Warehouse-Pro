@@ -4,6 +4,7 @@ import { trpc } from "@/providers/trpc";
 import { copyText } from "@/lib/copy-text";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Block, Note, ActionButton, type Msg, type T } from "./profile-ui";
+import { errorText } from "@/lib/error-text";
 
 /*
   Вход с кодом из приложения — мастер по шагам.
@@ -79,7 +80,7 @@ export function TotpBlock({ t, role, userId, totpOn }: { t: T; role: string; use
 
   const start = trpc.user.totpSetup.useMutation({
     onSuccess: (r) => { setSetup(r); setCode(""); setMsg(null); },
-    onError: (e) => { setMsg({ kind: "error", text: e.message }); if (e.data?.code === "PRECONDITION_FAILED") utils.auth.me.invalidate(); },
+    onError: (e) => { setMsg({ kind: "error", text: errorText(e) }); if (e.data?.code === "PRECONDITION_FAILED") utils.auth.me.invalidate(); },
   });
   const enable = trpc.user.totpEnable.useMutation({
     onSuccess: () => {
@@ -93,7 +94,7 @@ export function TotpBlock({ t, role, userId, totpOn }: { t: T; role: string; use
         setSetup(null);
         setMsg({ kind: "error", text: t("Ключ больше не действует. Нажмите «Включить» и начните заново.", "Kalit endi amal qilmaydi. «Yoqish»ni bosing va qaytadan boshlang.") });
       } else {
-        setMsg({ kind: "error", text: e.data?.code === "BAD_REQUEST" ? badCode : e.message });
+        setMsg({ kind: "error", text: e.data?.code === "BAD_REQUEST" ? badCode : errorText(e) });
       }
     },
   });
@@ -103,7 +104,7 @@ export function TotpBlock({ t, role, userId, totpOn }: { t: T; role: string; use
       utils.auth.me.invalidate();
       setMsg({ kind: "ok", text: t("Вход с кодом из приложения выключен.", "Ilova kodi bilan kirish o'chirildi.") });
     },
-    onError: (e) => setMsg({ kind: "error", text: e.data?.code === "BAD_REQUEST" ? badCode : e.message }),
+    onError: (e) => setMsg({ kind: "error", text: e.data?.code === "BAD_REQUEST" ? badCode : errorText(e) }),
   });
 
   const mustHave = role === "ceo" || role === "superadmin";

@@ -24,6 +24,7 @@ import { VAT_RATE_LABEL, isBadIkpu } from "@contracts/tax-requisites";
 import { QueryErrorFallback } from "@/components/QueryErrorFallback";
 import { formatQty } from "@/lib/format";
 import { UNITS, unitShort } from "@/lib/units";
+import { errorText } from "@/lib/error-text";
 
 
 const TYPE_ICONS: Record<string, React.ReactNode> = {
@@ -85,17 +86,17 @@ export default function ProductDetail() {
 
   const updateProduct = trpc.product.update.useMutation({
     onSuccess: () => { utils.product.getById.invalidate({id:Number(id)}); stopEditing(); notify.success(tr("Товар обновлён", "Mahsulot yangilandi")); },
-    onError:   (e) => notify.error(e.message),
+    onError:   (e) => notify.error(errorText(e)),
   });
 
   const deleteProduct = trpc.product.delete.useMutation({
     onSuccess: () => { navigate(`/products?page=${fromPage}${fromSearch ? `&search=${encodeURIComponent(fromSearch)}` : ""}${fromCategory ? `&category=${encodeURIComponent(fromCategory)}` : ""}`); notify.success(tr("Товар удалён", "Mahsulot o'chirildi")); },
-    onError:   (e) => notify.error(e.message),
+    onError:   (e) => notify.error(errorText(e)),
   });
 
   const uploadPhoto = trpc.product.uploadPhoto.useMutation({
     onSuccess: () => { utils.product.getById.invalidate({id:Number(id)}); notify.success(tr("Фото обновлено", "Rasm yangilandi")); },
-    onError:   (e) => notify.error(e.message),
+    onError:   (e) => notify.error(errorText(e)),
   });
 
   const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {

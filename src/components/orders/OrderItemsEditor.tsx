@@ -15,6 +15,7 @@ import {
 import { useInvalidateOrderCaches } from "@/hooks/useOrderCacheSync";
 import { priceAt } from "@contracts/price-tiers";
 import { Loader2, Plus, Trash2 } from "lucide-react";
+import { errorText } from "@/lib/error-text";
 
 /**
  * Состав заказа: добавить товар, убрать, изменить количество.
@@ -75,7 +76,7 @@ export function OrderItemsEditor({ orderId, shopId, priceListId, items, onSaved 
       setOpen(false);
       onSaved();
     },
-    onError: (e) => notify.error(e.message),
+    onError: (e) => notify.error(errorText(e)),
   });
 
   // Каталог тянется только когда его открыли: у организации это пятьсот строк,

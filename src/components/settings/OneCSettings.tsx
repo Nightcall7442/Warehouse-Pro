@@ -7,6 +7,7 @@ import { notify } from "@/lib/toast";
 import { colorMix } from "@/lib/color-mix";
 import { FieldGroup, Field, FieldRow, SaveBar } from "./ui";
 import { Loader2, CheckCircle2, XCircle, RefreshCw, Search, Plus, RotateCcw } from "lucide-react";
+import { errorText } from "@/lib/error-text";
 
 /**
  * 1С — рабочее место директора, а не список ручек.
@@ -69,7 +70,7 @@ export function OneCSettings() {
   };
 
   const test = trpc.onec.wizard.testConnection.useMutation({
-    onError: (e) => notify.error(e.message),
+    onError: (e) => notify.error(errorText(e)),
   });
   const runTest = () => {
     const overrides = parseOverrides();
@@ -83,7 +84,7 @@ export function OneCSettings() {
       setForm(f => ({ ...f, password: "" }));
       utils.onec.wizard.getConfig.invalidate(); utils.onec.status.invalidate(); utils.onec.wizard.lists.invalidate();
     },
-    onError: (e) => notify.error(e.message),
+    onError: (e) => notify.error(errorText(e)),
   });
   const runSave = () => {
     const overrides = parseOverrides();
@@ -98,7 +99,7 @@ export function OneCSettings() {
 
   // ── 2. Списки из 1С ───────────────────────────────────────────────────────
   const listsQ = trpc.onec.wizard.lists.useQuery(undefined, { enabled: Boolean(saved), retry: false });
-  const structure = trpc.onec.wizard.checkStructure.useMutation({ onError: (e) => notify.error(e.message) });
+  const structure = trpc.onec.wizard.checkStructure.useMutation({ onError: (e) => notify.error(errorText(e)) });
 
   // ── 3. Магазины ↔ контрагенты ─────────────────────────────────────────────
   const unmappedQ = trpc.onec.counterparties.unmapped.useQuery(undefined, { enabled: Boolean(saved), retry: false });
@@ -107,18 +108,18 @@ export function OneCSettings() {
       notify.success(t(`Контрагентов в 1С: ${r.total}. Сопоставлено: ${r.matched}, осталось: ${r.unmatched}`, `1C da kontragentlar: ${r.total}. Moslandi: ${r.matched}, qoldi: ${r.unmatched}`));
       utils.onec.counterparties.unmapped.invalidate();
     },
-    onError: (e) => notify.error(e.message),
+    onError: (e) => notify.error(errorText(e)),
   });
   const [pickFor, setPickFor] = useState<number | null>(null);
   const [q, setQ] = useState("");
   const searchQ = trpc.onec.counterparties.search.useQuery({ q }, { enabled: pickFor !== null && q.trim().length > 0, retry: false });
   const mapShop = trpc.onec.counterparties.map.useMutation({
     onSuccess: () => { setPickFor(null); setQ(""); utils.onec.counterparties.unmapped.invalidate(); },
-    onError: (e) => notify.error(e.message),
+    onError: (e) => notify.error(errorText(e)),
   });
   const createCp = trpc.onec.counterparties.create.useMutation({
     onSuccess: () => { notify.success(t("Контрагент создан в 1С", "Kontragent 1C da yaratildi")); utils.onec.counterparties.unmapped.invalidate(); },
-    onError: (e) => notify.error(e.message),
+    onError: (e) => notify.error(errorText(e)),
   });
 
   // ── 4. Обмен и журнал ─────────────────────────────────────────────────────
@@ -127,7 +128,7 @@ export function OneCSettings() {
   const refreshExchange = () => { utils.onec.journal.list.invalidate(); utils.onec.status.invalidate(); };
   const syncProducts = trpc.onec.syncProducts.useMutation({
     onSuccess: (r) => { notify.success(t(`Номенклатура: ${r.synced} позиций, ошибок ${r.errors}${r.blockedByPlan ? `, не поместилось в тариф ${r.blockedByPlan}` : ""}`, `Nomenklatura: ${r.synced} ta, xato ${r.errors}`)); refreshExchange(); },
-    onError: (e) => notify.error(e.message),
+    onError: (e) => notify.error(errorText(e)),
   });
   const runQueue = trpc.onec.runQueue.useMutation({
     onSuccess: (r) => {
@@ -136,15 +137,15 @@ export function OneCSettings() {
       else if (r.bank.matched > 0 || r.bank.pending > 0) notify.success(t(`Безнал: по выписке 1С подтверждено ${r.bank.matched}, ждут ${r.bank.pending}`, `Naqdsiz: 1C ko'chirmasi bo'yicha tasdiqlandi ${r.bank.matched}, kutmoqda ${r.bank.pending}`));
       refreshExchange();
     },
-    onError: (e) => notify.error(e.message),
+    onError: (e) => notify.error(errorText(e)),
   });
-  const retry = trpc.onec.journal.retry.useMutation({ onSuccess: refreshExchange, onError: (e) => notify.error(e.message) });
+  const retry = trpc.onec.journal.retry.useMutation({ onSuccess: refreshExchange, onError: (e) => notify.error(errorText(e)) });
   const metricsQ = trpc.onec.metrics.useQuery(undefined, { enabled: Boolean(saved) });
 
   const [issued, setIssued] = useState<{ secret: string; header: string } | null>(null);
   const issueSecret = trpc.onec.wizard.issueWebhookSecret.useMutation({
     onSuccess: (r) => setIssued({ secret: r.secret, header: r.header }),
-    onError: (e) => notify.error(e.message),
+    onError: (e) => notify.error(errorText(e)),
   });
 
   const status = statusQ.data;
@@ -260,7 +261,7 @@ export function OneCSettings() {
         {!saved ? (
           <p className="text-sm text-tertiary">{t("Сначала сохраните подключение — списки читаются из самой 1С.", "Avval ulanishni saqlang — ro'yxatlar 1C ning o'zidan o'qiladi.")}</p>
         ) : listsQ.isError ? (
-          <p className="text-sm text-danger" role="alert">{listsQ.error.message}</p>
+          <p className="text-sm text-danger" role="alert">{errorText(listsQ.error)}</p>
         ) : (
           <FieldRow>
             <Field label={t("Организация", "Tashkilot")} hint={t("От чьего имени проводится реализация", "Sotuv kimning nomidan o'tkaziladi")}>
@@ -296,7 +297,7 @@ export function OneCSettings() {
             <p className="text-sm text-secondary">
               {unmappedQ.data
                 ? t(`Связано ${unmappedQ.data.mappedCount} из ${unmappedQ.data.total}; без контрагента — ${unmappedQ.data.unmapped.length}`, `Bog'langan ${unmappedQ.data.mappedCount} / ${unmappedQ.data.total}; kontragentsiz — ${unmappedQ.data.unmapped.length}`)
-                : unmappedQ.isError ? unmappedQ.error.message : "…"}
+                : unmappedQ.isError ? errorText(unmappedQ.error) : "…"}
             </p>
             <button className="neo-btn flex items-center gap-2" onClick={() => syncCp.mutate()} disabled={syncCp.isPending}>
               {syncCp.isPending ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}

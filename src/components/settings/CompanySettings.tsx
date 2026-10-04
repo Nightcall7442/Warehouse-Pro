@@ -7,6 +7,7 @@ import { Upload } from "lucide-react";
 import { PremiumSelect } from "@/components/PremiumSelect";
 import { QueryErrorFallback } from "@/components/QueryErrorFallback";
 import { FieldGroup, Field, FieldRow, SaveBar } from "./ui";
+import { errorText } from "@/lib/error-text";
 
 /**
  * Реквизиты организации.
@@ -85,7 +86,7 @@ export function CompanySettings() {
 
   const saveMutation = trpc.settings.update.useMutation({
     onSuccess: () => { utils.settings.get.invalidate(); notify.success(t("Настройки сохранены", "Sozlamalar saqlandi")); },
-    onError:   (e) => notify.error(e.message),
+    onError:   (e) => notify.error(errorText(e)),
   });
 
   const handleLogo = async (e: React.ChangeEvent<HTMLInputElement>) => {

@@ -10,6 +10,7 @@ import { format } from "date-fns";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from "recharts";
+import { errorText } from "@/lib/error-text";
 
 /**
  * Деньги магазина: откуда долг и как идут продажи.
@@ -54,7 +55,7 @@ export function ShopMoney({ shopId }: { shopId: number }) {
       utils.shop.getDebtDetails.invalidate({ shopId });
       utils.shop.getById.invalidate({ id: shopId });
     },
-    onError: e => notify.error(e.message),
+    onError: e => notify.error(errorText(e)),
   });
   const trend = (trendQ.data ?? []).map(r => ({
     date: String(r.date).slice(5),

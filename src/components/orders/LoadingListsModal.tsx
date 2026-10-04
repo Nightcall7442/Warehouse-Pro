@@ -11,6 +11,7 @@ import { AppModal } from "@/components/ui/AppModal";
 import { labelled, LOADING_LIST_STATUS_LABEL } from "@/lib/entity-labels";
 import { printLoadingList, type LoadingListData } from "@/lib/documents";
 import { useSellerCompany } from "@/hooks/useSellerCompany";
+import { errorText } from "@/lib/error-text";
 
 /** «12.00» → «12», «1.50» → «1.5»: кладовщику незачем видеть хвост decimal. */
 const qty = (v: string | number | null | undefined) => String(Number(v ?? 0));
@@ -38,7 +39,7 @@ function PickingPanel({ listId, onClose }: { listId: number; onClose: () => void
       else notify.info(t(`${r.listNumber}: недостача по ${r.shortages.length} поз. — офис уведомлён`, `${r.listNumber}: ${r.shortages.length} ta qatorda kamomad — ofis xabardor`));
       onClose();
     },
-    onError: (e) => notify.error(e.message),
+    onError: (e) => notify.error(errorText(e)),
   });
 
   const lines = data?.lines ?? [];
@@ -166,7 +167,7 @@ export function LoadingListsModal({ open, onOpenChange }: { open: boolean; onOpe
       const d = await utils.order.loadingListPrintData.fetch({ listId });
       printLoadingList({ ...(d as LoadingListData), companyName: seller.name || undefined }, "aggregated", currency);
     } catch (e) {
-      notify.error(e instanceof Error ? e.message : t("Не удалось подготовить лист", "Varaqani tayyorlab bo'lmadi"));
+      notify.error(errorText(e, t("Не удалось подготовить лист", "Varaqani tayyorlab bo'lmadi")));
     } finally {
       setPrinting(null);
     }
@@ -179,7 +180,7 @@ export function LoadingListsModal({ open, onOpenChange }: { open: boolean; onOpe
 
   const advance = trpc.order.updateLoadingListStatus.useMutation({
     onSuccess: () => { refresh(); notify.success(t("Статус изменён", "Holat o'zgartirildi")); },
-    onError: (e) => notify.error(e.message),
+    onError: (e) => notify.error(errorText(e)),
     onSettled: () => setBusy(null),
   });
 
@@ -201,13 +202,13 @@ export function LoadingListsModal({ open, onOpenChange }: { open: boolean; onOpe
         `${r.listNumber} → ${r.courierName}: ${r.total} dan ${r.assigned} ta`,
       ));
     },
-    onError: (e) => notify.error(e.message),
+    onError: (e) => notify.error(errorText(e)),
     onSettled: () => setBusy(null),
   });
 
   const remove = trpc.order.deleteLoadingList.useMutation({
     onSuccess: (r) => { refresh(); notify.success(t(`Лист ${r.listNumber} удалён — заказы освобождены`, `${r.listNumber} o'chirildi — buyurtmalar bo'shatildi`)); },
-    onError: (e) => notify.error(e.message),
+    onError: (e) => notify.error(errorText(e)),
     onSettled: () => setBusy(null),
   });
 

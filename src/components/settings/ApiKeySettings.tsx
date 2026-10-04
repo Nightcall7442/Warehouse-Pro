@@ -8,6 +8,7 @@ import { notify } from "@/lib/toast";
 import { FieldGroup, Field, FieldRow } from "./ui";
 import { format } from "date-fns";
 import { Trash2 } from "lucide-react";
+import { errorText } from "@/lib/error-text";
 
 /**
  * Ключи API: доступ к данным организации для чужой программы.
@@ -62,17 +63,17 @@ export function ApiKeySettings() {
       utils.apiKey.list.invalidate();
       setName(""); setScopes(["read"]); setExpiresInDays("");
     },
-    onError: (e) => notify.error(e.message),
+    onError: (e) => notify.error(errorText(e)),
   });
 
   const revoke = trpc.apiKey.revoke.useMutation({
     onSuccess: () => { notify.success(t("Ключ отозван", "Kalit bekor qilindi")); utils.apiKey.list.invalidate(); },
-    onError: (e) => notify.error(e.message),
+    onError: (e) => notify.error(errorText(e)),
   });
 
   const setStatus = trpc.apiKey.setStatus.useMutation({
     onSuccess: () => { utils.apiKey.list.invalidate(); },
-    onError: (e) => notify.error(e.message),
+    onError: (e) => notify.error(errorText(e)),
   });
 
   const onRevoke = async (id: number, keyName: string) => {

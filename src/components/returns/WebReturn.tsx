@@ -36,6 +36,7 @@ import { canFileReturn, canOperate } from "@/lib/permissions";
 import { unitShort } from "@/lib/units";
 import { AppModal, modalFieldLabel } from "@/components/ui/AppModal";
 import type { Return } from "@contracts/types";
+import { errorText } from "@/lib/error-text";
 
 type Reason = Return["reason"];
 type ReturnStatus = Return["status"];
@@ -67,7 +68,7 @@ export function ReturnDialog({ orderId, onClose }: { orderId: number; onClose: (
       utils.returns.list.invalidate();
       utils.returns.returnable.invalidate();
     },
-    onError: (e) => notify.error(e.message),
+    onError: (e) => notify.error(errorText(e)),
   });
 
   const order = orderQ.data;
@@ -124,7 +125,7 @@ export function ReturnDialog({ orderId, onClose }: { orderId: number; onClose: (
       </>}
     >
       {(orderQ.isLoading || leftQ.isLoading) && <p className="text-sm text-secondary">{t("Загрузка…", "Yuklanmoqda…")}</p>}
-      {leftQ.isError && <p className="text-sm text-danger">{leftQ.error?.message}</p>}
+      {leftQ.isError && <p className="text-sm text-danger">{errorText(leftQ.error)}</p>}
 
       {lines.length > 0 && (
         <div>

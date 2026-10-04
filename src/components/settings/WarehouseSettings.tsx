@@ -3,6 +3,7 @@ import { trpc } from "@/providers/trpc";
 import { useLang } from "@/i18n";
 import { notify } from "@/lib/toast";
 import { Loader2, Warehouse, Plus, Star, Pencil, MapPin } from "lucide-react";
+import { errorText } from "@/lib/error-text";
 
 export function WarehouseSettings() {
   const { lang } = useLang();
@@ -14,7 +15,7 @@ export function WarehouseSettings() {
   const cfg = trpc.settings.get.useQuery();
   const saveCost = trpc.settings.update.useMutation({
     onSuccess: () => { utils.settings.get.invalidate(); notify.success(t("Правило себестоимости сохранено", "Tannarx qoidasi saqlandi")); },
-    onError: (e) => notify.error(e.message),
+    onError: (e) => notify.error(errorText(e)),
   });
   const costMethod = cfg.data?.costMethod ?? "last";
   const [showForm, setShowForm] = useState(false);
@@ -28,7 +29,7 @@ export function WarehouseSettings() {
       setForm({ name: "", address: "", city: "" });
       notify.success(t("Склад добавлен", "Omborxona qo'shildi"));
     },
-    onError: (e) => notify.error(e.message),
+    onError: (e) => notify.error(errorText(e)),
   });
 
   const updateWarehouse = trpc.warehouseMulti.update.useMutation({
@@ -38,7 +39,7 @@ export function WarehouseSettings() {
       setForm({ name: "", address: "", city: "" });
       notify.success(t("Склад обновлён", "Omborxona yangilandi"));
     },
-    onError: (e) => notify.error(e.message),
+    onError: (e) => notify.error(errorText(e)),
   });
 
   const setDefault = trpc.warehouseMulti.setDefault.useMutation({
@@ -46,7 +47,7 @@ export function WarehouseSettings() {
       utils.warehouseMulti.list.invalidate();
       notify.success(t("Склад по умолчанию установлен", "Standart omborxona o'rnatildi"));
     },
-    onError: (e) => notify.error(e.message),
+    onError: (e) => notify.error(errorText(e)),
   });
 
   const handleSubmit = () => {

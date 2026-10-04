@@ -4,6 +4,7 @@ import { notify } from "@/lib/toast";
 import { F, COLORS } from "@/components/users/types";
 import { format } from "date-fns";
 import { BadgeCheck, HandCoins, Loader2 } from "lucide-react";
+import { errorText } from "@/lib/error-text";
 
 /**
  * Мои выплаты — и подтверждение получения.
@@ -42,7 +43,7 @@ export function MyPayouts({ t }: { t: (ru: string, uz: string) => string }) {
       utils.kpi.myPayouts.invalidate();
       notify.success(t("Получение подтверждено", "Olinganligi tasdiqlandi"));
     },
-    onError: (e) => notify.error(e.message),
+    onError: (e) => notify.error(errorText(e)),
   });
 
   const rows = q.data ?? [];

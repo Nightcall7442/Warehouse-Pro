@@ -6,6 +6,7 @@ import { notify } from "@/lib/toast";
 import { F, COLORS, SHADOW } from "./report-constants";
 import { reportColumns, type ReportDef, type ReportParams } from "./report-registry";
 import { ReportFilter } from "./ReportFilters";
+import { errorText } from "@/lib/error-text";
 
 const today = () => format(new Date(), "yyyy-MM-dd");
 const monthAgo = () => format(subDays(new Date(), 30), "yyyy-MM-dd");
@@ -54,7 +55,7 @@ export function ReportCard({ def, t, lang }: {
         lang === "uz" ? def.title.uz : def.title.ru,
       );
     } catch (e) {
-      notify.error(e instanceof Error ? e.message : t("Не удалось сформировать отчёт", "Hisobotni tuzib bo'lmadi"));
+      notify.error(errorText(e, t("Не удалось сформировать отчёт", "Hisobotni tuzib bo'lmadi")));
     } finally {
       setBusy(false);
     }
