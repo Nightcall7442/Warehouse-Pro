@@ -449,7 +449,9 @@ async function seed() {
   const orderDays: number[] = [];
   for (let d = 0; d < 30; d++) {
     const dow = new Date(Date.now() - d * 86_400_000).getDay();
-    if (dow === 0) continue;
+    // Сегодня — всегда рабочий: съёмка справки в воскресенье давала «0 заказов»
+    // и пустой «Мой день» (04.10.2026). Прошлые воскресенья — выходные.
+    if (dow === 0 && d > 0) continue;
     const n = d === 0 ? 5 : 2 + Math.floor(rnd() * 3);
     for (let k = 0; k < n && orderDays.length < 90; k++) orderDays.push(d);
   }
@@ -891,7 +893,7 @@ async function seed() {
     if (own.length === 0) continue;
     for (let d = 0; d < 30; d++) {
       const dow = new Date(Date.now() - d * 86_400_000).getDay();
-      if (dow === 0) continue;
+      if (dow === 0 && d > 0) continue; // сегодня — рабочий, как у заказов выше
       const take = Math.min(own.length, 3 + Math.floor(rnd() * 3));
       const offset = Math.floor(rnd() * own.length);
       for (let k = 0; k < take; k++) {
