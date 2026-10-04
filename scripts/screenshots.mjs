@@ -415,9 +415,10 @@ async function runScenarios(page, base, scenarios, dir, entry, kind, role) {
       // Телефонный кадр — один экран, а страница длиннее: метка ниже края
       // легла бы цифрой на нижнюю кромку снимка. Такой выноски просто нет.
       if (kind === "pwa") marks = marks.filter(m => m.y >= 0 && m.y + m.h <= PWA_VIEW.viewport.height);
-      // Остальным — хотя бы верх элемента в окне: метка ниже края рисовалась
-      // цифрой на нижней кромке снимка, у пустого места.
-      else { const vh = page.viewportSize()?.height ?? 0; if (vh) marks = marks.filter(m => m.y + Math.min(m.h, 40) > 0 && m.y < vh - 8); }
+      // Вебу — хотя бы верх элемента в окне: метка ниже края рисовалась
+      // цифрой на нижней кромке снимка, у пустого места. Мобилку не трогаем:
+      // подписи нижних вкладок стоят у самого края и нужны.
+      else if (kind === "web") { const vh = page.viewportSize()?.height ?? 0; if (vh) marks = marks.filter(m => m.y + Math.min(m.h, 40) > 0 && m.y < vh - 8); }
       await page.screenshot({ path: join(dir, `${sc.name}.png`) });
       entry.push({ screen: sc.name, path: sc.path, marks });
       console.log(`  ${dir}/${sc.name} (${marks.length} меток)`);
