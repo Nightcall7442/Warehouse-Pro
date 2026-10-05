@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  Карта сайта: три публичных адреса.
+  Карта сайта: публичные адреса. /pitch и /demo — страницы конкурса
+  Pitch Day 3.0 (по-узбекски, без входа).
 
   Приложение — одностраничное, и внутренние разделы живут за входом, поэтому
   перечислять там нечего. Файл нужен не ради объёма, а чтобы у Google был
@@ -12,6 +13,18 @@
     <lastmod>2026-08-28</lastmod>
     <changefreq>weekly</changefreq>
     <priority>1.0</priority>
+  </url>
+  <url>
+    <loc>https://www.warehouse-pro.uz/pitch</loc>
+    <lastmod>2026-10-05</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://www.warehouse-pro.uz/demo</loc>
+    <lastmod>2026-10-05</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.9</priority>
   </url>
   <url>
     <loc>https://www.warehouse-pro.uz/register</loc>

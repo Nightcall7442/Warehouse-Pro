@@ -27,13 +27,15 @@ export function SandboxSection() {
   const [partner, setPartner] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [issued, setIssued] = useState<{ key: string; name: string; orders: number } | null>(null);
+  /* Для показа жюри (/demo, Pitch Day): остатки, себестоимость, супервайзер. */
+  const [forPitch, setForPitch] = useState(false);
+  const [issued, setIssued] = useState<{ key: string; name: string; orders: number; tenantId: number; forPitch: boolean } | null>(null);
   const [copied, setCopied] = useState(false);
 
   const create = trpc.tenant.createSandbox.useMutation({
     onSuccess: (r) => {
-      setIssued({ key: r.key, name: r.name, orders: r.contents.orders });
-      setPartner(""); setEmail(""); setPassword("");
+      setIssued({ key: r.key, name: r.name, orders: r.contents.orders, tenantId: r.tenantId, forPitch: r.pitch !== null });
+      setPartner(""); setEmail(""); setPassword(""); setForPitch(false);
       utils.tenant.list.invalidate();
       notify.success("Песочница готова");
     },
@@ -44,7 +46,7 @@ export function SandboxSection() {
     if (partner.trim().length < 2) { notify.error("Назовите интегратора"); return; }
     if (!email.includes("@")) { notify.error("Нужен адрес почты"); return; }
     if (password.length < 8) { notify.error("Пароль минимум 8 символов"); return; }
-    create.mutate({ partnerName: partner.trim(), ownerEmail: email.trim(), ownerPassword: password });
+    create.mutate({ partnerName: partner.trim(), ownerEmail: email.trim(), ownerPassword: password, forPitch });
   };
 
   return (
@@ -62,6 +64,14 @@ export function SandboxSection() {
         <Input label="Пароль" type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="минимум 8 символов" />
       </div>
 
+      <label style={{ display: "flex", alignItems: "flex-start", gap: "10px", marginTop: "14px", fontFamily: F.body, fontSize: "13px", color: COLORS.textSecondary, maxWidth: "62ch", cursor: "pointer" }}>
+        <input type="checkbox" checked={forPitch} onChange={e => setForPitch(e.target.checked)} data-testid="sandbox-for-pitch" style={{ marginTop: "3px" }} />
+        <span>
+          <strong style={{ color: COLORS.textPrimary }}>Для показа жюри (/demo)</strong> — положить остатки на склад,
+          проставить себестоимость и добавить супервайзера, чтобы заказ можно было оформить руками.
+        </span>
+      </label>
+
       <BtnPrimary onClick={submit} disabled={create.isPending} style={{ marginTop: "16px" }}>
         {create.isPending
           ? <><Loader2 size={14} style={{ animation: "spin 1s linear infinite" }} /> Заполняем данными…</>
@@ -71,7 +81,7 @@ export function SandboxSection() {
       {issued && (
         <div className="neo-card-sm" style={{ marginTop: "20px", padding: "16px" }}>
           <p style={{ fontFamily: F.body, fontSize: "10px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", color: COLORS.textTertiary, marginBottom: "8px" }}>
-            {issued.name} · {issued.orders} заказов
+            {issued.name} · №{issued.tenantId} · {issued.orders} заказов
           </p>
           <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
             <code style={{ fontFamily: "var(--font-data, monospace)", fontSize: "12px", color: COLORS.textPrimary, wordBreak: "break-all", flex: "1 1 320px" }}>
@@ -92,6 +102,13 @@ export function SandboxSection() {
             Ключ показывается один раз — храним только его отпечаток. Передайте его партнёру
             защищённым каналом, не письмом и не в переписке.
           </p>
+          {issued.forPitch && (
+            <p data-testid="sandbox-pitch-env" style={{ fontFamily: F.body, fontSize: "12px", color: COLORS.textSecondary, marginTop: "10px", lineHeight: 1.6 }}>
+              Для страницы /demo впишите в Railway (сервис warehouse-pro → Variables):{" "}
+              <code>PITCH_DEMO_TENANT_ID={issued.tenantId}</code> и <code>PITCH_DEMO_API_KEY</code> = ключ выше.
+              Ключ только на чтение и только к этой песочнице — его покажут жюри на /pitch.
+            </p>
+          )}
         </div>
       )}
     </Section>

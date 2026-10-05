@@ -7,6 +7,7 @@ import type { Role } from "@contracts/types";
 import { env } from "./lib/env";
 import { hasSubscriptionAccess } from "./lib/feature-gating";
 import { checkRateLimit, rateLimitSubject } from "./lib/rate-limit";
+import { isBlockedForDemo, isDemoTenant } from "./lib/pitch-demo-rules";
 import { trpcProcedureDurationSeconds, trpcProcedureErrorsTotal } from "./prometheus-metrics";
 
 // ── Ошибки проверки входа (zod) — словами, на языке интерфейса ───────────────
@@ -323,6 +324,23 @@ const requireAuth = t.middleware(async ({ ctx, next }) => {
   return next({ ctx: { ...ctx, user: ctx.user, tenant: ctx.tenant } });
 });
 
+// ── Демо-организация для жюри ─────────────────────────────────────────────────
+/**
+ * Демо-сессия (/demo, services/pitch-demo.ts) пробует продукт, но не трогает
+ * учётные записи, людей, ключи, оплату и интеграции.
+ *
+ * Стоит в основании authedQuery — как и подписка, по той же причине: калитка,
+ * которую надо не забыть поставить в каждом роутере, не ставится никогда.
+ * Признак берётся из организации, а не из токена: его не потерять при
+ * обновлении сессии и не обойти перевыпуском.
+ */
+const withDemoGuard = t.middleware(async ({ ctx, next, path, type }) => {
+  if (type === "mutation" && isDemoTenant(ctx.tenant) && isBlockedForDemo(path)) {
+    throw new TRPCError({ code: "FORBIDDEN", message: ErrorMessages.demoBlocked });
+  }
+  return next();
+});
+
 // ── Role guard ────────────────────────────────────────────────────────────────
 function requireRole(roles: Role[]) {
   return t.middleware(async ({ ctx, next }) => {
@@ -419,7 +437,7 @@ const basePublic = t.procedure.use(withProcedureMetrics).use(withCorrelationId);
 export const publicQuery = basePublic;
 
 // ── Compose authenticated procedures ──────────────────────────────────────────
-export const authedQuery     = t.procedure.use(withProcedureMetrics).use(withCorrelationId).use(withTenantIsolation).use(withGlobalRateLimit).use(requireAuth).use(withSubscriptionGate);
+export const authedQuery     = t.procedure.use(withProcedureMetrics).use(withCorrelationId).use(withTenantIsolation).use(withGlobalRateLimit).use(requireAuth).use(withDemoGuard).use(withSubscriptionGate);
 
 // superAdminQuery — platform-level operations: manage tenants, billing, platform stats.
 // Only superadmin can access these endpoints.

@@ -14,6 +14,7 @@ import { eq, and, ne, sql, count, sum, max } from "drizzle-orm";
 import { hashPassword } from "./auth/password";
 import { findTenantBySlug, listTenants } from "./queries/tenants";
 import { seedSandbox, SANDBOX_ORDER_COUNT } from "./services/sandbox";
+import { seedPitchDemoExtras } from "./services/pitch-demo";
 import { checkRateLimit, getClientIp, rateLimitSubject } from "./lib/rate-limit";
 import { logger } from "./lib/logger";
 import { checkPlanLimits } from "./lib/plan-limits";
@@ -651,6 +652,9 @@ export const tenantRouter = createRouter({
       partnerName:   z.string().min(2).max(60),
       ownerEmail:    z.string().email(),
       ownerPassword: z.string().min(8),
+      /* Для показа жюри (/demo): досев остатков, себестоимости и супервайзера
+         — services/pitch-demo.ts. Песочнице интегратора они не нужны. */
+      forPitch:      z.boolean().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
       const db = getDb();
@@ -683,7 +687,7 @@ export const tenantRouter = createRouter({
         tenantId = Number(t.insertId);
 
         await tx.insert(users).values({
-          tenantId, name: `${input.partnerName} (интегратор)`, email: input.ownerEmail,
+          tenantId, name: input.forPitch ? "Direktor (demo)" : `${input.partnerName} (интегратор)`, email: input.ownerEmail,
           passwordHash, role: "ceo", status: "active", lastSignInAt: new Date(),
         });
         await tx.insert(settings).values({ tenantId, companyName: name });
@@ -703,6 +707,7 @@ export const tenantRouter = createRouter({
       // останется пустая песочница — то есть ровно то состояние, которое
       // seedSandbox умеет заполнить повторно.
       const contents = await seedSandbox(db, tenantId!);
+      const pitch = input.forPitch ? await seedPitchDemoExtras(db, tenantId!) : null;
 
       /*
         Ключ с приметой «test», а не «live».
@@ -743,6 +748,7 @@ export const tenantRouter = createRouter({
         key: raw,
         expiresAt,
         contents,
+        pitch,
         orderCount: SANDBOX_ORDER_COUNT,
       };
     }),

@@ -77,6 +77,7 @@ let db: TestDb | null = null;
 /** Таблицы, которые чистятся между тестами. Порядок не важен: ключи сняты. */
 const TABLES = [
   "order_items", "orders", "payments", "notifications", "warehouse_stock",
+  "api_keys",
   // Напоминания о долге: их пишут курьер, оплата по частям и закрытие
   // расчёта; чужое напоминание того же номера заказа сбило бы счёт строк.
   "debt_reminders",

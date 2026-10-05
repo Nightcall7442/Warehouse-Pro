@@ -53,6 +53,7 @@ import * as Sentry from "@sentry/node";
 import backupRoutes from "./http/backup";
 import { cronDenied } from "./http/cron-guard";
 import authRoutes from "./http/auth";
+import demoRoutes from "./http/demo";
 import trpcAdapter from "./http/trpc-adapter";
 
 const APP_VERSION = SHARED_APP_VERSION;
@@ -499,6 +500,8 @@ app.get("/api/events", async (c) => {
 
 // ── Вход/выход/обновление сессии — api/http/auth.ts ───────────────────────
 app.route("/", authRoutes);
+// ── Демо-вход для жюри (/demo) — api/http/demo.ts, правила в services/pitch-demo.ts
+app.route("/", demoRoutes);
 
 // ── Prometheus scrape endpoint ───────────────────────────────────────────────
 // Public by design — Prometheus scrapers don't carry session cookies or CSRF
