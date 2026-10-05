@@ -3,7 +3,7 @@ import type { HttpBindings } from "@hono/node-server";
 import { serveStatic } from "@hono/node-server/serve-static";
 import fs from "fs";
 import path from "path";
-import { pageMetaFor, withPageMeta } from "./public-pages";
+import { pageMetaFor, wantsAppShell, withPageMeta } from "./public-pages";
 
 type App = Hono<{ Bindings: HttpBindings }>;
 
@@ -69,8 +69,7 @@ export function serveStaticFiles(app: App, opts: { root?: string } = {}) {
   const pageHtml = new Map<string, string>();
 
   app.notFound((c) => {
-    const accept = c.req.header("accept") ?? "";
-    if (!accept.includes("text/html")) {
+    if (!wantsAppShell(c.req.path, c.req.method, c.req.header("accept") ?? "")) {
       return c.json({ error: "Not Found" }, 404);
     }
     if (indexHtml === null) {
