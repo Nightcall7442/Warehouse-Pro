@@ -57,6 +57,26 @@ export function pageMetaFor(path: string): PageMeta | null {
   return (PUBLIC_PAGES as Record<string, PageMeta>)[p] ?? null;
 }
 
+/** Открытые без входа страницы, которые показывают и роботам. */
+const OPEN_PAGES = new Set(["/landing", "/privacy"]);
+
+/**
+ * Отдавать ли на неизвестный адрес оболочку приложения, а не 404 в JSON.
+ *
+ * Браузер просит «text/html» — ему оболочка всегда. Робот превью ссылки
+ * (Telegram, Facebook, бот конкурса) шлёт «Accept: *\/*» или вовсе ничего, и
+ * получал 404: карточка ссылки на /pitch не строилась, а проверка ссылки
+ * видела «страницы нет». Открытым страницам оболочка — на любой GET/HEAD;
+ * остальным адресам без «text/html» — по-прежнему 404 в JSON, чтобы опечатка
+ * в адресе API не отвечала страницей.
+ */
+export function wantsAppShell(path: string, method: string, accept: string): boolean {
+  if (accept.includes("text/html")) return true;
+  if (method !== "GET" && method !== "HEAD") return false;
+  const p = path.length > 1 ? path.replace(/\/+$/, "") : path;
+  return pageMetaFor(p) !== null || OPEN_PAGES.has(p);
+}
+
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
 /** Подставить карточку в оболочку. Тег, которого нет, просто не меняется. */
