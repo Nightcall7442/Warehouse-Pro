@@ -323,6 +323,14 @@ routes.post("/api/logout-all", async (c) => {
     if (!claim) return c.json({ error: "Invalid token" }, 401);
 
     const db = getDb();
+    /*
+      Демо-организация: один пользователь роли на всё жюри. «Выйти везде»
+      поднимает его tokenVersion — и выкидывает всех, кто сейчас смотрит
+      продукт. Закрыто, как и остальное в services/pitch-demo.ts.
+    */
+    const { isDemoUser, DEMO_BLOCKED_MESSAGE } = await import("../services/pitch-demo");
+    if (await isDemoUser(db, claim.userId)) return c.json({ error: DEMO_BLOCKED_MESSAGE }, 403);
+
     await db.update(users)
       .set({ tokenVersion: sql`COALESCE(${users.tokenVersion}, 0) + 1` })
       .where(eq(users.id, claim.userId));

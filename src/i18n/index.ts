@@ -77,6 +77,31 @@ export function FixedLang({ lang, children }: { lang: Lang; children: ReactNode 
   const value = useMemo(() => ({ lang, setLang: () => {}, t: translate, fixed: true }), [lang, translate]);
   return React.createElement(LangContext.Provider, { value }, children);
 }
+/** Выбирал ли человек язык сам — в этом браузере. */
+export function hasChosenLang(): boolean {
+  try { const s = localStorage.getItem("lang"); return s === "ru" || s === "uz"; } catch { return false; }
+}
+
+/**
+ * Язык по умолчанию для поддерева — пока человек не выбрал свой.
+ *
+ * Страницы конкурса (/pitch, /demo) читает узбекоязычное жюри, и открываться
+ * они должны по-узбекски, хотя у приложения по умолчанию русский. Но явный
+ * выбор сильнее: кто переключил на «Ру» здесь или раньше в приложении, тот
+ * его и получает. Пока выбора нет, сохранённое не трогается — заход на
+ * /pitch не делает узбекским всё приложение.
+ */
+export function PreferLang({ lang: fallback, children }: { lang: Lang; children: ReactNode }) {
+  const outer = useContext(LangContext);
+  const [chosen, setChosen] = useState(hasChosenLang);
+  const lang = chosen ? outer.lang : fallback;
+  const outerSet = outer.setLang;
+  const setLang = useCallback((l: Lang) => { outerSet(l); setChosen(true); }, [outerSet]);
+  const translate = useCallback((key: string) => t(lang, key), [lang]);
+  const value = useMemo(() => ({ lang, setLang, t: translate }), [lang, setLang, translate]);
+  return React.createElement(LangContext.Provider, { value }, children);
+}
+
 /** Пара «русский / узбекский» по текущему языку — для тостов вне компонентов. */
 export const tt = (ru: string, uz: string): string => (currentLang() === "uz" ? uz : ru);
 

@@ -117,7 +117,9 @@
          человек на медленной связи — вместо белого поля. Как только скрипт
          загрузится, React заменит это содержимое настоящим лендингом:
          createRoot очищает контейнер при первой отрисовке. -->
-    <div id="root">
+    <!-- Метки root-fallback: для /pitch и /demo сервер меняет заглушку на свою
+         (api/lib/public-pages.ts). -->
+    <div id="root"><!--root-fallback-->
       <div style="max-width:640px;margin:0 auto;padding:64px 24px;font-family:'Manrope',system-ui,sans-serif;color:#1a1a1a">
         <h1 style="font-size:32px;line-height:1.15;letter-spacing:-0.03em;margin:0 0 16px">
           Warehouse Pro — склад, заказы и торговые агенты в одной системе
@@ -135,7 +137,7 @@
           <a href="/login" style="color:#1a1a1a">Войти</a>
         </p>
       </div>
-    </div>
+    <!--/root-fallback--></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

@@ -107,7 +107,8 @@ describe.skipIf(!hasRealDb)("профиль аккаунта настоящим 
 
     // Ровно то, что auth.me, без прав (их у user.me не было и до #150).
     const auth = (await batch(cookie, ["auth.me"])).body[0].result.data.json;
-    const { can: _can, ...authWithoutCan } = auth;
+    // can и demo (демо-организация жюри, /demo) есть только у auth.me: старая копия сайта их не читает.
+    const { can: _can, demo: _demo, ...authWithoutCan } = auth;
     expect(me).toEqual(authWithoutCan);
     // Первая проверка поднимает приложение целиком (boot): с холодным кэшем
     // сборки это дольше общего потолка в 20 секунд.

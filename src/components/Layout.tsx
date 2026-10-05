@@ -11,6 +11,7 @@ import { NAV_ITEMS, navRows, pickActivePath, pageKey, type NavGroupKey } from "@
 import { GlobalSearch } from "@/components/GlobalSearch";
 import { TrialBanner } from "@/components/TrialBanner";
 import { AnnouncementBanner } from "@/components/AnnouncementBanner";
+import { DemoBanner } from "@/components/DemoBanner";
 import { OfflineQueueBadge } from "@/components/OfflineQueueBadge";
 import { useTheme } from "@/hooks/useTheme";
 import { useLang } from "@/i18n";
@@ -683,6 +684,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       <MobileDrawer open={drawerOpen} onClose={closeDrawer} unreadCount={unreadCount} />
 
       <div className="md:ml-[280px]">
+        {/* Демо-организация жюри (/demo): данные образцовые, часть настроек закрыта. */}
+        <DemoBanner />
         <TrialBanner />
         {/* Объявления платформы — над страницей, у всех ролей организации. */}
         <AnnouncementBanner />

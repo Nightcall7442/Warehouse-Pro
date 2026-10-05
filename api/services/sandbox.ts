@@ -270,7 +270,18 @@ export async function seedSandbox(db: Db, tenantId: number, now: Date = new Date
     for (let k = 0; k < lineCount; k++) {
       const p = r.pick(productRows);
       const quantity = r.int(1, 40);
-      lines.push({ productId: p.id, quantity, unitPrice: p.price });
+      /*
+        Тот же товар второй раз — та же строка, а не вторая.
+
+        В order_items стоит уникальный ключ (order_id, product_id), и вторая
+        строка с тем же товаром роняла заполнение посреди заказов: песочница
+        создавалась наполовину, а суперадмин получал «внутреннюю ошибку».
+        Количество складывается — сумма и последовательность случайных чисел
+        те же, что и раньше, поэтому итоги песочницы не меняются.
+      */
+      const same = lines.find(l => l.productId === p.id);
+      if (same) same.quantity += quantity;
+      else lines.push({ productId: p.id, quantity, unitPrice: p.price });
       subtotal += quantity * p.price;
     }
     // Скидка бывает не у всех и всегда кратна проценту: так её и ставят руками.

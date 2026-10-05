@@ -43,6 +43,8 @@ const ALLOWED = [
   path.join("src", "lib", "print.ts"),
   path.join("src", "lib", "invoice-templates.ts"),
   path.join("src", "components", "landing", "landing-tokens.ts"),
+  // Палитра страниц конкурса /pitch и /demo: два тона на одних переменных.
+  path.join("src", "components", "pitch", "pitch-tokens.ts"),
   // Цветовая математика бренда: фон карточек обеих тем нужен числом — из него считается контраст.
   path.join("src", "lib", "brand-palette.ts"),
 ];

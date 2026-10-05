@@ -6,6 +6,7 @@ import { confirmEmail, resendVerification } from "./services/email-verification"
 import { checkRateLimit, rateLimitSubject } from "./lib/rate-limit";
 import { TRPCError } from "@trpc/server";
 import { env } from "./lib/env";
+import { isDemoTenant } from "./lib/pitch-demo-rules";
 
 export const authRouter = createRouter({
   /** Return current authenticated user */
@@ -21,6 +22,8 @@ export const authRouter = createRouter({
   me: authedQuery.query(async ({ ctx }) => ({
     ...ctx.user,
     can: await capabilitiesOf(ctx.db, ctx.tenant.id, ctx.user.role),
+    /* Демо-организация жюри (/demo): веб рисует полосу «Demo rejim». */
+    demo: isDemoTenant(ctx.tenant),
   })),
 
   /** Request password reset — always returns success to prevent user enumeration */

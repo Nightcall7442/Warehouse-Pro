@@ -3,6 +3,7 @@ import type { HttpBindings } from "@hono/node-server";
 import { serveStatic } from "@hono/node-server/serve-static";
 import fs from "fs";
 import path from "path";
+import { pageMetaFor, withPageMeta } from "./public-pages";
 
 type App = Hono<{ Bindings: HttpBindings }>;
 
@@ -19,11 +20,15 @@ function servesAppShell(filePath: string, reqPath: string): boolean {
   return filePath.split("\\").join("/").endsWith("/index.html") || reqPath.endsWith(".html");
 }
 
-export function serveStaticFiles(app: App) {
-  const distPath = path.resolve(import.meta.dirname, "../dist/public");
+/**
+ * root — только для проверки (api/__tests__/pitch-video-serving.test.ts): по
+ * умолчанию собранный фронт, как в бою.
+ */
+export function serveStaticFiles(app: App, opts: { root?: string } = {}) {
+  const distPath = opts.root ? path.resolve(opts.root) : path.resolve(import.meta.dirname, "../dist/public");
 
   app.use("*", serveStatic({
-    root: "./dist/public",
+    root: opts.root ?? "./dist/public",
     onFound: (filePath, c) => {
       // Matched against the request path, not the on-disk path, which is
       // separator-dependent. Everything under /assets/ carries a content hash in
@@ -60,6 +65,8 @@ export function serveStaticFiles(app: App) {
   // index.html is the SPA fallback for every unmatched route — read it once instead
   // of doing a synchronous disk read on each navigation.
   let indexHtml: string | null = null;
+  // Оболочка с карточкой /pitch или /demo — собирается один раз на адрес.
+  const pageHtml = new Map<string, string>();
 
   app.notFound((c) => {
     const accept = c.req.header("accept") ?? "";
@@ -70,6 +77,10 @@ export function serveStaticFiles(app: App) {
       indexHtml = fs.readFileSync(path.resolve(distPath, "index.html"), "utf-8");
     }
     c.header("Cache-Control", "no-cache");
-    return c.html(indexHtml);
+    const meta = pageMetaFor(c.req.path);
+    if (!meta) return c.html(indexHtml);
+    let html = pageHtml.get(meta.url);
+    if (html === undefined) { html = withPageMeta(indexHtml, meta); pageHtml.set(meta.url, html); }
+    return c.html(html);
   });
 }

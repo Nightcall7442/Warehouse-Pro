@@ -23,6 +23,8 @@ export const ErrorMessages = {
    * правке формулировки, и увод на оплату молча перестал бы работать.
    */
   subscriptionRequired: SUBSCRIPTION_REQUIRED.ru,
+  /** Демо-организация для жюри (/demo): закрытые действия — api/services/pitch-demo.ts. */
+  demoBlocked: "Демо-режим: это действие отключено. Данные здесь — образец.",
 } as const;
 
 export const Paths = {
