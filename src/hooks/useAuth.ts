@@ -1,6 +1,7 @@
 import { trpc } from "@/providers/trpc";
 import { forgetBrand } from "@/lib/remembered-brand";
-import { useCallback, useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
+import { logoutTarget } from "@/lib/demo-exit";
 import { useNavigate } from "react-router";
 import { LOGIN_PATH } from "@/const";
 import { setSentryUser } from "@/sentry";
@@ -82,6 +83,13 @@ export function useAuth(options?: UseAuthOptions) {
     }
   }, [user, isLoading]);
 
+  // Демо ли сессия — читается в выходе уже после ответа сервера, когда
+  // пользователь в кэше мог смениться; logout стабилен и замыкать user не может.
+  const demoRef = useRef(false);
+  useEffect(() => {
+    demoRef.current = !!(user as { demo?: boolean } | null | undefined)?.demo;
+  }, [user]);
+
   const logout = useCallback(async () => {
     // Прямой POST на простой эндпоинт (без tRPC, без React state)
     try {
@@ -103,8 +111,9 @@ export function useAuth(options?: UseAuthOptions) {
       связи, то есть ровно тогда, когда копии единственное, что осталось.
     */
     clearOfflineCopies();
-    // Жёсткий редирект на /login — полная перезагрузка страницы
-    window.location.replace(LOGIN_PATH);
+    // Жёсткий редирект — полная перезагрузка страницы. Из демо жюри — обратно
+    // на /demo к выбору роли, остальных — на /login.
+    window.location.replace(logoutTarget(demoRef.current ? { demo: true } : null));
   }, []);
 
   // Редирект на логин если сессия истекла (НО НЕ при logout и НЕ если уже на /login)

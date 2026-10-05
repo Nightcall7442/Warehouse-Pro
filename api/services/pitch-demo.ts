@@ -1,7 +1,7 @@
 import { and, asc, eq, isNull, sql } from "drizzle-orm";
 import { createHash } from "crypto";
 import { TRPCError } from "@trpc/server";
-import { tenants, users, warehouses, products, warehouseStock, apiKeys, orders, payments, shops, dailyPlans } from "@db/schema";
+import { tenants, users, warehouses, products, warehouseStock, apiKeys, orders, payments, shops, dailyPlans, salesTargets } from "@db/schema";
 import { receiveStock } from "./stock-ledger";
 import { recalcShopDebt } from "./shop-debt";
 
@@ -147,6 +147,20 @@ async function verifiedDemoKey(db: Db, tenantId: number): Promise<string | null>
    Только песочница, и только пустое: остаток кладётся, если на складе ноль,
    супервайзер — если его нет. Повторный вызов ничего не удваивает.
    ═══════════════════════════════════════════════════════════════════════════ */
+/**
+ * Множители плана к темпу агента — по кругу, чтобы в прогнозе были все цвета:
+ * план выше темпа (не дотягивает), чуть выше (чуть не дотягивает), ниже (выполнит).
+ */
+export const PITCH_PLAN_MULTIPLIERS = [1.25, 1.06, 1.05, 0.92] as const;
+
+/** План на месяц из темпа: круглая сумма, как ставят люди; без продаж — скромный, не ноль. */
+export function pitchPlanFor(monthlyRevenue: number, monthlyOrders: number, mult: number): { amount: number; orderCount: number } {
+  return {
+    amount: Math.max(5_000_000, Math.round((monthlyRevenue * mult) / 500_000) * 500_000),
+    orderCount: Math.max(10, Math.round(monthlyOrders * mult)),
+  };
+}
+
 export async function seedPitchDemoExtras(db: Db, tenantId: number, now: Date = new Date()) {
   const [tenant] = await db.select({ isSandbox: tenants.isSandbox })
     .from(tenants).where(eq(tenants.id, tenantId)).limit(1);
@@ -267,5 +281,50 @@ export async function seedPitchDemoExtras(db: Db, tenantId: number, now: Date = 
     plansAdded = rows.length;
   }
 
-  return { supervisorAdded, stocked, paymentsAdded, plansAdded };
+  /*
+    Планы продаж на этот и следующий месяц.
+
+    Без них «Прогноз плана» у директора и KPI у агента пишут «Reja yo'q» —
+    жюри заходит агентом и видит пустой план (05.10.2026). План — от темпа
+    самого агента за 90 дней доставленных заказов, с разным множителем, чтобы
+    в прогнозе были все три цвета: кто-то выполняет, кто-то чуть не дотягивает,
+    кто-то не дотягивает. Только если планов ещё нет.
+  */
+  let targetsAdded = 0;
+  const [{ targets }] = await db.select({ targets: sql<number>`COUNT(*)` }).from(salesTargets).where(eq(salesTargets.tenantId, tenantId));
+  if (Number(targets) === 0) {
+    const agents = await db.select({ id: users.id }).from(users)
+      .where(and(eq(users.tenantId, tenantId), eq(users.role, "agent"), eq(users.status, "active"))).orderBy(asc(users.id));
+    const since = new Date(now.getTime() - 90 * 86_400_000);
+    const pace = await db.select({
+      agentId: orders.agentId,
+      revenue: sql<string>`COALESCE(SUM(${orders.total}), 0)`,
+      count: sql<number>`COUNT(*)`,
+    }).from(orders)
+      .where(and(eq(orders.tenantId, tenantId), eq(orders.status, "delivered"), sql`${orders.deliveredAt} >= ${since}`))
+      .groupBy(orders.agentId);
+    const paceOf = new Map(pace.map(p => [Number(p.agentId), { revenue: Number(p.revenue) / 3, count: Number(p.count) / 3 }]));
+    const months = [0, 1].map(k => {
+      const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + k, 1));
+      const end = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + k + 1, 0));
+      return { start: start.toISOString().slice(0, 10), end: end.toISOString().slice(0, 10) };
+    });
+    const targetRows: Array<typeof salesTargets.$inferInsert> = [];
+    agents.forEach((a, i) => {
+      const p = paceOf.get(Number(a.id)) ?? { revenue: 0, count: 0 };
+      const mult = PITCH_PLAN_MULTIPLIERS[i % PITCH_PLAN_MULTIPLIERS.length];
+      const { amount, orderCount } = pitchPlanFor(p.revenue, p.count, mult);
+      for (const m of months) {
+        targetRows.push({
+          tenantId, userId: Number(a.id), periodType: "monthly",
+          periodStart: sql`${m.start}` as never, periodEnd: sql`${m.end}` as never,
+          targetAmount: amount.toFixed(2), orderCountTarget: orderCount, visitTarget: "90",
+        });
+      }
+    });
+    if (targetRows.length > 0) await db.insert(salesTargets).values(targetRows);
+    targetsAdded = targetRows.length;
+  }
+
+  return { supervisorAdded, stocked, paymentsAdded, plansAdded, targetsAdded };
 }
