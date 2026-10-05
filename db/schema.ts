@@ -27,7 +27,10 @@ export const tenants = mysqlTable("tenants", {
   id:            serial("id").primaryKey(),
   slug:          varchar("slug", { length: 100 }).notNull().unique(),
   name:          varchar("name", { length: 255 }).notNull(),
-  plan:          mysqlEnum("plan", ["trial", "basic", "pro", "exclusive"]).default("trial").notNull(),
+  // standard — цена за полевого сотрудника (contracts/pricing.ts); basic/pro/exclusive —
+  // прежние тарифы до GRANDFATHER_UNTIL. Новое значение — в конце списка: так MySQL
+  // меняет перечисление без перестройки таблицы.
+  plan:          mysqlEnum("plan", ["trial", "basic", "pro", "exclusive", "standard"]).default("trial").notNull(),
   status:        mysqlEnum("status", ["active", "suspended"]).default("active").notNull(),
   // Billing
   trialEndsAt:   timestamp("trial_ends_at"),
@@ -1613,7 +1616,7 @@ export const subscriptions = mysqlTable("subscriptions", {
   tenantId:             bigint("tenant_id", { mode: "number", unsigned: true }).notNull().references(() => tenants.id, { onDelete: "restrict" }).unique(),
   stripeSubscriptionId: varchar("stripe_subscription_id", { length: 255 }),
   stripeCustomerId:     varchar("stripe_customer_id", { length: 255 }),
-  plan:                 mysqlEnum("plan", ["trial", "basic", "pro", "exclusive"]).default("trial").notNull(),
+  plan:                 mysqlEnum("plan", ["trial", "basic", "pro", "exclusive", "standard"]).default("trial").notNull(),
   status:               mysqlEnum("status", ["trialing", "active", "past_due", "canceled", "incomplete"]).default("trialing").notNull(),
   trialEndsAt:          timestamp("trial_ends_at"),
   currentPeriodEnds:    timestamp("current_period_ends"),
@@ -2566,7 +2569,7 @@ export const subscriptionPayments = mysqlTable("subscription_payments", {
   amount:         bigint("amount", { mode: "number", unsigned: true }).notNull(),
   paidAt:         date("paid_at", { mode: "string" }).notNull(),
   method:         mysqlEnum("method", ["cash", "transfer", "card", "payme", "click", "other"]).notNull(),
-  plan:           mysqlEnum("plan", ["basic", "pro", "exclusive"]).notNull(),
+  plan:           mysqlEnum("plan", ["basic", "pro", "exclusive", "standard"]).notNull(),
   months:         int("months").notNull(),
   periodFrom:     date("period_from", { mode: "string" }).notNull(),
   periodTo:       date("period_to", { mode: "string" }).notNull(),

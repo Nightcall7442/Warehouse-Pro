@@ -14,6 +14,7 @@ const maxFn   = (col: unknown) => ({ __kind: "max", col });
 
 vi.mock("drizzle-orm", () => ({
   eq: eqFn, ne: neFn, and: andFn, sql: sqlTag, count: countFn, sum: sumFn, max: maxFn, relations: () => ({}),
+  inArray: (col: unknown, values: unknown[]) => ({ __kind: "inArray", col, values }),
 }));
 
 // ─── module mocks ─────────────────────────────────────────────────────────────
@@ -611,17 +612,17 @@ describe("tenant.create (superAdmin)", () => {
   it("creates tenant with specified plan", async () => {
     const { tenantRouter } = await import("../tenant-router");
     const caller = tenantRouter.createCaller(superAdminCtx());
-    const result = await caller.create({ orgName: "ManualCo", ownerName: "Manager", ownerEmail: "mgr@manual.com", ownerPassword: "password123", plan: "pro" });
+    const result = await caller.create({ orgName: "ManualCo", ownerName: "Manager", ownerEmail: "mgr@manual.com", ownerPassword: "password123", plan: "standard" });
     expect(result.success).toBe(true);
     expect(result.slug).toBeDefined();
     const t = tenantsTable.find(t => t.slug === result.slug);
-    expect(t?.plan).toBe("pro");
+    expect(t?.plan).toBe("standard");
   });
 
   it("sets planExpiresAt for non-trial plans", async () => {
     const { tenantRouter } = await import("../tenant-router");
     const caller = tenantRouter.createCaller(superAdminCtx());
-    await caller.create({ orgName: "PaidCo", ownerName: "Boss", ownerEmail: "boss@paid.com", ownerPassword: "password123", plan: "basic" });
+    await caller.create({ orgName: "PaidCo", ownerName: "Boss", ownerEmail: "boss@paid.com", ownerPassword: "password123", plan: "standard" });
     const t = tenantsTable.find(t => t.slug === "paidco");
     expect(t?.planExpiresAt).toBeDefined();
   });
@@ -662,10 +663,10 @@ describe("tenant.updatePlan (superAdmin)", () => {
   it("updates tenant plan and subscription", async () => {
     const { tenantRouter } = await import("../tenant-router");
     const caller = tenantRouter.createCaller(superAdminCtx());
-    const result = await caller.updatePlan({ tenantId: 1, plan: "pro" });
+    const result = await caller.updatePlan({ tenantId: 1, plan: "standard" });
     expect(result.success).toBe(true);
     const t = tenantsTable.find(t => t.id === 1);
-    expect(t?.plan).toBe("pro");
+    expect(t?.plan).toBe("standard");
     expect(t?.planExpiresAt).toBeDefined();
   });
 
@@ -673,8 +674,26 @@ describe("tenant.updatePlan (superAdmin)", () => {
     subscriptionsTable.push({ id: 50, tenantId: 1, plan: "trial", status: "active" });
     const { tenantRouter } = await import("../tenant-router");
     const caller = tenantRouter.createCaller(superAdminCtx());
-    await caller.updatePlan({ tenantId: 1, plan: "exclusive" });
-    expect(subscriptionsTable.some(s => s.tenantId === 1 && s.plan === "exclusive")).toBe(true);
+    await caller.updatePlan({ tenantId: 1, plan: "standard" });
+    expect(subscriptionsTable.some(s => s.tenantId === 1 && s.plan === "standard")).toBe(true);
+  });
+
+  it("прежний тариф — только продлить свой: чужой не включить (цена за полевых, 05.10.2026)", async () => {
+    const { tenantRouter } = await import("../tenant-router");
+    const caller = tenantRouter.createCaller(superAdminCtx());
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-05T09:00:00Z"));
+    try {
+      // BigCo сидит на Pro — продлить можно, перевести на Exclusive нельзя.
+      await expect(caller.updatePlan({ tenantId: 2, plan: "pro" })).resolves.toMatchObject({ success: true });
+      await expect(caller.updatePlan({ tenantId: 2, plan: "exclusive" })).rejects.toThrow(/больше не подключаются/);
+      await expect(caller.updatePlan({ tenantId: 1, plan: "basic" })).rejects.toThrow(/больше не подключаются/);
+      // С 05.10.2027 и свой прежний не продлить.
+      vi.setSystemTime(new Date("2027-10-05T00:00:00+05:00"));
+      await expect(caller.updatePlan({ tenantId: 2, plan: "pro" })).rejects.toThrow(/действовал до 05\.10\.2027/);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 

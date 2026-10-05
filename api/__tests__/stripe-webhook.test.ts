@@ -207,17 +207,18 @@ describe("Stripe: оплата прошла", () => {
     expect(written.subscriptionUpdates[0]).toMatchObject({ plan: "exclusive", status: "active" });
   });
 
-  it("неизвестный тариф в метаданных превращается в basic, а не в эксклюзив", async () => {
-    // Метаданные приходят снаружи. Любое незнакомое значение обязано падать
-    // в самый дешёвый тариф, а не в самый дорогой.
+  it("неизвестный тариф в метаданных превращается в «Стандарт», а не в эксклюзив", async () => {
+    // Метаданные приходят снаружи. Любое незнакомое значение падает в тот
+    // единственный тариф, что продаётся (цена за полевых, 05.10.2026), — не в
+    // самый дорогой и не в прежний Basic, который новым уже не включают.
     verifyWebhook.mockResolvedValue({
       id: "evt_4", type: "checkout.session.completed",
       data: { object: { metadata: { tenantId: "7", plan: "супер-вип" }, subscription: null, customer: null } },
     });
 
     await post(makeApp(), {});
-    expect(written.subscriptions[0]).toMatchObject({ plan: "basic" });
-    expect(written.tenantPlans).toEqual([{ tenantId: "…", plan: "basic" }]);
+    expect(written.subscriptions[0]).toMatchObject({ plan: "standard" });
+    expect(written.tenantPlans).toEqual([{ tenantId: "…", plan: "standard" }]);
   });
 
   it("событие без организации не пишет запись в журнал оплат", async () => {
@@ -250,7 +251,7 @@ describe("Stripe: изменение подписки", () => {
     expect(written.tenantPlans).toEqual([{ tenantId: "…", plan: "exclusive" }]);
   });
 
-  it("незнакомая цена даёт basic", async () => {
+  it("незнакомая цена даёт «Стандарт»", async () => {
     verifyWebhook.mockResolvedValue({
       id: "evt_7", type: "customer.subscription.updated",
       data: { object: {
@@ -261,7 +262,7 @@ describe("Stripe: изменение подписки", () => {
     });
 
     await post(makeApp(), {});
-    expect(written.subscriptions[0]).toMatchObject({ plan: "basic" });
+    expect(written.subscriptions[0]).toMatchObject({ plan: "standard" });
   });
 
   it("подписка не активна — тариф организации не меняется", async () => {

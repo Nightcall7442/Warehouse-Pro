@@ -33,15 +33,20 @@ describe("лимит заказов тарифа", () => {
     expect(src).toContain("Достигнут предел тарифа по заказам за месяц (${limits.current} из ${limits.limit})");
   });
 
-  it("monthlyOrderRoom: пробный — 50 в месяц, ровно 50 уже есть — отказ; безлимитный тариф базу не спрашивает", async () => {
+  it("monthlyOrderRoom: предела по заказам нет ни у одного тарифа — и базу он не спрашивает", async () => {
+    /*
+      05.10.2026: цена — за полевых сотрудников, заказы без ограничений у
+      всех, включая пробный (раньше у пробного было 50 в месяц). Ручка
+      осталась на месте: появись у тарифа maxOrdersMonth — она заработает.
+    */
     const { monthlyOrderRoom } = await import("../lib/plan-limits");
+    const { PLANS } = await import("@contracts/constants");
     let asked = 0;
     const dbWith = (count: number) => ({ select: () => ({ from: () => ({ where: async () => { asked++; return [{ count }]; } }) }) });
-    expect(await monthlyOrderRoom(dbWith(49) as never, 1, "trial")).toEqual({ allowed: true, current: 49, limit: 50 });
-    expect(await monthlyOrderRoom(dbWith(50) as never, 1, "trial")).toEqual({ allowed: false, current: 50, limit: 50 });
-    asked = 0;
-    expect(await monthlyOrderRoom(dbWith(9999) as never, 1, "pro")).toEqual({ allowed: true, current: 0, limit: null });
-    expect(asked, "безлимитный тариф считал заказы").toBe(0);
+    for (const plan of Object.keys(PLANS)) {
+      expect(await monthlyOrderRoom(dbWith(9999) as never, 1, plan), plan).toEqual({ allowed: true, current: 0, limit: null });
+    }
+    expect(asked, "тариф без предела считал заказы").toBe(0);
   });
 });
 

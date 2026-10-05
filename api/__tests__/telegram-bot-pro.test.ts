@@ -34,7 +34,7 @@ vi.mock("../queries/connection", () => ({ getDb: vi.fn() }));
 vi.mock("../lib/logger", () => ({ logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() } }));
 
 const { MENUS, detectIntent, detectPeriod, menuGroup } = await import("../telegram/texts");
-const { INTENTS_BY_GROUP, PLANS_WITH_BOT } = await import("../telegram/bot");
+const { INTENTS_BY_GROUP, planHasBot } = await import("../telegram/bot");
 const { DEFAULT_RULES, NOTIFY_EVENTS, QUIET_TO } = await import("../services/telegram-notify");
 const { tgMessages, fmtMoney, fmtQty } = await import("../lib/telegram");
 const { shortName, periodRange, tashkentDayStart, dayStr } = await import("../telegram/answers");
@@ -92,9 +92,12 @@ describe("меню по ролям", () => {
     expect(INTENTS_BY_GROUP.manage.has("agents")).toBe(true);
   });
 
-  it("пробный тариф — с ботом", () => {
-    expect(PLANS_WITH_BOT.has("trial")).toBe(true);
-    expect(PLANS_WITH_BOT.has("basic")).toBe(false);
+  it("пробный и «Стандарт» — с ботом; прежний Basic — без, пока действует", () => {
+    expect(planHasBot("trial")).toBe(true);
+    expect(planHasBot("standard")).toBe(true);
+    expect(planHasBot("pro")).toBe(true);
+    // Basic получит бот сам с 05.10.2027 (contracts/pricing.ts) — проверено в pricing.test.
+    expect(planHasBot("basic")).toBe(new Date().toISOString().slice(0, 10) >= "2027-10-05");
   });
 });
 

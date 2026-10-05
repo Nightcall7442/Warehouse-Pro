@@ -137,7 +137,7 @@ export default function Orgs() {
         </div>
         <div className="console-form w-full md:w-[170px]" data-testid="orgs-plan">
           <PremiumSelect value={plan} onChange={v => set({ plan: v || null })} aria-label="Тариф" width="100%"
-            options={[{ value: "", label: "Все тарифы" }, { value: "trial", label: "Пробный" }, { value: "basic", label: "Базовый" }, { value: "pro", label: "Про" }, { value: "exclusive", label: "Эксклюзив" }]} />
+            options={[{ value: "", label: "Все тарифы" }, { value: "trial", label: "Пробный" }, { value: "standard", label: "Стандарт" }, { value: "basic", label: "Базовый" }, { value: "pro", label: "Про" }, { value: "exclusive", label: "Эксклюзив" }]} />
         </div>
         </div>
         {/* На телефоне чипы переносятся, а не уезжают за край: обрезанный «Истека…» не читается как фильтр. */}

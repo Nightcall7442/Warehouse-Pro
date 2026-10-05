@@ -1,6 +1,7 @@
-import { and, eq, max, ne, sql } from "drizzle-orm";
+import { and, eq, inArray, max, ne, sql } from "drizzle-orm";
 import { orders, products, subscriptions, tenants, users } from "@db/schema";
-import { PLAN_PRICES_UZS, type PlanKey } from "../../contracts/constants";
+import type { PlanKey } from "../../contracts/constants";
+import { FIELD_ROLES, priceForTenant } from "../../contracts/pricing";
 import { cache } from "../lib/cache";
 import { rowsOf } from "../lib/db-rows";
 
@@ -141,6 +142,8 @@ export async function collectOwnerPanel(db: Db, now = new Date()): Promise<Owner
       tenantId:    users.tenantId,
       lastLogin:   max(users.lastSignInAt),
       agents:      sql<string>`SUM(${users.role} = 'agent')`,
+      // Полевые — за них платят (contracts/pricing.ts): активные агенты, курьеры, мерчендайзеры.
+      field:       sql<string>`SUM(${users.status} = 'active' AND ${inArray(users.role, [...FIELD_ROLES])})`,
       ceoVerified: sql<string>`MAX(${users.role} = 'ceo' AND ${users.emailVerifiedAt} IS NOT NULL)`,
     }).from(users).groupBy(users.tenantId),
 
@@ -171,6 +174,7 @@ export async function collectOwnerPanel(db: Db, now = new Date()): Promise<Owner
   const peopleOf = new Map(people.map(r => [Number(r.tenantId), {
     lastLogin: r.lastLogin ? new Date(r.lastLogin) : null,
     agents: Number(r.agents ?? 0),
+    field: Number(r.field ?? 0),
     ceoVerified: Number(r.ceoVerified ?? 0) > 0,
   }]));
   const ceoOf = new Map<number, { phone: string | null; email: string }>();
@@ -202,10 +206,15 @@ export async function collectOwnerPanel(db: Db, now = new Date()): Promise<Owner
     if (active7) activeLast7++;
 
     if (isPaying) {
-      paying.push({ tenantId: t.id, name: t.name, plan, price: PLAN_PRICES_UZS[plan] ?? 0, periodEnds: t.subPeriodEnds, ...contact });
+      /*
+        MRR — по той же цене, что платит организация: прежний тариф — по
+        прежней до GRANDFATHER_UNTIL, «Стандарт» — за полевых (pricing.ts).
+      */
+      const price = priceForTenant(plan, who?.field ?? 0, now).monthly;
+      paying.push({ tenantId: t.id, name: t.name, plan, price, periodEnds: t.subPeriodEnds, ...contact });
       if (t.subPeriodEnds && renewalDays !== null) {
         renewals.push({
-          tenantId: t.id, name: t.name, plan, price: PLAN_PRICES_UZS[plan] ?? 0, periodEnds: t.subPeriodEnds,
+          tenantId: t.id, name: t.name, plan, price, periodEnds: t.subPeriodEnds,
           daysLeft: renewalDays, ...contact,
         });
       }

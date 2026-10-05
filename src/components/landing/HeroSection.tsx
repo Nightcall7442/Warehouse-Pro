@@ -101,7 +101,7 @@ export default function HeroSection() {
           {tr("строки появляются по факту, а не по плану", "qatorlar reja bo'yicha emas, fakt bo'yicha paydo bo'ladi")}
         </div>
       </div>
-      {/* Одна печать на первый экран; вторая и последняя — на тарифе Pro. */}
+      {/* Одна печать на всю страницу — на первом экране. */}
       <div data-stamp="" className="absolute -top-8 -right-6" style={{ mixBlendMode: "multiply" }}>
         <Stamp
           ring={tr("14 ДНЕЙ БЕСПЛАТНО · КАРТА НЕ НУЖНА · 14 KUN BEPUL · ", "14 KUN BEPUL · KARTA KERAK EMAS · 14 ДНЕЙ · ")}

@@ -1,0 +1,3 @@
+ALTER TABLE `subscription_payments` MODIFY COLUMN `plan` enum('basic','pro','exclusive','standard') NOT NULL;--> statement-breakpoint
+ALTER TABLE `subscriptions` MODIFY COLUMN `plan` enum('trial','basic','pro','exclusive','standard') NOT NULL DEFAULT 'trial';--> statement-breakpoint
+ALTER TABLE `tenants` MODIFY COLUMN `plan` enum('trial','basic','pro','exclusive','standard') NOT NULL DEFAULT 'trial';

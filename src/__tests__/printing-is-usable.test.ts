@@ -155,17 +155,17 @@ describe("печать документов", () => {
     /*
       Одно исключение, и оно названо здесь, а не спрятано в регулярке.
 
-      Лендинг — витрина САМОЙ платформы, а не документ арендатора. Там нет ни
-      организации, ни её настроек: показываются цены тарифов и надбавок,
-      которые платформа берёт в сумах и только в сумах — константы так и
-      названы, PLAN_PRICES_UZS и EXTRA_PRICES_UZS. Подставлять туда валюту
-      арендатора не из чего и незачем: посетитель лендинга ещё никто.
+      Цена САМОЙ платформы, а не документ арендатора: лендинг и экран
+      подписки (components/billing). Там показывается то, что платформа берёт
+      в сумах и только в сумах — contracts/pricing.ts, FIELD_PRICE_UZS и
+      LEGACY_PRICES_UZS. Подставлять туда валюту арендатора нельзя: организация
+      с рублями в настройках платит за подписку всё равно в сумах.
     */
-    const PLATFORM_PRICE_LIST = join("components", "landing");
+    const PLATFORM_PRICE_LIST = [join("components", "landing"), join("components", "billing")];
 
     const offenders: string[] = [];
     for (const { rel, text } of FILES) {
-      if (rel.startsWith(PLATFORM_PRICE_LIST)) continue;
+      if (PLATFORM_PRICE_LIST.some(dir => rel.startsWith(dir))) continue;
       for (const m of text.matchAll(/\}\s*(сум|so'm|руб\.|тенге|₽)\b/g)) {
         offenders.push(`${rel}: ${text.slice(Math.max(0, m.index - 45), m.index + 18).replace(/\s+/g, " ")}`);
       }

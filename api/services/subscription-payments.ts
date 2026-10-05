@@ -2,7 +2,9 @@ import { randomUUID } from "crypto";
 import { and, desc, eq, gt, gte, lte, sql } from "drizzle-orm";
 import { subscriptionPayments, subscriptions, tenants } from "@db/schema";
 import { monthShare, paymentPeriod, tashkentMonth, type PaidPlan, type PaymentMethod } from "@contracts/subscription-payment";
+import { FIELD_PRICE_UZS, GRANDFATHER_UNTIL, amountForPeriod, formatDay, formatSum, planSellable } from "@contracts/pricing";
 import { invalidateSubscriptionAccess } from "../lib/feature-gating";
+import { countFieldUsersOf } from "../lib/field-users";
 import { recordPlatformAudit } from "./platform-audit";
 import { invalidateOrgHealth } from "./org-health";
 
@@ -41,6 +43,15 @@ export class PaymentTenantMissing extends Error {
   constructor() { super("Организация не найдена"); }
 }
 
+/** Прежний тариф, который этой организации уже не включить (contracts/pricing.planSellable). */
+export class PaymentPlanClosed extends Error {
+  constructor(ownPlanExpired: boolean) {
+    super(ownPlanExpired
+      ? `Прежний тариф действовал до ${formatDay(GRANDFATHER_UNTIL)}. Теперь — «Стандарт», ${formatSum(FIELD_PRICE_UZS)} сум за полевого сотрудника.`
+      : `Прежние тарифы больше не подключаются — только продление своего до ${formatDay(GRANDFATHER_UNTIL)}. Выберите «Стандарт».`);
+  }
+}
+
 /**
  * Записать оплату и продлить подписку — одной транзакцией вместе со следом
  * в журнале владельца: оплата без следа или без продления хуже отказа.
@@ -54,7 +65,18 @@ export async function recordSubscriptionPayment(db: Db, input: RecordPaymentInpu
     const [sub] = await tx.select({ id: subscriptions.id, plan: subscriptions.plan, status: subscriptions.status, currentPeriodEnds: subscriptions.currentPeriodEnds })
       .from(subscriptions).where(eq(subscriptions.tenantId, input.tenantId)).for("update").limit(1);
 
+    if (!planSellable(t.plan, input.plan, now)) throw new PaymentPlanClosed(t.plan === input.plan);
+
     const period = paymentPeriod(sub ?? null, input.months, now);
+    /*
+      Сколько полагалось по прайсу — тем же правилом, что подсказывает форма
+      (contracts/pricing.amountForPeriod): за полевых, год со скидкой, прежний
+      тариф по прежней цене до даты. Сумма остаётся той, что внёс суперадмин
+      (скидка, доплата), а расчётная ложится рядом в журнал — расхождение
+      видно, а не теряется.
+    */
+    const fieldUsers = await countFieldUsersOf(tx, t.id);
+    const expected = amountForPeriod(input.plan, fieldUsers, input.months, period.from);
     const [ins] = await tx.insert(subscriptionPayments).values({
       tenantId: t.id, tenantName: t.name, amount: input.amount, paidAt: input.paidAt, method: input.method,
       plan: input.plan, months: input.months, periodFrom: period.fromDay, periodTo: period.toDay,
@@ -75,11 +97,11 @@ export async function recordSubscriptionPayment(db: Db, input: RecordPaymentInpu
       targetType: "payment", targetId: Number(ins.insertId),
       before: { plan: sub?.plan ?? t.plan, periodEnds: sub?.currentPeriodEnds ?? null },
       after: { plan: input.plan, periodEnds: period.to },
-      meta: { amount: input.amount, method: input.method, months: input.months, paidAt: input.paidAt, periodFrom: period.fromDay, periodTo: period.toDay, note: input.note?.trim() || undefined },
+      meta: { amount: input.amount, expected, fieldUsers, method: input.method, months: input.months, paidAt: input.paidAt, periodFrom: period.fromDay, periodTo: period.toDay, note: input.note?.trim() || undefined },
       ip,
     }, { strict: true });
 
-    return { id: Number(ins.insertId), periodFrom: period.fromDay, periodTo: period.toDay, currentPeriodEnds: period.to };
+    return { id: Number(ins.insertId), periodFrom: period.fromDay, periodTo: period.toDay, currentPeriodEnds: period.to, expected };
   });
   // Заплатившего пускаем сразу, а не через минуту кеша доступа.
   invalidateSubscriptionAccess(input.tenantId);

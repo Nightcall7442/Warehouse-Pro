@@ -398,7 +398,7 @@
     ],
     [
      "choose",
-     "text=/^(Выберите тариф|Tarifni tanlang)$/"
+     "text=/^(Тариф «Стандарт»|«Standart» tarifi)$/"
     ]
    ],
    "kpi": [

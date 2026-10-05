@@ -3,8 +3,11 @@ import { Wallet, Receipt } from "lucide-react";
 import { trpc } from "@/providers/trpc";
 import { notify } from "@/lib/toast";
 import { PremiumSelect } from "@/components/PremiumSelect";
-import { PLAN_PRICES_UZS } from "@contracts/constants";
 import { TENANT_PLAN_LABEL } from "@contracts/entity-labels";
+import {
+  ANNUAL_DISCOUNT, FIELD_PRICE_UZS, LEGACY_PRICES_UZS, billedFieldUsers, periodBreakdown,
+  countFieldUsers, isLegacyPlan, planSellable,
+} from "@contracts/pricing";
 import {
   PAID_PLANS, PAYMENT_METHODS, PAYMENT_METHOD_LABEL, paymentPeriod, tashkentDay,
   type PaidPlan, type PaymentMethod,
@@ -22,30 +25,55 @@ import { errorText } from "@/lib/error-text";
    не записывалась вовсе), и разошедшиеся шаги — это либо заплативший, которого
    заперло, либо продление, за которое никто не платил.
 
-   Сумма предзаполнена: цена тарифа × месяцы. Поправить можно (скидка,
-   доплата за места) — после правки руками она больше не пересчитывается сама.
+   Сумма предзаполнена по прайсу (contracts/pricing.amountForPeriod): у
+   «Стандарта» — полевые × 119 000 × месяцы, каждые 12 месяцев — годом со
+   скидкой; у прежнего тарифа — его цена до даты перехода. Поправить можно
+   (скидка, доплата) — после правки руками она больше не пересчитывается
+   сама. Сервер считает то же самое и кладёт в журнал рядом с внесённой.
+   Прежний тариф предлагается, только если это продление своего и дата
+   перехода не наступила (pricing.planSellable).
    Период — от конца оплаченного, тем же правилом, что считает сервер
    (contracts/subscription-payment): что видно до нажатия, то и запишется.
    ═══════════════════════════════════════════════════════════════════════════ */
 
-const PLAN_OPTIONS = PAID_PLANS.map(p => ({ value: p, label: `${TENANT_PLAN_LABEL[p].ru} · ${money(PLAN_PRICES_UZS[p])} сум/мес` }));
 const METHOD_OPTIONS = PAYMENT_METHODS.map(m => ({ value: m, label: PAYMENT_METHOD_LABEL[m] }));
 const input = { minHeight: 44, fontSize: 14 } as const;
 
 export function PaymentForm({ d, onChanged }: { d: Detail; onChanged: () => void }) {
   const sub = subOf(d);
   const utils = trpc.useUtils();
-  const current = (sub?.plan ?? d.tenant.plan) as string;
-  const [plan, setPlan] = useState<PaidPlan>((PAID_PLANS as readonly string[]).includes(current) ? (current as PaidPlan) : "basic");
+  const current = d.tenant.plan as string;
+  const now = new Date();
+  const fieldUsers = countFieldUsers(d.users);
+  const options = PAID_PLANS.filter(p => planSellable(current, p, now)).map(p => ({
+    value: p,
+    label: isLegacyPlan(p)
+      ? `${TENANT_PLAN_LABEL[p].ru} (прежний) · ${money(LEGACY_PRICES_UZS[p])} сум/мес`
+      : `${TENANT_PLAN_LABEL[p].ru} · ${billedFieldUsers(fieldUsers)} × ${money(FIELD_PRICE_UZS)} сум/мес`,
+  }));
+  const [plan, setPlan] = useState<PaidPlan>(options.some(o => o.value === current) ? (current as PaidPlan) : "standard");
   const [months, setMonths] = useState(1);
   const [amountText, setAmountText] = useState<string | null>(null);
   const [paidAt, setPaidAt] = useState(() => tashkentDay(new Date()));
   const [method, setMethod] = useState<PaymentMethod>("transfer");
   const [note, setNote] = useState("");
 
-  const suggested = PLAN_PRICES_UZS[plan] * months;
-  const amount = amountText === null ? suggested : Number(amountText.replace(/\D/g, ""));
   const period = useMemo(() => paymentPeriod(sub, Math.max(1, months), new Date()), [sub, months]);
+  const split = periodBreakdown(plan, fieldUsers, months, period.from);
+  const suggested = split.amount;
+  const amount = amountText === null ? suggested : Number(amountText.replace(/\D/g, ""));
+  const billed = billedFieldUsers(fieldUsers);
+  /*
+    Из чего сумма — словами. Прежний тариф, чей период заходит за дату
+    перехода, делится: месяцы до — по прежней цене, после — за полевых.
+  */
+  const basis = [
+    split.legacyMonths > 0 ? `${TENANT_PLAN_LABEL[plan].ru} × ${split.legacyMonths} мес. по прежней цене` : null,
+    split.perFieldMonths > 0
+      ? `${fieldUsers} полевых${fieldUsers < billed ? ` (к оплате ${billed})` : ""} × ${money(FIELD_PRICE_UZS)} × ${split.perFieldMonths} мес.` +
+        (split.years > 0 ? ` · ${split.years === 1 ? "год" : `${split.years} г.`} со скидкой ${Math.round(ANNUAL_DISCOUNT * 100)}%` : "")
+      : null,
+  ].filter(Boolean).join(" + ");
 
   const record = trpc.platform.recordPayment.useMutation({
     onSuccess: r => {
@@ -77,7 +105,7 @@ export function PaymentForm({ d, onChanged }: { d: Detail; onChanged: () => void
       <div className="grid gap-3 grid-cols-2 lg:grid-cols-[minmax(0,1.4fr)_110px_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)] items-end">
         <div className="col-span-2 lg:col-span-1">
           <FieldLabel>Тариф</FieldLabel>
-          <PremiumSelect value={plan} onChange={v => { setPlan(v as PaidPlan); }} options={PLAN_OPTIONS} width="100%" aria-label="Тариф оплаты" />
+          <PremiumSelect value={plan} onChange={v => { setPlan(v as PaidPlan); setAmountText(null); }} options={options} width="100%" aria-label="Тариф оплаты" />
         </div>
         <div>
           <FieldLabel htmlFor="pay-months">Месяцев</FieldLabel>
@@ -112,7 +140,7 @@ export function PaymentForm({ d, onChanged }: { d: Detail; onChanged: () => void
           <div style={{ fontSize: 12.5, color: "var(--color-text-secondary)" }}>
             {amountText !== null && amount !== suggested
               ? `По прайсу было бы ${money(suggested)} сум — сумма изменена руками`
-              : `${TENANT_PLAN_LABEL[plan].ru} × ${months} мес. по прайсу`}
+              : <span data-testid="pay-basis">{basis}</span>}
           </div>
         </div>
         <button type="button" className="neo-btn-primary w-full sm:w-auto" style={{ minHeight: 44 }} data-testid="pay-submit"

@@ -22,7 +22,7 @@ export const controlRouter = createRouter({
   setEnabled: adminQuery
     .input(z.object({ enabled: z.boolean() }))
     .mutation(async ({ input, ctx }) => {
-      if (input.enabled && !planAllowsControl(ctx.tenant.plan)) throw badRequest("Контроль доступен на тарифах Pro и Exclusive");
+      if (input.enabled && !planAllowsControl(ctx.tenant.plan)) throw badRequest("Контроль доступен на тарифах Стандарт, Pro и Exclusive");
       await getDb().update(settings).set({ controlEnabled: input.enabled }).where(eq(settings.tenantId, ctx.tenant.id));
       const { recordAudit } = await import("./services/audit-log");
       await recordAudit(getDb(), { tenantId: ctx.tenant.id, actorId: ctx.user.id, actorName: ctx.user.name, action: input.enabled ? "control.enabled" : "control.disabled", targetType: "settings", targetId: ctx.tenant.id, meta: {} });

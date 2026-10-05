@@ -4,6 +4,8 @@ import * as schema from "@db/schema";
 import { hasRealDb, connectRealDb, closeRealDb, truncateAll, ctxFor, type ServiceDb } from "./harness";
 import { cache } from "../../lib/cache";
 import { OWNER_PANEL_CACHE_KEY } from "../../services/owner-panel";
+import { GRANDFATHER_UNTIL, monthlyPrice } from "@contracts/pricing";
+import { tashkentDay } from "@contracts/subscription-payment";
 
 /**
  * Список организаций консоли платформы (tenant.list) — на настоящей базе.
@@ -167,8 +169,11 @@ describe.skipIf(!hasRealDb)("список организаций консоли 
   });
 
   it("сегменты: платит, продление, пробный, молчит; не клиенты — без сегментов", async () => {
-    expect((await row("pay")).segment).toMatchObject({ client: true, paying: true, trial: false, renewalDays: null, silentDays: null, price: 299_000 });
-    expect((await row("renew")).segment).toMatchObject({ paying: true, renewalDays: 11, silentDays: null, price: 599_000 });
+    // Цена — та, что платит организация (contracts/pricing.ts): прежние тарифы по
+    // прежней цене до 05.10.2027, потом — «Стандарт» без полевых, то есть минимум.
+    const old = tashkentDay(new Date()) < GRANDFATHER_UNTIL;
+    expect((await row("pay")).segment).toMatchObject({ client: true, paying: true, trial: false, renewalDays: null, silentDays: null, price: old ? 299_000 : monthlyPrice(0) });
+    expect((await row("renew")).segment).toMatchObject({ paying: true, renewalDays: 11, silentDays: null, price: old ? 599_000 : monthlyPrice(0) });
     expect((await row("trial")).segment).toMatchObject({ paying: false, trial: true, trialLive: true, silentDays: 6, active7: true });
     for (const k of ["suspended", "sandbox"]) {
       expect((await row(k)).segment, k).toMatchObject({ client: false, paying: false, silentDays: null, renewalDays: null, price: 0 });

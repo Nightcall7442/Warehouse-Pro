@@ -19,8 +19,12 @@ export const PAYMENT_METHOD_LABEL: Record<PaymentMethod, string> = {
   other:    "Другое",
 };
 
-/** Тарифы, за которые платят. Пробный — бесплатный, оплаты за него не бывает. */
-export const PAID_PLANS = ["basic", "pro", "exclusive"] as const;
+/**
+ * Тарифы, за которые платят. Пробный — бесплатный, оплаты за него не бывает.
+ * «Стандарт» — цена за полевого сотрудника (contracts/pricing.ts); прежние —
+ * только продление своего до GRANDFATHER_UNTIL (pricing.planSellable).
+ */
+export const PAID_PLANS = ["standard", "basic", "pro", "exclusive"] as const;
 export type PaidPlan = (typeof PAID_PLANS)[number];
 
 const DAY = 86_400_000;

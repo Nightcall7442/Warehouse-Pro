@@ -2,11 +2,17 @@ import { useState } from "react";
 import { Plus, Minus, Loader2, PhoneCall } from "lucide-react";
 import { trpc } from "@/providers/trpc";
 import { notify } from "@/lib/toast";
-import { EXTRA_PRICES_UZS } from "@contracts/constants";
+import { LEGACY_EXTRA_PRICES_UZS as EXTRA_PRICES_UZS } from "@contracts/pricing";
 import { errorText } from "@/lib/error-text";
 
 /**
  * Докупить места или позиции сверх тарифа.
+ *
+ * ── С 05.10.2026 — только прежним тарифам ───────────────────────────────────
+ *
+ * У «Стандарта» и пробного пределов нет, докупать нечего: экран показывает
+ * карточку только Basic / Pro / Exclusive, пока они действуют
+ * (GRANDFATHER_UNTIL), и сервер отвечает отказом остальным.
  *
  * ── Чего не хватало ─────────────────────────────────────────────────────────
  *

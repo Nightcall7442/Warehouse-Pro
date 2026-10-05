@@ -1,5 +1,6 @@
 import { and, eq, inArray, isNotNull } from "drizzle-orm";
 import { getDb } from "../queries/connection";
+import { plansWithProTools } from "../../contracts/constants";
 import { tenants, users } from "@db/schema";
 import { logger } from "../lib/logger";
 import { notifyEvent } from "../services/telegram-notify";
@@ -25,7 +26,6 @@ import type { Lang } from "../telegram/texts";
  * одному человеку (onlyUserId), и в общий чат он не уходит: маршрут агента —
  * его рабочее, а не новость смены.
  */
-const PLANS_WITH_BOT = ["trial", "pro", "exclusive"] as const;
 
 export async function runTelegramMorning(): Promise<{ agents: number; managers: number }> {
   const db = getDb();
@@ -39,7 +39,7 @@ export async function runTelegramMorning(): Promise<{ agents: number; managers: 
       isNotNull(users.telegramChatId),
       inArray(users.role, ["ceo", "supervisor", "agent", "merchandiser"]),
       eq(tenants.status, "active"),
-      inArray(tenants.plan, [...PLANS_WITH_BOT]),
+      inArray(tenants.plan, plansWithProTools(new Date())),
     ));
 
   const currencies = new Map<number, string>();

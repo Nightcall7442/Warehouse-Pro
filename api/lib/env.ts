@@ -112,6 +112,12 @@ export const env = {
   stripeBasicPriceId:     optional("STRIPE_BASIC_PRICE_ID"),
   stripeProPriceId:       optional("STRIPE_PRO_PRICE_ID"),
   stripeExclusivePriceId: optional("STRIPE_EXCLUSIVE_PRICE_ID"),
+  /*
+    «Стандарт» — цена ЗА МЕСТО (per unit) в Stripe: оформление ставит
+    количество = полевые сотрудники, не меньше трёх (contracts/pricing.ts).
+    Заводит владелец в панели Stripe; пусто — карточный путь «Стандарта» выключен.
+  */
+  stripeStandardPriceId:  optional("STRIPE_STANDARD_PRICE_ID"),
 
   // SMTP
   smtpHost:    optional("SMTP_HOST"),

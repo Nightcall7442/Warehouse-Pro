@@ -1,10 +1,11 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
 vi.mock("drizzle-orm", () => ({
   eq: (col: unknown, val: unknown) => ({ __kind: "eq", col, val }),
   and: (...conds: unknown[]) => ({ __kind: "and", conds }),
   sql: (strings: TemplateStringsArray, ...values: unknown[]) => ({ __kind: "sql", strings, values }),
   gte: (col: unknown, val: unknown) => ({ __kind: "gte", col, val }),
+  inArray: (col: unknown, values: unknown[]) => ({ __kind: "inArray", col, values }),
 }));
 
 // Заявка ложится через общий приём (services/leads.ts); здесь он подменён,
@@ -223,9 +224,22 @@ function makeCtx(tenantId: number, userId: number, role = "operator"): any {
   };
 }
 
+/*
+  Часы стоят на 05.10.2026 — день решения о цене за полевых. Прежние тарифы
+  до 05.10.2027 живут по-старому; без этого тест про «прежний Basic» сам
+  поменял бы смысл через год.
+*/
+const DECISION_DAY = new Date("2026-10-05T09:00:00Z");
+
 beforeEach(() => {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(DECISION_DAY);
   resetTables();
   mockDb = makeMockDb();
+});
+
+afterEach(() => {
+  vi.useRealTimers();
 });
 
 describe("billing.status", () => {
@@ -374,8 +388,8 @@ describe("billing.status", () => {
     const caller = billingRouter.createCaller(makeCtx(1, 10));
     const result = await caller.status();
 
-    expect(result.plans).toHaveLength(3);
-    expect(result.plans.map((p: { key: string }) => p.key)).toEqual(["basic", "pro", "exclusive"]);
+    // Прежний Basic до 05.10.2027: продлить его или перейти на «Стандарт». Других нет.
+    expect(result.plans.map((p: { key: string }) => p.key)).toEqual(["basic", "standard"]);
   });
 
   it("returns trialEndsAt and planExpiresAt from tenant", async () => {
@@ -407,19 +421,20 @@ describe("billing.requestUpgrade", () => {
   it("returns success with correct message for pro plan", async () => {
     const { billingRouter } = await import("../billing-router");
     const caller = billingRouter.createCaller(makeCtx(1, 10, "ceo"));
-    const result = await caller.requestUpgrade({ plan: "pro" });
+    const result = await caller.requestUpgrade({ plan: "standard" });
 
     expect(result.success).toBe(true);
-    expect(result.plan).toBe("pro");
-    expect(result.price).toBe(599000);
-    expect(result.message).toContain("Pro");
+    expect(result.plan).toBe("standard");
+    // Полевых нет — считается минимум: 3 × 119 000.
+    expect(result.price).toBe(357_000);
+    expect(result.message).toContain("Standard");
   });
 
   it("кладёт заявку в разбор заявок с контактом организации", async () => {
     const { billingRouter } = await import("../billing-router");
     const { recordLead } = await import("../services/leads");
     const caller = billingRouter.createCaller(makeCtx(1, 10, "ceo"));
-    await caller.requestUpgrade({ plan: "pro" });
+    await caller.requestUpgrade({ plan: "standard" });
 
     expect(recordLead).toHaveBeenCalledWith(
       null,
@@ -445,7 +460,7 @@ describe("billing.requestUpgrade", () => {
   it("accepts ceo role", async () => {
     const { billingRouter } = await import("../billing-router");
     const caller = billingRouter.createCaller(makeCtx(1, 10, "ceo"));
-    const result = await caller.requestUpgrade({ plan: "pro" });
+    const result = await caller.requestUpgrade({ plan: "standard" });
 
     expect(result.success).toBe(true);
   });
@@ -512,16 +527,122 @@ describe("billing.status — plan comparison", () => {
     expect(result.price).toBe(1_299_000);
   });
 
-  it("pro plan has higher limits than basic", async () => {
-    tenantsTable[0].plan = "pro";
+});
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   Цена за полевого сотрудника (contracts/pricing.ts) — на сервере.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+function addPeople() {
+  usersTable.push(
+    { id: 11, tenantId: 1, name: "Агент", email: "a@t", passwordHash: "x", role: "agent", status: "active" },
+    { id: 12, tenantId: 1, name: "Курьер", email: "c@t", passwordHash: "x", role: "courier", status: "active" },
+    { id: 13, tenantId: 1, name: "Мерч уволен", email: "m@t", passwordHash: "x", role: "merchandiser", status: "inactive" },
+    { id: 14, tenantId: 1, name: "Супервайзер", email: "s@t", passwordHash: "x", role: "supervisor", status: "active" },
+    { id: 15, tenantId: 1, name: "Оператор", email: "o@t", passwordHash: "x", role: "operator", status: "active" },
+    { id: 16, tenantId: 1, name: "Агент 2", email: "a2@t", passwordHash: "x", role: "agent", status: "active" },
+    { id: 17, tenantId: 1, name: "Агент 3", email: "a3@t", passwordHash: "x", role: "agent", status: "active" },
+    { id: 18, tenantId: 2, name: "Чужой агент", email: "x@t", passwordHash: "x", role: "agent", status: "active" },
+  );
+}
+
+describe("billing.status — цена за полевых", () => {
+  it("считает только активных агентов, курьеров и мерчендайзеров своей организации", async () => {
+    addPeople();
+    tenantsTable[0].plan = "standard";
     const { billingRouter } = await import("../billing-router");
-    const caller = billingRouter.createCaller(makeCtx(1, 10));
-    const result = await caller.status();
-    const basicPlan = result.plans.find(p => p.key === "basic");
-    const proPlan = result.plans.find(p => p.key === "pro");
-    if (!basicPlan || !proPlan) throw new Error("status() must offer both basic and pro");
-    // A null cap is "unlimited", which outranks any number.
-    expect(proPlan.maxUsers ?? Infinity).toBeGreaterThanOrEqual(basicPlan.maxUsers ?? Infinity);
+    const r = await billingRouter.createCaller(makeCtx(1, 10)).status();
+    expect(r.fieldUsers).toBe(4);
+    expect(r.fieldByRole).toEqual({ agent: 3, courier: 1, merchandiser: 0 });
+    expect(r.price).toBe(4 * 119_000);
+    expect(r.pricing).toMatchObject({ model: "perField", monthly: 476_000, annual: 4_855_200, grandfatheredUntil: null });
+  });
+
+  it("у «Стандарта» пределов нет и надбавка не считается", async () => {
+    tenantsTable[0].plan = "standard";
+    Object.assign(tenantsTable[0], { extraUsers: 10, extraProducts: 20 });
+    const { billingRouter } = await import("../billing-router");
+    const r = await billingRouter.createCaller(makeCtx(1, 10)).status();
+    expect(r.limits).toEqual({ maxUsers: null, maxProducts: null, maxOrdersMonth: null });
+    expect(r.extra).toEqual({ users: 0, products: 0, priceMonthly: 0 });
+    expect(r.plans.map(p => p.key)).toEqual(["standard"]);
+  });
+
+  it("пробный — бесплатно и без пределов, но предлагает «Стандарт» по своим людям", async () => {
+    addPeople();
+    tenantsTable[0].plan = "trial";
+    const { billingRouter } = await import("../billing-router");
+    const r = await billingRouter.createCaller(makeCtx(1, 10)).status();
+    expect(r.price).toBe(0);
+    expect(r.limits).toEqual({ maxUsers: null, maxProducts: null, maxOrdersMonth: null });
+    expect(r.plans).toEqual([expect.objectContaining({ key: "standard", price: 476_000, annual: 4_855_200 })]);
+  });
+
+  it("прежний Pro до 05.10.2027 — прежняя цена, прежние пределы и сумма, что будет потом", async () => {
+    addPeople();
+    tenantsTable[0].plan = "pro";
+    Object.assign(tenantsTable[0], { extraUsers: 2, extraProducts: 0 });
+    const { billingRouter } = await import("../billing-router");
+    const r = await billingRouter.createCaller(makeCtx(1, 10)).status();
+    expect(r.price).toBe(599_000);
+    expect(r.pricing).toMatchObject({ model: "legacy", grandfatheredUntil: "2027-10-05", nextMonthly: 476_000 });
+    expect(r.limits.maxUsers).toBe(22);
+    expect(r.extra.priceMonthly).toBe(2 * 35_000);
+  });
+
+  it("с 05.10.2027 прежний Pro — это «Стандарт»: цена за полевых, пределов нет", async () => {
+    vi.setSystemTime(new Date("2027-10-05T00:00:00+05:00"));
+    addPeople();
+    tenantsTable[0].plan = "pro";
+    tenantsTable[0].planExpiresAt = new Date("2027-11-01T00:00:00Z");
+    const { billingRouter } = await import("../billing-router");
+    const r = await billingRouter.createCaller(makeCtx(1, 10)).status();
+    expect(r.effectivePlan).toBe("standard");
+    expect(r.price).toBe(476_000);
+    expect(r.limits).toEqual({ maxUsers: null, maxProducts: null, maxOrdersMonth: null });
+    expect(r.plans.map(p => p.key)).toEqual(["standard"]);
+  });
+});
+
+describe("billing.requestUpgrade — сумму считает сервер", () => {
+  it("год предоплатой — минус 15 %, по своим полевым", async () => {
+    addPeople();
+    const { billingRouter } = await import("../billing-router");
+    const { recordLead } = await import("../services/leads");
+    const r = await billingRouter.createCaller(makeCtx(1, 10, "ceo")).requestUpgrade({ plan: "standard", period: "year" });
+    expect(r.price).toBe(Math.round(4 * 119_000 * 12 * 0.85));
+    expect(recordLead).toHaveBeenLastCalledWith(
+      null,
+      expect.objectContaining({ comment: expect.stringContaining("год предоплатой") }),
+      "Запрос на тариф",
+    );
+  });
+
+  it("чужой прежний тариф не подключить — только продлить свой", async () => {
+    const { billingRouter } = await import("../billing-router");
+    const caller = billingRouter.createCaller(makeCtx(1, 10, "ceo")); // организация на Basic
+    await expect(caller.requestUpgrade({ plan: "pro" })).rejects.toThrow(/больше не подключается/);
+    await expect(caller.requestUpgrade({ plan: "basic" })).resolves.toMatchObject({ price: 299_000 });
+  });
+
+  it("после 05.10.2027 продлить прежний нельзя", async () => {
+    vi.setSystemTime(new Date("2027-10-06T09:00:00Z"));
+    const { billingRouter } = await import("../billing-router");
+    await expect(billingRouter.createCaller(makeCtx(1, 10, "ceo")).requestUpgrade({ plan: "basic" })).rejects.toThrow(/больше не подключается/);
+  });
+});
+
+describe("billing.requestExtra — только прежним тарифам", () => {
+  it("«Стандарту» докупать нечего", async () => {
+    const { billingRouter } = await import("../billing-router");
+    const ctx = makeCtx(1, 10, "ceo");
+    ctx.tenant.plan = "standard";
+    await expect(billingRouter.createCaller(ctx).requestExtra({ users: 5, products: 0 })).rejects.toThrow(/докупать нечего/);
+  });
+
+  it("прежний Basic до даты — по-прежнему может", async () => {
+    const { billingRouter } = await import("../billing-router");
+    const r = await billingRouter.createCaller(makeCtx(1, 10, "ceo")).requestExtra({ users: 5, products: 0 });
+    expect(r.priceMonthly).toBe(5 * 35_000);
   });
 });

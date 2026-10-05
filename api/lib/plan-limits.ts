@@ -2,6 +2,7 @@ import { eq, and, sql } from "drizzle-orm";
 import { getDb } from "../queries/connection";
 import { tenants, users, products, orders } from "@db/schema";
 import { PLANS } from "../../contracts/constants";
+import { effectivePlan } from "../../contracts/pricing";
 
 type DbInstance = ReturnType<typeof getDb>;
 
@@ -20,7 +21,13 @@ export async function checkPlanLimits(
     .limit(1);
   if (!tenant) return { allowed: false, current: 0, limit: 0 };
 
-  const plan = PLANS[tenant.plan as keyof typeof PLANS];
+  /*
+    Пределы — по тарифу НА СЕГОДНЯ. У «Стандарта» и пробного их нет вовсе
+    (решение владельца 05.10.2026); прежние Basic / Pro / Exclusive держат свои
+    до GRANDFATHER_UNTIL, а с этого дня effectivePlan отдаёт «Стандарт» — и
+    пределы снимаются сами, без правки базы.
+  */
+  const plan = PLANS[effectivePlan(tenant.plan, new Date())];
   if (!plan) return { allowed: true, current: 0, limit: null };
 
   let current = 0;
@@ -90,7 +97,7 @@ export async function monthlyOrderRoom(
   tenantId: number,
   plan: string,
 ): Promise<{ allowed: boolean; current: number; limit: number | null }> {
-  const limit = PLANS[plan as keyof typeof PLANS]?.maxOrdersMonth ?? null;
+  const limit = PLANS[effectivePlan(plan, new Date())]?.maxOrdersMonth ?? null;
   if (limit === null) return { allowed: true, current: 0, limit: null };
   const now = new Date();
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);

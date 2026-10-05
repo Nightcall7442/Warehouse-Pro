@@ -18,7 +18,7 @@ const keyUsable = () => !!env.stripeSecretKey && !env.stripeSecretKey.startsWith
  * показывается, только если его правда настроили.
  */
 export function stripeConfigured(): boolean {
-  return keyUsable() && !!(env.stripeBasicPriceId || env.stripeProPriceId || env.stripeExclusivePriceId);
+  return keyUsable() && !!(env.stripeStandardPriceId || env.stripeBasicPriceId || env.stripeProPriceId || env.stripeExclusivePriceId);
 }
 
 export function getStripe(): Stripe {
@@ -31,9 +31,15 @@ export function getStripe(): Stripe {
   return _stripe;
 }
 
-// Extend shared plan metadata with Stripe-specific pricing (USD cents).
-export const PLANS: Record<PlanKey, (typeof BASE_PLANS)[PlanKey] & { price: number; priceId: string | null }> = {
+/*
+  Stripe-цены (центы USD). «Стандарт» — цена ЗА МЕСТО: сумму считает сам
+  Stripe по количеству (полевые, не меньше MIN_FIELD_USERS), поэтому здесь
+  числа нет — оно живёт в STRIPE_STANDARD_PRICE_ID. Прежние тарифы — для
+  продления тем, кто уже на них (до GRANDFATHER_UNTIL).
+*/
+export const PLANS: Record<PlanKey, (typeof BASE_PLANS)[PlanKey] & { price: number; priceId: string | null; perSeat?: true }> = {
   trial:     { ...BASE_PLANS.trial,     price: 0,           priceId: null },
+  standard:  { ...BASE_PLANS.standard,  price: 0,           priceId: env.stripeStandardPriceId || null, perSeat: true },
   basic:     { ...BASE_PLANS.basic,     price: 99_00,      priceId: env.stripeBasicPriceId || null },
   pro:       { ...BASE_PLANS.pro,       price: 249_00,     priceId: env.stripeProPriceId || null },
   exclusive: { ...BASE_PLANS.exclusive, price: 999_00,     priceId: env.stripeExclusivePriceId || null },

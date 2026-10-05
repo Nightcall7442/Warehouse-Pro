@@ -37,28 +37,42 @@ const state = vi.hoisted(() => ({
   role: "ceo",
   plan: "trial",
   statusEnabled: [] as Array<boolean | undefined>,
-  asked: [] as Array<{ plan: string }>,
+  asked: [] as Array<{ plan: string; period?: string }>,
   notified: false,
 }));
 
-vi.mock("@/providers/trpc", () => {
-  const plans = (["basic", "pro", "exclusive"] as const).map(key => ({
-    key, name: key[0].toUpperCase() + key.slice(1), nameUz: key, price: 0,
-    maxUsers: 5, maxProducts: 50, maxOrdersMonth: null,
-  }));
+vi.mock("@/providers/trpc", async () => {
+  /*
+    Ответ billing.status — как у сервера, через тот же модуль цены: прежний
+    Pro до 05.10.2027 видит продление по прежней цене и «Стандарт»,
+    пробный — только «Стандарт».
+  */
+  const { priceForTenant, monthlyPrice, annualPrice } = await import("@contracts/pricing");
+  const today = new Date("2026-10-05T09:00:00Z");
+  const statusOf = (plan: string) => {
+    const pricing = priceForTenant(plan, 7, today);
+    const legacy = pricing.model === "legacy";
+    return {
+      plan, effectivePlan: pricing.plan, pricing, fieldUsers: 7, fieldByRole: { agent: 5, courier: 2, merchandiser: 0 },
+      plans: [
+        ...(legacy ? [{ key: plan, name: "Pro", nameUz: "Pro", price: pricing.monthly, annual: null, legacy: true }] : []),
+        { key: "standard", name: "Standard", nameUz: "Standart", price: monthlyPrice(7), annual: annualPrice(7), legacy: false },
+      ],
+    };
+  };
   return {
     trpc: {
       billing: {
         status: {
           useQuery: (_i: unknown, o?: { enabled?: boolean }) => {
             state.statusEnabled.push(o?.enabled);
-            return { data: o?.enabled === false ? undefined : { plan: state.plan, plans, usage: { users: 1, products: 1, orders: 1 } } };
+            return { data: o?.enabled === false ? undefined : statusOf(state.plan) };
           },
         },
         requestUpgrade: {
           useMutation: (o: { onSuccess: (d: { notified: boolean }) => void }) => ({
             isPending: false,
-            mutate: (v: { plan: string }) => { state.asked.push(v); o.onSuccess({ notified: state.notified }); },
+            mutate: (v: { plan: string; period?: string }) => { state.asked.push(v); o.onSuccess({ notified: state.notified }); },
           }),
         },
       },
@@ -80,33 +94,36 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("экран блокировки: заявка на месте", () => {
-  it("директор выбирает тариф и видит ответ, не уходя с экрана", () => {
+  it("директор выбирает месяц или год «Стандарта» и видит ответ, не уходя с экрана", () => {
     render(<SubscriptionBlocked />);
-    for (const k of ["basic", "pro", "exclusive"]) expect(screen.getByTestId(`plan-request-${k}`)).toBeTruthy();
+    expect(screen.getByTestId("plan-request-standard").textContent).toContain("Подключить");
+    // Прежние тарифы новым не предлагаются.
+    for (const k of ["basic", "pro", "exclusive"]) expect(screen.queryByTestId(`plan-request-${k}`)).toBeNull();
 
-    fireEvent.click(screen.getByTestId("plan-request-basic"));
-    expect(state.asked).toEqual([{ plan: "basic" }]);
+    fireEvent.click(screen.getByTestId("plan-request-standard-year"));
+    expect(state.asked).toEqual([{ plan: "standard", period: "year" }]);
     // Уведомление не ушло — ответ говорит «записана», а не обещает звонок.
     expect(screen.getByTestId("plan-request-sent").textContent).toContain("Заявка записана");
   });
 
-  it("истёк платный — «Продлить» на тот же тариф", () => {
+  it("истёк прежний Pro — «Продлить» его по прежней цене или перейти на «Стандарт»", () => {
     state.plan = "pro";
     state.notified = true;
     render(<SubscriptionBlocked />);
     const renew = screen.getByTestId("plan-request-pro");
     expect(renew.textContent).toContain("Продлить");
-    expect(screen.getByTestId("plan-request-basic").textContent).toContain("Подключить");
+    expect(screen.getByTestId("grandfather-notice").textContent).toContain("05.10.2027");
+    expect(screen.getByTestId("plan-request-standard").textContent).toContain("Перейти");
 
     fireEvent.click(renew);
-    expect(state.asked).toEqual([{ plan: "pro" }]);
+    expect(state.asked).toEqual([{ plan: "pro", period: "month" }]);
     expect(screen.getByTestId("plan-request-sent").textContent).toContain("Заявка отправлена");
   });
 
   it("не директор тарифов не видит и знает, к кому идти", () => {
     state.role = "agent";
     render(<SubscriptionBlocked />);
-    expect(screen.queryByTestId("plan-request-basic")).toBeNull();
+    expect(screen.queryByTestId("plan-request-standard")).toBeNull();
     expect(state.statusEnabled.every(e => e === false)).toBe(true);
     expect(screen.getByText(/может руководитель организации/)).toBeTruthy();
   });
@@ -124,7 +141,8 @@ describe("экран блокировки не зовёт закрытых ру�
 
     const files = [
       "src/pages/SubscriptionBlocked.tsx",
-      "src/components/billing/SubscriptionPlanCard.tsx",
+      "src/components/billing/FieldPlanCard.tsx",
+      "src/components/billing/GrandfatherNotice.tsx",
       "src/components/billing/usePlanRequest.ts",
       "src/hooks/useAuth.ts",
     ];

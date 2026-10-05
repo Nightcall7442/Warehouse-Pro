@@ -2,10 +2,16 @@ import { z } from "zod";
 import { createRouter, authedQuery, adminQuery } from "./middleware";
 import { getDb } from "./queries/connection";
 import { tenants, users, orders, products } from "@db/schema";
-import { eq, and, sql, gte } from "drizzle-orm";
+import { eq, and, sql, gte, inArray } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
-import { PLANS, PLAN_PRICES_UZS, EXTRA_PRICES_UZS, type PlanKey } from "../contracts/constants";
+import { PLANS, type PlanKey } from "../contracts/constants";
+import {
+  FIELD_PRICE_UZS, FIELD_ROLES, LEGACY_EXTRA_PRICES_UZS, LEGACY_PRICES_UZS, GRANDFATHER_UNTIL,
+  amountForPeriod, annualPrice, formatDay, formatSum, isGrandfathered, isLegacyPlan,
+  monthlyPrice, priceForTenant, type FieldRole,
+} from "../contracts/pricing";
 import { recordLead } from "./services/leads";
+import { countFieldUsersOf } from "./lib/field-users";
 
 /** Тарифный предел плюс докупленное. Безлимитному прибавлять нечего. */
 const withExtra = (base: number | null, extra: number | null) =>
@@ -37,9 +43,9 @@ export const billingRouter = createRouter({
       .where(eq(tenants.id, tenantId)).limit(1);
     if (!tenant) throw new TRPCError({ code: "NOT_FOUND" });
 
-    const planKey = tenant.plan as PlanKey;
-    const plan      = PLANS[planKey] ?? PLANS.basic;
     const now       = new Date();
+    const planKey   = tenant.plan as PlanKey;
+    const plan      = PLANS[planKey] ?? PLANS.standard;
     const trialEnds = tenant.trialEndsAt;
     const planEnds  = tenant.planExpiresAt;
 
@@ -52,18 +58,45 @@ export const billingRouter = createRouter({
 
     // Current usage
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-    const [userCount, productCount, orderCount] = await Promise.all([
+    const [userCount, productCount, orderCount, fieldPeople] = await Promise.all([
       db.select({ c: sql<number>`count(*)` }).from(users).where(eq(users.tenantId, tenantId)),
       db.select({ c: sql<number>`count(*)` }).from(products).where(eq(products.tenantId, tenantId)),
       db.select({ c: sql<number>`count(*)` }).from(orders)
         .where(and(eq(orders.tenantId, tenantId), gte(orders.createdAt, startOfMonth))),
+      /*
+        Полевые — те, за кого платят: активные агенты, курьеры, мерчендайзеры
+        (contracts/pricing.ts). Отключённый не считается. Строками, а не
+        числом: экран раскладывает их по ролям — «5 агентов · 2 курьера».
+      */
+      db.select({ role: users.role }).from(users)
+        .where(and(eq(users.tenantId, tenantId), eq(users.status, "active"), inArray(users.role, [...FIELD_ROLES]))),
     ]);
+
+    const byRole = Object.fromEntries(FIELD_ROLES.map(r => [r, 0])) as Record<FieldRole, number>;
+    for (const p of fieldPeople) if (p.role in byRole) byRole[p.role as FieldRole]++;
+    const fieldUsers = fieldPeople.length;
+    const pricing = priceForTenant(tenant.plan, fieldUsers, now);
+    const eff = PLANS[pricing.plan] ?? PLANS.standard;
+    const grandfathered = pricing.model === "legacy";
+
+    /*
+      Надбавки — только у прежних тарифов и только пока они действуют: в новой
+      модели пределов нет, и докупленное ничего не прибавляет.
+    */
+    const extraUsers    = grandfathered ? Number(tenant.extraUsers ?? 0) : 0;
+    const extraProducts = grandfathered ? Number(tenant.extraProducts ?? 0) : 0;
 
     return {
       plan:          tenant.plan,
+      /** Тариф на сегодня: прежний после GRANDFATHER_UNTIL — уже «standard». */
+      effectivePlan: pricing.plan,
       planName:      plan.name,
       planNameUz:    plan.nameUz,
-      price:         PLAN_PRICES_UZS[tenant.plan as PlanKey],
+      planNameRu:    plan.nameRu,
+      price:         pricing.monthly,
+      pricing,
+      fieldUsers,
+      fieldByRole:   byRole,
       trialEndsAt:   trialEnds,
       planExpiresAt: planEnds,
       trialActive,
@@ -76,40 +109,34 @@ export const billingRouter = createRouter({
           : 0,
       /*
         Предел, который действует на самом деле: тарифный плюс докупленное.
-
-        Показывать голый тарифный нельзя: у арендатора, докупившего двадцать
-        позиций, полоса упёрлась бы в пятьдесят и кричала «предел исчерпан»,
-        когда на деле свободно ещё двадцать.
+        У «Стандарта» и пробного — null везде: пределов нет.
       */
       limits: {
-        maxUsers:       withExtra(plan.maxUsers, tenant.extraUsers),
-        maxProducts:    withExtra(plan.maxProducts, tenant.extraProducts),
-        maxOrdersMonth: plan.maxOrdersMonth,
+        maxUsers:       withExtra(eff.maxUsers, extraUsers),
+        maxProducts:    withExtra(eff.maxProducts, extraProducts),
+        maxOrdersMonth: eff.maxOrdersMonth,
       },
       extra: {
-        users:    Number(tenant.extraUsers ?? 0),
-        products: Number(tenant.extraProducts ?? 0),
+        users:    extraUsers,
+        products: extraProducts,
         // Доплата в месяц — чтобы к сумме тарифа не приходилось считать в уме.
-        priceMonthly:
-          Number(tenant.extraUsers ?? 0) * EXTRA_PRICES_UZS.user +
-          Number(tenant.extraProducts ?? 0) * EXTRA_PRICES_UZS.product,
+        priceMonthly: extraUsers * LEGACY_EXTRA_PRICES_UZS.user + extraProducts * LEGACY_EXTRA_PRICES_UZS.product,
       },
       usage: {
         users:   Number(userCount[0]?.c ?? 0),
         products:Number(productCount[0]?.c ?? 0),
         orders:  Number(orderCount[0]?.c ?? 0),
       },
-      plans: (Object.entries(PLANS) as [PlanKey, (typeof PLANS)[PlanKey]][])
-        .filter(([key]) => key !== "trial")
-        .map(([key, p]) => ({
-        key,
-        name:      p.name,
-        nameUz:    p.nameUz,
-        price:     PLAN_PRICES_UZS[key as PlanKey],
-        maxUsers:  p.maxUsers,
-        maxProducts: p.maxProducts,
-        maxOrdersMonth: p.maxOrdersMonth,
-      })),
+      /*
+        Что можно заказать. Новым и пробным — только «Стандарт»; прежнему
+        тарифу до GRANDFATHER_UNTIL ещё и продление по прежней цене.
+      */
+      plans: [
+        ...(grandfathered && isLegacyPlan(tenant.plan)
+          ? [{ key: tenant.plan as PlanKey, name: plan.name, nameUz: plan.nameUz, price: LEGACY_PRICES_UZS[tenant.plan], annual: null as number | null, legacy: true }]
+          : []),
+        { key: "standard" as PlanKey, name: PLANS.standard.name, nameUz: PLANS.standard.nameUz, price: monthlyPrice(fieldUsers), annual: annualPrice(fieldUsers) as number | null, legacy: false },
+      ],
     };
   }),
 
@@ -149,6 +176,17 @@ export const billingRouter = createRouter({
       products: z.number().int().min(0).max(1000).default(0),
     }))
     .mutation(async ({ input, ctx }) => {
+      /*
+        Надбавка есть только у прежних тарифов, пока они действуют: у
+        «Стандарта» и пробного пределов нет — докупать нечего, а заявка
+        с ценой надбавки обещала бы списать деньги ни за что.
+      */
+      if (!isGrandfathered(ctx.tenant.plan, new Date())) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Пределов по местам и товарам больше нет — докупать нечего.",
+        });
+      }
       if (input.users === 0 && input.products === 0) {
         throw new TRPCError({
           code: "BAD_REQUEST",
@@ -158,13 +196,13 @@ export const billingRouter = createRouter({
 
       /*
         Цена считается ЗДЕСЬ и из того же источника, что и списание
-        (EXTRA_PRICES_UZS). Прислать её с экрана нельзя: тогда сумма в заявке
-        была бы той, которую назвал браузер, а не та, по которой выставят
-        счёт.
+        (LEGACY_EXTRA_PRICES_UZS). Прислать её с экрана нельзя: тогда сумма в
+        заявке была бы той, которую назвал браузер, а не та, по которой
+        выставят счёт.
       */
       const priceMonthly =
-        input.users * EXTRA_PRICES_UZS.user +
-        input.products * EXTRA_PRICES_UZS.product;
+        input.users * LEGACY_EXTRA_PRICES_UZS.user +
+        input.products * LEGACY_EXTRA_PRICES_UZS.product;
 
       const parts = [
         input.users    ? `${input.users} мест`      : null,
@@ -201,34 +239,52 @@ export const billingRouter = createRouter({
      Заявка на тариф или продление — единственный путь «купить».
 
      Платёжной системы в сумах нет: заявку разбирает владелец платформы и
-     включает тариф руками (tenant.updatePlan). Поэтому потерянная заявка —
-     это потерянный платёж.
+     включает тариф руками (оплата в консоли). Поэтому потерянная заявка —
+     это потерянный платёж: запись в разбор заявок, потом уведомление, и
+     ответ честен про то, ушло ли оно.
 
-     А терялась она молча: ручка только слала сообщение в телеграм, и
-     notifyAdmin при сбое не бросает, а возвращает false — `.catch` не
-     срабатывал никогда. Бот не настроен, телеграм лежит, бота заблокировали —
-     намерение заплатить исчезало, а человеку всё равно отвечали «оператор
-     свяжется в течение 30 минут».
+     ── Цена за полевого сотрудника (05.10.2026) ─────────────────────────────
 
-     Теперь — как у надбавки: запись в разбор заявок, потом уведомление, и
-     ответ честен про то, ушло ли оно. Тот же тариф, что уже стоит, — это
-     продление, и в заявке оно названо продлением.
+     Продаётся один тариф — «Стандарт»: 119 000 сум за агента, курьера или
+     мерчендайзера в месяц, минимум трое, год предоплатой −15 %. Сумму
+     считает сервер по своим людям (contracts/pricing.ts) — экран её не
+     присылает. Прежний тариф можно только ПРОДЛИТЬ, и только пока он
+     действует (до GRANDFATHER_UNTIL): подключить Basic заново нельзя.
      ═════════════════════════════════════════════════════════════════════════ */
   requestUpgrade: adminQuery
-    .input(z.object({ plan: z.enum(["basic", "pro", "exclusive"]) }))
+    .input(z.object({
+      plan:   z.enum(["standard", "basic", "pro", "exclusive"]),
+      period: z.enum(["month", "year"]).default("month"),
+    }))
     .mutation(async ({ input, ctx }) => {
-      const plan  = PLANS[input.plan];
-      const price = PLAN_PRICES_UZS[input.plan];
+      const now   = new Date();
       const renew = ctx.tenant.plan === input.plan;
-      const now   = PLANS[ctx.tenant.plan as PlanKey]?.name ?? ctx.tenant.plan;
+      if (isLegacyPlan(input.plan) && !(renew && isGrandfathered(input.plan, now))) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `Тариф ${PLANS[input.plan].name} больше не подключается. Доступен «Стандарт» — ${formatSum(FIELD_PRICE_UZS)} сум за полевого сотрудника.`,
+        });
+      }
+
+      const fieldUsers = await countFieldUsersOf(getDb(), ctx.tenant.id);
+      const months = input.period === "year" ? 12 : 1;
+      const amount = amountForPeriod(input.plan, fieldUsers, months, now);
+      const plan   = PLANS[input.plan];
+      const was    = PLANS[ctx.tenant.plan as PlanKey]?.name ?? ctx.tenant.plan;
+      const what   = input.plan === "standard"
+        ? `${plan.name}: ${fieldUsers} полевых (к оплате ${priceForTenant("standard", fieldUsers, now).billedFieldUsers})`
+        : `${plan.name} по прежней цене до ${formatDay(GRANDFATHER_UNTIL)}`;
+      const sum = input.period === "year"
+        ? `год предоплатой ${formatSum(amount)} сум`
+        : `${formatSum(amount)} сум/мес`;
 
       const { notified } = await recordLead(ctx.db, {
         name:    ctx.user.name,
         company: ctx.tenant.name,
         phone:   callbackContact(ctx),
         comment: renew
-          ? `Продлить тариф ${plan.name}: ${price.toLocaleString("ru-RU")} сум/мес.`
-          : `Тариф ${plan.name}: ${price.toLocaleString("ru-RU")} сум/мес. Тариф сейчас: ${now}.`,
+          ? `Продлить тариф ${what}, ${sum}.`
+          : `Тариф ${what}, ${sum}. Тариф сейчас: ${was}.`,
         source:  renew ? "подписка: продление" : "подписка: тариф",
       }, renew ? "Запрос на продление тарифа" : "Запрос на тариф");
 
@@ -238,7 +294,8 @@ export const billingRouter = createRouter({
         message: notified
           ? `Заявка на тариф «${plan.name}» отправлена. Оператор свяжется с вами.`
           : `Заявка на тариф «${plan.name}» записана. Если не перезвонят в течение дня — позвоните сами.`,
-        price,
+        price:   amount,
+        period:  input.period,
         plan:    input.plan,
       };
     }),

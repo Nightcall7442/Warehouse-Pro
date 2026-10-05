@@ -72,41 +72,42 @@ describe.skipIf(!hasRealDb)("оплаты подписок", () => {
   it("досрочно — от конца оплаченного: неделя не сгорает; период днями совпадает со сроком", async () => {
     const ends = new Date(Math.floor((Date.now() + 10 * DAY) / 1000) * 1000);
     const id = await org("Бухара Сок", { plan: "basic", status: "active", currentPeriodEnds: ends });
-    const r = await (await admin()).recordPayment({ tenantId: id, amount: 1_797_000, paidAt: today(), method: "transfer", plan: "pro", months: 3, note: "за квартал" });
+    const r = await (await admin()).recordPayment({ tenantId: id, amount: 1_797_000, paidAt: today(), method: "transfer", plan: "standard", months: 3, note: "за квартал" });
 
     const expected = addMonths(ends, 3);
     const sub = await subOf(id);
     expect(off(sub.currentPeriodEnds, expected)).toBeLessThan(1000);
-    expect(sub.plan).toBe("pro");
+    expect(sub.plan).toBe("standard");
     expect(sub.status).toBe("active");
     const t = await tenantOf(id);
-    expect(t.plan).toBe("pro");
+    expect(t.plan).toBe("standard");
     expect(t.planExpiresAt.getTime()).toBe(sub.currentPeriodEnds.getTime());
 
     const [pay] = await d().select().from(schema.subscriptionPayments).where(eq(schema.subscriptionPayments.tenantId, id));
-    expect(pay).toMatchObject({ amount: 1_797_000, paidAt: today(), method: "transfer", plan: "pro", months: 3, note: "за квартал", tenantName: "Бухара Сок" });
+    expect(pay).toMatchObject({ amount: 1_797_000, paidAt: today(), method: "transfer", plan: "standard", months: 3, note: "за квартал", tenantName: "Бухара Сок" });
     expect(pay.periodFrom).toBe(tashkentDay(ends));
     expect(pay.periodTo).toBe(tashkentDay(expected));
     expect([r.periodFrom, r.periodTo]).toEqual([pay.periodFrom, pay.periodTo]);
 
     // След в журнале владельца — той же сделкой.
     const [j] = await d().select().from(schema.platformAudit).where(eq(schema.platformAudit.action, "payment.recorded"));
-    expect(j.meta).toMatchObject({ amount: 1_797_000, method: "transfer", months: 3, periodFrom: pay.periodFrom, periodTo: pay.periodTo });
+    // Рядом с внесённой — сколько полагалось по прайсу (contracts/pricing.ts): полевых нет — минимум, 3 × 119 000 × 3.
+    expect(j.meta).toMatchObject({ amount: 1_797_000, expected: 1_071_000, fieldUsers: 0, method: "transfer", months: 3, periodFrom: pay.periodFrom, periodTo: pay.periodTo });
     expect(j.before.plan).toBe("basic");
-    expect(j.after.plan).toBe("pro");
+    expect(j.after.plan).toBe("standard");
   });
 
   it("после конца срока и с пробного — от сегодня; пробный становится active", async () => {
     const expired = await org("Хорезм", { plan: "basic", status: "active", currentPeriodEnds: new Date(Date.now() - 5 * DAY) });
     const trial = await org("Наманган", { plan: "trial", status: "trialing", trialEndsAt: new Date(Date.now() + 9 * DAY), currentPeriodEnds: new Date(Date.now() + 9 * DAY) });
     const a = await admin();
-    await a.recordPayment({ tenantId: expired, amount: 299_000, paidAt: today(), method: "cash", plan: "basic", months: 1 });
-    await a.recordPayment({ tenantId: trial, amount: 299_000, paidAt: today(), method: "click", plan: "basic", months: 1 });
+    await a.recordPayment({ tenantId: expired, amount: 357_000, paidAt: today(), method: "cash", plan: "standard", months: 1 });
+    await a.recordPayment({ tenantId: trial, amount: 357_000, paidAt: today(), method: "click", plan: "standard", months: 1 });
     const now = new Date();
     expect(off((await subOf(expired)).currentPeriodEnds, addMonths(now, 1))).toBeLessThan(FIVE_MIN);
     const t = await subOf(trial);
     expect(t.status).toBe("active");
-    expect(t.plan).toBe("basic");
+    expect(t.plan).toBe("standard");
     expect(off(t.currentPeriodEnds, addMonths(now, 1))).toBeLessThan(FIVE_MIN);
     const pays = await a.payments({ tenantId: trial });
     expect(pays[0].periodFrom).toBe(today());
@@ -138,7 +139,7 @@ describe.skipIf(!hasRealDb)("оплаты подписок", () => {
     // Через ручку — сегодняшняя оплата попадает в «Поступило» текущего месяца.
     const a = await admin();
     const before = await a.paymentsSummary();
-    await a.recordPayment({ tenantId: id, amount: 599_000, paidAt: today(), method: "card", plan: "pro", months: 1 });
+    await a.recordPayment({ tenantId: id, amount: 599_000, paidAt: today(), method: "card", plan: "standard", months: 1 });
     const after = await a.paymentsSummary();
     expect(after.received - before.received).toBe(599_000);
     expect(after.mrrByPayments).toBeGreaterThan(before.mrrByPayments);
@@ -147,8 +148,8 @@ describe.skipIf(!hasRealDb)("оплаты подписок", () => {
   it("оплаты переживают удаление организации", async () => {
     const id = await org("Уходящая", { plan: "basic", status: "active", currentPeriodEnds: new Date(Date.now() + 3 * DAY) });
     const a = await admin();
-    await a.recordPayment({ tenantId: id, amount: 299_000, paidAt: today(), method: "cash", plan: "basic", months: 1 });
-    await a.recordPayment({ tenantId: id, amount: 598_000, paidAt: today(), method: "payme", plan: "basic", months: 2 });
+    await a.recordPayment({ tenantId: id, amount: 299_000, paidAt: today(), method: "cash", plan: "standard", months: 1 });
+    await a.recordPayment({ tenantId: id, amount: 598_000, paidAt: today(), method: "payme", plan: "standard", months: 2 });
 
     const { tenantRouter } = await import("../../tenant-router");
     const t = tenantRouter.createCaller(ctxFor(db, systemId, 1, "superadmin"));
@@ -166,7 +167,7 @@ describe.skipIf(!hasRealDb)("оплаты подписок", () => {
   it("сумма целая и больше нуля, дата не из будущего, организация есть; только суперадмину", async () => {
     const id = await org("Проверка", { plan: "basic", status: "active", currentPeriodEnds: new Date(Date.now() + 3 * DAY) });
     const a = await admin();
-    const base = { tenantId: id, paidAt: today(), method: "cash" as const, plan: "basic" as const, months: 1 };
+    const base = { tenantId: id, paidAt: today(), method: "cash" as const, plan: "standard" as const, months: 1 };
     await expect(a.recordPayment({ ...base, amount: 0 })).rejects.toMatchObject({ code: "BAD_REQUEST" });
     await expect(a.recordPayment({ ...base, amount: 299_000.5 })).rejects.toMatchObject({ code: "BAD_REQUEST" });
     await expect(a.recordPayment({ ...base, amount: 299_000, paidAt: tashkentDay(new Date(Date.now() + 5 * DAY)) })).rejects.toMatchObject({ code: "BAD_REQUEST" });
@@ -174,5 +175,35 @@ describe.skipIf(!hasRealDb)("оплаты подписок", () => {
     const { platformRouter } = await import("../../platform-router");
     await expect(platformRouter.createCaller(ctxFor(db, id, 2, "ceo")).recordPayment({ ...base, amount: 299_000 })).rejects.toMatchObject({ code: "FORBIDDEN" });
     expect(await a.payments({ tenantId: id })).toEqual([]);
+  });
+
+  it("прежний тариф: свой продлевается до 05.10.2027, чужой — нет; расчёт по полевым — в журнале", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-05T09:00:00Z"));
+    try {
+      const id = await org("Фергана Опт", { plan: "basic", status: "active", currentPeriodEnds: new Date("2026-10-10T00:00:00Z") });
+      for (const [i, role, status] of [[1, "agent", "active"], [2, "agent", "active"], [3, "courier", "active"], [4, "merchandiser", "active"], [5, "courier", "inactive"], [6, "supervisor", "active"]] as const) {
+        await d().insert(schema.users).values({ tenantId: id, name: `p${i}`, email: `p${i}-${id}@t.uz`, passwordHash: "x", role, status });
+      }
+      const a = await admin();
+      const day = tashkentDay(new Date());
+
+      await expect(a.recordPayment({ tenantId: id, amount: 599_000, paidAt: day, method: "cash", plan: "pro", months: 1 })).rejects.toMatchObject({ code: "BAD_REQUEST" });
+      expect(await a.payments({ tenantId: id })).toHaveLength(0);
+
+      const renew = await a.recordPayment({ tenantId: id, amount: 299_000, paidAt: day, method: "cash", plan: "basic", months: 1 });
+      expect(renew.expected).toBe(299_000);
+
+      const year = await a.recordPayment({ tenantId: id, amount: 5_000_000, paidAt: day, method: "transfer", plan: "standard", months: 12 });
+      // 4 активных полевых (супервайзер и отключённый курьер не в счёт) × 119 000 × 12 × 0,85.
+      expect(year.expected).toBe(Math.round(4 * 119_000 * 12 * 0.85));
+      const rows = await d().select().from(schema.platformAudit).where(eq(schema.platformAudit.action, "payment.recorded"));
+      expect(rows.at(-1).meta).toMatchObject({ amount: 5_000_000, expected: 4_855_200, fieldUsers: 4, months: 12 });
+
+      // Теперь организация на «Стандарте» — прежний Basic ей уже не вернуть.
+      await expect(a.recordPayment({ tenantId: id, amount: 299_000, paidAt: day, method: "cash", plan: "basic", months: 1 })).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

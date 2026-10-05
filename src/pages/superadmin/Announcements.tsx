@@ -32,7 +32,7 @@ import { errorText } from "@/lib/error-text";
 
 type Row = inferRouterOutputs<AppRouter>["platform"]["announcements"][number];
 type Audience = "all" | "plans" | "tenants";
-const PLANS = ["trial", "basic", "pro", "exclusive"] as const;
+const PLANS = ["trial", "standard", "basic", "pro", "exclusive"] as const;
 const input = { minHeight: 44, fontSize: 14 } as const;
 const HOUR = 3_600_000;
 

@@ -1,5 +1,7 @@
 import { describe, it, expect, beforeAll, beforeEach, afterAll, vi } from "vitest";
 import * as schema from "@db/schema";
+import { formatSum, monthlyPrice } from "@contracts/pricing";
+import { countFieldUsersOf } from "../../lib/field-users";
 import { hasRealDb, connectRealDb, closeRealDb, truncateAll, seed, ctxFor, type ServiceDb, type Seeded } from "./harness";
 
 /**
@@ -39,12 +41,15 @@ vi.mock("../../lib/telegram", async (orig) => ({
   sendTelegram: vi.fn(async (_chat: string, text: string) => { tg.sent.push(text); return tg.ok; }),
 }));
 vi.mock("../../lib/rate-limit", async () => (await import("../helpers/rate-limit-mock")).rateLimitMock());
+// Полевых сервер считает сам (lib/field-users) — через общее подключение, как и статус подписки.
+let current: ServiceDb;
+vi.mock("../../queries/connection", () => ({ getDb: () => current, getPool: () => null }));
 
 describe.skipIf(!hasRealDb)("заявка на тариф на настоящей базе", () => {
   let db: ServiceDb;
   let s: Seeded;
 
-  beforeAll(async () => { db = await connectRealDb(); }, 180_000);
+  beforeAll(async () => { db = await connectRealDb(); current = db; }, 180_000);
   afterAll(async () => { await closeRealDb(); });
   beforeEach(async () => {
     await truncateAll();
@@ -56,14 +61,14 @@ describe.skipIf(!hasRealDb)("заявка на тариф на настояще�
     const c = ctxFor(db, s.tenantId, 1, "ceo");
     return { ...c, tenant: { ...c.tenant, ...over.tenant }, user: { ...c.user, ...over.user } };
   };
-  const ask = async (plan: "basic" | "pro" | "exclusive", over?: Parameters<typeof ceo>[0]) => {
+  const ask = async (plan: "standard" | "basic" | "pro" | "exclusive", over?: Parameters<typeof ceo>[0]) => {
     const { billingRouter } = await import("../../billing-router");
     return billingRouter.createCaller(ceo(over)).requestUpgrade({ plan });
   };
   const leads = () => (db as any).select().from(schema.leads) as Promise<schema.Lead[]>;
 
   it("телеграм молчит — заявка записана, и ответ этого не скрывает", async () => {
-    const r = await ask("basic");
+    const r = await ask("standard");
 
     expect(r.notified).toBe(false);
     expect(r.message).toContain("записана");
@@ -72,13 +77,15 @@ describe.skipIf(!hasRealDb)("заявка на тариф на настояще�
     const rows = await leads();
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({ company: "Тестовая компания", source: "подписка: тариф", notified: false });
-    expect(rows[0].comment).toContain("Basic");
-    expect(rows[0].comment).toContain("299");
+    // Сумма — посчитанная сервером по полевым этой организации (contracts/pricing.ts).
+    expect(rows[0].comment).toContain("Standard");
+    expect(rows[0].comment).toContain(formatSum(r.price));
+    expect(r.price).toBe(monthlyPrice(await countFieldUsersOf(db as never, s.tenantId)));
   });
 
   it("уведомление ушло — заявка помечена, ответ «отправлена»", async () => {
     tg.chatId = "777"; tg.ok = true;
-    const r = await ask("exclusive");
+    const r = await ask("standard");
 
     expect(r.notified).toBe(true);
     expect(r.message).toContain("отправлена");
@@ -87,18 +94,25 @@ describe.skipIf(!hasRealDb)("заявка на тариф на настояще�
     expect(tg.sent.join("\n")).toContain("Запрос на тариф");
   });
 
-  it("тот же тариф, что стоит, — это продление", async () => {
-    const r = await ask("pro", { tenant: { plan: "pro" } });
-    expect(r.success).toBe(true);
-    const [row] = await leads();
-    expect(row.source).toBe("подписка: продление");
-    expect(row.comment).toMatch(/^Продлить тариф Pro/);
+  it("тот же тариф, что стоит, — это продление (прежний — по прежней цене до 05.10.2027)", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-05T09:00:00Z"));
+    try {
+      const r = await ask("pro", { tenant: { plan: "pro" } });
+      expect(r.success).toBe(true);
+      expect(r.price).toBe(599_000);
+      const [row] = await leads();
+      expect(row.source).toBe("подписка: продление");
+      expect(row.comment).toMatch(/^Продлить тариф Pro по прежней цене до 05\.10\.2027/);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("у организации нет контактов — перезванивают директору", async () => {
-    await ask("basic", { tenant: { ownerPhone: null, ownerEmail: null }, user: { phone: "+998 90 111 22 33" } });
-    await ask("basic", { tenant: { ownerPhone: null, ownerEmail: null }, user: { phone: null, email: "dir@sok.uz" } });
-    await ask("basic", { tenant: { ownerPhone: "+998 71 000 00 00" }, user: { phone: "+998 90 111 22 33" } });
+    await ask("standard", { tenant: { ownerPhone: null, ownerEmail: null }, user: { phone: "+998 90 111 22 33" } });
+    await ask("standard", { tenant: { ownerPhone: null, ownerEmail: null }, user: { phone: null, email: "dir@sok.uz" } });
+    await ask("standard", { tenant: { ownerPhone: "+998 71 000 00 00" }, user: { phone: "+998 90 111 22 33" } });
 
     const phones = (await leads()).map(l => l.phone).sort();
     expect(phones).toEqual(["+998 71 000 00 00", "+998 90 111 22 33", "dir@sok.uz"].sort());
@@ -108,11 +122,16 @@ describe.skipIf(!hasRealDb)("заявка на тариф на настояще�
   it("почта длиннее столбца телефона не роняет заявку", async () => {
     const email = "director.of.distribution@oltin-yol-savdo.uz"; // 43 знака, столбец — 32
     expect(email.length).toBeGreaterThan(32);
-    const r = await ask("pro", { tenant: { ownerPhone: null, ownerEmail: null }, user: { phone: null, email } });
+    const r = await ask("standard", { tenant: { ownerPhone: null, ownerEmail: null }, user: { phone: null, email } });
 
     expect(r.success).toBe(true);
     const [row] = await leads();
     expect(row.phone).toBe(email.slice(0, 32));
     expect(row.comment).toContain(`Связь: ${email}`);
+  });
+
+  it("прежний тариф чужой организации не подключить — заявка не ложится", async () => {
+    await expect(ask("exclusive", { tenant: { plan: "trial" } })).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    expect(await leads()).toHaveLength(0);
   });
 });

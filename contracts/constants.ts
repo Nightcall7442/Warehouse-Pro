@@ -1,3 +1,5 @@
+import { effectivePlan } from "./pricing";
+
 export const Session = {
   cookieName: "app_sid",
   maxAgeMs:   30 * 24 * 60 * 60 * 1000,  // 30 days — matches JWT expiry
@@ -36,15 +38,39 @@ export const Paths = {
 // router (USD).  Currency-specific pricing lives in each router.
 
 export const PLANS = {
+  /*
+    Пробный — без пределов (решение владельца 05.10.2026): две недели
+    показывают продукт целиком, и упереться в «20 товаров» на второй день
+    значит не увидеть, как он работает с настоящим каталогом.
+  */
   trial: {
     name:           "Trial",
     nameUz:         "Trial",
     nameRu:         "Пробный",
-    maxUsers:       3,
-    maxProducts:    20,
-    maxOrdersMonth: 50,
+    maxUsers:       null as number | null,
+    maxProducts:    null as number | null,
+    maxOrdersMonth: null as number | null,
     durationDays:   14,
   },
+  /*
+    Цена за полевого сотрудника (contracts/pricing.ts) — единственный тариф,
+    который продаётся с 05.10.2026. Пределов нет ни по чему: платят за людей
+    в поле, а не за заказы и не за каталог.
+  */
+  standard: {
+    name:           "Standard",
+    nameUz:         "Standart",
+    nameRu:         "Стандарт",
+    maxUsers:       null as number | null,
+    maxProducts:    null as number | null,
+    maxOrdersMonth: null as number | null,
+    durationDays:   30,
+  },
+  /*
+    Basic / Pro / Exclusive — ПРЕЖНИЕ тарифы. Новым организациям не продаются;
+    кто на них сидит, живёт по их цене и пределам до GRANDFATHER_UNTIL
+    (contracts/pricing.ts), потом — как «Стандарт» (effectivePlan).
+  */
   basic: {
     name:           "Basic",
     nameUz:         "Basic",
@@ -158,6 +184,13 @@ export const SERVICE_FEATURES: readonly FeatureKey[] = [
 ];
 
 /**
+ * Всё, что делает код: каталог без услуг. Это и есть «все функции включены»
+ * у «Стандарта» и у пробного.
+ */
+export const PRODUCT_FEATURES: readonly FeatureKey[] =
+  (Object.keys(FEATURES) as FeatureKey[]).filter(f => !SERVICE_FEATURES.includes(f));
+
+/**
  * Что тариф добавляет СВЕРХ предыдущего.
  *
  * Списком «добавляет», а не «включает всё»: иначе карточка Exclusive повторяет
@@ -173,68 +206,72 @@ export const SERVICE_FEATURES: readonly FeatureKey[] = [
  * GPS, обмен с 1С и аналитику — то есть ровно то, за что и платят. Продавать
  * продукт, спрятав от покупателя его половину, невозможно.
  *
- * Услуг здесь нет намеренно: см. SERVICE_FEATURES. Карточка пробного на экране
- * оплаты не показывается (billing отдаёт только покупаемые тарифы), так что
- * длина списка ничему не мешает — он работает только на доступ.
+ * Услуг здесь нет намеренно: см. SERVICE_FEATURES.
+ *
+ * ── «Стандарт» (05.10.2026) ─────────────────────────────────────────────────
+ *
+ * Цена за полевого сотрудника включает ВСЕ функции — тот же набор, что у
+ * пробного (PRODUCT_FEATURES). Лестница basic → pro → exclusive осталась
+ * только для прежних тарифов до GRANDFATHER_UNTIL.
  */
 export const PLAN_ADDS: Record<PlanKey, readonly FeatureKey[]> = {
-  trial: [
-    "warehouse", "mobile", "reportsBasic", "supportEmail",
-    "gps", "onec", "analytics",
-    "supportChat", "api", "whiteLabel",
-  ],
+  trial:     PRODUCT_FEATURES,
+  standard:  PRODUCT_FEATURES,
   basic:     ["warehouse", "mobile", "reportsBasic", "supportEmail"],
   pro:       ["gps", "onec", "analytics", "supportPriority"],
   exclusive: ["supportChat", "api", "whiteLabel", "dataMigration", "dedicatedServer"],
 };
 
-/** Порядок тарифов от младшего к старшему — по нему копятся возможности. */
-export const PLAN_ORDER: readonly PlanKey[] = ["trial", "basic", "pro", "exclusive"];
+/** Лестница прежних тарифов — по ней копятся их возможности до GRANDFATHER_UNTIL. */
+export const PLAN_ORDER: readonly PlanKey[] = ["basic", "pro", "exclusive"];
 
-/** Всё, что даёт тариф, включая унаследованное от младших. */
+/**
+ * Всё, что даёт тариф, включая унаследованное от младших.
+ *
+ * Пробный и «Стандарт» стоят особняком: у них всё сразу, лестницы нет.
+ */
 export function planFeatures(plan: PlanKey): FeatureKey[] {
+  if (plan === "trial" || plan === "standard") return [...PLAN_ADDS[plan]];
   const upTo = PLAN_ORDER.indexOf(plan);
   if (upTo < 0) return [];
   const out: FeatureKey[] = [];
-  // trial стоит особняком: он ничего не наследует и ничему не передаёт — это
-  // ознакомительный срок, а не ступень лестницы.
-  const chain = plan === "trial" ? (["trial"] as const) : PLAN_ORDER.slice(1, upTo + 1);
-  for (const key of chain) {
+  for (const key of PLAN_ORDER.slice(0, upTo + 1)) {
     for (const f of PLAN_ADDS[key]) if (!out.includes(f)) out.push(f);
   }
   return out;
 }
 
-/** Есть ли у тарифа возможность. По этому же решается доступ на сервере. */
-export function planHas(plan: PlanKey, feature: FeatureKey): boolean {
-  return planFeatures(plan).includes(feature);
+/**
+ * Есть ли у тарифа возможность — на день `today`. По этому же решается
+ * доступ на сервере.
+ *
+ * Дата нужна прежним тарифам: до GRANDFATHER_UNTIL у Basic ровно то, что было,
+ * после — всё, как у «Стандарта».
+ */
+export function planHas(plan: PlanKey, feature: FeatureKey, today: Date = new Date()): boolean {
+  return planFeatures(effectivePlan(plan, today)).includes(feature);
 }
 
-/** UZS prices — used by billing-router for local payment providers (Payme, Click, Uzum Pay) */
 /**
- * Сколько стоит одно место или один товар сверх тарифа — в месяц.
- *
- * Цены назначены владельцем и согласованы с лестницей тарифов, а не взяты с
- * потолка. Между Basic и Pro разница 300 000 сум за +50 товаров — то есть
- * 6 000 за товар; сверхлимитный стоит 5 000, чуть дешевле, и докупить пару
- * десятков выгоднее перехода. С местами наоборот: разница тарифов даёт 20 000
- * за место, а сверхлимитное стоит 35 000 — дороже, и при нужде в пятерых новых
- * сотрудниках выгоднее перейти на Pro. Так и задумано: надбавка закрывает
- * нехватку в несколько единиц, а не заменяет старший тариф.
+ * Контроль и Telegram-бот — «инструменты Pro»: были у Pro, Exclusive и
+ * пробного, не было у Basic. Теперь есть у всех, кроме Basic, который ещё
+ * живёт по-прежнему (до GRANDFATHER_UNTIL).
  */
-export const EXTRA_PRICES_UZS = {
-  /** Одно рабочее место (пользователь). */
-  user: 35_000,
-  /** Одна позиция номенклатуры (SKU). */
-  product: 5_000,
-} as const;
+export function planHasProTools(plan: string, today: Date = new Date()): boolean {
+  const eff = effectivePlan(plan, today);
+  return eff === "trial" || eff === "standard" || eff === "pro" || eff === "exclusive";
+}
 
-export const PLAN_PRICES_UZS: Record<PlanKey, number> = {
-  trial:     0,
-  basic:     299_000,
-  pro:       599_000,
-  exclusive: 1_299_000,
-};
+/** Тарифы с инструментами Pro на день `today` — для выборок по базе (cron). */
+export function plansWithProTools(today: Date = new Date()): PlanKey[] {
+  return (Object.keys(PLANS) as PlanKey[]).filter(p => planHasProTools(p, today));
+}
+
+/*
+  Цены живут в contracts/pricing.ts — цена за полевого сотрудника, а для
+  прежних тарифов — их прежние цены и надбавки (LEGACY_*). Здесь их больше
+  нет, чтобы не было второй копии.
+*/
 
 /* ═══════════════════════════════════════════════════════════════════════════
    ЧТО АРЕНДАТОР МОЖЕТ ОТОБРАТЬ У ОПЕРАТОРА

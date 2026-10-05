@@ -1,7 +1,8 @@
 import nodemailer from "nodemailer";
 import { env } from "./env";
 import { logger } from "./logger";
-import { PLANS, PLAN_PRICES_UZS, type PlanKey } from "../../contracts/constants";
+import { PLANS, type PlanKey } from "../../contracts/constants";
+import { FIELD_PRICE_UZS, MIN_FIELD_USERS, formatDay, formatSum, priceForTenant } from "../../contracts/pricing";
 
 /** Имя организации и приглашающего задаёт арендатор — в письме это текст, не разметка (аудит 20.09.2026). */
 export const escapeHtml = (s: string) => s.replace(/[&<>"']/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch] as string));
@@ -112,6 +113,8 @@ export async function sendTrialEndingEmail(
   orgName: string,
   daysLeft: number,
   billingUrl: string,
+  /** Активные агенты, курьеры, мерчендайзеры — по ним считается цена. */
+  fieldUsers: number,
 ): Promise<void> {
   const urgent = daysLeft <= 1;
   await sendEmail({
@@ -130,20 +133,23 @@ export async function sendTrialEndingEmail(
            style="display:inline-block;margin:20px 0;padding:12px 24px;background:#4f46e5;color:#fff;border-radius:6px;text-decoration:none;font-weight:bold">
           Выбрать тариф
         </a>
-        <p style="color:#666;font-size:12px">Тарифы: ${planPriceLine()}</p>
+        <p style="color:#666;font-size:12px">${priceLine(fieldUsers)}</p>
       </div>
     `,
   });
 }
 
 /*
-  Цены — из того же источника, что экран и заявка. Здесь стояло «Basic $99 ·
-  Pro $249»: доллары Stripe, которым в Узбекистане не платят, и числа,
-  разошедшиеся с экраном оплаты.
+  Цена — из того же источника, что экран и заявка (contracts/pricing.ts):
+  за полевого сотрудника и сразу с суммой для этой организации. Строка
+  «Basic 299 000 · Pro 599 000» заставляла директора выбирать тариф, а
+  теперь выбирать нечего — надо знать, сколько выйдет у него.
 */
-const planPriceLine = () => (["basic", "pro", "exclusive"] as const)
-  .map(k => `${PLANS[k].name} ${PLAN_PRICES_UZS[k].toLocaleString("ru-RU")} сум/мес`)
-  .join(" · ");
+const priceLine = (fieldUsers: number) => {
+  const p = priceForTenant("standard", fieldUsers, new Date());
+  return `${formatSum(FIELD_PRICE_UZS)} сум/мес за агента, курьера или мерчендайзера (не меньше ${MIN_FIELD_USERS}); ` +
+    `офис бесплатно, все функции, без ограничений. У вас ${p.fieldUsers} полевых — ${formatSum(p.monthly)} сум/мес.`;
+};
 
 /** Оплаченный срок кончается — за 7, 3 и 1 день (cron/trial-reminders.ts). */
 export async function sendRenewalReminderEmail(
@@ -153,10 +159,23 @@ export async function sendRenewalReminderEmail(
   daysLeft: number,
   endsAt: Date,
   billingUrl: string,
+  /** Активные агенты, курьеры, мерчендайзеры — по ним считается цена. */
+  fieldUsers: number,
 ): Promise<void> {
   const urgent = daysLeft <= 1;
-  const known  = plan in PLAN_PRICES_UZS ? (plan as PlanKey) : null;
+  const known  = plan in PLANS ? (plan as PlanKey) : null;
   const name   = known ? PLANS[known].name : plan;
+  const price  = priceForTenant(plan, fieldUsers, new Date());
+  /*
+    Сумма продления — та, что выставят: прежний тариф по прежней цене до
+    GRANDFATHER_UNTIL (и сразу — во что он превратится), «Стандарт» — за
+    полевых этой организации.
+  */
+  const priceText = price.model === "legacy" && price.grandfatheredUntil
+    ? `${escapeHtml(name)}: ${formatSum(price.monthly)} сум/мес — по прежней цене до ${formatDay(price.grandfatheredUntil)}; затем ${formatSum(FIELD_PRICE_UZS)} сум за полевого сотрудника: у вас ${price.fieldUsers} → ${formatSum(price.nextMonthly)} сум/мес.`
+    : price.monthly > 0
+      ? `${escapeHtml(PLANS[price.plan]?.name ?? name)}: ${price.fieldUsers} полевых — ${formatSum(price.monthly)} сум/мес, за год предоплатой ${formatSum(price.annual)} сум.`
+      : "";
   const date   = endsAt.toLocaleDateString("ru-RU", { timeZone: "Asia/Tashkent" });
   await sendEmail({
     to,
@@ -175,7 +194,7 @@ export async function sendRenewalReminderEmail(
            style="display:inline-block;margin:20px 0;padding:12px 24px;background:#4f46e5;color:#fff;border-radius:6px;text-decoration:none;font-weight:bold">
           Продлить подписку
         </a>
-        ${known ? `<p style="color:#666;font-size:12px">${escapeHtml(name)}: ${PLAN_PRICES_UZS[known].toLocaleString("ru-RU")} сум/мес</p>` : ""}
+        ${priceText ? `<p style="color:#666;font-size:12px">${priceText}</p>` : ""}
       </div>
     `,
   });

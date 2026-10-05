@@ -218,7 +218,7 @@ describe.skipIf(!hasRealDb)("телефон при регистрации на �
       .map(c => c.split(";")[0].trim()).filter(c => c.startsWith(`${Session.cookieName}=`)).join("; ");
     expect(cookie).toContain(Session.cookieName);
 
-    const r = await trpcPost("billing.requestUpgrade", { plan: "basic" }, cookie);
+    const r = await trpcPost("billing.requestUpgrade", { plan: "standard" }, cookie);
     expect(r.status, JSON.stringify(r.body)).toBe(200);
 
     const [lead] = await d().select().from(schema.leads);

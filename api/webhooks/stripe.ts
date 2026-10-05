@@ -12,9 +12,10 @@ import { logger } from "../lib/logger";
 import { notifyAdmin, tgMessages } from "../lib/telegram";
 
 /** Stripe sets this in checkout metadata; anything else is not a plan we sell. */
-type PaidPlan = "basic" | "pro" | "exclusive";
+type PaidPlan = "standard" | "basic" | "pro" | "exclusive";
+/** Незнакомое — «Стандарт»: прежние тарифы новым не продаются (contracts/pricing.ts). */
 function toPaidPlan(value: string | undefined): PaidPlan {
-  return value === "pro" || value === "exclusive" ? value : "basic";
+  return value === "basic" || value === "pro" || value === "exclusive" ? value : "standard";
 }
 
 // Generic over the env so the caller's bindings (node-server's HttpBindings)
@@ -100,9 +101,10 @@ export function registerStripeWebhook<E extends Env>(app: Hono<E>) {
             tenantId = Number(sub.metadata?.tenantId);
             if (!tenantId) break;
             const priceId = sub.items?.data?.[0]?.price?.id;
-            let plan: "basic" | "pro" | "exclusive" = "basic";
-            if (priceId === env.stripeProPriceId) plan = "pro";
-            else if (priceId === env.stripeExclusivePriceId) plan = "exclusive";
+            let plan: PaidPlan = "standard";
+            if (priceId && priceId === env.stripeBasicPriceId) plan = "basic";
+            else if (priceId && priceId === env.stripeProPriceId) plan = "pro";
+            else if (priceId && priceId === env.stripeExclusivePriceId) plan = "exclusive";
             const [existingSub] = await tx.select({ id: subscriptions.id }).from(subscriptions).where(eq(subscriptions.tenantId, tenantId)).limit(1);
             const subData = {
               plan, status: sub.status as "active" | "past_due" | "canceled" | "trialing" | "incomplete",
