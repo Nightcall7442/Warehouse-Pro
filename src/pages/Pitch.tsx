@@ -4,6 +4,7 @@ import { useTheme } from "@/hooks/useTheme";
 import { Browser, Phone } from "@/components/landing/landing-frames";
 import { PitchShell, Chapter, Mono, ArrowLink } from "@/components/pitch/pitch-ui";
 import ApiSection from "@/components/pitch/ApiSection";
+import { MobileScreens } from "@/components/pitch/MobileScreens";
 import { PhotoOrIcon } from "@/components/PhotoOrIcon";
 import { useDemoStatus } from "@/components/pitch/demo-access";
 import {
@@ -46,6 +47,7 @@ function PitchBody() {
     <>
       <Hero />
       <ProblemSolution />
+      <MobileScreens />
       <Team />
       <WhyUs />
       <Roadmap />
