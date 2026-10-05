@@ -91,6 +91,9 @@ describe.skipIf(!hasRealDb)("демо для жюри на настоящей б
       expect(first.stocked).toBe(12);
       expect(first.paymentsAdded).toBeGreaterThan(0);
       expect(first.plansAdded).toBeGreaterThan(0);
+      // Планы продаж: этот и следующий месяц на каждого агента — иначе «Reja yo'q» у агента и в прогнозе.
+      expect(first.targetsAdded).toBeGreaterThan(0);
+      expect(first.targetsAdded % 2).toBe(0);
 
       expect(await count(db, sql`SELECT COUNT(*) n FROM warehouse_stock WHERE tenant_id = ${sandboxId} AND current_stock > 0`)).toBe(12);
       expect(await count(db, sql`SELECT COUNT(*) n FROM stock_batches WHERE tenant_id = ${sandboxId} AND expires_at <= CURDATE() + INTERVAL 14 DAY`)).toBe(2);
@@ -111,7 +114,7 @@ describe.skipIf(!hasRealDb)("демо для жюри на настоящей б
         plans: await count(db, sql`SELECT COUNT(*) n FROM daily_plans WHERE tenant_id = ${sandboxId}`),
       };
       const second = await seedPitchDemoExtras(db as never, sandboxId);
-      expect(second).toEqual({ supervisorAdded: false, stocked: 0, paymentsAdded: 0, plansAdded: 0 });
+      expect(second).toEqual({ supervisorAdded: false, stocked: 0, paymentsAdded: 0, plansAdded: 0, targetsAdded: 0 });
       expect(await count(db, sql`SELECT ROUND(SUM(current_stock)) n FROM warehouse_stock WHERE tenant_id = ${sandboxId}`)).toBe(before.stock);
       expect(await count(db, sql`SELECT COUNT(*) n FROM payments WHERE tenant_id = ${sandboxId}`)).toBe(before.pays);
       expect(await count(db, sql`SELECT COUNT(*) n FROM daily_plans WHERE tenant_id = ${sandboxId}`)).toBe(before.plans);
