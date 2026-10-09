@@ -205,12 +205,22 @@ async function readObjects(conn: mysql.Connection, database: string): Promise<Db
  * Вычисляемые столбцы пропускаются: значение у них есть, а вставить его нельзя
  * — MySQL отвечает ошибкой 3105 на попытку записать в такой столбец. Без этого
  * отбора выгрузка выглядела бы исправной и не разворачивалась.
+ *
+ * Вычисляемый — это ровно «VIRTUAL GENERATED» и «STORED GENERATED» в EXTRA.
+ * Здесь стояло `NOT LIKE '%GENERATED%'`, и под него попадал ещё и
+ * «DEFAULT_GENERATED» — так MySQL 8+ помечает ОБЫЧНЫЙ столбец со значением по
+ * умолчанию из выражения: `created_at DEFAULT (now())`, `updated_at … ON
+ * UPDATE CURRENT_TIMESTAMP`. Копия молча теряла created_at и updated_at во
+ * всех таблицах (найдено 09.10.2026 при разборе ночной копии): развёрнутая,
+ * она ставила каждому заказу, платежу и возврату дату восстановления — долги
+ * по срокам, отчёты по дням и акты сверки превращались в один день. Репетиция
+ * восстановления сверяет число строк, а строк было столько же, — и молчала.
  */
 async function columnsOf(conn: mysql.Connection, database: string, table: string): Promise<string[]> {
   const [rows] = await conn.query<mysql.RowDataPacket[]>(
     `SELECT COLUMN_NAME AS name FROM information_schema.COLUMNS
       WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?
-        AND (EXTRA IS NULL OR EXTRA NOT LIKE '%GENERATED%')
+        AND (EXTRA IS NULL OR (EXTRA NOT LIKE '%VIRTUAL GENERATED%' AND EXTRA NOT LIKE '%STORED GENERATED%'))
       ORDER BY ORDINAL_POSITION`,
     [database, table],
   );
