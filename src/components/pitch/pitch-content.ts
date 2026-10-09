@@ -2,9 +2,10 @@
  * Тексты и данные страниц конкурса Pitch Day 3.0 — /pitch и /demo.
  *
  * Правило страницы то же, что у лендинга: НИ ОДНОГО ВЫДУМАННОГО ЧИСЛА.
- * Каждое число здесь проверяемо — откуда оно, написано рядом. Числа клиентов
- * нет намеренно: решение владельца (05.10.2026) — стадию называем «запущено»
- * и показываем, что работает, без счёта организаций.
+ * Каждое число здесь проверяемо — откуда оно, написано рядом. До 09.10.2026
+ * числа клиентов не было (решение владельца 05.10); 09.10 он решил показать
+ * их — главный вопрос жюри «сколько у вас клиентов и что они платят» иначе
+ * оставался без ответа. См. TRACTION.
  *
  * Язык — парой { uz, ru }: узбекский первым, его читает жюри.
  */
@@ -54,19 +55,174 @@ export const TEAM: TeamMember[] = [
   },
 ];
 
+/* ── План найма ─────────────────────────────────────────────────────────────
+   Вопрос жюри к команде из одного человека: «кто продаёт и внедряет?».
+   Порядок — по тому, что сейчас упирается: каждый новый дистрибьютор — это
+   перенос справочников и обучение агентов, и это делает основатель. */
+export const HIRING: Array<{ role: L; why: L }> = [
+  {
+    role: { uz: "Joriy etish va qo'llab-quvvatlash mutaxassisi", ru: "Специалист по внедрению и поддержке" },
+    why: {
+      uz: "Birinchi: yangi distribyutorning ma'lumotlarini ko'chiradi, agentlar va ofisni o'qitadi, savollarga javob beradi — asoschi mahsulotga qaytadi.",
+      ru: "Первым: переносит данные нового дистрибьютора, обучает агентов и офис, отвечает на вопросы — основатель возвращается к продукту.",
+    },
+  },
+  {
+    role: { uz: "Savdo menejeri", ru: "Менеджер по продажам" },
+    why: {
+      uz: "Ikkinchi: distribyutorlar bilan uchrashuvlar, demo va sinov muddatidan pullik tarifga o'tkazish.",
+      ru: "Вторым: встречи с дистрибьюторами, показы и перевод с пробного периода на платный.",
+    },
+  },
+];
+
+/* ── Рынок и конкуренты ─────────────────────────────────────────────────────
+   Только проверяемое и со ссылкой. Про чужие продукты — что они такое, без
+   оценок «у них нет»: их возможностей изнутри мы не видели. */
+export const MARKET_PROOF: { text: L; source: { label: string; href: string } } = {
+  text: {
+    uz: "Bozor isbotlangan: distribyutsiyani avtomatlashtiruvchi o'zbek servisi Sales Doctor asoschisi oylik tushum $320 ming ekanini aytadi. Distribyutorlar bunday tizim uchun pul to'laydi.",
+    ru: "Рынок доказан: основатель узбекского сервиса автоматизации дистрибуции Sales Doctor называет выручку $320 тысяч в месяц. Дистрибьюторы платят за такие системы.",
+  },
+  source: {
+    label: "digitalbusiness.kz, 18.09.2026",
+    href: "https://digitalbusiness.kz/2026-09-18/uzbekistanets-zapustil-servis-po-avtomatizatsii-distributsii-i-vishel-na-viruchku-4-mln-v-god/",
+  },
+};
+
+export const ALTERNATIVES: Array<{ name: L; what: L }> = [
+  {
+    name: { uz: "Qog'oz, Excel, Telegram", ru: "Бумага, Excel, Telegram" },
+    what: {
+      uz: "Asosiy raqobatchi: bepul va tanish, lekin qarz, qoldiq va pul bir-biriga bog'lanmaydi.",
+      ru: "Главный конкурент: бесплатно и привычно, но долг, остаток и деньги друг с другом не связаны.",
+    },
+  },
+  {
+    name: { uz: "1C", ru: "1С" },
+    what: {
+      uz: "Buxgalteriya hisobi. Biz uni almashtirmaymiz — OData orqali ma'lumot almashamiz.",
+      ru: "Бухгалтерский учёт. Мы его не заменяем — обмениваемся данными по OData.",
+    },
+  },
+  {
+    name: { uz: "Sales Doctor", ru: "Sales Doctor" },
+    what: {
+      uz: "Distribyutsiya va chakana savdo uchun avtomatlashtirish; yirik ishlab chiqaruvchilar bilan ishlaydi.",
+      ru: "Автоматизация дистрибуции и розницы; работает с крупными производителями.",
+    },
+  },
+  {
+    name: { uz: "Smartup", ru: "Smartup" },
+    what: {
+      uz: "Ishlab chiqarish va distribyutsiya uchun bulutli ERP: moliya, ombor, savdo, kadrlar.",
+      ru: "Облачная ERP для производства и дистрибуции: финансы, склад, продажи, кадры.",
+    },
+  },
+];
+
+/** Чем отличаемся — только то, что можно проверить на нашей стороне. */
+export const DIFFERENTIATORS: L[] = [
+  { uz: "Narx saytda ochiq, ro'yxatdan o'zi o'tadi: 14 kun bepul, karta kerak emas.", ru: "Цена открыта на сайте, регистрация без звонка: 14 дней бесплатно, карта не нужна." },
+  { uz: "Faqat dala xodimi uchun to'lov: ofis, ombor, supervayzer va direktor — bepul; buyurtma va tovarlar cheklanmagan.", ru: "Платят только за людей в поле: офис, склад, супервайзеры и директор — бесплатно; заказы и товары без ограничений." },
+  { uz: "Qarz har bir buyurtma bo'yicha, muddati o'tsa yuklash to'xtaydi — qoidalar pul bilan ishlaydi.", ru: "Долг по каждому заказу и стоп отгрузки при просрочке — правила, которые работают с деньгами." },
+  { uz: "Oflayn agent ilovasi, o'zbek va rus tillari, ochiq API va 1C bilan almashinuv.", ru: "Офлайн-приложение агента, узбекский и русский, открытый API и обмен с 1С." },
+];
+
+/* ── Функции: наравне с рынком, свои находки, честные пробелы ───────────────
+   09.10.2026 владелец: «объяснить, что мы не отстаём от Smartup и Sales
+   Doctor по функционалу и по задумке». Сравнение — по основным процессам
+   дистрибьютора, и каждый пункт PARITY стоит на работающей функции в коде.
+   То, что конкуренты показывают публично, а у нас нет, названо в GAPS:
+   жюри, знающее Sales Doctor, спросит про маркировку — ответ уже на странице.
+   (Sales Doctor и «Asl Belgisi» — spot.uz, 31.07.2026; Smartup и учёт
+   торгового оборудования — описание приложения в App Store.) */
+export const PARITY: L[] = [
+  { uz: "Oflayn buyurtma, katalog, qoldiq va do'kon narxi", ru: "Офлайн-заказ, каталог, остаток и цена магазина" },
+  { uz: "Narx varaqlari, miqdor pog'onalari, chegirma chegarasi", ru: "Прайс-листы, ступени по количеству, порог скидки" },
+  { uz: "Buyurtma bo'yicha qarz, kredit limiti, yuklashni to'xtatish", ru: "Долг по заказу, кредитный лимит, стоп отгрузки" },
+  { uz: "Ombor: partiyalar, muddatlar, FEFO, bir nechta ombor", ru: "Склад: партии, сроки, FEFO, несколько складов" },
+  { uz: "Kirim, ta'minotchi qarzi va unga qaytarish", ru: "Приход, долг поставщику и возврат ему" },
+  { uz: "Kuryer yetkazishi, naqd pul va kamomad", ru: "Доставка курьером, наличные и недостача" },
+  { uz: "Qaytarishlar sababi bilan", ru: "Возвраты с причиной" },
+  { uz: "Tashriflar rejasi, GPS, buyurtmasiz tashrif sababi", ru: "План визитов, GPS, причина визита без заказа" },
+  { uz: "Merchandayzer fotohisoboti", ru: "Фотоотчёт мерчендайзера" },
+  { uz: "Reja, prognoz, KPI va ish haqi", ru: "План, прогноз, KPI и зарплата" },
+  { uz: "P&L, ABC, foyda tahlili, savdo xaritasi", ru: "P&L, ABC, разбор прибыли, карта продаж" },
+  { uz: "1C (OData), ochiq API, Excel, Telegram xabarnomalari", ru: "1С (OData), открытый API, Excel, уведомления в Telegram" },
+  { uz: "Rollar, huquqlar va harakatlar jurnali", ru: "Роли, права и журнал действий" },
+  { uz: "iOS, Android va veb; o'zbek va rus tillari", ru: "iOS, Android и веб; узбекский и русский" },
+];
+
+/** Свои находки — то, что в продукте придумано, а не повторено. */
+export const IDEAS: Array<{ t: L; d: L }> = [
+  {
+    t: { uz: "Qarz o'zi yukni to'xtatadi", ru: "Долг сам останавливает отгрузку" },
+    d: { uz: "Muddati o'tgan qarzi bor do'kon buyurtmasi «Kutishda» to'xtaydi, sababi buyurtmaning o'zida yoziladi.", ru: "Заказ магазина с просроченным долгом встаёт в «Ожидает», причина записана в самом заказе." },
+  },
+  {
+    t: { uz: "Muddat → chegirma → agent", ru: "Срок → уценка → агент" },
+    d: { uz: "Muddatigacha sotilmaydigan partiyaga chegirma maslahat beriladi; direktor tasdiqlaydi — agent katalogida darhol «Birinchi sotish».", ru: "Партии, которая не успеет продаться, предлагается уценка; директор подтверждает — у агента в каталоге сразу «Продать первым»." },
+  },
+  {
+    t: { uz: "«Agentni qayerga yuborish»", ru: "«Куда отправить агента»" },
+    d: { uz: "Savdo xaritasi bo'sh hududlarni ko'rsatadi, tashrif rejaga bir bosishda qo'yiladi.", ru: "Карта продаж показывает пустые районы, визит ставится в план одним нажатием." },
+  },
+  {
+    t: { uz: "Reja oyning o'rtasida ko'rinadi", ru: "План виден в середине месяца" },
+    d: { uz: "Prognoz oy oxirida kim rejadan orqada qolishini hozir aytadi — kechikmasdan.", ru: "Прогноз говорит сейчас, кто к концу месяца не дотянет до плана, — не задним числом." },
+  },
+  {
+    t: { uz: "Bitta telefon — bir nechta agent", ru: "Один телефон — несколько агентов" },
+    d: { uz: "Aloqa bo'lmasa ham har kimning buyurtmasi o'ziniki bo'lib qoladi va boshqa birovning nomidan ketmaydi.", ru: "Даже без связи заказ каждого остаётся его и не уходит от чужого имени." },
+  },
+  {
+    t: { uz: "To'lov — faqat daladagilar uchun", ru: "Платят только за поле" },
+    d: { uz: "Ofis, ombor va rahbariyat bepul: tizimga butun jamoani qo'shish qimmatlashmaydi.", ru: "Офис, склад и руководство бесплатно: подключать всю команду не дороже." },
+  },
+];
+
+/** Чего пока нет, а у конкурентов публично есть, — в планах, названо прямо. */
+export const GAPS: L[] = [
+  { uz: "«Asl Belgisi» markirovkasi", ru: "Маркировка «Asl Belgisi»" },
+  { uz: "Elektron hisob-faktura operator bilan to'g'ridan-to'g'ri (hozir — 1C orqali: STIR, IKPU va QQS tayyorlab beramiz)", ru: "Электронная счёт-фактура напрямую через оператора (сейчас — через 1С: ИНН, ИКПУ и НДС готовим мы)" },
+  { uz: "Savdo uskunalari hisobi", ru: "Учёт торгового оборудования" },
+];
+
 /* ── Проверяемые числа о разработке ─────────────────────────────────────────
-   commits — `git rev-list --count origin/main` (05.10.2026, c5414e25);
-   первый коммит — 03.07.2026 (`git log --reverse`). PR — слитые в main веба и
-   мобилки на 05.10.2026 (ответ владельца). tests — `npx vitest run` веба на
-   ветке feat/pitch-day-site 05.10.2026: «Tests 4992 passed | 417 skipped
-   (5409)»; 417 пропущенных — наборы на настоящей MySQL, они идут в CI.
-   Пересчитать перед подачей, если набор вырос. */
+   Пересчитано 09.10.2026: commits — `git rev-list --count origin/main`
+   (358a2a6a); первый коммит — 03.07.2026 (`git log --reverse`). PR — слитые
+   в main: `gh pr list --state merged` веба и мобилки. tests — `npx vitest
+   run` веба на этой ветке, всего вместе с пропущенными (пропущены наборы на
+   настоящей MySQL — они идут в CI). Пересчитать перед подачей, если набор
+   вырос. */
 export const ENGINEERING = {
   since: "03.07.2026",
-  commits: 1457,
-  prsWeb: 160,
+  commits: 1469,
+  prsWeb: 165,
   prsMobile: 46,
-  tests: 5409,
+  tests: 5508,
+} as const;
+
+/* ── Результаты (traction) ─────────────────────────────────────────────────
+   Откуда числа (09.10.2026):
+   · paying и mrrUzs — ответ владельца: платят три дистрибьютора, двое по
+     $100 в месяц и один 300 000 сум; доллары — по курсу ЦБ на 09.10.2026
+     (11 846,57): 2 × 100 × 11 846,57 + 300 000 = 2 669 314 сум;
+   · organizations, fieldStaff, shops, deliveredOrders30d — из ночной копии
+     базы 09.10.2026 по организациям без системной и без песочницы жюри:
+     действующие учётные записи агентов, курьеров и мерчендайзеров;
+     действующие магазины; заказы, доставленные за 30 дней 09.09–08.10 (не
+     удалённые и не отменённые).
+   Имён клиентов здесь нет: репозиторий открытый. */
+export const TRACTION = {
+  asOf: "09.10.2026",
+  organizations: 5,
+  paying: 3,
+  mrrUzs: 2_669_314,
+  fieldStaff: 26,
+  shops: 2385,
+  deliveredOrders30d: 654,
 } as const;
 
 /* ── Муаммо → Ечим ─────────────────────────────────────────────────────── */
@@ -124,6 +280,94 @@ export const PROBLEMS: Array<{ topic: L; problem: L; solution: L }> = [
     solution: {
       uz: "Direktor hisobotlari tayyor: P&L, tovar, do'kon va agent bo'yicha foyda, ABC, reja prognozi, savdo xaritasi. 1C bilan OData orqali almashinuv.",
       ru: "Отчёты директора готовы: P&L, прибыль по товару, магазину и агенту, ABC, прогноз плана, карта продаж. Обмен с 1С по OData.",
+    },
+  },
+  {
+    topic: { uz: "Pul", ru: "Деньги" },
+    problem: {
+      uz: "Kuryer naqd pulni yig'adi, ofis kun oxirigacha kim qancha to'laganini bilmaydi; kamomad keyin chiqadi va hech kimniki bo'lmaydi.",
+      ru: "Курьер собирает наличные, а офис до вечера не знает, кто сколько заплатил; недостача всплывает потом и оказывается ничьей.",
+    },
+    solution: {
+      uz: "Har bir yetkazishda olingan pul buyurtmaga yoziladi; kamomad aniq xodim nomiga qayd etiladi, buyurtmani ofis to'lov va qoldiq bilan yopadi.",
+      ru: "При каждой доставке полученные деньги пишутся в заказ; недостача фиксируется на конкретного сотрудника, заказ закрывает офис с оплатой и остатком.",
+    },
+  },
+  {
+    topic: { uz: "Qaytarish", ru: "Возврат" },
+    problem: {
+      uz: "Qaytarilgan tovar qog'ozda: qarzdan ayirildimi, omborga qaytdimi — hech kim aniq bilmaydi.",
+      ru: "Возврат — на бумаге: списан ли он с долга, вернулся ли на склад — точно не знает никто.",
+    },
+    solution: {
+      uz: "Agent qaytarishni sababi bilan telefondan kiritadi, ofis o'tkazadi — ombor qoldig'i va do'kon qarzi o'zi o'zgaradi; sabablar bo'yicha tahlil.",
+      ru: "Агент заводит возврат с причиной из телефона, офис проводит — остаток на складе и долг магазина меняются сами; разбор по причинам.",
+    },
+  },
+  {
+    topic: { uz: "Tashrif", ru: "Визиты" },
+    problem: {
+      uz: "Agent do'konga borganmi — faqat uning so'zi bilan; buyurtmasiz tashrif sababsiz qoladi.",
+      ru: "Был ли агент в магазине — известно только с его слов; визит без заказа остаётся без причины.",
+    },
+    solution: {
+      uz: "Oylik tashriflar rejasi, roziligi bilan GPS va supervayzer xaritasi; buyurtmasiz tashrif faqat sabab bilan yopiladi.",
+      ru: "План визитов на месяц, GPS с согласия и карта супервайзера; визит без заказа закрывается только с причиной.",
+    },
+  },
+  {
+    topic: { uz: "Ish haqi", ru: "Зарплата" },
+    problem: {
+      uz: "Agent va kuryer ish haqi oy oxirida Excelda qo'lda hisoblanadi — har oy bahs.",
+      ru: "Зарплату агентов и курьеров считают в конце месяца в Excel вручную — каждый месяц спор.",
+    },
+    solution: {
+      uz: "Reja va bajarilishi hammaga ko'rinadi; ish haqi tizimda hisoblanadi: dona uchun yoki yetkazilganidan foiz, har bir xodimga alohida.",
+      ru: "План и выполнение видны всем; зарплата считается в системе: за штуку или процентом от доставленного, отдельно по каждому.",
+    },
+  },
+  {
+    topic: { uz: "Ta'minot", ru: "Поставщики" },
+    problem: {
+      uz: "Ta'minotchidan kelgan tovar qo'lda kiritiladi, ta'minotchiga qarz alohida daftarda.",
+      ru: "Приход от поставщика вбивают руками, долг поставщику — в отдельной тетради.",
+    },
+    solution: {
+      uz: "Kirim Excelga o'xshash jadvalda; ta'minotchiga qarz, solishtirma dalolatnoma va ta'minotchiga qaytarish — bitta joyda.",
+      ru: "Приход — в таблице как в Excel; долг поставщику, акт сверки и возврат поставщику — в одном месте.",
+    },
+  },
+  {
+    topic: { uz: "Solishtirma", ru: "Сверка" },
+    problem: {
+      uz: "Do'kon qarzga rozi emas — tasdiqlovchi hujjat yo'q, bahs og'zaki.",
+      ru: "Магазин не согласен с долгом — подтверждающей бумаги нет, спор на словах.",
+    },
+    solution: {
+      uz: "Istalgan mijoz va davr uchun solishtirma dalolatnoma 1C shaklida: har bir yuklash va to'lov, saldo, summa yozuvda; Excelga yuklash.",
+      ru: "Акт сверки по любому клиенту и периоду в форме 1С: каждая отгрузка и оплата, сальдо, сумма прописью; выгрузка в Excel.",
+    },
+  },
+  {
+    topic: { uz: "Peshtaxta", ru: "Полка" },
+    problem: {
+      uz: "Peshtaxta suratlari Telegram chatlarida yo'qoladi; qaysi do'kon tekshirilgani noma'lum.",
+      ru: "Фото полок теряются в чатах Telegram; какой магазин проверили — неизвестно.",
+    },
+    solution: {
+      uz: "Merchandayzer tashrifi rejaga bog'langan, fotohisobot do'kon kartasida saqlanadi.",
+      ru: "Визит мерчендайзера привязан к плану, фотоотчёт хранится в карточке магазина.",
+    },
+  },
+  {
+    topic: { uz: "Nazorat", ru: "Контроль" },
+    problem: {
+      uz: "Narxni kim o'zgartirdi, buyurtmani kim o'chirdi — topib bo'lmaydi; har bir xodim hamma narsani ko'radi.",
+      ru: "Кто поменял цену, кто удалил заказ — не найти; каждый сотрудник видит всё.",
+    },
+    solution: {
+      uz: "Harakatlar jurnali: kim, qachon, nima qildi; rollar va har bir tashkilot uchun sozlanadigan huquqlar.",
+      ru: "Журнал действий: кто, когда и что сделал; роли и права, настраиваемые под каждую организацию.",
     },
   },
 ];

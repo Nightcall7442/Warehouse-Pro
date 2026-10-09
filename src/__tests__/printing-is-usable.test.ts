@@ -160,8 +160,11 @@ describe("печать документов", () => {
       в сумах и только в сумах — contracts/pricing.ts, FIELD_PRICE_UZS и
       LEGACY_PRICES_UZS. Подставлять туда валюту арендатора нельзя: организация
       с рублями в настройках платит за подписку всё равно в сумах.
+
+      Страница конкурса (components/pitch, 09.10.2026) — та же цена платформы
+      в разделе «бизнес-модель»; настроек арендатора там нет вовсе.
     */
-    const PLATFORM_PRICE_LIST = [join("components", "landing"), join("components", "billing")];
+    const PLATFORM_PRICE_LIST = [join("components", "landing"), join("components", "billing"), join("components", "pitch")];
 
     const offenders: string[] = [];
     for (const { rel, text } of FILES) {
