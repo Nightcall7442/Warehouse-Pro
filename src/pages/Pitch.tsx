@@ -9,20 +9,29 @@ import { PhotoOrIcon } from "@/components/PhotoOrIcon";
 import { useDemoStatus } from "@/components/pitch/demo-access";
 import {
   pick, TEAM, ENGINEERING, PROBLEMS, ROLES, WHY_US, ROADMAP, CURRENT_STAGE, NEXT_STEPS,
-  STAGES, TECH, AI_NOW, AI_PLANNED, type L, type StepState,
+  STAGES, TECH, AI_NOW, AI_PLANNED, TRACTION, HIRING,
+  type L, type StepState,
 } from "@/components/pitch/pitch-content";
+import MarketSection from "@/components/pitch/MarketSection";
 
 /* ═══════════════════════════════════════════════════════════════════════════
    /pitch — сайт для конкурса Pitch Day 3.0, 1-й этап.
 
-   Разделы по требованиям конкурса: 1 Муаммо → Ечим, 2 Жамоа, 3 почему
-   именно мы, 4 дорожная карта, 5 как внедряем; 6 — страница /demo (ролик и
-   прототип), здесь только ссылка на неё; 7 — дополнительный раздел API.
+   Разделы по требованиям конкурса: Муаммо → Ечим, Жамоа, почему именно мы,
+   дорожная карта, как внедряем; демо — страница /demo (ролик и прототип),
+   здесь только ссылка на неё; API — дополнительный раздел.
+
+   09.10.2026 добавлены «Результаты» и «Рынок, конкуренты и бизнес-модель»:
+   первый вопрос жюри — сколько клиентов и что они платят, второй — чем вы
+   лучше тех, кто уже есть. Без этих глав страница отвечала на них хуже, чем
+   есть на самом деле. В «Команде» — план найма: «кто продаёт и внедряет?».
    Публичная, без входа, по-узбекски по умолчанию (PitchShell).
    ═══════════════════════════════════════════════════════════════════════════ */
 
 const NAV: Array<{ href: string; label: L }> = [
   { href: "#muammo", label: { uz: "Muammo", ru: "Проблема" } },
+  { href: "#natijalar", label: { uz: "Natijalar", ru: "Результаты" } },
+  { href: "#bozor", label: { uz: "Bozor", ru: "Рынок" } },
   { href: "#jamoa", label: { uz: "Jamoa", ru: "Команда" } },
   { href: "#nega-biz", label: { uz: "Nega biz", ru: "Почему мы" } },
   { href: "#yol-xaritasi", label: { uz: "Yo'l xaritasi", ru: "Дорожная карта" } },
@@ -48,6 +57,8 @@ function PitchBody() {
       <Hero />
       <ProblemSolution />
       <MobileScreens />
+      <Traction />
+      <MarketSection />
       <Team />
       <WhyUs />
       <Roadmap />
@@ -119,8 +130,8 @@ function ProblemSolution() {
       kicker={tr("Muammo → Yechim", "Проблема → Решение")}
       title={tr("Besh joyga bo'lingan kun — bitta tizimda", "День в пяти местах — в одной системе")}
       lead={tr(
-        "Distribyutorning kuni beshta joyda bo'linib ketadi: qog'oz, Telegram, Excel, qarz daftari va 1C. Har biri — alohida xato manbai va yo'qolgan pul.",
-        "День дистрибьютора разорван на пять мест: бумага, Telegram, Excel, тетрадь долгов и 1С. Каждое — отдельный источник ошибок и потерянных денег.",
+        `Distribyutorning kuni beshta joyda bo'linib ketadi: qog'oz, Telegram, Excel, qarz daftari va 1C. Har biri — alohida xato manbai va yo'qolgan pul. Quyida — Warehouse Pro hal qiladigan ${PROBLEMS.length} ta muammo.`,
+        `День дистрибьютора разорван на пять мест: бумага, Telegram, Excel, тетрадь долгов и 1С. Каждое — отдельный источник ошибок и потерянных денег. Ниже — ${PROBLEMS.length} задач, которые решает Warehouse Pro.`,
       )}
     >
       <div className="hidden md:grid" style={{ gridTemplateColumns: "minmax(110px,2fr) 5fr 5fr", gap: 32, paddingBottom: 12 }}>
@@ -161,14 +172,13 @@ function Team() {
   return (
     <Chapter
       id="jamoa"
-      num="02"
+      num="04"
       kicker={tr("Jamoa", "Команда")}
       title={tr("Bitta muhandis va AI agentlar", "Один инженер и ИИ-агенты")}
       lead={tr(
         "Mahsulotni bitta odam quradi va yuritadi — g'oyadan serverdagi ishga tushirishgacha. Kod, testlar va review'da Claude Code agentlari yordam beradi; har bir o'zgarishni inson qabul qiladi.",
         "Продукт строит и ведёт один человек — от идеи до выкладки на сервер. В коде, тестах и ревью помогают агенты Claude Code; каждое изменение принимает человек.",
       )}
-      band
     >
       {TEAM.map(m => {
         const initials = pick(lang, m.name).split(" ").map(w => w[0]).join("").slice(0, 2);
@@ -214,6 +224,68 @@ function Team() {
           </article>
         );
       })}
+      <div data-testid="pitch-hiring" style={{ marginTop: 48 }}>
+        <Mono style={{ color: "var(--accent-text)" }}>{tr("YOLLASH REJASI", "ПЛАН НАЙМА")}</Mono>
+        <ol className="grid md:grid-cols-2" style={{ listStyle: "none", padding: 0, margin: "12px 0 0", gap: "0 64px", borderTop: "1px solid var(--rule-strong)" }}>
+          {HIRING.map((h, i) => (
+            <li key={h.role.ru} className="p-row" style={{ display: "grid", gridTemplateColumns: "40px minmax(0,1fr)", gap: 16, padding: "20px 0" }}>
+              <span className="p-mono" style={{ fontSize: 12, color: "var(--accent-text)", paddingTop: 4 }}>{String(i + 1).padStart(2, "0")}</span>
+              <div>
+                <div style={{ fontSize: 17, fontWeight: 800, letterSpacing: "-0.02em" }}>{pick(lang, h.role)}</div>
+                <p style={{ margin: "6px 0 0", fontSize: 15, lineHeight: 1.6, color: "var(--soft)" }}>{pick(lang, h.why)}</p>
+              </div>
+            </li>
+          ))}
+        </ol>
+      </div>
+    </Chapter>
+  );
+}
+
+/* ── 02 Результаты ─────────────────────────────────────────────────────────
+   Числа — из TRACTION (откуда каждое — там же). Имён клиентов нет. */
+function Traction() {
+  const { tr } = useTr();
+  const mrr = (TRACTION.mrrUzs / 1_000_000).toFixed(2).replace(".", ",");
+  // «млн» — подписью рядом с числом, а не частью числа: целиком «2,67 mln»
+  // не помещалось в клетку из пяти на широком экране и обрезалось.
+  const cells: Array<{ v: string; suffix?: string; label: string; accent?: boolean }> = [
+    { v: fmt(TRACTION.paying), label: tr("pullik distribyutor", "платящих дистрибьютора"), accent: true },
+    { v: mrr, suffix: tr("mln", "млн"), label: tr("so'm oylik tushum (MRR)", "сум выручки в месяц (MRR)") },
+    { v: fmt(TRACTION.fieldStaff), label: tr("dala xodimi tizimda", "сотрудников в поле в системе") },
+    { v: fmt(TRACTION.shops), label: tr("do'kon bazada", "магазинов в базе") },
+    { v: fmt(TRACTION.deliveredOrders30d), label: tr("yetkazilgan buyurtma, 30 kunda", "доставленных заказов за 30 дней") },
+  ];
+  return (
+    <Chapter
+      id="natijalar"
+      num="02"
+      kicker={tr("Natijalar", "Результаты")}
+      title={tr("Mijozlar to'laydi va har kuni ishlaydi", "Клиенты платят и работают каждый день")}
+      lead={tr(
+        `Bu — taqdimot emas, ishlab turgan biznes. Tizimda ${TRACTION.organizations} ta distribyutor tashkiloti, shundan ${TRACTION.paying} tasi pul to'laydi.`,
+        `Это не макет, а работающий бизнес. В системе ${TRACTION.organizations} организаций-дистрибьюторов, ${TRACTION.paying} из них платят.`,
+      )}
+    >
+      <div data-testid="pitch-traction" className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5" style={{ gap: 1, background: "var(--rule-strong)", borderTop: "1px solid var(--rule-strong)", borderBottom: "1px solid var(--rule-strong)" }}>
+        {/* Клеток пять: в две и три колонки последняя растянута на две, иначе
+            рядом с ней зияет пустое место цвета линеек. */}
+        {cells.map((c, i) => (
+          <div key={c.label} className={i === cells.length - 1 ? "col-span-2 lg:col-span-1" : undefined} style={{ padding: "28px 20px 26px", background: "var(--bg)" }}>
+            <div style={{ fontSize: "clamp(32px, 4vw, 54px)", fontWeight: 800, letterSpacing: "-0.045em", lineHeight: 1, color: c.accent ? "var(--accent)" : "var(--text)", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>
+              {c.v}
+              {c.suffix && <span style={{ fontSize: "0.42em", fontWeight: 700, letterSpacing: "0", marginLeft: 6, color: "var(--soft)" }}>{c.suffix}</span>}
+            </div>
+            <div className="p-mono" style={{ fontSize: 11, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--faint)", marginTop: 12 }}>{c.label}</div>
+          </div>
+        ))}
+      </div>
+      <p className="p-mono" style={{ margin: "16px 0 0", fontSize: 11.5, lineHeight: 1.7, color: "var(--faint)", letterSpacing: "0.04em" }}>
+        {tr(
+          `${TRACTION.asOf} HOLATIGA · MIJOZLAR NOMISIZ · BUYURTMALAR — SO'NGGI 30 KUN · HOZIRGI MIJOZLAR ESKI TARIFLARDA, YANGI NARX — QUYIDA`,
+          `НА ${TRACTION.asOf} · БЕЗ ИМЁН КЛИЕНТОВ · ЗАКАЗЫ — ЗА ПОСЛЕДНИЕ 30 ДНЕЙ · НЫНЕШНИЕ КЛИЕНТЫ НА ПРЕЖНИХ ТАРИФАХ, НОВАЯ ЦЕНА — НИЖЕ`,
+        )}
+      </p>
     </Chapter>
   );
 }
@@ -245,13 +317,14 @@ function WhyUs() {
   return (
     <Chapter
       id="nega-biz"
-      num="03"
+      num="05"
       kicker={tr("Nega aynan biz", "Почему именно мы")}
       title={tr("Nega bu muammoni aynan biz hal qila olamiz", "Почему эту задачу решим именно мы")}
       lead={tr(
         "Mahsulot allaqachon ishlab turibdi, soha chuqur o'rganilgan, ishlab chiqish esa AI agentlar va qat'iy testlarga tayanadi. Raqamlar ochiq repozitoriydan — har birini tekshirish mumkin.",
         "Продукт уже работает, отрасль проработана вглубь, а разработка опирается на ИИ-агентов и строгие тесты. Числа — из открытого репозитория, каждое можно проверить.",
       )}
+      band
     >
       <div data-testid="pitch-why-numbers" className="grid grid-cols-2 lg:grid-cols-4" style={{ gap: 1, background: "var(--rule-strong)", borderTop: "1px solid var(--rule-strong)", borderBottom: "1px solid var(--rule-strong)" }}>
         {numbers.map(n => (
@@ -290,11 +363,10 @@ function Roadmap() {
   return (
     <Chapter
       id="yol-xaritasi"
-      num="04"
+      num="06"
       kicker={tr("Yo'l xaritasi", "Дорожная карта")}
       title={tr("G'oyadan ishlayotgan mahsulotgacha", "От идеи до работающего продукта")}
       lead={tr("To'rt bosqich: g'oya, prototip, MVP, ishga tushirish. Biz to'rtinchisidamiz.", "Четыре стадии: идея, прототип, MVP, запуск. Мы на четвёртой.")}
-      band
     >
       <ol data-testid="pitch-roadmap" className="grid lg:grid-cols-4" style={{ listStyle: "none", padding: 0, margin: 0, gap: 0 }}>
         {ROADMAP.map((s, i) => {
@@ -351,13 +423,14 @@ function Implementation() {
   return (
     <Chapter
       id="amalga-oshirish"
-      num="05"
+      num="07"
       kicker={tr("Amalga oshirish", "Как внедряем")}
       title={tr("Bosqichlar, texnologiyalar va AI", "Этапы, технологии и ИИ")}
       lead={tr(
         "Yechim bosqichma-bosqich quriladi: avval dala, keyin ofis va ombor, keyin direktor va integratsiyalar. Har bir bosqich ishlab turgan mahsulotda tekshiriladi.",
         "Решение строится по этапам: сначала поле, потом офис и склад, потом директор и интеграции. Каждый этап проверяется на работающем продукте.",
       )}
+      band
     >
       <ol data-testid="pitch-stages" style={{ listStyle: "none", padding: 0, margin: 0, borderTop: "1px solid var(--rule-strong)" }}>
         {STAGES.map((s, i) => (
@@ -424,22 +497,21 @@ function DemoTeaser() {
   return (
     <Chapter
       id="demo"
-      num="06"
+      num="08"
       kicker="Demo"
       title={tr("Video va ishlaydigan prototip", "Ролик и работающий прототип")}
       lead={tr(
         "Demo sahifasida: 2 daqiqa 44 soniyalik video, uning tavsifi va namunaviy tashkilotga kirish — direktor, agent yoki supervayzer sifatida, parolsiz.",
         "На странице демо: ролик на 2:44, его описание и вход в демо-организацию — директором, агентом или супервайзером, без пароля.",
       )}
-      band
     >
       <div className="grid lg:grid-cols-12" style={{ gap: 40, alignItems: "center" }}>
         <div className="lg:col-span-4">
           <ol style={{ listStyle: "none", padding: 0, margin: "0 0 28px", borderTop: "1px solid var(--rule-strong)" }}>
             {[
-              ["6.1", tr("Demo video", "Демо-ролик")],
-              ["6.2", tr("Video tavsifi", "Описание ролика")],
-              ["6.3", tr("Ishlaydigan prototipga kirish", "Вход в работающий прототип")],
+              ["8.1", tr("Demo video", "Демо-ролик")],
+              ["8.2", tr("Video tavsifi", "Описание ролика")],
+              ["8.3", tr("Ishlaydigan prototipga kirish", "Вход в работающий прототип")],
             ].map(([n, t]) => (
               <li key={n} className="p-row" style={{ display: "flex", gap: 16, padding: "14px 0", fontSize: 15.5, fontWeight: 600 }}>
                 <span className="p-mono" style={{ fontSize: 12, color: "var(--accent-text)", paddingTop: 3, fontWeight: 400 }}>{n}</span>{t}

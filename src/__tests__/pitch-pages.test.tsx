@@ -33,7 +33,8 @@ vi.setConfig({ testTimeout: 20_000 });
 import Pitch from "@/pages/Pitch";
 import PitchDemo from "@/pages/PitchDemo";
 import { LangProvider } from "@/i18n";
-import { API_ENDPOINTS, TEAM, ENGINEERING, VIDEO_SRC, VIDEO_POSTER, VIDEO_DESCRIPTION, VIDEO_SECONDS } from "@/components/pitch/pitch-content";
+import { API_ENDPOINTS, TEAM, ENGINEERING, VIDEO_SRC, VIDEO_POSTER, VIDEO_DESCRIPTION, VIDEO_SECONDS, PROBLEMS, TRACTION, HIRING, MARKET_PROOF, ALTERNATIVES, PARITY, IDEAS, GAPS } from "@/components/pitch/pitch-content";
+import { FIELD_PRICE_UZS, formatSum } from "@contracts/pricing";
 
 type Status = { enabled: boolean; roles: string[]; apiKey: string | null };
 let status: Status;
@@ -85,7 +86,7 @@ describe("маршруты публичные", () => {
 describe("/pitch: разделы конкурса", () => {
   it("все главы на месте, по порядку", () => {
     draw(<Pitch />);
-    const ids = ["muammo", "jamoa", "nega-biz", "yol-xaritasi", "amalga-oshirish", "demo", "api"];
+    const ids = ["muammo", "natijalar", "bozor", "jamoa", "nega-biz", "yol-xaritasi", "amalga-oshirish", "demo", "api"];
     const order = ids.map(id => document.getElementById(id));
     order.forEach((el, i) => expect(el, ids[i]).not.toBeNull());
     for (let i = 1; i < order.length; i++) {
@@ -94,11 +95,80 @@ describe("/pitch: разделы конкурса", () => {
     for (const id of ids) expect(within(document.getElementById(id)!).getByRole("heading", { level: 2 })).toBeTruthy();
   });
 
-  it("1 · Muammo → Yechim: пять пар «проблема — решение»", () => {
+  it("1 · Muammo → Yechim: все задачи, которые решает продукт, а не пять", () => {
+    /*
+      09.10.2026 владелец: «проблемы как будто мало — наш продукт многое решает».
+      Было пять пар; теперь каждая, за которой стоит работающая функция.
+    */
     draw(<Pitch />);
     const rows = within(screen.getByTestId("pitch-problems")).getAllByRole("listitem");
-    expect(rows).toHaveLength(5);
+    expect(rows).toHaveLength(PROBLEMS.length);
+    expect(rows.length).toBeGreaterThanOrEqual(13);
     expect(document.getElementById("muammo")!.textContent).toContain("Muammo → Yechim");
+    // Число в подводке — то же, что строк в таблице.
+    expect(document.getElementById("muammo")!.textContent).toContain(`${PROBLEMS.length} ta muammo`);
+    for (const p of PROBLEMS) {
+      for (const l of [p.topic, p.problem, p.solution]) {
+        expect(l.uz.trim(), l.ru).not.toBe("");
+        expect(l.ru.trim(), l.uz).not.toBe("");
+      }
+    }
+    expect(new Set(PROBLEMS.map(p => p.topic.uz)).size, "темы повторяются").toBe(PROBLEMS.length);
+  });
+
+  it("результаты: платящие, выручка, люди в поле, магазины, заказы — из TRACTION", () => {
+    draw(<Pitch />);
+    const t = screen.getByTestId("pitch-traction").textContent!.replace(/\s/g, "");
+    for (const n of [TRACTION.paying, TRACTION.fieldStaff, TRACTION.shops, TRACTION.deliveredOrders30d]) expect(t).toContain(String(n));
+    expect(t).toContain((TRACTION.mrrUzs / 1_000_000).toFixed(2).replace(".", ","));
+    expect(document.getElementById("natijalar")!.textContent).toContain(TRACTION.asOf);
+    expect(TRACTION.paying).toBeLessThanOrEqual(TRACTION.organizations);
+  });
+
+  it("рынок: источник со ссылкой, альтернативы, цена — из модуля цен", () => {
+    draw(<Pitch />);
+    const src = screen.getByTestId("pitch-market-source");
+    expect(src.getAttribute("href")).toBe(MARKET_PROOF.source.href);
+    expect(src.getAttribute("href")).toMatch(/^https:\/\//);
+    expect(within(screen.getByTestId("pitch-alternatives")).getAllByRole("term")).toHaveLength(ALTERNATIVES.length);
+    expect(screen.getByTestId("pitch-price").textContent).toBe(formatSum(FIELD_PRICE_UZS));
+  });
+
+  it("функции наравне, свои находки и честные пробелы — на обоих языках", () => {
+    /*
+      «Не отстаём от Smartup и Sales Doctor» — утверждение, за которое страница
+      отвечает: список того, что закрыто, свои находки и то, чего пока нет.
+      Пустой список пробелов означал бы, что мы перестали говорить прямо, —
+      маркировку жюри спросит первой.
+    */
+    draw(<Pitch />);
+    expect(within(screen.getByTestId("pitch-parity-list")).getAllByRole("listitem")).toHaveLength(PARITY.length);
+    expect(within(screen.getByTestId("pitch-ideas")).getAllByRole("listitem")).toHaveLength(IDEAS.length);
+    expect(PARITY.length).toBeGreaterThanOrEqual(12);
+    expect(GAPS.length).toBeGreaterThan(0);
+    expect(screen.getByTestId("pitch-gaps").textContent).toContain("Asl Belgisi");
+    expect(screen.getByTestId("pitch-parity").textContent).toMatch(/Smartup.*Sales Doctor/);
+    for (const l of [...PARITY, ...GAPS, ...IDEAS.flatMap(i => [i.t, i.d])]) {
+      expect(l.uz.trim(), l.ru).not.toBe("");
+      expect(l.ru.trim(), l.uz).not.toBe("");
+    }
+  });
+
+  it("план найма: кто первый и зачем", () => {
+    draw(<Pitch />);
+    const items = within(screen.getByTestId("pitch-hiring")).getAllByRole("listitem");
+    expect(items).toHaveLength(HIRING.length);
+    expect(items[0].textContent).toContain(HIRING[0].role.uz);
+  });
+
+  it("имён клиентов в открытом коде страницы нет", () => {
+    /*
+      Репозиторий публичный. Числа о клиентах — можно (решение владельца
+      09.10.2026), названия организаций — нет: «MCHJ», «МЧЖ», «ООО» в тексте
+      страницы означали бы, что кто-то вписал клиента.
+    */
+    const src = readFileSync("src/components/pitch/pitch-content.ts", "utf8");
+    expect(src).not.toMatch(/\bM[Cc][Hh][Jj]\b|МЧЖ|\bООО\b/);
   });
 
   it("2 · Jamoa: имя, роль, возраст, навыки и только живые ссылки", () => {

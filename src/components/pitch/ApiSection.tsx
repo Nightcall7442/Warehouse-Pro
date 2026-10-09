@@ -24,7 +24,8 @@ export default function ApiSection({ status }: { status: DemoStatus | null }) {
   return (
     <Chapter
       id="api"
-      num="07"
+      num="09"
+      band
       kicker={tr("Qo'shimcha · API Access", "Дополнительно · API Access")}
       title={tr("Ochiq API", "Открытый API")}
       lead={tr(
