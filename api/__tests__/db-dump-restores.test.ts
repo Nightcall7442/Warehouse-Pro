@@ -83,9 +83,15 @@ const connection = {
     }
     if (text.includes("information_schema.COLUMNS")) {
       const table = String(params?.[1]);
+      /*
+        Отбор берётся ИЗ САМОГО ЗАПРОСА, а не повторяется здесь своими словами.
+        Двойник раньше дублировал условие (`includes("GENERATED")`) — и вместе
+        с запросом выбрасывал created_at с EXTRA «DEFAULT_GENERATED»: проверка
+        подтверждала ошибку, а не ловила её (09.10.2026).
+      */
+      const excluded = [...text.matchAll(/EXTRA NOT LIKE '%([^%']+)%'/g)].map(m => m[1]);
       return [db.tables[table].columns
-        // Тот же отбор, что делает настоящий запрос: вычисляемые столбцы прочь.
-        .filter(c => !(c.extra ?? "").includes("GENERATED"))
+        .filter(c => !excluded.some(x => (c.extra ?? "").includes(x)))
         .map(c => ({ name: c.name }))];
     }
     const show = /^SHOW CREATE (TABLE|VIEW|TRIGGER|PROCEDURE|FUNCTION) `(.+)`$/.exec(text);
@@ -170,10 +176,29 @@ describe("копия базы", () => {
 
   it("не пытается записать в вычисляемый столбец", async () => {
     db.tables.users.columns.push({ name: "search_key", extra: "STORED GENERATED" });
+    db.tables.users.columns.push({ name: "name_upper", extra: "VIRTUAL GENERATED" });
     const sql = await dumpToText();
     // MySQL отвечает ошибкой 3105 на попытку вставить значение в такой столбец:
     // копия выглядела бы исправной и не разворачивалась.
     expect(sql).not.toContain("search_key");
+    expect(sql).not.toContain("name_upper");
+  });
+
+  it("даты со значением по умолчанию из выражения остаются в копии", async () => {
+    /*
+      `created_at DEFAULT (now())` и `updated_at … ON UPDATE CURRENT_TIMESTAMP`
+      MySQL 8+ помечает в EXTRA словом «DEFAULT_GENERATED». Это обычные
+      столбцы с данными. Копия без них разворачивалась, число строк сходилось,
+      а каждому заказу доставалась дата восстановления.
+    */
+    db.tables.users.columns.push(
+      { name: "created_at", extra: "DEFAULT_GENERATED" },
+      { name: "updated_at", extra: "DEFAULT_GENERATED on update CURRENT_TIMESTAMP" },
+    );
+    db.tables.users.rows = [[1, "Иван", "1500.50", "2026-01-15 09:30:00", "2026-02-01 10:00:00"]];
+    const sql = await dumpToText();
+    expect(sql).toContain("(`id`,`name`,`debt`,`created_at`,`updated_at`)");
+    expect(sql).toContain("'2026-01-15 09:30:00'");
   });
 
   it("представления, триггеры и процедуры не теряются", async () => {

@@ -26,6 +26,13 @@ describe.skipIf(!hasRealDb)("репетиция восстановления", (
     */
     const meta = JSON.stringify({ n: 1, list: [1, 2], s: "а'б\"в", nested: { ok: true } });
     await db.execute(sql`INSERT INTO audit_log (tenant_id, action, meta) VALUES (${tenantId}, 'drill.json', ${meta})`);
+    /*
+      Дата из прошлого — чтобы её нельзя было спутать с моментом снятия копии.
+      created_at со значением по умолчанию из выражения MySQL помечает
+      «DEFAULT_GENERATED», и выгрузка путала его с вычисляемым столбцом:
+      копия теряла все даты, а число строк сходилось (09.10.2026).
+    */
+    await db.execute(sql`UPDATE products SET created_at = '2020-01-02 03:04:05' WHERE tenant_id = ${tenantId}`);
   }, 120_000);
   afterAll(async () => { await closeRealDb(); });
 
@@ -39,6 +46,10 @@ describe.skipIf(!hasRealDb)("репетиция восстановления", (
     for await (const chunk of stream) chunks.push(chunk as Buffer);
     const text = gunzipSync(Buffer.concat(chunks)).toString("utf8");
     expect(text).toContain("CREATE TABLE `orders`");
+    // Даты — в копии: столбец в списке вставки и само значение.
+    const productsInsert = text.slice(text.indexOf("INSERT INTO `products`"));
+    expect(productsInsert.slice(0, productsInsert.indexOf("VALUES")), "created_at выпал из копии").toContain("`created_at`");
+    expect(productsInsert).toContain("'2020-01-02 03:04:05'");
 
     const counts = {
       tenants: await countOf("tenants"), users: await countOf("users"), products: await countOf("products"),
