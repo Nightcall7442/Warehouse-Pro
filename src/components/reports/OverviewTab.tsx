@@ -9,6 +9,8 @@ const shortDate = (iso: string) => (/^\d{4}-\d{2}-\d{2}/.test(iso) ? `${iso.slic
 import type { inferRouterOutputs } from "@trpc/server";
 import { Users, ClipboardList, TrendingUp, Activity, Package, Store, Award, Receipt, Wallet } from "lucide-react";
 import { ProgressRing } from "@/components/ProgressRing";
+import { formatQty } from "@/lib/format";
+import { unitShort } from "@/lib/units";
 import { F, COLORS, delta } from "./report-constants";
 import { KpiCard, type KpiComparison } from "./ReportKpiCards";
 import { ChartPanel, GlassPanel, PlanCompletion, SectionError, TopList } from "./ReportCharts";
@@ -49,11 +51,13 @@ interface OverviewTabProps {
   chart: { date: string; visits: number; orders: number }[] | undefined;
   plans: PlanRow[] | undefined;
   /** Уже готовые ряды со страницы: она грузит их для соседних вкладок. */
-  topProducts: { productName: string; productCode?: string; totalQty: number; totalRevenue: number }[] | undefined;
+  topProducts: { productName: string; productCode?: string; unit?: string | null; totalQty: number; totalRevenue: number }[] | undefined;
   topShops: { name: string; revenue: number }[] | undefined;
   /** visits необязательны: источник выручки по агентам их больше не отдаёт (см. AgentsTab). */
   topAgents: { agentId: number; agentName: string | null; orders: number; revenue: number; visits?: number }[] | undefined;
   days: number;
+  /** Язык единиц в «Топ товаров»: «шт» или «dona». */
+  lang?: string;
   fmt: (v: string | number, short?: boolean) => string;
   t: (ru: string, uz: string) => string;
   /** Итоги за период и за предыдущий такой же. Без них плитки показывают число без точки отсчёта. */
@@ -90,7 +94,7 @@ interface OverviewTabProps {
  * чем они являются: сегодняшняя оперативная сводка, без периода.
  */
 export const OverviewTab = memo(function OverviewTab({
-  summary, summaryLoading, chart, plans, topProducts, topShops, topAgents, days, fmt, t,
+  summary, summaryLoading, chart, plans, topProducts, topShops, topAgents, days, lang = "ru", fmt, t,
   totals, previous, debt, errors,
 }: OverviewTabProps) {
   const period = t(`за ${days} дней`, `${days} kun ichida`);
@@ -256,11 +260,10 @@ export const OverviewTab = memo(function OverviewTab({
               name: p.productName || "—",
               value: p.totalRevenue,
               valueLabel: fmt(p.totalRevenue, true),
-              // «шт» здесь стояло жёстко, хотя единица у каждого товара своя и
-              // topProducts её вовсе не отдаёт. Единицы нет — значит и писать
-              // нечего: число объёма говорит само за себя.
-              // Количество, не деньги: fmt приписывал «сум» — «88 сум продано».
-              hint: `${Number(p.totalQty).toLocaleString("ru-RU", { maximumFractionDigits: 1 })} ${t("продано", "sotildi")}`,
+              // «шт» здесь стояло жёстко, хотя единица у каждого товара своя;
+              // теперь topProducts её отдаёт. Количество, не деньги: fmt
+              // приписывал «сум» — «88 сум продано».
+              hint: `${formatQty(p.totalQty)}${p.unit ? ` ${unitShort(p.unit, lang)}` : ""} ${t("продано", "sotildi")}`,
             }))}
           />
           )}

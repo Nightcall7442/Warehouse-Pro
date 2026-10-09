@@ -1,11 +1,14 @@
 import { F, COLORS, thStyle, tdStyle, numeric, marginTone } from "./styles";
 import { SectionNotice } from "@/components/SectionNotice";
 import { CardTable } from "@/components/CardTable";
+import { formatQty } from "@/lib/format";
+import { unitShort } from "@/lib/units";
 
 // SUM()/COALESCE() come back from MySQL as decimal strings, and the product
 // name is null-able through the LEFT JOIN — see analytics.cogsByProduct.
 interface CogsByProductRow {
   productName: string | null;
+  unit?: string | null;
   totalQty: string;
   totalRevenue: string;
   totalCost: string;
@@ -81,6 +84,7 @@ export function PnLExpenseBreakdown({
         // оставалась пустая ячейка без всякого объяснения.
         name: p.productName ?? t("Без названия", "Nomsiz"),
         qty: Number(p.totalQty),
+        unit: p.unit ?? null,
         revenue,
         cost,
         profit,
@@ -160,7 +164,8 @@ export function PnLExpenseBreakdown({
                   >
                     <td style={{ ...tdStyle, fontSize: "13px", fontWeight: 500 }}>{p.name}</td>
                     <td style={{ ...tdStyle, ...numeric, color: COLORS.textSecondary }}>
-                      {p.qty.toFixed(0)}
+                      {/* С дробью и единицей: «.toFixed(0)» превращал 25,5 кг в «26». */}
+                      {formatQty(p.qty)}{p.unit ? ` ${unitShort(p.unit, lang)}` : ""}
                     </td>
                     <td style={{ ...tdStyle, ...numeric, fontWeight: 600 }}>{fmt(p.revenue)}</td>
                     <td style={{ ...tdStyle, ...numeric, color: COLORS.textSecondary }}>
