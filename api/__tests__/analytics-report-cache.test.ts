@@ -49,9 +49,9 @@ function row() {
     id: 1, month: "2026-09", paymentMethod: "cash", agentId: 10, agentName: "Агент", productId: 1,
     productName: "Товар", productCode: "T-1", unit: "шт", shopName: "Магазин",
     revenue: revenueNow, totalRevenue: revenueNow, salesRevenue: revenueNow, totalDiscount: "10",
-    // Три, а не два: средний чек «Агентов» считается выручка/заказы, и при двух
+    // Три, а не два: средний чек «Агентов» и «Эффективности» — выручка/заказы, и при двух
     // заказах 2000/2 = 1000 совпадал бы со старым числом, которое тест ищет.
-    orderCount: 3, orders: 2,
+    orderCount: 3, orders: 3,
     // Поля сырого запроса «Агент × Товар» (services/agent-product-sales.ts, db.execute).
     qty: "5", gross: revenueNow, net: revenueNow, name: "Товар", code: "T-1", category: null,
     totalQty: "5", totalCOGS: "400", totalCost: "400", cogs: "400", totalExpenses: "100", arrivalCount: 1,

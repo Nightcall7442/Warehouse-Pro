@@ -185,6 +185,10 @@ export const analyticsRouter = createRouter({
       dateFrom: z.string().optional(),
       dateTo: z.string().optional(),
       category: z.string().max(100).optional(),
+      // Экран P&L показывает двадцать лучших и так и подписан; каталог
+      // выгрузок просит все — файл, молча обрезанный на 20-м товаре, ничего
+      // не говорит о том, чего в нём нет (аудит 09.10.2026, П7).
+      limit: z.number().int().min(1).max(10000).optional(),
     }).optional())
     .query(({ input, ctx }) => reportCached(ctx.tenant.id, "analytics.cogsByProduct", input ?? {}, ReportTTL.fiveMin, async () => {
       const conditions = revenueOrderConditions(ctx.tenant.id);
@@ -195,7 +199,10 @@ export const analyticsRouter = createRouter({
       return getDb().select({
         productName:  products.name,
         productCode:  products.code,
-        totalQty:     sql<string>`COALESCE(SUM(${orderItems.quantity}), 0)`,
+        // Доставленное, а не заказанное: частичная доставка оставляет
+        // quantity заказанным, и «Объём» 10 рядом с выручкой за 7 давал цену
+        // в 70% настоящей (аудит 09.10.2026, П7).
+        totalQty:     sql<string>`COALESCE(SUM(${deliveredQty()}), 0)`,
         // Выручка и себестоимость считаются из ОДНОГО количества.
         //
         // Взяв выручку из subtotal, а себестоимость из доставленного, отчёт
@@ -208,7 +215,7 @@ export const analyticsRouter = createRouter({
         .from(orderItems)
         .leftJoin(products, and(eq(orderItems.productId, products.id), eq(products.tenantId, ctx.tenant.id)))
         .leftJoin(orders, eq(orderItems.orderId, orders.id))
-        .where(and(...conditions)).groupBy(products.id).orderBy(desc(sql`SUM(${deliveredQty()} * ${orderItems.unitPrice})`)).limit(20);
+        .where(and(...conditions)).groupBy(products.id).orderBy(desc(sql`SUM(${deliveredQty()} * ${orderItems.unitPrice})`)).limit(input?.limit ?? 20);
     })),
 
   /*
@@ -275,12 +282,42 @@ export const analyticsRouter = createRouter({
   // договор о свежести. Визиты (daily_plans) кэш не сбрасывают — держит TTL.
   agentEfficiency: reportsQuery
     .input(z.object({
+      // «Последние N дней от сейчас» — для старых вызовов. Каталог выгрузок
+      // передаёт выбранные даты (dateFrom/dateTo): он считал их в дни, и
+      // файл за «сентябрь», скачанный 9 октября, нёс 9 сентября — 9 октября
+      // с октябрьскими заказами и визитами, а имя файла говорило «сентябрь»
+      // (аудит 09.10.2026, П3).
       days: z.number().default(30),
+      dateFrom: z.string().optional(),
+      dateTo: z.string().optional(),
       territoryId: z.number().int().positive().optional(),
     }).optional())
     .query(({ input, ctx }) => reportCached(ctx.tenant.id, "analytics.agentEfficiency", input ?? {}, ReportTTL.minute, async () => {
       const days = input?.days ?? 30;
       const cutoff = new Date(Date.now() - days * MS_PER_DAY).toISOString();
+      const ranged = Boolean(input?.dateFrom || input?.dateTo);
+      /*
+        Старый путь «N дней» — с НАЧАЛА дня отсечки, одной границей на заказы,
+        визиты и возвраты. Было: заказы — с момента отсечки (15:00), визиты —
+        сравнением DATE с ISO-строкой, а возвраты — с полуночи того же дня:
+        возврат утром дня отсечки вычитался, а заказ того же утра в строку не
+        попадал.
+      */
+      const cutoffDay = cutoff.slice(0, 10);
+      // Границы — одни на заказы, визиты и возвраты. Верх — конец дня, как у
+      // всех отчётов (revenuePeriodConditions).
+      const orderBounds = ranged
+        ? [
+          ...(input?.dateFrom ? [sql`${orders.createdAt} >= ${input.dateFrom}`] : []),
+          ...(input?.dateTo ? [sql`${orders.createdAt} <= ${input.dateTo + " 23:59:59"}`] : []),
+        ]
+        : [sql`${orders.createdAt} >= ${cutoffDay}`];
+      const planBounds = ranged
+        ? [
+          ...(input?.dateFrom ? [sql`${dailyPlans.planDate} >= ${input.dateFrom}`] : []),
+          ...(input?.dateTo ? [sql`${dailyPlans.planDate} <= ${input.dateTo}`] : []),
+        ]
+        : [sql`${dailyPlans.planDate} >= ${cutoffDay}`];
 
       // Визиты и деньги — двумя запросами, сшиваются по агенту.
       //
@@ -300,7 +337,7 @@ export const analyticsRouter = createRouter({
         visits: sql<number>`count(DISTINCT ${dailyPlans.id})`,
       })
         .from(users)
-        .leftJoin(dailyPlans, and(eq(dailyPlans.agentId, users.id), sql`${dailyPlans.planDate} >= ${cutoff}`))
+        .leftJoin(dailyPlans, and(eq(dailyPlans.agentId, users.id), ...planBounds))
         .where(and(
           eq(users.tenantId, ctx.tenant.id),
           eq(users.role, "agent"),
@@ -322,29 +359,47 @@ export const analyticsRouter = createRouter({
         agentId: orders.agentId,
         orders: sql<number>`count(DISTINCT ${orders.id})`,
         revenue: sql<string>`COALESCE(SUM(${orders.total}), 0)`,
-        avgOrderValue: sql<string>`COALESCE(AVG(${orders.total}), 0)`,
       })
         .from(orders)
         .where(and(
           ...revenueOrderConditions(ctx.tenant.id),
-          sql`${orders.createdAt} >= ${cutoff}`,
+          ...orderBounds,
           inArray(orders.agentId, agentRows.map(r => r.agentId)),
         ))
         .groupBy(orders.agentId);
 
       const moneyByAgent = new Map(moneyRows.map(r => [r.agentId, r]));
 
+      /*
+        Выручка — за вычетом возвратов, проведённых в периоде, у агента
+        заказа: то же правило, что у таблицы «Агенты» и «Агент × Товар»
+        (09.10.2026). Без этого файл «Эффективность» в той же группе каталога
+        расходился с «Агент × Товар» на сумму возвратов. Ниже нуля не
+        обрезается — как в P&L; обрезка — правило оплаты (KPI, зарплата).
+      */
+      const returnedBy = new Map<number | null, number>();
+      for (const h of await returnsInPeriod(
+        getDb(), ctx.tenant.id,
+        ranged ? (input?.dateFrom || ALL_TIME_FROM) : cutoffDay,
+        ranged ? (input?.dateTo || ALL_TIME_TO) : ALL_TIME_TO,
+      )) returnedBy.set(h.agentId, (returnedBy.get(h.agentId) ?? 0) + h.amount);
+
       return agentRows
         .map(r => {
           const money = moneyByAgent.get(r.agentId);
           const ordersCount = Number(money?.orders ?? 0);
+          const sales = Number(money?.revenue ?? 0) || 0;
+          const returned = returnedBy.get(r.agentId) ?? 0;
+          const revenue = Math.round((sales - returned) * 100) / 100;
           return {
             agentId: r.agentId,
             agentName: r.agentName,
             visits: r.visits,
             orders: ordersCount,
-            revenue: money?.revenue ?? "0",
-            avgOrderValue: money?.avgOrderValue ?? "0",
+            salesRevenue: sales,
+            returnedAmount: Math.round(returned * 100) / 100,
+            revenue,
+            avgOrderValue: ordersCount > 0 ? Math.round(revenue / ordersCount) : 0,
             conversionRate: Number(r.visits) > 0 ? ((ordersCount / Number(r.visits)) * 100).toFixed(1) : "0",
           };
         })
