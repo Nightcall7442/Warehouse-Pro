@@ -34,6 +34,7 @@ export const uz = {
     logout:      "Chiqish",
     reports:     "Hisobotlar",
     pnl:         "P&L",
+    reconciliation: "Solishtirma dalolatnoma",
     salaries:    "Ish haqi",
     billing:     "To'lov",
     gps:         "GPS",

@@ -66,6 +66,9 @@ export const NAV_ITEMS: Record<string, NavItem[]> = {
     { labelKey: "nav.users",      path: "/users",     icon: "Users",          group: "team" },
     { labelKey: "nav.reports",    path: "/reports",   icon: "Activity",       group: "finance" },
     { labelKey: "nav.pnl",        path: "/pnl",       icon: "TrendingUp",     group: "finance" },
+    // Акт сверки — своей страницей (09.10.2026): клиента выбирают поиском, а
+    // не ищут карточку магазина и не листают её до конца.
+    { labelKey: "nav.reconciliation", path: "/reconciliation", icon: "ScrollText", group: "finance" },
     { labelKey: "nav.control",    path: "/control",   icon: "ShieldCheck",    group: "finance" },
     { labelKey: "nav.billing",    path: "/billing",   icon: "CreditCard"      },
     { labelKey: "nav.auditLog",   path: "/audit-log",  icon: "Shield"         },
@@ -82,6 +85,7 @@ export const NAV_ITEMS: Record<string, NavItem[]> = {
     { labelKey: "nav.arrivals",   path: "/arrivals",  icon: "Truck",          group: "warehouse" },
     { labelKey: "nav.products",   path: "/products",  icon: "Package",        group: "warehouse" },
     { labelKey: "nav.reports",    path: "/reports",   icon: "Activity"       },
+    { labelKey: "nav.reconciliation", path: "/reconciliation", icon: "ScrollText" },
     { labelKey: "nav.kpi",        path: "/agent/kpi",  icon: "BarChart3"       },
     { labelKey: "nav.settings",   path: "/settings",  icon: "Settings"        },
   ],
@@ -121,6 +125,7 @@ export const NAV_ITEMS: Record<string, NavItem[]> = {
     { labelKey: "nav.shops",      path: "/shops",            icon: "Store"      },
     { labelKey: "nav.orders",     path: "/orders",           icon: "ClipboardList" },
     { labelKey: "nav.reports",    path: "/reports",          icon: "Activity"  },
+    { labelKey: "nav.reconciliation", path: "/reconciliation", icon: "ScrollText" },
     { labelKey: "nav.settings",   path: "/settings",         icon: "Settings"   },
   ],
   merchandiser: [

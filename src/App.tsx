@@ -88,6 +88,7 @@ const Support              = lazyWithRecovery(() => import("./pages/Support"));
 const Returns              = lazyWithRecovery(() => import("./pages/Returns"));
 const AuditLog             = lazyWithRecovery(() => import("./pages/AuditLog"));
 const Control              = lazyWithRecovery(() => import("./pages/Control"));
+const Reconciliation       = lazyWithRecovery(() => import("./pages/Reconciliation"));
 const MerchandiserVisit    = lazyWithRecovery(() => import("./pages/MerchandiserVisit"));
 
 function PageLoader() {
@@ -304,6 +305,8 @@ export default function App() {
           <Route path="/returns" element={<RoleGuard roles={["ceo","operator"]}><Returns /></RoleGuard>} />
           <Route path="/audit-log" element={<RoleGuard roles={["ceo","superadmin"]}><AuditLog /></RoleGuard>} />
           <Route path="/control" element={<RoleGuard roles={["ceo"]}><Control /></RoleGuard>} />
+          {/* Роли — как у ручки акта (shop.statement — managementQuery). */}
+          <Route path="/reconciliation" element={<RoleGuard roles={["ceo","operator","supervisor"]}><Reconciliation /></RoleGuard>} />
 
           {/* CEO only */}
           <Route path="/reports"     element={<RoleGuard roles={["ceo","operator","supervisor","merchandiser"]}><Reports /></RoleGuard>} />

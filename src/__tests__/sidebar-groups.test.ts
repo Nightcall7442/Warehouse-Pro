@@ -36,9 +36,10 @@ describe("строки меню", () => {
     expect(nested).toEqual([["nav.stock", true], ["nav.arrivals", false], ["nav.products", false]]);
   });
 
-  it("оператор: семь строк — Главная, Магазины, Продажи, Склад, Отчёты, KPI, Настройки", () => {
+  // «Акт сверки» — с 09.10.2026: акты делает офис, отдельной страницей, а не из карточки магазина.
+  it("оператор: восемь строк — Главная, Магазины, Продажи, Склад, Отчёты, Акт сверки, KPI, Настройки", () => {
     expect(top(navRows(NAV_ITEMS.operator, "/orders", undefined)).map(label))
-      .toEqual(["nav.dashboard", "nav.shops", "nav.groupSales", "nav.warehouse", "nav.reports", "nav.kpi", "nav.settings"]);
+      .toEqual(["nav.dashboard", "nav.shops", "nav.groupSales", "nav.warehouse", "nav.reports", "nav.reconciliation", "nav.kpi", "nav.settings"]);
   });
 
   it("вложенный адрес подсвечивает самый длинный пункт, а не оба: /supervisor/plans — «План визитов», не «Карта»", () => {

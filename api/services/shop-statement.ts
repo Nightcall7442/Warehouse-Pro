@@ -75,8 +75,32 @@ export interface StatementRow {
   balance: number;
 }
 
+/**
+ * Границы периода акта из двух дат «ГГГГ-ММ-ДД».
+ *
+ * Конец — последняя миллисекунда дня, а не полночь. Было `new Date(to)`, то
+ * есть начало дня: акт «по 9 октября» терял всё, что случилось 9 октября, —
+ * последний день периода выпадал целиком, а с ним и остаток на конец не
+ * сходился с тем, что видел бухгалтер. В акте с поставщиком это поправлено
+ * давно (supplier-router, statement), здесь — нет.
+ *
+ * Сутки — по UTC, как везде в системе (api/lib/date-range.ts: onDay).
+ * Строку не той формы разбираем как раньше: молча терять период хуже.
+ */
+const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
+export function statementBounds(from?: string, to?: string): { from?: Date; to?: Date } {
+  const parse = (v: string | undefined, edge: "start" | "end") => {
+    if (!v) return undefined;
+    const d = DAY_RE.test(v)
+      ? new Date(`${v}T${edge === "start" ? "00:00:00.000" : "23:59:59.999"}Z`)
+      : new Date(v);
+    return Number.isNaN(d.getTime()) ? undefined : d;
+  };
+  return { from: parse(from, "start"), to: parse(to, "end") };
+}
+
 export interface ShopStatement {
-  shop: { id: number; name: string; ownerName: string | null; phone: string | null; address: string | null };
+  shop: { id: number; name: string; ownerName: string | null; phone: string | null; address: string | null; taxId: string | null };
   from: Date | null;
   to: Date | null;
   /** Остаток на начало периода. */
@@ -123,12 +147,13 @@ export async function shopStatement(
   shopId: number,
   from?: Date,
   to?: Date,
+  now: Date = new Date(),
 ): Promise<ShopStatement | null> {
   const db = getDb();
 
   const [shop] = await db.select({
     id: shops.id, name: shops.name, ownerName: shops.ownerName,
-    phone: shops.phone, address: shops.address, debt: shops.debt,
+    phone: shops.phone, address: shops.address, debt: shops.debt, taxId: shops.taxId,
   })
     .from(shops)
     .where(and(eq(shops.id, shopId), eq(shops.tenantId, tenantId)))
@@ -249,7 +274,7 @@ export async function shopStatement(
 
   const debtNow = money(shop.debt);
   return {
-    shop: { id: shop.id, name: shop.name, ownerName: shop.ownerName, phone: shop.phone, address: shop.address },
+    shop: { id: shop.id, name: shop.name, ownerName: shop.ownerName, phone: shop.phone, address: shop.address, taxId: shop.taxId ?? null },
     from: from ?? null,
     to: to ?? null,
     opening,
@@ -258,7 +283,9 @@ export async function shopStatement(
     debtNow,
     // Считать расхождение имеет смысл только у периода, доведённого до сегодня:
     // на закрытом справа остаток и не обязан совпадать с текущим долгом.
-    discrepancy: to ? 0 : debtNow - balance,
+    // «Этот месяц» и «с начала года» кончаются сегодняшним днём — для них
+    // сверка с системой так же осмысленна, как для «всего времени».
+    discrepancy: to && to.getTime() < now.getTime() ? 0 : debtNow - balance,
     totals: { debit, credit },
   };
 }
