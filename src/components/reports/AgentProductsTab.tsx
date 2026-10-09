@@ -3,8 +3,9 @@ import { Users, FileDown, Package } from "lucide-react";
 import { F, COLORS, tableMinWidth, thStyle, tdStyle } from "./report-constants";
 import { GlassPanel, SectionError } from "./ReportCharts";
 import { formatQty } from "@/lib/format";
-import { unitShort } from "@/lib/units";
+import { unitShort, qtyByUnit } from "@/lib/units";
 import { PremiumSelect } from "@/components/PremiumSelect";
+import { useLang } from "@/i18n";
 
 /*
   Деньги строки — те же, что в KPI агента и в P&L (services/agent-product-sales.ts):
@@ -33,26 +34,18 @@ interface AgentProductsTabProps {
   isLoading: boolean;
   isError?: boolean;
   onRetry?: () => void;
-  dateFrom: string;
-  dateTo: string;
-  onDateFromChange: (v: string) => void;
-  onDateToChange: (v: string) => void;
   fmt: (v: string | number) => string;
   t: (ru: string, uz: string) => string;
-  onExport: () => void;
+  /** null — все агенты; иначе — выбранный на экране. */
+  onExport: (agent: { id: number | null; name: string } | null) => void;
 }
 
-// 44 точки — как в карточках отчётов рядом: базовый шрифт 14px, и поле с
-// отступом 8px выходило 33 точки высотой. Здесь стоят два поля даты подряд,
-// и промахнуться мимо любого из них было проще, чем попасть.
-const inputStyle: React.CSSProperties = {
-  padding: "8px 12px", minHeight: "44px", fontSize: "13px", fontFamily: F.body, borderRadius: "10px",
-  border: `1px solid ${COLORS.border}`, background: COLORS.surface, color: COLORS.textPrimary,
-};
 
 export const AgentProductsTab = memo(function AgentProductsTab({
-  rows, isLoading, isError, onRetry, dateFrom, dateTo, onDateFromChange, onDateToChange, fmt, t, onExport,
+  rows, isLoading, isError, onRetry, fmt, t, onExport,
 }: AgentProductsTabProps) {
+  // Единицы — на языке экрана: «12 шт» на узбекском читалось чужим словом.
+  const { lang } = useLang();
   const [agentFilter, setAgentFilter] = useState<string>("all");
 
   const agentOptions = useMemo(() => {
@@ -63,6 +56,19 @@ export const AgentProductsTab = memo(function AgentProductsTab({
     }
     return [...map.entries()].sort((a, b) => a[1].localeCompare(b[1]));
   }, [rows, t]);
+
+  /*
+    Доля — от суммы положительных итогов ВСЕХ агентов, а не отфильтрованных:
+    при выбранном агенте она показывала «100%» и ничего не говорила.
+  */
+  const grandTotal = useMemo(() => {
+    const byAgent = new Map<string, number>();
+    for (const r of rows ?? []) {
+      const k = String(r.agentId ?? "0");
+      byAgent.set(k, (byAgent.get(k) ?? 0) + Number(r.totalRevenue));
+    }
+    return [...byAgent.values()].reduce((s, v) => s + Math.max(0, v), 0);
+  }, [rows]);
 
   const grouped = useMemo(() => {
     const filtered = (rows ?? []).filter(r => agentFilter === "all" || String(r.agentId ?? "0") === agentFilter);
@@ -90,13 +96,8 @@ export const AgentProductsTab = memo(function AgentProductsTab({
       .sort((a, b) => b.totalRevenue - a.totalRevenue);
   }, [rows, agentFilter, t]);
 
-  /*
-    Доля — от суммы ПОЛОЖИТЕЛЬНЫХ итогов. У агента, у которого в периоде
-    только возвраты прошлых продаж, итог отрицательный: со знаковым
-    знаменателем у остальных выходило «125%», а у него «−25%». Ему доля не
-    показывается вовсе.
-  */
-  const grandTotal = grouped.reduce((s, a) => s + Math.max(0, a.totalRevenue), 0);
+  // Агенту с отрицательным итогом (только возвраты прошлых продаж) доля не
+  // показывается вовсе: со знаковым знаменателем выходило «125%» и «−25%».
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
@@ -129,14 +130,8 @@ export const AgentProductsTab = memo(function AgentProductsTab({
         </div>
 
         <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
-          {/* max/min не давали выбрать перевёрнутый промежуток в карточках
-              отчётов, а здесь их не было: «с 30 сентября по 1 сентября»
-              отдавало пустой ответ, который выглядел как «продаж не было». */}
-          <input type="date" value={dateFrom} max={dateTo} onChange={e => onDateFromChange(e.target.value)}
-            aria-label={t("С даты", "Sanadan")} style={inputStyle} />
-          <span aria-hidden style={{ color: COLORS.textTertiary, fontSize: "13px" }}>—</span>
-          <input type="date" value={dateTo} min={dateFrom} onChange={e => onDateToChange(e.target.value)}
-            aria-label={t("По дату", "Sanagacha")} style={inputStyle} />
+          {/* Своих полей дат больше нет: период — переключатель страницы над
+              вкладкой (7/30/90), тот же, что у таблицы «Агенты». */}
           <PremiumSelect
             value={agentFilter}
             onChange={setAgentFilter}
@@ -147,7 +142,12 @@ export const AgentProductsTab = memo(function AgentProductsTab({
               ...agentOptions.map(([id, name]) => ({ value: id, label: name })),
             ]}
           />
-          <button type="button" onClick={onExport} className="neo-btn neo-btn-sm tap" style={{ padding: "0 14px" }}>
+          <button type="button" data-testid="agent-products-export"
+            onClick={() => onExport(agentFilter === "all" ? null : {
+              id: agentFilter === "0" ? null : Number(agentFilter),
+              name: agentOptions.find(([id]) => id === agentFilter)?.[1] ?? "",
+            })}
+            className="neo-btn neo-btn-sm tap" style={{ padding: "0 14px" }}>
             <FileDown size={13} aria-hidden /> Excel
           </button>
         </div>
@@ -189,7 +189,7 @@ export const AgentProductsTab = memo(function AgentProductsTab({
                     {t("Позиций", "Pozitsiya")}: <b style={{ color: COLORS.textPrimary }}>{agent.rows.length}</b>
                   </span>
                   <span style={{ fontSize: "12px", color: COLORS.textTertiary }}>
-                    {t("Кол-во", "Miqdor")}: <b style={{ color: COLORS.textPrimary }}>{formatQty(agent.totalQty)}</b>
+                    {t("Продано", "Sotildi")}: <b data-testid="agent-qty-by-unit" style={{ color: COLORS.textPrimary }}>{qtyByUnit(agent.rows, lang)}</b>
                   </span>
                   {agent.returnedAmount > 0 && (
                     <span style={{ fontSize: "12px", color: COLORS.textTertiary }}>
@@ -236,10 +236,10 @@ export const AgentProductsTab = memo(function AgentProductsTab({
                             выгрузку движений назвали нечитаемой; словарь на
                             них один и лежит в lib/units. */}
                         <td style={{ ...tdStyle, textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
-                          {formatQty(r.totalQty)} {unitShort(r.unit)}
+                          {formatQty(r.totalQty)} {unitShort(r.unit, lang)}
                         </td>
                         <td style={{ ...tdStyle, textAlign: "right", fontVariantNumeric: "tabular-nums", color: Number(r.returnedQty ?? 0) > 0 ? "var(--color-danger-text)" : COLORS.textTertiary }}>
-                          {Number(r.returnedQty ?? 0) > 0 ? `${formatQty(r.returnedQty ?? 0)} ${unitShort(r.unit)}` : "—"}
+                          {Number(r.returnedQty ?? 0) > 0 ? `${formatQty(r.returnedQty ?? 0)} ${unitShort(r.unit, lang)}` : "—"}
                         </td>
                         <td style={{ ...tdStyle, textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{r.orderCount}</td>
                         <td style={{ ...tdStyle, textAlign: "right", fontVariantNumeric: "tabular-nums" }}>

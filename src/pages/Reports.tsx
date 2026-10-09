@@ -148,9 +148,6 @@ export default function Reports() {
   const prevTo = format(subDays(new Date(), days + 1), "yyyy-MM-dd");
   const prevFrom = format(subDays(new Date(), days * 2 + 1), "yyyy-MM-dd");
 
-  const [apDateFrom, setApDateFrom] = useState(from);
-  const [apDateTo, setApDateTo] = useState(to);
-
   const summaryQ = trpc.reports.getDashboardSummary.useQuery();
   const chartQ = trpc.reports.getVisitChart.useQuery({ days });
   const plansQ = trpc.reports.getPlanCompletion.useQuery();
@@ -168,8 +165,14 @@ export default function Reports() {
   // the server. Asking for it as an operator would just produce a failed query
   // and an empty section; not asking is the same result without the noise.
   const byPaymentQ = trpc.analytics.pnlByPaymentMethod.useQuery({ from, to }, { enabled: isCeo });
+  /*
+    Период блока — период страницы. Здесь стояли свои поля дат, заполненные
+    из `from`/`to` один раз при открытии: «7 дней» над вкладкой меняло таблицу
+    «Агенты», а блок под ней оставался за 30 — одному агенту на одном экране
+    две суммы. И через полночь новый день попадал в таблицу, но не в блок.
+  */
   const agentProductsQ = trpc.analytics.agentProductSales.useQuery(
-    { dateFrom: apDateFrom, dateTo: apDateTo },
+    { dateFrom: from, dateTo: to },
     // Раздел «Агенты» разворачивает эту подробность у себя, поэтому запрос
     // просыпается вместе с ним, а не отдельной вкладкой.
     { enabled: tab === "agents" },
@@ -266,8 +269,15 @@ export default function Reports() {
     ...(seesMap ? [{ key: "map" as const, ru: "Карта продаж", uz: "Savdo xaritasi", icon: <MapPinned size={16} /> }] : []),
   ];
 
-  const handleExportAgentProducts = async () => {
+  /*
+    Выгрузка — того, что на экране: при выбранном агенте только его строки,
+    и его имя в заголовке и имени файла. Раньше фильтр жил только на экране, а
+    файл уходил со всеми агентами и «ИТОГО» по всей организации — и пересылался
+    как «продажи Азиза».
+  */
+  const handleExportAgentProducts = async (agent: { id: number | null; name: string } | null) => {
     const rows = (agentProductsQ.data ?? [])
+      .filter(r => agent === null || (r.agentId ?? null) === agent.id)
       .slice()
       .sort((a, b) => (a.agentName ?? "").localeCompare(b.agentName ?? "") || Number(b.totalRevenue) - Number(a.totalRevenue))
       /*
@@ -296,9 +306,9 @@ export default function Reports() {
     // объясняет, что выгружать нечего, — как во всех остальных выгрузках.
     await exportToExcel(
       rows,
-      `agent-products-${apDateFrom}_${apDateTo}`,
+      `agent-products-${from}_${to}${agent ? `-agent-${agent.id ?? 0}` : ""}`,
       t("Агент-Товар", "Agent-Mahsulot"),
-      `${t("Продажи по агентам и товарам", "Agent va mahsulot bo'yicha sotuvlar")} — ${apDateFrom} — ${apDateTo}`,
+      `${t("Продажи по агентам и товарам", "Agent va mahsulot bo'yicha sotuvlar")}${agent ? ` — ${agent.name}` : ""} — ${from} — ${to}`,
     );
   };
 
@@ -641,10 +651,6 @@ export default function Reports() {
               isLoading={agentProductsQ.isLoading}
               isError={agentProductsQ.isError}
               onRetry={() => void agentProductsQ.refetch()}
-              dateFrom={apDateFrom}
-              dateTo={apDateTo}
-              onDateFromChange={setApDateFrom}
-              onDateToChange={setApDateTo}
               fmt={fmt}
               t={t}
               onExport={handleExportAgentProducts}

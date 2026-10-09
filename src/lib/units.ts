@@ -1,3 +1,4 @@
+import { formatQty } from "./format";
 /**
  * Единицы измерения — один список на всё приложение.
  *
@@ -48,4 +49,26 @@ export function unitShort(unit: string | null | undefined, lang: string = "ru"):
   const u = BY_VALUE.get(unit ?? "pcs");
   if (!u) return unit ?? "шт";
   return lang === "uz" ? u.shortUz : u.shortRu;
+}
+
+/**
+ * Количество по единицам: «120 шт · 25,5 кг · 10 ящ».
+ *
+ * В шапке агента стояла одна сумма количеств всех товаров — штуки, килограммы
+ * и ящики складывались в «155,5» без единицы. Агент с 40 ящиками (960
+ * бутылок) показывал «40». Тот же приём — у итога накладной (lib/documents).
+ */
+export function qtyByUnit(rows: Array<{ unit: string | null; totalQty: number | string }>, lang: string): string {
+  const byUnit = new Map<string, number>();
+  for (const r of rows) {
+    const q = Number(r.totalQty) || 0;
+    if (q === 0) continue;
+    const u = r.unit ?? "";
+    byUnit.set(u, (byUnit.get(u) ?? 0) + q);
+  }
+  if (byUnit.size === 0) return "0";
+  return [...byUnit.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .map(([u, q]) => `${formatQty(q)}${u ? ` ${unitShort(u, lang)}` : ""}`)
+    .join(" · ");
 }
