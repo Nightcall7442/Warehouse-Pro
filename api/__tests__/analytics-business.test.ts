@@ -528,18 +528,11 @@ describe("report filters", () => {
     });
   });
 
-  describe("analytics.agentProductSales", () => {
-    it("narrows to one category", async () => {
-      const caller = await analytics();
-
-      const rows = await caller.agentProductSales({ category: "Снеки" });
-
-      // Asserted on the code, not the name: this query joins both users and
-      // products, and the harness flattens rows, so a `name` column exists on
-      // both and one of them has to lose. `code` belongs to products alone.
-      expect(rows.map(r => r.productCode)).toEqual(["PB002"]);
-    });
-  });
+  // analytics.agentProductSales — фильтр категории проверяется на настоящей
+  // MySQL (real-db/agent-product-sales.test.ts, «категория»): с 09.10.2026
+  // отчёт делит скидку заказа оконной суммой, и категория обязана ложиться
+  // СНАРУЖИ окна. Поддельная база окна не умеет — здесь проверка подтвердила
+  // бы что угодно.
 
   describe("analytics.pnlByPaymentMethod", () => {
     it("narrows to one agent", async () => {

@@ -278,28 +278,41 @@ export function returnedOf(byAgent: Map<number, ReturnedValue>, agentId: number)
 }
 
 /**
- * Возвраты периода по ТОВАРАМ — для отчёта «Прибыль» и ABC по товарам.
+ * Один документ возврата, разложенный по строкам товара.
  *
- * Отбор тот же, что у returnsInPeriod (тот же запрос шапок), и только
- * поэтому сумма по товарам сходится с суммой по документам. Сумма документа
- * (returns.total_amount) делится между его строками пропорционально их сумме:
- * документ мог быть проведён по цене, отличной от строк (оператор поправил
- * цену агента), а вычесть из выручки надо именно сумму документа. Строки с
- * нулевой суммой делят по количеству.
+ * Сумма документа (returns.total_amount) делится между его строками
+ * пропорционально их сумме: документ мог быть проведён по цене, отличной от
+ * строк (оператор поправил цену агента), а вычесть из выручки надо именно
+ * сумму документа. Строки с нулевой суммой делят по количеству.
  *
- * Документ без строк товара не имеет — его сумма уходит в `unassigned`, чтобы
- * итог по товарам всё равно сходился с P&L, а не терял её молча.
+ * Документ без строк товара даёт одну строку с productId = null и всей суммой
+ * документа: разложить её не по чему, но и потерять нельзя — итог по товарам
+ * обязан сходиться с P&L.
+ *
+ * Общая основа для двух разрезов: «Прибыль»/ABC по товарам
+ * (returnedByProduct) и «Агент × Товар» (services/agent-product-sales.ts).
+ * Деление одно на оба — иначе один и тот же возврат вычитался бы из товара в
+ * двух отчётах по-разному.
  */
-export async function returnedByProduct(
-  db: Db, tenantId: number, from: string, to: string,
-  /** Шапки, уже прочитанные returnsInPeriod, — не читать их второй раз. */
-  headers?: ReturnRow[],
-): Promise<{ byProduct: Map<number, ReturnedValue>; unassigned: ReturnedValue }> {
-  const heads = headers ?? await returnsInPeriod(db, tenantId, from, to);
-  const byProduct = new Map<number, ReturnedValue>();
-  const unassigned: ReturnedValue = { ...NOTHING_RETURNED };
-  if (heads.length === 0) return { byProduct, unassigned };
+export interface ReturnLine {
+  /** Шапка документа — отбор returnsInPeriod: агент и магазин из заказа. */
+  head: ReturnRow;
+  /** null — у документа нет строк товара. */
+  productId: number | null;
+  /** Сколько единиц вернулось по строке. */
+  qty: number;
+  /** Доля суммы документа. */
+  amount: number;
+  /** Себестоимость вернувшегося: из строки заказа, иначе из карточки товара. */
+  cost: number;
+}
 
+export async function returnLines(
+  db: Db, tenantId: number,
+  /** Шапки, уже прочитанные returnsInPeriod. */
+  heads: ReturnRow[],
+): Promise<ReturnLine[]> {
+  if (heads.length === 0) return [];
   const ids = heads.map(h => h.id);
   const lines = await db.select({
     returnId:    returnItems.returnId,
@@ -323,11 +336,11 @@ export async function returnedByProduct(
     const k = Number(l.returnId);
     linesOf.set(k, [...(linesOf.get(k) ?? []), l]);
   }
+  const out: ReturnLine[] = [];
   for (const h of heads) {
     const own = linesOf.get(h.id) ?? [];
     if (own.length === 0) {
-      unassigned.amount += h.amount;
-      unassigned.count += 1;
+      out.push({ head: h, productId: null, qty: 0, amount: h.amount, cost: 0 });
       continue;
     }
     const bySum = own.reduce((s, l) => s + (Number(l.subtotal) || 0), 0);
@@ -336,14 +349,43 @@ export async function returnedByProduct(
       const weight = bySum > 0 ? (Number(l.subtotal) || 0) / bySum
         : byQty > 0 ? (Number(l.quantity) || 0) / byQty : 1 / own.length;
       const unit = Number(l.orderCost ?? l.productCost ?? 0) || 0;
-      const pid = Number(l.productId);
-      const prev = byProduct.get(pid) ?? NOTHING_RETURNED;
-      byProduct.set(pid, {
-        amount: prev.amount + h.amount * weight,
-        cost:   prev.cost + (Number(l.quantity) || 0) * unit,
-        count:  prev.count + 1,
-      });
+      const qty = Number(l.quantity) || 0;
+      out.push({ head: h, productId: Number(l.productId), qty, amount: h.amount * weight, cost: qty * unit });
     }
+  }
+  return out;
+}
+
+/**
+ * Возвраты периода по ТОВАРАМ — для отчёта «Прибыль» и ABC по товарам.
+ *
+ * Отбор тот же, что у returnsInPeriod (тот же запрос шапок), и только
+ * поэтому сумма по товарам сходится с суммой по документам. Деление суммы
+ * документа между строками — returnLines.
+ *
+ * Документ без строк товара не имеет — его сумма уходит в `unassigned`, чтобы
+ * итог по товарам всё равно сходился с P&L, а не терял её молча.
+ */
+export async function returnedByProduct(
+  db: Db, tenantId: number, from: string, to: string,
+  /** Шапки, уже прочитанные returnsInPeriod, — не читать их второй раз. */
+  headers?: ReturnRow[],
+): Promise<{ byProduct: Map<number, ReturnedValue>; unassigned: ReturnedValue }> {
+  const heads = headers ?? await returnsInPeriod(db, tenantId, from, to);
+  const byProduct = new Map<number, ReturnedValue>();
+  const unassigned: ReturnedValue = { ...NOTHING_RETURNED };
+  for (const l of await returnLines(db, tenantId, heads)) {
+    if (l.productId == null) {
+      unassigned.amount += l.amount;
+      unassigned.count += 1;
+      continue;
+    }
+    const prev = byProduct.get(l.productId) ?? NOTHING_RETURNED;
+    byProduct.set(l.productId, {
+      amount: prev.amount + l.amount,
+      cost:   prev.cost + l.cost,
+      count:  prev.count + 1,
+    });
   }
   return { byProduct, unassigned };
 }

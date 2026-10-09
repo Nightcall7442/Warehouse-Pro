@@ -389,13 +389,23 @@ export const REPORTS: ReportDef[] = [
       { dateFrom: p.from, dateTo: p.to, agentId: p.agentId, category: p.category },
       { enabled: opts.enabled },
     ),
-    toRows: (data) => (data as Array<{ agentName: string | null; productName: string | null; productCode: string | null; totalQty: string; totalRevenue: string }>)
+    // Деньги — после скидки заказа и за вычетом возвратов, как в KPI и P&L
+    // (services/agent-product-sales.ts). «Выручка» прежде была суммой строк:
+    // до скидки и с возвращённым товаром.
+    toRows: (data) => (data as Array<{
+      agentName: string | null; productId: number | null; productName: string | null; productCode: string | null;
+      totalQty: number; returnedQty: number; grossRevenue: number; salesRevenue: number; returnedAmount: number; totalRevenue: number;
+    }>)
       .map(r => ({
         "Агент": r.agentName ?? "—",
-        "Товар": r.productName ?? "—",
+        "Товар": r.productName ?? (r.productId == null ? "Возврат без строк товара" : "—"),
         "Код": r.productCode ?? "—",
-        "Объём": num(r.totalQty),
-        "Выручка": num(r.totalRevenue),
+        "Продано": num(r.totalQty),
+        "Вернули": num(r.returnedQty),
+        "До скидки": num(r.grossRevenue),
+        "Продажи": num(r.salesRevenue),
+        "Возвраты": num(r.returnedAmount),
+        "Чистыми": num(r.totalRevenue),
       })),
     filename: (p) => `agent-product-sales-${p.from}_${p.to}${suffix(p)}`,
     sheet: { ru: "Агент × Товар", uz: "Agent × Mahsulot" },

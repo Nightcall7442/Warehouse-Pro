@@ -76,6 +76,7 @@ export const AgentsTab = memo(function AgentsTab({
     [agents, sort],
   );
   const totalRevenue = rows.reduce((s, a) => s + a.revenue, 0);
+  const positiveTotal = rows.reduce((s, a) => s + Math.max(0, a.revenue), 0);
 
   /*
     Столбец сравнения показывается, только когда есть с чем сравнивать.
@@ -184,7 +185,11 @@ export const AgentsTab = memo(function AgentsTab({
               </thead>
               <tbody>
                 {rows.map((a, i) => {
-                  const share = totalRevenue > 0 ? (a.revenue / totalRevenue) * 100 : 0;
+                  // Доля — от суммы положительных: с 09.10.2026 выручка агента
+                  // за вычетом возвратов и бывает отрицательной (возвраты прошлых
+                  // продаж больше продаж периода) — со знаковым знаменателем
+                  // у остальных выходило больше 100%.
+                  const share = positiveTotal > 0 ? (Math.max(0, a.revenue) / positiveTotal) * 100 : 0;
                   const d = delta(a.revenue, a.prevRevenue);
                   return (
                     <tr key={a.agentId} style={{

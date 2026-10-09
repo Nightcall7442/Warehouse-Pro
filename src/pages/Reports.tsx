@@ -84,9 +84,16 @@ const esc = (v: unknown): string => escapeHtml(String(v ?? "—"));
  * а не ноль: без заказов среднего чека не существует, а «0» читался бы как
  * «продавали по нулю».
  */
-function totalsOf(rows: { orderCount: number; totalRevenue: string }[] | undefined): PeriodTotals | undefined {
+function totalsOf(rows: { orderCount: number; salesRevenue: number | string }[] | undefined): PeriodTotals | undefined {
   if (!rows) return undefined;
-  const revenue = rows.reduce((s, a) => s + Number(a.totalRevenue), 0);
+  /*
+    Сумма заказов до возвратов (salesRevenue), как и была. totalRevenue
+    agentPerformance с 09.10.2026 — за вычетом возвратов периода, а итоги
+    страницы делят на себя «Долю» в «Топ товаров» — сумму строк ДО возвратов:
+    знаменатель меньше числителей, и доля выходила за 100%. Перевести «Обзор»
+    и «Топ товаров» на основу P&L — отдельный шаг, вместе.
+  */
+  const revenue = rows.reduce((s, a) => s + Number(a.salesRevenue), 0);
   const orders = rows.reduce((s, a) => s + Number(a.orderCount), 0);
   return { revenue, orders, avgOrder: orders > 0 ? revenue / orders : null };
 }
@@ -263,16 +270,27 @@ export default function Reports() {
     const rows = (agentProductsQ.data ?? [])
       .slice()
       .sort((a, b) => (a.agentName ?? "").localeCompare(b.agentName ?? "") || Number(b.totalRevenue) - Number(a.totalRevenue))
+      /*
+        Деньги — те же, что на экране и в KPI: «Продажи» после скидки заказа,
+        «Возвраты» проведённые в периоде, «Чистыми» — разница. «До скидки» —
+        по цене строк, чтобы файл сходился и с «Топ товаров». Все суммы —
+        ЧИСЛАМИ: «Сумма» уходила строкой из toFixed, и =СУММ по колонке
+        давала ноль.
+      */
       .map(r => ({
         Агент: r.agentName ?? t("Не назначен", "Tayinlanmagan"),
-        Товар: r.productName ?? "—",
+        Товар: r.productName ?? (r.productId == null ? "Возврат без строк товара" : "—"),
         Код: r.productCode ?? "",
-        "Кол-во": Number(r.totalQty ?? 0),
+        "Продано": Number(r.totalQty ?? 0),
+        "Вернули": Number(r.returnedQty ?? 0),
         // Здесь стоял код единицы из базы: в файл уходили «pcs», «box»,
         // «pack». Словарь на всё приложение один — lib/units.
         Ед: unitShort(r.unit, lang),
         Заказов: Number(r.orderCount ?? 0),
-        Сумма: Number(r.totalRevenue ?? 0).toFixed(2),
+        "До скидки": Number(r.grossRevenue ?? 0),
+        "Продажи": Number(r.salesRevenue ?? 0),
+        "Возвраты": Number(r.returnedAmount ?? 0),
+        "Чистыми": Number(r.totalRevenue ?? 0),
       }));
     // Пустой набор больше не проглатывается молча здесь: exportToExcel сам
     // объясняет, что выгружать нечего, — как во всех остальных выгрузках.

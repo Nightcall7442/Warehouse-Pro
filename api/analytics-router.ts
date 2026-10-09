@@ -6,6 +6,7 @@ import { eq, and, sql, desc , inArray, isNull } from "drizzle-orm";
 import { REVENUE_ORDER_STATUSES, revenueOrderConditions, deliveredQty } from "./lib/order-status";
 import { MS_PER_DAY } from "./lib/constants";
 import { returnsInPeriod, groupReturned, type ReturnRow } from "./services/revenue-returns";
+import { agentProductSales, ALL_TIME_FROM, ALL_TIME_TO } from "./services/agent-product-sales";
 import { reportCached, ReportTTL } from "./lib/report-cache";
 import { periodGross } from "./services/period-gross";
 
@@ -117,15 +118,62 @@ export const analyticsRouter = createRouter({
       if (input?.dateFrom) conditions.push(sql`${orders.createdAt} >= ${input.dateFrom}`);
       if (input?.dateTo)   conditions.push(sql`${orders.createdAt} <= ${input.dateTo + " 23:59:59"}`);
 
-      return getDb().select({
+      const db = getDb();
+      const rows = await db.select({
         agentName:     users.name,
         agentId:       users.id,
         orderCount:    sql<number>`count(*)`,
-        totalRevenue:  sql<string>`COALESCE(SUM(${orders.total}), 0)`,
-        avgOrderValue: sql<string>`COALESCE(AVG(${orders.total}), 0)`,
+        salesRevenue:  sql<string>`COALESCE(SUM(${orders.total}), 0)`,
       })
         .from(orders).leftJoin(users, and(eq(orders.agentId, users.id), eq(users.tenantId, ctx.tenant.id)))
-        .where(and(...conditions)).groupBy(users.id).orderBy(desc(sql`SUM(${orders.total})`));
+        .where(and(...conditions)).groupBy(users.id);
+
+      /*
+        Выручка агента — заказы минус возвраты, проведённые в периоде, у агента
+        ЗАКАЗА (services/revenue-returns.ts). Здесь стояла голая
+        SUM(orders.total): блок «Агент × Товар» под этой таблицей перешёл на «за
+        вычетом возвратов» (09.10.2026), и одна вкладка показывала бы одному
+        агенту две выручки.
+
+        Ниже нуля НЕ обрезается — как в P&L и в «Агент × Товар»: сумма строк
+        обязана сходиться с выручкой P&L. Обрезка по нулю — правило оплаты
+        (KPI и зарплата, services/kpi.ts), а не отчёта: у агента, чьи возвраты
+        прошлых продаж больше продаж периода, здесь минус, а в KPI — ноль.
+        По той же причине в таблице есть агент, у которого в периоде только
+        возвраты, и строка заказов без агента со своими возвратами.
+      */
+      const heads = await returnsInPeriod(db, ctx.tenant.id, input?.dateFrom || ALL_TIME_FROM, input?.dateTo || ALL_TIME_TO);
+      const returnedBy = new Map<number | null, number>();
+      for (const h of heads) returnedBy.set(h.agentId, (returnedBy.get(h.agentId) ?? 0) + h.amount);
+
+      const seen = new Set(rows.map(r => r.agentId));
+      const onlyReturns = [...returnedBy.keys()].filter(k => !seen.has(k));
+      const ids = onlyReturns.filter((k): k is number => k != null);
+      const names = new Map<number, string>();
+      if (ids.length > 0) {
+        const found = await db.select({ id: users.id, name: users.name }).from(users)
+          .where(and(eq(users.tenantId, ctx.tenant.id), inArray(users.id, ids)));
+        for (const u of found) names.set(Number(u.id), u.name);
+      }
+      const all = [
+        ...rows,
+        ...onlyReturns.map(k => ({ agentName: k == null ? null : names.get(k) ?? null, agentId: k, orderCount: 0, salesRevenue: "0" })),
+      ];
+      return all.map(r => {
+        const sales = Number(r.salesRevenue) || 0;
+        const returned = returnedBy.get(r.agentId) ?? 0;
+        const revenue = sales - returned;
+        const orderCount = Number(r.orderCount) || 0;
+        return {
+          agentName: r.agentName,
+          agentId: r.agentId,
+          orderCount,
+          salesRevenue: sales,
+          returnedAmount: Math.round(returned * 100) / 100,
+          totalRevenue: Math.round(revenue * 100) / 100,
+          avgOrderValue: orderCount > 0 ? Math.round(revenue / orderCount) : 0,
+        };
+      }).sort((a, b) => b.totalRevenue - a.totalRevenue);
     })),
 
   // ── COGS + Margins ──────────────────────────────────────────────────────────
@@ -636,38 +684,10 @@ export const analyticsRouter = createRouter({
       agentId: z.number().int().positive().optional(),
       category: z.string().max(100).optional(),
     }).optional())
-    .query(({ input, ctx }) => reportCached(ctx.tenant.id, "analytics.agentProductSales", input ?? {}, ReportTTL.fiveMin, async () => {
-      const conditions = revenueOrderConditions(ctx.tenant.id);
-      if (input?.dateFrom) conditions.push(sql`${orders.createdAt} >= ${input.dateFrom}`);
-      if (input?.dateTo)   conditions.push(sql`${orders.createdAt} <= ${input.dateTo + " 23:59:59"}`);
-      if (input?.agentId)  conditions.push(eq(orders.agentId, input.agentId));
-      if (input?.category) conditions.push(eq(products.category, input.category));
-
-      return getDb().select({
-        agentId:      users.id,
-        agentName:    users.name,
-        productId:    products.id,
-        productName:  products.name,
-        productCode:  products.code,
-        unit:         products.unit,
-        // Проданное и выручка — по ДОСТАВЛЕННОМУ количеству.
-        //
-        // Курьерский путь частичного возврата писал только deliveredQuantity,
-        // оставляя subtotal и quantity заказанными: отчёт по товарам показывал
-        // проданным то, что вернулось. Сам путь исправлен, но СТРОКИ, записанные
-        // до правки, в базе остались — считать по ним надо всё так же.
-        totalQty:     sql<string>`COALESCE(SUM(${deliveredQty()}), 0)`,
-        totalRevenue: sql<string>`COALESCE(SUM(${deliveredQty()} * ${orderItems.unitPrice}), 0)`,
-        orderCount:   sql<number>`count(DISTINCT ${orders.id})`,
-      })
-        .from(orderItems)
-        .innerJoin(orders, eq(orderItems.orderId, orders.id))
-        .leftJoin(users, and(eq(orders.agentId, users.id), eq(users.tenantId, ctx.tenant.id)))
-        .leftJoin(products, and(eq(orderItems.productId, products.id), eq(products.tenantId, ctx.tenant.id)))
-        .where(and(...conditions))
-        .groupBy(orders.agentId, orderItems.productId)
-        .orderBy(users.name, desc(sql`SUM(${deliveredQty()} * ${orderItems.unitPrice})`));
-    })),
+    // Деньги — после скидки заказа и за вычетом возвратов, как в KPI и P&L;
+    // почему и как — в шапке services/agent-product-sales.ts.
+    .query(({ input, ctx }) => reportCached(ctx.tenant.id, "analytics.agentProductSales", input ?? {}, ReportTTL.fiveMin,
+      () => agentProductSales(getDb(), ctx.tenant.id, input ?? {}))),
 
   // ── Payment Method Trend ──────────────────────────────────────────────────
   paymentMethodTrend: reportsQuery
