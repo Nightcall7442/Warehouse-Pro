@@ -8,6 +8,10 @@ import { useCurrency } from "@/hooks/useCurrency";
 import { useSellerCompany } from "@/hooks/useSellerCompany";
 import { SectionNotice } from "@/components/SectionNotice";
 import { PremiumSelect } from "@/components/PremiumSelect";
+import {
+  STATEMENT_PRESETS, ALL_TIME, presetRange, dayToRu, localDay, type StatementPreset, type StatementPeriod,
+} from "@contracts/statement-period";
+import { reconciliationHtml, reconciliationConclusion, reconciliationDocLabel } from "@/lib/reconciliation-print";
 
 /**
  * Акт сверки с магазином: откуда взялось число долга.
@@ -33,31 +37,69 @@ import { PremiumSelect } from "@/components/PremiumSelect";
  * Такую разницу видно строкой, а не прячут: ноль в ней означает «бумага сходится
  * с системой», не ноль — либо переплата, либо повод разбираться. Узнать об этом
  * из акта лучше, чем из спора с магазином.
+ *
+ * ── Два места ───────────────────────────────────────────────────────────────
+ *
+ * Акт живёт в карточке магазина и на своей странице «Акт сверки», где магазин
+ * выбирают поиском (09.10.2026: арендатор просил «отдельно выбрать»). Блок
+ * один и тот же; на странице период держит она сама — в адресе, чтобы акт
+ * можно было открыть ссылкой и не терять период при смене магазина.
  */
-export function ShopStatement({ shopId }: { shopId: number }) {
+/** Готовый отрезок или свой период: выбор отрезка сразу ставит его даты. */
+export function StatementPeriodPicker({ value, onChange }: {
+  value: StatementPeriod;
+  onChange: (next: StatementPeriod) => void;
+}) {
   const t = useTranslate();
   const { lang } = useLang();
-  const { fmt } = useCurrency();
-  const { company, isReady } = useSellerCompany();
-  const [from, setFrom] = useState("");
-  const [to, setTo] = useState("");
-  const [span, setSpan] = useState<"all" | "30" | "90" | "365" | "custom">("all");
+  const pick = (preset: StatementPreset) => {
+    const range = presetRange(preset);
+    // «Свой период» начинается с того, что уже видно на экране: человек
+    // поправляет одну дату, а не набирает обе с нуля.
+    onChange(range ? { preset, ...range } : { preset, from: value.from, to: value.to || localDay(new Date()) });
+  };
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+      <PremiumSelect
+        value={value.preset}
+        onChange={v => pick(v as StatementPreset)}
+        options={STATEMENT_PRESETS.map(p => ({ value: p.id, label: lang === "uz" ? p.uz : p.ru }))}
+        width="180px"
+        aria-label={t("Период", "Davr")}
+      />
+      {value.preset === "custom" && (
+        <>
+          <input type="date" className="neo-input" style={{ width: "150px" }} value={value.from}
+            onChange={e => onChange({ ...value, from: e.target.value })} aria-label={t("С даты", "Sanadan")} />
+          <input type="date" className="neo-input" style={{ width: "150px" }} value={value.to}
+            onChange={e => onChange({ ...value, to: e.target.value })} aria-label={t("По дату", "Sanagacha")} />
+        </>
+      )}
+    </div>
+  );
+}
 
-  /** Готовый отрезок в две даты. «Всё время» — это отсутствие обеих. */
-  const pickSpan = (next: typeof span) => {
-    setSpan(next);
-    if (next === "custom") return;
-    if (next === "all") { setFrom(""); setTo(""); return; }
-    const start = new Date();
-    start.setDate(start.getDate() - Number(next));
-    setFrom(start.toISOString().slice(0, 10));
-    setTo(new Date().toISOString().slice(0, 10));
+export function ShopStatement({ shopId, period: controlled, onPeriodChange }: {
+  shopId: number;
+  /** Задан — период держит страница; нет — блок сам, начиная со «всего времени». */
+  period?: StatementPeriod;
+  onPeriodChange?: (next: StatementPeriod) => void;
+}) {
+  const t = useTranslate();
+  const { lang } = useLang();
+  const { fmt, symbolRu, currency } = useCurrency();
+  const { company, isReady } = useSellerCompany();
+  const [own, setOwn] = useState<StatementPeriod>(ALL_TIME);
+  const period = controlled ?? own;
+  const setPeriod = (next: StatementPeriod) => {
+    if (!controlled) setOwn(next);
+    onPeriodChange?.(next);
   };
 
   const { data, isLoading, isLoadingError, refetch } = trpc.shop.statement.useQuery({
     shopId,
-    from: from || undefined,
-    to: to || undefined,
+    from: period.from || undefined,
+    to: period.to || undefined,
   });
 
   if (isLoadingError) {
@@ -81,113 +123,75 @@ export function ShopStatement({ shopId }: { shopId: number }) {
   };
   const kindLabel = (k: string) => KIND[k]?.[lang] ?? k;
 
+  // Дата «на которую» акт: конец выбранного периода, у открытого — сегодня.
+  const asOf = period.to || localDay(new Date());
+  // Склонять прописью этот код умеет только сумы.
+  const inWords = currency === "UZS" && symbolRu === "сум";
+
+  const printInput = {
+    shop: { name: data.shop.name, ownerName: data.shop.ownerName, taxId: data.shop.taxId, address: data.shop.address },
+    company: { name: isReady ? company.name : "", inn: company.inn, director: company.director },
+    period: { from: period.from, to: period.to },
+    opening: data.opening,
+    rows: data.rows,
+    totals: data.totals,
+    closing: data.closing,
+    currency: symbolRu,
+    inWords,
+  };
+
   /*
-    Печатная форма по-русски — как все документы в этой системе: их подшивают
-    в папку и показывают проверяющим, а не читают с экрана.
+    Печатная форма по-русски и по образцу 1С — см. lib/reconciliation-print.ts:
+    её подшивают в папку и сверяют со своей 1С, а не читают с экрана.
   */
   const print = () => {
     const w = window.open("", "_blank");
     if (!w) return;
-    const esc = (s: unknown) => String(s ?? "").replace(/[&<>]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c] as string));
-    const num = (v: number) => Math.round(v).toLocaleString("ru-RU");
-    const period = data.from || data.to
-      ? `за период ${data.from ? format(new Date(data.from), "dd.MM.yyyy") : "начала"} — ${data.to ? format(new Date(data.to), "dd.MM.yyyy") : "сегодня"}`
-      : "за всё время";
-
-    const lines = data.rows.map(r => `<tr>
-      <td>${format(new Date(r.date), "dd.MM.yyyy")}</td>
-      <td>${esc(KIND[r.kind]?.ru ?? r.kind)}</td>
-      <td>${esc(r.doc ?? r.note ?? "")}</td>
-      <td class="num">${r.debit ? num(r.debit) : ""}</td>
-      <td class="num">${r.credit ? num(r.credit) : ""}</td>
-      <td class="num b">${num(r.balance)}</td>
-    </tr>`).join("");
-
-    w.document.write(`<!doctype html><html lang="ru"><head><meta charset="utf-8">
-      <title>Акт сверки — ${esc(data.shop.name)}</title>
-      <style>
-        body{font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#111;padding:16mm}
-        h1{font-size:18px;margin:0 0 4mm}
-        .meta{margin:1mm 0;color:#333}
-        table{width:100%;border-collapse:collapse;margin-top:5mm}
-        th,td{border:1px solid #999;padding:2mm 2.5mm;text-align:left}
-        th{background:#eee}
-        .num{text-align:right;white-space:nowrap}
-        .b{font-weight:bold}
-        .total td{font-weight:bold;background:#f4f4f4}
-        .sign{display:flex;justify-content:space-between;margin-top:14mm}
-        .sign div{width:45%;border-top:1px solid #333;padding-top:2mm;text-align:center}
-        @page{margin:12mm}
-        thead{display:table-header-group}
-        tr{break-inside:avoid;page-break-inside:avoid}
-        @media print{body{padding:0}th,.total td{print-color-adjust:exact;-webkit-print-color-adjust:exact}}
-      </style></head><body>
-      <h1>Акт сверки взаимных расчётов</h1>
-      ${isReady ? `<div class="meta">Организация: <b>${esc(company.name)}</b>${company.inn ? ` · ИНН ${esc(company.inn)}` : ""}</div>` : ""}
-      <div class="meta">Магазин: <b>${esc(data.shop.name)}</b>${data.shop.ownerName ? ` · ${esc(data.shop.ownerName)}` : ""}${data.shop.phone ? ` · ${esc(data.shop.phone)}` : ""}</div>
-      ${data.shop.address ? `<div class="meta">Адрес: ${esc(data.shop.address)}</div>` : ""}
-      <div class="meta">Период: ${period}</div>
-      <div class="meta">Составлен: ${format(new Date(), "dd.MM.yyyy")}</div>
-      <table>
-        <thead><tr>
-          <th>Дата</th><th>Операция</th><th>Документ</th>
-          <th class="num">Долг +</th><th class="num">Оплата −</th><th class="num">Остаток</th>
-        </tr></thead>
-        <tbody>
-          <tr class="total"><td colspan="5">Остаток на начало периода</td><td class="num">${num(data.opening)}</td></tr>
-          ${lines || `<tr><td colspan="6">Движений за период не было.</td></tr>`}
-          <tr class="total"><td colspan="3">Итого</td><td class="num">${num(data.totals.debit)}</td><td class="num">${num(data.totals.credit)}</td><td class="num">${num(data.closing)}</td></tr>
-        </tbody>
-      </table>
-      <div class="meta" style="margin-top:4mm">Остаток на конец периода: <b>${num(data.closing)}</b></div>
-      ${data.discrepancy !== 0 ? `<div class="meta">Расхождение с текущим долгом в системе: <b>${num(data.discrepancy)}</b></div>` : ""}
-      <div class="sign"><div>${isReady ? esc(company.name) : "От нашей организации"}</div><div>${esc(data.shop.name)}</div></div>
-      <script>window.onload=()=>{window.focus();window.onafterprint=()=>window.close();window.print()}</script>
-      </body></html>`);
+    w.document.write(reconciliationHtml(printInput));
     w.document.close();
   };
 
   /*
-    Выгрузка в Excel — по-русски, как все документы в этой системе.
+    Выгрузка в Excel — по-русски и в той же раскладке, что бумага: сальдо
+    начальное, движения с Дебетом и Кредитом, обороты, сальдо конечное.
 
-    Печать даёт бумагу и PDF, но не даёт сложить столбец: акт часто уходит
-    бухгалтеру, а тот сверяет его со своей таблицей. Суммы поэтому уходят
-    ЧИСЛАМИ, а не строками: число как текст Excel не складывает, не сортирует и
-    подсвечивает уголком — на такой лист нельзя даже посмотреть итог внизу окна.
-
-    Пустая строка вместо нуля в столбцах «Долг +» и «Оплата −» намеренно: ноль
-    там означал бы «движение на ноль», а его не было.
+    Суммы уходят ЧИСЛАМИ, а не строками: число как текст Excel не складывает
+    и подсвечивает уголком. Пустая строка вместо нуля в Дебете и Кредите
+    намеренно: ноль означал бы «движение на ноль», а его не было. Столбец
+    «Остаток» оставлен: бухгалтеру проще найти, после какой строки разошлось.
   */
   const toExcel = async () => {
-    const period = data.from || data.to
-      ? `${data.from ? format(new Date(data.from), "dd.MM.yyyy") : "начала"} — ${data.to ? format(new Date(data.to), "dd.MM.yyyy") : "сегодня"}`
-      : "за всё время";
+    const periodText = period.from
+      ? `${dayToRu(period.from)} — ${dayToRu(asOf)}`
+      : `весь период по ${dayToRu(asOf)}`;
+    const saldo = (v: number) => ({ "Дебет": v > 0 ? v : "", "Кредит": v < 0 ? -v : "" });
 
     const rows: Array<Record<string, string | number>> = [
-      { "Дата": "", "Операция": "Остаток на начало периода", "Документ": "", "Долг +": "", "Оплата −": "", "Остаток": data.opening },
+      { "Дата": "", "Документ": "Сальдо начальное", ...saldo(data.opening), "Остаток": data.opening },
       ...data.rows.map(r => ({
         "Дата":     format(new Date(r.date), "dd.MM.yyyy"),
-        "Операция": KIND[r.kind]?.ru ?? r.kind,
-        "Документ": r.doc ?? r.note ?? "",
-        "Долг +":   r.debit || "",
-        "Оплата −": r.credit || "",
+        "Документ": reconciliationDocLabel(r),
+        "Дебет":    r.debit || "",
+        "Кредит":   r.credit || "",
         "Остаток":  r.balance,
       })),
-      { "Дата": "", "Операция": "ИТОГО", "Документ": "", "Долг +": data.totals.debit, "Оплата −": data.totals.credit, "Остаток": data.closing },
+      { "Дата": "", "Документ": "Обороты за период", "Дебет": data.totals.debit, "Кредит": data.totals.credit, "Остаток": "" },
+      { "Дата": "", "Документ": "Сальдо конечное", ...saldo(data.closing), "Остаток": data.closing },
+      { "Дата": "", "Документ": reconciliationConclusion(printInput, dayToRu(asOf)), "Дебет": "", "Кредит": "", "Остаток": "" },
     ];
 
     if (data.discrepancy !== 0) {
       rows.push({
-        "Дата": "", "Операция": "Расхождение с текущим долгом в системе",
-        "Документ": "", "Долг +": "", "Оплата −": "", "Остаток": data.discrepancy,
+        "Дата": "", "Документ": "Расхождение с текущим долгом в системе",
+        "Дебет": "", "Кредит": "", "Остаток": data.discrepancy,
       });
     }
 
     await exportToExcel(
       rows,
-      `akt-sverki-${data.shop.id}`,
+      `akt-sverki-${data.shop.id}-${period.from || "nachalo"}_${asOf}`,
       "Акт сверки",
-      `Акт сверки с магазином «${data.shop.name}» · ${period}`,
+      `Акт сверки взаимных расчётов за ${periodText} между ${isReady ? company.name : "нашей организацией"} и ${data.shop.name}`,
     );
   };
 
@@ -202,34 +206,21 @@ export function ShopStatement({ shopId }: { shopId: number }) {
   };
   const numCell: React.CSSProperties = { ...td, textAlign: "right", whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" };
 
+  // Итог словами — тот же смысл, что фраза в конце бумаги, на языке экрана.
+  const closingText = Math.round(data.closing) === 0
+    ? t(`На ${dayToRu(asOf)} долга нет.`, `${dayToRu(asOf)} holatiga qarz yo'q.`)
+    : data.closing > 0
+      ? t(`На ${dayToRu(asOf)} магазин должен вам ${fmt(data.closing)}.`, `${dayToRu(asOf)} holatiga do'kon sizga ${fmt(data.closing)} qarzdor.`)
+      : t(`На ${dayToRu(asOf)} вы должны магазину ${fmt(-data.closing)} (переплата).`, `${dayToRu(asOf)} holatiga siz do'konga ${fmt(-data.closing)} qarzdorsiz (ortiqcha to'lov).`);
+
   return (
-    <div className="neo-card p-5">
+    <div className="neo-card p-5" data-testid="shop-statement">
       <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap", marginBottom: "14px" }}>
         <ScrollText size={16} style={{ color: "var(--color-primary-text)" }} />
         <h2 className="font-display text-base font-semibold text-primary" style={{ margin: 0, flex: 1 }}>
           {t("Акт сверки", "Solishtirma dalolatnoma")}
         </h2>
-        <PremiumSelect
-          value={span}
-          onChange={v => pickSpan(v as typeof span)}
-          options={[
-            { value: "all",    label: t("За всё время", "Butun davr") },
-            { value: "30",     label: t("30 дней", "30 kun") },
-            { value: "90",     label: t("90 дней", "90 kun") },
-            { value: "365",    label: t("Год", "Yil") },
-            { value: "custom", label: t("Свой период", "O'z davri") },
-          ]}
-          width="170px"
-          aria-label={t("Период", "Davr")}
-        />
-        {span === "custom" && (
-          <>
-            <input type="date" className="neo-input" style={{ width: "150px" }} value={from}
-              onChange={e => setFrom(e.target.value)} aria-label={t("С даты", "Sanadan")} />
-            <input type="date" className="neo-input" style={{ width: "150px" }} value={to}
-              onChange={e => setTo(e.target.value)} aria-label={t("По дату", "Sanagacha")} />
-          </>
-        )}
+        <StatementPeriodPicker value={period} onChange={setPeriod} />
         <button onClick={toExcel} className="neo-btn flex items-center gap-1.5 text-sm py-2"
           title={t("Выгрузить акт в Excel", "Dalolatnomani Excelga yuklab olish")}>
           <FileDown size={13} />
@@ -250,15 +241,17 @@ export function ShopStatement({ shopId }: { shopId: number }) {
               <th style={th}>{t("Дата", "Sana")}</th>
               <th style={th}>{t("Операция", "Amal")}</th>
               <th style={th}>{t("Документ", "Hujjat")}</th>
-              <th style={{ ...th, textAlign: "right" }}>{t("Долг +", "Qarz +")}</th>
-              <th style={{ ...th, textAlign: "right" }}>{t("Оплата −", "To'lov −")}</th>
+              <th style={{ ...th, textAlign: "right" }}>{t("Дебет (долг +)", "Debet (qarz +)")}</th>
+              <th style={{ ...th, textAlign: "right" }}>{t("Кредит (оплата −)", "Kredit (to'lov −)")}</th>
               <th style={{ ...th, textAlign: "right" }}>{t("Остаток", "Qoldiq")}</th>
             </tr>
           </thead>
           <tbody>
             <tr>
               <td style={{ ...td, fontWeight: 600 }} colSpan={5}>
-                {t("Остаток на начало", "Boshiga qoldiq")}
+                {period.from
+                  ? t(`Сальдо на ${dayToRu(period.from)}`, `${dayToRu(period.from)} holatiga saldo`)
+                  : t("Сальдо начальное", "Boshlang'ich saldo")}
               </td>
               <td style={{ ...numCell, fontWeight: 700 }}>{fmt(data.opening)}</td>
             </tr>
@@ -287,19 +280,29 @@ export function ShopStatement({ shopId }: { shopId: number }) {
             ))}
 
             <tr>
-              <td style={{ ...td, fontWeight: 700 }} colSpan={3}>{t("Итого", "Jami")}</td>
+              <td style={{ ...td, fontWeight: 700 }} colSpan={3}>{t("Обороты за период", "Davr aylanmasi")}</td>
               <td style={{ ...numCell, fontWeight: 700 }}>{fmt(data.totals.debit)}</td>
               <td style={{ ...numCell, fontWeight: 700 }}>{fmt(data.totals.credit)}</td>
+              <td style={numCell} />
+            </tr>
+            <tr>
+              <td style={{ ...td, fontWeight: 700 }} colSpan={5}>
+                {t(`Сальдо на ${dayToRu(asOf)}`, `${dayToRu(asOf)} holatiga saldo`)}
+              </td>
               <td style={{ ...numCell, fontWeight: 700 }}>{fmt(data.closing)}</td>
             </tr>
           </tbody>
         </table>
       </div>
 
+      <p data-testid="statement-conclusion" style={{ marginTop: "12px", fontSize: "13px", fontWeight: 600, color: "var(--color-text-primary)" }}>
+        {closingText}
+      </p>
+
       {/* Ноль здесь — «бумага сходится с системой». Молчать о ненулевом нельзя:
           именно этим числом закончится спор с магазином, если он случится. */}
       {data.discrepancy !== 0 && (
-        <p style={{ marginTop: "12px", fontSize: "12px", color: "var(--color-warning-text)" }}>
+        <p style={{ marginTop: "8px", fontSize: "12px", color: "var(--color-warning-text)" }}>
           {t(`Расхождение с текущим долгом в системе: ${fmt(data.discrepancy)}. Обычно это переплата: долг снизу ограничен нулём, а движения нет.`,
              `Tizimdagi joriy qarz bilan farq: ${fmt(data.discrepancy)}. Odatda bu ortiqcha to'lov: qarz noldan pastga tushmaydi, harakatlar esa tushadi.`)}
         </p>

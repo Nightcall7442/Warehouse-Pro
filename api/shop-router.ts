@@ -18,7 +18,7 @@ import {
   archiveShops, restoreShop, deleteShopForever, shopTrace,
   ShopHasHistoryError,
 } from "./services/shop-archive";
-import { shopStatement } from "./services/shop-statement";
+import { shopStatement, statementBounds } from "./services/shop-statement";
 import { collectDebtJournal, paginateDebtJournal } from "./services/debt-journal";
 import { reportCached, ReportTTL } from "./lib/report-cache";
 import { dayKey } from "./lib/period";
@@ -601,12 +601,8 @@ export const shopRouter = createRouter({
       to: z.string().optional(),
     }))
     .query(async ({ input, ctx }) => {
-      const parse = (v?: string) => {
-        if (!v) return undefined;
-        const d = new Date(v);
-        return Number.isNaN(d.getTime()) ? undefined : d;
-      };
-      const result = await shopStatement(ctx.tenant.id, input.shopId, parse(input.from), parse(input.to));
+      const { from, to } = statementBounds(input.from, input.to);
+      const result = await shopStatement(ctx.tenant.id, input.shopId, from, to);
       if (!result) throw new TRPCError({ code: "NOT_FOUND", message: "Магазин не найден" });
       return result;
     }),

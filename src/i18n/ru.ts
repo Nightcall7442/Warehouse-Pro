@@ -30,6 +30,7 @@ export const ru = {
     logout:      "Выйти",
     reports:     "Отчёты",
     pnl:         "P&L",
+    reconciliation: "Акт сверки",
     salaries:    "Зарплаты",
     billing:     "Биллинг",
     gps:         "GPS",

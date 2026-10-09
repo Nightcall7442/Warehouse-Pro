@@ -58,5 +58,12 @@ export function useCurrency() {
     };
   }, [symbol, position]);
 
-  return { fmt, symbol, currency };
+  /*
+    Слово валюты для бумаги: печатные формы русские при любом языке экрана
+    (акт сверки, накладные), и узбекское «so'm» в русском документе было бы
+    той же ошибкой, что русское «сум» на узбекском экране.
+  */
+  const symbolRu = currencySymbolFor(settings?.currencySymbol, "ru");
+
+  return { fmt, symbol, symbolRu, currency };
 }

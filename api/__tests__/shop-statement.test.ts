@@ -26,7 +26,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 vi.mock("../queries/connection", () => ({ getDb: vi.fn() }));
 
 import { getDb } from "../queries/connection";
-import { shopStatement } from "../services/shop-statement";
+import { shopStatement, statementBounds } from "../services/shop-statement";
 
 const d = (iso: string) => new Date(iso);
 
@@ -245,5 +245,78 @@ describe("акт сверки сходится с числом долга", () =
   it("несуществующая точка не выдумывает акт", async () => {
     vi.mocked(getDb).mockReturnValue(fakeDb({ shop: null }) as never);
     await expect(shopStatement(1, 999)).resolves.toBeNull();
+  });
+});
+
+/*
+  Период из двух дат, как их шлёт экран («ГГГГ-ММ-ДД»).
+
+  Ручка превращала «по 9 октября» в полночь 9 октября, и весь последний день
+  выпадал из акта: отгрузка 9-го в обед не попадала в акт «по 9-е», а остаток
+  на конец не сходился с тем, что видел бухгалтер. Проверка — сквозь ту же
+  функцию разбора, которой пользуется ручка, а не через готовые Date: иначе
+  она подтверждала бы не ту ошибку.
+*/
+describe("период акта: последний день — целиком", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("«по 9-е» — это до конца 9-го, «с 1-го» — с его начала", () => {
+    const { from, to } = statementBounds("2026-10-01", "2026-10-09");
+    expect(from?.toISOString()).toBe("2026-10-01T00:00:00.000Z");
+    expect(to?.toISOString()).toBe("2026-10-09T23:59:59.999Z");
+  });
+
+  it("пустые даты — открытый период, мусор — тоже, а не «Invalid Date»", () => {
+    expect(statementBounds()).toEqual({ from: undefined, to: undefined });
+    expect(statementBounds("", "")).toEqual({ from: undefined, to: undefined });
+    expect(statementBounds("вчера", "nope")).toEqual({ from: undefined, to: undefined });
+  });
+
+  it("строка с временем разбирается как прежде: такие вызовы не ломаются", () => {
+    const { to } = statementBounds(undefined, "2026-10-09T12:00:00.000Z");
+    expect(to?.toISOString()).toBe("2026-10-09T12:00:00.000Z");
+  });
+
+  it("отгрузка в последний день периода попадает в акт", async () => {
+    vi.mocked(getDb).mockReturnValue(fakeDb({
+      shop: { ...SHOP, debt: "150000.00" },
+      orders: [
+        { createdAt: d("2026-09-30T10:00:00Z"), deliveredAt: null, paymentMethod: "debt", number: "ДО",       total: "100000.00" },
+        { createdAt: d("2026-10-09T13:30:00Z"), deliveredAt: null, paymentMethod: "debt", number: "ПОСЛЕДНИЙ", total: "50000.00" },
+        { createdAt: d("2026-10-10T00:00:00Z"), deliveredAt: null, paymentMethod: "debt", number: "ПОСЛЕ",     total: "7000.00" },
+      ],
+    }) as never);
+
+    const { from, to } = statementBounds("2026-10-01", "2026-10-09");
+    const st = await shopStatement(1, 1, from, to, d("2026-10-20T00:00:00Z"));
+
+    expect(st!.opening).toBe(100000);
+    expect(st!.rows.map(r => r.doc), "последний день выпал из акта").toEqual(["ПОСЛЕДНИЙ"]);
+    expect(st!.closing).toBe(150000);
+  });
+
+  it("период, доведённый до сегодня, сверяется с долгом в системе", async () => {
+    /*
+      «Этот месяц» и «с начала года» кончаются сегодняшним днём. Строка
+      расхождения раньше пропадала у любого периода с правой датой — и у
+      них тоже, хотя они ничем не отличаются от «всего времени».
+    */
+    vi.mocked(getDb).mockReturnValue(fakeDb({
+      shop: { ...SHOP, debt: "0.00" },
+      orders: [
+        { createdAt: d("2026-10-02T09:00:00Z"), deliveredAt: null, paymentMethod: "debt", number: "З-1", total: "10000.00" },
+      ],
+      payments: [
+        { createdAt: d("2026-10-03T09:00:00Z"), type: "payment", amount: "15000.00", notes: null, orderId: null },
+      ],
+    }) as never);
+
+    const { from, to } = statementBounds("2026-10-01", "2026-10-09");
+    const today = await shopStatement(1, 1, from, to, d("2026-10-09T15:00:00Z"));
+    // Переплата 5000: движения ушли в минус, долг остановился на нуле.
+    expect(today!.discrepancy).toBe(5000);
+
+    const later = await shopStatement(1, 1, from, to, d("2026-10-15T15:00:00Z"));
+    expect(later!.discrepancy, "закрытый справа период сверять с сегодняшним долгом незачем").toBe(0);
   });
 });

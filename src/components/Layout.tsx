@@ -23,7 +23,7 @@ import {
   Warehouse, BarChart3, Users, Settings, PlusCircle, MapPin,
   Calendar, LogOut, X, Moon, Sun, WifiOff, Scan, Activity, RotateCcw,
   TrendingUp, CreditCard, ChevronDown, ChevronRight, Bell, Zap, Wallet, LifeBuoy, BookOpen, Landmark, Shield, ShieldCheck,
-  ShoppingCart, House, ShoppingBag, LayoutGrid, Clipboard, User, Map as MapIcon, Target, ArrowLeft,
+  ShoppingCart, House, ShoppingBag, LayoutGrid, Clipboard, User, Map as MapIcon, Target, ArrowLeft, ScrollText,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -33,6 +33,8 @@ const iconMap: Record<string, LucideIcon> = {
   Calendar, WifiOff, Scan, Activity, TrendingUp, CreditCard, Zap, Wallet, LifeBuoy, Landmark, Shield, ShieldCheck,
   // «Возвраты» стояли в меню без значка: RotateCcw объявлен в const.ts, а сюда не попал.
   RotateCcw,
+  // «Акт сверки» — тот же значок, что у блока акта в карточке магазина.
+  ScrollText,
   // Группа «Продажи» (NAV_GROUPS).
   ShoppingCart,
   // Значки нижней панели — те же, что у вкладок мобилки (Feather: home,
@@ -70,6 +72,7 @@ const PAGE_META: Record<string, { title: PageTitle; parent?: PageTitle; parentPa
   "/control":           { title: { ru: "Контроль", uz: "Nazorat" } },
   "/arrivals":          { title: { ru: "Приходы",       uz: "Kirim" } },
   "/pnl":               { title: { ru: "P&L",           uz: "P&L" } },
+  "/reconciliation":    { title: { ru: "Акт сверки",    uz: "Solishtirma dalolatnoma" } },
   "/salaries":          { title: { ru: "Зарплаты",      uz: "Ish haqi" } },
   "/users":             { title: { ru: "Пользователи",  uz: "Foydalanuvchilar" } },
   "/billing":           { title: { ru: "Биллинг",       uz: "To'lov" } },
