@@ -6,6 +6,13 @@ import { formatQty } from "@/lib/format";
 import { unitShort } from "@/lib/units";
 import { PremiumSelect } from "@/components/PremiumSelect";
 
+/*
+  Деньги строки — те же, что в KPI агента и в P&L (services/agent-product-sales.ts):
+  «Продажи» — после скидки заказа, «Возвраты» — проведённые в периоде,
+  «Чистыми» (totalRevenue) — разница. Раньше «Сумма» была суммой строк: до
+  скидки и вместе с вернувшимся товаром, — и у агента со скидками выходила
+  больше его же KPI.
+*/
 export interface AgentProductRow {
   agentId: number | null;
   agentName: string | null;
@@ -13,8 +20,11 @@ export interface AgentProductRow {
   productName: string | null;
   productCode: string | null;
   unit: string | null;
-  totalQty: string;
-  totalRevenue: string;
+  totalQty: number | string;
+  returnedQty?: number;
+  salesRevenue?: number;
+  returnedAmount?: number;
+  totalRevenue: number | string;
   orderCount: number;
 }
 
@@ -56,13 +66,14 @@ export const AgentProductsTab = memo(function AgentProductsTab({
 
   const grouped = useMemo(() => {
     const filtered = (rows ?? []).filter(r => agentFilter === "all" || String(r.agentId ?? "0") === agentFilter);
-    const byAgent = new Map<string, { key: string; agentName: string; rows: AgentProductRow[]; totalQty: number; totalRevenue: number }>();
+    const byAgent = new Map<string, { key: string; agentName: string; rows: AgentProductRow[]; totalQty: number; totalRevenue: number; returnedAmount: number }>();
     for (const r of filtered) {
       const key = String(r.agentId ?? "0");
-      const entry = byAgent.get(key) ?? { key, agentName: r.agentName ?? t("Не назначен", "Tayinlanmagan"), rows: [], totalQty: 0, totalRevenue: 0 };
+      const entry = byAgent.get(key) ?? { key, agentName: r.agentName ?? t("Не назначен", "Tayinlanmagan"), rows: [], totalQty: 0, totalRevenue: 0, returnedAmount: 0 };
       entry.rows.push(r);
       entry.totalQty += Number(r.totalQty);
       entry.totalRevenue += Number(r.totalRevenue);
+      entry.returnedAmount += Number(r.returnedAmount ?? 0);
       byAgent.set(key, entry);
     }
     return [...byAgent.values()]
@@ -79,7 +90,13 @@ export const AgentProductsTab = memo(function AgentProductsTab({
       .sort((a, b) => b.totalRevenue - a.totalRevenue);
   }, [rows, agentFilter, t]);
 
-  const grandTotal = grouped.reduce((s, a) => s + a.totalRevenue, 0);
+  /*
+    Доля — от суммы ПОЛОЖИТЕЛЬНЫХ итогов. У агента, у которого в периоде
+    только возвраты прошлых продаж, итог отрицательный: со знаковым
+    знаменателем у остальных выходило «125%», а у него «−25%». Ему доля не
+    показывается вовсе.
+  */
+  const grandTotal = grouped.reduce((s, a) => s + Math.max(0, a.totalRevenue), 0);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
@@ -101,6 +118,12 @@ export const AgentProductsTab = memo(function AgentProductsTab({
             </p>
             <p style={{ fontSize: "12px", color: COLORS.textTertiary, margin: "2px 0 0" }}>
               {t("Кто сколько какого товара продал", "Kim qancha qaysi mahsulotni sotgan")}
+            </p>
+            {/* Откуда числа — одной строкой: директор сверяет этот блок с KPI
+                и зарплатой, и сходиться они обязаны. */}
+            <p data-testid="agent-products-basis" style={{ fontSize: "12px", color: COLORS.textTertiary, margin: "2px 0 0" }}>
+              {t("Суммы — после скидки заказа, за вычетом возвратов периода, как в P&L и KPI агента",
+                 "Summalar — buyurtma chegirmasidan keyin, davr qaytarishlari ayirilgan, P&L va agent KPI dagidek")}
             </p>
           </div>
         </div>
@@ -150,7 +173,7 @@ export const AgentProductsTab = memo(function AgentProductsTab({
         </div>
       ) : (
         grouped.map(agent => {
-          const share = grandTotal > 0 ? (agent.totalRevenue / grandTotal) * 100 : 0;
+          const share = grandTotal > 0 && agent.totalRevenue > 0 ? (agent.totalRevenue / grandTotal) * 100 : null;
           return (
             // Ключ — по идентификатору агента, а не по имени: двух Азизов в
             // списке React считал одной и той же панелью.
@@ -159,17 +182,32 @@ export const AgentProductsTab = memo(function AgentProductsTab({
                 <h2 style={{ fontFamily: F.display, fontSize: "15px", fontWeight: 700, color: COLORS.textPrimary, margin: 0 }}>
                   {agent.agentName}
                 </h2>
-                <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+                {/* С переносом: с «Возвратами» шапка на телефоне не помещалась
+                    в строку, и доля уезжала за край карточки. */}
+                <div style={{ display: "flex", alignItems: "center", gap: "6px 16px", flexWrap: "wrap" }}>
                   <span style={{ fontSize: "12px", color: COLORS.textTertiary }}>
                     {t("Позиций", "Pozitsiya")}: <b style={{ color: COLORS.textPrimary }}>{agent.rows.length}</b>
                   </span>
                   <span style={{ fontSize: "12px", color: COLORS.textTertiary }}>
                     {t("Кол-во", "Miqdor")}: <b style={{ color: COLORS.textPrimary }}>{formatQty(agent.totalQty)}</b>
                   </span>
+                  {agent.returnedAmount > 0 && (
+                    <span style={{ fontSize: "12px", color: COLORS.textTertiary }}>
+                      {t("Возвраты", "Qaytarish")}: <b style={{ color: "var(--color-danger-text)" }}>−{fmt(agent.returnedAmount)}</b>
+                    </span>
+                  )}
                   <span style={{ fontFamily: F.display, fontSize: "16px", fontWeight: 700, color: COLORS.primaryText }}>
                     {fmt(agent.totalRevenue)}
                   </span>
-                  <span style={{ fontSize: "11px", color: COLORS.textTertiary }}>({share.toFixed(1)}%)</span>
+                  {share !== null && <span style={{ fontSize: "11px", color: COLORS.textTertiary }}>({share.toFixed(1)}%)</span>}
+                  {/* Отчёт сходится с P&L и потому уходит в минус; KPI и
+                      зарплата ниже нуля не опускаются. Сказать это здесь —
+                      иначе «−500 000» рядом с «KPI: 0» читается как ошибка. */}
+                  {agent.totalRevenue < 0 && (
+                    <span data-testid="agent-returns-exceed" style={{ fontSize: "11px", color: COLORS.textTertiary }}>
+                      {t("возвраты больше продаж — в KPI 0", "qaytarish sotuvdan ko'p — KPI da 0")}
+                    </span>
+                  )}
                 </div>
               </div>
               <div style={{ overflowX: "auto" }}>
@@ -178,15 +216,20 @@ export const AgentProductsTab = memo(function AgentProductsTab({
                     <tr>
                       <th style={thStyle}>{t("Товар", "Mahsulot")}</th>
                       <th style={thStyle}>{t("Код", "Kod")}</th>
-                      <th style={{ ...thStyle, textAlign: "right" }}>{t("Кол-во", "Miqdor")}</th>
+                      <th style={{ ...thStyle, textAlign: "right" }}>{t("Продано", "Sotildi")}</th>
+                      <th style={{ ...thStyle, textAlign: "right" }}>{t("Вернули", "Qaytdi")}</th>
                       <th style={{ ...thStyle, textAlign: "right" }}>{t("Заказов", "Buyurtma")}</th>
-                      <th style={{ ...thStyle, textAlign: "right" }}>{t("Сумма", "Summa")}</th>
+                      <th style={{ ...thStyle, textAlign: "right" }}>{t("Продажи", "Sotuv")}</th>
+                      <th style={{ ...thStyle, textAlign: "right" }}>{t("Возвраты", "Qaytarish")}</th>
+                      <th style={{ ...thStyle, textAlign: "right" }}>{t("Чистыми", "Sof")}</th>
                     </tr>
                   </thead>
                   <tbody>
                     {agent.rows.map((r, i) => (
                       <tr key={r.productId ?? `${r.productName}-${i}`}>
-                        <td style={tdStyle}>{r.productName ?? t("Без товара", "Mahsulotsiz")}</td>
+                        <td style={tdStyle}>{r.productName ?? (r.productId == null
+                          ? t("Возврат без строк товара", "Mahsulot qatorisiz qaytarish")
+                          : t("Без товара", "Mahsulotsiz"))}</td>
                         <td style={{ ...tdStyle, color: COLORS.textTertiary, fontSize: "12px" }}>{r.productCode ?? "—"}</td>
                         {/* Единица печаталась кодом из базы — «pcs», «box»,
                             «pack». Это те же внутренние слова, из-за которых
@@ -195,7 +238,16 @@ export const AgentProductsTab = memo(function AgentProductsTab({
                         <td style={{ ...tdStyle, textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
                           {formatQty(r.totalQty)} {unitShort(r.unit)}
                         </td>
+                        <td style={{ ...tdStyle, textAlign: "right", fontVariantNumeric: "tabular-nums", color: Number(r.returnedQty ?? 0) > 0 ? "var(--color-danger-text)" : COLORS.textTertiary }}>
+                          {Number(r.returnedQty ?? 0) > 0 ? `${formatQty(r.returnedQty ?? 0)} ${unitShort(r.unit)}` : "—"}
+                        </td>
                         <td style={{ ...tdStyle, textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{r.orderCount}</td>
+                        <td style={{ ...tdStyle, textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
+                          {fmt(r.salesRevenue ?? r.totalRevenue)}
+                        </td>
+                        <td style={{ ...tdStyle, textAlign: "right", fontVariantNumeric: "tabular-nums", color: Number(r.returnedAmount ?? 0) > 0 ? "var(--color-danger-text)" : COLORS.textTertiary }}>
+                          {Number(r.returnedAmount ?? 0) > 0 ? `−${fmt(r.returnedAmount ?? 0)}` : "—"}
+                        </td>
                         <td style={{ ...tdStyle, textAlign: "right", fontWeight: 600, color: COLORS.primaryText, fontVariantNumeric: "tabular-nums" }}>
                           {fmt(r.totalRevenue)}
                         </td>
