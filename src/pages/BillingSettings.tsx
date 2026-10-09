@@ -6,78 +6,26 @@ import {
   CheckCircle2, AlertTriangle, Zap, ExternalLink, Loader2,
 } from "lucide-react";
 import { format } from "date-fns";
-import { PLANS, PLAN_PRICES_UZS, type PlanKey } from '../../contracts/constants';
-import { plural } from "@/lib/plural";
+import { PLANS } from '../../contracts/constants';
+import { FIELD_PRICE_UZS, GRANDFATHER_UNTIL, LEGACY_PRICES_UZS, formatDay, formatSum, isGrandfathered, isLegacyPlan } from '../../contracts/pricing';
 import { labelled, SUBSCRIPTION_STATUS_LABEL } from "@/lib/entity-labels";
 import type { Label } from "@/lib/entity-labels";
 import { useLang, useTranslate } from "@/i18n";
 import { errorText } from "@/lib/error-text";
 
 /*
-  Числа тарифа берутся из PLANS, а не переписываются словами.
+  Карточный путь (Stripe, доллары) — те же тарифы, что на /billing.
 
-  Здесь стояло «Безлимит пользователей» и «Безлимит товаров» у Exclusive — и
-  осталось стоять после того, как безлимит отменили: экран оплаты обещал то,
-  чего сервер уже не давал. Остальные строки («5 пользователей», «50 товаров»)
-  тогда ещё совпадали с PLANS — то есть беда была не в опечатке, а в том, что
-  число живёт в двух местах и второе никто не вспоминает при правке первого.
-
-  Склонение — через plural: «250 товаров», но «22 товара». Без него экран
-  оплаты писал бы «22 товаров», а по такой мелочи сразу видно, что текст никто
-  не читал.
+  С 05.10.2026 продаётся один «Стандарт»: цена за полевого сотрудника, в
+  Stripe — цена ЗА МЕСТО, количество ставит сервер (stripe-router). Прежний
+  тариф показывается рядом, только пока он действует (GRANDFATHER_UNTIL), —
+  чтобы его можно было продлить. Числа — из contracts/pricing.ts.
 */
-function limitLines(key: PlanKey): Label[] {
-  const p = PLANS[key];
-  const lines: Label[] = [];
-  if (p.maxUsers !== null) {
-    lines.push({
-      ru: `${p.maxUsers} ${plural(p.maxUsers, "пользователь", "пользователя", "пользователей")}`,
-      uz: `${p.maxUsers} foydalanuvchi`,
-    });
-  }
-  if (p.maxProducts !== null) {
-    lines.push({
-      ru: `${p.maxProducts} ${plural(p.maxProducts, "товар", "товара", "товаров")}`,
-      uz: `${p.maxProducts} mahsulot`,
-    });
-  }
-  if (p.maxOrdersMonth !== null) {
-    lines.push({
-      ru: `${p.maxOrdersMonth} ${plural(p.maxOrdersMonth, "заказ", "заказа", "заказов")}/мес`,
-      uz: `${p.maxOrdersMonth} buyurtma/oy`,
-    });
-  }
-  return lines;
-}
-
-const PLAN_FEATURES: Record<string, Label[]> = {
-  trial: [
-    ...limitLines("trial"),
-    { ru: "Базовый склад",   uz: "Oddiy ombor" },
-    { ru: "14 дней бесплатно", uz: "14 kun bepul" },
-  ],
-  basic: [
-    ...limitLines("basic"),
-    { ru: "Базовая аналитика", uz: "Oddiy tahlil" },
-    { ru: "Складской учёт",  uz: "Ombor hisobi" },
-    { ru: "Email-поддержка", uz: "Email orqali yordam" },
-  ],
-  pro: [
-    ...limitLines("pro"),
-    { ru: "Полная аналитика", uz: "To'liq tahlil" },
-    { ru: "GPS-трекинг",      uz: "GPS kuzatuv" },
-    { ru: "Интеграция с 1С",  uz: "1C bilan integratsiya" },
-    { ru: "Приоритетная поддержка", uz: "Ustuvor yordam" },
-  ],
-  exclusive: [
-    ...limitLines("exclusive"),
-    { ru: "Заказы без предела",     uz: "Buyurtmalar cheksiz" },
-    { ru: "API доступ",             uz: "API kirish" },
-    { ru: "White-label",            uz: "White-label" },
-    { ru: "Выделенный сервер",      uz: "Ajratilgan server" },
-    { ru: "24/7 поддержка",         uz: "24/7 yordam" },
-  ],
-};
+const STANDARD_FEATURES: Label[] = [
+  { ru: "Все функции включены", uz: "Barcha funksiyalar kiritilgan" },
+  { ru: "Без ограничений по заказам, товарам и сотрудникам", uz: "Buyurtma, mahsulot va xodimlar cheklovsiz" },
+  { ru: "Офис, склад, супервайзеры и директор — бесплатно", uz: "Ofis, ombor, supervayzer va direktor — bepul" },
+];
 
 export default function BillingSettings() {
   const { lang } = useLang();
@@ -194,14 +142,15 @@ export default function BillingSettings() {
       {/* Plans */}
       <div>
         <h2 className="font-label text-secondary tracking-wider text-xs mb-4">{t("ТАРИФЫ", "TARIFLAR")}</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {[
-            { key: "basic",     name: "Basic",     price: `${PLAN_PRICES_UZS.basic.toLocaleString('ru-RU')} ${t("сум/мес", "so'm/oy")}`,  highlight: false },
-            { key: "pro",       name: "Pro",       price: `${PLAN_PRICES_UZS.pro.toLocaleString('ru-RU')} ${t("сум/мес", "so'm/oy")}`,  highlight: true  },
-            { key: "exclusive", name: "Exclusive", price: `${PLAN_PRICES_UZS.exclusive.toLocaleString('ru-RU')} ${t("сум/мес", "so'm/oy")}`, highlight: false },
+            { key: "standard", name: PLANS.standard.nameRu, price: `${formatSum(FIELD_PRICE_UZS)} ${t("сум/мес за полевого", "so'm/oy har bir dala xodimi")}`, highlight: true, features: STANDARD_FEATURES },
+            ...(isLegacyPlan(sub.plan) && isGrandfathered(sub.plan, new Date())
+              ? [{ key: sub.plan, name: PLANS[sub.plan].name, price: `${formatSum(LEGACY_PRICES_UZS[sub.plan])} ${t("сум/мес", "so'm/oy")}`, highlight: false, features: [{ ru: `Прежний тариф — продление до ${formatDay(GRANDFATHER_UNTIL)}`, uz: `Avvalgi tarif — ${formatDay(GRANDFATHER_UNTIL)} gacha uzaytirish` }] as Label[] }]
+              : []),
           ].map(plan => {
             const isCurrent = sub.plan === plan.key && sub.isActive;
-            const features  = PLAN_FEATURES[plan.key] ?? [];
+            const features  = plan.features;
             return (
               <div key={plan.key}
                 className={`panel p-5 flex flex-col gap-4 ${plan.highlight ? "border-primary" : ""} ${isCurrent ? "bg-primary/5" : ""}`}>
@@ -228,7 +177,7 @@ export default function BillingSettings() {
                   </div>
                 ) : (
                   <button
-                    onClick={() => checkout.mutate({ plan: plan.key as "basic" | "pro" | "exclusive" })}
+                    onClick={() => checkout.mutate({ plan: plan.key as "standard" | "basic" | "pro" | "exclusive" })}
                     disabled={checkout.isPending}
                     className="neo-btn-primary w-full flex items-center justify-center gap-2 py-2 text-sm"
                   >
@@ -247,7 +196,7 @@ export default function BillingSettings() {
         <div className="neo-card p-5 border-info/30 bg-info/5">
           <p className="font-label text-info text-xs tracking-wider mb-3">{t("В ПРОБНОМ ПЕРИОДЕ ДОСТУПНО", "SINOV DAVRIDA MAVJUD")}</p>
           <ul className="space-y-1.5">
-            {PLAN_FEATURES.trial.map(f => (
+            {STANDARD_FEATURES.map(f => (
               <li key={f.ru} className="flex items-center gap-2 text-sm text-secondary">
                 <CheckCircle2 size={14} className="text-info"/>
                 {f[lang]}

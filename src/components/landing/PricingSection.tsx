@@ -1,250 +1,265 @@
-import { useMemo, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { useNavigate } from "react-router";
 import { useTranslate } from "@/i18n";
-import { Check } from "lucide-react";
-import { SectionHead, Stamp } from "./landing-shared";
+import { plural } from "@/lib/plural";
+import { Minus, Plus } from "lucide-react";
+import { SectionHead } from "./landing-shared";
+import { Split } from "./landing-frames";
 import { useAnime } from "./landing-anime";
 import { LX, MONO, tgLink } from "./landing-tokens";
-import { PLANS, PLAN_PRICES_UZS, PLAN_ADDS, FEATURES, EXTRA_PRICES_UZS } from "@contracts/constants";
+import { FEATURES, PRODUCT_FEATURES, SERVICE_FEATURES } from "@contracts/constants";
+import {
+  ANNUAL_DISCOUNT, FIELD_PRICE_UZS, GRANDFATHER_UNTIL, MIN_FIELD_USERS,
+  annualPrice, annualSaving, formatDay, formatSum, monthlyPrice,
+} from "@contracts/pricing";
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   07 / Тарифы.
+   12 / Тарифы — цена за полевого сотрудника.
 
-   ── Числа берутся из источника, а не переписываются ─────────────────────────
+   ── Что было ────────────────────────────────────────────────────────────────
 
-   Цены и пределы стояли здесь строками: «299 000», «До 5 пользователей». Это
-   вторая копия того, что живёт в contracts/constants.ts и по чему приложение
-   считает доступ. Совпадали они по случайности: подними цену в одном месте — и
-   лендинг продолжит обещать старую, а на экране оплаты человек увидит другую.
+   Три тарифа прайс-листом: Basic / Pro / Exclusive, у каждого свои пределы
+   по людям и товарам, надбавки за место и позицию, функции по ступеням.
+   Директору приходилось решать задачу «какой тариф мой» — и понимать, что
+   будет, когда он вырастет из пятидесяти мест.
 
-   ── Чего не хватало ────────────────────────────────────────────────────────
+   ── Что стало (решение владельца 05.10.2026) ────────────────────────────────
 
-   Предел по товарам не назывался ВООБСЕ. У Basic это 50 SKU, у Pro — 100:
-   для оптовика с тысячей позиций это главный вопрос к тарифу, и ответа на
-   странице не было. Пределы теперь стоят отдельной строкой в каждой карточке,
-   все три сразу.
+   Одна цена: 119 000 сум за агента, курьера или мерчендайзера в месяц. Офис
+   бесплатно, пределов нет, все функции у всех, год — минус 15 %. Слева —
+   сама цена и её условия реестром; справа — счётчик: сколько людей в поле
+   → сколько в месяц и за год. Числа только из contracts/pricing.ts: страж
+   `pricing-one-source.test` ищет здесь 119 000 буквами.
 
-   Возражение директора — не «дорого», а «непонятно, какой тариф мой и что
-   будет после триала». Поэтому: строка самоопределения под именем тарифа,
-   де-риск «14 дней · карта не нужна · ничего не спишется» в каждой карточке,
-   у Pro — экономический якорь в сум/день и второй оттиск печати.
-   Верхний тариф не продаётся self-serve: если задан Telegram — кнопка ведёт
-   к менеджеру.
-
-   ── Премиальная подача ─────────────────────────────────────────────────────
-
-   Владелец: «сделать ещё премиальным». Тарифы стали последней ночной
-   полосой перед FAQ: панели цвета чернил, у Pro — латунная кромка (единственный
-   акцент) и приподнятость, цена набирается счётчиком anime.js при появлении,
-   пределы — одной строкой с тонкими разделителями, а не тремя плитками.
-   Числа по-прежнему только из contracts/constants.ts.
-
-   ── Прайс-лист, а не три коробки (20.09.2026, «Монументальный реестр») ──
-
-   Три карточки с тенями и свечением — та самая «сетка коробочек», по которой
-   владелец узнаёт «дёшево». Тарифы теперь — один прайс-лист на ночной
-   полосе: три колонки, разделённые волосяными линиями, без плашек и теней;
-   цена — монументальными цифрами, подписи — булавочным моно; Pro отмечен
-   латунной кромкой сверху и латунной ценой, печать осталась одна. Данные,
-   счётчик цены и кнопки — прежние.
+   Полоса — прежняя ночная (последняя перед FAQ), из деталей языка лендинга:
+   Split 5/12 + 7/12, реестр волосяными линиями, латунь — единственный акцент.
    ═══════════════════════════════════════════════════════════════════════════ */
 
-function Btn({ kind, onClick, href, children }: { kind: "brass" | "paper"; onClick?: () => void; href?: string; children: ReactNode }) {
+/** С какого числа людей в поле начинает счётчик — типичный дистрибьютор. */
+const CALC_START = 20;
+const CALC_MAX = 300;
+
+/** Примеры: агенты + курьеры. Цена — из модуля, здесь только состав команды. */
+const EXAMPLES: Array<{ agents: number; couriers: number }> = [
+  { agents: 5, couriers: 2 },
+  { agents: 20, couriers: 6 },
+  { agents: 50, couriers: 15 },
+];
+
+function Btn({ kind, onClick, href, children, testId }: { kind: "brass" | "paper"; onClick?: () => void; href?: string; children: ReactNode; testId?: string }) {
   const style = kind === "brass"
     ? { background: LX.brassOnNight, color: LX.night, border: `1px solid ${LX.brassOnNight}` }
     : { background: "transparent", color: LX.paperOnInk, border: `1px solid ${LX.paperOnInk34}` };
   const cls = "lx-anim inline-flex items-center justify-center w-full h-12 rounded-lg text-[14px] font-semibold cursor-pointer transition-opacity duration-200 hover:opacity-90";
   return href
-    ? <a href={href} target="_blank" rel="noopener" className={cls} style={style}>{children}</a>
-    : <button type="button" onClick={onClick} className={cls} style={style}>{children}</button>;
+    ? <a href={href} target="_blank" rel="noopener" className={cls} style={style} data-testid={testId}>{children}</a>
+    : <button type="button" onClick={onClick} className={cls} style={style} data-testid={testId}>{children}</button>;
 }
 
+/** Строка реестра: слева что, справа сколько. */
+function Row({ k, v, strong = false }: { k: string; v: string; strong?: boolean }) {
+  return (
+    <div className="flex items-baseline justify-between gap-4 py-3.5" style={{ borderBottom: `1px solid ${LX.ruleOnInk}` }}>
+      <span className="text-[14px] leading-snug" style={{ color: LX.softOnInk }}>{k}</span>
+      <span className="text-[14px] font-semibold text-right whitespace-nowrap" style={{ color: strong ? LX.brassOnNight : LX.paperOnInk }}>{v}</span>
+    </div>
+  );
+}
 
 export default function PricingSection() {
   const navigate = useNavigate();
   const tr = useTranslate();
-  const tgSales = tgLink(tr("Здравствуйте! Интересует тариф Exclusive.", "Assalomu alaykum! Exclusive tarifi bo'yicha ma'lumot olmoqchiman."));
+  const tgSales = tgLink(tr("Здравствуйте! Интересуют услуги: перенос данных, выделенный сервер.", "Assalomu alaykum! Xizmatlar qiziqtiradi: ma'lumot ko'chirish, ajratilgan server."));
+  const [people, setPeople] = useState(CALC_START);
+  const set = (n: number) => setPeople(Math.max(1, Math.min(CALC_MAX, Math.round(n) || 1)));
 
-  const plans = useMemo(
-    () => {
-      /** Предел: null значит «без ограничения». Внутри memo — иначе он
-          пересоздаётся каждую отрисовку и обнуляет смысл memo. */
-      const cap = (v: number | null) => (v === null ? tr("без предела", "cheksiz") : v.toLocaleString("ru"));
-      /*
-        Предел — не стена: место и позицию можно докупить сверх тарифа. Цены
-        берутся из того же источника, что и списание (EXTRA_PRICES_UZS), а не
-        переписываются сюда — ровно по той же причине, что и цены тарифов выше.
-      */
-      const extraNote = tr(
-        `Мало? Сверх тарифа: место ${EXTRA_PRICES_UZS.user.toLocaleString("ru")} · товар ${EXTRA_PRICES_UZS.product.toLocaleString("ru")} сум/мес`,
-        `Kam? Tarifdan ortiq: joy ${EXTRA_PRICES_UZS.user.toLocaleString("ru")} · mahsulot ${EXTRA_PRICES_UZS.product.toLocaleString("ru")} so'm/oy`,
-      );
-      return [
-      {
-        name: "Basic",
-        price: PLAN_PRICES_UZS.basic.toLocaleString("ru"),
-        priceNumber: PLAN_PRICES_UZS.basic,
-        fit: tr("Команда до 5 человек, один склад", "5 kishigacha jamoa, bitta ombor"),
-        anchor: tr("≈ 10 000 сум в день", "kuniga ≈ 10 000 so'm"),
-        limits: [
-          { v: cap(PLANS.basic.maxUsers), label: tr("пользователей", "foydalanuvchi") },
-          { v: cap(PLANS.basic.maxProducts), label: tr("SKU товаров", "SKU mahsulot") },
-          { v: cap(PLANS.basic.maxOrdersMonth), label: tr("заказов в месяц", "buyurtma/oy") },
-        ],
-        features: [
-          ...PLAN_ADDS.basic.map(f => tr(FEATURES[f].ru, FEATURES[f].uz)),
-        ],
-        hl: false,
-        extra: extraNote,
-      },
-      {
-        name: "Pro",
-        price: PLAN_PRICES_UZS.pro.toLocaleString("ru"),
-        priceNumber: PLAN_PRICES_UZS.pro,
-        fit: tr("5–20 сотрудников, агенты в поле", "5–20 xodim, daladagi agentlar"),
-        anchor: tr("≈ 20 000 сум в день — меньше одной недостачи", "kuniga ≈ 20 000 so'm — bitta kamomaddan arzon"),
-        limits: [
-          { v: cap(PLANS.pro.maxUsers), label: tr("пользователей", "foydalanuvchi") },
-          { v: cap(PLANS.pro.maxProducts), label: tr("SKU товаров", "SKU mahsulot") },
-          { v: cap(PLANS.pro.maxOrdersMonth), label: tr("заказов в месяц", "buyurtma/oy") },
-        ],
-        features: [
-          tr("Всё из Basic", "Basic'dagi hammasi"),
-          ...PLAN_ADDS.pro.map(f => tr(FEATURES[f].ru, FEATURES[f].uz)),
-        ],
-        hl: true,
-        extra: extraNote,
-      },
-      {
-        name: "Exclusive",
-        price: PLAN_PRICES_UZS.exclusive.toLocaleString("ru"),
-        priceNumber: PLAN_PRICES_UZS.exclusive,
-        /*
-          Было «Сеть филиалов, без ограничений». Числа рядом берутся из PLANS и
-          после отмены безлимита показывают 50 и 250 — то есть подпись спорила
-          с колонкой прямо под собой. Теперь она говорит про то, чем Exclusive
-          и отличается на самом деле: сопровождение и заказы без предела.
-        */
-        fit: tr("Сеть филиалов, заказы без предела", "Filiallar tarmog'i, buyurtmalar cheksiz"),
-        anchor: tr("Персональный менеджер и внедрение", "Shaxsiy menejer va joriy etish"),
-        limits: [
-          { v: cap(PLANS.exclusive.maxUsers), label: tr("пользователей", "foydalanuvchi") },
-          { v: cap(PLANS.exclusive.maxProducts), label: tr("SKU товаров", "SKU mahsulot") },
-          { v: cap(PLANS.exclusive.maxOrdersMonth), label: tr("заказов в месяц", "buyurtma/oy") },
-        ],
-        features: [
-          tr("Всё из Pro", "Pro'dagi hammasi"),
-          ...PLAN_ADDS.exclusive.map(f => tr(FEATURES[f].ru, FEATURES[f].uz)),
-        ],
-        hl: false,
-        extra: extraNote,
-        manager: true,
-      },
-      ];
-    },
-    [tr],
-  );
+  const discount = `−${Math.round(ANNUAL_DISCOUNT * 100)}%`;
+  const month = monthlyPrice(people);
+  const year = annualPrice(people);
+  const saving = annualSaving(people);
 
   const root = useAnime<HTMLDivElement>(({ animate, stagger, utils }, el) => {
-    animate(el.querySelectorAll("[data-plan]"), { y: [24, 0], opacity: [0, 1], duration: 620, delay: stagger(130, { start: 100 }), ease: "outCubic" });
-    el.querySelectorAll<HTMLElement>("[data-price]").forEach((n, i) => {
+    animate(el.querySelectorAll("[data-reveal-col]"), { y: [24, 0], opacity: [0, 1], duration: 620, delay: stagger(140, { start: 100 }), ease: "outCubic" });
+    el.querySelectorAll<HTMLElement>("[data-price]").forEach(n => {
       const target = Number(n.dataset.price);
       const o = { v: 0 };
-      animate(o, { v: target, duration: 1300, delay: 400 + i * 150, ease: "outCubic", modifier: utils.round(0), onUpdate: () => { n.textContent = o.v.toLocaleString("ru"); } });
+      animate(o, { v: target, duration: 1300, delay: 400, ease: "outCubic", modifier: utils.round(0), onUpdate: () => { n.textContent = o.v.toLocaleString("ru-RU"); } });
     });
-    animate(el.querySelectorAll("[data-feat]"), { x: [-8, 0], opacity: [0, 1], duration: 380, delay: stagger(40, { start: 700 }), ease: "outCubic" });
   }, 0.2);
 
+  const features = PRODUCT_FEATURES.map(f => tr(FEATURES[f].ru, FEATURES[f].uz));
+  const services = SERVICE_FEATURES.map(f => tr(FEATURES[f].ru, FEATURES[f].uz));
+
   return (
-    <section className="lx-ink py-16 md:py-24" style={{ background: LX.night }}>
+    <section className="lx-ink py-16 md:py-24" style={{ background: LX.night }} data-testid="landing-pricing">
       <div ref={root} className="max-w-[1240px] mx-auto px-6">
         <SectionHead
           id="pricing"
           tone="dark"
           index="12"
           label={tr("Тарифы", "Tariflar")}
-          title={tr("Цена написана на ценнике", "Narx yorlig'ida yozilgan")}
+          title={tr("Платите за тех, кто в поле", "Faqat dalada ishlaydiganlar uchun to'lang")}
           lead={tr(
-            "Каждый тариф начинается с 14 бесплатных дней. Карта не привязывается — после триала ничего не спишется.",
-            "Har bir tarif 14 kunlik bepul sinovdan boshlanadi. Karta bog'lanmaydi — sinovdan keyin hech narsa yechilmaydi.",
+            "Один тариф и все функции. Офис, склад, супервайзеры и директор — бесплатно. Первые 14 дней — бесплатно, карта не нужна.",
+            "Bitta tarif va barcha funksiyalar. Ofis, ombor, supervayzerlar va direktor — bepul. Dastlabki 14 kun — bepul, karta kerak emas.",
           )}
         />
 
-        <div className="mt-14 grid md:grid-cols-3" style={{ borderTop: `1px solid ${LX.ruleOnInk}`, borderBottom: `1px solid ${LX.ruleOnInk}` }}>
-          {plans.map((plan, idx) => (
-            <div
-              key={plan.name}
-              data-plan
-              className={`relative flex flex-col px-0 py-8 md:px-8 md:py-10 ${idx ? "border-t md:border-t-0 md:border-l" : ""}`}
-              style={{
-                borderColor: LX.ruleOnInk,
-                // Pro — латунная кромка сверху: единственный акцент, как латунная линейка на листе.
-                boxShadow: plan.hl ? `inset 0 2px 0 ${LX.brassOnNight}` : undefined,
-                background: plan.hl ? LX.brassGlow02 : undefined,
-              }}
-            >
-              {plan.hl && (
-                <div className="absolute -top-12 right-2" style={{ filter: "brightness(1.45) saturate(1.1)" }}>
-                  <Stamp
-                    ring={tr("РЕКОМЕНДУЕМ · TAVSIYA ETILADI · РЕКОМЕНДУЕМ · ", "TAVSIYA ETILADI · РЕКОМЕНДУЕМ · TAVSIYA · ")}
-                    center="PRO"
-                    size={104}
-                    rotate={8}
-                  />
-                </div>
-              )}
-              <div className="text-[11px] uppercase" style={{ ...MONO, color: LX.brassOnNight, letterSpacing: "0.1em" }}>{plan.name}</div>
-              <p className="text-[13.5px] mt-2" style={{ color: LX.softOnInk }}>{plan.fit}</p>
-
-              <div className="mt-7 flex items-baseline gap-2.5">
-                <span className="font-extrabold leading-none" style={{ fontSize: "clamp(2.5rem, 3.2vw, 3.5rem)", letterSpacing: "-0.04em", fontVariantNumeric: "tabular-nums", color: plan.hl ? LX.brassOnNight : LX.paperOnInk }}>
-                  <span data-price={plan.priceNumber}>{plan.price}</span>
+        <Split
+          className="mt-14"
+          left={
+            <div data-reveal-col style={{ borderTop: `2px solid ${LX.brassOnNight}` }} className="pt-8">
+              <div className="text-[11px] uppercase" style={{ ...MONO, color: LX.brassOnNight, letterSpacing: "0.1em" }}>
+                {tr("Стандарт · за полевого сотрудника", "Standart · har bir dala xodimi uchun")}
+              </div>
+              <div className="mt-6 flex items-baseline gap-3 flex-wrap">
+                <span className="font-extrabold leading-none" style={{ fontSize: "clamp(3.25rem, 6vw, 5rem)", letterSpacing: "-0.045em", fontVariantNumeric: "tabular-nums", color: LX.brassOnNight }}>
+                  <span data-price={FIELD_PRICE_UZS} data-testid="pricing-field-price">{formatSum(FIELD_PRICE_UZS)}</span>
                 </span>
-                <span className="text-[11px] uppercase" style={{ ...MONO, color: LX.softOnInk, letterSpacing: "0.08em" }}>{tr("сум/мес", "so'm/oy")}</span>
+                <span className="text-[12px] uppercase" style={{ ...MONO, color: LX.softOnInk, letterSpacing: "0.08em" }}>{tr("сум / мес", "so'm / oy")}</span>
               </div>
-              <p className="text-[12px] mt-2" style={{ ...MONO, color: LX.brassOnNight }}>{plan.anchor}</p>
+              <p className="mt-3 text-[16px] leading-snug" style={{ color: LX.paperOnInk }}>
+                {tr("за агента, курьера или мерчендайзера в месяц", "har bir agent, kuryer yoki merchandayzer uchun oyiga")}
+              </p>
 
-              {/* Пределы — одной строкой с тонкими разделителями. */}
-              <div className="mt-7 flex items-stretch" style={{ borderTop: `1px solid ${LX.ruleOnInk}`, borderBottom: `1px solid ${LX.ruleOnInk}` }}>
-                {plan.limits.map((l, i) => (
-                  <div key={l.label} className="flex-1 py-3.5" style={{ borderLeft: i ? `1px solid ${LX.ruleOnInk}` : undefined, paddingLeft: i ? 12 : 0 }}>
-                    <div className="text-[17px] font-semibold leading-none" style={{ ...MONO, color: LX.paperOnInk }}>{l.v}</div>
-                    <div className="text-[10.5px] mt-1.5 leading-tight uppercase" style={{ ...MONO, color: LX.softOnInk, letterSpacing: "0.06em" }}>{l.label}</div>
-                  </div>
-                ))}
+              <div className="mt-8" style={{ borderTop: `1px solid ${LX.ruleOnInk}` }}>
+                <Row k={tr("Офис, склад, супервайзеры и директор", "Ofis, ombor, supervayzerlar va direktor")} v={tr("бесплатно", "bepul")} strong />
+                <Row k={tr("Заказы, товары, сотрудники", "Buyurtmalar, mahsulotlar, xodimlar")} v={tr("без ограничений", "cheklovsiz")} />
+                <Row k={tr("Функции", "Funksiyalar")} v={tr("все включены", "hammasi kiritilgan")} />
+                <Row k={tr("Предоплата за год", "Bir yil oldindan to'lov")} v={discount} strong />
+                <Row
+                  k={tr(`Минимум — ${MIN_FIELD_USERS} полевых`, `Eng kami — ${MIN_FIELD_USERS} dala xodimi`)}
+                  v={`${formatSum(monthlyPrice(MIN_FIELD_USERS))} ${tr("сум/мес", "so'm/oy")}`}
+                />
               </div>
-              {plan.extra && (
-                <p className="mt-2.5 text-[11px] leading-snug" style={{ ...MONO, color: LX.softOnInk }}>{plan.extra}</p>
-              )}
-
-              <ul className="mt-6 space-y-2.5 flex-1">
-                {plan.features.map((f, i) => (
-                  <li key={f} data-feat className="flex items-start gap-2.5 text-[13.5px]" style={{ color: i === 0 && plan.name !== "Basic" ? LX.paperOnInk : LX.softOnInk, fontWeight: i === 0 && plan.name !== "Basic" ? 600 : 400 }}>
-                    <Check size={14} strokeWidth={3} className="mt-0.5 shrink-0" style={{ color: LX.brassOnNight }} />
-                    {f}
-                  </li>
-                ))}
-              </ul>
 
               <div className="mt-8">
-                {plan.manager && tgSales ? (
-                  <Btn kind="paper" href={tgSales}>{tr("Обсудить с менеджером", "Menejer bilan muhokama qilish")}</Btn>
-                ) : plan.hl ? (
-                  <Btn kind="brass" onClick={() => navigate("/register")}>{tr("Начать бесплатно", "Bepul boshlash")}</Btn>
-                ) : (
-                  <Btn kind="paper" onClick={() => navigate("/register")}>{tr("Начать бесплатно", "Bepul boshlash")}</Btn>
-                )}
+                <Btn kind="brass" onClick={() => navigate("/register")} testId="pricing-start">{tr("Начать бесплатно", "Bepul boshlash")}</Btn>
                 <p className="mt-3 text-center text-[11px]" style={{ ...MONO, color: LX.softOnInk }}>
-                  {tr("14 дней бесплатно · карта не нужна", "14 kun bepul · karta kerak emas")}
+                  {tr("14 дней бесплатно · все функции · карта не нужна", "14 kun bepul · barcha funksiyalar · karta kerak emas")}
                 </p>
               </div>
             </div>
-          ))}
+          }
+          right={
+            <div data-reveal-col className="pt-8" style={{ borderTop: `1px solid ${LX.ruleOnInk}` }}>
+              <div className="text-[11px] uppercase" style={{ ...MONO, color: LX.softOnInk, letterSpacing: "0.1em" }}>
+                {tr("Посчитайте свою команду", "Jamoangizni hisoblang")}
+              </div>
+
+              {/* Счётчик: люди в поле → месяц и год. */}
+              <div className="mt-6 flex items-center gap-4 flex-wrap">
+                <button type="button" aria-label={tr("Меньше", "Kamroq")} onClick={() => set(people - 1)}
+                  className="lx-anim w-12 h-12 rounded-lg inline-flex items-center justify-center cursor-pointer"
+                  style={{ border: `1px solid ${LX.paperOnInk34}`, color: LX.paperOnInk }} data-testid="pricing-calc-minus">
+                  <Minus size={18} />
+                </button>
+                <div className="min-w-[96px] text-center">
+                  <div className="font-extrabold leading-none" style={{ fontSize: "clamp(2.5rem, 4vw, 3.25rem)", letterSpacing: "-0.04em", fontVariantNumeric: "tabular-nums", color: LX.paperOnInk }} data-testid="pricing-calc-people">{people}</div>
+                </div>
+                <button type="button" aria-label={tr("Больше", "Ko'proq")} onClick={() => set(people + 1)}
+                  className="lx-anim w-12 h-12 rounded-lg inline-flex items-center justify-center cursor-pointer"
+                  style={{ border: `1px solid ${LX.paperOnInk34}`, color: LX.paperOnInk }} data-testid="pricing-calc-plus">
+                  <Plus size={18} />
+                </button>
+                <span className="text-[13.5px] leading-snug" style={{ color: LX.softOnInk }}>
+                  {tr("агентов, курьеров и мерчендайзеров", "agent, kuryer va merchandayzer")}
+                </span>
+              </div>
+              <input
+                type="range" min={1} max={CALC_MAX} value={people}
+                onChange={e => set(Number(e.target.value))}
+                aria-label={tr("Сколько людей в поле", "Dalada necha kishi")}
+                className="mt-5 w-full h-11 cursor-pointer"
+                style={{ accentColor: LX.brassOnNight }}
+                data-testid="pricing-calc-range"
+              />
+
+              <div className="mt-4 grid sm:grid-cols-2" style={{ borderTop: `1px solid ${LX.ruleOnInk}`, borderBottom: `1px solid ${LX.ruleOnInk}` }}>
+                <div className="py-5 sm:pr-6">
+                  <div className="text-[11px] uppercase" style={{ ...MONO, color: LX.softOnInk, letterSpacing: "0.08em" }}>{tr("В месяц", "Oyiga")}</div>
+                  <div className="mt-2 text-[28px] font-bold leading-none whitespace-nowrap" style={{ color: LX.paperOnInk, letterSpacing: "-0.02em", fontVariantNumeric: "tabular-nums" }}>
+                    <span data-testid="pricing-calc-month">{formatSum(month)}</span>
+                    <span className="text-[12px] font-normal ml-2" style={{ ...MONO, color: LX.softOnInk }}>{tr("сум", "so'm")}</span>
+                  </div>
+                  {people < MIN_FIELD_USERS && (
+                    <p className="mt-2 text-[12px]" style={{ ...MONO, color: LX.softOnInk }}>{tr(`считаем как ${MIN_FIELD_USERS} — минимум`, `${MIN_FIELD_USERS} deb hisoblanadi — eng kami`)}</p>
+                  )}
+                </div>
+                <div className="py-5 sm:pl-6 border-t sm:border-t-0 sm:border-l" style={{ borderColor: LX.ruleOnInk }}>
+                  <div className="text-[11px] uppercase" style={{ ...MONO, color: LX.brassOnNight, letterSpacing: "0.08em" }}>{tr(`За год · ${discount}`, `Bir yilga · ${discount}`)}</div>
+                  <div className="mt-2 text-[28px] font-bold leading-none whitespace-nowrap" style={{ color: LX.brassOnNight, letterSpacing: "-0.02em", fontVariantNumeric: "tabular-nums" }}>
+                    <span data-testid="pricing-calc-year">{formatSum(year)}</span>
+                    <span className="text-[12px] font-normal ml-2" style={{ ...MONO, color: LX.softOnInk }}>{tr("сум", "so'm")}</span>
+                  </div>
+                  <p className="mt-2 text-[12px]" style={{ ...MONO, color: LX.softOnInk }}>
+                    {tr(`экономия ${formatSum(saving)} сум`, `tejash ${formatSum(saving)} so'm`)}
+                  </p>
+                </div>
+              </div>
+
+              {/* Примеры — нажать, чтобы подставить в счётчик. */}
+              <div className="mt-8 text-[11px] uppercase" style={{ ...MONO, color: LX.softOnInk, letterSpacing: "0.1em" }}>
+                {tr("Например", "Masalan")}
+              </div>
+              <ul className="mt-2">
+                {EXAMPLES.map(ex => {
+                  const n = ex.agents + ex.couriers;
+                  return (
+                    <li key={n}>
+                      <button type="button" onClick={() => set(n)} data-testid={`pricing-example-${n}`}
+                        className="lx-anim w-full min-h-[48px] py-3 flex items-baseline justify-between gap-4 text-left cursor-pointer"
+                        style={{ borderBottom: `1px solid ${LX.ruleOnInk}`, color: n === people ? LX.brassOnNight : LX.paperOnInk }}>
+                        <span className="text-[14px]">
+                          {tr(
+                            `${ex.agents} ${plural(ex.agents, "агент", "агента", "агентов")} + ${ex.couriers} ${plural(ex.couriers, "курьер", "курьера", "курьеров")}`,
+                            `${ex.agents} agent + ${ex.couriers} kuryer`,
+                          )}
+                          <span className="ml-2 text-[12px]" style={{ ...MONO, color: LX.softOnInk }}>= {n}</span>
+                        </span>
+                        <span className="text-[15px] font-semibold whitespace-nowrap" style={{ fontVariantNumeric: "tabular-nums" }}>
+                          {formatSum(monthlyPrice(n))} <span className="text-[11px] font-normal" style={{ ...MONO, color: LX.softOnInk }}>{tr("сум/мес", "so'm/oy")}</span>
+                        </span>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          }
+        />
+
+        {/* Что входит — всё; услуги — отдельно и по запросу. */}
+        <div className="mt-16 grid md:grid-cols-12 gap-x-16 gap-y-8" style={{ borderTop: `1px solid ${LX.ruleOnInk}` }}>
+          <div className="md:col-span-7 pt-7">
+            <div className="text-[11px] uppercase mb-4" style={{ ...MONO, color: LX.brassOnNight, letterSpacing: "0.1em" }}>{tr("Включено всё", "Hammasi kiritilgan")}</div>
+            <ul className="grid sm:grid-cols-2 gap-x-8">
+              {features.map(f => (
+                <li key={f} className="py-2.5 text-[13.5px] leading-snug" style={{ color: LX.paperOnInk, borderBottom: `1px solid ${LX.ruleOnInk}` }}>{f}</li>
+              ))}
+            </ul>
+          </div>
+          <div className="md:col-span-5 pt-7">
+            <div className="text-[11px] uppercase mb-4" style={{ ...MONO, color: LX.softOnInk, letterSpacing: "0.1em" }}>{tr("Услуги — по запросу", "Xizmatlar — so'rov bo'yicha")}</div>
+            <ul>
+              {services.map(s => (
+                <li key={s} className="py-2.5 text-[13.5px] leading-snug flex justify-between gap-4" style={{ color: LX.softOnInk, borderBottom: `1px solid ${LX.ruleOnInk}` }}>
+                  {s}<span style={{ ...MONO, fontSize: 11 }}>{tr("по запросу", "so'rov bo'yicha")}</span>
+                </li>
+              ))}
+            </ul>
+            {tgSales && (
+              <div className="mt-6"><Btn kind="paper" href={tgSales}>{tr("Обсудить с менеджером", "Menejer bilan muhokama qilish")}</Btn></div>
+            )}
+          </div>
         </div>
 
-        <div className="mt-8 grid md:grid-cols-2 gap-x-10 gap-y-3 text-[13px]" style={{ color: LX.softOnInk }}>
+        <div className="mt-10 grid md:grid-cols-2 gap-x-10 gap-y-3 text-[13px]" style={{ color: LX.softOnInk }}>
           <p className="py-1">
-            {tr("Предел ничего не удаляет: всё заведённое работает, нельзя лишь добавить сверх — а сверх можно докупить поштучно.", "Chegara hech narsani o'chirmaydi: kiritilgan hamma narsa ishlaydi, faqat ustiga qo'shib bo'lmaydi — ustini esa donalab sotib olish mumkin.")}
+            {tr(
+              `Уже платите по Basic, Pro или Exclusive? Ваша цена и условия сохраняются до ${formatDay(GRANDFATHER_UNTIL)}, затем — цена за полевого сотрудника.`,
+              `Basic, Pro yoki Exclusive bo'yicha to'layapsizmi? Narx va shartlaringiz ${formatDay(GRANDFATHER_UNTIL)} gacha saqlanadi, keyin — dala xodimi uchun narx.`,
+            )}
           </p>
           <p className="py-1">
             {tr("Оплата: Payme, Click или по счёту для юрлиц — с договором и закрывающими документами.", "To'lov: Payme, Click yoki yuridik shaxslar uchun hisob orqali — shartnoma va yopuvchi hujjatlar bilan.")}

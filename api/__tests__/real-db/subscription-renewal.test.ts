@@ -78,7 +78,7 @@ describe.skipIf(!hasRealDb)("продление оплаченного срок�
     (await d().select().from(schema.subscriptions).where(eq(schema.subscriptions.tenantId, tenantId)))[0];
   const updatePlan = async (tenantId: number) => {
     const { tenantRouter } = await import("../../tenant-router");
-    return tenantRouter.createCaller(ctxFor(db, 1, 1, "superadmin")).updatePlan({ tenantId, plan: "basic", expiryDays: 30 });
+    return tenantRouter.createCaller(ctxFor(db, 1, 1, "superadmin")).updatePlan({ tenantId, plan: "standard", expiryDays: 30 });
   };
   /** Насколько дата разошлась с ожидаемой, мс: запросы идут не мгновенно. */
   const off = (a: Date, b: number) => Math.abs(a.getTime() - b);
@@ -136,7 +136,7 @@ describe.skipIf(!hasRealDb)("продление оплаченного срок�
 
       await updatePlan(s.tenantId);
       const after = await status();
-      expect(after.plan).toBe("basic");
+      expect(after.plan).toBe("standard");
       expect(after.trialActive).toBeFalsy();
       expect(after.planActive).toBeTruthy();
       // Ровно 30 суток от «сейчас»: TIMESTAMP в MySQL округляет доли секунды

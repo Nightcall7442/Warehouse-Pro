@@ -3,6 +3,7 @@ import { orders, shops, users, settings, auditLog, payments } from "@db/schema";
 import { alias } from "drizzle-orm/mysql-core";
 import { badRequest } from "../lib/errors";
 import { sanitizeString } from "../lib/sanitize";
+import { planHasProTools } from "../../contracts/constants";
 
 /*
   Контроль.
@@ -29,11 +30,11 @@ import { sanitizeString } from "../lib/sanitize";
 type Db = ReturnType<typeof import("../queries/connection").getDb>;
 const round2 = (n: number) => Math.round(n * 100) / 100;
 const HOUR = 3_600_000;
-const CONTROL_PLANS = new Set(["trial", "pro", "exclusive"]);
 export const FIELD_ROLES = ["agent", "courier", "merchandiser", "supervisor"] as const;
 
+/** Контроль — «инструмент Pro»: у всех, кроме прежнего Basic до GRANDFATHER_UNTIL. */
 export function planAllowsControl(plan: string): boolean {
-  return CONTROL_PLANS.has(plan);
+  return planHasProTools(plan);
 }
 
 export async function controlEnabled(db: Db, tenantId: number): Promise<boolean> {
@@ -42,7 +43,7 @@ export async function controlEnabled(db: Db, tenantId: number): Promise<boolean>
 }
 
 export async function assertControl(db: Db, tenantId: number, plan: string): Promise<void> {
-  if (!planAllowsControl(plan)) throw badRequest("Контроль доступен на тарифах Pro и Exclusive");
+  if (!planAllowsControl(plan)) throw badRequest("Контроль доступен на тарифах Стандарт, Pro и Exclusive");
   if (!(await controlEnabled(db, tenantId))) throw badRequest("Контроль выключен — включите его в Настройках");
 }
 

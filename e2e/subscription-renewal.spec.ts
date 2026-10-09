@@ -17,7 +17,7 @@ import { login, trpcMutate, trpcQuery } from "./harness";
  *
  * Суперадмин заводит организацию, её срок уводится в прошлое, директор
  * входит через форму — и оказывается на экране блокировки, где сразу видит
- * тарифы. Заявка на Basic даёт ответ на том же экране; страница никуда не
+ * тарифы. Заявка на «Стандарт» даёт ответ на том же экране; страница никуда не
  * уходит и не перезагружается; у суперадмина в разборе заявок появляется
  * строка этой организации.
  *
@@ -62,7 +62,8 @@ test("истёкшая организация продлевает с экран
   await page.waitForURL(url => new URL(url).pathname === "/subscription-blocked", { timeout: 20_000 });
 
   // 4. Тарифы — на самом экране; заявка — не уходя с него.
-  const plan = "basic";
+  // Пробной организации подключается только «Стандарт» (contracts/pricing.ts): Basic/Pro/Exclusive больше не продаются.
+  const plan = "standard";
   await page.getByTestId(`plan-request-${plan}`).click();
   await expect(page.getByTestId("plan-request-sent")).toBeVisible();
 
@@ -78,5 +79,6 @@ test("истёкшая организация продлевает с экран
   const mine = leads.filter(l => l.company === org);
   expect(mine, "заявки организации нет в разборе").toHaveLength(1);
   expect(mine[0]).toMatchObject({ source: "подписка: тариф", phone: email });
-  expect(mine[0].comment).toContain("Basic");
+  expect(mine[0].comment).toContain("Standard");
+  expect(mine[0].comment).toMatch(/полевых/);
 });

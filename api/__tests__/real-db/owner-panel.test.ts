@@ -4,6 +4,8 @@ import * as schema from "@db/schema";
 import { hasRealDb, connectRealDb, closeRealDb, truncateAll, ctxFor, type ServiceDb } from "./harness";
 import { cache } from "../../lib/cache";
 import { OWNER_PANEL_CACHE_KEY } from "../../services/owner-panel";
+import { GRANDFATHER_UNTIL, monthlyPrice } from "@contracts/pricing";
+import { tashkentDay } from "@contracts/subscription-payment";
 
 /**
  * Панель владельца «Кто платит и кто уходит» и вечерняя сводка — на
@@ -71,7 +73,7 @@ describe.skipIf(!hasRealDb)("панель владельца на настоящ
 
   /* ── Стенд ─────────────────────────────────────────────────────────────── */
 
-  type Sub = { plan: "trial" | "basic" | "pro" | "exclusive"; status: "trialing" | "active"; trialEndsAt?: Date | null; currentPeriodEnds?: Date | null };
+  type Sub = { plan: "trial" | "standard" | "basic" | "pro" | "exclusive"; status: "trialing" | "active"; trialEndsAt?: Date | null; currentPeriodEnds?: Date | null };
   async function org(o: {
     name: string; slug?: string; status?: "active" | "suspended"; isSandbox?: boolean;
     createdAt: Date; trialEndsAt?: Date | null; ownerPhone?: string | null; ownerEmail?: string | null;
@@ -245,8 +247,10 @@ describe.skipIf(!hasRealDb)("панель владельца на настоящ
     expect(p.paying.list.map(r => r.name).sort()).toEqual(
       ["Бессрочный Про", "Молчит Про", "Перешёл", "Платит Базовый", "Продление Скоро", "Продление Эксклюзив"].sort(),
     );
-    // Прайс: Exclusive 1 299 000 + три Pro по 599 000 + два Basic по 299 000.
-    expect(p.paying.mrr).toBe(1_299_000 + 3 * 599_000 + 2 * 299_000);
+    // Прайс: Exclusive 1 299 000 + три Pro по 599 000 + два Basic по 299 000 — до
+    // 05.10.2027; потом все шесть — «Стандарт» без полевых, то есть минимум (contracts/pricing.ts).
+    const old = tashkentDay(new Date()) < GRANDFATHER_UNTIL;
+    expect(p.paying.mrr).toBe(old ? 1_299_000 + 3 * 599_000 + 2 * 299_000 : 6 * monthlyPrice(0));
     expect(p.paying.list.find(r => r.name === "Бессрочный Про")?.periodEnds).toBeNull();
 
     expect(p.activeLast7).toBe(9);
@@ -259,9 +263,27 @@ describe.skipIf(!hasRealDb)("панель владельца на настоящ
     expect(p.silent[0].phone).toBe("+998901110005");
 
     expect(p.renewals.map(r => [r.name, r.daysLeft, r.price])).toEqual([
-      ["Продление Скоро", 3, 599_000],
-      ["Продление Эксклюзив", 10, 1_299_000],
+      ["Продление Скоро", 3, old ? 599_000 : monthlyPrice(0)],
+      ["Продление Эксклюзив", 10, old ? 1_299_000 : monthlyPrice(0)],
     ]);
+  });
+
+  it("«Стандарт» в MRR — по своим полевым: активные агенты, курьеры, мерчендайзеры", async () => {
+    const { id } = await org({
+      name: "Стандарт Поле", createdAt: ahead(-40 * DAY), ceo: { lastSignInAt: ahead(-DAY) },
+      sub: { plan: "standard", status: "active", currentPeriodEnds: ahead(25 * DAY) },
+    });
+    const people = [["agent", "active"], ["agent", "active"], ["courier", "active"], ["merchandiser", "active"], ["agent", "inactive"], ["supervisor", "active"], ["operator", "active"]] as const;
+    for (const [role, status] of people) {
+      n++;
+      await d().insert(schema.users).values({ tenantId: id, name: `${role} ${n}`, email: `f${n}@test.uz`, passwordHash: "x", role, status });
+    }
+    cache.invalidate(OWNER_PANEL_CACHE_KEY);
+    const p = await panel();
+    // 4 активных полевых × 119 000; отключённый агент, супервайзер и оператор — бесплатно.
+    expect(p.paying.list.find(r => r.name === "Стандарт Поле")?.price).toBe(476_000);
+    const old = tashkentDay(new Date()) < GRANDFATHER_UNTIL;
+    expect(p.paying.mrr).toBe((old ? 1_299_000 + 3 * 599_000 + 2 * 299_000 : 6 * monthlyPrice(0)) + 476_000);
   });
 
   it("контакт — из карточки, а без неё — директора", async () => {

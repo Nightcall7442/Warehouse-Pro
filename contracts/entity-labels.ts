@@ -166,6 +166,7 @@ export const PLAN_STATUS_LABEL: Record<DailyPlan["status"], Label> = {
 /** Тариф организации. */
 export const TENANT_PLAN_LABEL: Record<Tenant["plan"], Label> = {
   trial:     { ru: "Пробный",   uz: "Sinov" },
+  standard:  { ru: "Стандарт",  uz: "Standart" },
   basic:     { ru: "Базовый",   uz: "Asosiy" },
   pro:       { ru: "Про",       uz: "Pro" },
   exclusive: { ru: "Эксклюзив", uz: "Eksklyuziv" },

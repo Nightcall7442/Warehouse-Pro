@@ -108,7 +108,7 @@ export function Pill({ tone = "neutral", children, testId }: { tone?: Tone; chil
   );
 }
 
-const PLAN_TONE: Record<string, Tone> = { trial: "info", basic: "neutral", pro: "success", exclusive: "primary" };
+const PLAN_TONE: Record<string, Tone> = { trial: "info", standard: "success", basic: "neutral", pro: "success", exclusive: "primary" };
 export function PlanPill({ plan }: { plan: string }) {
   const label = TENANT_PLAN_LABEL[plan as keyof typeof TENANT_PLAN_LABEL]?.ru ?? plan;
   return <Pill tone={PLAN_TONE[plan] ?? "neutral"}>{label}</Pill>;

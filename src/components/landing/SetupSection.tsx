@@ -1,5 +1,5 @@
 import { useTranslate } from "@/i18n";
-import { EXTRA_PRICES_UZS } from "@contracts/constants";
+import { FIELD_PRICE_UZS, formatSum } from "@contracts/pricing";
 import { LX, MONO } from "./landing-tokens";
 import { SectionHead } from "./landing-shared";
 import { Browser, Ledger, Split } from "./landing-frames";
@@ -9,9 +9,10 @@ import { useAnime } from "./landing-anime";
    09 / НАСТРОЙКИ — ОТДЕЛЬНО
 
    Владелец просил «про настройки отдельно»: роли, права оператора, импорт
-   из Excel, сверхлимит. Всё ниже — реальные экраны раздела «Настройки» и
+   из Excel, кто сколько стоит. Всё ниже — реальные экраны раздела «Настройки» и
    «Пользователи» (src/pages/Settings.tsx, Users.tsx, ExcelImport.tsx),
-   цены сверхлимита берутся из contracts/constants.ts, не набираются руками.
+   цена полевого сотрудника берётся из contracts/pricing.ts, не набирается
+   руками (05.10.2026: сверхлимита больше нет — платят за людей в поле).
 
    Движение: роли выезжают фишками; три переключателя прав оператора
    переводятся по очереди; строки листа Excel «перелетают» в каталог.
@@ -19,7 +20,6 @@ import { useAnime } from "./landing-anime";
 
 export default function SetupSection() {
   const tr = useTranslate();
-  const fmt = (n: number) => n.toLocaleString("ru-RU");
 
   const roles = [
     tr("Директор", "Direktor"), tr("Оператор", "Operator"), tr("Супервайзер", "Supervayzer"),
@@ -76,7 +76,7 @@ export default function SetupSection() {
           lead={tr("Роль задаёт потолок, настройка опускает пол. Права зашиты на сервере, а не в кнопках: «покажите мне на минутку» не работает — и это правильно.", "Rol shiftni belgilaydi, sozlama polni tushiradi. Huquqlar serverga yozilgan, tugmalarga emas: «bir daqiqaga ko'rsating» ishlamaydi — va bu to'g'ri.")}
         />
 
-        {/* Три колонки с линиями, без коробок: роли · права оператора · сверхлимит */}
+        {/* Три колонки с линиями, без коробок: роли · права оператора · кто сколько стоит */}
         <div className="mt-14 grid md:grid-cols-3" style={{ borderTop: `1px solid ${LX.ruleStrong}`, borderBottom: `1px solid ${LX.rule}` }}>
           <div className="py-7 md:pr-10">
             <div className="text-[11px] uppercase mb-4" style={{ ...MONO, color: LX.brassText, letterSpacing: "0.08em" }}>{tr("Шесть ролей", "Oltita rol")}</div>
@@ -104,19 +104,19 @@ export default function SetupSection() {
           </div>
 
           <div className="py-7 md:pl-10">
-            <div className="text-[11px] uppercase mb-4" style={{ ...MONO, color: LX.brassText, letterSpacing: "0.08em" }}>{tr("Мало мест или SKU?", "Joy yoki SKU kammi?")}</div>
+            <div className="text-[11px] uppercase mb-4" style={{ ...MONO, color: LX.brassText, letterSpacing: "0.08em" }}>{tr("Кто сколько стоит", "Kim qancha turadi")}</div>
             <dl>
               {[
-                [tr("Рабочее место", "Ish o'rni"), EXTRA_PRICES_UZS.user],
-                [tr("Позиция товара (SKU)", "Mahsulot pozitsiyasi (SKU)"), EXTRA_PRICES_UZS.product],
-              ].map(([k, v]) => (
-                <div key={String(k)} className="flex items-baseline justify-between gap-3 py-2.5" style={{ borderBottom: `1px solid ${LX.rule}` }}>
+                [tr("Агент, курьер, мерчендайзер", "Agent, kuryer, merchandayzer"), `${formatSum(FIELD_PRICE_UZS)}`, tr("сум/мес", "so'm/oy")],
+                [tr("Директор, оператор, склад, супервайзер", "Direktor, operator, ombor, supervayzer"), tr("бесплатно", "bepul"), ""],
+              ].map(([k, v, unit]) => (
+                <div key={k} className="flex items-baseline justify-between gap-3 py-2.5" style={{ borderBottom: `1px solid ${LX.rule}` }}>
                   <dt className="text-[14px]" style={{ color: LX.inkSoft }}>{k}</dt>
-                  <dd className="text-[18px] font-bold whitespace-nowrap" style={{ ...MONO, color: LX.ink, letterSpacing: "-0.01em" }}>{fmt(Number(v))} <span className="text-[11px] font-normal" style={{ color: LX.inkFaint }}>{tr("сум/мес", "so'm/oy")}</span></dd>
+                  <dd className="text-[18px] font-bold whitespace-nowrap" style={{ ...MONO, color: LX.ink, letterSpacing: "-0.01em" }}>{v} {unit && <span className="text-[11px] font-normal" style={{ color: LX.inkFaint }}>{unit}</span>}</dd>
                 </div>
               ))}
             </dl>
-            <p className="mt-5 text-[13.5px] leading-relaxed" style={{ color: LX.inkSoft }}>{tr("Сверх тарифа — поштучно, без перехода на следующий. Предел ничего не удаляет: всё заведённое работает, нельзя лишь добавить сверх.", "Tarifdan tashqari — donalab, keyingisiga o'tmasdan. Chegara hech narsani o'chirmaydi: kiritilgan hamma narsa ishlaydi, faqat ustiga qo'shib bo'lmaydi.")}</p>
+            <p className="mt-5 text-[13.5px] leading-relaxed" style={{ color: LX.inkSoft }}>{tr("Платите только за тех, кто в поле. Офисных — сколько угодно, товаров и заказов — без ограничений.", "Faqat dalada ishlaydiganlar uchun to'laysiz. Ofis xodimlari — xohlagancha, mahsulot va buyurtmalar — cheklovsiz.")}</p>
           </div>
         </div>
 

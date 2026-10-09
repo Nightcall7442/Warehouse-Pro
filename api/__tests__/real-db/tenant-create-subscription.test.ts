@@ -38,7 +38,7 @@ describe.skipIf(!hasRealDb)("tenant.create: подписка такая же, к
   beforeEach(async () => { await truncateAll(); });
   afterEach(() => { vi.useRealTimers(); });
 
-  const create = async (plan: "trial" | "pro", trialDays = 14) => {
+  const create = async (plan: "trial" | "standard", trialDays = 14) => {
     const { tenantRouter } = await import("../../tenant-router");
     const r = await tenantRouter.createCaller(ctxFor(db, 1, 1, "superadmin"))
       .create({ orgName: `Орг ${plan}`, ownerName: "Директор", ownerEmail: `${plan}@org.uz`, ownerPassword: "пароль-восемь", plan, trialDays });
@@ -54,15 +54,15 @@ describe.skipIf(!hasRealDb)("tenant.create: подписка такая же, к
     try { return await checkSubscriptionAccess(tenantId); } finally { vi.useRealTimers(); }
   };
 
-  it("Pro: подписка active на Pro до того же дня, что в карточке", async () => {
-    const { id, tenant, sub } = await create("pro");
+  it("«Стандарт»: подписка active на «Стандарте» до того же дня, что в карточке", async () => {
+    const { id, tenant, sub } = await create("standard");
 
-    expect(sub).toMatchObject({ plan: "pro", status: "active" });
+    expect(sub).toMatchObject({ plan: "standard", status: "active" });
     expect(tenant.planExpiresAt).toBeInstanceOf(Date);
     expect(sub.currentPeriodEnds.getTime()).toBe(tenant.planExpiresAt.getTime());
     expect(tenant.trialEndsAt, "у платного нет пробного срока").toBeNull();
 
-    expect(await accessAfter(id, 20), "на 20-й день организацию Pro заперло").toBe(true);
+    expect(await accessAfter(id, 20), "на 20-й день организацию на «Стандарте» заперло").toBe(true);
     expect(await accessAfter(id, 31)).toBe(false);
   });
 

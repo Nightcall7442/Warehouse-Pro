@@ -5,7 +5,7 @@ import { getDb } from "./queries/connection";
 import { PAYMENT_METHODS, PAID_PLANS } from "@contracts/subscription-payment";
 import { actionLabel, describePlatformEntry } from "@contracts/platform-journal";
 import { ipOf, listPlatformAudit } from "./services/platform-audit";
-import { listPayments, paymentsSummary, PaymentTenantMissing, recordSubscriptionPayment } from "./services/subscription-payments";
+import { listPayments, paymentsSummary, PaymentPlanClosed, PaymentTenantMissing, recordSubscriptionPayment } from "./services/subscription-payments";
 import { activeFor, createAnnouncement, dismiss, endAnnouncement, listAnnouncements } from "./services/announcements";
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -73,6 +73,7 @@ export const platformRouter = createRouter({
         return await recordSubscriptionPayment(getDb(), input, { id: ctx.user.id, name: ctx.user.name }, ipOf(ctx));
       } catch (e) {
         if (e instanceof PaymentTenantMissing) throw new TRPCError({ code: "NOT_FOUND", message: e.message });
+        if (e instanceof PaymentPlanClosed) throw new TRPCError({ code: "BAD_REQUEST", message: e.message });
         throw e;
       }
     }),
@@ -88,7 +89,7 @@ export const platformRouter = createRouter({
       bodyUz:    z.string().trim().max(2000).optional(),
       level:     z.enum(["info", "warning"]),
       audience:  z.enum(["all", "plans", "tenants"]),
-      plans:     z.array(z.enum(["trial", "basic", "pro", "exclusive"])).max(4).optional(),
+      plans:     z.array(z.enum(["trial", "standard", "basic", "pro", "exclusive"])).max(5).optional(),
       tenantIds: z.array(z.number().int().positive()).max(500).optional(),
       startsAt:  z.coerce.date().optional(),
       endsAt:    z.coerce.date().nullable().optional(),

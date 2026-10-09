@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { EXTRA_PRICES_UZS } from "../../contracts/constants";
+import { LEGACY_EXTRA_PRICES_UZS as EXTRA_PRICES_UZS } from "../../contracts/pricing";
 
 /**
  * Докупить сверх тарифа можно попросить с экрана.
@@ -62,17 +62,17 @@ describe("попросить надбавку можно", () => {
     expect(tag, "карточки надбавки нет на экране подписки").not.toBeNull();
   });
 
-  it("она стоит выше выбора тарифа", () => {
+  it("только у прежнего тарифа — у «Стандарта» докупать нечего", () => {
     /*
-      Человек приходит сюда, упершись в предел. Ответ «добавьте столько,
-      сколько не хватает» обязан стоять раньше списка тарифов: иначе решение
-      принимается раньше, чем читается.
+      05.10.2026: пределов у «Стандарта» и пробного нет. Надбавка остаётся
+      прежним тарифам до GRANDFATHER_UNTIL — и экран, и сервер говорят это
+      одним условием, а не каждый своим.
     */
     const card = PAGE.indexOf("<ExtraLimitsCard");
-    const plans = PAGE.indexOf("billing.plans.map");
+    const gate = PAGE.lastIndexOf("{grandfathered && (", card);
     expect(card, "карточки надбавки нет").toBeGreaterThan(-1);
-    expect(plans, "списка тарифов нет").toBeGreaterThan(-1);
-    expect(card, "надбавка стоит ниже выбора тарифа").toBeLessThan(plans);
+    expect(gate, "карточка надбавки показана не только прежнему тарифу").toBeGreaterThan(-1);
+    expect(procBody(ROUTER, "requestExtra"), "сервер принимает надбавку от «Стандарта»").toContain("isGrandfathered(ctx.tenant.plan, new Date())");
   });
 });
 

@@ -10,7 +10,7 @@ import { paidUntilBase } from "@contracts/subscription-payment";
 import { createRouter, publicQuery, adminQuery, authedQuery, superAdminQuery } from "./middleware";
 import { getDb } from "./queries/connection";
 import { tenants, users, settings, orders, products, shops, subscriptions, warehouses, apiKeys } from "@db/schema";
-import { eq, and, ne, sql, count, sum, max } from "drizzle-orm";
+import { eq, and, ne, sql, count, sum, max, inArray } from "drizzle-orm";
 import { hashPassword } from "./auth/password";
 import { findTenantBySlug, listTenants } from "./queries/tenants";
 import { seedSandbox, SANDBOX_ORDER_COUNT } from "./services/sandbox";
@@ -23,7 +23,9 @@ import { env } from "./lib/env";
 import { notifyAdmin, tgMessages } from "./telegram-router";
 
 import { rowsOf } from "./lib/db-rows";
-import { PLAN_PRICES_UZS, type PlanKey } from "@contracts/constants";
+import type { PlanKey } from "@contracts/constants";
+import { FIELD_ROLES, priceForTenant } from "@contracts/pricing";
+import { assertPlanSellable } from "./lib/plan-sellable";
 import { checkTotpStepUp } from "./auth/step-up";
 import { countTenantRows, offboardTenant, TenantNotSuspendedError } from "./services/tenant-offboard";
 import { setManualAccessFor } from "./services/manual-access";
@@ -327,7 +329,11 @@ export const tenantRouter = createRouter({
       listTenants(),
       // Люди: сколько и когда кто-то входил последним. max() построителя, а не
       // сырой SQL — drizzle сам читает время как UTC (см. services/owner-panel).
-      db.select({ tenantId: users.tenantId, cnt: count(users.id), lastLogin: max(users.lastSignInAt) })
+      db.select({
+        tenantId: users.tenantId, cnt: count(users.id), lastLogin: max(users.lastSignInAt),
+        // Полевые — за них платят (contracts/pricing.ts): активные агенты, курьеры, мерчендайзеры.
+        field: sql<string>`SUM(${users.status} = 'active' AND ${inArray(users.role, [...FIELD_ROLES])})`,
+      })
         .from(users)
         .groupBy(users.tenantId),
       db.select({
@@ -397,6 +403,7 @@ export const tenantRouter = createRouter({
       return {
         ...t,
         userCount:  Number(u?.cnt ?? 0),
+        fieldUsers: Number(u?.field ?? 0),
         orderCount: Number(o?.cnt ?? 0),
         orderTotal: Number(o?.total ?? 0),
         subscription: subMap.get(t.id) ?? null,
@@ -415,7 +422,9 @@ export const tenantRouter = createRouter({
           renewalDays:  client ? f.renewalDays : null,
           silentDays:   client ? f.silentDays : null,
           active7:      client && f.active7,
-          price:        client && f.isPaying ? PLAN_PRICES_UZS[plan] ?? 0 : 0,
+          // Цена — та же, что платит организация (contracts/pricing.ts):
+          // прежний тариф до даты по прежней, остальные — за полевых.
+          price:        client && f.isPaying ? priceForTenant(plan, Number(u?.field ?? 0), now).monthly : 0,
         },
         // `||`, а не `??`: пустая строка в карточке — тоже «нет телефона».
         contactPhone: t.ownerPhone || ceo?.phone || null,
@@ -554,7 +563,8 @@ export const tenantRouter = createRouter({
       ownerName:     z.string().min(2).max(100),
       ownerEmail:    z.string().email(),
       ownerPassword: z.string().min(8),
-      plan:          z.enum(["trial", "basic", "pro", "exclusive"]).default("trial"),
+      // Прежние тарифы новым организациям не продаются (contracts/pricing.ts).
+      plan:          z.enum(["trial", "standard"]).default("trial"),
       trialDays:     z.number().min(1).max(365).default(14),
     }))
     .mutation(async ({ input, ctx }) => {
@@ -680,7 +690,7 @@ export const tenantRouter = createRouter({
       let tenantId: number;
       await db.transaction(async (tx) => {
         const [t] = await tx.insert(tenants).values({
-          slug, name, plan: "exclusive", status: "active",
+          slug, name, plan: "standard", status: "active",
           planExpiresAt: expiresAt, ownerEmail: input.ownerEmail,
           isSandbox: true,
         });
@@ -692,12 +702,12 @@ export const tenantRouter = createRouter({
         });
         await tx.insert(settings).values({ tenantId, companyName: name });
         await tx.insert(subscriptions).values({
-          id: randomUUID(), tenantId, plan: "exclusive",
+          id: randomUUID(), tenantId, plan: "standard",
           status: "active", currentPeriodEnds: expiresAt,
         });
         await recordPlatformAudit(tx, {
           actor: ctx.user, action: "tenant.sandbox_created", tenantId, tenantName: name,
-          after: { plan: "exclusive", periodEnds: expiresAt, email: input.ownerEmail },
+          after: { plan: "standard", periodEnds: expiresAt, email: input.ownerEmail },
           meta: { slug, partner: input.partnerName }, ip: ipOf(ctx),
         }, { strict: true });
       });
@@ -757,12 +767,13 @@ export const tenantRouter = createRouter({
   updatePlan: superAdminQuery
     .input(z.object({
       tenantId:   z.number(),
-      plan:       z.enum(["trial", "basic", "pro", "exclusive"]),
+      plan:       z.enum(["trial", "standard", "basic", "pro", "exclusive"]),
       expiryDays: z.number().min(1).max(3650).default(30),
     }))
     .mutation(async ({ input, ctx }) => {
       const db  = getDb();
       const now = new Date();
+      await assertPlanSellable(db, input.tenantId, input.plan, now);
       /*
         Продление считается от конца ОПЛАЧЕННОГО, если он ещё впереди.
 

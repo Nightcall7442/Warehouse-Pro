@@ -87,7 +87,7 @@ export default function Control() {
       </div>
 
       {status.data && !on ? (
-        <SectionNotice kind="empty" message={status.data.planAllows ? t("Контроль выключен — включите его в Настройки → Контроль", "Nazorat o'chiq — Sozlamalar → Nazorat da yoqing") : t("Контроль доступен на тарифах Pro и Exclusive", "Nazorat Pro va Exclusive tariflarida")} />
+        <SectionNotice kind="empty" message={status.data.planAllows ? t("Контроль выключен — включите его в Настройки → Контроль", "Nazorat o'chiq — Sozlamalar → Nazorat da yoqing") : t("Контроль доступен на тарифах Стандарт, Pro и Exclusive", "Nazorat Standart, Pro va Exclusive tariflarida")} />
       ) : overview.isError ? <QueryErrorFallback message={errorText(overview.error)} onRetry={() => overview.refetch()} /> : (
         <>
           {/* Деньги в поле — первой строкой: это и есть то, за чем директор приходит вечером. */}

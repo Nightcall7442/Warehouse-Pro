@@ -90,10 +90,10 @@ describe.skipIf(!hasRealDb)("журнал владельца платформы"
   const journalRows = () => d().select().from(schema.platformAudit).orderBy(schema.platformAudit.id);
   const subOf = async (tenantId: number) => (await d().select().from(schema.subscriptions).where(eq(schema.subscriptions.tenantId, tenantId)))[0];
 
-  /** Организация с директором и подпиской Базовый до +10 дней. */
+  /** Организация с директором и подпиской «Стандарт» (прежние тарифы новым не включаются — contracts/pricing.ts). */
   async function org(name: string) {
     const r = await routers();
-    const out = await r.tenant.create({ orgName: name, ownerName: "Директор", ownerEmail: `${randomUUID().slice(0, 8)}@ex.uz`, ownerPassword: "директор-1", plan: "basic" });
+    const out = await r.tenant.create({ orgName: name, ownerName: "Директор", ownerEmail: `${randomUUID().slice(0, 8)}@ex.uz`, ownerPassword: "директор-1", plan: "standard" });
     const [ceo] = await d().select({ id: schema.users.id, email: schema.users.email }).from(schema.users).where(eq(schema.users.tenantId, out.tenantId));
     return { id: out.tenantId, ceoId: Number(ceo.id), ceoEmail: ceo.email as string };
   }
@@ -101,13 +101,13 @@ describe.skipIf(!hasRealDb)("журнал владельца платформы"
   it("каждое действие консоли пишет строку — все действия словаря, ни одного лишнего", async () => {
     const r = await routers();
     const a = await org("Альфа Дистрибьюшн");
-    await r.tenant.updatePlan({ tenantId: a.id, plan: "pro", expiryDays: 30 });
+    await r.tenant.updatePlan({ tenantId: a.id, plan: "trial", expiryDays: 30 });
     await r.tenant.setExtraLimits({ tenantId: a.id, extraUsers: 3, extraProducts: 0 });
     await r.tenant.setManualAccess({ tenantId: a.id, enabled: true });
     await r.access.setOperatorAccessFor({ tenantId: a.id, capabilities: Object.fromEntries(OPERATOR_CAPABILITIES.map(k => [k, k !== "orders.delete"])) as Record<(typeof OPERATOR_CAPABILITIES)[number], boolean> });
     await r.tenant.resetOwnerPassword({ tenantId: a.id, userId: a.ceoId, newPassword: "новый-пароль-77" });
     await r.tenant.changeUserLogin({ tenantId: a.id, userId: a.ceoId, email: "boss@alfa.uz" });
-    await r.platform.recordPayment({ tenantId: a.id, amount: 599_000, paidAt: new Date().toISOString().slice(0, 10), method: "payme", plan: "pro", months: 1 });
+    await r.platform.recordPayment({ tenantId: a.id, amount: 599_000, paidAt: new Date().toISOString().slice(0, 10), method: "payme", plan: "standard", months: 1 });
 
     const t = await r.tenant.create({ orgName: "Пробная", ownerName: "Директор", ownerEmail: "trial@ex.uz", ownerPassword: "директор-1", plan: "trial", trialDays: 14 });
     await r.tenant.extendTrial({ tenantId: t.tenantId, days: 7 });
@@ -133,8 +133,8 @@ describe.skipIf(!hasRealDb)("журнал владельца платформы"
 
     // Было → стало, кто и откуда.
     const plan = rows.find((x: { action: string }) => x.action === "tenant.plan");
-    expect(plan.before.plan).toBe("basic");
-    expect(plan.after.plan).toBe("pro");
+    expect(plan.before.plan).toBe("standard");
+    expect(plan.after.plan).toBe("trial");
     expect(plan.actorName).toBe("Владелец");
     expect(plan.actorId).toBe(superId);
     expect(typeof plan.ip).toBe("string");
@@ -151,7 +151,7 @@ describe.skipIf(!hasRealDb)("журнал владельца платформы"
   it("строки переживают удаление организации: номер и название снимком; журнал самой организации стёрт", async () => {
     const r = await routers();
     const a = await org("Хорезм Опт");
-    await r.tenant.updatePlan({ tenantId: a.id, plan: "pro", expiryDays: 30 });
+    await r.tenant.updatePlan({ tenantId: a.id, plan: "trial", expiryDays: 30 });
     await r.tenant.setExtraLimits({ tenantId: a.id, extraUsers: 2, extraProducts: 0 }); // пишет и в audit_log организации
     expect(Number((await d().select({ n: sql`COUNT(*)` }).from(schema.auditLog).where(eq(schema.auditLog.tenantId, a.id)))[0].n)).toBeGreaterThan(0);
 
@@ -178,7 +178,7 @@ describe.skipIf(!hasRealDb)("журнал владельца платформы"
     const before = await subOf(a.id);
     await d().execute(sql`RENAME TABLE platform_audit TO platform_audit_off`);
     try {
-      await expect(r.tenant.updatePlan({ tenantId: a.id, plan: "exclusive", expiryDays: 90 })).rejects.toThrow();
+      await expect(r.tenant.updatePlan({ tenantId: a.id, plan: "trial", expiryDays: 90 })).rejects.toThrow();
       expect((await subOf(a.id)).plan).toBe(before.plan);
       expect((await subOf(a.id)).currentPeriodEnds.getTime()).toBe(before.currentPeriodEnds.getTime());
 
@@ -199,8 +199,8 @@ describe.skipIf(!hasRealDb)("журнал владельца платформы"
     const r = await routers();
     const a = await org("Бухара Сок");
     const b = await org("Наманган Трейд");
-    await r.tenant.updatePlan({ tenantId: a.id, plan: "pro", expiryDays: 30 });
-    await r.platform.recordPayment({ tenantId: b.id, amount: 897_000, paidAt: new Date().toISOString().slice(0, 10), method: "click", plan: "basic", months: 3 });
+    await r.tenant.updatePlan({ tenantId: a.id, plan: "trial", expiryDays: 30 });
+    await r.platform.recordPayment({ tenantId: b.id, amount: 897_000, paidAt: new Date().toISOString().slice(0, 10), method: "click", plan: "standard", months: 3 });
     await r.tenant.setStatus({ tenantId: b.id, status: "suspended" });
 
     const onlyB = await r.platform.journal({ tenantId: b.id });

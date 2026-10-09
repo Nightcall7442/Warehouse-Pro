@@ -14,8 +14,11 @@ import { PremiumSelect } from "@/components/PremiumSelect";
 import { AppModal } from "@/components/ui/AppModal";
 import { OperatorAccess } from "@/components/settings/OperatorAccess";
 import { offboardConfirmWord } from "@contracts/tenant-slug";
-import { EXTRA_PRICES_UZS, FEATURES, type FeatureKey } from "@contracts/constants";
-import { ROLE_LABEL, SUBSCRIPTION_STATUS_LABEL } from "@contracts/entity-labels";
+import { FEATURES, PLANS, type FeatureKey } from "@contracts/constants";
+import {
+  FIELD_ROLES, GRANDFATHER_UNTIL, LEGACY_EXTRA_PRICES_UZS, countFieldUsers, formatDay, planSellable, priceForTenant,
+} from "@contracts/pricing";
+import { ROLE_LABEL, SUBSCRIPTION_STATUS_LABEL, TENANT_PLAN_LABEL } from "@contracts/entity-labels";
 import { describeSignupSource } from "@contracts/signup";
 import { endsAt, daysLeft, statusOf, type OrgRow } from "./orgs";
 import { rowFromDetail, subOf, type Detail } from "./detail";
@@ -33,8 +36,8 @@ import { errorText } from "@/lib/error-text";
    ═══════════════════════════════════════════════════════════════════════════ */
 
 type Usage = inferRouterOutputs<AppRouter>["tenant"]["featureUsage"][number];
-type Plan = "trial" | "basic" | "pro" | "exclusive";
-const PLAN_OPTIONS = [{ value: "trial", label: "Пробный" }, { value: "basic", label: "Базовый" }, { value: "pro", label: "Про" }, { value: "exclusive", label: "Эксклюзив" }];
+type Plan = "trial" | "standard" | "basic" | "pro" | "exclusive";
+const PLAN_CHOICES: Plan[] = ["standard", "trial", "basic", "pro", "exclusive"];
 
 
 const input = { minHeight: 44, fontSize: 14 } as const;
@@ -154,7 +157,19 @@ export function SubscriptionTab({ d, onChanged }: { d: Detail; onChanged: () => 
   const ends = endsAt(row);
   const left = daysLeft(row);
 
-  const [plan, setPlan] = useState<Plan>((sub?.plan as Plan) ?? (t.plan as Plan) ?? "basic");
+  /*
+    Цена — по людям в поле этой организации (contracts/pricing.ts). Отключённые
+    не считаются: то же правило, что у сервера.
+  */
+  const now = new Date();
+  const fieldUsers = countFieldUsers(d.users);
+  const price = priceForTenant(t.plan, fieldUsers, now);
+  const grandfathered = price.model === "legacy";
+  const byRole = FIELD_ROLES.map(r => d.users.filter(u => u.status === "active" && u.role === r).length);
+  // «Изменить тариф»: «Стандарт» и пробный; прежний — только продлить свой до даты.
+  const planOptions = PLAN_CHOICES.filter(p => planSellable(t.plan, p, now))
+    .map(p => ({ value: p, label: TENANT_PLAN_LABEL[p].ru + (p === t.plan && grandfathered ? " (прежний)" : "") }));
+  const [plan, setPlan] = useState<Plan>(planOptions.some(o => o.value === t.plan) ? (t.plan as Plan) : "standard");
   const [planDays, setPlanDays] = useState(30);
   const [trialDays, setTrialDays] = useState(14);
   const [extraUsers, setExtraUsers] = useState(Number(t.extraUsers ?? 0));
@@ -168,7 +183,7 @@ export function SubscriptionTab({ d, onChanged }: { d: Detail; onChanged: () => 
     onError: e => notify.error(errorText(e)),
   });
 
-  const extraSum = extraUsers * EXTRA_PRICES_UZS.user + extraProducts * EXTRA_PRICES_UZS.product;
+  const extraSum = extraUsers * LEGACY_EXTRA_PRICES_UZS.user + extraProducts * LEGACY_EXTRA_PRICES_UZS.product;
   /*
     «Продлить пробный» — только пробным. У платящей он продлевал бы срок,
     которого у неё нет: пробные дни лежат в trial_ends_at, а пускает её
@@ -185,10 +200,15 @@ export function SubscriptionTab({ d, onChanged }: { d: Detail; onChanged: () => 
           <Fact k="Состояние" v={<Pill tone={st.tone}>{st.label}</Pill>} />
           <Fact k={row.segment.trial ? "Пробный до" : "Оплачено до"} v={ends ? `${day(ends)} · ${left !== null && left <= 0 ? "истёк" : `осталось ${left} дн.`}` : "бессрочно"} />
           <Fact k="Подписка" v={sub ? (SUBSCRIPTION_STATUS_LABEL[sub.status as keyof typeof SUBSCRIPTION_STATUS_LABEL]?.ru ?? sub.status) : "нет"} />
-          {(Number(t.extraUsers ?? 0) > 0 || Number(t.extraProducts ?? 0) > 0) && (
-            <Fact k="Сверх тарифа" v={[Number(t.extraUsers) > 0 ? `${t.extraUsers} мест` : null, Number(t.extraProducts) > 0 ? `${t.extraProducts} товаров` : null].filter(Boolean).join(" · ")} />
-          )}
-          <Fact k="Лимиты тарифа" v={`${t.maxUsers ?? "∞"} польз. · ${t.maxProducts ?? "∞"} товаров`} />
+          <Fact k="Полевых" v={<span data-testid="sub-field-users">{fieldUsers} <span style={{ fontWeight: 400, color: "var(--color-text-secondary)" }}>· агенты {byRole[0]} · курьеры {byRole[1]} · мерч. {byRole[2]}</span></span>} />
+          <Fact k="Цена сейчас" v={<span data-testid="sub-price-now">{price.model === "trial" ? "бесплатно (пробный)" : `${money(price.monthly)} сум/мес`}</span>} />
+          <Fact
+            k={grandfathered ? `С ${formatDay(GRANDFATHER_UNTIL)}` : price.model === "trial" ? "После пробного" : "За год предоплатой"}
+            v={<span data-testid="sub-price-next">{grandfathered || price.model === "trial" ? `${money(price.nextMonthly)} сум/мес` : `${money(price.annual)} сум`}</span>} />
+          <Fact k="Пределы" v={grandfathered
+            ? `до ${formatDay(GRANDFATHER_UNTIL)}: ${PLANS[t.plan as Plan].maxUsers ?? "∞"} польз. · ${PLANS[t.plan as Plan].maxProducts ?? "∞"} товаров`
+              + (Number(t.extraUsers ?? 0) > 0 || Number(t.extraProducts ?? 0) > 0 ? ` (+${Number(t.extraUsers ?? 0)} мест, +${Number(t.extraProducts ?? 0)} товаров)` : "")
+            : "нет"} />
         </dl>
       </Panel>
 
@@ -199,7 +219,7 @@ export function SubscriptionTab({ d, onChanged }: { d: Detail; onChanged: () => 
           <div className="grid gap-3 sm:grid-cols-[1fr_120px_auto] items-end">
             <div>
               <FieldLabel>Тариф</FieldLabel>
-              <PremiumSelect value={plan} onChange={v => setPlan(v as Plan)} options={PLAN_OPTIONS} width="100%" aria-label="Тариф" />
+              <PremiumSelect value={plan} onChange={v => setPlan(v as Plan)} options={planOptions} width="100%" aria-label="Тариф" />
             </div>
             <div>
               <FieldLabel htmlFor="plan-days">Дней</FieldLabel>
@@ -227,7 +247,7 @@ export function SubscriptionTab({ d, onChanged }: { d: Detail; onChanged: () => 
 
         {/* Итоговое число докупленного, а не «добавить ещё»: поле совпадает с тем,
             что видно выше, и повторное «Сохранить» ничего не удваивает. */}
-        <Card title="Сверх тарифа" icon={PackagePlus} hint="Докупленные места и товары. Ноль возвращает к пределу тарифа." testId="sub-extra">
+        {grandfathered && <Card title="Сверх тарифа" icon={PackagePlus} hint={`Только прежний тариф, до ${formatDay(GRANDFATHER_UNTIL)}: докупленные места и товары. Ноль возвращает к пределу тарифа.`} testId="sub-extra">
           <div className="grid gap-3 grid-cols-2 items-end">
             <div>
               <FieldLabel htmlFor="extra-users">Мест</FieldLabel>
@@ -246,7 +266,7 @@ export function SubscriptionTab({ d, onChanged }: { d: Detail; onChanged: () => 
               {setExtra.isPending ? "Сохраняю…" : "Сохранить"}
             </button>
           </div>
-        </Card>
+        </Card>}
 
         <Card title="Руководство дистрибьютора" icon={BookOpen} hint="Платная книга. Выдаётся организации по решению владельца платформы." testId="sub-manual">
           <div className="flex items-center justify-between gap-3 flex-wrap">

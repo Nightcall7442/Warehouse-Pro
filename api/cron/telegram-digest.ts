@@ -1,5 +1,6 @@
 import { eq, inArray, isNotNull, and } from "drizzle-orm";
 import { getDb } from "../queries/connection";
+import { plansWithProTools } from "../../contracts/constants";
 import { tenants, users } from "@db/schema";
 import { sendTelegram } from "../lib/telegram";
 import { answerSummary, currencyOf, type Reply } from "../telegram/answers";
@@ -28,7 +29,6 @@ import type { Lang } from "../telegram/texts";
  * есть на момент вызова. Так её можно позвать руками и проверить, не дожидаясь
  * вечера.
  */
-const PLANS_WITH_BOT = ["trial", "pro", "exclusive"] as const;
 const ROLES = ["ceo", "operator", "supervisor"] as const;
 
 export async function runTelegramDigest(): Promise<{ sent: number; tenants: number }> {
@@ -47,7 +47,7 @@ export async function runTelegramDigest(): Promise<{ sent: number; tenants: numb
       isNotNull(users.telegramChatId),
       inArray(users.role, [...ROLES]),
       eq(tenants.status, "active"),
-      inArray(tenants.plan, [...PLANS_WITH_BOT]),
+      inArray(tenants.plan, plansWithProTools(new Date())),
     ));
 
   if (rows.length === 0) return { sent: 0, tenants: 0 };

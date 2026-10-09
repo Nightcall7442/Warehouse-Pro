@@ -1,7 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { PLANS, EXTRA_PRICES_UZS, PLAN_PRICES_UZS } from "@contracts/constants";
 
 /**
  * Места и товары сверх тарифа.
@@ -57,13 +56,15 @@ describe("экран оплаты показывает то, что разреш
       позиций, полоса упёрлась бы в пятьдесят и кричала «предел исчерпан»,
       когда свободно ещё двадцать.
     */
-    expect(billing).toContain("maxUsers:       withExtra(plan.maxUsers, tenant.extraUsers)");
-    expect(billing).toContain("maxProducts:    withExtra(plan.maxProducts, tenant.extraProducts)");
+    expect(billing).toContain("maxUsers:       withExtra(eff.maxUsers, extraUsers)");
+    expect(billing).toContain("maxProducts:    withExtra(eff.maxProducts, extraProducts)");
+    // Надбавка — только прежнему тарифу, пока он действует (05.10.2026).
+    expect(billing).toContain("const extraUsers    = grandfathered ? Number(tenant.extraUsers ?? 0) : 0;");
   });
 
   it("доплата считается на сервере, а не в уме", () => {
-    expect(billing).toContain("EXTRA_PRICES_UZS.user");
-    expect(billing).toContain("EXTRA_PRICES_UZS.product");
+    expect(billing).toContain("LEGACY_EXTRA_PRICES_UZS.user");
+    expect(billing).toContain("LEGACY_EXTRA_PRICES_UZS.product");
   });
 
   it("откуда взялось число — сказано словами", () => {
@@ -102,27 +103,5 @@ describe("выдаёт только платформа", () => {
   it("кто и когда раздал места — остаётся в журнале", () => {
     const at = router.indexOf("setExtraLimits:");
     expect(router.slice(at, router.indexOf("}),", at))).toContain("recordAudit");
-  });
-});
-
-describe("цены согласованы с лестницей тарифов", () => {
-  it("товар сверх лимита дешевле, чем через переход на Pro", () => {
-    /*
-      Надбавка закрывает нехватку в несколько единиц. Будь она дороже перехода,
-      её никто бы не купил, и смысла в ней бы не было.
-    */
-    const perProduct = (PLAN_PRICES_UZS.pro - PLAN_PRICES_UZS.basic)
-      / ((PLANS.pro.maxProducts ?? 0) - (PLANS.basic.maxProducts ?? 0));
-    expect(EXTRA_PRICES_UZS.product).toBeLessThan(perProduct);
-  });
-
-  it("место сверх лимита дороже, чем через переход на Pro", () => {
-    /*
-      И это намеренно: при нужде в пятерых новых сотрудниках выгоднее перейти на
-      старший тариф. Надбавка не должна заменять его собой.
-    */
-    const perUser = (PLAN_PRICES_UZS.pro - PLAN_PRICES_UZS.basic)
-      / ((PLANS.pro.maxUsers ?? 0) - (PLANS.basic.maxUsers ?? 0));
-    expect(EXTRA_PRICES_UZS.user).toBeGreaterThan(perUser);
   });
 });

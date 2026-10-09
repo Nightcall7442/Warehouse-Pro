@@ -27,7 +27,9 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
 import { render, screen, fireEvent, cleanup } from "@testing-library/react";
 import { statusOf, daysLeft, type OrgRow } from "@/components/superadmin/console/orgs";
-import { SubscriptionPlanCard } from "@/components/billing/SubscriptionPlanCard";
+import { FieldPlanCard } from "@/components/billing/FieldPlanCard";
+import { GrandfatherNotice } from "@/components/billing/GrandfatherNotice";
+import { priceForTenant } from "@contracts/pricing";
 
 const state = vi.hoisted(() => ({ navigated: [] as string[], sub: {} as Record<string, unknown> }));
 vi.mock("@/providers/trpc", () => ({
@@ -92,18 +94,27 @@ describe("полоса у бессрочного оплаченного", () => 
 });
 
 describe("карточка текущего тарифа", () => {
-  it("«Продлить» просит тот же тариф", () => {
+  it("«Стандарт»: «Продлить» на месяц или на год, а не неживое «Активен»", () => {
     const asked: string[] = [];
     render(
-      <SubscriptionPlanCard
-        plan={{ key: "pro", name: "Pro", nameUz: "Pro", price: 599_000, maxUsers: 20, maxProducts: 100, maxOrdersMonth: null }}
-        isCurrent isPro usage={{ users: 1, products: 1, orders: 1 }}
-        planName={p => p.name} t={ru => ru} isPending={false} onSelect={k => asked.push(k)}
-      />,
+      <FieldPlanCard fieldUsers={7} byRole={{ agent: 5, courier: 2, merchandiser: 0 }} mode="renew"
+        isPending={false} onRequest={p => asked.push(p)} t={ru => ru} />,
     );
     expect(screen.queryByText("Активен")).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: /Продлить/ }));
-    expect(asked).toEqual(["pro"]);
+    fireEvent.click(screen.getByTestId("plan-request-standard"));
+    fireEvent.click(screen.getByTestId("plan-request-standard-year"));
+    expect(asked).toEqual(["month", "year"]);
+    expect(screen.getByTestId("plan-request-standard").textContent).toMatch(/Продлить/);
+  });
+
+  it("прежний тариф: «Продлить Pro» просит тот же тариф по прежней цене", () => {
+    let renewed = 0;
+    render(
+      <GrandfatherNotice planName="Pro" pricing={priceForTenant("pro", 7, new Date("2026-10-05T09:00:00Z"))}
+        isPending={false} onRenew={() => renewed++} t={ru => ru} />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: /Продлить Pro/ }));
+    expect(renewed).toBe(1);
   });
 });
 

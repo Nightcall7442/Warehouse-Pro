@@ -118,8 +118,8 @@ function KeyBox({ apiKey }: { apiKey: string | null }) {
       <Mono style={{ color: "var(--accent-text)" }}>{tr("KALITNI QANDAY OLISH MUMKIN", "КАК ПОЛУЧИТЬ КЛЮЧ")}</Mono>
       <p style={{ fontSize: 14, lineHeight: 1.6, margin: "8px 0 0" }}>
         {tr(
-          "Haqiqiy tashkilotda kalitni direktor yaratadi: Sozlamalar → API kalitlari (Exclusive tarifi). Kalit bir marta ko'rsatiladi, bazada faqat uning xeshi saqlanadi. Demo sessiyada kalit yaratish yopiq — xavfsizlik uchun.",
-          "В настоящей организации ключ создаёт директор: Настройки → API-ключи (тариф Exclusive). Ключ показывается один раз, в базе хранится только его хеш. В демо-сессии создание ключей закрыто — ради безопасности.",
+          "Haqiqiy tashkilotda kalitni direktor yaratadi: Sozlamalar → API kalitlari. Kalit bir marta ko'rsatiladi, bazada faqat uning xeshi saqlanadi. Demo sessiyada kalit yaratish yopiq — xavfsizlik uchun.",
+          "В настоящей организации ключ создаёт директор: Настройки → API-ключи. Ключ показывается один раз, в базе хранится только его хеш. В демо-сессии создание ключей закрыто — ради безопасности.",
         )}
       </p>
       {apiKey ? (

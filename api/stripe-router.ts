@@ -6,6 +6,8 @@ import { getDb } from "./queries/connection";
 import { subscriptions } from "@db/schema";
 import { getStripe, stripeConfigured, PLANS } from "./lib/stripe";
 import { getOrCreateSubscription } from "./lib/subscription";
+import { billedFieldUsers, planSellable } from "../contracts/pricing";
+import { countFieldUsersOf } from "./lib/field-users";
 import { env } from "./lib/env";
 
 export const stripeRouter = createRouter({
@@ -46,8 +48,12 @@ export const stripeRouter = createRouter({
 
   /** Create Stripe Checkout session for upgrade */
   createCheckoutSession: adminQuery
-    .input(z.object({ plan: z.enum(["basic", "pro", "exclusive"]) }))
+    .input(z.object({ plan: z.enum(["standard", "basic", "pro", "exclusive"]) }))
     .mutation(async ({ input, ctx }) => {
+      // Прежний тариф — только продлить свой и до даты (contracts/pricing.ts).
+      if (!planSellable(ctx.tenant.plan, input.plan, new Date())) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Этот тариф больше не подключается. Выберите «Стандарт»." });
+      }
       const stripe   = getStripe();
       const sub      = await getOrCreateSubscription(ctx.tenant.id);
       const plan     = PLANS[input.plan];
@@ -74,7 +80,8 @@ export const stripeRouter = createRouter({
       const session = await stripe.checkout.sessions.create({
         mode:               "subscription",
         customer:           customerId,
-        line_items:         [{ price: priceId, quantity: 1 }],
+        // «Стандарт» — за место: количество = полевые, не меньше минимума.
+        line_items:         [{ price: priceId, quantity: plan.perSeat ? billedFieldUsers(await countFieldUsersOf(getDb(), ctx.tenant.id)) : 1 }],
         success_url:        `${env.appUrl}/settings/billing?success=1`,
         cancel_url:         `${env.appUrl}/settings/billing?canceled=1`,
         subscription_data: {

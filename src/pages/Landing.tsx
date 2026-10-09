@@ -87,10 +87,10 @@ function FaqSection() {
       {
         q: tr("Агенты не дружат с программами — справятся?", "Agentlar dastur bilan chiqisha olmaydi — uddalay oladimi?"),
         a: tr(
-          // Без обещания переноса данных всем: это фича тарифа Exclusive, и
-          // FAQ противоречил бы собственному прайсу двумя экранами ниже.
-          "У агента три экрана: план визитов, заказ, долги точки. На освоение уходит один день. Обучение команды и разбор первых заказов входят в подключение на любом тарифе.",
-          "Agentda uchta ekran bor: tashriflar rejasi, buyurtma, nuqta qarzlari. O'rganishga bir kun ketadi. Jamoani o'qitish va birinchi buyurtmalarni birga ko'rib chiqish har qanday tarifda ulanishga kiradi.",
+          // Без обещания переноса данных всем: это услуга по запросу
+          // (SERVICE_FEATURES), и FAQ противоречил бы прайсу двумя экранами ниже.
+          "У агента три экрана: план визитов, заказ, долги точки. На освоение уходит один день. Обучение команды и разбор первых заказов входят в подключение.",
+          "Agentda uchta ekran bor: tashriflar rejasi, buyurtma, nuqta qarzlari. O'rganishga bir kun ketadi. Jamoani o'qitish va birinchi buyurtmalarni birga ko'rib chiqish ulanishga kiradi.",
         ),
       },
       {
@@ -103,15 +103,15 @@ function FaqSection() {
       {
         q: tr("Сколько времени занимает запуск?", "Ishga tushirish qancha vaqt oladi?"),
         a: tr(
-          "Регистрация и базовая настройка — 10 минут: компания, склад, товары, команда. Перенос остатков и справочников из Excel или 1С входит в тариф Exclusive и занимает несколько дней.",
-          "Ro'yxatdan o'tish va asosiy sozlash — 10 daqiqa: kompaniya, ombor, tovarlar, jamoa. Qoldiq va ma'lumotnomalarni Excel yoki 1C dan ko'chirish Exclusive tarifiga kiradi va bir necha kun oladi.",
+          "Регистрация и базовая настройка — 10 минут: компания, склад, товары, команда. Перенос остатков и справочников из Excel или 1С — услуга по запросу, занимает несколько дней.",
+          "Ro'yxatdan o'tish va asosiy sozlash — 10 daqiqa: kompaniya, ombor, tovarlar, jamoa. Qoldiq va ma'lumotnomalarni Excel yoki 1C dan ko'chirish — so'rov bo'yicha xizmat, bir necha kun oladi.",
         ),
       },
       {
         q: tr("Что случится после 14 бесплатных дней?", "14 kunlik bepul sinovdan keyin nima bo'ladi?"),
         a: tr(
-          "Ничего не спишется — карта не привязана. Выбираете тариф и продолжаете; все данные, введённые за триал, сохраняются.",
-          "Hech narsa yechilmaydi — karta bog'lanmagan. Tarifni tanlab davom etasiz; sinov davrida kiritilgan barcha ma'lumotlar saqlanadi.",
+          "Ничего не спишется — карта не привязана. Оставляете заявку и платите только за полевых сотрудников; все данные, введённые за триал, сохраняются.",
+          "Hech narsa yechilmaydi — karta bog'lanmagan. So'rov qoldirasiz va faqat dala xodimlari uchun to'laysiz; sinov davrida kiritilgan barcha ma'lumotlar saqlanadi.",
         ),
       },
       {

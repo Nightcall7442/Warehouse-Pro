@@ -160,7 +160,7 @@ describe.skipIf(!hasRealDb)("здоровье организаций", () => {
     expect((await healthOf(id))!.churn).toBe(true);
     const { platformRouter } = await import("../../platform-router");
     await platformRouter.createCaller(ctxFor(db, systemId, 1, "superadmin"))
-      .recordPayment({ tenantId: id, amount: 299_000, paidAt: new Date().toISOString().slice(0, 10), method: "cash", plan: "basic", months: 1 });
+      .recordPayment({ tenantId: id, amount: 299_000, paidAt: new Date().toISOString().slice(0, 10), method: "cash", plan: "standard", months: 1 });
     const after = (await healthOf(id))!;
     expect(after.churn).toBe(false);
     expect(after.reasons.map(r => r.text).join(" | ")).toMatch(/оплачено ещё на (31|32|33) д/);

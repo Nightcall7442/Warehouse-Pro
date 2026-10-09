@@ -4,45 +4,38 @@ import { useLang } from "@/i18n";
 import { usePlanRequest } from "@/components/billing/usePlanRequest";
 import { HeroStatusCard } from "@/components/billing/HeroStatusCard";
 import { UsageSection } from "@/components/billing/UsageSection";
-import { SubscriptionPlanCard } from "@/components/billing/SubscriptionPlanCard";
+import { FieldPlanCard } from "@/components/billing/FieldPlanCard";
+import { GrandfatherNotice } from "@/components/billing/GrandfatherNotice";
 import { PaymentMethodsCard } from "@/components/billing/PaymentMethodsCard";
 import { ExtraLimitsCard } from "@/components/billing/ExtraLimitsCard";
 import { SkeletonBlock } from "@/components/billing/SkeletonBlock";
 
 /**
- * Подписка и тарифы.
+ * Подписка.
  *
- * ── Что было ────────────────────────────────────────────────────────────────
+ * ── 05.10.2026: цена за полевого сотрудника ──────────────────────────────────
  *
- * Раздел жил по СВОЕЙ системе оформления: components/billing/designTokens.ts —
- * второй словарь поверх тех же переменных приложения. Он не просто дублировал,
- * он врал:
+ * Выбирать из трёх тарифов больше нечего: продаётся «Стандарт» — 119 000 сум
+ * за агента, курьера или мерчендайзера в месяц, офис бесплатно, пределов нет
+ * (contracts/pricing.ts). Экран отвечает на два вопроса директора: сколько
+ * людей у меня в поле и сколько это стоит в месяц и за год.
  *
- *   • SHADOWS.sm → --shadow-xs, md → --shadow-sm, lg → --shadow-md: каждое имя
- *     на ступень мимо, поэтому карточка, просящая среднюю тень, получала
- *     маленькую — отсюда плоский вид;
- *   • COLORS.surfaceDark → --color-surface-light: «тёмная» поверхность на деле
- *     светлее обычной;
- *   • SHADOWS.glow вписывал числами RGB СВЕТЛОЙ палитры, а в тёмной теме
- *     акцент золотой — свечение выходило сине-серым под золотой кнопкой.
+ * Прежний тариф (Basic / Pro / Exclusive) до GRANDFATHER_UNTIL живёт как
+ * жил: сверху — сколько ещё по прежней цене и во что он превратится, его
+ * пределы и надбавка остаются на месте. Перейти на «Стандарт» раньше — можно.
  *
- * Плюс мёртвый `@import` шрифта JetBrains Mono внутри вставленного <style> (правила
- * @import обязаны идти первыми, здесь они шли после keyframes — шрифт не
- * грузился никогда) и повторное объявление уже глобальных keyframes.
+ * ── Что было раньше ─────────────────────────────────────────────────────────
  *
- * ── Чего не хватало по существу ─────────────────────────────────────────────
- *
- * Сервер отдавал, а экран выбрасывал: дату окончания подписки и цену текущего
- * тарифа. «Осталось 12 дней» не говорит, к какому числу платить. И нигде не
- * было сказано, что выбранный тариф может НЕ ВМЕСТИТЬ нынешнюю нагрузку:
- * организации с двенадцатью пользователями предлагался Basic на пять.
+ * Раздел жил по своей системе оформления (designTokens.ts) с тенями на
+ * ступень мимо и цветами светлой палитры числами; сервер отдавал дату
+ * окончания и цену, а экран их выбрасывал. Это остаётся исправленным:
+ * HeroStatusCard показывает и дату, и сумму.
  */
 export default function BillingPage() {
   const { data: billing, isLoading } = trpc.billing.status.useQuery();
   const { lang } = useLang();
   const { request: upgrade } = usePlanRequest();
 
-  const planName = (p: { name: string; nameUz: string }) => (lang === "uz" ? p.nameUz : p.name);
   const t = (ru: string, uz: string) => (lang === "uz" ? uz : ru);
 
   if (isLoading) {
@@ -50,14 +43,15 @@ export default function BillingPage() {
       <div style={{ maxWidth: "820px", margin: "0 auto", width: "100%" }}>
         <SkeletonBlock height={128} style={{ marginBottom: "24px" }} />
         <SkeletonBlock height={200} style={{ marginBottom: "24px" }} />
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: "16px" }}>
-          {[1, 2, 3].map(i => <SkeletonBlock key={i} height={300} />)}
-        </div>
+        <SkeletonBlock height={420} />
       </div>
     );
   }
 
   if (!billing) return null;
+
+  const grandfathered = billing.pricing.model === "legacy";
+  const legacy = billing.plans.find(p => p.legacy);
 
   return (
     <div className="animate-fade-up" style={{ maxWidth: "820px", margin: "0 auto", width: "100%", display: "flex", flexDirection: "column", gap: "24px" }}>
@@ -77,7 +71,7 @@ export default function BillingPage() {
             {t("Подписка и тарифы", "Obuna va tariflar")}
           </h1>
           <p style={{ fontSize: "12.5px", color: "var(--color-text-secondary)", marginTop: "3px" }}>
-            {t("Управляйте планом и следите за лимитами", "Rejani boshqaring va limitlarni kuzating")}
+            {t("Платите только за тех, кто в поле", "Faqat dalada ishlaydiganlar uchun to'laysiz")}
           </p>
         </div>
       </div>
@@ -86,48 +80,42 @@ export default function BillingPage() {
         daysLeft={billing.daysLeft}
         isExpired={!!billing.isExpired}
         trialActive={!!billing.trialActive}
-        planName={lang === "uz" ? billing.planNameUz : billing.planName}
+        planName={lang === "uz" ? billing.planNameUz : billing.planNameRu}
         price={billing.price}
         endsAt={billing.trialActive ? billing.trialEndsAt : billing.planExpiresAt}
         lang={lang}
         t={t}
       />
 
-      <UsageSection usage={billing.usage} limits={billing.limits} extra={billing.extra} t={t} />
+      {grandfathered && legacy && (
+        <GrandfatherNotice
+          planName={legacy.name}
+          pricing={billing.pricing}
+          isPending={upgrade.isPending}
+          onRenew={() => upgrade.mutate({ plan: legacy.key as "basic" | "pro" | "exclusive", period: "month" })}
+          t={t}
+        />
+      )}
+
+      <FieldPlanCard
+        fieldUsers={billing.fieldUsers}
+        byRole={billing.fieldByRole}
+        mode={grandfathered ? "switch" : billing.effectivePlan === "standard" ? "renew" : "connect"}
+        isPending={upgrade.isPending}
+        onRequest={period => upgrade.mutate({ plan: "standard", period })}
+        t={t}
+      />
 
       {/*
-        Надбавка — СРАЗУ под полосами лимитов и ВЫШЕ выбора тарифа.
-
-        Человек приходит сюда, упершись в предел, и первое, что он видит, —
-        полоса, дошедшая до конца. Ответ «добавьте столько, сколько не
-        хватает» должен стоять там же: если он лежит под списком тарифов,
-        решение принимается раньше, чем читается.
+        Пределы и надбавка — только у прежнего тарифа, пока он действует: у
+        «Стандарта» и пробного пределов нет, полосы «13 / ∞» ничего не говорят.
       */}
-      <ExtraLimitsCard t={t} />
-
-      <div>
-        <p style={{
-          fontSize: "11px", fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase",
-          color: "var(--color-text-tertiary)", margin: "0 0 14px 4px",
-        }}>
-          {t("Выберите тариф", "Tarifni tanlang")}
-        </p>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(230px, 1fr))", gap: "16px" }}>
-          {billing.plans.map(plan => (
-            <SubscriptionPlanCard
-              key={plan.key}
-              plan={plan}
-              isCurrent={billing.plan === plan.key}
-              isPro={plan.key === "pro"}
-              usage={billing.usage}
-              planName={planName}
-              t={t}
-              isPending={upgrade.isPending}
-              onSelect={(key) => upgrade.mutate({ plan: key as "basic" | "pro" | "exclusive" })}
-            />
-          ))}
-        </div>
-      </div>
+      {grandfathered && (
+        <>
+          <UsageSection usage={billing.usage} limits={billing.limits} extra={billing.extra} t={t} />
+          <ExtraLimitsCard t={t} />
+        </>
+      )}
 
       <PaymentMethodsCard t={t} />
     </div>

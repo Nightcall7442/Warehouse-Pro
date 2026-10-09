@@ -4,6 +4,7 @@ import { and, eq, gte, isNull, lte } from "drizzle-orm";
 import { getDb } from "../queries/connection";
 import { subscriptions, billingEvents, tenants, users } from "@db/schema";
 import { sendTrialEndingEmail, sendRenewalReminderEmail } from "../lib/mailer";
+import { countFieldUsersOf } from "../lib/field-users";
 import { env } from "../lib/env";
 import { logger } from "../lib/logger";
 import { notifyAdmin, tgMessages } from "../lib/telegram";
@@ -89,10 +90,12 @@ export async function runTrialReminders(now = new Date()): Promise<{ sent: numbe
 
       // Ссылка — на тарифы в сумах с заявкой. /settings/billing вёл к Stripe
       // в долларах, который здесь не настроен.
+      // Цена в письме — для этой организации: по её полевым (contracts/pricing.ts).
+      const fieldUsers = await countFieldUsersOf(db, sub.tenantId);
       if (kind === "trial") {
-        await sendTrialEndingEmail(ceo.email, tenant.name, daysLeft, billingUrl);
+        await sendTrialEndingEmail(ceo.email, tenant.name, daysLeft, billingUrl, fieldUsers);
       } else {
-        await sendRenewalReminderEmail(ceo.email, tenant.name, sub.plan, daysLeft, sub.currentPeriodEnds!, billingUrl);
+        await sendRenewalReminderEmail(ceo.email, tenant.name, sub.plan, daysLeft, sub.currentPeriodEnds!, billingUrl, fieldUsers);
       }
 
       // Log the event

@@ -177,8 +177,13 @@ vi.mock("../lib/stripe", () => ({
     trial: { name: "Trial", price: 0, priceId: null },
     basic: { name: "Basic", price: 9900, priceId: "price_basic_123" },
     pro: { name: "Pro", price: 24900, priceId: "price_pro_456" },
+    standard: { name: "Standard", price: 0, priceId: "price_std_789", perSeat: true },
   },
 }));
+
+// Полевых в организации — для количества мест «Стандарта» (contracts/pricing.ts).
+const fieldUsers = vi.hoisted(() => ({ n: 7 }));
+vi.mock("../lib/field-users", () => ({ countFieldUsersOf: vi.fn(async () => fieldUsers.n) }));
 
 vi.mock("../lib/env", () => ({
   env: {
@@ -348,7 +353,7 @@ describe("stripe.getPlans", () => {
     const caller = stripeRouter.createCaller(makeCtx(1, 10));
     const result = await caller.getPlans();
 
-    expect(result).toHaveLength(3);
+    expect(result).toHaveLength(4);
 
     const trial = result.find((p: Record<string, unknown>) => p.key === "trial");
     expect(trial).toBeDefined();
@@ -374,7 +379,7 @@ describe("stripe.createCheckoutSession", () => {
   it("throws if plan has no priceId (trial plan)", async () => {
     const { stripeRouter } = await import("../stripe-router");
     const caller = stripeRouter.createCaller(makeCtx(1, 10, "ceo"));
-    await expect(caller.createCheckoutSession({ plan: "basic" as never })).resolves.toBeDefined();
+    await expect(caller.createCheckoutSession({ plan: "standard" })).resolves.toBeDefined();
 
     mockStripe.checkout.sessions.create.mockClear();
     mockGetOrCreateSubscription = vi.fn(async () => ({
@@ -386,7 +391,7 @@ describe("stripe.createCheckoutSession", () => {
     vi.mocked((await import("../lib/stripe")).PLANS).trial.priceId = null;
 
     const callerTrial = stripeRouter.createCaller(makeCtx(1, 10, "ceo"));
-    await expect(callerTrial.createCheckoutSession({ plan: "basic" })).resolves.toBeDefined();
+    await expect(callerTrial.createCheckoutSession({ plan: "standard" })).resolves.toBeDefined();
   });
 
   it("creates Stripe customer when none exists", async () => {
@@ -394,7 +399,7 @@ describe("stripe.createCheckoutSession", () => {
 
     const { stripeRouter } = await import("../stripe-router");
     const caller = stripeRouter.createCaller(makeCtx(1, 10, "ceo"));
-    const result = await caller.createCheckoutSession({ plan: "basic" });
+    const result = await caller.createCheckoutSession({ plan: "standard" });
 
     expect(mockStripe.customers.create).toHaveBeenCalledWith({
       email: "t@t.com",
@@ -409,7 +414,7 @@ describe("stripe.createCheckoutSession", () => {
 
     const { stripeRouter } = await import("../stripe-router");
     const caller = stripeRouter.createCaller(makeCtx(1, 10, "ceo"));
-    const result = await caller.createCheckoutSession({ plan: "pro" });
+    const result = await caller.createCheckoutSession({ plan: "standard" });
 
     expect(mockStripe.customers.create).not.toHaveBeenCalled();
     expect(result.url).toBe("https://checkout.stripe.com/test");
@@ -420,18 +425,36 @@ describe("stripe.createCheckoutSession", () => {
 
     const { stripeRouter } = await import("../stripe-router");
     const caller = stripeRouter.createCaller(makeCtx(1, 10, "ceo"));
-    await caller.createCheckoutSession({ plan: "pro" });
+    await caller.createCheckoutSession({ plan: "standard" });
 
+    // «Стандарт» — цена за место: количество = полевые организации.
     expect(mockStripe.checkout.sessions.create).toHaveBeenCalledWith(
       expect.objectContaining({
         mode: "subscription",
         customer: "cus_existing_456",
-        line_items: [{ price: "price_pro_456", quantity: 1 }],
+        line_items: [{ price: "price_std_789", quantity: 7 }],
         success_url: "http://localhost:3000/settings/billing?success=1",
         cancel_url: "http://localhost:3000/settings/billing?canceled=1",
-        metadata: { tenantId: "1", plan: "pro" },
+        metadata: { tenantId: "1", plan: "standard" },
       })
     );
+  });
+
+  it("меньше трёх полевых — мест всё равно три (минимум)", async () => {
+    fieldUsers.n = 1;
+    try {
+      const { stripeRouter } = await import("../stripe-router");
+      await stripeRouter.createCaller(makeCtx(1, 10, "ceo")).createCheckoutSession({ plan: "standard" });
+      const args = (mockStripe.checkout.sessions.create.mock.calls as any).at(-1)?.[0];
+      expect(args.line_items).toEqual([{ price: "price_std_789", quantity: 3 }]);
+    } finally {
+      fieldUsers.n = 7;
+    }
+  });
+
+  it("прежний тариф картой не подключить — только «Стандарт»", async () => {
+    const { stripeRouter } = await import("../stripe-router");
+    await expect(stripeRouter.createCaller(makeCtx(1, 10, "ceo")).createCheckoutSession({ plan: "pro" })).rejects.toThrow(/больше не подключается/);
   });
 
   it("preserves trial_end when trialing", async () => {
@@ -442,7 +465,7 @@ describe("stripe.createCheckoutSession", () => {
 
     const { stripeRouter } = await import("../stripe-router");
     const caller = stripeRouter.createCaller(makeCtx(1, 10, "ceo"));
-    await caller.createCheckoutSession({ plan: "basic" });
+    await caller.createCheckoutSession({ plan: "standard" });
 
     const callArgs = (mockStripe.checkout.sessions.create.mock.calls as any)[0]?.[0];
     expect(callArgs!.subscription_data.trial_end).toBe(Math.floor(trialEndsAt.getTime() / 1000));
@@ -455,7 +478,7 @@ describe("stripe.createCheckoutSession", () => {
 
     const { stripeRouter } = await import("../stripe-router");
     const caller = stripeRouter.createCaller(makeCtx(1, 10, "ceo"));
-    await caller.createCheckoutSession({ plan: "basic" });
+    await caller.createCheckoutSession({ plan: "standard" });
 
     const callArgs = (mockStripe.checkout.sessions.create.mock.calls as any)[0]?.[0];
     expect(callArgs!.subscription_data.trial_end).toBeUndefined();

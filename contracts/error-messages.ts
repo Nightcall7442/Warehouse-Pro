@@ -110,6 +110,12 @@ export const SERVER_ERROR_TEXT: Record<string, ErrorText> = {
   "Сотрудник не найден в этой организации": { uz: "Xodim bu tashkilotda topilmadi" },
   "Такая почта уже есть у другого сотрудника этой организации": { uz: "Bu pochta tashkilotning boshqa xodimida bor" },
   "Достигнут лимит пользователей ({0}/{1})": { uz: "Foydalanuvchilar limiti tugadi ({0}/{1})" },
+  // Цена за полевого сотрудника (contracts/pricing.ts, 05.10.2026).
+  "Пределов по местам и товарам больше нет — докупать нечего.": { uz: "Joy va mahsulotlar bo'yicha cheklovlar endi yo'q — qo'shib olishga hojat yo'q." },
+  "Тариф {0} больше не подключается. Доступен «Стандарт» — {1} сум за полевого сотрудника.": { uz: "{0} tarifi endi ulanmaydi. «Standart» mavjud — har bir dala xodimi uchun {1} so'm." },
+  "Этот тариф больше не подключается. Выберите «Стандарт».": { uz: "Bu tarif endi ulanmaydi. «Standart»ni tanlang." },
+  "Прежний тариф действовал до {0}. Теперь — «Стандарт», {1} сум за полевого сотрудника.": { uz: "Avvalgi tarif {0} gacha amal qildi. Endi — «Standart», har bir dala xodimi uchun {1} so'm." },
+  "Прежние тарифы больше не подключаются — только продление своего до {0}. Выберите «Стандарт».": { uz: "Avvalgi tariflar endi ulanmaydi — faqat o'zingiznikini {0} gacha uzaytirish mumkin. «Standart»ni tanlang." },
   "Достигнут лимит пользователей тарифа ({0}). Обновите тариф для добавления новых пользователей.": { uz: "Tarif bo'yicha foydalanuvchilar limiti tugadi ({0}). Yangi foydalanuvchi qo'shish uchun tarifni yangilang." },
   "Этот адрес уже есть среди сотрудников вашей организации.": { uz: "Bu manzil tashkilotingiz xodimlari orasida bor." },
   "Приглашение недействительно или истекло.": { uz: "Taklif yaroqsiz yoki muddati o'tgan." },

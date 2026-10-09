@@ -178,8 +178,16 @@ describe("карточка: «почему»", () => {
 });
 
 describe("карточка: записать оплату", () => {
+  /*
+    Сумма зависит от даты: прежний Pro до 05.10.2027 — 599 000, после — за
+    полевых (contracts/pricing.ts). Часы — на день решения, сроки — числами.
+  */
+  const pin = () => { vi.useFakeTimers({ toFake: ["Date"] }); vi.setSystemTime(new Date("2026-10-05T09:00:00Z")); };
+  afterEach(() => { vi.useRealTimers(); });
+
   it("сумма предзаполнена ценой × месяцы и следует за ними, пока не поправили руками", () => {
-    h.state.data["tenant.getDetail"] = detail(new Date(now + 10 * DAY));
+    pin();
+    h.state.data["tenant.getDetail"] = detail(new Date("2026-10-15T10:00:00Z"));
     at("/super-admin/orgs/2/subscription", "/super-admin/orgs/:id/:tab", <OrgCard />);
     const amount = () => (screen.getByTestId("pay-amount") as HTMLInputElement).value;
     expect(amount()).toBe("599 000");
@@ -193,6 +201,8 @@ describe("карточка: записать оплату", () => {
 
   it("период — от конца оплаченного; «Записать» шлёт то, что на экране", () => {
     // 31.01.2030 15:00 по Ташкенту: + 3 месяца = 30.04 (в апреле 30 дней), а не 01.05.
+    // Период целиком после 05.10.2027: прежний Pro там уже «Стандарт» — за
+    // полевых; их нет, значит минимум: 3 × 119 000 × 3 мес.
     h.state.data["tenant.getDetail"] = detail(new Date("2030-01-31T10:00:00Z"));
     at("/super-admin/orgs/2/subscription", "/super-admin/orgs/:id/:tab", <OrgCard />);
     fireEvent.change(screen.getByTestId("pay-months"), { target: { value: "3" } });
@@ -200,7 +210,35 @@ describe("карточка: записать оплату", () => {
     fireEvent.change(screen.getByTestId("pay-date"), { target: { value: "2026-10-01" } });
     fireEvent.change(screen.getByTestId("pay-note"), { target: { value: "  счёт № 14 " } });
     fireEvent.click(screen.getByTestId("pay-submit"));
-    expect(calls("platform.recordPayment")).toEqual([{ tenantId: 2, amount: 1_797_000, paidAt: "2026-10-01", method: "transfer", plan: "pro", months: 3, note: "счёт № 14" }]);
+    expect(screen.getByTestId("pay-basis").textContent).toBe("0 полевых (к оплате 3) × 119 000 × 3 мес.");
+    expect(calls("platform.recordPayment")).toEqual([{ tenantId: 2, amount: 1_071_000, paidAt: "2026-10-01", method: "transfer", plan: "pro", months: 3, note: "счёт № 14" }]);
+  });
+
+  it("«Стандарт»: полевые × 119 000, год — со скидкой 15 %, отключённые не считаются", () => {
+    pin();
+    const d = detail(new Date("2026-10-15T10:00:00Z"), "standard");
+    const person = (id: number, role: string, status = "active") => ({ id, name: `p${id}`, email: `p${id}@x`, role, status, lastSignInAt: null, createdAt: new Date() });
+    d.users = [person(1, "agent"), person(2, "agent"), person(3, "agent"), person(4, "courier"), person(5, "merchandiser"),
+      person(6, "courier", "inactive"), person(7, "operator"), person(8, "supervisor"), person(9, "ceo")] as never;
+    h.state.data["tenant.getDetail"] = d;
+    at("/super-admin/orgs/2/subscription", "/super-admin/orgs/:id/:tab", <OrgCard />);
+    const amount = () => (screen.getByTestId("pay-amount") as HTMLInputElement).value;
+    expect(screen.getByTestId("sub-field-users").textContent).toMatch(/^5/);
+    expect(screen.getByTestId("sub-price-now").textContent).toBe("595 000 сум/мес");
+    expect(amount()).toBe("595 000");
+    fireEvent.change(screen.getByTestId("pay-months"), { target: { value: "12" } });
+    expect(amount()).toBe("6 069 000");
+    expect(screen.getByTestId("pay-basis").textContent).toContain("год со скидкой 15%");
+  });
+
+  it("прежний Pro: цена сейчас и с 05.10.2027 — рядом", () => {
+    pin();
+    const d = detail(new Date("2026-10-15T10:00:00Z"), "pro");
+    d.users = Array.from({ length: 7 }, (_, i) => ({ id: i + 1, name: `a${i}`, email: `a${i}@x`, role: "agent", status: "active", lastSignInAt: null, createdAt: new Date() })) as never;
+    h.state.data["tenant.getDetail"] = d;
+    at("/super-admin/orgs/2/subscription", "/super-admin/orgs/:id/:tab", <OrgCard />);
+    expect(screen.getByTestId("sub-price-now").textContent).toBe("599 000 сум/мес");
+    expect(screen.getByTestId("sub-price-next").textContent).toBe("833 000 сум/мес");
   });
 
   it("истёкший срок — период от сегодня; платящей не показан «Продлить пробный»", () => {

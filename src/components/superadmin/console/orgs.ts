@@ -65,7 +65,7 @@ export const SORTS = ["name", "health", "plan", "ends", "users", "orders30", "re
 export type SortKey = (typeof SORTS)[number];
 export const isSort = (v: string | null): v is SortKey => SORTS.some(s => s === v);
 
-const PLAN_RANK: Record<string, number> = { trial: 0, basic: 1, pro: 2, exclusive: 3 };
+const PLAN_RANK: Record<string, number> = { trial: 0, basic: 1, pro: 2, exclusive: 3, standard: 4 };
 
 /** До какого дня у организации доступ: оплачено до — у платящих, конец пробного — у пробных. */
 export function endsAt(o: OrgRow): Date | null {
@@ -107,7 +107,7 @@ export function sortOrgs(rows: OrgRow[], key: SortKey, dir: "asc" | "desc"): Org
   });
 }
 
-export const PLANS = ["trial", "basic", "pro", "exclusive"] as const;
+export const PLANS = ["trial", "standard", "basic", "pro", "exclusive"] as const;
 export type PlanFilter = (typeof PLANS)[number] | "";
 
 /** Тариф организации — по подписке, как калитка доступа; без неё — по карточке. */

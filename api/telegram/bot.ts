@@ -4,6 +4,7 @@ import { and, eq, ne } from "drizzle-orm";
 import { getDb } from "../queries/connection";
 import { tenants, telegramGroups, users } from "@db/schema";
 import { env } from "../lib/env";
+import { planHasProTools } from "../../contracts/constants";
 import { logger } from "../lib/logger";
 import { safeEqual } from "../lib/safe-compare";
 import { checkRateLimit } from "../lib/rate-limit";
@@ -44,11 +45,12 @@ import {
 export const telegramBot = new Hono();
 
 /**
- * Тарифы, на которых бот отвечает. Пробный даёт все функции — решение
- * владельца от 09.09.2026: покупатель пришёл смотреть, и запирать от него бот
- * значит не показать то, что продаём.
+ * Отвечает ли бот организации на этом тарифе. Пробный даёт все функции —
+ * решение владельца от 09.09.2026: покупатель пришёл смотреть, и запирать от
+ * него бот значит не показать то, что продаём. С 05.10.2026 бот есть и у
+ * «Стандарта»; нет только у прежнего Basic, пока тот действует.
  */
-export const PLANS_WITH_BOT = new Set(["trial", "pro", "exclusive"]);
+export const planHasBot = (plan: string): boolean => planHasProTools(plan);
 
 /**
  * Что можно спросить каждой группе ролей; остальное уходит в поиск или помощь.
@@ -282,7 +284,7 @@ telegramBot.post("/api/webhooks/telegram", async (c) => {
         return c.json({ ok: true });
       }
       const user = await findByChat(chatId);
-      if (!user || !user.lang || !PLANS_WITH_BOT.has(user.plan)) return c.json({ ok: true });
+      if (!user || !user.lang || !planHasBot(user.plan)) return c.json({ ok: true });
       if (!(await checkRateLimit(`tg:${chatId}`, { windowMs: 60_000, limit: 20, namespace: "telegram-bot" }))) return c.json({ ok: true });
       const reply = await answerCallbackData(user, user.lang, data);
       if (reply) await sendTelegram(chatId, reply.text, reply.extra);
@@ -401,7 +403,7 @@ telegramBot.post("/api/webhooks/telegram", async (c) => {
 
     // ── Ворота ─────────────────────────────────────────────────────────────
     // Помощь показывается на любом тарифе: человек должен видеть, что бот умеет.
-    if (!PLANS_WITH_BOT.has(user.plan) && detectIntent(text) !== "help") {
+    if (!planHasBot(user.plan) && detectIntent(text) !== "help") {
       await sendTelegram(chatId, T.planRequired[lang]);
       return c.json({ ok: true });
     }

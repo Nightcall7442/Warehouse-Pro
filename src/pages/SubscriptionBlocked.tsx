@@ -2,7 +2,8 @@ import { useAuth } from "@/hooks/useAuth";
 import { Lock, LogOut } from "lucide-react";
 import { useLang, useTranslate } from "@/i18n";
 import { trpc } from "@/providers/trpc";
-import { SubscriptionPlanCard } from "@/components/billing/SubscriptionPlanCard";
+import { FieldPlanCard } from "@/components/billing/FieldPlanCard";
+import { GrandfatherNotice } from "@/components/billing/GrandfatherNotice";
 import { usePlanRequest } from "@/components/billing/usePlanRequest";
 
 /**
@@ -24,7 +25,7 @@ import { usePlanRequest } from "@/components/billing/usePlanRequest";
  */
 export default function SubscriptionBlocked() {
   const { user, logout } = useAuth();
-  const { lang, t: tk } = useLang();
+  const { t: tk } = useLang();
   const t = useTranslate();
   const isCeo = user?.role === "ceo";
   const { data: billing } = trpc.billing.status.useQuery(undefined, { enabled: isCeo });
@@ -46,7 +47,7 @@ export default function SubscriptionBlocked() {
           </p>
           <p className="text-secondary text-sm mt-2">
             {isCeo
-              ? t("Выберите тариф ниже — оператор свяжется с вами и включит его.", "Quyida tarifni tanlang — operator siz bilan bog'lanib, uni yoqadi.")
+              ? t("Оставьте заявку ниже — оператор свяжется с вами и включит подписку.", "Quyida so'rov qoldiring — operator siz bilan bog'lanib, obunani yoqadi.")
               : t("Продлить подписку может руководитель организации.", "Obunani tashkilot rahbari uzaytira oladi.")}
           </p>
         </div>
@@ -66,21 +67,30 @@ export default function SubscriptionBlocked() {
         </button>
       </div>
 
+      {/*
+        Продлить прямо здесь: «Стандарт» за полевых, а прежнему тарифу — ещё
+        и продление по прежней цене, пока он действует (contracts/pricing.ts).
+      */}
       {billing && (
-        <div className="w-full max-w-4xl grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(230px, 1fr))" }}>
-          {billing.plans.map(plan => (
-            <SubscriptionPlanCard
-              key={plan.key}
-              plan={plan}
-              isCurrent={billing.plan === plan.key}
-              isPro={plan.key === "pro"}
-              usage={billing.usage}
-              planName={p => (lang === "uz" ? p.nameUz : p.name)}
-              t={t}
+        <div className="w-full max-w-2xl flex flex-col gap-4">
+          {billing.pricing.model === "legacy" && billing.plans.find(p => p.legacy) && (
+            <GrandfatherNotice
+              planName={billing.plans.find(p => p.legacy)!.name}
+              pricing={billing.pricing}
               isPending={request.isPending}
-              onSelect={key => request.mutate({ plan: key as "basic" | "pro" | "exclusive" })}
+              onRenew={() => request.mutate({ plan: billing.plans.find(p => p.legacy)!.key as "basic" | "pro" | "exclusive", period: "month" })}
+              t={t}
             />
-          ))}
+          )}
+          <FieldPlanCard
+            fieldUsers={billing.fieldUsers}
+            byRole={billing.fieldByRole}
+            mode={billing.pricing.model === "legacy" ? "switch" : billing.effectivePlan === "standard" ? "renew" : "connect"}
+            isPending={request.isPending}
+            onRequest={period => request.mutate({ plan: "standard", period })}
+            t={t}
+            compact
+          />
         </div>
       )}
     </div>
