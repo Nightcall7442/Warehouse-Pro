@@ -98,14 +98,6 @@ function formatDateTime(v: unknown): string {
   return `${d.toISOString().slice(0, 10)} ${d.toISOString().slice(11, 16)}`;
 }
 
-/**
- * agentEfficiency counts back N days instead of taking a range. Converting
- * here keeps that quirk out of the card, which only knows about two dates.
- */
-function daysBetween(from: string, to: string): number {
-  const ms = new Date(to).getTime() - new Date(from).getTime();
-  return Number.isFinite(ms) ? Math.max(1, Math.round(ms / 86_400_000) + 1) : 30;
-}
 
 
 /**
@@ -355,22 +347,26 @@ export const REPORTS: ReportDef[] = [
     icon: Award,
     needsPeriod: true,
     filters: ["territory"],
-    // This endpoint counts back N days rather than taking a range, so the
-    // card's dates are converted to a span. Same slice, different shape.
+    // Даты, а не «N дней»: прежде карточка переводила период в число дней,
+    // а сервер отсчитывал их назад от СЕЙЧАС без верхней границы — файл за
+    // сентябрь, скачанный в октябре, нёс октябрьские заказы (П3).
     useQuery: (p, opts) => trpc.analytics.agentEfficiency.useQuery(
-      { days: daysBetween(p.from, p.to), territoryId: p.territoryId },
+      { dateFrom: p.from, dateTo: p.to, territoryId: p.territoryId },
       { enabled: opts.enabled },
     ),
     // Колонки названы тем, что в них лежит. agentEfficiency присоединяет
     // daily_plans БЕЗ фильтра статуса, то есть считает запланированные визиты,
     // а не состоявшиеся; «Визиты» в шапке обещали второе. Конверсия там же —
     // доля плановых визитов, из которых вышел заказ.
-    toRows: (data) => (data as Array<{ agentName: string | null; visits: number; orders: number; revenue: string; avgOrderValue: string; conversionRate: string }>)
+    // «Выручка» — за вычетом возвратов периода, как в таблице «Агенты» и в
+    // «Агент × Товар»; сами возвраты — своей колонкой.
+    toRows: (data) => (data as Array<{ agentName: string | null; visits: number; orders: number; revenue: number; returnedAmount: number; avgOrderValue: number; conversionRate: string }>)
       .map(r => ({
         "Агент": r.agentName ?? "—",
         "Визитов по плану": num(r.visits),
         "Заказы": num(r.orders),
         "Выручка": num(r.revenue),
+        "Возвраты": num(r.returnedAmount),
         "Средний чек": num(r.avgOrderValue),
         "Заказов на визит, %": num(r.conversionRate),
       })),
@@ -502,8 +498,9 @@ export const REPORTS: ReportDef[] = [
     roles: ["ceo"],
     needsPeriod: true,
     filters: ["category"],
+    // Все товары, а не двадцать лучших, как на экране P&L (П7).
     useQuery: (p, opts) => trpc.analytics.cogsByProduct.useQuery(
-      { dateFrom: p.from, dateTo: p.to, category: p.category },
+      { dateFrom: p.from, dateTo: p.to, category: p.category, limit: EXPORT_LIMIT },
       { enabled: opts.enabled },
     ),
     toRows: (data) => (data as Array<Record<string, unknown>>)
