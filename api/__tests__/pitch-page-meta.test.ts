@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
-import { pageMetaFor, withPageMeta, PUBLIC_PAGES } from "../lib/public-pages";
+import { pageMetaFor, withPageMeta, wantsAppShell, PUBLIC_PAGES } from "../lib/public-pages";
 
 /**
  * Карточка ссылки /pitch и /demo — то, что видит Telegram до всякого скрипта.
@@ -55,6 +55,24 @@ describe("карточка ссылки /pitch и /demo", () => {
     expect(html).not.toContain("Начать бесплатно");
     expect(html).not.toContain("icon-512.png\" />\n    <meta name=\"twitter:card\"");
     expect(m.image).toMatch(/^https:\/\/www\.warehouse-pro\.uz\/pitch\/og\.(jpg|png)$/);
+  });
+
+  it("/compare: страница сайта по-русски — язык, og:locale и альтернатива перевёрнуты", () => {
+    const m = PUBLIC_PAGES["/compare"];
+    expect(pageMetaFor("/compare/")).toBe(m);
+    const html = withPageMeta(shell, m);
+    expect(html).toContain('<html lang="ru"');
+    expect(html).toContain('<meta property="og:locale" content="ru_RU"');
+    expect(html).toContain('<meta property="og:locale:alternate" content="uz_UZ"');
+    expect(html).toContain(`<title>${m.title.replace(/"/g, "&quot;")}</title>`);
+    expect(html).toContain(`<link rel="canonical" href="https://www.warehouse-pro.uz/compare"`);
+    expect(html).toContain(m.fallbackHtml);
+    expect(m.title).toMatch(/Sales Doctor/);
+    expect(html).not.toContain("склад, заказы и торговые агенты в одной системе");
+    // Робот превью (Accept: */*) получает оболочку с карточкой, а не 404.
+    expect(wantsAppShell("/compare", "GET", "*/*")).toBe(true);
+    // Узбекские страницы конкурса остались узбекскими.
+    expect(withPageMeta(shell, PUBLIC_PAGES["/pitch"])).toContain('<meta property="og:locale:alternate" content="ru_RU"');
   });
 
   it("картинка карточки лежит в public — ссылка не мёртвая", () => {

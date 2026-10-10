@@ -21,16 +21,24 @@ import { PITCH_CSS } from "./pitch-tokens";
    ═══════════════════════════════════════════════════════════════════════════ */
 
 
-/** Узбекский по умолчанию, тон — из темы приложения, заголовок вкладки и язык документа. */
-export function PitchShell({ title, children, nav }: { title: L; children: ReactNode; nav?: Array<{ href: string; label: L }> }) {
+/**
+ * Узбекский по умолчанию, тон — из темы приложения, заголовок вкладки и язык документа.
+ *
+ * site — страница сайта, а не конкурса (/compare): знак ведёт на главную, в
+ * подвале нет «Pitch Day». lang — язык по умолчанию: покупателю-дистрибьютору
+ * сайт отвечает по-русски, как лендинг; жюри — по-узбекски.
+ */
+export function PitchShell({ title, children, nav, lang = "uz", site = false }: {
+  title: L; children: ReactNode; nav?: Array<{ href: string; label: L }>; lang?: "uz" | "ru"; site?: boolean;
+}) {
   return (
-    <PreferLang lang="uz">
-      <ShellInner title={title} nav={nav}>{children}</ShellInner>
+    <PreferLang lang={lang}>
+      <ShellInner title={title} nav={nav} site={site}>{children}</ShellInner>
     </PreferLang>
   );
 }
 
-function ShellInner({ title, children, nav }: { title: L; children: ReactNode; nav?: Array<{ href: string; label: L }> }) {
+function ShellInner({ title, children, nav, site }: { title: L; children: ReactNode; nav?: Array<{ href: string; label: L }>; site: boolean }) {
   const { lang } = useLang();
   const { theme } = useTheme();
   useEffect(() => {
@@ -44,14 +52,14 @@ function ShellInner({ title, children, nav }: { title: L; children: ReactNode; n
     <div className="pitch" data-tone={theme} data-testid="pitch-root" lang={lang}>
       <style>{PITCH_CSS}</style>
       <div aria-hidden="true" style={{ position: "absolute", inset: "0 0 auto 0", height: 900, background: "var(--glow)", pointerEvents: "none" }} />
-      <PitchHeader nav={nav} />
+      <PitchHeader nav={nav} site={site} />
       <main style={{ position: "relative" }}>{children}</main>
-      <PitchFooter />
+      <PitchFooter site={site} />
     </div>
   );
 }
 
-function PitchHeader({ nav }: { nav?: Array<{ href: string; label: L }> }) {
+function PitchHeader({ nav, site }: { nav?: Array<{ href: string; label: L }>; site: boolean }) {
   const { lang } = useLang();
   const [scrolled, setScrolled] = useState(false);
   useEffect(() => {
@@ -73,7 +81,7 @@ function PitchHeader({ nav }: { nav?: Array<{ href: string; label: L }> }) {
       }}
     >
       <div className="p-wrap" style={{ display: "flex", alignItems: "center", gap: 16, height: 64 }}>
-        <Link to="/pitch" className="p-focus" style={{ display: "flex", alignItems: "center", gap: 10, textDecoration: "none", minHeight: 44 }} aria-label="Warehouse Pro — pitch">
+        <Link to={site ? "/" : "/pitch"} className="p-focus" style={{ display: "flex", alignItems: "center", gap: 10, textDecoration: "none", minHeight: 44 }} aria-label={site ? "Warehouse Pro" : "Warehouse Pro — pitch"}>
           <LogoMark size={28} decorative />
           <span style={{ fontWeight: 800, fontSize: 16, letterSpacing: "-0.02em" }}>Warehouse Pro</span>
         </Link>
@@ -135,15 +143,17 @@ function ThemeSwitch() {
   );
 }
 
-function PitchFooter() {
+function PitchFooter({ site }: { site: boolean }) {
   const { lang } = useLang();
   const tr = (uz: string, ru: string) => (lang === "uz" ? uz : ru);
   return (
     <footer style={{ borderTop: "1px solid var(--rule)", position: "relative" }}>
       <div className="p-wrap" style={{ display: "flex", flexWrap: "wrap", gap: "12px 28px", alignItems: "center", paddingTop: 32, paddingBottom: "calc(32px + env(safe-area-inset-bottom, 0px))" }}>
-        <span className="p-mono" style={{ fontSize: 11.5, color: "var(--faint)", letterSpacing: "0.04em" }}>Warehouse Pro · Pitch Day 3.0</span>
+        <span className="p-mono" style={{ fontSize: 11.5, color: "var(--faint)", letterSpacing: "0.04em" }}>{site ? "Warehouse Pro" : "Warehouse Pro · Pitch Day 3.0"}</span>
         <div style={{ display: "flex", flexWrap: "wrap", gap: "4px 22px", marginLeft: "auto" }} className="p-nav">
-          <Link to="/pitch">{tr("Loyiha", "Проект")}</Link>
+          {site
+            ? <Link to="/compare">{tr("Taqqoslash", "Сравнение")}</Link>
+            : <Link to="/pitch">{tr("Loyiha", "Проект")}</Link>}
           <Link to="/demo">Demo</Link>
           <a href="/">{tr("Sayt", "Сайт")}</a>
           <a href="/privacy">{tr("Maxfiylik", "Конфиденциальность")}</a>
