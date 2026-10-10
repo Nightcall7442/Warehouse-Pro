@@ -63,7 +63,10 @@ describe.skipIf(!hasRealDb)("tenant.create: подписка такая же, к
     expect(tenant.trialEndsAt, "у платного нет пробного срока").toBeNull();
 
     expect(await accessAfter(id, 20), "на 20-й день организацию на «Стандарте» заперло").toBe(true);
-    expect(await accessAfter(id, 31)).toBe(false);
+    // Конец срока — 24 часа предупреждения, потом закрыто (решение владельца
+    // 10.10.2026, contracts/subscription-access).
+    expect(await accessAfter(id, 31), "конец срока — сначала предупреждение").toBe(true);
+    expect(await accessAfter(id, 32.1)).toBe(false);
   });
 
   it("пробный на 30 дней: подписка trialing на 30 дней", async () => {
@@ -74,6 +77,9 @@ describe.skipIf(!hasRealDb)("tenant.create: подписка такая же, к
     expect(sub.trialEndsAt.getTime() - Date.now()).toBeGreaterThan(29 * DAY);
 
     expect(await accessAfter(id, 20), "на 20-й день пробного на 30 заперло").toBe(true);
-    expect(await accessAfter(id, 31)).toBe(false);
+    // Конец срока — 24 часа предупреждения, потом закрыто (решение владельца
+    // 10.10.2026, contracts/subscription-access).
+    expect(await accessAfter(id, 31), "конец срока — сначала предупреждение").toBe(true);
+    expect(await accessAfter(id, 32.1)).toBe(false);
   });
 });

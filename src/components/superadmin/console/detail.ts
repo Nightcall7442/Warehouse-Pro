@@ -13,7 +13,7 @@ export function rowFromDetail(d: Detail): OrgRow {
   return {
     ...d.tenant, isSandbox: false, signupSource: null,
     userCount: d.users.length, orderCount: d.stats.orders, orderTotal: d.stats.revenue,
-    subscription: s ? { status: s.status, plan: s.plan, trialEndsAt: s.trialEndsAt, currentPeriodEnds: s.currentPeriodEnds } : null,
+    subscription: s ? { status: s.status, plan: s.plan, trialEndsAt: s.trialEndsAt, currentPeriodEnds: s.currentPeriodEnds, expiryNoticeAt: s.expiryNoticeAt } : null,
     orders30: 0, revenue30: 0, lastOrderAt: null, lastLoginAt: null, lastActivityAt: d.tenant.createdAt,
     segment: { client: true, paying: false, trial: s?.status === "trialing", trialLive: false, renewalDays: null, silentDays: null, active7: false, price: 0 },
     contactPhone: d.tenant.ownerPhone, contactEmail: d.tenant.ownerEmail, inn: null,

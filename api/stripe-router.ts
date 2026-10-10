@@ -9,6 +9,8 @@ import { getOrCreateSubscription } from "./lib/subscription";
 import { billedFieldUsers, planSellable } from "../contracts/pricing";
 import { countFieldUsersOf } from "./lib/field-users";
 import { env } from "./lib/env";
+import { resolveSubscriptionAccess } from "./lib/feature-gating";
+import { subscriptionEndsAt } from "../contracts/subscription-access";
 
 export const stripeRouter = createRouter({
   /** Get current subscription (creates trial if none) */
@@ -17,13 +19,25 @@ export const stripeRouter = createRouter({
     const now = new Date();
     /*
       Дни — до конца того срока, который сейчас действует: пробного у
-      пробного, оплаченного у оплаченного. Раньше считалось только от конца
-      пробного, и у платящего полоса молчала до самой блокировки.
+      пробного, оплаченного у оплаченного. Конец считает то же правило, что и
+      калитка сервера (contracts/subscription-access): прежде полоса и калитка
+      смотрели на разные поля и расходились.
     */
-    const ends = sub.status === "trialing" ? sub.trialEndsAt : sub.currentPeriodEnds;
+    const access = await resolveSubscriptionAccess(ctx.tenant.id, now);
+    const ends = subscriptionEndsAt(sub, ctx.tenant);
 
     return {
       ...sub,
+      /*
+        Срок кончился — идут 24 часа до закрытия (решение владельца
+        10.10.2026). closesAt — когда закроется; полоса показывает его всем.
+      */
+      access: {
+        state:    access.state,
+        closesAt: access.state === "ok" ? null : access.closesAt,
+        // Продлить может руководитель — остальным полоса говорит, к кому идти.
+        canRenew: ctx.user.role === "ceo",
+      },
       daysLeft:     ends
         ? Math.max(0, Math.ceil((ends.getTime() - now.getTime()) / 86_400_000))
         : null,

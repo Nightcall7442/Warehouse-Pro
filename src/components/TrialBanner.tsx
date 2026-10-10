@@ -3,6 +3,8 @@ import { useNavigate } from "react-router";
 import { AlertTriangle, X, Zap } from "lucide-react";
 import { useState } from "react";
 import { useTranslate } from "@/i18n";
+import { expiryWarning } from "@contracts/subscription-access";
+import { colorMix } from "@/lib/color-mix";
 
 /*
   Сколько дней до конца срока полоса уже видна. Оплаченному — за неделю:
@@ -19,8 +21,47 @@ export function TrialBanner() {
   });
   const [dismissed, setDismissed] = useState(false);
   const navigate = useNavigate();
+  if (!sub) return null;
 
-  if (!sub || dismissed) return null;
+  /*
+    Срок подписки истёк — 24 часа до закрытия доступа (решение владельца
+    10.10.2026, contracts/subscription-access). Полоса на каждой странице и
+    без крестика: её убирает только продление. Текст и время закрытия — те
+    же, что в объявлении у мобилки.
+  */
+  if (sub.access?.state === "grace" && sub.access.closesAt) {
+    const isCeo = sub.access.canRenew;
+    const w = expiryWarning(new Date(sub.access.closesAt), isCeo);
+    return (
+      <div role="alert" data-testid="expiry-warning" style={{
+        width: "100%", padding: "10px 16px", display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap",
+        fontSize: "13px", fontFamily: "'Manrope', sans-serif",
+        // Токены, не числа: на красном — «обратный» текст, белый в светлой
+        // теме и тёмный в тёмной (там красный ярче).
+        background: "var(--color-danger)", color: "var(--color-text-inverse)",
+      }}>
+        <AlertTriangle size={16} style={{ flexShrink: 0 }}/>
+        <span style={{ flex: "1 1 240px", minWidth: 0 }}>
+          <b>{t(w.title, w.titleUz)}.</b> {t(w.body, w.bodyUz)}
+        </span>
+        {isCeo && (
+          <button
+            data-testid="expiry-renew"
+            onClick={() => navigate("/billing")}
+            style={{
+              display: "flex", alignItems: "center", gap: "6px", fontSize: "12px", fontWeight: 700,
+              padding: "8px 14px", minHeight: 36, borderRadius: "8px", border: "none", cursor: "pointer",
+              fontFamily: "'Manrope', sans-serif", background: colorMix("var(--color-text-inverse)", 20), color: "inherit", flexShrink: 0,
+            }}
+          >
+            <Zap size={12}/>{t("Продлить", "Uzaytirish")}
+          </button>
+        )}
+      </div>
+    );
+  }
+
+  if (dismissed) return null;
 
   /*
     Оплаченный срок — по дате, как пробный.

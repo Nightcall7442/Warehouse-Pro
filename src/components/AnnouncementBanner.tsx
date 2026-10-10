@@ -4,6 +4,7 @@ import { trpc } from "@/providers/trpc";
 import { useAuth } from "@/hooks/useAuth";
 import { useLang } from "@/i18n";
 import { localized } from "@/components/announcement-text";
+import { EXPIRY_ANNOUNCEMENT_ID } from "@contracts/subscription-access";
 
 /* ═══════════════════════════════════════════════════════════════════════════
    Объявление платформы — полоса вверху приложения организации.
@@ -63,7 +64,9 @@ export function AnnouncementBanner() {
   const [hidden, setHidden] = useState<Set<number>>(() => new Set());
   const dismiss = trpc.announcement.dismiss.useMutation();
 
-  const shown = (data ?? []).filter(a => !hidden.has(a.id));
+  // Предупреждение о конце подписки сервер кладёт в ленту для мобилки; на
+  // вебе оно — своя полоса на каждой странице (TrialBanner), без крестика.
+  const shown = (data ?? []).filter(a => a.id !== EXPIRY_ANNOUNCEMENT_ID && !hidden.has(a.id));
   if (!enabled || shown.length === 0) return null;
   const closeLabel = lang === "uz" ? "Yopish" : "Закрыть";
 

@@ -1,7 +1,8 @@
 import { eq } from "drizzle-orm";
 import { getDb } from "../queries/connection";
-import { subscriptions } from "@db/schema";
+import { subscriptions, tenants } from "@db/schema";
 import { cache } from "./cache";
+import { subscriptionAccess, accessAllowed, type SubscriptionAccess } from "../../contracts/subscription-access";
 
 /**
  * Насколько долго держим ответ о подписке.
@@ -12,9 +13,10 @@ import { cache } from "./cache";
  * список этот будет расти. Кеш, который надо сбрасывать вручную, рано или
  * поздно забудут сбросить — ровно так же, как забыли поставить саму проверку.
  *
- * Что стоит минута задержки: организация, у которой подписка истекла минуту
- * назад, доработает эту минуту; организация, которая только что заплатила,
- * подождёт до минуты. Оба исхода дешевле, чем пропущенная инвалидация.
+ * Что стоит минута задержки: организация, у которой 24 часа предупреждения
+ * кончились минуту назад, доработает эту минуту; организация, которая только
+ * что заплатила, подождёт до минуты. Оба исхода дешевле, чем пропущенная
+ * инвалидация.
  */
 const ACCESS_TTL_MS = 60_000;
 
@@ -41,36 +43,52 @@ export function invalidateSubscriptionAccess(tenantId: number): void {
 }
 
 /**
- * Returns true if the tenant has an active or trialing subscription.
- * Returns false if canceled, past_due, or no subscription found (grace period: 7 days past_due).
+ * Состояние доступа организации — и запись предупреждения, если пора.
+ *
+ * Правило — contracts/subscription-access.ts (решение владельца 10.10.2026):
+ * срок кончился → предупреждение → 24 часа → доступ закрыт. Здесь только
+ * чтение строк и запись того, что правило велит записать: время первого
+ * предупреждения (с него идут 24 часа) или его стирание после продления.
+ *
+ * Зовут калитка (через checkSubscriptionAccess), полоса на сайте
+ * (stripe.getSubscription) и лента объявлений мобилки — кто бы ни спросил
+ * первым после конца срока, отсчёт начнётся с этого момента.
  */
-export async function checkSubscriptionAccess(tenantId: number): Promise<boolean> {
+export async function resolveSubscriptionAccess(tenantId: number, now = new Date()): Promise<SubscriptionAccess> {
   const db = getDb();
-  const [sub] = await db.select()
+  const [row] = await db.select({
+    status:            subscriptions.status,
+    trialEndsAt:       subscriptions.trialEndsAt,
+    currentPeriodEnds: subscriptions.currentPeriodEnds,
+    expiryNoticeAt:    subscriptions.expiryNoticeAt,
+    tenantTrialEndsAt: tenants.trialEndsAt,
+    planExpiresAt:     tenants.planExpiresAt,
+  })
     .from(subscriptions)
+    .leftJoin(tenants, eq(tenants.id, subscriptions.tenantId))
     .where(eq(subscriptions.tenantId, tenantId))
     .limit(1);
 
-  if (!sub) return false; // No subscription — should not happen after tenant.register creates one
+  const access = subscriptionAccess(
+    row ?? null,
+    row ? { trialEndsAt: row.tenantTrialEndsAt, planExpiresAt: row.planExpiresAt } : null,
+    now,
+  );
 
-  // Check trial expiration
-  if (sub.status === "trialing" && sub.trialEndsAt && new Date(sub.trialEndsAt) < new Date()) {
-    return false;
+  if (access.state === "grace" && access.writeNotice) {
+    await db.update(subscriptions).set({ expiryNoticeAt: access.noticeAt }).where(eq(subscriptions.tenantId, tenantId));
+  } else if (access.state === "ok" && access.clearNotice) {
+    await db.update(subscriptions).set({ expiryNoticeAt: null }).where(eq(subscriptions.tenantId, tenantId));
   }
-  // Check period expiration
-  if (sub.status === "active" && sub.currentPeriodEnds && new Date(sub.currentPeriodEnds) < new Date()) {
-    return false;
-  }
+  return access;
+}
 
-  if (sub.status === "active" || sub.status === "trialing") return true;
-
-  // Grace period: 7 days for past_due before blocking
-  if (sub.status === "past_due" && sub.currentPeriodEnds) {
-    const gracePeriodEnd = new Date(sub.currentPeriodEnds.getTime() + 7 * 86_400_000);
-    if (new Date() < gracePeriodEnd) return true;
-  }
-
-  return false;
+/**
+ * Пускать ли организацию: подписка действует или идут 24 часа предупреждения
+ * после её конца. Без кеша — для мест, где нужен точный ответ.
+ */
+export async function checkSubscriptionAccess(tenantId: number): Promise<boolean> {
+  return accessAllowed(await resolveSubscriptionAccess(tenantId));
 }
 
 /**

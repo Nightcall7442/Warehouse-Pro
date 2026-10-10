@@ -7,6 +7,8 @@ import { actionLabel, describePlatformEntry } from "@contracts/platform-journal"
 import { ipOf, listPlatformAudit } from "./services/platform-audit";
 import { listPayments, paymentsSummary, PaymentPlanClosed, PaymentTenantMissing, recordSubscriptionPayment } from "./services/subscription-payments";
 import { activeFor, createAnnouncement, dismiss, endAnnouncement, listAnnouncements } from "./services/announcements";
+import { resolveSubscriptionAccess } from "./lib/feature-gating";
+import { EXPIRY_ANNOUNCEMENT_ID, expiryWarning } from "@contracts/subscription-access";
 
 /* ═══════════════════════════════════════════════════════════════════════════
    Консоль платформы, этап 2: журнал владельца, оплаты подписок, объявления.
@@ -117,12 +119,31 @@ export const platformRouter = createRouter({
 
 /** Объявления глазами организации: свои активные и «закрыл». */
 export const announcementRouter = createRouter({
-  active: authedQuery.query(({ ctx }) =>
-    activeFor(getDb(), { userId: ctx.user.id, role: ctx.user.role, tenant: { id: ctx.tenant.id, plan: ctx.tenant.plan } })),
+  active: authedQuery.query(async ({ ctx }) => {
+    const list = await activeFor(getDb(), { userId: ctx.user.id, role: ctx.user.role, tenant: { id: ctx.tenant.id, plan: ctx.tenant.plan } });
+    if (ctx.user.role === "superadmin") return list;
+    /*
+      Срок подписки истёк — предупреждение первым в ленте, пока идут 24 часа
+      до закрытия (решение владельца 10.10.2026, contracts/subscription-access).
+      Лента — потому что её уже показывает мобилка: агент и курьер узнают о
+      закрытии до того, как телефон перестанет пускать, без новой сборки
+      приложения. У веба своя полоса на каждой странице; там это объявление
+      отсеивается по номеру.
+    */
+    const access = await resolveSubscriptionAccess(ctx.tenant.id);
+    if (access.state !== "grace") return list;
+    return [
+      { id: EXPIRY_ANNOUNCEMENT_ID, level: "warning" as const, ...expiryWarning(access.closesAt, ctx.user.role === "ceo") },
+      ...list,
+    ];
+  }),
 
   dismiss: authedQuery
     .input(z.object({ id: z.number().int().positive() }))
     .mutation(async ({ input, ctx }) => {
+      // Предупреждение о подписке не закрывается насовсем: оно уходит вместе с
+      // причиной — продлением. Крестик прячет его до следующего открытия главной.
+      if (input.id === EXPIRY_ANNOUNCEMENT_ID) return { ok: true };
       const ok = await dismiss(getDb(), { userId: ctx.user.id, tenantId: ctx.tenant.id }, input.id);
       if (!ok) throw new TRPCError({ code: "NOT_FOUND", message: "Объявление не найдено" });
       return { ok };

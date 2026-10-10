@@ -16,6 +16,8 @@ vi.mock("../lib/feature-gating", () => ({
   hasSubscriptionAccess: vi.fn(async () => true),
   checkSubscriptionAccess: vi.fn(async () => true),
   invalidateSubscriptionAccess: vi.fn(),
+  // Состояние доступа — своим тестом на настоящей базе (real-db/subscription-expiry-grace).
+  resolveSubscriptionAccess: vi.fn(async () => ({ state: "ok", endsAt: null, clearNotice: false })),
 }));
 
 vi.mock("../lib/sse", () => ({
@@ -300,14 +302,29 @@ describe("stripe.getSubscription", () => {
     expect(result.daysLeft).toBe(0);
   });
 
-  it("returns null daysLeft when no trialEndsAt", async () => {
+  it("returns null daysLeft when the subscription has no end date at all", async () => {
     subscriptionsTable[0].trialEndsAt = null;
+    subscriptionsTable[0].currentPeriodEnds = null;
 
     const { stripeRouter } = await import("../stripe-router");
     const caller = stripeRouter.createCaller(makeCtx(1, 10));
     const result = await caller.getSubscription();
 
     expect(result.daysLeft).toBeNull();
+  });
+
+  it("trial without its own end date ends with the period — the same rule as the access gate", async () => {
+    // contracts/subscription-access: пробная без даты конца пробного кончается
+    // концом периода. Прежде полоса молчала («бессрочно»), а консоль писала
+    // «истёк» — по разным полям (10.10.2026).
+    subscriptionsTable[0].trialEndsAt = null;
+    subscriptionsTable[0].currentPeriodEnds = new Date(Date.now() + 2 * 86_400_000);
+
+    const { stripeRouter } = await import("../stripe-router");
+    const caller = stripeRouter.createCaller(makeCtx(1, 10));
+    const result = await caller.getSubscription();
+
+    expect(result.daysLeft).toBe(2);
   });
 
   it("sets isActive, isTrialing, isPastDue, isCanceled flags correctly", async () => {

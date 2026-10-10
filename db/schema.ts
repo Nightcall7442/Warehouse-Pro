@@ -1620,6 +1620,13 @@ export const subscriptions = mysqlTable("subscriptions", {
   status:               mysqlEnum("status", ["trialing", "active", "past_due", "canceled", "incomplete"]).default("trialing").notNull(),
   trialEndsAt:          timestamp("trial_ends_at"),
   currentPeriodEnds:    timestamp("current_period_ends"),
+  /*
+    Когда организация впервые получила предупреждение «срок подписки истёк».
+    От него — 24 часа до закрытия доступа (contracts/subscription-access.ts).
+    Пишет калитка подписки при первом запросе после конца срока; продление
+    делает его прошлым, и следующий конец срока начинает свой отсчёт.
+  */
+  expiryNoticeAt:       timestamp("expiry_notice_at"),
   createdAt:            timestamp("created_at").defaultNow().notNull(),
   updatedAt:            timestamp("updated_at").defaultNow().notNull().$onUpdate(() => new Date()),
 }, (t) => ({

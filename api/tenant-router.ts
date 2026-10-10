@@ -354,6 +354,8 @@ export const tenantRouter = createRouter({
       db.select({
         tenantId: subscriptions.tenantId, status: subscriptions.status, plan: subscriptions.plan,
         trialEndsAt: subscriptions.trialEndsAt, currentPeriodEnds: subscriptions.currentPeriodEnds,
+        // С него идут 24 часа до закрытия (contracts/subscription-access).
+        expiryNoticeAt: subscriptions.expiryNoticeAt,
       })
         .from(subscriptions),
       // Контакт на случай, если у организации своего нет (заведена до сбора телефона).
@@ -511,6 +513,7 @@ export const tenantRouter = createRouter({
         db.select({
           id: subscriptions.id, plan: subscriptions.plan, status: subscriptions.status,
           trialEndsAt: subscriptions.trialEndsAt, currentPeriodEnds: subscriptions.currentPeriodEnds,
+          expiryNoticeAt: subscriptions.expiryNoticeAt,
         }).from(subscriptions).where(eq(subscriptions.tenantId, input.tenantId)).limit(1),
         db.select({
           id: users.id, name: users.name, email: users.email,
