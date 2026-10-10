@@ -5,6 +5,8 @@ import {
 } from "recharts";
 import { Package } from "lucide-react";
 import { colorMix } from "@/lib/color-mix";
+import { formatQty } from "@/lib/format";
+import { unitShort } from "@/lib/units";
 import { F, COLORS, PAYMENT_MAP, tableMinWidth, thStyle, tdStyle } from "./report-constants";
 import { ChartPanel, GlassPanel, SectionError } from "./ReportCharts";
 
@@ -20,7 +22,7 @@ export interface PaymentRow {
 interface SalesTabProps {
   shopChartData: { name: string; revenue: number; fullName: string }[];
   byPayment: PaymentRow[] | undefined;
-  topProds: { productName: string; productCode?: string; totalQty: number; totalRevenue: number }[] | undefined;
+  topProds: { productName: string; productCode?: string; unit?: string | null; totalQty: number; returnedQty?: number; totalRevenue: number }[] | undefined;
   /**
    * Выручка за период целиком — знаменатель колонки «Доля».
    *
@@ -30,15 +32,18 @@ interface SalesTabProps {
    * null — итог неизвестен, тогда колонка честно молчит.
    */
   periodRevenue: number | null;
+  /** Язык единиц: «шт» или «dona». */
+  lang?: string;
   fmt: (v: string | number, short?: boolean) => string;
   t: (ru: string, uz: string) => string;
   errors?: { shops?: () => void; products?: () => void; payment?: () => void };
 }
 
 export const SalesTab = memo(function SalesTab({
-  shopChartData, byPayment, topProds, periodRevenue, fmt, t, errors,
+  shopChartData, byPayment, topProds, periodRevenue, lang = "ru", fmt, t, errors,
 }: SalesTabProps) {
   const shownRevenue = (topProds ?? []).reduce((s, p) => s + Number(p.totalRevenue), 0);
+  const qty = (q: number, unit: string | null | undefined) => `${formatQty(q)}${unit ? ` ${unitShort(unit, lang)}` : ""}`;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
@@ -114,8 +119,9 @@ export const SalesTab = memo(function SalesTab({
           {!!topProds?.length && (
             <p style={{ fontSize: "12px", color: COLORS.textTertiary, margin: 0 }}>
               {/* Сколько строк показано и сколько денег в них — иначе «Доля»
-                  ниже не с чем соотнести. */}
+                  ниже не с чем соотнести. И на какой основе: та же, что у P&L. */}
               {topProds.length} {t("позиций", "pozitsiya")} · {fmt(shownRevenue)}
+              <span data-testid="top-products-basis"> · {t("после скидок, за вычетом возвратов", "chegirma va qaytarishlardan keyin")}</span>
             </p>
           )}
         </div>
@@ -152,13 +158,17 @@ export const SalesTab = memo(function SalesTab({
                         </div>
                       </td>
                       <td style={{ ...tdStyle, color: COLORS.textTertiary, fontSize: "12px" }}>{p.productCode ?? "—"}</td>
-                      {/* Здесь стояло «{qty} кг» — единица была вписана в
-                          разметку. topProducts единицу товара вовсе не отдаёт,
-                          так что штуки, ящики и литры все подписывались
-                          килограммами. Пока сервер не отдаёт unit, честнее
-                          показать число без единицы, чем чужую. */}
+                      {/* Единица — своя у каждого товара (topProducts её
+                          отдаёт), количество — с дробью: «.toFixed(0)»
+                          превращал 25,5 кг в «26». Вернувшееся — строкой
+                          ниже: «Выручка» уже за вычетом его денег. */}
                       <td style={{ ...tdStyle, textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
-                        {Number(p.totalQty).toFixed(0)}
+                        {qty(Number(p.totalQty), p.unit)}
+                        {Number(p.returnedQty) > 0 && (
+                          <div style={{ fontSize: "11px", color: COLORS.textTertiary }}>
+                            {t("вернули", "qaytarildi")} {qty(Number(p.returnedQty), p.unit)}
+                          </div>
+                        )}
                       </td>
                       <td style={{ ...tdStyle, textAlign: "right", fontWeight: 600, color: COLORS.primaryText, fontVariantNumeric: "tabular-nums" }}>
                         {fmt(p.totalRevenue)}

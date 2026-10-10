@@ -6,7 +6,7 @@ import { eq, and, sql, desc , inArray, isNull } from "drizzle-orm";
 import { REVENUE_ORDER_STATUSES, revenueOrderConditions, deliveredQty } from "./lib/order-status";
 import { MS_PER_DAY } from "./lib/constants";
 import { returnsInPeriod, groupReturned, type ReturnRow } from "./services/revenue-returns";
-import { agentProductSales, ALL_TIME_FROM, ALL_TIME_TO } from "./services/agent-product-sales";
+import { agentProductSales, productSales, ALL_TIME_FROM, ALL_TIME_TO } from "./services/agent-product-sales";
 import { reportCached, ReportTTL } from "./lib/report-cache";
 import { periodGross } from "./services/period-gross";
 
@@ -50,6 +50,7 @@ export const analyticsRouter = createRouter({
       limit: z.number().int().min(1).max(10000).optional(),
     }).optional())
     .query(({ input, ctx }) => reportCached(ctx.tenant.id, "analytics.salesByShop", input ?? {}, ReportTTL.minute, async () => {
+      const db = getDb();
       const conditions = revenueOrderConditions(ctx.tenant.id);
       if (input?.dateFrom) conditions.push(sql`${orders.createdAt} >= ${input.dateFrom}`);
       // P1-15 FIX: Include full last day by adding 23:59:59
@@ -57,18 +58,67 @@ export const analyticsRouter = createRouter({
       if (input?.agentId)     conditions.push(eq(orders.agentId, input.agentId));
       if (input?.territoryId) conditions.push(eq(shops.territoryId, input.territoryId));
 
+      const sold = await db.select({
+        shopId:       shops.id,
+        shopName:     shops.name,
+        salesRevenue: sql<string>`COALESCE(SUM(${orders.total}), 0)`,
+        orderCount:   sql<number>`count(*)`,
+      })
+        .from(orders).leftJoin(shops, and(eq(orders.shopId, shops.id), eq(shops.tenantId, ctx.tenant.id)))
+        .where(and(...conditions)).groupBy(shops.id);
+
+      /*
+        Выручка магазина — заказы минус возвраты, проведённые в периоде
+        (services/revenue-returns.ts): та же основа, что у P&L, «Агентов» и
+        «Агент × Товар» (09.10.2026). Здесь стояла голая SUM(orders.total), и
+        «Топ магазинов» в «Обзоре» стоял рядом с плиткой «Выручка» в других
+        деньгах. Магазин и агент возврата — из заказа, как и у самой выручки.
+        Ниже нуля не обрезается, а магазин, у которого в периоде только
+        возвраты, стоит строкой с минусом — иначе сумма по магазинам не
+        сходится с P&L.
+      */
+      const territoryShops = input?.territoryId
+        ? (await db.select({ id: shops.id }).from(shops)
+          .where(and(eq(shops.tenantId, ctx.tenant.id), eq(shops.territoryId, input.territoryId)))).map(r => Number(r.id))
+        : undefined;
+      const heads = (await returnsInPeriod(
+        db, ctx.tenant.id, input?.dateFrom || ALL_TIME_FROM, input?.dateTo || ALL_TIME_TO, { shopIds: territoryShops },
+      )).filter(h => !input?.agentId || h.agentId === input.agentId);
+      const returnedBy = new Map<number, number>();
+      for (const h of heads) returnedBy.set(h.shopId, (returnedBy.get(h.shopId) ?? 0) + h.amount);
+
+      const seen = new Set(sold.map(r => (r.shopId == null ? null : Number(r.shopId))));
+      const onlyReturns = [...returnedBy.keys()].filter(id => !seen.has(id));
+      const names = new Map<number, string>();
+      if (onlyReturns.length > 0) {
+        const found = await db.select({ id: shops.id, name: shops.name }).from(shops)
+          .where(and(eq(shops.tenantId, ctx.tenant.id), inArray(shops.id, onlyReturns)));
+        for (const s of found) names.set(Number(s.id), s.name);
+      }
+      const all = [
+        ...sold,
+        ...onlyReturns.map(id => ({ shopId: id, shopName: names.get(id) ?? null, salesRevenue: "0", orderCount: 0 })),
+      ];
+
       // The dashboard wants a top-N chart; an export wants every row. Left at
       // the chart default so existing callers are untouched, and raised only
       // when the reports hub explicitly asks — an export that silently drops
       // the tail is worse than no export, because nothing on the sheet says
       // anything is missing.
-      return getDb().select({
-        shopName:   shops.name,
-        revenue:    sql<string>`COALESCE(SUM(${orders.total}), 0)`,
-        orderCount: sql<number>`count(*)`,
-      })
-        .from(orders).leftJoin(shops, and(eq(orders.shopId, shops.id), eq(shops.tenantId, ctx.tenant.id)))
-        .where(and(...conditions)).groupBy(shops.id).orderBy(desc(sql`SUM(${orders.total})`)).limit(input?.limit ?? 20);
+      return all.map(r => {
+        const shopId = r.shopId == null ? null : Number(r.shopId);
+        const sales = Number(r.salesRevenue) || 0;
+        const returned = shopId == null ? 0 : returnedBy.get(shopId) ?? 0;
+        return {
+          shopId,
+          shopName: r.shopName,
+          orderCount: Number(r.orderCount) || 0,
+          salesRevenue: Math.round(sales * 100) / 100,
+          returnedAmount: Math.round(returned * 100) / 100,
+          // Чистыми — то, что показывают «Обзор», график и выгрузка.
+          revenue: Math.round((sales - returned) * 100) / 100,
+        };
+      }).sort((a, b) => b.revenue - a.revenue).slice(0, input?.limit ?? 20);
     })),
 
   topProducts: reportsQuery
@@ -82,28 +132,13 @@ export const analyticsRouter = createRouter({
       limit: z.number().int().min(1).max(10000).optional(),
     }).optional())
     .query(({ input, ctx }) => reportCached(ctx.tenant.id, "analytics.topProducts", input ?? {}, ReportTTL.fiveMin, async () => {
-      const conditions = revenueOrderConditions(ctx.tenant.id);
-      if (input?.dateFrom) conditions.push(sql`${orders.createdAt} >= ${input.dateFrom}`);
-      if (input?.dateTo)   conditions.push(sql`${orders.createdAt} <= ${input.dateTo + " 23:59:59"}`);
-      if (input?.agentId)  conditions.push(eq(orders.agentId, input.agentId));
-      if (input?.category) conditions.push(eq(products.category, input.category));
-
-      return getDb().select({
-        productName:  products.name,
-        productCode:  products.code,
-        // Проданное и выручка — по ДОСТАВЛЕННОМУ количеству.
-        //
-        // Курьерский путь частичного возврата писал только deliveredQuantity,
-        // оставляя subtotal и quantity заказанными: отчёт по товарам показывал
-        // проданным то, что вернулось. Сам путь исправлен, но СТРОКИ, записанные
-        // до правки, в базе остались — считать по ним надо всё так же.
-        totalQty:     sql<string>`COALESCE(SUM(${deliveredQty()}), 0)`,
-        totalRevenue: sql<string>`COALESCE(SUM(${deliveredQty()} * ${orderItems.unitPrice}), 0)`,
-      })
-        .from(orderItems)
-        .leftJoin(products, and(eq(orderItems.productId, products.id), eq(products.tenantId, ctx.tenant.id)))
-        .leftJoin(orders, eq(orderItems.orderId, orders.id))
-        .where(and(...conditions)).groupBy(products.id).orderBy(desc(sql`SUM(${orderItems.quantity})`)).limit(input?.limit ?? 10);
+      // Деньги — как в P&L: после скидки заказа и за вычетом возвратов
+      // периода; количество — доставленное; порядок — по деньгам
+      // (services/agent-product-sales.ts, productSales).
+      const rows = await productSales(getDb(), ctx.tenant.id, {
+        dateFrom: input?.dateFrom, dateTo: input?.dateTo, agentId: input?.agentId, category: input?.category,
+      });
+      return rows.slice(0, input?.limit ?? 10);
     })),
 
   agentPerformance: reportsQuery
@@ -199,6 +234,9 @@ export const analyticsRouter = createRouter({
       return getDb().select({
         productName:  products.name,
         productCode:  products.code,
+        // Единица — чтобы «Объём» не печатался голым числом: 25,5 кг
+        // округлялось до «26», а штуки и килограммы выглядели одинаково.
+        unit:         products.unit,
         // Доставленное, а не заказанное: частичная доставка оставляет
         // quantity заказанным, и «Объём» 10 рядом с выручкой за 7 давал цену
         // в 70% настоящей (аудит 09.10.2026, П7).

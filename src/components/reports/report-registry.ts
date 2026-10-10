@@ -129,12 +129,24 @@ export const REPORTS: ReportDef[] = [
       { dateFrom: p.from, dateTo: p.to, agentId: p.agentId, category: p.category, limit: EXPORT_LIMIT },
       { enabled: opts.enabled },
     ),
-    toRows: (data) => (data as Array<{ productName: string | null; productCode: string | null; totalQty: string; totalRevenue: string }>)
+    // Деньги — как в P&L и в «Агент × Товар»: «Продажи» после скидки заказа,
+    // «Возвраты» проведённые в периоде, «Чистыми» — разница; «До скидки» — по
+    // цене строк. Прежде «Выручка» была суммой строк: до скидки и с
+    // вернувшимся товаром, а «Объём» шёл без единицы.
+    toRows: (data) => (data as Array<{
+      productId: number | null; productName: string | null; productCode: string | null; unit: string | null;
+      totalQty: number; returnedQty: number; grossRevenue: number; salesRevenue: number; returnedAmount: number; totalRevenue: number;
+    }>)
       .map(r => ({
-        "Товар": r.productName ?? "—",
+        "Товар": r.productName ?? (r.productId == null ? "Возврат без строк товара" : "—"),
         "Код": r.productCode ?? "—",
-        "Объём": num(r.totalQty),
-        "Выручка": num(r.totalRevenue),
+        "Продано": num(r.totalQty),
+        "Вернули": num(r.returnedQty),
+        "Ед.": r.productId == null ? "" : unitShort(r.unit),
+        "До скидки": num(r.grossRevenue),
+        "Продажи": num(r.salesRevenue),
+        "Возвраты": num(r.returnedAmount),
+        "Чистыми": num(r.totalRevenue),
       })),
     filename: (p) => `sales-by-product-${p.from}_${p.to}${suffix(p)}`,
     sheet: { ru: "Продажи по товарам", uz: "Mahsulotlar bo'yicha" },
@@ -151,11 +163,15 @@ export const REPORTS: ReportDef[] = [
       { dateFrom: p.from, dateTo: p.to, agentId: p.agentId, territoryId: p.territoryId, limit: EXPORT_LIMIT },
       { enabled: opts.enabled },
     ),
-    toRows: (data) => (data as Array<{ shopName: string | null; revenue: string; orderCount: number }>)
+    // Как в P&L: заказы минус возвраты, проведённые в периоде. Магазин, у
+    // которого в периоде только возвраты, — строкой с минусом.
+    toRows: (data) => (data as Array<{ shopName: string | null; salesRevenue: number; returnedAmount: number; revenue: number; orderCount: number }>)
       .map(r => ({
         "Магазин": r.shopName ?? "—",
-        "Выручка": num(r.revenue),
         "Заказов": num(r.orderCount),
+        "Продажи": num(r.salesRevenue),
+        "Возвраты": num(r.returnedAmount),
+        "Чистыми": num(r.revenue),
       })),
     filename: (p) => `sales-by-shop-${p.from}_${p.to}${suffix(p)}`,
     sheet: { ru: "Продажи по магазинам", uz: "Do'konlar bo'yicha" },
@@ -389,7 +405,7 @@ export const REPORTS: ReportDef[] = [
     // (services/agent-product-sales.ts). «Выручка» прежде была суммой строк:
     // до скидки и с возвращённым товаром.
     toRows: (data) => (data as Array<{
-      agentName: string | null; productId: number | null; productName: string | null; productCode: string | null;
+      agentName: string | null; productId: number | null; productName: string | null; productCode: string | null; unit: string | null;
       totalQty: number; returnedQty: number; grossRevenue: number; salesRevenue: number; returnedAmount: number; totalRevenue: number;
     }>)
       .map(r => ({
@@ -398,6 +414,7 @@ export const REPORTS: ReportDef[] = [
         "Код": r.productCode ?? "—",
         "Продано": num(r.totalQty),
         "Вернули": num(r.returnedQty),
+        "Ед.": r.productId == null ? "" : unitShort(r.unit),
         "До скидки": num(r.grossRevenue),
         "Продажи": num(r.salesRevenue),
         "Возвраты": num(r.returnedAmount),

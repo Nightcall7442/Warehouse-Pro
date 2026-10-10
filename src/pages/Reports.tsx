@@ -8,6 +8,7 @@ import { FileDown, Printer, LayoutDashboard, ShoppingCart, Award, LayoutGrid, Wa
 import { exportToExcel } from "@/lib/excel";
 import { exportToPDF, escapeHtml } from "@/lib/export";
 import { unitShort } from "@/lib/units";
+import { formatQty } from "@/lib/format";
 import { QueryErrorFallback } from "@/components/QueryErrorFallback";
 import { F, COLORS, PAYMENT_MAP, delta, type TabKey } from "@/components/reports/report-constants";
 import { PeriodPicker } from "@/components/reports/ReportCharts";
@@ -84,16 +85,18 @@ const esc = (v: unknown): string => escapeHtml(String(v ?? "—"));
  * а не ноль: без заказов среднего чека не существует, а «0» читался бы как
  * «продавали по нулю».
  */
-function totalsOf(rows: { orderCount: number; salesRevenue: number | string }[] | undefined): PeriodTotals | undefined {
+function totalsOf(rows: { orderCount: number; totalRevenue: number | string }[] | undefined): PeriodTotals | undefined {
   if (!rows) return undefined;
   /*
-    Сумма заказов до возвратов (salesRevenue), как и была. totalRevenue
-    agentPerformance с 09.10.2026 — за вычетом возвратов периода, а итоги
-    страницы делят на себя «Долю» в «Топ товаров» — сумму строк ДО возвратов:
-    знаменатель меньше числителей, и доля выходила за 100%. Перевести «Обзор»
-    и «Топ товаров» на основу P&L — отдельный шаг, вместе.
+    Выручка — как в P&L: после скидки заказа и за вычетом возвратов,
+    проведённых в периоде. Строки agentPerformance включают и агента, у
+    которого в периоде только возвраты, и заказы без агента, поэтому их сумма
+    и есть выручка P&L. Плитка складывала заказы до возвратов, и «Обзор»
+    показывал за тот же месяц больше, чем P&L, ровно на сумму возвратов.
+    «Топ товаров» и «Топ магазинов» — на той же основе, и «Доля в выручке»
+    делит одни деньги на те же (аудит 09.10.2026).
   */
-  const revenue = rows.reduce((s, a) => s + Number(a.salesRevenue), 0);
+  const revenue = rows.reduce((s, a) => s + Number(a.totalRevenue), 0);
   const orders = rows.reduce((s, a) => s + Number(a.orderCount), 0);
   return { revenue, orders, avgOrder: orders > 0 ? revenue / orders : null };
 }
@@ -196,8 +199,12 @@ export default function Reports() {
     grossProfit: p.grossProfit, grossMarginPct: p.grossMarginPct,
   }));
   const topProductRows = topProds?.map(p => ({
-    productName: p.productName ?? "", productCode: p.productCode ?? undefined,
-    totalQty: Number(p.totalQty), totalRevenue: Number(p.totalRevenue),
+    // Строка без товара — возврат без строк товара: сумма есть, разложить
+    // её не по чему (services/agent-product-sales.ts).
+    productName: p.productName ?? (p.productId == null ? t("Возврат без строк товара", "Mahsulotsiz qaytarish") : "—"),
+    productCode: p.productCode ?? undefined,
+    unit: p.unit, totalQty: Number(p.totalQty), returnedQty: Number(p.returnedQty),
+    totalRevenue: Number(p.totalRevenue),
   }));
 
   const totals = totalsOf(agentsQ.data);
@@ -353,9 +360,11 @@ export default function Reports() {
     }
 
     if (topProds && topProds.length > 0) {
-      rows.push({ Раздел: "ТОП ТОВАРОВ", Показатель: "Товар", Значение: "Объём", "": "Выручка" });
+      rows.push({ Раздел: "ТОП ТОВАРОВ", Показатель: "Товар", Значение: "Продано", "": "Выручка" });
       for (const p of topProds) {
-        rows.push({ Раздел: "", Показатель: p.productName, Значение: Number(p.totalQty ?? 0).toFixed(0), "": Number(p.totalRevenue ?? 0).toFixed(2) });
+        // С единицей и дробью: «.toFixed(0)» превращал 25,5 кг в «26», а
+        // штуки и килограммы выглядели одинаково. Бумага — по-русски.
+        rows.push({ Раздел: "", Показатель: p.productName ?? "—", Значение: `${formatQty(p.totalQty)} ${unitShort(p.unit)}`, "": Number(p.totalRevenue ?? 0).toFixed(2) });
       }
     }
 
@@ -419,7 +428,7 @@ export default function Reports() {
       html += `<div class="section"><h2>Топ товаров</h2>
         <table><thead><tr><th>Товар</th><th>Код</th><th class="right">Продано</th><th class="right">Выручка</th></tr></thead><tbody>`;
       for (const p of topProds) {
-        html += `<tr><td>${esc(p.productName)}</td><td>${esc(p.productCode)}</td><td class="right">${Number(p.totalQty).toFixed(0)}</td><td class="right bold">${fmtNum(Number(p.totalRevenue))}</td></tr>`;
+        html += `<tr><td>${esc(p.productName ?? "—")}</td><td>${esc(p.productCode)}</td><td class="right">${esc(`${formatQty(p.totalQty)} ${unitShort(p.unit)}`)}</td><td class="right bold">${fmtNum(Number(p.totalRevenue))}</td></tr>`;
       }
       html += `</tbody></table></div>`;
     }
@@ -581,6 +590,7 @@ export default function Reports() {
           topShops={topShopsOverview}
           topAgents={topAgentsOverview}
           days={days}
+          lang={lang}
           fmt={fmt}
           t={t}
           totals={totals}
@@ -605,6 +615,7 @@ export default function Reports() {
           byPayment={paymentBreakdown}
           topProds={topProductRows}
           periodRevenue={totals?.revenue ?? null}
+          lang={lang}
           fmt={fmt}
           t={t}
           errors={{

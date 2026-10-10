@@ -3,6 +3,8 @@ import { trpc } from "@/providers/trpc";
 import { useCurrency } from "@/hooks/useCurrency";
 import { useLang } from "@/i18n";
 import { exportToPDF, escapeHtml } from "@/lib/export";
+import { formatQty } from "@/lib/format";
+import { unitShort } from "@/lib/units";
 import { notify } from "@/lib/toast";
 import { cssVar } from "@/lib/css-var";
 import { readableInk } from "@/lib/contrast";
@@ -320,9 +322,14 @@ export default function PnL() {
         ws3,
         "На чём заработали",
         "До 20 товаров с наибольшей выручкой. Выручка здесь считается по цене отгрузки, без скидок по заказу, — с выручкой на листе «Сводка» она не совпадает.",
-        6
+        7
       );
-      const head3 = addHead(ws3, ["Товар", "Объём", "Выручка", "Себестоимость", "Прибыль", "Маржа"]);
+      /*
+        «Объём» — с дробью и единицей. Ячейка стояла в денежном формате
+        «#,##0»: 25,5 кг показывались как «26», а штуки и килограммы — одним
+        числом без подписи.
+      */
+      const head3 = addHead(ws3, ["Товар", "Объём", "Ед.", "Выручка", "Себестоимость", "Прибыль", "Маржа"]);
 
       const products = cogsByProduct.data
         .map((p) => {
@@ -333,6 +340,7 @@ export default function PnL() {
             // оставалась пустая ячейка.
             name: p.productName ?? "Без названия",
             qty: Number(p.totalQty ?? 0),
+            unit: unitShort(p.unit),
             rev,
             cost,
             profit: rev - cost,
@@ -342,9 +350,9 @@ export default function PnL() {
         .sort((a, b) => b.profit - a.profit);
 
       products.forEach((p, i) => {
-        const row = ws3.addRow([p.name, p.qty, p.rev, p.cost, p.profit, p.margin]);
-        [2, 3, 4, 5].forEach((c) => (row.getCell(c).numFmt = MONEY));
-        row.getCell(6).numFmt = SHARE;
+        const row = ws3.addRow([p.name, p.qty, p.unit, p.rev, p.cost, p.profit, p.margin]);
+        [4, 5, 6].forEach((c) => (row.getCell(c).numFmt = MONEY));
+        row.getCell(7).numFmt = SHARE;
         zebra(row, i);
       });
 
@@ -355,16 +363,18 @@ export default function PnL() {
       */
       const totalRev = products.reduce((s, p) => s + p.rev, 0);
       const totalCost = products.reduce((s, p) => s + p.cost, 0);
+      // Объём в итоге пуст: штуки, килограммы и ящики не складываются.
       const totals = ws3.addRow([
         `Итого по ${products.length} показанным товарам`,
-        products.reduce((s, p) => s + p.qty, 0),
+        null,
+        null,
         totalRev,
         totalCost,
         totalRev - totalCost,
         totalRev > 0 ? (totalRev - totalCost) / totalRev : 0,
       ]);
-      [2, 3, 4, 5].forEach((c) => (totals.getCell(c).numFmt = MONEY));
-      totals.getCell(6).numFmt = SHARE;
+      [4, 5, 6].forEach((c) => (totals.getCell(c).numFmt = MONEY));
+      totals.getCell(7).numFmt = SHARE;
       totals.eachCell((c) => {
         c.font = { bold: true };
         c.border = { ...box, top: { style: "medium", color: { argb: headFill } } };
@@ -494,12 +504,12 @@ export default function PnL() {
         .map((p) => {
           const rev = Number(p.totalRevenue);
           const cost = Number(p.totalCost);
-          return { name: p.productName ?? "Без названия", qty: Number(p.totalQty), rev, cost, profit: rev - cost };
+          return { name: p.productName ?? "Без названия", qty: Number(p.totalQty), unit: p.unit, rev, cost, profit: rev - cost };
         })
         .sort((a, b) => b.profit - a.profit);
       for (const p of products) {
         const margin = p.rev > 0 ? pct((p.profit / p.rev) * 100) : "—";
-        html += `<tr><td>${escapeHtml(p.name)}</td><td class="right">${p.qty.toFixed(0)}</td><td class="right">${fmtNum(p.rev)}</td><td class="right">${fmtNum(p.cost)}</td><td class="right bold">${fmtNum(p.profit)}</td><td class="right">${margin}</td></tr>`;
+        html += `<tr><td>${escapeHtml(p.name)}</td><td class="right">${escapeHtml(`${formatQty(p.qty)} ${unitShort(p.unit)}`)}</td><td class="right">${fmtNum(p.rev)}</td><td class="right">${fmtNum(p.cost)}</td><td class="right bold">${fmtNum(p.profit)}</td><td class="right">${margin}</td></tr>`;
       }
       html += `</tbody></table></div>`;
     }

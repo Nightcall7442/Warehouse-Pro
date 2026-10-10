@@ -575,7 +575,7 @@ export function formatPnLForExport(data: {
     const margin = revenue > 0 ? (profit / revenue) * 100 : 0;
     rows.push({
       Показатель: p.productName,
-      "Объём": Number(p.totalQty).toFixed(0),
+      "Объём": formatQty(p.totalQty),
       Выручка: revenue.toFixed(0),
       "Себестоимость": cost.toFixed(0),
       Прибыль: profit.toFixed(0),

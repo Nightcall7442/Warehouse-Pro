@@ -378,23 +378,9 @@ describe("analytics.salesByShop", () => {
   });
 });
 
-describe("analytics.topProducts", () => {
-  it("returns top products by quantity", async () => {
-    const { analyticsRouter } = await import("../analytics-router");
-    const caller = analyticsRouter.createCaller(buildCtx());
-    const result = await caller.topProducts({});
-    expect(result.length).toBeGreaterThanOrEqual(1);
-    expect(result[0].productName).toBeDefined();
-    expect(result[0].totalQty).toBeDefined();
-  });
-
-  it("limits results", async () => {
-    const { analyticsRouter } = await import("../analytics-router");
-    const caller = analyticsRouter.createCaller(buildCtx());
-    const result = await caller.topProducts({});
-    expect(result.length).toBeLessThanOrEqual(10);
-  });
-});
+// analytics.topProducts — на настоящей MySQL (real-db/sales-tops-on-pnl-basis):
+// с 10.10.2026 он считает теми же оконными суммами, что «Агент × Товар», а
+// поддельная база их не умеет. Там же — десятка по умолчанию и фильтры.
 
 describe("analytics.debtReport", () => {
   it("returns only shops with positive debt", async () => {
@@ -439,40 +425,9 @@ describe("analytics.agentPerformance", () => {
 // while doing nothing. Every column filtered below is present in the fixtures
 // and registered with reg().
 describe("report filters", () => {
-  describe("analytics.topProducts", () => {
-    it("narrows to one agent", async () => {
-      const caller = await analytics();
-
-      const all = await caller.topProducts({});
-      const agent10 = await caller.topProducts({ agentId: 10 });
-      const agent11 = await caller.topProducts({ agentId: 11 });
-
-      expect(all.length).toBeGreaterThan(agent11.length);
-      // Order 3 is Agent Two's and it is "processing", so it never counts as
-      // revenue — the agent's product list comes back empty, not merely smaller.
-      expect(agent11).toHaveLength(0);
-      expect(agent10.map(r => r.productName).sort()).toEqual(["Product A", "Product B"]);
-    });
-
-    it("narrows to one category", async () => {
-      const caller = await analytics();
-
-      const drinks = await caller.topProducts({ category: "Напитки" });
-
-      expect(drinks.map(r => r.productName)).toEqual(["Product A"]);
-    });
-
-    it("combines both filters rather than letting the last one win", async () => {
-      const caller = await analytics();
-
-      expect(await caller.topProducts({ agentId: 10, category: "Снеки" }))
-        .toHaveLength(1);
-      // Agent Two sold nothing that counts, so adding a category they never
-      // touched must still come back empty.
-      expect(await caller.topProducts({ agentId: 11, category: "Напитки" }))
-        .toHaveLength(0);
-    });
-  });
+  // analytics.topProducts — фильтры агента, категории и обоих сразу
+  // проверяются на настоящей MySQL (real-db/sales-tops-on-pnl-basis.test.ts):
+  // поддельная база не умеет оконных сумм, которыми он считает с 10.10.2026.
 
   describe("analytics.salesByShop", () => {
     it("narrows to one agent", async () => {

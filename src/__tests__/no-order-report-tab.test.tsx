@@ -69,10 +69,13 @@ describe("отчёт «Без заказа»", () => {
 
   it("2. смена даты и кнопка периода — в адрес", () => {
     open("/reports?tab=noorder&from=2026-09-01&to=2026-09-30");
-    fireEvent.change(screen.getByTestId("no-order-from"), { target: { value: "2026-09-10" } });
-    expect(new URLSearchParams(search()).get("from")).toBe("2026-09-10");
+    // Дата — из прошлого, которое уже не станет умолчанием «месяц назад».
+    // Здесь стояло 10.09: 10.10.2026 умолчание совпало с ней, страница
+    // законно не записала его в адрес, и тест падал один день в году.
+    fireEvent.change(screen.getByTestId("no-order-from"), { target: { value: "2026-09-05" } });
+    expect(new URLSearchParams(search()).get("from")).toBe("2026-09-05");
     expect(new URLSearchParams(search()).get("tab")).toBe("noorder");
-    expect(h.inputs.at(-1)).toMatchObject({ dateFrom: "2026-09-10", dateTo: "2026-09-30" });
+    expect(h.inputs.at(-1)).toMatchObject({ dateFrom: "2026-09-05", dateTo: "2026-09-30" });
 
     fireEvent.click(screen.getByRole("button", { name: "7 дн." }));
     const p = new URLSearchParams(search());

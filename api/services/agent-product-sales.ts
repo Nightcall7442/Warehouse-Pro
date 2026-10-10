@@ -157,10 +157,18 @@ async function namesOf(db: Db, tenantId: number, agentIds: number[], productIds:
   return { agents, prods };
 }
 
-export async function agentProductSales(
-  db: Db, tenantId: number,
-  input: { dateFrom?: string; dateTo?: string; agentId?: number; category?: string },
-): Promise<AgentProductRow[]> {
+/** То же без разреза по агенту — «Топ товаров» и «Продажи по товарам». */
+export type ProductSalesRow = Omit<AgentProductRow, "agentId" | "agentName">;
+
+interface SalesInput { dateFrom?: string; dateTo?: string; agentId?: number; category?: string }
+
+/**
+ * Строки «агент × товар» или «товар» — одним расчётом. byAgent = false
+ * складывает агентов одного товара в одну строку: деньги и количества
+ * складываются, а заказы — тоже, потому что у заказа один агент и один
+ * заказ не попадает в две строки товара.
+ */
+async function collect(db: Db, tenantId: number, input: SalesInput, byAgent: boolean): Promise<AgentProductRow[]> {
   const from = input.dateFrom || ALL_TIME_FROM;
   const to = input.dateTo || ALL_TIME_TO;
   const f: Filters = { agentId: input.agentId, category: input.category };
@@ -176,10 +184,11 @@ export async function agentProductSales(
   const productIds = new Set<number>();
   for (const s of sales) { if (s.agentId != null) agentIds.add(s.agentId); if (s.productId != null) productIds.add(s.productId); }
   for (const l of rLines) { if (l.head.agentId != null) agentIds.add(l.head.agentId); if (l.productId != null) productIds.add(l.productId); }
-  const { agents, prods } = await namesOf(db, tenantId, [...agentIds], [...productIds]);
+  const { agents, prods } = await namesOf(db, tenantId, byAgent ? [...agentIds] : [], [...productIds]);
 
   const rows = new Map<string, AgentProductRow>();
-  const rowFor = (agentId: number | null, productId: number | null): AgentProductRow => {
+  const rowFor = (lineAgentId: number | null, productId: number | null): AgentProductRow => {
+    const agentId = byAgent ? lineAgentId : null;
     const k = keyOf(agentId, productId);
     let r = rows.get(k);
     if (!r) {
@@ -209,7 +218,7 @@ export async function agentProductSales(
     r.returnedQty += l.qty; r.returnedAmount += l.amount;
   }
 
-  const out = [...rows.values()].map(r => ({
+  return [...rows.values()].map(r => ({
     ...r,
     totalQty: qty3(r.totalQty),
     returnedQty: qty3(r.returnedQty),
@@ -218,7 +227,38 @@ export async function agentProductSales(
     returnedAmount: money(r.returnedAmount),
     totalRevenue: money(r.salesRevenue - r.returnedAmount),
   }));
+}
+
+export async function agentProductSales(db: Db, tenantId: number, input: SalesInput): Promise<AgentProductRow[]> {
+  const out = await collect(db, tenantId, input, true);
   // Как и было: по имени агента, внутри — по сумме.
   return out.sort((a, b) =>
     (a.agentName ?? "").localeCompare(b.agentName ?? "", "ru") || (a.agentId ?? 0) - (b.agentId ?? 0) || b.totalRevenue - a.totalRevenue);
+}
+
+/*
+  «Топ товаров» и «Продажи по товарам» — в деньгах P&L.
+
+  Там складывались строки заказов по их цене: до скидки заказа и без
+  возвратов, а порядок задавало ЗАКАЗАННОЕ количество. Рядом, в «Обзоре» и
+  в «Агентах», выручка уже была после скидки и за вычетом возвратов
+  (09.10.2026), и «Доля в выручке» делила одну основу на другую. Сортировка по
+  штукам ещё и сравнивала штуки с килограммами и ящиками: десять «топовых»
+  выбирались по смешанному числу, а экран потом переставлял их по деньгам —
+  товар с большой выручкой и малым весом в десятку не попадал вовсе.
+
+  Теперь — та же основа, что у «Агент × Товар», и порядок по деньгам. Товар,
+  у которого в периоде только возвраты, стоит строкой с минусом: без неё сумма
+  по товарам не сошлась бы с P&L.
+*/
+export async function productSales(db: Db, tenantId: number, input: SalesInput): Promise<ProductSalesRow[]> {
+  const out = await collect(db, tenantId, input, false);
+  return out
+    .map((r): ProductSalesRow => ({
+      productId: r.productId, productName: r.productName, productCode: r.productCode, unit: r.unit,
+      totalQty: r.totalQty, returnedQty: r.returnedQty,
+      grossRevenue: r.grossRevenue, salesRevenue: r.salesRevenue, returnedAmount: r.returnedAmount, totalRevenue: r.totalRevenue,
+      orderCount: r.orderCount,
+    }))
+    .sort((a, b) => b.totalRevenue - a.totalRevenue || b.totalQty - a.totalQty || (a.productName ?? "").localeCompare(b.productName ?? "", "ru"));
 }
