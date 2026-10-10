@@ -1,5 +1,6 @@
 import { Link } from "react-router";
 import { Shield } from "lucide-react";
+import { CONTACT } from "@/components/landing/landing-tokens";
 
 /**
  * Политика конфиденциальности.
@@ -206,7 +207,9 @@ export default function Privacy() {
           <Section title="Связь">
             <P>
               Вопросы о данных — через руководителя вашей организации или в поддержку
-              Warehouse Pro. Контакт указан на{" "}
+              Warehouse Pro:{" "}
+              <a href={`mailto:${CONTACT.email}`} data-testid="privacy-support-email" style={{ color: "var(--color-primary-text)" }}>{CONTACT.email}</a>.
+              Остальные контакты — на{" "}
               <Link to="/landing" style={{ color: "var(--color-primary-text)" }}>главной странице</Link>.
             </P>
           </Section>
