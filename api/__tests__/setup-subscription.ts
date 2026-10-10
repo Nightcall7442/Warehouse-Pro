@@ -33,4 +33,7 @@ vi.mock("../lib/feature-gating", () => ({
   checkSubscriptionAccess: vi.fn(async () => true),
   invalidateSubscriptionAccess: vi.fn(),
   getSubscriptionStatus: vi.fn(async () => null),
+  // Состояние доступа (полоса «срок истёк», объявление мобилке) — «действует».
+  // Правило 24 часов стережёт real-db/subscription-expiry-grace.test.ts.
+  resolveSubscriptionAccess: vi.fn(async () => ({ state: "ok", endsAt: null, clearNotice: false })),
 }));

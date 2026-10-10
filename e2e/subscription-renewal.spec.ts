@@ -15,8 +15,10 @@ import { login, trpcMutate, trpcQuery } from "./harness";
  *
  * ── Что проверяется ─────────────────────────────────────────────────────────
  *
- * Суперадмин заводит организацию, её срок уводится в прошлое, директор
- * входит через форму — и оказывается на экране блокировки, где сразу видит
+ * Суперадмин заводит организацию, её срок уводится в прошлое вместе с 24
+ * часами предупреждения (решение владельца 10.10.2026: срок кончился →
+ * предупреждение → через 24 часа закрыто), директор входит через форму — и
+ * оказывается на экране блокировки, где сразу видит
  * тарифы. Заявка на «Стандарт» даёт ответ на том же экране; страница никуда не
  * уходит и не перезагружается; у суперадмина в разборе заявок появляется
  * строка этой организации.
@@ -39,14 +41,14 @@ test("истёкшая организация продлевает с экран
     orgName: org, ownerName: "Директор", ownerEmail: email, ownerPassword: "password123", plan: "trial", trialDays: 14,
   });
 
-  // 2. Срок — в прошлое.
+  // 2. Срок — в прошлое, и 24 часа предупреждения тоже прошли.
   const db = await mysql.createConnection(process.env.DATABASE_URL!);
   try {
     await db.execute(
-      "UPDATE subscriptions SET trial_ends_at = NOW() - INTERVAL 1 DAY, current_period_ends = NOW() - INTERVAL 1 DAY WHERE tenant_id = ?",
+      "UPDATE subscriptions SET trial_ends_at = NOW() - INTERVAL 3 DAY, current_period_ends = NOW() - INTERVAL 3 DAY, expiry_notice_at = NOW() - INTERVAL 25 HOUR WHERE tenant_id = ?",
       [created.tenantId],
     );
-    await db.execute("UPDATE tenants SET trial_ends_at = NOW() - INTERVAL 1 DAY WHERE id = ?", [created.tenantId]);
+    await db.execute("UPDATE tenants SET trial_ends_at = NOW() - INTERVAL 3 DAY WHERE id = ?", [created.tenantId]);
   } finally {
     await db.end();
   }
@@ -81,4 +83,45 @@ test("истёкшая организация продлевает с экран
   expect(mine[0]).toMatchObject({ source: "подписка: тариф", phone: email });
   expect(mine[0].comment).toContain("Standard");
   expect(mine[0].comment).toMatch(/полевых/);
+});
+
+/**
+ * Срок только что кончился — двери ещё открыты, но предупреждение на виду.
+ *
+ * Решение владельца 10.10.2026: «предупреждай, что срок вашей подписки
+ * истёк, и если игнорирует 24 часа — закрой доступ». Директор входит и
+ * работает дальше, а над каждой страницей — красная полоса со временем
+ * закрытия и «Продлить». Правило целиком — real-db/subscription-expiry-grace.
+ */
+test("срок только что кончился — работает, но видит «срок вашей подписки истёк» и «Продлить»", async ({ browser }) => {
+  test.skip(!process.env.DATABASE_URL, "нужен DATABASE_URL той же базы, что у приложения стенда");
+
+  const stamp = String(Date.now()).slice(-8);
+  const email = `e2g${stamp}@x.uz`;
+  const admin = await browser.newPage();
+  await login(admin, "superadmin");
+  const created = await trpcMutate<{ tenantId: number }>(admin, "tenant.create", {
+    orgName: `E2E Предупреждение ${stamp}`, ownerName: "Директор", ownerEmail: email, ownerPassword: "password123", plan: "trial", trialDays: 14,
+  });
+
+  const db = await mysql.createConnection(process.env.DATABASE_URL!);
+  try {
+    await db.execute(
+      "UPDATE subscriptions SET trial_ends_at = NOW() - INTERVAL 1 DAY, current_period_ends = NOW() - INTERVAL 1 DAY, expiry_notice_at = NULL WHERE tenant_id = ?",
+      [created.tenantId],
+    );
+  } finally {
+    await db.end();
+  }
+
+  const page = await browser.newPage();
+  await page.goto("/login");
+  await page.getByTestId("login-email").fill(email);
+  await page.getByTestId("login-password").fill("password123");
+  await page.getByTestId("login-submit").click();
+  await expect(page.getByTestId("expiry-warning")).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByTestId("expiry-warning")).toContainText("Срок вашей подписки истёк");
+  expect(new URL(page.url()).pathname, "заперло без 24 часов предупреждения").not.toBe("/subscription-blocked");
+  await page.getByTestId("expiry-renew").click();
+  await page.waitForURL(url => new URL(url).pathname === "/billing", { timeout: 20_000 });
 });

@@ -1,5 +1,6 @@
 import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "../../../../api/router";
+import { subscriptionEndsAt, subscriptionAccess, formatCloseTime } from "@contracts/subscription-access";
 
 /* ═══════════════════════════════════════════════════════════════════════════
    Список организаций консоли: фильтры, поиск, сортировка — без React.
@@ -67,15 +68,31 @@ export const isSort = (v: string | null): v is SortKey => SORTS.some(s => s === 
 
 const PLAN_RANK: Record<string, number> = { trial: 0, basic: 1, pro: 2, exclusive: 3, standard: 4 };
 
-/** До какого дня у организации доступ: оплачено до — у платящих, конец пробного — у пробных. */
+/**
+ * До какого дня у организации доступ: оплачено до — у платящих, конец пробного — у пробных.
+ *
+ * С подпиской — тем же правилом, по которому решает калитка сервера
+ * (contracts/subscription-access): консоль писала «истекла», а сервер по
+ * другим полям продолжал пускать (Velora, 10.10.2026).
+ */
 export function endsAt(o: OrgRow): Date | null {
   const sub = o.subscription;
-  if (sub?.status === "trialing" || (!sub && o.plan === "trial")) {
-    const t = sub?.trialEndsAt ?? o.trialEndsAt;
-    return t ? new Date(t) : null;
-  }
-  const p = sub ? sub.currentPeriodEnds : o.planExpiresAt;
-  return p ? new Date(p) : null;
+  if (sub) return subscriptionEndsAt(sub, { trialEndsAt: o.trialEndsAt, planExpiresAt: o.planExpiresAt });
+  const d = o.plan === "trial" ? o.trialEndsAt : o.planExpiresAt;
+  return d ? new Date(d) : null;
+}
+
+/**
+ * Хвост к «истекла»: что с доступом сейчас. Срок кончился — 24 часа
+ * предупреждения от первого захода организации, потом доступ закрыт.
+ */
+function accessTail(o: OrgRow, now: Date): string {
+  const sub = o.subscription;
+  if (!sub) return "";
+  const a = subscriptionAccess(sub, { trialEndsAt: o.trialEndsAt, planExpiresAt: o.planExpiresAt }, now);
+  if (a.state === "closed") return " · доступ закрыт";
+  if (a.state === "grace") return a.writeNotice ? " · предупредим при входе" : ` · закроется ${formatCloseTime(a.closesAt)}`;
+  return "";
 }
 
 /** Целых дней до конца срока (отрицательное — истёк), null — бессрочно. */
@@ -132,14 +149,14 @@ export function statusOf(o: OrgRow, now = new Date()): { label: string; tone: "s
   if (o.status === "suspended") return { label: "Приостановлена", tone: "danger" };
   if (o.isSandbox) return { label: "Песочница", tone: "neutral" };
   const sub = o.subscription;
-  if (sub && sub.status !== "trialing" && sub.status !== "active") return { label: "Не оплачена", tone: "danger" };
+  if (sub && sub.status !== "trialing" && sub.status !== "active") return { label: "Не оплачена" + accessTail(o, now), tone: "danger" };
   const d = daysLeft(o, now);
   // Пробный — по подписке (как endsAt), а не по сегменту: у песочницы и
   // приостановленной сегментов нет, а срок показать всё равно надо.
   if (sub?.status === "trialing" || (!sub && o.plan === "trial")) {
-    if (d !== null && d <= 0) return { label: "Пробный истёк", tone: "danger" };
+    if (d !== null && d <= 0) return { label: "Пробный истёк" + accessTail(o, now), tone: "danger" };
     return { label: "Пробный", tone: "info" };
   }
-  if (d !== null && d <= 0) return { label: "Оплата истекла", tone: "danger" };
+  if (d !== null && d <= 0) return { label: "Оплата истекла" + accessTail(o, now), tone: "danger" };
   return { label: "Платит", tone: "success" };
 }

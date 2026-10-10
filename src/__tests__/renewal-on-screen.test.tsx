@@ -136,6 +136,7 @@ describe("метка срока у суперадмина (консоль пла
     expect(daysLeft(trial)).toBe(6);
     expect(statusOf(trial).label).toBe("Пробный");
     const canceled = row({ plan: "pro", subscription: { status: "canceled", trialEndsAt: null, currentPeriodEnds: new Date(Date.now() + DAY) } });
-    expect(statusOf(canceled).label).toBe("Не оплачена");
+    // 10.10.2026: кончилась — 24 часа предупреждения (contracts/subscription-access).
+    expect(statusOf(canceled).label).toBe("Не оплачена · предупредим при входе");
   });
 });

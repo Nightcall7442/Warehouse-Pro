@@ -10,6 +10,7 @@ import { useNotifications } from "@/hooks/useNotifications";
 import { NAV_ITEMS, navRows, pickActivePath, pageKey, type NavGroupKey } from "@/const";
 import { GlobalSearch } from "@/components/GlobalSearch";
 import { TrialBanner } from "@/components/TrialBanner";
+import { blockedByServer } from "@/lib/subscription-block";
 import { AnnouncementBanner } from "@/components/AnnouncementBanner";
 import { DemoBanner } from "@/components/DemoBanner";
 import { OfflineQueueBadge } from "@/components/OfflineQueueBadge";
@@ -657,12 +658,20 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     }
   }, [user, isLoading, navigate, location.pathname]);
 
-  // NOTE: This is a client-side check only and can be bypassed. The real fix
-  // requires server-side subscription gating on all API endpoints (see Bug 1 fix
-  // in api/lib/feature-gating.ts).
+  /*
+    На экран блокировки — только когда сервер сказал «закрыто».
+
+    Здесь стояло своё правило: «статус не active и не trialing — закрыть». Оно
+    расходилось с калиткой сервера: та давала «не оплачена» неделю льготы, а
+    экран запирал сразу. Теперь срок кончился — 24 часа предупреждения
+    (contracts/subscription-access, решение владельца 10.10.2026), и решает
+    это сервер: access.state приходит от того же правила, что и калитка.
+    Настоящая защита — по-прежнему калитка (api/middleware.ts); это только
+    чтобы не показывать пустые экраны до первого отказа.
+  */
   useEffect(() => {
     if (user?.role === "superadmin") return;
-    if (sub && !sub.isActive && sub.status !== "trialing") {
+    if (blockedByServer(sub)) {
       navigate("/subscription-blocked", { replace: true });
     }
   }, [sub, navigate, user]);

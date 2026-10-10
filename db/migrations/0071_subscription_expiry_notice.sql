@@ -1,0 +1,1 @@
+ALTER TABLE `subscriptions` ADD `expiry_notice_at` timestamp;

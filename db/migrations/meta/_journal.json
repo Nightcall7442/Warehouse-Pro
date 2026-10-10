@@ -498,6 +498,13 @@
       "when": 1791217470607,
       "tag": "0070_plan_standard",
       "breakpoints": true
+    },
+    {
+      "idx": 71,
+      "version": "5",
+      "when": 1791651015091,
+      "tag": "0071_subscription_expiry_notice",
+      "breakpoints": true
     }
   ]
 }

@@ -219,7 +219,9 @@ describe("срок и статус — по подписке", () => {
     expect(O.daysLeft(trial)).toBe(6);
     expect(O.statusOf(trial).label).toBe("Пробный");
     const canceled = org(9, "X", { plan: "pro", subscription: { status: "canceled", plan: "pro", trialEndsAt: null, currentPeriodEnds: new Date(now + DAY) } as Row["subscription"] });
-    expect(O.statusOf(canceled)).toEqual({ label: "Не оплачена", tone: "danger" });
+    // 10.10.2026: кончилась — 24 часа предупреждения от первого захода; пока
+    // организация не заходила, консоль так и пишет (contracts/subscription-access).
+    expect(O.statusOf(canceled)).toEqual({ label: "Не оплачена · предупредим при входе", tone: "danger" });
     expect(O.statusOf(org(9, "X", { status: "suspended" })).label).toBe("Приостановлена");
   });
 
