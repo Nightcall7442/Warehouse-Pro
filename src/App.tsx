@@ -25,6 +25,8 @@ const Privacy              = lazyWithRecovery(() => import("./pages/Privacy"));
 /* Страницы конкурса Pitch Day 3.0 — публичные, отдельными кусками, как лендинг. */
 const Pitch                = lazyWithRecovery(() => import("./pages/Pitch"));
 const PitchDemo            = lazyWithRecovery(() => import("./pages/PitchDemo"));
+/* Сравнение с Sales Doctor и Smartup — публичная страница сайта. */
+const Compare              = lazyWithRecovery(() => import("./pages/Compare"));
 import ForgotPassword       from "./pages/ForgotPassword";
 import ResetPassword        from "./pages/ResetPassword";
 import VerifyEmail          from "./pages/VerifyEmail";
@@ -218,6 +220,7 @@ export default function App() {
             AppLayout — ссылку открывают люди, которых в системе нет. */}
         <Route path="/pitch"              element={<Pitch />} />
         <Route path="/demo"               element={<PitchDemo />} />
+        <Route path="/compare"            element={<Compare />} />
         <Route path="/"                   element={<RootGate />} />
 
         <Route element={<AppLayout />}>

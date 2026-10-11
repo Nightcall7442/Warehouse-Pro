@@ -14,7 +14,7 @@
  * Только эти два адреса: у остальных карточка общая и правильная.
  */
 export interface PageMeta {
-  lang: "uz";
+  lang: "uz" | "ru";
   title: string;
   description: string;
   url: string;
@@ -26,7 +26,7 @@ export interface PageMeta {
 const SITE = "https://www.warehouse-pro.uz";
 const OG_IMAGE = `${SITE}/pitch/og.jpg`;
 
-export const PUBLIC_PAGES: Record<"/pitch" | "/demo", PageMeta> = {
+export const PUBLIC_PAGES: Record<"/pitch" | "/demo" | "/compare", PageMeta> = {
   "/pitch": {
     lang: "uz",
     title: "Warehouse Pro — distribyutorlar uchun ombor, buyurtma va agentlar tizimi · Pitch Day 3.0",
@@ -48,6 +48,22 @@ export const PUBLIC_PAGES: Record<"/pitch" | "/demo", PageMeta> = {
       "<h1>Warehouse Pro — demo</h1>" +
       "<p>Demo video, uning tavsifi va ishlaydigan prototipga kirish.</p>" +
       "<p><a href=\"/pitch\">Loyiha haqida</a></p>",
+  },
+  /*
+    Сравнение — для покупателя-дистрибьютора, по-русски, как лендинг. Ссылку
+    на него шлют в Telegram, и карточка должна сказать, что это сравнение,
+    а не общая «склад, заказы и агенты».
+  */
+  "/compare": {
+    lang: "ru",
+    title: "Warehouse Pro, Sales Doctor, Smartup — сравнение систем для дистрибуции",
+    description: "Раздел за разделом: погрузочные листы, редактор заказа, частичная доставка, акт сверки, склад, отчёты. Что работает у нас и что другие говорят публично — со ссылками и датой.",
+    url: `${SITE}/compare`,
+    image: OG_IMAGE,
+    fallbackHtml:
+      "<h1>Выбираете систему для дистрибуции? Сравните по делу</h1>" +
+      "<p>Warehouse Pro, Sales Doctor, Smartup — раздел за разделом, со ссылками на источники.</p>" +
+      "<p><a href=\"/register\">Попробовать 14 дней бесплатно</a></p>",
   },
 };
 
@@ -91,8 +107,8 @@ export function withPageMeta(html: string, m: PageMeta): string {
     attr(/(<meta property="og:title" content=")[^"]*(")/, m.title),
     attr(/(<meta property="og:description" content=")[^"]*(")/, m.description),
     attr(/(<meta property="og:image" content=")[^"]*(")/, m.image),
-    attr(/(<meta property="og:locale" content=")[^"]*(")/, "uz_UZ"),
-    attr(/(<meta property="og:locale:alternate" content=")[^"]*(")/, "ru_RU"),
+    attr(/(<meta property="og:locale" content=")[^"]*(")/, m.lang === "ru" ? "ru_RU" : "uz_UZ"),
+    attr(/(<meta property="og:locale:alternate" content=")[^"]*(")/, m.lang === "ru" ? "uz_UZ" : "ru_RU"),
     attr(/(<meta name="twitter:card" content=")[^"]*(")/, "summary_large_image"),
     attr(/(<meta name="twitter:title" content=")[^"]*(")/, m.title),
     attr(/(<meta name="twitter:description" content=")[^"]*(")/, m.description),

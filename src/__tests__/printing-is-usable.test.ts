@@ -164,7 +164,7 @@ describe("печать документов", () => {
       Страница конкурса (components/pitch, 09.10.2026) — та же цена платформы
       в разделе «бизнес-модель»; настроек арендатора там нет вовсе.
     */
-    const PLATFORM_PRICE_LIST = [join("components", "landing"), join("components", "billing"), join("components", "pitch")];
+    const PLATFORM_PRICE_LIST = [join("components", "landing"), join("components", "billing"), join("components", "pitch"), join("components", "compare")];
 
     const offenders: string[] = [];
     for (const { rel, text } of FILES) {

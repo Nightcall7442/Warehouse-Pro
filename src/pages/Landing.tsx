@@ -208,6 +208,8 @@ function Footer() {
     { label: tr("Как работает", "Qanday ishlaydi"), href: "#how" },
     { label: tr("Роли", "Rollar"), href: "#roles" },
     { label: tr("Цены", "Narxlar"), href: "#pricing" },
+    // Сравнение с Sales Doctor и Smartup — отдельная страница сайта.
+    { label: tr("Сравнение", "Taqqoslash"), href: "/compare" },
   ];
   return (
     <footer className="py-12" style={{ borderTop: `1px solid ${LX.rule}` }}>
