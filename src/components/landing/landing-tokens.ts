@@ -107,9 +107,16 @@ export const MONO: CSSProperties = {
  * отсутствия. Впишите реальный @username и номер — кнопки «Написать в
  * Telegram» (hero, тарифы, CTA, мобильная панель) появятся сами.
  */
-export const CONTACT: { telegram: string | null; phone: string | null } = {
+export const CONTACT: { telegram: string | null; phone: string | null; email: string | null } = {
   telegram: null,
   phone: null,
+  /*
+    Почта поддержки — настоящая, её дал владелец (10.10.2026). Нужна не
+    только покупателю: App Store требует, чтобы по «Support URL» (главная
+    страница) был способ связаться, и проверяющий ищет его в подвале. Политика
+    конфиденциальности тоже отсылает сюда за контактом.
+  */
+  email: "bobur.yusupov736@gmail.com",
 };
 
 export const tgLink = (text?: string) =>

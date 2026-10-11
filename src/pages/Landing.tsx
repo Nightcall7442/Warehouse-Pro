@@ -6,7 +6,7 @@ import { useTranslate } from "@/i18n";
 import { ArrowRight, Send } from "lucide-react";
 
 import { LandingStyles, Accordion, SectionHead, BtnInk, BtnGhost } from "@/components/landing/landing-shared";
-import { LX, MONO, tgLink } from "@/components/landing/landing-tokens";
+import { LX, MONO, tgLink, CONTACT } from "@/components/landing/landing-tokens";
 import LandingHeader from "@/components/landing/LandingHeader";
 import TallyField from "@/components/landing/TallyField";
 import { startLandingMotion } from "@/lib/landing-motion";
@@ -255,6 +255,11 @@ function Footer() {
           <a href="/privacy" style={{ color: "inherit" }}>
             {tr("Политика конфиденциальности", "Maxfiylik siyosati")}
           </a>
+          {CONTACT.email && (
+            <a href={`mailto:${CONTACT.email}`} data-testid="footer-support-email" style={{ color: "inherit" }}>
+              {tr("Поддержка", "Yordam")}: {CONTACT.email}
+            </a>
+          )}
           <span>{tr("Ургенч, Хорезм, Узбекистан", "Urganch, Xorazm, O'zbekiston")}</span>
         </div>
       </div>
