@@ -3,7 +3,7 @@ import { randomUUID } from "crypto";
 import { eq } from "drizzle-orm";
 import * as schema from "@db/schema";
 import { hasRealDb, connectRealDb, closeRealDb, truncateAll, ctxFor, type ServiceDb } from "./harness";
-import { addMonths, tashkentDay } from "@contracts/subscription-payment";
+import { addMonths, monthShare, tashkentDay, tashkentMonth } from "@contracts/subscription-payment";
 import { paymentsSummary } from "../../services/subscription-payments";
 
 /**
@@ -30,7 +30,9 @@ import { paymentsSummary } from "../../services/subscription-payments";
  *
  * Нарочная поломка: в recordSubscriptionPayment продлевать от `now` —
  * падает «досрочно»; считать MRR «период задевает месяц → вся месячная
- * цена» — падает «по дням»; убрать subscription_payments из KEPT_ON_OFFBOARD
+ * цена» — падает «по дням»; считать «Поступило» по началу периода или
+ * снять границу начала периода в выборке MRR — падает «по дням» (оплата
+ * вперёд); убрать subscription_payments из KEPT_ON_OFFBOARD
  * и вписать в OFFBOARD_ORDER — падает «переживают удаление».
  */
 let current: ServiceDb;
@@ -136,13 +138,37 @@ describe.skipIf(!hasRealDb)("оплаты подписок", () => {
     expect(s.mrrByPayments).toBe(Math.round(1_000_000 * 14 / 30 + 1_000_000 * 17 / 31 + 12_000_000 * 31 / 365));
     expect(s.payers).toBe(3);
 
-    // Через ручку — сегодняшняя оплата попадает в «Поступило» текущего месяца.
+    // Через ручку — сегодняшняя оплата попадает в «Поступило» текущего месяца,
+    // а в «MRR по оплатам» — ровно долей своих дней в этом месяце.
+    //
+    // 12.10.2026 здесь упал main: оплату вносили организации со сроком «ещё
+    // 20 дней», и во второй половине месяца её период начинался в следующем
+    // месяце — MRR этого месяца верно не рос, а тест ждал роста. Даты теперь
+    // от календаря, а не «сегодня + N»: срок кончился — период с сегодня;
+    // оплачено вперёд — период со 2-го числа следующего месяца.
     const a = await admin();
+    const month = tashkentMonth(new Date());
+    const lapsed = await org("Бухара", { plan: "basic", status: "active", currentPeriodEnds: new Date(Date.now() - 2 * DAY) });
     const before = await a.paymentsSummary();
-    await a.recordPayment({ tenantId: id, amount: 599_000, paidAt: today(), method: "card", plan: "standard", months: 1 });
+    const pay = await a.recordPayment({ tenantId: lapsed, amount: 599_000, paidAt: today(), method: "card", plan: "standard", months: 1 });
     const after = await a.paymentsSummary();
+    expect(pay.periodFrom).toBe(today());
     expect(after.received - before.received).toBe(599_000);
-    expect(after.mrrByPayments).toBeGreaterThan(before.mrrByPayments);
+    const share = monthShare({ amount: 599_000, periodFrom: pay.periodFrom, periodTo: pay.periodTo }, month);
+    expect(share).toBeGreaterThan(0);
+    // Итоги округляются до сума каждый сам — разница может уйти на единицу.
+    expect(Math.abs(after.mrrByPayments - before.mrrByPayments - share)).toBeLessThanOrEqual(1);
+    expect(after.payers - before.payers).toBe(1);
+
+    // Оплачено вперёд: деньги поступили сейчас, а в MRR этого месяца их нет.
+    const nextMonthSecond = new Date(new Date(`${month.last}T12:00:00+05:00`).getTime() + 2 * DAY);
+    const ahead = await org("Термез", { plan: "basic", status: "active", currentPeriodEnds: nextMonthSecond });
+    const pay2 = await a.recordPayment({ tenantId: ahead, amount: 400_000, paidAt: today(), method: "card", plan: "standard", months: 1 });
+    const after2 = await a.paymentsSummary();
+    expect(pay2.periodFrom > month.last, pay2.periodFrom).toBe(true);
+    expect(after2.received - after.received).toBe(400_000);
+    expect(after2.mrrByPayments).toBe(after.mrrByPayments);
+    expect(after2.payers).toBe(after.payers);
   });
 
   it("оплаты переживают удаление организации", async () => {
