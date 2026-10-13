@@ -27,6 +27,9 @@ import { AbcTab } from "@/components/reports/AbcTab";
 import { SalesMapTab } from "@/components/reports/SalesMapTab";
 import { PlanForecastCard } from "@/components/plans/PlanForecast";
 import { useUrlState, urlEnum } from "@/hooks/useUrlState";
+import { keepPreviousData } from "@tanstack/react-query";
+import { SectionPeriodPicker } from "@/components/SectionPeriodPicker";
+import { useSectionPeriod } from "@/hooks/useSectionPeriod";
 
 const TAB_KEYS: readonly TabKey[] = ["overview", "sales", "agents", "debts", "noorder", "profit", "abc", "map", "all"];
 /** Разделы со своим периодом в адресе: общий переключатель дней, «Сводка» и печать там ничего не меняют. */
@@ -163,12 +166,38 @@ export default function Reports() {
   const prevTo = shiftDay(from, -1);
   const prevFrom = shiftDay(from, -(span + 1));
 
+  /*
+    У разделов «Обзора» и «Продаж» — свои календари (hooks/useSectionPeriod):
+    раздел идёт за периодом страницы, пока в нём не выбрали свой. Один
+    источник — один период: «Топ товаров» на «Обзоре» и на «Продажах» — тот
+    же запрос и тот же календарь. Плитки сводки, «Агенты» и выгрузки за
+    период — всегда за период страницы.
+  */
+  const visitsPeriod = useSectionPeriod(from, to);
+  const shopsPeriod = useSectionPeriod(from, to);
+  const productsPeriod = useSectionPeriod(from, to);
+  const topAgentsPeriod = useSectionPeriod(from, to);
+  const paymentsPeriod = useSectionPeriod(from, to);
+  // Пока раздел пересчитывается, на экране остаются прежние числа, а не
+  // «за период продаж не было».
+  const keep = { placeholderData: keepPreviousData };
+
   const summaryQ = trpc.reports.getDashboardSummary.useQuery();
-  const chartQ = trpc.reports.getVisitChart.useQuery(custom ? { days, ...custom } : { days });
+  const chartQ = trpc.reports.getVisitChart.useQuery(
+    visitsPeriod.own ? { days, from: visitsPeriod.from, to: visitsPeriod.to }
+      : custom ? { days, ...custom } : { days },
+    keep,
+  );
   const plansQ = trpc.reports.getPlanCompletion.useQuery();
-  const byShopQ = trpc.analytics.salesByShop.useQuery({ dateFrom: from, dateTo: to });
-  const topProdsQ = trpc.analytics.topProducts.useQuery({ dateFrom: from, dateTo: to });
+  const byShopQ = trpc.analytics.salesByShop.useQuery({ dateFrom: shopsPeriod.from, dateTo: shopsPeriod.to }, keep);
+  const topProdsQ = trpc.analytics.topProducts.useQuery({ dateFrom: productsPeriod.from, dateTo: productsPeriod.to }, keep);
   const agentsQ = trpc.analytics.agentPerformance.useQuery({ dateFrom: from, dateTo: to });
+  // «Лучшие агенты» со своим периодом — отдельный запрос: таблица «Агенты» и
+  // плитки сводки считаются от agentsQ за период страницы.
+  const ownTopAgentsQ = trpc.analytics.agentPerformance.useQuery(
+    { dateFrom: topAgentsPeriod.from, dateTo: topAgentsPeriod.to },
+    { enabled: topAgentsPeriod.own, ...keep },
+  );
   const prevAgentsQ = trpc.analytics.agentPerformance.useQuery({ dateFrom: prevFrom, dateTo: prevTo });
   // Долг — остаток на сейчас, периода у него нет: см. комментарий у самого
   // debtReport на сервере.
@@ -179,7 +208,10 @@ export default function Reports() {
   // Carries gross profit and margin per payment method, so it is CEO-only on
   // the server. Asking for it as an operator would just produce a failed query
   // and an empty section; not asking is the same result without the noise.
-  const byPaymentQ = trpc.analytics.pnlByPaymentMethod.useQuery({ from, to }, { enabled: isCeo });
+  const byPaymentQ = trpc.analytics.pnlByPaymentMethod.useQuery(
+    { from: paymentsPeriod.from, to: paymentsPeriod.to },
+    { enabled: isCeo, ...keep },
+  );
   /*
     Период блока — период страницы. Здесь стояли свои поля дат, заполненные
     из `from`/`to` один раз при открытии: «7 дней» над вкладкой меняло таблицу
@@ -262,7 +294,15 @@ export default function Reports() {
   const topShopsOverview = byShop
     ?.map(s => ({ name: s.shopName ?? "—", revenue: Number(s.revenue) }))
     .sort((a, b) => b.revenue - a.revenue);
-  const topAgentsOverview = agentRows?.slice().sort((a, b) => b.revenue - a.revenue);
+  // Раздел со своим периодом подписан им и в «Сводке», и в печати.
+  const ownNote = (sp: { own: boolean; from: string; to: string }) => (sp.own ? ` (${rangeText(sp.from, sp.to)})` : "");
+
+  const topAgentsOverview = topAgentsPeriod.own
+    ? ownTopAgentsQ.data?.map(a => ({
+        agentId: Number(a.agentId ?? 0), agentName: a.agentName,
+        orders: Number(a.orderCount), revenue: Number(a.totalRevenue),
+      })).sort((a, b) => b.revenue - a.revenue)
+    : agentRows?.slice().sort((a, b) => b.revenue - a.revenue);
 
   /*
     Четыре раздела — четыре вопроса, с которыми открывают отчёты: сколько
@@ -365,14 +405,14 @@ export default function Reports() {
     }
 
     if (byShop && byShop.length > 0) {
-      rows.push({ Раздел: "ПРОДАЖИ ПО МАГАЗИНАМ", Показатель: "Магазин", Значение: "Выручка", "": "Заказов" });
+      rows.push({ Раздел: `ПРОДАЖИ ПО МАГАЗИНАМ${ownNote(shopsPeriod)}`, Показатель: "Магазин", Значение: "Выручка", "": "Заказов" });
       for (const s of byShop) {
         rows.push({ Раздел: "", Показатель: s.shopName ?? "—", Значение: Number(s.revenue ?? 0).toFixed(2), "": s.orderCount ?? 0 });
       }
     }
 
     if (topProds && topProds.length > 0) {
-      rows.push({ Раздел: "ТОП ТОВАРОВ", Показатель: "Товар", Значение: "Продано", "": "Выручка" });
+      rows.push({ Раздел: `ТОП ТОВАРОВ${ownNote(productsPeriod)}`, Показатель: "Товар", Значение: "Продано", "": "Выручка" });
       for (const p of topProds) {
         // С единицей и дробью: «.toFixed(0)» превращал 25,5 кг в «26», а
         // штуки и килограммы выглядели одинаково. Бумага — по-русски.
@@ -381,7 +421,7 @@ export default function Reports() {
     }
 
     if (byPayment && byPayment.length > 0) {
-      rows.push({ Раздел: "СПОСОБЫ ОПЛАТЫ", Показатель: "Способ", Значение: "Выручка", "": "Маржа, %" });
+      rows.push({ Раздел: `СПОСОБЫ ОПЛАТЫ${ownNote(paymentsPeriod)}`, Показатель: "Способ", Значение: "Выручка", "": "Маржа, %" });
       for (const p of byPayment) {
         // The field is paymentMethod; reading `p.method` gave undefined, so
         // PAYMENT_MAP missed and the fallback printed undefined too — this
@@ -428,7 +468,7 @@ export default function Reports() {
     }
 
     if (byShop && byShop.length > 0) {
-      html += `<div class="section"><h2>Продажи по магазинам</h2>
+      html += `<div class="section"><h2>Продажи по магазинам${ownNote(shopsPeriod)}</h2>
         <table><thead><tr><th>Магазин</th><th class="right">Выручка</th><th class="right">Заказов</th></tr></thead><tbody>`;
       for (const s of byShop) {
         html += `<tr><td>${esc(s.shopName)}</td><td class="right">${fmtNum(Number(s.revenue ?? 0))}</td><td class="right">${Number(s.orderCount ?? 0)}</td></tr>`;
@@ -437,7 +477,7 @@ export default function Reports() {
     }
 
     if (topProds && topProds.length > 0) {
-      html += `<div class="section"><h2>Топ товаров</h2>
+      html += `<div class="section"><h2>Топ товаров${ownNote(productsPeriod)}</h2>
         <table><thead><tr><th>Товар</th><th>Код</th><th class="right">Продано</th><th class="right">Выручка</th></tr></thead><tbody>`;
       for (const p of topProds) {
         html += `<tr><td>${esc(p.productName ?? "—")}</td><td>${esc(p.productCode)}</td><td class="right">${esc(`${formatQty(p.totalQty)} ${unitShort(p.unit)}`)}</td><td class="right bold">${fmtNum(Number(p.totalRevenue))}</td></tr>`;
@@ -446,7 +486,7 @@ export default function Reports() {
     }
 
     if (byPayment && byPayment.length > 0) {
-      html += `<div class="section"><h2>По способу оплаты</h2>
+      html += `<div class="section"><h2>По способу оплаты${ownNote(paymentsPeriod)}</h2>
         <table><thead><tr><th>Способ</th><th class="right">Выручка</th><th class="right">Заказов</th><th class="right">Маржа, %</th></tr></thead><tbody>`;
       for (const p of byPayment) {
         const pm = PAYMENT_MAP[p.paymentMethod] ?? { label: p.paymentMethod };
@@ -624,8 +664,15 @@ export default function Reports() {
             plans: plansQ.isError ? { onRetry: () => void plansQ.refetch() } : undefined,
             products: topProdsQ.isError ? { onRetry: () => void topProdsQ.refetch() } : undefined,
             shops: byShopQ.isError ? { onRetry: () => void byShopQ.refetch() } : undefined,
-            agents: agentsQ.isError ? { onRetry: () => void agentsQ.refetch() } : undefined,
+            agents: (topAgentsPeriod.own ? ownTopAgentsQ.isError : agentsQ.isError)
+              ? { onRetry: () => void (topAgentsPeriod.own ? ownTopAgentsQ : agentsQ).refetch() } : undefined,
             debt: debtQ.isError ? { onRetry: () => void debtQ.refetch() } : undefined,
+          }}
+          pickers={{
+            chart: <SectionPeriodPicker period={visitsPeriod} testId="reports-visits-range" />,
+            products: <SectionPeriodPicker period={productsPeriod} compact align="start" testId="reports-top-products-range" />,
+            shops: <SectionPeriodPicker period={shopsPeriod} compact align="start" testId="reports-top-shops-range" />,
+            agents: <SectionPeriodPicker period={topAgentsPeriod} compact align="start" testId="reports-top-agents-range" />,
           }}
         />
       )}
@@ -635,7 +682,9 @@ export default function Reports() {
           shopChartData={shopChartData}
           byPayment={paymentBreakdown}
           topProds={topProductRows}
-          periodRevenue={totals?.revenue ?? null}
+          // «Доля в выручке» — от выручки за период страницы; у своего периода
+          // раздела этого итога нет, и колонка честно считает от показанных.
+          periodRevenue={productsPeriod.own ? null : (totals?.revenue ?? null)}
           lang={lang}
           fmt={fmt}
           t={t}
@@ -643,6 +692,11 @@ export default function Reports() {
             shops: byShopQ.isError ? () => void byShopQ.refetch() : undefined,
             products: topProdsQ.isError ? () => void topProdsQ.refetch() : undefined,
             payment: byPaymentQ.isError ? () => void byPaymentQ.refetch() : undefined,
+          }}
+          pickers={{
+            shops: <SectionPeriodPicker period={shopsPeriod} testId="reports-shops-range" />,
+            products: <SectionPeriodPicker period={productsPeriod} testId="reports-products-range" />,
+            payment: <SectionPeriodPicker period={paymentsPeriod} testId="reports-payment-range" />,
           }}
         />
       )}

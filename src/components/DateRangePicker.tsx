@@ -8,7 +8,7 @@ import { dateLocale } from "@/lib/date-locale";
 import { useIsMobile } from "@/hooks/use-mobile";
 import {
   clampDay, monthCells, monthEndOf, monthOf, orderRange, parseDay,
-  quickRanges, rangeText, shiftDay, shiftMonthOf, toDay,
+  quickRanges, rangeText, rangeTextShort, shiftDay, shiftMonthOf, toDay,
 } from "@/lib/date-range";
 
 /**
@@ -35,6 +35,8 @@ export interface DateRangePickerProps {
   max?: string;
   /** Подпись кнопки, пока период не задан. */
   placeholder?: string;
+  /** Подпись без года, если период в текущем году, — для узких панелей. */
+  compact?: boolean;
   /** Кнопка нажата: период на экране выбран именно календарём. */
   active?: boolean;
   /** Задан — в календаре есть «Сбросить»: пустой период на этом экране что-то значит. */
@@ -46,7 +48,7 @@ export interface DateRangePickerProps {
 
 export function DateRangePicker({
   from, to, onChange, min, max, placeholder, active, onClear,
-  align = "end", "aria-label": ariaLabel, testId,
+  align = "end", "aria-label": ariaLabel, testId, compact,
 }: DateRangePickerProps) {
   const { lang } = useLang();
   const t = (ru: string, uz: string) => (lang === "uz" ? uz : ru);
@@ -139,7 +141,9 @@ export function DateRangePicker({
     gridRef.current?.querySelector<HTMLButtonElement>(`[data-day="${focus}"]`)?.focus();
   }, [focus, view]);
 
-  const label = from || to ? rangeText(from, to) : (placeholder ?? t("Выбрать даты", "Sanani tanlang"));
+  const label = from || to
+    ? (compact ? rangeTextShort(from, to, today) : rangeText(from, to))
+    : (placeholder ?? t("Выбрать даты", "Sanani tanlang"));
   const quick = quickRanges(today, max).filter(q => !outOfBounds(q.from));
   const quickLabel = { today: t("Сегодня", "Bugun"), month: t("Этот месяц", "Bu oy"), prevMonth: t("Прошлый месяц", "O'tgan oy") };
   // 1 июня 2026 — понедельник: от него семь дней дают шапку недели на языке экрана.

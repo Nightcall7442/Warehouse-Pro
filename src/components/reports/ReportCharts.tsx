@@ -136,15 +136,23 @@ export const TopList = memo(function TopList({ items, t, emptyRu, emptyUz }: {
   );
 });
 
-export const ChartPanel = memo(function ChartPanel({ title, children }: { title: string; children: React.ReactNode }) {
+export const ChartPanel = memo(function ChartPanel({ title, action, children }: {
+  title: string;
+  /** Справа от заголовка — календарь раздела. */
+  action?: React.ReactNode;
+  children: React.ReactNode;
+}) {
   return (
     <div style={{
       background: COLORS.surface, borderRadius: "20px", padding: "24px",
       boxShadow: SHADOW, position: "relative", overflow: "hidden",
     }}>
-      <h2 style={{ fontFamily: F.display, fontSize: "16px", fontWeight: 600, color: COLORS.textPrimary, margin: "0 0 20px" }}>
-        {title}
-      </h2>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px", flexWrap: "wrap", marginBottom: "20px" }}>
+        <h2 style={{ fontFamily: F.display, fontSize: "16px", fontWeight: 600, color: COLORS.textPrimary, margin: 0 }}>
+          {title}
+        </h2>
+        {action}
+      </div>
       {children}
     </div>
   );

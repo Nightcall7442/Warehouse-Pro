@@ -9,7 +9,13 @@ import type { SectionPeriod } from "@/hooks/useSectionPeriod";
  * Показывает даты, за которые раздел посчитан сейчас, — свои или страницы.
  * «Сбросить» есть только у своего периода: он возвращает раздел к странице.
  */
-export function SectionPeriodPicker({ period, testId }: { period: SectionPeriod; testId?: string }) {
+export function SectionPeriodPicker({ period, testId, compact, align }: {
+  period: SectionPeriod;
+  testId?: string;
+  /** Узкая панель — подпись без года (DateRangePicker.compact). */
+  compact?: boolean;
+  align?: "start" | "center" | "end";
+}) {
   const t = useTranslate();
   return (
     <DateRangePicker
@@ -21,6 +27,8 @@ export function SectionPeriodPicker({ period, testId }: { period: SectionPeriod;
       active={period.own}
       aria-label={t("Период раздела", "Bo'lim davri")}
       testId={testId}
+      compact={compact}
+      align={align}
     />
   );
 }

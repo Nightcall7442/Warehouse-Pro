@@ -17,7 +17,7 @@ import { useState } from "react";
 import { render, screen, fireEvent, cleanup, act } from "@testing-library/react";
 import { DateRangePicker } from "./DateRangePicker";
 import { FixedLang } from "@/i18n";
-import { monthCells, quickRanges, rangeText } from "@/lib/date-range";
+import { monthCells, quickRanges, rangeText, rangeTextShort } from "@/lib/date-range";
 
 // Popper мерит якорь через ResizeObserver, которого в jsdom нет.
 globalThis.ResizeObserver ??= class { observe() {} unobserve() {} disconnect() {} } as unknown as typeof ResizeObserver;
@@ -142,6 +142,13 @@ describe("арифметика календаря", () => {
     expect(rangeText("2026-10-13", "2026-10-13")).toBe("13.10.2026");
     expect(rangeText("2026-10-13", "")).toBe("13.10.2026 —");
     expect(rangeText("", "")).toBe("");
+  });
+
+  it("короткая подпись — без года только в текущем году", () => {
+    expect(rangeTextShort("2026-09-13", "2026-10-13", "2026-10-13")).toBe("13.09 — 13.10");
+    expect(rangeTextShort("2026-10-13", "2026-10-13", "2026-10-13")).toBe("13.10");
+    // Прошлый год без года не угадать — подпись полная.
+    expect(rangeTextShort("2025-12-20", "2026-01-10", "2026-10-13")).toBe("20.12.2025 — 10.01.2026");
   });
 
   it("«этот месяц» не заходит за сегодня, прошлый — до последнего числа", () => {

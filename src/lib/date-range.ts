@@ -77,6 +77,17 @@ export function rangeText(from: string, to: string): string {
   return "";
 }
 
+/**
+ * Короткая подпись для узких панелей: «13.09 — 13.10», если оба конца в
+ * текущем году; иначе полная — год в чужом году не угадать.
+ */
+export function rangeTextShort(from: string, to: string, today: string): string {
+  const year = today.slice(0, 4);
+  if (!from || !to || from.slice(0, 4) !== year || to.slice(0, 4) !== year) return rangeText(from, to);
+  const dm = (day: string) => `${day.slice(8)}.${day.slice(5, 7)}`;
+  return from === to ? dm(from) : `${dm(from)} — ${dm(to)}`;
+}
+
 export interface QuickRange {
   key: "today" | "month" | "prevMonth";
   from: string;
