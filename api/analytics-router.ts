@@ -636,10 +636,35 @@ export const analyticsRouter = createRouter({
           ))
           .groupBy(arrivalKey);
 
+        /*
+          Зарплата — тем же правилом, что в итоге периода выше (payrollRowP):
+          выданное, по дню выдачи. Без неё линия «Чистая прибыль» шла выше
+          итога над графиком ровно на фонд оплаты труда, и сумма точек не
+          сходилась с числом в шапке.
+        */
+        const payrollKey = sql<string>`DATE_FORMAT(${salaryPayouts.paidAt}, ${fmt})`;
+        const payrollRows = await db.select({
+          key: payrollKey,
+          payroll: sql<string>`COALESCE(SUM(${salaryPayouts.amount}), 0)`,
+        })
+          .from(salaryPayouts)
+          .where(and(
+            eq(salaryPayouts.tenantId, tid),
+            sql`${salaryPayouts.paidAt} >= ${from}`,
+            sql`${salaryPayouts.paidAt} <= ${to + " 23:59:59"}`,
+          ))
+          .groupBy(payrollKey);
+
+        // Расходы отрезка — закупочные траты и зарплата вместе, как
+        // operatingExpenses в итоге периода.
+        const expensesBy = new Map<string, number>();
+        for (const r of expenseRows) expensesBy.set(r.key, Number(r.expenses));
+        for (const r of payrollRows) expensesBy.set(r.key, (expensesBy.get(r.key) ?? 0) + Number(r.payroll));
+
         return {
           revenueRows,
           cogsBy: new Map(cogsRows.map(r => [r.key, Number(r.cogs)])),
-          expensesBy: new Map(expenseRows.map(r => [r.key, Number(r.expenses)])),
+          expensesBy,
           /*
             Возвраты вычитаются и здесь — тем же помощником, что и в карточке
             прибыли выше. Посчитай график иначе, и на одном экране снова
@@ -657,20 +682,28 @@ export const analyticsRouter = createRouter({
       const returnRows = await returnsInPeriod(db, tid, from, to);
       const monthly = await sumsBy("%Y-%m", r => r.month, returnRows);
 
-      const trend = monthly.revenueRows.map(r => {
-        const back = monthly.returnsBy.get(r.key);
-        const rev = Number(r.revenue) - (back?.amount ?? 0);
-        const cost = (monthly.cogsBy.get(r.key) ?? 0) - (back?.cost ?? 0);
+      /*
+        Месяц без продаж, но с выплатой или возвратом — тоже строка ряда:
+        иначе зарплата, выданная в месяц без заказов, пропадала из графика и
+        выгрузки «P&L по месяцам», и сумма строк снова не сходилась с итогом.
+      */
+      const revenueByMonth = new Map(monthly.revenueRows.map(r => [r.key, r]));
+      const months = [...new Set([...revenueByMonth.keys(), ...monthly.expensesBy.keys(), ...monthly.returnsBy.keys()])].sort();
+      const trend = months.map(month => {
+        const r = revenueByMonth.get(month);
+        const back = monthly.returnsBy.get(month);
+        const rev = Number(r?.revenue ?? 0) - (back?.amount ?? 0);
+        const cost = (monthly.cogsBy.get(month) ?? 0) - (back?.cost ?? 0);
         const gp = rev - cost;
-        const exp = monthly.expensesBy.get(r.key) ?? 0;
+        const exp = monthly.expensesBy.get(month) ?? 0;
         return {
-          month: r.key,
+          month,
           revenue: rev,
           cogs: cost,
           grossProfit: gp,
           operatingExpenses: exp,
           netProfit: gp - exp,
-          orderCount: Number(r.orderCount),
+          orderCount: Number(r?.orderCount ?? 0),
         };
       });
 
@@ -688,7 +721,8 @@ export const analyticsRouter = createRouter({
       } else {
         const daily = await sumsBy("%Y-%m-%d", r => r.day, returnRows);
         const revenueBy = new Map(daily.revenueRows.map(r => [r.key, r]));
-        // День только с расходом или только с возвратом — тоже день графика.
+        // День только с расходом (приход, зарплата) или только с возвратом —
+        // тоже день графика.
         const days = new Set([...revenueBy.keys(), ...daily.expensesBy.keys(), ...daily.returnsBy.keys()]);
         points = bucketSeries([...days].map(key => {
           const back = daily.returnsBy.get(key);
