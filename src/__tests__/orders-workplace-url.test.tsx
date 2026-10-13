@@ -192,7 +192,7 @@ describe("адрес → запрос: ссылка открывает тот ж
     });
     // Экран показывает то, чем отфильтрован список.
     expect((screen.getByPlaceholderText(/Поиск заказов/) as HTMLInputElement).value).toBe("Хумо");
-    expect(Array.from(document.querySelectorAll<HTMLInputElement>('input[type="date"]')).map(i => i.value)).toEqual(["2026-09-01", "2026-09-30"]);
+    expect(screen.getByTestId("orders-range").textContent).toBe("01.09.2026 — 30.09.2026");
     expect(header("ИТОГО").getAttribute("aria-sort")).toBe("ascending");
     expect(screen.getByRole("combobox", { name: "Строк на странице" }).textContent).toContain("По 50");
   });

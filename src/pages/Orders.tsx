@@ -54,6 +54,7 @@ import { colorMix } from "@/lib/color-mix";
 
 import { SearchInput } from "@/components/SearchInput";
 import { errorText } from "@/lib/error-text";
+import { DateRangePicker } from "@/components/DateRangePicker";
 /*
   Агенту — свой экран, всем остальным — этот.
 
@@ -325,11 +326,12 @@ function OperatorOrders() {
   }), [section, status, chipFilters, dateFrom, dateTo, debouncedSearch, agentFilter, courierRaw, sortBy, sortDir]);
   const q = useMemo(() => ordersQuery(view), [view]);
   /*
-    Поле даты показывает то, что применено к таблице. Тронул поле — чип
-    периода снимается: иначе на экране одни даты, а таблица по другим.
+    Календарь показывает то, что применено к таблице. Выбрал в нём период —
+    чип периода снимается: иначе на экране одни даты, а таблица по другим.
   */
-  const pickDate = (set: (v: string) => void, value: string) => {
-    set(value);
+  const pickDates = (from: string, to: string) => {
+    setDateFrom(from);
+    setDateTo(to);
     if (period) setPeriod("");
     setPage(1);
   };
@@ -819,9 +821,17 @@ function OperatorOrders() {
           </p>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
-          <input type="date" value={q.shown.dateFrom} onChange={e => pickDate(setDateFrom, e.target.value)} style={{ padding: "6px 10px", borderRadius: "8px", border: `1px solid ${COLORS.border}`, fontSize: "12px", fontFamily: F.body, color: COLORS.textPrimary, background: COLORS.surface }} />
-          <span style={{ color: COLORS.textTertiary, fontSize: "12px" }}>—</span>
-          <input type="date" value={q.shown.dateTo} onChange={e => pickDate(setDateTo, e.target.value)} style={{ padding: "6px 10px", borderRadius: "8px", border: `1px solid ${COLORS.border}`, fontSize: "12px", fontFamily: F.body, color: COLORS.textPrimary, background: COLORS.surface }} />
+          {/* Пустой период — «в работе», без отбора по датам: потому «Сбросить». */}
+          <DateRangePicker
+            from={q.shown.dateFrom}
+            to={q.shown.dateTo}
+            onChange={pickDates}
+            onClear={() => pickDates("", "")}
+            placeholder={t("Все даты", "Barcha sanalar")}
+            active={!!(dateFrom || dateTo)}
+            aria-label={t("Период", "Davr")}
+            testId="orders-range"
+          />
           <button onClick={handleExport} style={{
             display: "flex", alignItems: "center", gap: "6px", padding: "8px 14px",
             fontSize: "13px", fontWeight: 500, fontFamily: F.body, borderRadius: "10px",

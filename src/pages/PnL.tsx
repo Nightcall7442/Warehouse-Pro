@@ -14,7 +14,6 @@ import {
   PnLPeriodSelector,
   PnLHeadline,
   PnLSummaryCards,
-  DateInput,
   PnLPaymentBreakdown,
   PnLRevenueChart,
   PnLExpenseBreakdown,
@@ -58,7 +57,6 @@ export default function PnL() {
   const [customTo, setCustomTo] = useState(() =>
     format(new Date(), "yyyy-MM-dd")
   );
-  const [showCustom, setShowCustom] = useState(false);
   const { fmt, symbol } = useCurrency();
   const { lang } = useLang();
   const t = (ru: string, uz: string) => (lang === "uz" ? uz : ru);
@@ -133,9 +131,10 @@ export default function PnL() {
     }));
   }, [trend]);
 
-  const handleRangeChange = (newRange: Range) => {
-    setRange(newRange);
-    setShowCustom(newRange === "custom");
+  const handleCustomRange = (nextFrom: string, nextTo: string) => {
+    setCustomFrom(nextFrom);
+    setCustomTo(nextTo);
+    setRange("custom");
   };
 
   const handleExportExcel = async () => {
@@ -585,7 +584,8 @@ export default function PnL() {
     <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
       <PnLPeriodSelector
         range={range}
-        onRangeChange={handleRangeChange}
+        onRangeChange={setRange}
+        onCustomRange={handleCustomRange}
         onExportExcel={handleExportExcel}
         onExportPDF={handleExportPDF}
         from={from}
@@ -593,31 +593,6 @@ export default function PnL() {
         t={t}
         lang={lang}
       />
-
-      {showCustom && (
-        <div
-          className="neo-card-sm"
-          style={{
-            display: "flex",
-            alignItems: "flex-end",
-            gap: "16px",
-            flexWrap: "wrap",
-          }}
-        >
-          <DateInput value={customFrom} onChange={setCustomFrom} label={t("От", "Dan")} />
-          <DateInput value={customTo} onChange={setCustomTo} label={t("До", "Gacha")} />
-          <div
-            style={{
-              fontSize: "12px",
-              color: COLORS.textTertiary,
-              fontFamily: "'Manrope', -apple-system, sans-serif",
-              paddingBottom: "6px",
-            }}
-          >
-            {t("Выберите период для анализа", "Tahlil uchun davrni tanlang")}
-          </div>
-        </div>
-      )}
 
       {/* Ответ страницы: заработали или нет, лучше или хуже, куда ушло. */}
       <PnLHeadline

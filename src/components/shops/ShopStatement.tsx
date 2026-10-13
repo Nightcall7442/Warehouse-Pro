@@ -12,6 +12,7 @@ import {
   STATEMENT_PRESETS, ALL_TIME, presetRange, dayToRu, localDay, type StatementPreset, type StatementPeriod,
 } from "@contracts/statement-period";
 import { reconciliationHtml, reconciliationConclusion, reconciliationDocLabel } from "@/lib/reconciliation-print";
+import { DateRangePicker } from "@/components/DateRangePicker";
 
 /**
  * Акт сверки с магазином: откуда взялось число долга.
@@ -67,14 +68,19 @@ export function StatementPeriodPicker({ value, onChange }: {
         width="180px"
         aria-label={t("Период", "Davr")}
       />
-      {value.preset === "custom" && (
-        <>
-          <input type="date" className="neo-input" style={{ width: "150px" }} value={value.from}
-            onChange={e => onChange({ ...value, from: e.target.value })} aria-label={t("С даты", "Sanadan")} />
-          <input type="date" className="neo-input" style={{ width: "150px" }} value={value.to}
-            onChange={e => onChange({ ...value, to: e.target.value })} aria-label={t("По дату", "Sanagacha")} />
-        </>
-      )}
+      {/* Календарь — рядом со списком всегда: он показывает даты выбранного
+          отрезка («Прошлый месяц» — 01.09 — 30.09), и свой период ставится в
+          нём сразу, без захода в список за «Своим периодом». */}
+      <DateRangePicker
+        from={value.from}
+        to={value.to}
+        max={localDay(new Date())}
+        onChange={(from, to) => onChange({ preset: "custom", from, to })}
+        active={value.preset === "custom"}
+        align="start"
+        aria-label={t("Период", "Davr")}
+        testId="statement-range"
+      />
     </div>
   );
 }

@@ -33,6 +33,7 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, cleanup, fireEvent, within, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
+import { pickRange } from "./pick-range";
 
 const h = vi.hoisted(() => ({
   calls: [] as Array<{ path: string; input: unknown }>,
@@ -105,7 +106,7 @@ describe("каталог выгрузок", () => {
     const rows = container.querySelectorAll("[data-testid^=export-]");
     expect(rows.length).toBe(16);
     for (const r of rows) expect(within(r as HTMLElement).getAllByRole("button", { name: /^Скачать Excel/ })).toHaveLength(1);
-    expect(container.querySelectorAll("input[type=date]"), "дат — одна пара на весь каталог").toHaveLength(2);
+    expect(container.querySelectorAll(".drp-trigger"), "период — один на весь каталог").toHaveLength(1);
     // Долги — в деньгах, а не среди справочников магазинов.
     const money = screen.getByRole("region", { name: "Деньги и долги" });
     expect(within(money).getByText("Долги магазинов")).toBeTruthy();
@@ -114,8 +115,7 @@ describe("каталог выгрузок", () => {
 
   it("2. период сверху — в каждую строку, в запрос и в имя файла", async () => {
     hub("ceo");
-    fireEvent.change(screen.getByTestId("exports-from"), { target: { value: "2026-09-01" } });
-    fireEvent.change(screen.getByTestId("exports-to"), { target: { value: "2026-09-15" } });
+    pickRange("exports-range", "2026-09-01", "2026-09-15");
     expect(within(row("sales-by-product")).getByText(/01\.09 – 15\.09/)).toBeTruthy();
     expect(within(row("visits-log")).getByText(/01\.09 – 15\.09/)).toBeTruthy();
     expect(within(row("debt-report")).getByText(/на сегодня/)).toBeTruthy();

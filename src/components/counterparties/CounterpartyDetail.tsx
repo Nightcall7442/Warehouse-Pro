@@ -7,6 +7,7 @@ import { COLORS, F, money, PAYMENT_METHODS } from "./constants";
 import type { PayableSupply } from "./PaymentForm";
 
 import { useSellerCompany } from "@/hooks/useSellerCompany";
+import { DateRangePicker } from "@/components/DateRangePicker";
 
 type Tab = "debts" | "payments" | "reconciliation";
 
@@ -310,15 +311,20 @@ export function CounterpartyDetail({ supplierId, lang, onClose, onEdit, onPay, o
       {/* ── Акт сверки ── */}
       {tab === "reconciliation" && (
         <div>
-          <div style={{ display: "flex", gap: "10px", alignItems: "flex-end", flexWrap: "wrap", marginBottom: "14px" }}>
-            <div>
-              <label style={{ fontSize: "10px", fontWeight: 600, textTransform: "uppercase", color: COLORS.textTertiary, display: "block", marginBottom: "4px" }}>{t("С", "Dan")}</label>
-              <input type="date" className="neo-input" value={from} onChange={e => setFrom(e.target.value)} />
-            </div>
-            <div>
-              <label style={{ fontSize: "10px", fontWeight: 600, textTransform: "uppercase", color: COLORS.textTertiary, display: "block", marginBottom: "4px" }}>{t("По", "Gacha")}</label>
-              <input type="date" className="neo-input" value={to} onChange={e => setTo(e.target.value)} />
-            </div>
+          <div style={{ display: "flex", gap: "10px", alignItems: "center", flexWrap: "wrap", marginBottom: "14px" }}>
+            {/* Пустой период — акт за всё время, поэтому в календаре есть «Сбросить». */}
+            <DateRangePicker
+              from={from}
+              to={to}
+              max={format(new Date(), "yyyy-MM-dd")}
+              onChange={(f, tt) => { setFrom(f); setTo(tt); }}
+              onClear={() => { setFrom(""); setTo(""); }}
+              placeholder={t("За всё время", "Butun davr")}
+              active={!!(from || to)}
+              align="start"
+              aria-label={t("Период", "Davr")}
+              testId="counterparty-range"
+            />
             <button
               onClick={printReconciliation}
               disabled={!reconciliation}

@@ -22,6 +22,7 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, cleanup, fireEvent, within } from "@testing-library/react";
 import { MemoryRouter, useLocation } from "react-router";
+import { pickRange } from "./pick-range";
 
 const h = vi.hoisted(() => ({ inputs: [] as Array<Record<string, unknown>> }));
 
@@ -64,7 +65,7 @@ describe("отчёт «Без заказа»", () => {
   it("1. фильтры из ссылки уходят в запрос", () => {
     open("/reports?tab=noorder&from=2026-09-01&to=2026-09-30&agent=5&territory=9");
     expect(h.inputs.at(-1)).toEqual({ dateFrom: "2026-09-01", dateTo: "2026-09-30", agentId: 5, territoryId: 9 });
-    expect((screen.getByTestId("no-order-from") as HTMLInputElement).value).toBe("2026-09-01");
+    expect(screen.getByTestId("no-order-range").textContent).toBe("01.09.2026 — 30.09.2026");
   });
 
   it("2. смена даты и кнопка периода — в адрес", () => {
@@ -72,7 +73,7 @@ describe("отчёт «Без заказа»", () => {
     // Дата — из прошлого, которое уже не станет умолчанием «месяц назад».
     // Здесь стояло 10.09: 10.10.2026 умолчание совпало с ней, страница
     // законно не записала его в адрес, и тест падал один день в году.
-    fireEvent.change(screen.getByTestId("no-order-from"), { target: { value: "2026-09-05" } });
+    pickRange("no-order-range", "2026-09-05", "2026-09-30");
     expect(new URLSearchParams(search()).get("from")).toBe("2026-09-05");
     expect(new URLSearchParams(search()).get("tab")).toBe("noorder");
     expect(h.inputs.at(-1)).toMatchObject({ dateFrom: "2026-09-05", dateTo: "2026-09-30" });

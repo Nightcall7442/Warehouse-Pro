@@ -26,6 +26,7 @@
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, cleanup, act, waitFor } from "@testing-library/react";
+import { pickRange } from "./pick-range";
 import { MemoryRouter } from "react-router";
 import { LangProvider } from "@/i18n";
 
@@ -99,7 +100,8 @@ const lastStats = () => {
   return s.slice(-2).map(c => c.input);
 };
 const withoutPaging = (i: Record<string, unknown>) => { const { page, pageSize, ...rest } = i; void page; void pageSize; return rest; };
-const dateInputs = () => Array.from(document.querySelectorAll<HTMLInputElement>('input[type="date"]'));
+// Календарь периода — его кнопка называет то, что применено к таблице.
+const shownRange = () => screen.getByTestId("orders-range").textContent;
 const tile = (label: string) => screen.getAllByRole("button").find(b => b.getAttribute("aria-pressed") !== null && b.textContent?.includes(label))!;
 
 beforeEach(() => {
@@ -128,8 +130,8 @@ describe("1 октября: очереди и «Активные» не режу
     expect(t).toMatchObject({ archived: false });
     expect(t.dateFrom).toBeUndefined();
     expect(t.dateTo).toBeUndefined();
-    // Поля дат пусты: на экране ровно то, что применено.
-    expect(dateInputs().map(i => i.value)).toEqual(["", ""]);
+    // Период не выбран: на экране ровно то, что применено.
+    expect(shownRange()).toBe("Все даты");
     const [report, queue] = lastStats();
     expect(report).toMatchObject({ dateFrom: "2026-10-01", dateTo: "2026-10-01" });
     expect(queue.dateFrom).toBeUndefined();
@@ -151,12 +153,12 @@ describe("1 октября: очереди и «Активные» не режу
     show();
     fireEvent.click(screen.getByRole("button", { name: "Архив" }));
     expect(lastTable()).toMatchObject({ archived: true, dateFrom: "2026-10-01", dateTo: "2026-10-01" });
-    expect(dateInputs().map(i => i.value)).toEqual(["2026-10-01", "2026-10-01"]);
+    expect(shownRange()).toBe("01.10.2026");
   });
 
   it("выбранные человеком даты фильтруют и таблицу, и очереди", () => {
     show();
-    fireEvent.change(dateInputs()[0], { target: { value: "2026-09-15" } });
+    pickRange("orders-range", "2026-09-15", "2026-10-01");
     expect(lastTable()).toMatchObject({ dateFrom: "2026-09-15", archived: false });
     const [report, queue] = lastStats();
     expect(queue).toMatchObject({ dateFrom: "2026-09-15" });
@@ -169,7 +171,7 @@ describe("чипы дат", () => {
     show();
     fireEvent.click(screen.getByRole("button", { name: /Эта неделя/ }));
     expect(lastTable()).toMatchObject({ dateFrom: "2026-09-28", dateTo: "2026-10-01" });
-    expect(dateInputs()[0].value).toBe("2026-09-28");
+    expect(shownRange()).toBe("28.09.2026 — 01.10.2026");
     fireEvent.click(screen.getByRole("button", { name: /Вчера/ }));
     expect(lastTable()).toMatchObject({ dateFrom: "2026-09-30", dateTo: "2026-09-30" });
   });

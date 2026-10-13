@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { format, subDays } from "date-fns";
 import { CATEGORY_ORDER, CATEGORY_TITLES, visibleReports, type ReportCategory } from "./report-registry";
 import { ReportCard } from "./ReportCard";
+import { DateRangePicker } from "@/components/DateRangePicker";
 
 const dayOf = (back: number) => format(subDays(new Date(), back), "yyyy-MM-dd");
 const PRESETS = [7, 30, 90];
@@ -84,13 +85,15 @@ export function ReportsHub({ role, t, lang }: {
               </button>
             ))}
           </div>
-          <div className="exports-range">
-            <input type="date" className="neo-input" value={from} max={to} aria-label={t("С даты", "Sanadan")}
-              onChange={e => e.target.value && setFrom(e.target.value)} data-testid="exports-from" />
-            <span className="exports-range-dash" aria-hidden>—</span>
-            <input type="date" className="neo-input" value={to} min={from} max={today} aria-label={t("По дату", "Sanagacha")}
-              onChange={e => e.target.value && setTo(e.target.value)} data-testid="exports-to" />
-          </div>
+          <DateRangePicker
+            from={from}
+            to={to}
+            max={today}
+            onChange={(f, tt) => { setFrom(f); setTo(tt); }}
+            active={!PRESETS.some(presetOn)}
+            aria-label={t("Период", "Davr")}
+            testId="exports-range"
+          />
         </div>
       </div>
 

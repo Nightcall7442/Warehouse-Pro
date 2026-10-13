@@ -13,7 +13,7 @@ import { eq, and, sql, gte, desc , inArray, isNull } from "drizzle-orm";
 import { movementReferenceNumber } from "./lib/movement-reference";
 import { REVENUE_ORDER_STATUSES } from "./lib/order-status";
 import { subDays, format } from "date-fns";
-import { onDate } from "./lib/date-range";
+import { onDate, sinceDay, untilDay, untilDate } from "./lib/date-range";
 import { reportCached, ReportTTL } from "./lib/report-cache";
 
 /** День «ГГГГ-ММ-ДД». */
@@ -96,14 +96,30 @@ export const reportsRouter = createRouter({
 
   /** Daily visit/order chart for a date range */
   getVisitChart: reportsQuery
-    .input(z.object({ days: z.number().default(30) }))
+    .input(z.object({
+      days: z.number().default(30),
+      // Свой период из календаря «Отчётов». Задан целиком — важнее days.
+      from: DAY.optional(),
+      to: DAY.optional(),
+    }))
     .query(({ input, ctx }) => {
       const tenantId = ctx.tenant.id;
+      const custom = input.from && input.to
+        ? (input.from <= input.to ? { from: input.from, to: input.to } : { from: input.to, to: input.from })
+        : null;
       // Пять минут: график по дням за 7/30/90 дней — от одного заказа или визита
-      // линия не двигается; входов три, ключей на организацию три.
-      return reportCached(tenantId, "reports.getVisitChart", { days: input.days }, ReportTTL.fiveMin, async () => {
+      // линия не двигается; входов три, ключей на организацию три. Свой период
+      // — своим ключом, а без него ключ прежний.
+      const key = custom ? { days: input.days, ...custom } : { days: input.days };
+      return reportCached(tenantId, "reports.getVisitChart", key, ReportTTL.fiveMin, async () => {
         const db       = getDb();
         const since    = subDays(new Date(), input.days);
+        const planWindow = custom
+          ? [sql`${dailyPlans.planDate} >= ${custom.from}`, untilDate(dailyPlans.planDate, custom.to)]
+          : [gte(dailyPlans.planDate, since)];
+        const orderWindow = custom
+          ? [sinceDay(orders.createdAt, custom.from), untilDay(orders.createdAt, custom.to)]
+          : [gte(orders.createdAt, since)];
 
         const [visits, ordersData] = await Promise.all([
           db.select({
@@ -111,7 +127,7 @@ export const reportsRouter = createRouter({
             count: sql<number>`count(*)`,
           })
             .from(dailyPlans)
-            .where(and(eq(dailyPlans.tenantId, tenantId), gte(dailyPlans.planDate, since)))
+            .where(and(eq(dailyPlans.tenantId, tenantId), ...planWindow))
             .groupBy(sql`DATE(${dailyPlans.planDate})`)
             .orderBy(sql`DATE(${dailyPlans.planDate})`),
 
@@ -130,7 +146,7 @@ export const reportsRouter = createRouter({
               eq(orders.tenantId, tenantId),
               isNull(orders.deletedAt),
               inArray(orders.status, REVENUE_ORDER_STATUSES),
-              gte(orders.createdAt, since),
+              ...orderWindow,
             ))
             .groupBy(sql`DATE(${orders.createdAt})`)
             .orderBy(sql`DATE(${orders.createdAt})`),

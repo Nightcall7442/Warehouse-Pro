@@ -3,6 +3,7 @@ import { format, subDays } from "date-fns";
 import { CircleSlash, FileDown, MapPin, PackageCheck, Swords, HelpCircle, Lightbulb } from "lucide-react";
 import { trpc } from "@/providers/trpc";
 import { useLang } from "@/i18n";
+import { DateRangePicker } from "@/components/DateRangePicker";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { exportToExcel } from "@/lib/excel";
 import { PremiumSelect } from "@/components/PremiumSelect";
@@ -129,14 +130,16 @@ export function NoOrderVisitsTab() {
               </button>
             ))}
           </div>
-          <label className="flex flex-col gap-1" style={{ flex: "1 1 140px", maxWidth: phone ? undefined : 180 }}>
-            <span className="font-label text-[10px] text-secondary">{t("С", "Dan")}</span>
-            <input type="date" className="neo-input w-full" value={from} max={to} onChange={e => e.target.value && setFrom(e.target.value)} data-testid="no-order-from" style={{ minHeight: 44 }} />
-          </label>
-          <label className="flex flex-col gap-1" style={{ flex: "1 1 140px", maxWidth: phone ? undefined : 180 }}>
-            <span className="font-label text-[10px] text-secondary">{t("По", "Gacha")}</span>
-            <input type="date" className="neo-input w-full" value={to} min={from} max={today} onChange={e => e.target.value && setTo(e.target.value)} data-testid="no-order-to" style={{ minHeight: 44 }} />
-          </label>
+          <DateRangePicker
+            from={from}
+            to={to}
+            max={today}
+            onChange={(f, tt) => { setFrom(f); setTo(tt); }}
+            active={![7, 30, 90].some(presetOn)}
+            align="start"
+            aria-label={t("Период", "Davr")}
+            testId="no-order-range"
+          />
           <div style={{ flex: "1 1 180px", maxWidth: phone ? undefined : 240 }}>
             <PremiumSelect aria-label={t("Агент", "Agent")} value={agentId ? String(agentId) : ""} onChange={v => setAgentId(v ? Number(v) : undefined)} options={agentOptions} width="100%" />
           </div>

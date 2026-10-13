@@ -11,6 +11,8 @@ import { exportToExcel } from "@/lib/excel";
 import { SectionNotice } from "@/components/SectionNotice";
 import { PremiumSelect } from "@/components/PremiumSelect";
 import { errorText } from "@/lib/error-text";
+import { DateRangePicker } from "@/components/DateRangePicker";
+import { shiftDay, toDay } from "@/lib/date-range";
 
 /**
  * Полный архив задолженности: кто когда взял в долг и кто когда погасил.
@@ -97,11 +99,11 @@ export function DebtJournalPanel() {
     setSpan(next);
     if (next === "custom") return;
     if (next === "all") { setFrom(""); setTo(""); return; }
-    const days = Number(next);
-    const start = new Date();
-    start.setDate(start.getDate() - days);
-    setFrom(start.toISOString().slice(0, 10));
-    setTo(new Date().toISOString().slice(0, 10));
+    // Местные даты, а не toISOString(): в Ташкенте до пяти утра UTC-строка
+    // давала вчерашнее число, и «30 дней» кончались вчера.
+    const today = toDay(new Date());
+    setFrom(shiftDay(today, -Number(next)));
+    setTo(today);
   });
 
   const toExcel = async () => {
@@ -205,16 +207,20 @@ export function DebtJournalPanel() {
           width="170px"
           aria-label={t("Период", "Davr")}
         />
-        {/* Поля даты — только когда их попросили: пустые «дд.мм.гггг» читаются
-            как незаполненная форма, а не как «за всё время». */}
-        {span === "custom" && (
-          <>
-            <input type="date" className="neo-input" style={{ width: "150px" }} value={from}
-              onChange={e => refilter(() => setFrom(e.target.value))} aria-label={t("С даты", "Sanadan")} />
-            <input type="date" className="neo-input" style={{ width: "150px" }} value={to}
-              onChange={e => refilter(() => setTo(e.target.value))} aria-label={t("По дату", "Sanagacha")} />
-          </>
-        )}
+        {/* Календарь вместо пары полей даты: пустые «дд.мм.гггг» читались как
+            незаполненная форма. Пустой период здесь — «за всё время» (это
+            говорит список слева), а кнопка предлагает выбрать даты. */}
+        <DateRangePicker
+          from={from}
+          to={to}
+          max={toDay(new Date())}
+          onChange={(f, tt) => refilter(() => { setSpan("custom"); setFrom(f); setTo(tt); })}
+          placeholder={t("Выбрать даты", "Sanani tanlang")}
+          active={span === "custom"}
+          align="start"
+          aria-label={t("Период", "Davr")}
+          testId="debt-journal-range"
+        />
       </div>
 
       {/* Уперлись в предел выборки — сказать вслух. Молча укоротить архив
