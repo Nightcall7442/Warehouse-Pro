@@ -37,10 +37,12 @@ interface SalesTabProps {
   fmt: (v: string | number, short?: boolean) => string;
   t: (ru: string, uz: string) => string;
   errors?: { shops?: () => void; products?: () => void; payment?: () => void };
+  /** Календари разделов (SectionPeriodPicker). */
+  pickers?: { shops?: React.ReactNode; products?: React.ReactNode; payment?: React.ReactNode };
 }
 
 export const SalesTab = memo(function SalesTab({
-  shopChartData, byPayment, topProds, periodRevenue, lang = "ru", fmt, t, errors,
+  shopChartData, byPayment, topProds, periodRevenue, lang = "ru", fmt, t, errors, pickers,
 }: SalesTabProps) {
   const shownRevenue = (topProds ?? []).reduce((s, p) => s + Number(p.totalRevenue), 0);
   const qty = (q: number, unit: string | null | undefined) => `${formatQty(q)}${unit ? ` ${unitShort(unit, lang)}` : ""}`;
@@ -48,7 +50,7 @@ export const SalesTab = memo(function SalesTab({
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
       {/* Chart */}
-      <ChartPanel title={t("Продажи по магазинам", "Do'konlar bo'yicha sotuvlar")}>
+      <ChartPanel title={t("Продажи по магазинам", "Do'konlar bo'yicha sotuvlar")} action={pickers?.shops}>
         {errors?.shops ? (
           <SectionError onRetry={errors.shops} t={t} />
         ) : !shopChartData.length ? (
@@ -78,9 +80,12 @@ export const SalesTab = memo(function SalesTab({
           pnlByPaymentMethod закрыт financeQuery, потому что несёт маржу. */}
       {(errors?.payment || (byPayment && byPayment.length > 0)) && (
         <GlassPanel>
-          <h2 style={{ fontFamily: F.display, fontSize: "15px", fontWeight: 600, color: COLORS.textPrimary, margin: "0 0 16px" }}>
-            {t("По способу оплаты", "To'lov usuli bo'yicha")}
-          </h2>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px", flexWrap: "wrap", marginBottom: "16px" }}>
+            <h2 style={{ fontFamily: F.display, fontSize: "15px", fontWeight: 600, color: COLORS.textPrimary, margin: 0 }}>
+              {t("По способу оплаты", "To'lov usuli bo'yicha")}
+            </h2>
+            {pickers?.payment}
+          </div>
           {errors?.payment ? <SectionError onRetry={errors.payment} t={t} /> : (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "10px" }}>
             {(byPayment ?? []).map((p) => {
@@ -116,8 +121,9 @@ export const SalesTab = memo(function SalesTab({
           <h2 style={{ fontFamily: F.display, fontSize: "15px", fontWeight: 600, color: COLORS.textPrimary, margin: 0 }}>
             {t("Топ товаров", "Top mahsulotlar")}
           </h2>
+          {pickers?.products}
           {!!topProds?.length && (
-            <p style={{ fontSize: "12px", color: COLORS.textTertiary, margin: 0 }}>
+            <p style={{ fontSize: "12px", color: COLORS.textTertiary, margin: 0, flexBasis: "100%" }}>
               {/* Сколько строк показано и сколько денег в них — иначе «Доля»
                   ниже не с чем соотнести. И на какой основе: та же, что у P&L. */}
               {topProds.length} {t("позиций", "pozitsiya")} · {fmt(shownRevenue)}

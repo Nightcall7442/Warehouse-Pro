@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { keepPreviousData } from "@tanstack/react-query";
 import { trpc } from "@/providers/trpc";
 import { useCurrency } from "@/hooks/useCurrency";
 import { useLang } from "@/i18n";
@@ -22,6 +23,8 @@ import {
 import type { Range } from "@/components/pnl";
 import { QueryErrorFallback } from "@/components/QueryErrorFallback";
 import { useSellerCompany } from "@/hooks/useSellerCompany";
+import { SectionPeriodPicker } from "@/components/SectionPeriodPicker";
+import { useSectionPeriod } from "@/hooks/useSectionPeriod";
 
 const COLORS = {
   surface: "var(--color-surface, #efedea)",
@@ -106,16 +109,40 @@ export default function PnL() {
     compareWithPrev: true,
   });
 
+  /*
+    У каждого раздела ниже — свой календарь в шапке (hooks/useSectionPeriod):
+    раздел идёт за периодом страницы, пока в нём не выбрали свой. Шапка и
+    плитки наверху — всегда за период страницы.
+  */
+  const chartPeriod = useSectionPeriod(from, to);
+  const productsPeriod = useSectionPeriod(from, to);
+  const paymentsPeriod = useSectionPeriod(from, to);
+  const transportPeriod = useSectionPeriod(from, to);
+
+  // Свой период графика — отдельный запрос; без него ряд берётся из ответа
+  // страницы, второй раз в базу не ходим.
+  //
+  // Пока новый период раздела считается, на экране остаются прежние числа
+  // (keepPreviousData), а не «за период продаж не было» на полсекунды.
+  const ownChart = trpc.analytics.pnl.useQuery(
+    { from: chartPeriod.from, to: chartPeriod.to, compareWithPrev: false },
+    { enabled: chartPeriod.own, placeholderData: keepPreviousData },
+  );
+  const chartData = chartPeriod.own ? (ownChart.data ?? data) : data;
+
   const cogsByProduct = trpc.analytics.cogsByProduct.useQuery({
-    dateFrom: from,
-    dateTo: to,
-  });
+    dateFrom: productsPeriod.from,
+    dateTo: productsPeriod.to,
+  }, { placeholderData: keepPreviousData });
   const arrivals = trpc.arrival.list.useQuery({ page: 1, pageSize: 1000 });
   const paymentBreakdown = trpc.analytics.pnlByPaymentMethod.useQuery({
-    from,
-    to,
-  });
-  const paymentTrend = trpc.analytics.paymentMethodTrend.useQuery({ from, to });
+    from: paymentsPeriod.from,
+    to: paymentsPeriod.to,
+  }, { placeholderData: keepPreviousData });
+  const paymentTrend = trpc.analytics.paymentMethodTrend.useQuery(
+    { from: paymentsPeriod.from, to: paymentsPeriod.to },
+    { placeholderData: keepPreviousData },
+  );
 
   const current = data?.current;
   const deltas = data?.deltas;
@@ -125,12 +152,17 @@ export default function PnL() {
     ещё до пяти минут приходит без него — тогда прежний помесячный ряд.
   */
   const chart = useMemo(() => {
-    if (data?.series) return data.series;
+    if (chartData?.series) return chartData.series;
     return {
       granularity: "month" as const,
-      points: (data?.trend ?? []).map((r) => ({ ...r, start: `${r.month}-01`, end: `${r.month}-01` })),
+      points: (chartData?.trend ?? []).map((r) => ({ ...r, start: `${r.month}-01`, end: `${r.month}-01` })),
     };
-  }, [data]);
+  }, [chartData]);
+
+  // Раздел со своим периодом подписан им и в файле: иначе в выгрузке за
+  // сентябрь лежала бы таблица за неделю без единого слова об этом.
+  const ownPeriodNote = (sp: { own: boolean; from: string; to: string }) =>
+    sp.own ? ` (${human(sp.from)} — ${human(sp.to)})` : "";
 
   const handleCustomRange = (nextFrom: string, nextTo: string) => {
     setCustomFrom(nextFrom);
@@ -320,7 +352,7 @@ export default function PnL() {
       const ws3 = wb.addWorksheet("По товарам");
       addTitle(
         ws3,
-        "На чём заработали",
+        `На чём заработали${ownPeriodNote(productsPeriod)}`,
         "До 20 товаров с наибольшей выручкой. Выручка здесь считается по цене отгрузки, без скидок по заказу, — с выручкой на листе «Сводка» она не совпадает.",
         7
       );
@@ -385,7 +417,7 @@ export default function PnL() {
     // ── Лист 4: По способам оплаты ────────────────────────────────────────
     if (paymentBreakdown.data && paymentBreakdown.data.length > 0) {
       const ws4 = wb.addWorksheet("По способам оплаты");
-      addTitle(ws4, "Чем платят", `Период: ${human(from)} — ${human(to)}`, 6);
+      addTitle(ws4, "Чем платят", `Период: ${human(paymentsPeriod.from)} — ${human(paymentsPeriod.to)}`, 6);
       const head4 = addHead(ws4, [
         "Способ оплаты",
         "Выручка",
@@ -498,7 +530,7 @@ export default function PnL() {
     }
 
     if (cogsByProduct.data && cogsByProduct.data.length > 0) {
-      html += `<div class="section"><h2>На чём заработали</h2>
+      html += `<div class="section"><h2>На чём заработали${ownPeriodNote(productsPeriod)}</h2>
         <table><thead><tr><th>Товар</th><th class="right">Объём</th><th class="right">Выручка, ${cur}</th><th class="right">Себестоимость, ${cur}</th><th class="right">Прибыль, ${cur}</th><th class="right">Маржа</th></tr></thead><tbody>`;
       const products = cogsByProduct.data
         .map((p) => {
@@ -515,7 +547,7 @@ export default function PnL() {
     }
 
     if (paymentBreakdown.data && paymentBreakdown.data.length > 0) {
-      html += `<div class="section"><h2>Чем платят</h2>
+      html += `<div class="section"><h2>Чем платят${ownPeriodNote(paymentsPeriod)}</h2>
         <table><thead><tr><th>Способ оплаты</th><th class="right">Выручка, ${cur}</th><th class="right">Себестоимость, ${cur}</th><th class="right">Прибыль, ${cur}</th><th class="right">Маржа</th><th class="right">Заказов</th></tr></thead><tbody>`;
       for (const row of [...paymentBreakdown.data].sort((a, b) => b.revenue - a.revenue)) {
         html += `<tr><td>${paymentLabel(row.paymentMethod, "ru")}</td><td class="right">${fmtNum(row.revenue)}</td><td class="right">${fmtNum(row.cogs ?? 0)}</td><td class="right bold">${fmtNum(row.grossProfit ?? 0)}</td><td class="right">${pct(row.grossMarginPct ?? 0)}</td><td class="right">${row.orderCount}</td></tr>`;
@@ -614,7 +646,14 @@ export default function PnL() {
         t={t}
       />
 
-      <PnLRevenueChart points={chart.points} granularity={chart.granularity} fmt={fmt} t={t} lang={lang} />
+      <PnLRevenueChart
+        points={chart.points}
+        granularity={chart.granularity}
+        fmt={fmt}
+        t={t}
+        lang={lang}
+        period={<SectionPeriodPicker period={chartPeriod} testId="pnl-chart-range" />}
+      />
 
       <PnLExpenseBreakdown
         cogsByProduct={cogsByProduct.data}
@@ -624,6 +663,7 @@ export default function PnL() {
         onRetry={() => void cogsByProduct.refetch()}
         fmt={fmt}
         lang={lang}
+        period={<SectionPeriodPicker period={productsPeriod} testId="pnl-products-range" />}
       />
 
       <PnLPaymentBreakdown
@@ -638,16 +678,18 @@ export default function PnL() {
         fmt={fmt}
         t={t}
         lang={lang}
+        period={<SectionPeriodPicker period={paymentsPeriod} testId="pnl-payments-range" />}
       />
 
       <PnLTransportExpenses
         arrivals={arrivals.data?.data}
-        from={from}
-        to={to}
+        from={transportPeriod.from}
+        to={transportPeriod.to}
         error={arrivals.isLoadingError}
         onRetry={() => void arrivals.refetch()}
         fmt={fmt}
         lang={lang}
+        period={<SectionPeriodPicker period={transportPeriod} testId="pnl-transport-range" />}
       />
     </div>
   );

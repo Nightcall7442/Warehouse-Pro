@@ -66,6 +66,8 @@ interface OverviewTabProps {
   /** Долг магазинов на сейчас: остаток, а не поток за период. */
   debt?: { total: number; shopCount: number; top: { name: string; debt: number }[] };
   errors?: OverviewErrors;
+  /** Календари разделов (SectionPeriodPicker): у графика и трёх «топов» свой период. */
+  pickers?: { chart?: React.ReactNode; products?: React.ReactNode; shops?: React.ReactNode; agents?: React.ReactNode };
 }
 
 /**
@@ -95,9 +97,12 @@ interface OverviewTabProps {
  */
 export const OverviewTab = memo(function OverviewTab({
   summary, summaryLoading, chart, plans, topProducts, topShops, topAgents, days, lang = "ru", fmt, t,
-  totals, previous, debt, errors,
+  totals, previous, debt, errors, pickers,
 }: OverviewTabProps) {
   const period = t(`за ${days} дней`, `${days} kun ichida`);
+  // «Топ товаров · 30д»: у панели с календарём даты уже на его кнопке, а
+  // свой период раздела и не обязан быть «30 дней».
+  const withDays = (title: string, picker?: React.ReactNode) => (picker ? title : `${title} · ${days}${t("д", "k")}`);
   const prevPeriod = t(`за прошлые ${days} дней`, `oldingi ${days} kun`);
 
   /** Плитка со сравнением: и процент, и само прошлое число — процент без него ни о чём. */
@@ -196,7 +201,7 @@ export const OverviewTab = memo(function OverviewTab({
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
         {/* Chart */}
         <div className="lg:col-span-2">
-          <ChartPanel title={t("Визиты и заказы", "Tashriflar va buyurtmalar")}>
+          <ChartPanel title={t("Визиты и заказы", "Tashriflar va buyurtmalar")} action={pickers?.chart}>
           {errors?.chart ? <SectionError onRetry={errors.chart.onRetry} t={t} /> : (
           <ResponsiveContainer width="100%" height={260}>
             <LineChart data={chart ?? []}>
@@ -250,7 +255,7 @@ export const OverviewTab = memo(function OverviewTab({
           переключения вкладок.
           Пятёрка, а не весь список: за подробностями есть свои вкладки. */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5">
-        <TopPanel icon={<Package size={16} />} title={`${t("Топ товаров", "Top mahsulotlar")} · ${days}${t("д", "k")}`}>
+        <TopPanel icon={<Package size={16} />} title={withDays(t("Топ товаров", "Top mahsulotlar"), pickers?.products)} action={pickers?.products}>
           {errors?.products ? <SectionError onRetry={errors.products.onRetry} t={t} /> : (
           <TopList
             t={t}
@@ -269,7 +274,7 @@ export const OverviewTab = memo(function OverviewTab({
           )}
         </TopPanel>
 
-        <TopPanel icon={<Store size={16} />} title={`${t("Топ магазинов", "Top do'konlar")} · ${days}${t("д", "k")}`}>
+        <TopPanel icon={<Store size={16} />} title={withDays(t("Топ магазинов", "Top do'konlar"), pickers?.shops)} action={pickers?.shops}>
           {errors?.shops ? <SectionError onRetry={errors.shops.onRetry} t={t} /> : (
           <TopList
             t={t}
@@ -284,7 +289,7 @@ export const OverviewTab = memo(function OverviewTab({
           )}
         </TopPanel>
 
-        <TopPanel icon={<Award size={16} />} title={`${t("Лучшие агенты", "Eng yaxshi agentlar")} · ${days}${t("д", "k")}`}>
+        <TopPanel icon={<Award size={16} />} title={withDays(t("Лучшие агенты", "Eng yaxshi agentlar"), pickers?.agents)} action={pickers?.agents}>
           {errors?.agents ? <SectionError onRetry={errors.agents.onRetry} t={t} /> : (
           <TopList
             t={t}
@@ -323,16 +328,21 @@ export const OverviewTab = memo(function OverviewTab({
 });
 
 /** Заголовок со значком плюс содержимое — та же рамка, что у «Плана сегодня». */
-function TopPanel({ icon, title, children }: {
-  icon: React.ReactNode; title: string; children: React.ReactNode;
+function TopPanel({ icon, title, action, children }: {
+  icon: React.ReactNode; title: string; action?: React.ReactNode; children: React.ReactNode;
 }) {
   return (
     <GlassPanel>
-      <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "16px" }}>
-        <span style={{ color: COLORS.primaryText, display: "flex" }}>{icon}</span>
-        <h2 style={{ fontFamily: F.display, fontSize: "15px", fontWeight: 600, color: COLORS.textPrimary, margin: 0 }}>
-          {title}
-        </h2>
+      {/* Панели узкие (четыре в ряд): календарь уходит под заголовок, когда
+          рядом ему не хватает места. */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "8px", flexWrap: "wrap", marginBottom: "16px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "8px", minWidth: 0 }}>
+          <span style={{ color: COLORS.primaryText, display: "flex" }}>{icon}</span>
+          <h2 style={{ fontFamily: F.display, fontSize: "15px", fontWeight: 600, color: COLORS.textPrimary, margin: 0 }}>
+            {title}
+          </h2>
+        </div>
+        {action}
       </div>
       {children}
     </GlassPanel>
