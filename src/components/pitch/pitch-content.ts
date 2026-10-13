@@ -90,6 +90,43 @@ export const MARKET_PROOF: { text: L; source: { label: string; href: string } } 
   },
 };
 
+/*
+  Объём рынка — вопрос жюри номер один. Только опубликованные числа со
+  ссылкой; своей оценки «TAM» здесь нет: числа FMCG-дистрибьюторов и
+  агентов на дистрибьютора не публикует никто, а выдуманный множитель
+  жюри разберёт первым же вопросом.
+
+  Собрано 13.10.2026 по выдержкам поиска: открыть страницы из среды
+  разработки не удалось (сеть закрыта). ПЕРЕД ПОДАЧЕЙ — пройти по каждой
+  ссылке и сверить число.
+  · 58 261 — оптовая торговля ВСЕХ отраслей, в основном малые и микро;
+  · 482,4 трлн — розничный товарооборот 2025 (+11,2 %);
+  · 84 % — доля традиционной торговли (частное исследование INFOLine);
+  · конкуренты — их собственные слова (основатель, сайт).
+*/
+export const MARKET_SIZE: Array<{ value: L; label: L; source: { label: string; href: string } }> = [
+  {
+    value: { uz: "58 261", ru: "58 261" },
+    label: { uz: "ulgurji savdo korxonasi, 01.09.2026", ru: "предприятие оптовой торговли, 01.09.2026" },
+    source: { label: "stat.uz, 30.09.2026", href: "https://stat.uz/img/news/ichki-savdo-08_2026-en_p68088.pdf" },
+  },
+  {
+    value: { uz: "482 trln so'm", ru: "482 трлн сум" },
+    label: { uz: "chakana savdo aylanmasi, 2025 (+11,2%)", ru: "розничный товарооборот, 2025 (+11,2%)" },
+    source: { label: "stat.uz, 01.2026", href: "https://stat.uz/img/news/talil-2025-jil-yanvar-dekabr-lotin-_p29731.pdf" },
+  },
+  {
+    value: { uz: "84%", ru: "84%" },
+    label: { uz: "savdo — an'anaviy do'konlar orqali, 2025", ru: "торговли — через традиционные магазины, 2025" },
+    source: { label: "INFOLine · Kursiv, 17.04.2026", href: "https://uz.kursiv.media/2026-04-17/belorusy-vdvoe-chashhe-pokupayut-onlajn-chem-kyrgyzstanczy-chto-v-uzbekistane/" },
+  },
+  {
+    value: { uz: "3 000+", ru: "3 000+" },
+    label: { uz: "Sales Doctor mijozi — asoschi so'zi bilan", ru: "клиентов Sales Doctor — со слов основателя" },
+    source: { label: "digitalbusiness.kz, 18.09.2026", href: "https://digitalbusiness.kz/2026-09-18/uzbekistanets-zapustil-servis-po-avtomatizatsii-distributsii-i-vishel-na-viruchku-4-mln-v-god/" },
+  },
+];
+
 export const ALTERNATIVES: Array<{ name: L; what: L }> = [
   {
     name: { uz: "Qog'oz, Excel, Telegram", ru: "Бумага, Excel, Telegram" },

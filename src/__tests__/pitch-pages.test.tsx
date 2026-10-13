@@ -34,7 +34,7 @@ vi.setConfig({ testTimeout: 20_000 });
 import Pitch from "@/pages/Pitch";
 import PitchDemo from "@/pages/PitchDemo";
 import { LangProvider } from "@/i18n";
-import { API_ENDPOINTS, TEAM, ENGINEERING, VIDEO_SRC, VIDEO_POSTER, VIDEO_DESCRIPTION, VIDEO_SECONDS, PROBLEMS, TRACTION, HIRING, MARKET_PROOF, ALTERNATIVES, PARITY, IDEAS, GAPS, DAYS_TO_PAYING, daysBetween, NEXT_STEPS, GOAL_PAYING, ASK } from "@/components/pitch/pitch-content";
+import { API_ENDPOINTS, TEAM, ENGINEERING, VIDEO_SRC, VIDEO_POSTER, VIDEO_DESCRIPTION, VIDEO_SECONDS, PROBLEMS, TRACTION, HIRING, MARKET_PROOF, ALTERNATIVES, PARITY, IDEAS, GAPS, DAYS_TO_PAYING, daysBetween, NEXT_STEPS, GOAL_PAYING, ASK, MARKET_SIZE } from "@/components/pitch/pitch-content";
 import { CONTACT } from "@/components/landing/landing-tokens";
 import { FIELD_PRICE_UZS, formatSum } from "@contracts/pricing";
 
@@ -126,6 +126,23 @@ describe("/pitch: разделы конкурса", () => {
     expect(t).toContain((TRACTION.mrrUzs / 1_000_000).toFixed(2).replace(".", ","));
     expect(document.getElementById("natijalar")!.textContent).toContain(TRACTION.asOf);
     expect(TRACTION.paying).toBeLessThanOrEqual(TRACTION.organizations);
+  });
+
+  it("объём рынка: каждое число — со своей ссылкой, на обоих языках", () => {
+    draw(<Pitch />);
+    const block = screen.getByTestId("pitch-market-size");
+    const links = within(block).getAllByTestId("pitch-market-size-source");
+    expect(links).toHaveLength(MARKET_SIZE.length);
+    expect(MARKET_SIZE.length).toBeGreaterThanOrEqual(3);
+    MARKET_SIZE.forEach((m, i) => {
+      expect(links[i].getAttribute("href")).toBe(m.source.href);
+      expect(m.source.href).toMatch(/^https:\/\//);
+      expect(m.source.label).toMatch(/\d{2}\.\d{2}\.\d{4}|\d{2}\.\d{4}/); // у источника есть дата
+      for (const l of [m.value, m.label]) { expect(l.uz.trim()).not.toBe(""); expect(l.ru.trim()).not.toBe(""); }
+      expect(block.textContent).toContain(m.value.uz);
+    });
+    // Объём — чужие опубликованные числа, а не наша оценка рынка.
+    expect(block.textContent).not.toMatch(/TAM|SAM|SOM/);
   });
 
   it("рынок: источник со ссылкой, альтернативы, цена — из модуля цен", () => {
