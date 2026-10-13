@@ -24,6 +24,8 @@ import { ChartTooltip } from "./ChartTooltip";
 import { SectionNotice } from "@/components/SectionNotice";
 import { CardTable } from "@/components/CardTable";
 import type { Lang } from "@/i18n";
+import type { ReactNode } from "react";
+import { SectionHeader } from "./SectionHeader";
 
 interface PaymentBreakdownRow {
   paymentMethod: string;
@@ -51,6 +53,8 @@ interface PnLPaymentBreakdownProps {
   fmt: (value: string | number) => string;
   t: (ru: string, uz: string) => string;
   lang: Lang;
+  /** Календарь раздела (SectionPeriodPicker) — справа в шапке. */
+  period?: ReactNode;
 }
 
 export function PnLPaymentBreakdown({
@@ -62,6 +66,7 @@ export function PnLPaymentBreakdown({
   fmt,
   t,
   lang,
+  period,
 }: PnLPaymentBreakdownProps) {
   // Сервер группирует по способу оплаты без сортировки, и порядок строк
   // приходил произвольный. Крупнейший источник денег должен стоять первым.
@@ -77,23 +82,14 @@ export function PnLPaymentBreakdown({
 
   return (
     <div className="neo-card neo-card-static" style={{ padding: "24px" }}>
-      <h2
-        style={{
-          fontFamily: F.display,
-          fontSize: "16px",
-          fontWeight: 600,
-          color: COLORS.textPrimary,
-          margin: "0 0 4px",
-        }}
-      >
-        {t("Чем платят", "Nima bilan to'laydilar")}
-      </h2>
-      <p style={{ margin: "0 0 20px", fontSize: "12px", color: COLORS.textTertiary }}>
-        {t(
+      <SectionHeader
+        title={t("Чем платят", "Nima bilan to'laydilar")}
+        hint={t(
           "Выручка и маржа по способу оплаты — и как их доли менялись по месяцам",
           "To'lov usuli bo'yicha tushum va marja, oylar kesimida"
         )}
-      </p>
+        action={period}
+      />
 
       {/* Раньше весь раздел исчезал (return null) и когда данных нет, и когда
           запрос упал: пропавшая карточка не отличается от карточки, которой

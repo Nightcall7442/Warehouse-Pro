@@ -14,6 +14,8 @@ import {
 import { F, COLORS, dayLabel, monthLabel, weekLabel } from "./styles";
 import { ChartTooltip } from "./ChartTooltip";
 import { SectionNotice } from "@/components/SectionNotice";
+import type { ReactNode } from "react";
+import { SectionHeader } from "./SectionHeader";
 
 export type ChartGranularity = "day" | "week" | "month";
 
@@ -35,6 +37,8 @@ interface PnLRevenueChartProps {
   fmt: (value: number) => string;
   t: (ru: string, uz: string) => string;
   lang: string;
+  /** Календарь раздела (SectionPeriodPicker) — справа в шапке. */
+  period?: ReactNode;
 }
 
 /**
@@ -74,7 +78,7 @@ const BAR: Record<ChartGranularity, { size: number; minWidth: number }> = {
   month: { size: 24, minWidth: 76 },
 };
 
-export function PnLRevenueChart({ points, granularity, fmt, t, lang }: PnLRevenueChartProps) {
+export function PnLRevenueChart({ points, granularity, fmt, t, lang, period }: PnLRevenueChartProps) {
   const labelOf = (p: ChartPoint) =>
     granularity === "day" ? dayLabel(p.start, lang)
     : granularity === "week" ? weekLabel(p.start, p.end, lang)
@@ -94,23 +98,14 @@ export function PnLRevenueChart({ points, granularity, fmt, t, lang }: PnLRevenu
 
   return (
     <div className="neo-card neo-card-static" style={{ padding: "24px" }}>
-      <h2
-        style={{
-          fontFamily: F.display,
-          fontSize: "16px",
-          fontWeight: 600,
-          color: COLORS.textPrimary,
-          margin: "0 0 4px",
-        }}
-      >
-        {title}
-      </h2>
-      <p style={{ margin: "0 0 20px", fontSize: "12px", color: COLORS.textTertiary }}>
-        {t(
+      <SectionHeader
+        title={title}
+        hint={t(
           "Столбцы — выручка и себестоимость, линия — чистая прибыль",
           "Ustunlar — tushum va tannarx, chiziq — toza foyda"
         )}
-      </p>
+        action={period}
+      />
 
       {/* Раньше при пустом ряде карточка возвращала null и исчезала со
           страницы целиком: пропавший раздел не отличается от раздела, которого

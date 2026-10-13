@@ -1,8 +1,10 @@
-import { F, COLORS, thStyle, tdStyle, numeric, marginTone } from "./styles";
+import { COLORS, thStyle, tdStyle, numeric, marginTone } from "./styles";
 import { SectionNotice } from "@/components/SectionNotice";
 import { CardTable } from "@/components/CardTable";
 import { formatQty } from "@/lib/format";
 import { unitShort } from "@/lib/units";
+import type { ReactNode } from "react";
+import { SectionHeader } from "./SectionHeader";
 
 // SUM()/COALESCE() come back from MySQL as decimal strings, and the product
 // name is null-able through the LEFT JOIN — see analytics.cogsByProduct.
@@ -20,6 +22,8 @@ interface PnLExpenseBreakdownProps {
   onRetry?: () => void;
   fmt: (value: string | number) => string;
   lang: string;
+  /** Календарь раздела (SectionPeriodPicker) — справа в шапке. */
+  period?: ReactNode;
 }
 
 /**
@@ -71,6 +75,7 @@ export function PnLExpenseBreakdown({
   onRetry,
   fmt,
   lang,
+  period,
 }: PnLExpenseBreakdownProps) {
   const t = (ru: string, uz: string) => (lang === "uz" ? uz : ru);
 
@@ -102,26 +107,17 @@ export function PnLExpenseBreakdown({
 
   return (
     <div className="neo-card neo-card-static" style={{ padding: "24px" }}>
-      <h2
-        style={{
-          fontFamily: F.display,
-          fontSize: "16px",
-          fontWeight: 600,
-          color: COLORS.textPrimary,
-          margin: "0 0 4px",
-        }}
-      >
-        {t("На чём заработали", "Nimadan foyda")}
-      </h2>
       {/* Сервер отдаёт не все товары, а двадцать лучших по выручке (LIMIT 20).
           Раздел выглядел полным списком, и итог по нему не сходился с выручкой
           вверху страницы — теперь об этом сказано прямо. */}
-      <p style={{ margin: "0 0 20px", fontSize: "12px", color: COLORS.textTertiary }}>
-        {t(
+      <SectionHeader
+        title={t("На чём заработали", "Nimadan foyda")}
+        hint={t(
           "До 20 товаров с наибольшей выручкой, по убыванию прибыли",
           "Tushumi eng katta 20 tagacha mahsulot, foyda bo'yicha"
         )}
-      </p>
+        action={period}
+      />
 
       {error ? (
         <SectionNotice

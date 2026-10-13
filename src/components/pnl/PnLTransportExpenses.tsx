@@ -1,7 +1,9 @@
 import { format } from "date-fns";
 import { CardTable } from "@/components/CardTable";
-import { F, COLORS, thStyle, tdStyle, numeric } from "./styles";
+import { COLORS, thStyle, tdStyle, numeric } from "./styles";
 import { SectionNotice } from "@/components/SectionNotice";
+import type { ReactNode } from "react";
+import { SectionHeader } from "./SectionHeader";
 
 interface Arrival {
   id: number;
@@ -24,6 +26,8 @@ interface PnLTransportExpensesProps {
   onRetry?: () => void;
   fmt: (value: number) => string;
   lang: string;
+  /** Календарь раздела (SectionPeriodPicker) — справа в шапке. */
+  period?: ReactNode;
 }
 
 const SHOWN = 20;
@@ -43,6 +47,7 @@ export function PnLTransportExpenses({
   onRetry,
   fmt,
   lang,
+  period,
 }: PnLTransportExpensesProps) {
   const t = (ru: string, uz: string) => (lang === "uz" ? uz : ru);
 
@@ -74,23 +79,14 @@ export function PnLTransportExpenses({
 
   return (
     <div className="neo-card neo-card-static" style={{ padding: "24px" }}>
-      <h2
-        style={{
-          fontFamily: F.display,
-          fontSize: "16px",
-          fontWeight: 600,
-          color: COLORS.textPrimary,
-          margin: "0 0 4px",
-        }}
-      >
-        {t("Куда ушло на доставку", "Yetkazishga qayerga ketdi")}
-      </h2>
-      <p style={{ margin: "0 0 20px", fontSize: "12px", color: COLORS.textTertiary }}>
-        {t(
+      <SectionHeader
+        title={t("Куда ушло на доставку", "Yetkazishga qayerga ketdi")}
+        hint={t(
           "Завершённые приходы за выбранный период, от самого дорогого",
           "Tanlangan davrdagi yakunlangan kirimlar, eng qimmatidan"
         )}
-      </p>
+        action={period}
+      />
 
       {error ? (
         <SectionNotice
