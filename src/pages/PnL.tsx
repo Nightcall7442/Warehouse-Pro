@@ -14,7 +14,6 @@ import {
   PnLPeriodSelector,
   PnLHeadline,
   PnLSummaryCards,
-  DateInput,
   PnLPaymentBreakdown,
   PnLRevenueChart,
   PnLExpenseBreakdown,
@@ -58,7 +57,6 @@ export default function PnL() {
   const [customTo, setCustomTo] = useState(() =>
     format(new Date(), "yyyy-MM-dd")
   );
-  const [showCustom, setShowCustom] = useState(false);
   const { fmt, symbol } = useCurrency();
   const { lang } = useLang();
   const t = (ru: string, uz: string) => (lang === "uz" ? uz : ru);
@@ -121,21 +119,23 @@ export default function PnL() {
 
   const current = data?.current;
   const deltas = data?.deltas;
-  const trend = useMemo(() => data?.trend ?? [], [data]);
+  /*
+    График — по ряду series: шаг в нём сервер выбирает по длине периода (дни,
+    недели или месяцы). Ответ из кэша отчётов, сложенный до появления series,
+    ещё до пяти минут приходит без него — тогда прежний помесячный ряд.
+  */
+  const chart = useMemo(() => {
+    if (data?.series) return data.series;
+    return {
+      granularity: "month" as const,
+      points: (data?.trend ?? []).map((r) => ({ ...r, start: `${r.month}-01`, end: `${r.month}-01` })),
+    };
+  }, [data]);
 
-  const chartData = useMemo(() => {
-    return trend.map((r) => ({
-      month: r.month,
-      revenue: r.revenue,
-      cogs: r.cogs,
-      grossProfit: r.grossProfit,
-      netProfit: r.netProfit,
-    }));
-  }, [trend]);
-
-  const handleRangeChange = (newRange: Range) => {
-    setRange(newRange);
-    setShowCustom(newRange === "custom");
+  const handleCustomRange = (nextFrom: string, nextTo: string) => {
+    setCustomFrom(nextFrom);
+    setCustomTo(nextTo);
+    setRange("custom");
   };
 
   const handleExportExcel = async () => {
@@ -585,7 +585,8 @@ export default function PnL() {
     <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
       <PnLPeriodSelector
         range={range}
-        onRangeChange={handleRangeChange}
+        onRangeChange={setRange}
+        onCustomRange={handleCustomRange}
         onExportExcel={handleExportExcel}
         onExportPDF={handleExportPDF}
         from={from}
@@ -593,31 +594,6 @@ export default function PnL() {
         t={t}
         lang={lang}
       />
-
-      {showCustom && (
-        <div
-          className="neo-card-sm"
-          style={{
-            display: "flex",
-            alignItems: "flex-end",
-            gap: "16px",
-            flexWrap: "wrap",
-          }}
-        >
-          <DateInput value={customFrom} onChange={setCustomFrom} label={t("От", "Dan")} />
-          <DateInput value={customTo} onChange={setCustomTo} label={t("До", "Gacha")} />
-          <div
-            style={{
-              fontSize: "12px",
-              color: COLORS.textTertiary,
-              fontFamily: "'Manrope', -apple-system, sans-serif",
-              paddingBottom: "6px",
-            }}
-          >
-            {t("Выберите период для анализа", "Tahlil uchun davrni tanlang")}
-          </div>
-        </div>
-      )}
 
       {/* Ответ страницы: заработали или нет, лучше или хуже, куда ушло. */}
       <PnLHeadline
@@ -638,7 +614,7 @@ export default function PnL() {
         t={t}
       />
 
-      <PnLRevenueChart chartData={chartData} fmt={fmt} t={t} lang={lang} />
+      <PnLRevenueChart points={chart.points} granularity={chart.granularity} fmt={fmt} t={t} lang={lang} />
 
       <PnLExpenseBreakdown
         cogsByProduct={cogsByProduct.data}

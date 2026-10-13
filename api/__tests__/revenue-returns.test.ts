@@ -25,6 +25,7 @@ import {
 const row = (over: Partial<ReturnRow> = {}): ReturnRow => ({
   id: 1,
   month: "2026-08",
+  day: "2026-08-14",
   paymentMethod: "cash",
   agentId: 1,
   shopId: 1,

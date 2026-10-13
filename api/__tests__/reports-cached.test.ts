@@ -164,6 +164,23 @@ describe("reports.getVisitChart", () => {
     expect(again).toEqual(d30);
     expect(again).toEqual([{ date: "2026-09-13", visits: 7, orders: 2, revenue: 150000.5 }]);
   });
+
+  it("свой период из календаря — свой ключ, и «30 дней» его не подменяют", async () => {
+    const c = await caller();
+    await c.getVisitChart({ days: 30 });
+    const after30 = selects;
+    // Конец раньше начала — тот же период, тем же ключом.
+    await c.getVisitChart({ days: 30, from: "2026-09-30", to: "2026-09-01" });
+    expect(selects, "свой период отдан из записи «30 дней»").toBeGreaterThan(after30);
+    const afterCustom = selects;
+    await c.getVisitChart({ days: 30, from: "2026-09-01", to: "2026-09-30" });
+    expect(selects, "повтор своего периода пошёл в базу").toBe(afterCustom);
+    expect(cacheCalls.filter(x => x.name === "reports.getVisitChart").map(x => x.input)).toEqual([
+      { days: 30 },
+      { days: 30, from: "2026-09-01", to: "2026-09-30" },
+      { days: 30, from: "2026-09-01", to: "2026-09-30" },
+    ]);
+  });
 });
 
 describe("reports.getPlanCompletion", () => {

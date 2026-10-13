@@ -5,8 +5,10 @@ import { eq, and, or, sql, desc, isNull, inArray } from "drizzle-orm";
 import { REVENUE_ORDER_STATUSES, OPEN_ORDER_STATUSES, deliveredQty } from "./lib/order-status";
 import { subDays } from "date-fns";
 import { reportCached, ReportTTL } from "./lib/report-cache";
-import { onDay, onDate, sinceDay } from "./lib/date-range";
+import { onDay, onDate, sinceDay, untilDay } from "./lib/date-range";
 import { returnsInPeriod, totalReturned } from "./services/revenue-returns";
+
+const isoDay = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Дата в виде ГГГГ-ММ-ДД");
 
 /**
  * Сколько дней назад смотрит плитка валовой маржи на дашборде.
@@ -170,24 +172,40 @@ export const dashboardRouter = createRouter({
   })),
 
   trends: supervisorQuery
-    .input(z.object({ range: z.enum(["7d", "30d", "month"]) }))
-    .query(({ input, ctx }) => reportCached(ctx.tenant.id, "dashboard.trends", { range: input.range }, ReportTTL.minute, async () => {
-      const db        = ctx.db;
-      const tenantId  = ctx.tenant.id;
-      // «Месяц» — с первого числа: пилюля рядом с «30д» обязана отличаться от неё.
-      const startDate = input.range === "month"
-        ? new Date().toISOString().slice(0, 8) + "01"
-        : subDays(new Date(), input.range === "7d" ? 7 : 30).toISOString().split("T")[0];
+    .input(z.object({
+      range: z.enum(["7d", "30d", "month"]),
+      // Свой период из календаря главной. Задан целиком — важнее range;
+      // мобилка его не шлёт и получает прежний ответ.
+      from: isoDay.optional(),
+      to: isoDay.optional(),
+    }))
+    .query(({ input, ctx }) => {
+      const custom = input.from && input.to
+        ? (input.from <= input.to ? { from: input.from, to: input.to } : { from: input.to, to: input.from })
+        : null;
+      // Ключ кэша без дат, пока их нет: запись «7д» общая у всех экранов.
+      const key = custom ? { range: input.range, ...custom } : { range: input.range };
+      return reportCached(ctx.tenant.id, "dashboard.trends", key, ReportTTL.minute, async () => {
+        const db        = ctx.db;
+        const tenantId  = ctx.tenant.id;
+        // «Месяц» — с первого числа: пилюля рядом с «30д» обязана отличаться от неё.
+        const startDate = custom ? custom.from : input.range === "month"
+          ? new Date().toISOString().slice(0, 8) + "01"
+          : subDays(new Date(), input.range === "7d" ? 7 : 30).toISOString().split("T")[0];
 
-      return db.select({
-        date:       sql<string>`DATE(${orders.createdAt})`,
-        orderCount: sql<number>`count(*)`,
-        revenue:    sql<string>`COALESCE(SUM(CASE WHEN ${orders.status} = 'delivered' THEN ${orders.total} ELSE 0 END), 0)`,
-      })
-        .from(orders)
-        .where(and(eq(orders.tenantId, tenantId), sinceDay(orders.createdAt, startDate), isNull(orders.deletedAt)))
-        .groupBy(sql`DATE(${orders.createdAt})`).orderBy(sql`DATE(${orders.createdAt})`);
-    })),
+        return db.select({
+          date:       sql<string>`DATE(${orders.createdAt})`,
+          orderCount: sql<number>`count(*)`,
+          revenue:    sql<string>`COALESCE(SUM(CASE WHEN ${orders.status} = 'delivered' THEN ${orders.total} ELSE 0 END), 0)`,
+        })
+          .from(orders)
+          .where(and(
+            eq(orders.tenantId, tenantId), sinceDay(orders.createdAt, startDate), isNull(orders.deletedAt),
+            ...(custom ? [untilDay(orders.createdAt, custom.to)] : []),
+          ))
+          .groupBy(sql`DATE(${orders.createdAt})`).orderBy(sql`DATE(${orders.createdAt})`);
+      });
+    }),
 
   /*
     Только открытые заказы. Донат «Статусы заказов» считал по всей истории

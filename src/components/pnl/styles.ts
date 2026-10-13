@@ -1,4 +1,7 @@
 import React from "react";
+import { format } from "date-fns";
+import { dateLocale } from "@/lib/date-locale";
+import { parseDay } from "@/lib/date-range";
 
 export const F = {
   display: "'Manrope', -apple-system, sans-serif",
@@ -153,15 +156,31 @@ export function paymentLabel(method: string, lang: string = "ru"): string {
  * при двенадцати месяцах подписи налезали друг на друга. Год повторять в
  * каждой подписи незачем: он один и тот же на всём графике, кроме перехода
  * через декабрь, — поэтому две цифры.
+ *
+ * Название месяца — из словаря date-fns, а не из Intl: браузер без
+ * узбекских данных отвечал на toLocaleDateString("uz") заглушкой «M09», и
+ * под графиком стояло «M09 26» вместо «Sen 26».
  */
 export function monthLabel(month: string, lang: string = "ru"): string {
   const [y, m] = month.split("-").map(Number);
   if (!y || !m) return month;
-  const name = new Date(y, m - 1, 1)
-    .toLocaleDateString(lang === "uz" ? "uz" : "ru", { month: "short" })
-    // Русская краткая форма приходит с точкой («апр.»), а вместе с годом Intl
-    // добавляет ещё и «г.»: подпись «апр. 26 г.» вдвое длиннее нужного и на
-    // ноутбуке при двенадцати месяцах перестаёт помещаться. Собираем сами.
-    .replace(/\.$/, "");
+  // Русская краткая форма приходит с точкой («сент.»): подпись «сент. 26»
+  // длиннее нужного и при двенадцати месяцах перестаёт помещаться.
+  const name = format(new Date(y, m - 1, 1), "LLL", { locale: dateLocale(lang) }).replace(/\.$/, "");
   return `${name} ${String(y).slice(-2)}`;
+}
+
+/** «14 Sen» / «14 сент» — день на оси графика. */
+export function dayLabel(day: string, lang: string = "ru"): string {
+  return format(parseDay(day), "d MMM", { locale: dateLocale(lang) }).replace(/\.$/, "");
+}
+
+/**
+ * Неделя на оси: «14–20 Sen»; через границу месяца — «28 Sen – 4 Okt». Неделя
+ * на краю периода подписана теми днями, что в него попали.
+ */
+export function weekLabel(start: string, end: string, lang: string = "ru"): string {
+  if (start === end) return dayLabel(start, lang);
+  if (start.slice(0, 7) === end.slice(0, 7)) return `${Number(start.slice(8))}–${dayLabel(end, lang)}`;
+  return `${dayLabel(start, lang)} – ${dayLabel(end, lang)}`;
 }

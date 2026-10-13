@@ -1,21 +1,24 @@
 import { FileDown, FileSpreadsheet } from "lucide-react";
+import { format } from "date-fns";
+import { DateRangePicker } from "@/components/DateRangePicker";
 import { F, COLORS } from "./styles";
 import type { Lang } from "@/i18n";
 
 export type Range = "7d" | "30d" | "90d" | "12m" | "ytd" | "custom";
 
-const RANGES: Record<Range, { ru: string; uz: string }> = {
+const RANGES: Record<Exclude<Range, "custom">, { ru: string; uz: string }> = {
   "7d": { ru: "7 дней", uz: "7 kun" },
   "30d": { ru: "30 дней", uz: "30 kun" },
   "90d": { ru: "90 дней", uz: "90 kun" },
   "12m": { ru: "12 мес.", uz: "12 oy" },
   ytd: { ru: "Год", uz: "Yil" },
-  custom: { ru: "Период", uz: "Davr" },
 };
 
 interface PnLPeriodSelectorProps {
   range: Range;
   onRangeChange: (range: Range) => void;
+  /** Период, выбранный календарём. */
+  onCustomRange: (from: string, to: string) => void;
   onExportExcel: () => void;
   onExportPDF: () => void;
   from: string;
@@ -29,6 +32,7 @@ const human = (iso: string) => iso.split("-").reverse().join(".");
 export function PnLPeriodSelector({
   range,
   onRangeChange,
+  onCustomRange,
   onExportExcel,
   onExportPDF,
   from,
@@ -36,7 +40,7 @@ export function PnLPeriodSelector({
   t,
   lang,
 }: PnLPeriodSelectorProps) {
-  const ranges: Range[] = ["7d", "30d", "90d", "12m", "ytd", "custom"];
+  const ranges: Exclude<Range, "custom">[] = ["7d", "30d", "90d", "12m", "ytd"];
 
   return (
     <div
@@ -106,6 +110,19 @@ export function PnLPeriodSelector({
             </button>
           ))}
         </div>
+        {/* «Период» был кнопкой, которая открывала под шапкой отдельную
+            карточку с двумя полями даты — её не находили. Календарь стоит
+            рядом с отрезками и показывает тот период, что сейчас на экране:
+            «30 дней» видны в нём полосой, и поправить можно от них. */}
+        <DateRangePicker
+          from={from}
+          to={to}
+          onChange={onCustomRange}
+          max={format(new Date(), "yyyy-MM-dd")}
+          active={range === "custom"}
+          aria-label={t("Период", "Davr")}
+          testId="pnl-calendar"
+        />
         {/* Кнопки были собраны из инлайновых стилей заново — при том, что в
             index.css для них есть .neo-btn: на этой странице они выглядели
             плоскими рядом с такими же кнопками на соседних экранах. */}

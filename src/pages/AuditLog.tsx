@@ -17,6 +17,7 @@ import { PremiumSelect } from "@/components/PremiumSelect";
 import { type Label, type Lang } from "@/lib/entity-labels";
 import { describeMeta, AUDIT_ACTION_LABEL } from "@/lib/audit-text";
 import { errorText } from "@/lib/error-text";
+import { DateRangePicker } from "@/components/DateRangePicker";
 
 /*
   Журнал действий директора.
@@ -224,7 +225,9 @@ export default function AuditLog() {
     action: actionFilter || undefined,
     actorId: actorId ? Number(actorId) : undefined,
     search: debounced || undefined,
-    dateFrom: period === "custom" ? (dateFrom ? new Date(dateFrom).toISOString() : undefined) : periodFrom(period),
+    // Начало — местная полночь, как и конец ниже: new Date("ГГГГ-ММ-ДД")
+    // давала полночь UTC, и в Ташкенте первые пять часов дня выпадали.
+    dateFrom: period === "custom" ? (dateFrom ? new Date(`${dateFrom}T00:00:00`).toISOString() : undefined) : periodFrom(period),
     dateTo: period === "custom" && dateTo ? new Date(`${dateTo}T23:59:59.999`).toISOString() : undefined,
   };
   const { data, isLoading, refetch, isRefetching } = trpc.audit.list.useQuery({ ...filters, limit, offset: page * limit });
@@ -263,7 +266,6 @@ export default function AuditLog() {
     { key: "week", label: { ru: "7 дней", uz: "7 kun" } },
     { key: "month", label: { ru: "30 дней", uz: "30 kun" } },
     { key: "all", label: { ru: "Всё время", uz: "Hamma vaqt" } },
-    { key: "custom", label: { ru: "Период…", uz: "Davr…" } },
   ];
   const inputStyle: React.CSSProperties = {
     padding: "8px 12px", fontSize: "13px", fontFamily: F.body, borderRadius: "10px",
@@ -320,13 +322,17 @@ export default function AuditLog() {
             <button key={p.key} onClick={() => { setPeriod(p.key); reset(); }} style={btn(period === p.key)}>{p.label[L]}</button>
           ))}
         </div>
-        {period === "custom" && (
-          <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
-            <input type="date" value={dateFrom} onChange={e => { setDateFrom(e.target.value); reset(); }} aria-label={t("С даты", "Sanadan")} style={inputStyle} />
-            <span style={{ color: COLORS.textTertiary }}>—</span>
-            <input type="date" value={dateTo} onChange={e => { setDateTo(e.target.value); reset(); }} aria-label={t("По дату", "Sanagacha")} style={inputStyle} />
-          </div>
-        )}
+        <DateRangePicker
+          from={period === "custom" ? dateFrom : ""}
+          to={period === "custom" ? dateTo : ""}
+          max={format(new Date(), "yyyy-MM-dd")}
+          onChange={(f, tt) => { setDateFrom(f); setDateTo(tt); setPeriod("custom"); reset(); }}
+          placeholder={t("Период…", "Davr…")}
+          active={period === "custom"}
+          align="start"
+          aria-label={t("Период", "Davr")}
+          testId="audit-range"
+        />
       </div>
 
       {/* Отбор по виду действия */}

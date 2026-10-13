@@ -9,6 +9,7 @@ import { returnsInPeriod, groupReturned, type ReturnRow } from "./services/reven
 import { agentProductSales, productSales, ALL_TIME_FROM, ALL_TIME_TO } from "./services/agent-product-sales";
 import { reportCached, ReportTTL } from "./lib/report-cache";
 import { periodGross } from "./services/period-gross";
+import { bucketSeries, monthBounds, seriesGranularity, type SeriesPoint } from "./services/pnl-series";
 
 /*
   Кэш отчётов.
@@ -579,8 +580,8 @@ export const analyticsRouter = createRouter({
         return ((curr - prev) / Math.abs(prev)) * 100;
       };
 
-      // Помесячный ряд. Выручка и себестоимость берутся ДВУМЯ запросами и
-      // сшиваются по месяцу в JS.
+      // Ряды по отрезкам. Выручка и себестоимость берутся ДВУМЯ запросами и
+      // сшиваются по отрезку в JS.
       //
       // Одним запросом было нельзя: присоединение order_items размножает строку
       // заказа по числу позиций, и SUM(orders.total) поверх такого набора
@@ -589,83 +590,81 @@ export const analyticsRouter = createRouter({
       // же экране P&L карточки показывали 5 520 500, а график под ними —
       // 29 673 500. И grossProfit, и маржа считаются от выручки, то есть весь
       // график был выдумкой, растущей вместе со средним размером корзины.
-      const monthlyRevenue = await db.select({
-        month: sql<string>`DATE_FORMAT(${orders.createdAt}, '%Y-%m')`,
-        revenue: sql<string>`COALESCE(SUM(${orders.total}), 0)`,
-        orderCount: sql<number>`count(DISTINCT ${orders.id})`,
-      })
-        .from(orders)
-        .where(and(
+      //
+      // Шаг — месяц или день, и запросы одни для обоих: помесячный ряд и
+      // дневной обязаны считать выручку одинаково.
+      async function sumsBy(step: "%Y-%m" | "%Y-%m-%d", returnKey: (r: ReturnRow) => string, returnRows: ReturnRow[]) {
+        // Формат — текстом запроса, а не параметром: с «?» на его месте MySQL
+        // не узнаёт в GROUP BY выражение из SELECT (ONLY_FULL_GROUP_BY).
+        const fmt = sql.raw(`'${step}'`);
+        const orderKey = sql<string>`DATE_FORMAT(${orders.createdAt}, ${fmt})`;
+        const window = [
           ...revenueOrderConditions(tid),
           sql`${orders.createdAt} >= ${from}`,
           sql`${orders.createdAt} <= ${to + " 23:59:59"}`,
-        ))
-        .groupBy(sql`DATE_FORMAT(${orders.createdAt}, '%Y-%m')`)
-        .orderBy(sql`DATE_FORMAT(${orders.createdAt}, '%Y-%m')`);
+        ];
+        const revenueRows = await db.select({
+          key: orderKey,
+          revenue: sql<string>`COALESCE(SUM(${orders.total}), 0)`,
+          orderCount: sql<number>`count(DISTINCT ${orders.id})`,
+        })
+          .from(orders)
+          .where(and(...window))
+          .groupBy(orderKey)
+          .orderBy(orderKey);
 
-      const monthlyCogs = await db.select({
-        month: sql<string>`DATE_FORMAT(${orders.createdAt}, '%Y-%m')`,
-        cogs: sql<string>`COALESCE(SUM(${deliveredQty()} * ${orderItems.costPrice}), 0)`,
-      })
-        .from(orders)
-        .leftJoin(orderItems, eq(orderItems.orderId, orders.id))
-        .where(and(
-          ...revenueOrderConditions(tid),
-          sql`${orders.createdAt} >= ${from}`,
-          sql`${orders.createdAt} <= ${to + " 23:59:59"}`,
-        ))
-        .groupBy(sql`DATE_FORMAT(${orders.createdAt}, '%Y-%m')`);
+        const cogsRows = await db.select({
+          key: orderKey,
+          cogs: sql<string>`COALESCE(SUM(${deliveredQty()} * ${orderItems.costPrice}), 0)`,
+        })
+          .from(orders)
+          .leftJoin(orderItems, eq(orderItems.orderId, orders.id))
+          .where(and(...window))
+          .groupBy(orderKey);
 
-      const cogsByMonth: Record<string, string> = {};
-      for (const r of monthlyCogs) cogsByMonth[r.month] = r.cogs;
+        const arrivalKey = sql<string>`DATE_FORMAT(${arrivals.arrivalDate}, ${fmt})`;
+        const expenseRows = await db.select({
+          key: arrivalKey,
+          expenses: sql<string>`COALESCE(SUM(${arrivals.totalExpense}), 0)`,
+        })
+          .from(arrivals)
+          .where(and(
+            eq(arrivals.tenantId, tid),
+            eq(arrivals.status, "completed"),
+            sql`${arrivals.arrivalDate} >= ${from}`,
+            sql`${arrivals.arrivalDate} <= ${to}`,
+          ))
+          .groupBy(arrivalKey);
 
-      /*
-        Возвраты вычитаются и здесь — тем же помощником, что и в карточке
-        прибыли выше. Посчитай график иначе, и на одном экране снова окажутся
-        два несогласных числа: карточка «заработали за период» и линия под
-        ней. Так уже было с удалёнными заказами, и правило с тех пор одно —
-        определение выручки живёт в одном месте.
-
-        Возврат ложится в месяц, когда он ПРОВЕДЁН, а не когда продали: иначе
-        закрытый месяц менялся бы задним числом при каждом возврате.
-      */
-      const returnsByMonth = groupReturned(
-        await returnsInPeriod(db, tid, from, to), (r: ReturnRow) => r.month);
-
-      const monthlyRows = monthlyRevenue.map(r => {
-        const back = returnsByMonth.get(r.month);
         return {
-          ...r,
-          revenue: String(Number(r.revenue) - (back?.amount ?? 0)),
-          cogs: String(Number(cogsByMonth[r.month] ?? "0") - (back?.cost ?? 0)),
+          revenueRows,
+          cogsBy: new Map(cogsRows.map(r => [r.key, Number(r.cogs)])),
+          expensesBy: new Map(expenseRows.map(r => [r.key, Number(r.expenses)])),
+          /*
+            Возвраты вычитаются и здесь — тем же помощником, что и в карточке
+            прибыли выше. Посчитай график иначе, и на одном экране снова
+            окажутся два несогласных числа: карточка «заработали за период» и
+            линия под ней. Так уже было с удалёнными заказами, и правило с тех
+            пор одно — определение выручки живёт в одном месте.
+
+            Возврат ложится в отрезок, когда он ПРОВЕДЁН, а не когда продали:
+            иначе закрытый месяц менялся бы задним числом при каждом возврате.
+          */
+          returnsBy: groupReturned(returnRows, returnKey),
         };
-      });
-
-      const monthlyExpenses = await db.select({
-        month: sql<string>`DATE_FORMAT(${arrivals.arrivalDate}, '%Y-%m')`,
-        expenses: sql<string>`COALESCE(SUM(${arrivals.totalExpense}), 0)`,
-      })
-        .from(arrivals)
-        .where(and(
-          eq(arrivals.tenantId, tid),
-          eq(arrivals.status, "completed"),
-          sql`${arrivals.arrivalDate} >= ${from}`,
-          sql`${arrivals.arrivalDate} <= ${to}`,
-        ))
-        .groupBy(sql`DATE_FORMAT(${arrivals.arrivalDate}, '%Y-%m')`);
-
-      const expenseByMonth: Record<string, number> = {};
-      for (const r of monthlyExpenses) {
-        expenseByMonth[r.month] = Number(r.expenses);
       }
 
-      const trend = monthlyRows.map(r => {
-        const rev = Number(r.revenue);
-        const cost = Number(r.cogs);
+      const returnRows = await returnsInPeriod(db, tid, from, to);
+      const monthly = await sumsBy("%Y-%m", r => r.month, returnRows);
+
+      const trend = monthly.revenueRows.map(r => {
+        const back = monthly.returnsBy.get(r.key);
+        const rev = Number(r.revenue) - (back?.amount ?? 0);
+        const cost = (monthly.cogsBy.get(r.key) ?? 0) - (back?.cost ?? 0);
         const gp = rev - cost;
-        const exp = expenseByMonth[r.month] ?? 0;
+        const exp = monthly.expensesBy.get(r.key) ?? 0;
         return {
-          month: r.month,
+          month: r.key,
           revenue: rev,
           cogs: cost,
           grossProfit: gp,
@@ -674,6 +673,35 @@ export const analyticsRouter = createRouter({
           orderCount: Number(r.orderCount),
         };
       });
+
+      // Ряд для графика — шагом под длину периода (services/pnl-series.ts).
+      // Для длинного периода это тот же помесячный ряд, второй раз в базу не
+      // ходим.
+      const granularity = seriesGranularity(from, to);
+      let points: SeriesPoint[];
+      if (granularity === "month") {
+        points = trend.map(r => ({
+          ...monthBounds(r.month, from, to),
+          revenue: r.revenue, cogs: r.cogs, grossProfit: r.grossProfit,
+          operatingExpenses: r.operatingExpenses, netProfit: r.netProfit, orderCount: r.orderCount,
+        }));
+      } else {
+        const daily = await sumsBy("%Y-%m-%d", r => r.day, returnRows);
+        const revenueBy = new Map(daily.revenueRows.map(r => [r.key, r]));
+        // День только с расходом или только с возвратом — тоже день графика.
+        const days = new Set([...revenueBy.keys(), ...daily.expensesBy.keys(), ...daily.returnsBy.keys()]);
+        points = bucketSeries([...days].map(key => {
+          const back = daily.returnsBy.get(key);
+          const row = revenueBy.get(key);
+          return {
+            key,
+            revenue: Number(row?.revenue ?? 0) - (back?.amount ?? 0),
+            cogs: (daily.cogsBy.get(key) ?? 0) - (back?.cost ?? 0),
+            operatingExpenses: daily.expensesBy.get(key) ?? 0,
+            orderCount: Number(row?.orderCount ?? 0),
+          };
+        }), from, to, granularity);
+      }
 
       return {
         current,
@@ -692,6 +720,7 @@ export const analyticsRouter = createRouter({
             : null,
         },
         trend,
+        series: { granularity, points },
         period: { from, to },
         prevPeriod: input.compareWithPrev ? { from: prevFrom, to: prevTo } : null,
       };

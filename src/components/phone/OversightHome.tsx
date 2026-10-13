@@ -12,6 +12,8 @@ import {
 } from "./kit";
 import { CARD, orderTone, orderStatusWord, tone } from "./tones";
 import { PlanForecastCompact } from "@/components/plans/PlanForecast";
+import { DateRangePicker } from "@/components/DateRangePicker";
+import { homeRangeDates, toDay } from "@/lib/date-range";
 
 /*
   Главная надзорных ролей на телефоне — SupervisorHome мобилки v8
@@ -36,8 +38,12 @@ export function OversightHome() {
   const { fmt } = useCurrency();
   const t = (ru: string, uz: string) => (lang === "uz" ? uz : ru);
   const [range, setRange] = useState<Range>("7d");
+  // Свой период из календаря — важнее таблеток; null — работают таблетки.
+  const [custom, setCustom] = useState<{ from: string; to: string } | null>(null);
+  const today = toDay(new Date());
+  const shownRange = custom ?? homeRangeDates(range, today);
 
-  const { data: trends } = trpc.dashboard.trends.useQuery({ range });
+  const { data: trends } = trpc.dashboard.trends.useQuery(custom ? { range, ...custom } : { range });
   const { data: statusData } = trpc.dashboard.statusBreakdown.useQuery();
   const { data: activity } = trpc.dashboard.activity.useQuery();
   const { data: allAlerts } = trpc.notification.smartAlerts.useQuery({ lang });
@@ -119,9 +125,23 @@ export function OversightHome() {
             <p style={{ fontSize: 12, color: "var(--color-text-tertiary)", margin: "2px 0 0" }}>{t("Выручка и заказы", "Tushum va buyurtmalar")}</p>
           </div>
           <Segmented<Range>
-            value={range}
-            onChange={setRange}
+            value={custom ? null : range}
+            onChange={r => { setRange(r); setCustom(null); }}
             options={[{ key: "7d", label: t("7д", "7 k") }, { key: "30d", label: t("30д", "30 k") }, { key: "month", label: t("Месяц", "Oy") }]}
+          />
+        </div>
+        {/* Календарь — своей строкой: рядом с заголовком и таблетками на
+            телефоне ему не хватает ширины. */}
+        <div className="mb-3">
+          <DateRangePicker
+            from={shownRange.from}
+            to={shownRange.to}
+            max={today}
+            onChange={(from, to) => setCustom({ from, to })}
+            active={custom !== null}
+            align="start"
+            aria-label={t("Период", "Davr")}
+            testId="home-range"
           />
         </div>
         <div className="mb-3"><Sparkline data={revenue} height={50} /></div>

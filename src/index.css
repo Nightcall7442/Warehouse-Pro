@@ -1352,9 +1352,6 @@
   .exports-period { display: flex; flex-direction: column; gap: 10px; }
   .exports-presets { display: flex; }
   .exports-presets .range-pill { flex: 1; white-space: nowrap; }
-  .exports-range { display: flex; align-items: center; gap: 8px; }
-  .exports-range .neo-input { flex: 1; min-width: 0; height: 48px; padding: 0 10px; font-variant-numeric: tabular-nums; }
-  .exports-range-dash { color: var(--color-text-tertiary); }
 
   .exports-group { padding: 0; }
   .exports-group-head { padding: 16px 16px 12px; }
@@ -1403,7 +1400,6 @@
   @container exports (min-width: 560px) {
     .exports-head { padding: 18px 20px; }
     .exports-period { flex-direction: row; flex-wrap: wrap; align-items: center; }
-    .exports-range .neo-input { flex: none; width: 160px; padding: 0 14px; }
     .exports-group-head { padding: 18px 20px 12px; }
     .export-row { padding: 16px 20px; gap: 12px 16px; grid-template-areas: "icon text action" ". filters filters"; }
     .export-row-action { width: auto; min-width: 140px; padding: 0 16px; }
@@ -1413,7 +1409,6 @@
     .exports-head { flex-direction: row; align-items: center; justify-content: space-between; gap: 24px; }
     .exports-head-text { min-width: 0; }
     .exports-period { flex-wrap: nowrap; flex: none; }
-    .exports-range .neo-input { height: 52px; }
     .export-row { grid-template-columns: 40px minmax(0, 1fr) auto auto; grid-template-areas: "icon text filters action"; align-items: center; }
     .export-row-icon { align-self: start; }
     .export-row-filters { grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: 180px; }
@@ -1476,6 +1471,84 @@
   }
   .dark .range-pill.active {
     color: var(--color-primary-text);
+  }
+
+  /* ══════════════════════════════════════════════════════════════════════
+     КАЛЕНДАРЬ ПЕРИОДА — components/DateRangePicker
+     ══════════════════════════════════════════════════════════════════════ */
+  .drp-trigger { font-variant-numeric: tabular-nums; }
+  /* Период выбран календарём — кнопка вдавлена, как выбранный отрезок рядом. */
+  .neo-btn.drp-trigger[aria-pressed="true"],
+  .neo-btn.drp-trigger[aria-pressed="true"]:hover {
+    box-shadow: var(--shadow-pressed); transform: none;
+    color: var(--color-primary-text) !important;
+  }
+  .drp-pop.drp-pop {
+    width: auto; max-width: calc(100vw - 32px); padding: 14px;
+    border-radius: 18px; border: 1px solid var(--color-border);
+    background: var(--color-surface); color: var(--color-text-primary);
+    box-shadow: var(--shadow-popover); font-family: 'Manrope', sans-serif;
+  }
+  .drp-months { display: flex; gap: 24px; }
+  .drp-month { width: 252px; }
+  .drp-head { display: flex; align-items: center; justify-content: space-between; height: 32px; margin-bottom: 6px; }
+  .drp-title { font-size: 13px; font-weight: 700; text-transform: capitalize; }
+  .drp-nav, .drp-nav-gap { width: 32px; height: 32px; }
+  .drp-nav {
+    display: inline-flex; align-items: center; justify-content: center;
+    border: none; border-radius: 10px; background: transparent; cursor: pointer;
+    color: var(--color-text-secondary);
+  }
+  .drp-nav:hover:not(:disabled) { background: var(--color-surface-light); color: var(--color-text-primary); }
+  .drp-nav:disabled { opacity: .3; cursor: default; }
+  .drp-nav:focus-visible, .drp-chip:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 1px; }
+  .drp-grid { display: grid; grid-template-columns: repeat(7, 36px); row-gap: 2px; }
+  .drp-wd {
+    height: 28px; display: flex; align-items: center; justify-content: center;
+    font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em;
+    color: var(--color-text-tertiary);
+  }
+  .drp-day {
+    position: relative; height: 36px; border: none; border-radius: 10px;
+    background: transparent; color: var(--color-text-primary);
+    font: inherit; font-size: 13px; font-variant-numeric: tabular-nums; cursor: pointer;
+  }
+  .drp-day:hover:not(:disabled) { background: var(--color-surface-light); }
+  .drp-day:focus-visible { outline: 2px solid var(--color-primary); outline-offset: -2px; }
+  .drp-day:disabled { color: var(--color-text-tertiary); opacity: .4; cursor: default; }
+  /* Сегодня — точкой, а не заливкой: заливка занята концами периода. */
+  .drp-day.is-today::after {
+    content: ''; position: absolute; left: 50%; bottom: 4px;
+    width: 4px; height: 4px; margin-left: -2px; border-radius: 50%;
+    background: var(--color-primary);
+  }
+  .drp-day.is-in-range, .drp-day.is-in-range:hover:not(:disabled) { background: var(--color-primary-subtle); border-radius: 0; }
+  .drp-day.is-start, .drp-day.is-end,
+  .drp-day.is-start:hover:not(:disabled), .drp-day.is-end:hover:not(:disabled) {
+    background: var(--color-primary); color: var(--color-on-primary); font-weight: 700;
+  }
+  .drp-day.is-start { border-radius: 10px 0 0 10px; }
+  .drp-day.is-end { border-radius: 0 10px 10px 0; }
+  .drp-day.is-start.is-end { border-radius: 10px; }
+  .drp-day.is-start.is-today::after, .drp-day.is-end.is-today::after { background: var(--color-on-primary); }
+  .drp-foot {
+    display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px 16px;
+    margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--color-border);
+  }
+  .drp-quick { display: flex; flex-wrap: wrap; gap: 6px; }
+  .drp-chip {
+    height: 30px; padding: 0 12px; border-radius: 9999px; cursor: pointer;
+    border: 1px solid var(--color-border); background: transparent;
+    font: inherit; font-size: 12px; font-weight: 600; color: var(--color-text-secondary);
+  }
+  .drp-chip:hover { color: var(--color-text-primary); background: var(--color-surface-light); }
+  .drp-status { font-size: 12px; color: var(--color-text-tertiary); }
+  /* Телефон: один месяц, клетки крупнее — под палец, а не под мышь. */
+  @media (max-width: 767px) {
+    .drp-month { width: 280px; }
+    .drp-grid { grid-template-columns: repeat(7, 40px); }
+    .drp-day { height: 40px; }
+    .drp-chip { height: 36px; }
   }
 
   /* ══════════════════════════════════════════════════════════════════════

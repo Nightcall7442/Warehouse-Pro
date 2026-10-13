@@ -3,7 +3,7 @@ import { trpc } from "@/providers/trpc";
 import { useCurrency } from "@/hooks/useCurrency";
 import { useLang } from "@/i18n";
 import { useAuth } from "@/hooks/useAuth";
-import { format, subDays } from "date-fns";
+import { differenceInCalendarDays, format, subDays } from "date-fns";
 import { FileDown, Printer, LayoutDashboard, ShoppingCart, Award, LayoutGrid, Wallet, CircleSlash, TrendingUp, ChartBarStacked, MapPinned } from "lucide-react";
 import { exportToExcel } from "@/lib/excel";
 import { exportToPDF, escapeHtml } from "@/lib/export";
@@ -12,6 +12,8 @@ import { formatQty } from "@/lib/format";
 import { QueryErrorFallback } from "@/components/QueryErrorFallback";
 import { F, COLORS, PAYMENT_MAP, delta, type TabKey } from "@/components/reports/report-constants";
 import { PeriodPicker } from "@/components/reports/ReportCharts";
+import { DateRangePicker } from "@/components/DateRangePicker";
+import { parseDay, rangeText, shiftDay } from "@/lib/date-range";
 import { OverviewTab, type PeriodTotals } from "@/components/reports/OverviewTab";
 import { SalesTab } from "@/components/reports/SalesTab";
 import { AgentsTab, type AgentRow } from "@/components/reports/AgentsTab";
@@ -137,22 +139,32 @@ export default function Reports() {
     одном экране два периода, и непонятно было, какой уйдёт в файл.
   */
   const pagePeriod = !ownPeriod && tab !== "all";
-  const [days, setDays] = useState(30);
+  /*
+    Период страницы: «7 / 30 / 90 дней» до сегодня или свой, из календаря
+    (custom). days — его длина: подписи «за N дней» и сравнение с прошлым
+    промежутком той же длины считают от неё одинаково для обоих случаев.
+    span — разница дат, как у пресетов: «30 дней» — это сегодня минус 30.
+  */
+  const [presetDays, setPresetDays] = useState(30);
+  const [custom, setCustom] = useState<{ from: string; to: string } | null>(null);
   const { fmt } = useCurrency();
   const { lang } = useLang();
   const t = useCallback((ru: string, uz: string) => lang === "uz" ? uz : ru, [lang]);
 
-  const from = format(subDays(new Date(), days), "yyyy-MM-dd");
-  const to = format(new Date(), "yyyy-MM-dd");
+  const from = custom?.from ?? format(subDays(new Date(), presetDays), "yyyy-MM-dd");
+  const to = custom?.to ?? format(new Date(), "yyyy-MM-dd");
+  const span = custom ? differenceInCalendarDays(parseDay(to), parseDay(from)) : presetDays;
+  // Один день в календаре — «за 1 день», а не «за 0 дней».
+  const days = Math.max(1, span);
   // Предыдущий промежуток той же длины, вплотную к выбранному: [from-days-1;
   // from-1]. Именно той же длины — сравнивать неделю с месяцем бессмысленно, а
   // «прошлый календарный месяц» на середине месяца сравнивал бы неполное с
   // полным.
-  const prevTo = format(subDays(new Date(), days + 1), "yyyy-MM-dd");
-  const prevFrom = format(subDays(new Date(), days * 2 + 1), "yyyy-MM-dd");
+  const prevTo = shiftDay(from, -1);
+  const prevFrom = shiftDay(from, -(span + 1));
 
   const summaryQ = trpc.reports.getDashboardSummary.useQuery();
-  const chartQ = trpc.reports.getVisitChart.useQuery({ days });
+  const chartQ = trpc.reports.getVisitChart.useQuery(custom ? { days, ...custom } : { days });
   const plansQ = trpc.reports.getPlanCompletion.useQuery();
   const byShopQ = trpc.analytics.salesByShop.useQuery({ dateFrom: from, dateTo: to });
   const topProdsQ = trpc.analytics.topProducts.useQuery({ dateFrom: from, dateTo: to });
@@ -398,7 +410,7 @@ export default function Reports() {
     // Named like the hub's files — id then period — so the whole downloads
     // folder sorts and reads the same way. `report-<today>` said neither which
     // report it was nor what it covered.
-    await exportToExcel(rows, `summary-last${days}d-${format(new Date(), "yyyy-MM-dd")}`, t("Отчёт", "Hisobot"), `${t("Сводный отчёт", "Yig'ma hisobot")} — ${format(new Date(), "dd.MM.yyyy")}`);
+    await exportToExcel(rows, custom ? `summary-${from}_${to}` : `summary-last${days}d-${format(new Date(), "yyyy-MM-dd")}`, t("Отчёт", "Hisobot"), `${t("Сводный отчёт", "Yig'ma hisobot")} — ${format(new Date(), "dd.MM.yyyy")}`);
   };
 
   const handleExportPDF = () => {
@@ -479,7 +491,7 @@ export default function Reports() {
               переключатель дней и «Сводка» там ничего не меняют и только путают. */}
           {pagePeriod && (
           <p style={{ fontSize: "13px", color: COLORS.textSecondary, margin: "4px 0 0" }}>
-            {format(subDays(new Date(), days), "dd.MM.yyyy")} — {format(new Date(), "dd.MM.yyyy")}
+            {rangeText(from, to)}
           </p>
           )}
         </div>
@@ -487,7 +499,16 @@ export default function Reports() {
         // На телефоне — сеткой: период во всю ширину, «Сводка» и «Печать»
         // поровну под ним. Раньше «Печать» переносилась одна на свою строку.
         <div className="reports-head-actions">
-          <PeriodPicker days={days} onChange={setDays} t={t} />
+          <PeriodPicker days={custom ? 0 : presetDays} onChange={d => { setPresetDays(d); setCustom(null); }} t={t} />
+          <DateRangePicker
+            from={from}
+            to={to}
+            max={format(new Date(), "yyyy-MM-dd")}
+            onChange={(f, tt) => setCustom({ from: f, to: tt })}
+            active={custom !== null}
+            aria-label={t("Период", "Davr")}
+            testId="reports-range"
+          />
           {/* Кнопки были 33 точки высотой при 13px шрифта и отступе 8px.
               .neo-btn плюс .tap дают домашний вид и настоящие 44. */}
           <button type="button" onClick={handleExport} className="neo-btn tap" style={{ padding: "0 14px" }}>

@@ -1,5 +1,6 @@
 import { F, COLORS } from "@/components/users/types";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { DateRangePicker } from "@/components/DateRangePicker";
 import { useReportPeriod, PRESET_DAYS } from "./report-period";
 
 export function PeriodControls({ period, t, testid }: {
@@ -7,7 +8,6 @@ export function PeriodControls({ period, t, testid }: {
   t: (ru: string, uz: string) => string;
   testid: string;
 }) {
-  const phone = useIsMobile();
   const { from, to, today, setFrom, setTo, preset, presetOn } = period;
   return (
     <>
@@ -19,17 +19,16 @@ export function PeriodControls({ period, t, testid }: {
           </button>
         ))}
       </div>
-      {/* На телефоне даты — ровной парой, а не как ляжет перенос строки. */}
-      <div className={phone ? "grid grid-cols-2 gap-3 w-full" : "contents"}>
-      <label className="flex flex-col gap-1" style={{ flex: "1 1 140px", maxWidth: phone ? undefined : 170, minWidth: 0 }}>
-        <span className="font-label text-[10px] text-secondary">{t("С", "Dan")}</span>
-        <input type="date" className="neo-input w-full" value={from} max={to} onChange={e => e.target.value && setFrom(e.target.value)} data-testid={`${testid}-from`} style={{ minHeight: 44 }} />
-      </label>
-      <label className="flex flex-col gap-1" style={{ flex: "1 1 140px", maxWidth: phone ? undefined : 170, minWidth: 0 }}>
-        <span className="font-label text-[10px] text-secondary">{t("По", "Gacha")}</span>
-        <input type="date" className="neo-input w-full" value={to} min={from} max={today} onChange={e => e.target.value && setTo(e.target.value)} data-testid={`${testid}-to`} style={{ minHeight: 44 }} />
-      </label>
-      </div>
+      <DateRangePicker
+        from={from}
+        to={to}
+        max={today}
+        onChange={(f, tt) => { setFrom(f); setTo(tt); }}
+        active={!PRESET_DAYS.some(presetOn)}
+        align="start"
+        aria-label={t("Период", "Davr")}
+        testId={`${testid}-range`}
+      />
     </>
   );
 }

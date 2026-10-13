@@ -464,6 +464,24 @@ describe("кэш отчётов главной", () => {
     expect(second).toEqual(first);
   });
 
+  it("trends: свой период из календаря — свой ключ, и «7д» его не подменяет", async () => {
+    const { dashboardRouter } = await import("../dashboard-router");
+    const caller = dashboardRouter.createCaller(buildCtx());
+    await caller.trends({ range: "7d" });
+    const after7 = dbQueries;
+    // Конец раньше начала — тот же период, тем же ключом.
+    await caller.trends({ range: "7d", from: "2026-09-30", to: "2026-09-01" });
+    expect(dbQueries, "свой период отдан из записи «7д»").toBeGreaterThan(after7);
+    const afterCustom = dbQueries;
+    await caller.trends({ range: "7d", from: "2026-09-01", to: "2026-09-30" });
+    expect(dbQueries, "повтор своего периода пошёл в базу").toBe(afterCustom);
+    expect(reportCalls.filter(c => c.name === "dashboard.trends").map(c => c.input)).toEqual([
+      { range: "7d" },
+      { range: "7d", from: "2026-09-01", to: "2026-09-30" },
+      { range: "7d", from: "2026-09-01", to: "2026-09-30" },
+    ]);
+  });
+
   it("kpis: ключ — по организации из контекста, соседи чужие числа не видят", async () => {
     const { dashboardRouter } = await import("../dashboard-router");
     // Организация 1: заказы 1 и 2; организация 2: только заказ 3. Кэш,

@@ -29,6 +29,11 @@ export function sinceDay(col: AnyMySqlColumn, day: string): SQL {
   return sql`${col} >= ${`${day} 00:00:00`}`;
 }
 
+/** Equivalent of `DATE(col) <= day` for a timestamp column. */
+export function untilDay(col: AnyMySqlColumn, day: string): SQL {
+  return sql`${col} < ${`${nextDay(day)} 00:00:00`}`;
+}
+
 /**
  * Equivalent of `DATE(col) = day` for a DATE column, where DATE() is a no-op
  * that nevertheless blocks the index (e.g. idx_plans_tenant_date).

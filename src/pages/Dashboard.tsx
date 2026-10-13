@@ -20,6 +20,8 @@ import { labelled, ORDER_STATUS_LABEL } from "@/lib/entity-labels";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { OversightHome } from "@/components/phone/OversightHome";
 import { PlanForecastCompact } from "@/components/plans/PlanForecast";
+import { DateRangePicker } from "@/components/DateRangePicker";
+import { homeRangeDates, toDay } from "@/lib/date-range";
 
 type Range = "7d" | "30d" | "month";
 
@@ -137,6 +139,8 @@ export default function Dashboard() {
 
 function DesktopDashboard() {
   const [range, setRange] = useState<Range>("7d");
+  // Свой период из календаря — важнее пилюль; null — работают пилюли.
+  const [custom, setCustom] = useState<{ from: string; to: string } | null>(null);
   const { fmt } = useCurrency();
   const { lang } = useLang();
   const { user } = useAuth();
@@ -144,7 +148,17 @@ function DesktopDashboard() {
   const t = useCallback((ru: string, uz: string) => lang === "uz" ? uz : ru, [lang]);
 
   const { data: kpis, isLoading, isLoadingError, refetch } = trpc.dashboard.kpis.useQuery();
-  const { data: trends } = trpc.dashboard.trends.useQuery({ range });
+  const { data: trends } = trpc.dashboard.trends.useQuery(custom ? { range, ...custom } : { range });
+  /*
+    Столбики под плитками «сегодня» — последние семь дней, а не хвост
+    выбранного периода: свой период в календаре может кончаться в прошлом
+    месяце, и под сегодняшней выручкой стояла бы чужая неделя. Запись «7д»
+    у сервера общая, лишнего пересчёта нет.
+  */
+  const { data: lastWeek } = trpc.dashboard.trends.useQuery({ range: "7d" }, { enabled: custom !== null });
+  const recent = custom ? lastWeek : trends;
+  const today = toDay(new Date());
+  const shownRange = custom ?? homeRangeDates(range, today);
   const { data: statusData } = trpc.dashboard.statusBreakdown.useQuery();
   const { data: activity } = trpc.dashboard.activity.useQuery();
   const { data: allAlerts } = trpc.notification.smartAlerts.useQuery({ lang });
@@ -153,8 +167,8 @@ function DesktopDashboard() {
   const alerts = useMemo(() => (expiryCard ? allAlerts?.filter(a => !EXPIRY_ALERT_TYPES.has(a.type)) : allAlerts), [allAlerts, expiryCard]);
 
   const chartData = useMemo(() => trends?.map(tr => ({ date: format(new Date(tr.date), "dd/MM"), orders: tr.orderCount, revenue: Number(tr.revenue) })) ?? [], [trends]);
-  const revenueTrend = useMemo(() => (trends ?? []).slice(-7).map(tr => Number(tr.revenue)), [trends]);
-  const ordersTrend = useMemo(() => (trends ?? []).slice(-7).map(tr => tr.orderCount), [trends]);
+  const revenueTrend = useMemo(() => (recent ?? []).slice(-7).map(tr => Number(tr.revenue)), [recent]);
+  const ordersTrend = useMemo(() => (recent ?? []).slice(-7).map(tr => tr.orderCount), [recent]);
   /*
     Стрелка под плиткой — сегодня против вчера.
 
@@ -350,10 +364,21 @@ function DesktopDashboard() {
                 {t("Выручка и количество заказов", "Tushum va buyurtmalar soni")}
               </p>
             </div>
-            <div className="range-pills">
-              {([{ key: "7d" as const, label: t("7д", "7 kun") }, { key: "30d" as const, label: t("30д", "30 kun") }, { key: "month" as const, label: t("Месяц", "Oy") }]).map(r => (
-                <button key={r.key} onClick={() => setRange(r.key)} className={`range-pill ${range === r.key ? "active" : ""}`}>{r.label}</button>
-              ))}
+            <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap", justifyContent: "flex-end" }}>
+              <div className="range-pills">
+                {([{ key: "7d" as const, label: t("7д", "7 kun") }, { key: "30d" as const, label: t("30д", "30 kun") }, { key: "month" as const, label: t("Месяц", "Oy") }]).map(r => (
+                  <button key={r.key} onClick={() => { setRange(r.key); setCustom(null); }} aria-pressed={!custom && range === r.key} className={`range-pill ${!custom && range === r.key ? "active" : ""}`}>{r.label}</button>
+                ))}
+              </div>
+              <DateRangePicker
+                from={shownRange.from}
+                to={shownRange.to}
+                max={today}
+                onChange={(from, to) => setCustom({ from, to })}
+                active={custom !== null}
+                aria-label={t("Период", "Davr")}
+                testId="home-range"
+              />
             </div>
           </div>
           <ResponsiveContainer width="100%" height={260}>

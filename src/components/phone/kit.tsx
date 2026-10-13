@@ -179,9 +179,12 @@ export function HomeGreeting({ title }: { title: string }) {
   );
 }
 
-/** Переключатель-«таблетки» (7д / 30д / Месяц), как в мобилке. */
+/**
+ * Переключатель-«таблетки» (7д / 30д / Месяц), как в мобилке. null — ни одна
+ * не выбрана: период задан календарём рядом.
+ */
 export function Segmented<T extends string>({ value, options, onChange }: {
-  value: T; options: Array<{ key: T; label: string }>; onChange: (v: T) => void;
+  value: T | null; options: Array<{ key: T; label: string }>; onChange: (v: T) => void;
 }) {
   return (
     <div className="flex rounded-full p-0.5 flex-shrink-0" style={{ background: "var(--color-surface-light)" }} role="tablist">

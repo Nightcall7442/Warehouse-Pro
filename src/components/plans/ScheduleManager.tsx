@@ -6,6 +6,7 @@ import { COLORS, SHADOW, F } from "./constants";
 import { PremiumSelect } from "@/components/PremiumSelect";
 import { useShopSearch } from "@/hooks/useShopSearch";
 import { errorText } from "@/lib/error-text";
+import { DateRangePicker } from "@/components/DateRangePicker";
 
 const DAY_NAMES_RU = ["ВС", "ПН", "ВТ", "СР", "ЧТ", "ПТ", "СБ"];
 const DAY_NAMES_UZ = ["Yak", "Dush", "Sesh", "Chor", "Pay", "Jum", "Shan"];
@@ -215,11 +216,15 @@ export function ScheduleManager({ lang }: { lang: string }) {
 
           {/* Generate plans */}
           <div style={{ display: "flex", gap: "8px", alignItems: "center", padding: "12px", borderRadius: "10px", background: COLORS.surfaceHover }}>
-            <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)}
-              className="neo-input" style={{ fontSize: "12px", padding: "6px 8px" }} />
-            <span style={{ color: COLORS.textSecondary, fontSize: "12px" }}>—</span>
-            <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)}
-              className="neo-input" style={{ fontSize: "12px", padding: "6px 8px" }} />
+            {/* Планы строятся и на будущее — потолка у календаря здесь нет. */}
+            <DateRangePicker
+              from={startDate}
+              to={endDate}
+              onChange={(f, tt) => { setStartDate(f); setEndDate(tt); }}
+              align="start"
+              aria-label={t("Период", "Davr")}
+              testId="schedule-range"
+            />
             <button
               onClick={() => generateMutation.mutate({ startDate, endDate, agentId: selectedAgent })}
               disabled={generateMutation.isPending}
