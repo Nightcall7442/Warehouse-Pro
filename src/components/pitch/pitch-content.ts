@@ -225,6 +225,29 @@ export const TRACTION = {
   deliveredOrders30d: 654,
 } as const;
 
+/**
+ * Дни от первого коммита до даты, на которую посчитаны платящие клиенты.
+ *
+ * Жюри первым делом спрашивает «сколько времени ушло» — и ответ сильнее
+ * любого числа коммитов: от пустого репозитория до платящих дистрибьюторов.
+ * Считается из ENGINEERING.since и TRACTION.asOf, а не вписано рукой: даты
+ * пересчитывают перед подачей, и число обязано поехать вместе с ними.
+ */
+export function daysBetween(from: string, to: string): number {
+  const ms = (d: string) => {
+    const [dd, mm, yyyy] = d.split(".").map(Number);
+    return Date.UTC(yyyy, mm - 1, dd);
+  };
+  return Math.round((ms(to) - ms(from)) / 86_400_000);
+}
+export const DAYS_TO_PAYING = daysBetween(ENGINEERING.since, TRACTION.asOf);
+
+/** Число с узким пробелом между разрядами: «2 385», а не «2385» или «2,385». */
+export const fmtNum = (n: number) => n.toLocaleString("ru-RU").replace(/[\u00a0\u202f]/g, "\u2009");
+
+/** Месячная выручка в миллионах сумов, «2,67», — одна запись на всю страницу. */
+export const mrrMln = () => (TRACTION.mrrUzs / 1_000_000).toFixed(2).replace(".", ",");
+
 /* ── Муаммо → Ечим ─────────────────────────────────────────────────────── */
 export const PROBLEMS: Array<{ topic: L; problem: L; solution: L }> = [
   {

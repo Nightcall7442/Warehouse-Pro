@@ -16,7 +16,8 @@ import { readFileSync } from "node:fs";
  * 2. Все разделы конкурса на месте и не пустые: 1 Муаммо → Ечим, 2 Жамоа
  *    (имя, роль, навыки, ссылки), 3 почему мы (числа), 4 дорожная карта с
  *    отметкой «мы здесь» на «запущен», 5 этапы, технологии и ИИ, 6 — /demo
- *    (ролик, описание, вход в прототип), плюс API.
+ *    (ролик, описание, вход в прототип), итог перед API, плюс API. На первом
+ *    экране — те же числа результатов, что в главе «Natijalar».
  * 3. Язык: узбекский по умолчанию, явный выбор сильнее; переключатель
  *    сохраняет выбор.
  * 4. /demo: плеер с обложкой без автозапуска; сцены описания по времени
@@ -33,7 +34,8 @@ vi.setConfig({ testTimeout: 20_000 });
 import Pitch from "@/pages/Pitch";
 import PitchDemo from "@/pages/PitchDemo";
 import { LangProvider } from "@/i18n";
-import { API_ENDPOINTS, TEAM, ENGINEERING, VIDEO_SRC, VIDEO_POSTER, VIDEO_DESCRIPTION, VIDEO_SECONDS, PROBLEMS, TRACTION, HIRING, MARKET_PROOF, ALTERNATIVES, PARITY, IDEAS, GAPS } from "@/components/pitch/pitch-content";
+import { API_ENDPOINTS, TEAM, ENGINEERING, VIDEO_SRC, VIDEO_POSTER, VIDEO_DESCRIPTION, VIDEO_SECONDS, PROBLEMS, TRACTION, HIRING, MARKET_PROOF, ALTERNATIVES, PARITY, IDEAS, GAPS, DAYS_TO_PAYING, daysBetween } from "@/components/pitch/pitch-content";
+import { CONTACT } from "@/components/landing/landing-tokens";
 import { FIELD_PRICE_UZS, formatSum } from "@contracts/pricing";
 
 type Status = { enabled: boolean; roles: string[]; apiKey: string | null };
@@ -86,7 +88,8 @@ describe("маршруты публичные", () => {
 describe("/pitch: разделы конкурса", () => {
   it("все главы на месте, по порядку", () => {
     draw(<Pitch />);
-    const ids = ["muammo", "natijalar", "bozor", "jamoa", "nega-biz", "yol-xaritasi", "amalga-oshirish", "demo", "api"];
+    // «Итог» — перед API: страница кончается выводом, а не справочником.
+    const ids = ["muammo", "natijalar", "bozor", "jamoa", "nega-biz", "yol-xaritasi", "amalga-oshirish", "demo", "xulosa", "api"];
     const order = ids.map(id => document.getElementById(id));
     order.forEach((el, i) => expect(el, ids[i]).not.toBeNull());
     for (let i = 1; i < order.length; i++) {
@@ -190,6 +193,44 @@ describe("/pitch: разделы конкурса", () => {
     draw(<Pitch />);
     const t = screen.getByTestId("pitch-why-numbers").textContent!.replace(/\s/g, "");
     for (const n of [ENGINEERING.commits, ENGINEERING.prsWeb, ENGINEERING.prsMobile, ENGINEERING.tests]) expect(t).toContain(String(n));
+  });
+
+  it("3 · почему мы: дни до денег считаются из дат, а не вписаны рукой", () => {
+    // 03.07 → 09.10.2026: 28 дней июля + 31 + 30 + 9.
+    expect(daysBetween("03.07.2026", "09.10.2026")).toBe(98);
+    expect(DAYS_TO_PAYING).toBe(daysBetween(ENGINEERING.since, TRACTION.asOf));
+    draw(<Pitch />);
+    const speed = screen.getByTestId("pitch-why-speed").textContent!;
+    expect(speed).toContain(`${DAYS_TO_PAYING} kun`);
+    expect(speed).toContain(ENGINEERING.since);
+    expect(speed).toContain(TRACTION.asOf);
+  });
+
+  it("первый экран: доказательство — те же числа, что в «Результатах», и ведёт туда", () => {
+    draw(<Pitch />);
+    const proof = screen.getByTestId("pitch-hero-proof");
+    expect(within(screen.getByTestId("pitch-hero")).getByTestId("pitch-hero-proof")).toBe(proof);
+    expect(proof.getAttribute("href")).toBe("#natijalar");
+    const t = proof.textContent!.replace(/\s/g, "");
+    expect(t).toContain(String(TRACTION.paying));
+    expect(t).toContain((TRACTION.mrrUzs / 1_000_000).toFixed(2).replace(".", ","));
+    expect(t).toContain(String(TRACTION.deliveredOrders30d));
+    expect(t).toContain(`${DAYS_TO_PAYING}kun`);
+  });
+
+  it("итог: пять строк из глав выше, демо, пробный период и почта сайта", () => {
+    draw(<Pitch />);
+    const closing = screen.getByTestId("pitch-closing");
+    expect(within(closing).getAllByRole("term").map(e => e.textContent)).toEqual(["Muammo", "Yechim", "Natija", "Biznes model", "Keyingi qadam"]);
+    const t = closing.textContent!;
+    expect(t).toContain(`${PROBLEMS.length} ta muammo`);
+    expect(t).toContain(`${TRACTION.paying} ta pullik distribyutor`);
+    expect(t).toContain(TRACTION.asOf);
+    expect(t.replace(/\s/g, "")).toContain(formatSum(FIELD_PRICE_UZS).replace(/\s/g, ""));
+    for (const h of HIRING) expect(t.toLowerCase()).toContain(h.role.uz.toLowerCase());
+    expect(screen.getByTestId("pitch-closing-demo").getAttribute("href")).toBe("/demo");
+    expect(screen.getByTestId("pitch-closing-trial").getAttribute("href")).toBe("/register");
+    if (CONTACT.email) expect(screen.getByTestId("pitch-closing-email").getAttribute("href")).toBe(`mailto:${CONTACT.email}`);
   });
 
   it("4 · дорожная карта: четыре стадии, «мы здесь» — на запуске", () => {
