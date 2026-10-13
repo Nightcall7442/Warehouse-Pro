@@ -119,17 +119,18 @@ export default function PnL() {
 
   const current = data?.current;
   const deltas = data?.deltas;
-  const trend = useMemo(() => data?.trend ?? [], [data]);
-
-  const chartData = useMemo(() => {
-    return trend.map((r) => ({
-      month: r.month,
-      revenue: r.revenue,
-      cogs: r.cogs,
-      grossProfit: r.grossProfit,
-      netProfit: r.netProfit,
-    }));
-  }, [trend]);
+  /*
+    График — по ряду series: шаг в нём сервер выбирает по длине периода (дни,
+    недели или месяцы). Ответ из кэша отчётов, сложенный до появления series,
+    ещё до пяти минут приходит без него — тогда прежний помесячный ряд.
+  */
+  const chart = useMemo(() => {
+    if (data?.series) return data.series;
+    return {
+      granularity: "month" as const,
+      points: (data?.trend ?? []).map((r) => ({ ...r, start: `${r.month}-01`, end: `${r.month}-01` })),
+    };
+  }, [data]);
 
   const handleCustomRange = (nextFrom: string, nextTo: string) => {
     setCustomFrom(nextFrom);
@@ -613,7 +614,7 @@ export default function PnL() {
         t={t}
       />
 
-      <PnLRevenueChart chartData={chartData} fmt={fmt} t={t} lang={lang} />
+      <PnLRevenueChart points={chart.points} granularity={chart.granularity} fmt={fmt} t={t} lang={lang} />
 
       <PnLExpenseBreakdown
         cogsByProduct={cogsByProduct.data}

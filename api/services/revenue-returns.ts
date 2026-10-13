@@ -102,6 +102,8 @@ export interface ReturnRow {
   id: number;
   /** Месяц проведения, «ГГГГ-ММ» — для месячного графика. */
   month: string;
+  /** День проведения, «ГГГГ-ММ-ДД» — для графика по дням и неделям. */
+  day: string;
   /** Способ оплаты ЗАКАЗА — для разбивки «чем платят». */
   paymentMethod: string;
   agentId: number | null;
@@ -130,6 +132,7 @@ export async function returnsInPeriod(
   const rows = await db.select({
     id:            returns.id,
     month:         sql<string>`DATE_FORMAT(${returns.createdAt}, '%Y-%m')`,
+    day:           sql<string>`DATE_FORMAT(${returns.createdAt}, '%Y-%m-%d')`,
     amount:        returns.totalAmount,
     paymentMethod: orders.paymentMethod,
     agentId:       orders.agentId,
@@ -183,6 +186,7 @@ export async function returnsInPeriod(
   return rows.map(r => ({
     id:            Number(r.id),
     month:         r.month,
+    day:           r.day,
     paymentMethod: r.paymentMethod ?? "unknown",
     agentId:       r.agentId ?? null,
     shopId:        Number(r.shopId),
