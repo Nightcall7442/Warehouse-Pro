@@ -442,12 +442,54 @@ export const ROADMAP: Array<{ key: StageKey; name: L; d: L }> = [
 ];
 export const CURRENT_STAGE: StageKey = "launched";
 
-export const NEXT_STEPS: L[] = [
-  { uz: "iOS ilovasini App Store'da nashr qilish", ru: "Публикация iOS-приложения в App Store" },
-  { uz: "Android ilovasini Google Play'da nashr qilish", ru: "Публикация Android-приложения в Google Play" },
-  { uz: "Yangi distribyutorlarni ulash va ularning so'rovlari bo'yicha rivojlantirish", ru: "Подключение новых дистрибьюторов и развитие по их запросам" },
-  { uz: "AI funksiyalari — quyidagi rejaga ko'ra", ru: "Функции ИИ — по плану ниже" },
+/*
+  Ответ владельца 13.10.2026: приложения в сторах — ноябрь 2026; цель —
+  10 платящих дистрибьюторов к концу 2026. «Следующие шаги» без сроков жюри
+  читает как «когда-нибудь», поэтому у шага есть when — и он рисуется.
+*/
+export const GOAL_PAYING = { count: 10, by: { uz: "2026-yil oxirigacha", ru: "до конца 2026" } as L } as const;
+const STORES_BY: L = { uz: "2026-yil noyabr", ru: "ноябрь 2026" };
+
+export const NEXT_STEPS: Array<{ what: L; when?: L }> = [
+  {
+    what: {
+      uz: `${GOAL_PAYING.count} ta pullik distribyutor (hozir ${TRACTION.paying} ta)`,
+      ru: `${GOAL_PAYING.count} платящих дистрибьюторов (сейчас ${TRACTION.paying})`,
+    },
+    when: GOAL_PAYING.by,
+  },
+  { what: { uz: "iOS ilovasini App Store'da nashr qilish", ru: "Публикация iOS-приложения в App Store" }, when: STORES_BY },
+  { what: { uz: "Android ilovasini Google Play'da nashr qilish", ru: "Публикация Android-приложения в Google Play" }, when: STORES_BY },
+  { what: { uz: "AI funksiyalari — quyidagi rejaga ko'ra", ru: "Функции ИИ — по плану ниже" } },
 ];
+
+/*
+  Что просим у Pitch Day — ответ владельца 13.10.2026: инвестиции, пилотные
+  клиенты и выход на производителей.
+
+  Сумма инвестиций и на что они пойдут ещё не названы. Пока amount пуст,
+  строка «Инвестиции» не рисуется вовсе: «инвестиции — сумма уточняется» на
+  странице для жюри хуже, чем ничего.
+*/
+export const ASK: { investment: { amount: L | null; use: L | null }; items: Array<{ t: L; d: L }> } = {
+  investment: { amount: null, use: null },
+  items: [
+    {
+      t: { uz: "Pilot mijozlar", ru: "Пилотные клиенты" },
+      d: {
+        uz: "Distribyutorlar bilan tanishtiring: 14 kun bepul sinov, ma'lumotlarni ko'chirish va xodimlarni o'qitishda yordam beramiz.",
+        ru: "Познакомьте с дистрибьюторами: 14 дней бесплатно, с переносом данных и обучением людей поможем.",
+      },
+    },
+    {
+      t: { uz: "Ishlab chiqaruvchilarga chiqish", ru: "Выход на производителей" },
+      d: {
+        uz: "Brend o'z distribyutorlariga bitta tizimni tavsiya qilsa, bitta uchrashuv uning barcha distribyutorlariga yo'l ochadi.",
+        ru: "Если бренд рекомендует одну систему своим дистрибьюторам, одна встреча открывает дорогу ко всем его дистрибьюторам.",
+      },
+    },
+  ],
+};
 
 /* ── Как внедряем ───────────────────────────────────────────────────────── */
 export type StepState = "done" | "now" | "planned";

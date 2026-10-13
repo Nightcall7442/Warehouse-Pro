@@ -34,7 +34,7 @@ vi.setConfig({ testTimeout: 20_000 });
 import Pitch from "@/pages/Pitch";
 import PitchDemo from "@/pages/PitchDemo";
 import { LangProvider } from "@/i18n";
-import { API_ENDPOINTS, TEAM, ENGINEERING, VIDEO_SRC, VIDEO_POSTER, VIDEO_DESCRIPTION, VIDEO_SECONDS, PROBLEMS, TRACTION, HIRING, MARKET_PROOF, ALTERNATIVES, PARITY, IDEAS, GAPS, DAYS_TO_PAYING, daysBetween } from "@/components/pitch/pitch-content";
+import { API_ENDPOINTS, TEAM, ENGINEERING, VIDEO_SRC, VIDEO_POSTER, VIDEO_DESCRIPTION, VIDEO_SECONDS, PROBLEMS, TRACTION, HIRING, MARKET_PROOF, ALTERNATIVES, PARITY, IDEAS, GAPS, DAYS_TO_PAYING, daysBetween, NEXT_STEPS, GOAL_PAYING, ASK } from "@/components/pitch/pitch-content";
 import { CONTACT } from "@/components/landing/landing-tokens";
 import { FIELD_PRICE_UZS, formatSum } from "@contracts/pricing";
 
@@ -218,6 +218,26 @@ describe("/pitch: разделы конкурса", () => {
     expect(t).toContain(`${DAYS_TO_PAYING}kun`);
   });
 
+  it("дорожная карта: у следующих шагов есть сроки, цель — в платящих", () => {
+    draw(<Pitch />);
+    const steps = screen.getAllByTestId("pitch-next-step").map(e => e.textContent);
+    expect(steps).toHaveLength(NEXT_STEPS.length);
+    expect(steps[0]).toContain(`${GOAL_PAYING.count} ta pullik distribyutor`);
+    expect(steps[0]).toContain(`hozir ${TRACTION.paying} ta`);
+    expect(steps[0]).toContain("2026-yil oxirigacha");
+    expect(steps.filter(t => t!.includes("2026-yil noyabr"))).toHaveLength(2);
+    expect(GOAL_PAYING.count, "цель меньше, чем уже есть").toBeGreaterThan(TRACTION.paying);
+  });
+
+  it("что просим: пилоты и производители; инвестиции — только с названной суммой", () => {
+    draw(<Pitch />);
+    const ask = screen.getByTestId("pitch-ask");
+    const titles = within(ask).getAllByRole("listitem").map(li => li.querySelector("div > div")!.textContent);
+    for (const it of ASK.items) expect(titles).toContain(it.t.uz);
+    if (ASK.investment.amount) expect(titles[0]).toContain(ASK.investment.amount.uz);
+    else expect(ask.textContent, "инвестиции без суммы на странице").not.toMatch(/Investitsiya/);
+  });
+
   it("итог: пять строк из глав выше, демо, пробный период и почта сайта", () => {
     draw(<Pitch />);
     const closing = screen.getByTestId("pitch-closing");
@@ -228,6 +248,8 @@ describe("/pitch: разделы конкурса", () => {
     expect(t).toContain(TRACTION.asOf);
     expect(t.replace(/\s/g, "")).toContain(formatSum(FIELD_PRICE_UZS).replace(/\s/g, ""));
     for (const h of HIRING) expect(t.toLowerCase()).toContain(h.role.uz.toLowerCase());
+    // Следующий шаг — со сроками.
+    for (const st of NEXT_STEPS.filter(x => x.when)) expect(t).toContain(`${st.what.uz} — ${st.when!.uz}`);
     expect(screen.getByTestId("pitch-closing-demo").getAttribute("href")).toBe("/demo");
     expect(screen.getByTestId("pitch-closing-trial").getAttribute("href")).toBe("/register");
     if (CONTACT.email) expect(screen.getByTestId("pitch-closing-email").getAttribute("href")).toBe(`mailto:${CONTACT.email}`);

@@ -442,8 +442,12 @@ function Roadmap() {
         <Mono style={{ color: "var(--accent-text)" }}>{tr("KEYINGI QADAMLAR", "СЛЕДУЮЩИЕ ШАГИ")}</Mono>
         <ul style={{ listStyle: "none", padding: 0, margin: "12px 0 0", borderTop: "1px solid var(--rule-strong)" }} className="grid md:grid-cols-2 md:gap-x-16">
           {NEXT_STEPS.map(s => (
-            <li key={s.ru} className="p-row" style={{ padding: "14px 0", fontSize: 15, display: "flex", gap: 12 }}>
-              <span aria-hidden="true" style={{ color: "var(--accent)" }}>→</span>{pick(lang, s)}
+            <li key={s.what.ru} data-testid="pitch-next-step" className="p-row" style={{ padding: "14px 0", fontSize: 15, display: "flex", gap: 12, alignItems: "baseline" }}>
+              <span aria-hidden="true" style={{ color: "var(--accent)" }}>→</span>
+              <span style={{ flex: 1 }}>{pick(lang, s.what)}</span>
+              {s.when && (
+                <span className="p-mono" style={{ fontSize: 11.5, letterSpacing: "0.06em", color: "var(--accent-text)", whiteSpace: "nowrap" }}>{pick(lang, s.when)}</span>
+              )}
             </li>
           ))}
         </ul>

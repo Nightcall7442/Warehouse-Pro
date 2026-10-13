@@ -2,7 +2,7 @@ import { useLang } from "@/i18n";
 import { FIELD_PRICE_UZS, formatSum } from "@contracts/pricing";
 import { CONTACT, tgLink } from "@/components/landing/landing-tokens";
 import { Chapter, ArrowLink } from "./pitch-ui";
-import { pick, PROBLEMS, TRACTION, HIRING, NEXT_STEPS, fmtNum, mrrMln } from "./pitch-content";
+import { pick, PROBLEMS, TRACTION, HIRING, NEXT_STEPS, ASK, fmtNum, mrrMln } from "./pitch-content";
 
 /* ── 09 Итог ───────────────────────────────────────────────────────────────
    Страница кончалась справочником API — кодами ошибок и примером JSON.
@@ -50,10 +50,10 @@ export default function ClosingSection() {
     },
     {
       term: tr("Keyingi qadam", "Следующий шаг"),
+      // Шаги со сроком — со сроком: «когда» и есть то, что жюри спросит.
       text: [
+        ...NEXT_STEPS.flatMap(st => (st.when ? [`${pick(lang, st.what)} — ${pick(lang, st.when)}`] : [])),
         `${tr("Yollash", "Найм")}: ${HIRING.map(h => pick(lang, h.role).toLowerCase()).join(", ")}`,
-        pick(lang, NEXT_STEPS[0]),
-        pick(lang, NEXT_STEPS[1]),
       ].join(" · "),
     },
   ];
@@ -77,6 +77,27 @@ export default function ClosingSection() {
           </div>
         ))}
       </dl>
+      {/* Что просим — отдельно от пересказа: это вопрос, ради которого жюри
+          дочитывает до конца. Инвестиции — только когда названа сумма. */}
+      <div data-testid="pitch-ask" style={{ marginTop: 40 }}>
+        <span className="p-mono" style={{ fontSize: 11.5, letterSpacing: "0.08em", color: "var(--accent-text)" }}>{tr("PITCH DAY'DAN SO'ROVIMIZ", "ЧТО ПРОСИМ У PITCH DAY")}</span>
+        <ol className="grid md:grid-cols-2" style={{ listStyle: "none", padding: 0, margin: "12px 0 0", gap: "0 64px", borderTop: "1px solid var(--rule-strong)" }}>
+          {[
+            ...(ASK.investment.amount
+              ? [{ t: { uz: `Investitsiya: ${ASK.investment.amount.uz}`, ru: `Инвестиции: ${ASK.investment.amount.ru}` }, d: ASK.investment.use ?? { uz: "", ru: "" } }]
+              : []),
+            ...ASK.items,
+          ].map((a, i) => (
+            <li key={a.t.ru} className="p-row" style={{ display: "grid", gridTemplateColumns: "40px minmax(0,1fr)", gap: 16, padding: "20px 0" }}>
+              <span className="p-mono" style={{ fontSize: 12, color: "var(--accent-text)", paddingTop: 4 }}>{String(i + 1).padStart(2, "0")}</span>
+              <div>
+                <div style={{ fontSize: 17, fontWeight: 800, letterSpacing: "-0.02em" }}>{pick(lang, a.t)}</div>
+                {pick(lang, a.d) && <p style={{ margin: "6px 0 0", fontSize: 15, lineHeight: 1.6, color: "var(--soft)" }}>{pick(lang, a.d)}</p>}
+              </div>
+            </li>
+          ))}
+        </ol>
+      </div>
       <div className="p-cta" style={{ display: "flex", flexWrap: "wrap", gap: 12, marginTop: 36, alignItems: "center" }}>
         <ArrowLink to="/demo" solid testId="pitch-closing-demo">{tr("Demo va prototip", "Демо и прототип")}</ArrowLink>
         <ArrowLink to="/register" testId="pitch-closing-trial">{tr("14 kun bepul sinash", "14 дней бесплатно")}</ArrowLink>
