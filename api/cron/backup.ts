@@ -7,6 +7,7 @@ import { s3Client, serverSideEncryption, isOffsiteBackupConfigured, offsiteBacku
 import { backupLastSuccessTimestamp, backupLastSizeBytes } from "../prometheus-metrics";
 
 import { firstRow } from "../lib/db-rows";
+import { businessToday } from "@contracts/business-time";
 
 /**
  * Хранилище иногда отвечает не «нет», а «не сейчас»: MinIO на одном узле
@@ -49,7 +50,7 @@ export async function withStorageRetry<T>(label: string, fn: () => Promise<T>,
  * reported as a failure rather than a false "success".
  */
 export async function runBackup(): Promise<{ success: boolean; message: string }> {
-  const timestamp = new Date().toISOString().split("T")[0];
+  const timestamp = businessToday();
   // Имя дампа больше не выводится из одной только даты.
   //
   // Раньше ключ был ровно `backups/warehouse-pro-<дата>.sql.gz` и лежал в том

@@ -22,10 +22,12 @@
    Экран переводит в него каждый момент времени и считает от него «сегодня»
    (src/lib/business-time; стережёт src/__tests__/times-are-tashkent.test.ts).
 
-   Сервер пока делит сутки по UTC. Поменять пояс сессии MySQL нельзя: drizzle
-   пишет TIMESTAMP через toISOString и читает с «+0000», то есть сам считает,
-   что сессия в UTC, — с другим поясом все отметки времени разъехались бы на
-   пять часов. Границы дня там придётся переводить явно, на каждом запросе.
+   Сервер делит сутки по нему же, но явно. Поменять пояс сессии MySQL нельзя:
+   drizzle пишет TIMESTAMP через toISOString и читает с «+0000», то есть сам
+   считает, что сессия в UTC, — с другим поясом все отметки времени
+   разъехались бы на пять часов. Поэтому граница дня переводится на каждом
+   запросе (api/lib/date-range: полночь по Ташкенту — 19:00 по UTC накануне;
+   стережёт api/__tests__/server-days-are-tashkent.test.ts).
 
    Узбекистан не переводит часы с 1992 года, поэтому смещение постоянное, и
    день можно считать прибавлением пяти часов.
@@ -43,4 +45,27 @@ export const BUSINESS_OFFSET_MS = 5 * 3_600_000;
  */
 export function businessDay(at: Date | string | number): string {
   return new Date(new Date(at).getTime() + BUSINESS_OFFSET_MS).toISOString().slice(0, 10);
+}
+
+/** «Сегодня» по Ташкенту. */
+export function businessToday(now: number | Date = Date.now()): string {
+  return businessDay(now);
+}
+
+/** День по Ташкенту N суток назад: часы там не переводят, сутки — ровно 24 часа. */
+export function businessDaysAgo(n: number, now: number | Date = Date.now()): string {
+  return businessDay(new Date(now).getTime() - n * 86_400_000);
+}
+
+/**
+ * Момент, в который по Ташкенту наступает день «ГГГГ-ММ-ДД» (полночь), —
+ * обычным Date, для сравнения с отметками времени.
+ */
+export function businessDayStart(day: string): Date {
+  return new Date(Date.parse(`${day}T00:00:00Z`) - BUSINESS_OFFSET_MS);
+}
+
+/** Последняя миллисекунда дня «ГГГГ-ММ-ДД» по Ташкенту — для «по такое-то число включительно». */
+export function businessDayEnd(day: string): Date {
+  return new Date(businessDayStart(day).getTime() + 86_400_000 - 1);
 }

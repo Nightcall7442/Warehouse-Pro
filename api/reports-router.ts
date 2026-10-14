@@ -12,8 +12,9 @@ import { orders, users, dailyPlans, agentLocations, subscriptions, shops, produc
 import { eq, and, sql, gte, desc , inArray, isNull } from "drizzle-orm";
 import { movementReferenceNumber } from "./lib/movement-reference";
 import { REVENUE_ORDER_STATUSES } from "./lib/order-status";
-import { subDays, format } from "date-fns";
-import { onDate, sinceDay, untilDay, untilDate } from "./lib/date-range";
+import { subDays } from "date-fns";
+import { bizClock, onDate, sinceDay, untilDate, untilDay } from "./lib/date-range";
+import { businessDaysAgo, businessToday } from "@contracts/business-time";
 import { reportCached, ReportTTL } from "./lib/report-cache";
 
 /** День «ГГГГ-ММ-ДД». */
@@ -49,7 +50,7 @@ export const reportsRouter = createRouter({
     return reportCached(tenantId, "reports.getDashboardSummary", {}, ReportTTL.minute, async () => {
       const db       = getDb();
       const now      = new Date();
-      const today    = format(now, "yyyy-MM-dd");
+      const today    = businessToday(now);
       const d30ago   = subDays(now, 30).toISOString();
 
       const [
@@ -113,13 +114,15 @@ export const reportsRouter = createRouter({
       const key = custom ? { days: input.days, ...custom } : { days: input.days };
       return reportCached(tenantId, "reports.getVisitChart", key, ReportTTL.fiveMin, async () => {
         const db       = getDb();
-        const since    = subDays(new Date(), input.days);
+        // Первый день окна — целиком, с ташкентской полуночи: график делит
+        // заказы по ташкентским суткам, и обрезанный день был бы неполным.
+        const since    = businessDaysAgo(input.days);
         const planWindow = custom
           ? [sql`${dailyPlans.planDate} >= ${custom.from}`, untilDate(dailyPlans.planDate, custom.to)]
-          : [gte(dailyPlans.planDate, since)];
+          : [sql`${dailyPlans.planDate} >= ${since}`];
         const orderWindow = custom
           ? [sinceDay(orders.createdAt, custom.from), untilDay(orders.createdAt, custom.to)]
-          : [gte(orders.createdAt, since)];
+          : [sinceDay(orders.createdAt, since)];
 
         const [visits, ordersData] = await Promise.all([
           db.select({
@@ -132,7 +135,7 @@ export const reportsRouter = createRouter({
             .orderBy(sql`DATE(${dailyPlans.planDate})`),
 
           db.select({
-            date:    sql<string>`DATE(${orders.createdAt})`,
+            date:    sql<string>`DATE(${bizClock(orders.createdAt)})`,
             count:   sql<number>`count(*)`,
             revenue: sql<string>`COALESCE(SUM(${orders.total}), 0)`,
           })
@@ -148,8 +151,8 @@ export const reportsRouter = createRouter({
               inArray(orders.status, REVENUE_ORDER_STATUSES),
               ...orderWindow,
             ))
-            .groupBy(sql`DATE(${orders.createdAt})`)
-            .orderBy(sql`DATE(${orders.createdAt})`),
+            .groupBy(sql`DATE(${bizClock(orders.createdAt)})`)
+            .orderBy(sql`DATE(${bizClock(orders.createdAt)})`),
         ]);
 
         // Merge by date
@@ -183,7 +186,7 @@ export const reportsRouter = createRouter({
     // 20 с он не заметит, а 30 открытых экранов дадут один запрос.
     return reportCached(tenantId, "reports.getPlanCompletion", {}, ReportTTL.live, async () => {
       const db       = getDb();
-      const today    = format(new Date(), "yyyy-MM-dd");
+      const today    = businessToday();
 
       const rows = await db.select({
         agentId:   dailyPlans.agentId,
@@ -378,8 +381,8 @@ export const reportsRouter = createRouter({
     .query(async ({ input, ctx }) => {
       const conditions = [
         eq(stockMovements.tenantId, ctx.tenant.id),
-        sql`${stockMovements.createdAt} >= ${input.dateFrom}`,
-        sql`${stockMovements.createdAt} <= ${input.dateTo + " 23:59:59"}`,
+        sinceDay(stockMovements.createdAt, input.dateFrom),
+        untilDay(stockMovements.createdAt, input.dateTo),
       ];
       if (input.type) conditions.push(eq(stockMovements.type, input.type));
 

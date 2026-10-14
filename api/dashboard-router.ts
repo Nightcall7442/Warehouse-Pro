@@ -3,9 +3,9 @@ import { createRouter, fieldSalesQuery, supervisorQuery } from "./middleware";
 import { orders, warehouseStock, users, shops, agentLocations, dailyPlans, orderItems } from "@db/schema";
 import { eq, and, or, sql, desc, isNull, inArray } from "drizzle-orm";
 import { REVENUE_ORDER_STATUSES, OPEN_ORDER_STATUSES, deliveredQty } from "./lib/order-status";
-import { subDays } from "date-fns";
+import { businessDaysAgo, businessToday } from "@contracts/business-time";
 import { reportCached, ReportTTL } from "./lib/report-cache";
-import { onDay, onDate, sinceDay, untilDay } from "./lib/date-range";
+import { bizClock, onDate, onDay, sinceDay, untilDay } from "./lib/date-range";
 import { returnsInPeriod, totalReturned } from "./services/revenue-returns";
 
 const isoDay = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Дата в виде ГГГГ-ММ-ДД");
@@ -68,7 +68,7 @@ export const dashboardRouter = createRouter({
   kpis: supervisorQuery.query(({ ctx }) => reportCached(ctx.tenant.id, "dashboard.kpis", {}, ReportTTL.minute, async (): Promise<DashboardKpis> => {
     const tenantId = ctx.tenant.id;
     const db       = ctx.db;
-    const today    = new Date().toISOString().split("T")[0];
+    const today    = businessToday();
     // Окно валовой маржи. Раньше оба запроса шли по ВСЕЙ истории тенанта:
     // JOIN order_items × orders без единого ограничения по дате. Кеш kpis
     // сбрасывается каждой мутацией заказа, а агенты правят заказы весь
@@ -78,9 +78,9 @@ export const dashboardRouter = createRouter({
     // называется просто «ВАЛОВАЯ ПРИБЫЛЬ», без периода, и накопительная
     // маржа за все годы на ней всё равно ничего не значила: она меняется
     // на сотые доли и не реагирует на то, что происходит в бизнесе сейчас.
-    const marginFrom = subDays(new Date(), MARGIN_WINDOW_DAYS).toISOString().split("T")[0];
+    const marginFrom = businessDaysAgo(MARGIN_WINDOW_DAYS);
 
-    const yesterday = subDays(new Date(), 1).toISOString().split("T")[0];
+    const yesterday = businessDaysAgo(1);
     const ordersOn  = (day: string) => db.select({ count: sql<number>`count(*)` }).from(orders)
       .where(and(eq(orders.tenantId, tenantId), onDay(orders.createdAt, day), isNull(orders.deletedAt)));
     const revenueOn = (day: string) => db.select({ total: sql<string>`COALESCE(SUM(${orders.total}), 0)` }).from(orders)
@@ -190,11 +190,11 @@ export const dashboardRouter = createRouter({
         const tenantId  = ctx.tenant.id;
         // «Месяц» — с первого числа: пилюля рядом с «30д» обязана отличаться от неё.
         const startDate = custom ? custom.from : input.range === "month"
-          ? new Date().toISOString().slice(0, 8) + "01"
-          : subDays(new Date(), input.range === "7d" ? 7 : 30).toISOString().split("T")[0];
+          ? businessToday().slice(0, 8) + "01"
+          : businessDaysAgo(input.range === "7d" ? 7 : 30);
 
         return db.select({
-          date:       sql<string>`DATE(${orders.createdAt})`,
+          date:       sql<string>`DATE(${bizClock(orders.createdAt)})`,
           orderCount: sql<number>`count(*)`,
           revenue:    sql<string>`COALESCE(SUM(CASE WHEN ${orders.status} = 'delivered' THEN ${orders.total} ELSE 0 END), 0)`,
         })
@@ -203,7 +203,7 @@ export const dashboardRouter = createRouter({
             eq(orders.tenantId, tenantId), sinceDay(orders.createdAt, startDate), isNull(orders.deletedAt),
             ...(custom ? [untilDay(orders.createdAt, custom.to)] : []),
           ))
-          .groupBy(sql`DATE(${orders.createdAt})`).orderBy(sql`DATE(${orders.createdAt})`);
+          .groupBy(sql`DATE(${bizClock(orders.createdAt)})`).orderBy(sql`DATE(${bizClock(orders.createdAt)})`);
       });
     }),
 
@@ -241,7 +241,7 @@ export const dashboardRouter = createRouter({
     const db       = ctx.db;
     const tenantId = ctx.tenant.id;
     const userId   = ctx.user.id;
-    const today    = new Date().toISOString().split("T")[0];
+    const today    = businessToday();
 
     const [agentOrders, assignedShops] = await Promise.all([
       db.select({ count: sql<number>`count(*)`, total: sql<string>`COALESCE(SUM(${orders.total}), 0)` })
@@ -270,7 +270,7 @@ export const dashboardRouter = createRouter({
   supervisorDashboard: supervisorQuery.query(({ ctx }) => reportCached(ctx.tenant.id, "dashboard.supervisorDashboard", {}, ReportTTL.live, async () => {
     const db       = ctx.db;
     const tenantId = ctx.tenant.id;
-    const today    = new Date().toISOString().split("T")[0];
+    const today    = businessToday();
     const tenMinAgo = new Date(Date.now() - 10 * 60 * 1000).toISOString();
 
     const [todaysOrders, todaysRevenue, activeAgents, onlineAgents, pendingPlans] = await Promise.all([
@@ -311,10 +311,10 @@ export const dashboardRouter = createRouter({
       return reportCached(ctx.tenant.id, "dashboard.revenueTrend", scope, ReportTTL.minute, async () => {
         const db = ctx.db;
         const tenantId = ctx.tenant.id;
-        const startDate = subDays(new Date(), days).toISOString().split("T")[0];
+        const startDate = businessDaysAgo(days);
 
         const rows = await db.select({
-          date: sql<string>`DATE(${orders.createdAt})`,
+          date: sql<string>`DATE(${bizClock(orders.createdAt)})`,
           revenue: sql<string>`COALESCE(SUM(CASE WHEN ${orders.status} = 'delivered' THEN ${orders.total} ELSE 0 END), 0)`,
         })
           .from(orders)
@@ -327,13 +327,13 @@ export const dashboardRouter = createRouter({
             // company's daily revenue.
             ...(companyWide ? [] : [eq(orders.agentId, ctx.user.id)]),
           ))
-          .groupBy(sql`DATE(${orders.createdAt})`)
-          .orderBy(sql`DATE(${orders.createdAt})`);
+          .groupBy(sql`DATE(${bizClock(orders.createdAt)})`)
+          .orderBy(sql`DATE(${bizClock(orders.createdAt)})`);
 
         // Fill missing days with 0
         const result: number[] = [];
         for (let i = 0; i < days; i++) {
-          const d = subDays(new Date(), days - 1 - i).toISOString().split("T")[0];
+          const d = businessDaysAgo(days - 1 - i);
           const found = rows.find(r => r.date === d);
           result.push(Number(found?.revenue ?? 0));
         }

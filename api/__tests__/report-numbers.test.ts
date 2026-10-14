@@ -57,9 +57,10 @@ describe("карточки прибыли и график считают по о
     const fn = helper.slice(helper.indexOf("export function revenuePeriodConditions"));
     const body = fn.slice(0, fn.indexOf("\n}\n"));
     expect(body).toContain("...revenueOrderConditions(tenantId)");
-    // Даты приходят полуночью: без расширения верхней границы заказ,
-    // оформленный сегодня днём, не попадал бы в период «по сегодня».
-    expect(body).toContain('23:59:59');
+    // Даты приходят днями: верхняя граница — до конца последнего дня, иначе
+    // заказ, оформленный сегодня днём, не попадал бы в период «по сегодня».
+    // Сутки — ташкентские (lib/date-range).
+    expect(body).toContain("untilDay(orders.createdAt, to)");
   });
 });
 

@@ -11,6 +11,7 @@ import { NotificationService } from "./services/NotificationService";
 
 import { tgEscape, sendTelegram, TELEGRAM_TIMEOUT_MS } from "./lib/telegram";
 import { lowStockCondition, onDefaultWarehouse } from "./services/reorder";
+import { businessToday } from "@contracts/business-time";
 
 // Транспорт переехал в lib/telegram.ts; здесь — прежние имена для роутеров и тестов.
 export { tgEscape, sendTelegram, notifyAdmin, notifyUserById, notifyTenantRole, tgMessages } from "./lib/telegram";
@@ -399,7 +400,7 @@ export const telegramRouter = createRouter({
   dailyDigest: managementQuery.query(async ({ ctx }) => {
     const db = getDb();
     const tenantId = ctx.tenant.id;
-    const today = new Date().toISOString().split("T")[0];
+    const today = businessToday();
 
     const { orders, warehouseStock, products, dailyPlans } = await import("@db/schema");
     const { eq, and, sql } = await import("drizzle-orm");

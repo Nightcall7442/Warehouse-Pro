@@ -186,7 +186,7 @@ export function weeklySeasonality(data: DemandPoint[]): number[] {
   const dayCounts = new Array(7).fill(0);
 
   for (const point of data) {
-    const dayOfWeek = new Date(point.date).getDay();
+    const dayOfWeek = new Date(point.date).getUTCDay(); // день недели самой даты «ГГГГ-ММ-ДД», а не часов процесса
     dayTotals[dayOfWeek] += point.quantity;
     dayCounts[dayOfWeek]++;
   }

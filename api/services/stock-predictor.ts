@@ -8,6 +8,8 @@ import { eq, and, sql, gte, lt, inArray } from "drizzle-orm";
 import { revenueOrderConditions } from "../lib/order-status";
 import { withCache } from "../lib/cache";
 import type { DemandPoint } from "./forecast-engine";
+import { bizClock } from "../lib/date-range";
+import { businessDay, businessDayStart } from "@contracts/business-time";
 
 /**
  * Сколько живёт готовый прогноз по исчерпанию запасов.
@@ -60,7 +62,7 @@ export async function getProductDemand(
   startDate.setDate(startDate.getDate() - days);
 
   const rows = await db.select({
-    date: sql<string>`DATE(${orders.createdAt})`,
+    date: sql<string>`DATE(${bizClock(orders.createdAt)})`,
     quantity: sql<string>`SUM(CAST(${orderItems.quantity} AS DECIMAL(15,3)))`,
   })
     .from(orderItems)
@@ -74,8 +76,8 @@ export async function getProductDemand(
       eq(orderItems.productId, productId),
       gte(orders.createdAt, startDate),
     ))
-    .groupBy(sql`DATE(${orders.createdAt})`)
-    .orderBy(sql`DATE(${orders.createdAt})`);
+    .groupBy(sql`DATE(${bizClock(orders.createdAt)})`)
+    .orderBy(sql`DATE(${bizClock(orders.createdAt)})`);
 
   // Fill gaps (days with zero sales)
   const demandMap = new Map<string, number>();
@@ -87,7 +89,8 @@ export async function getProductDemand(
   for (let i = 0; i < days; i++) {
     const date = new Date(startDate);
     date.setDate(date.getDate() + i);
-    const dateStr = date.toISOString().split("T")[0];
+    // Ключ — день по Ташкенту, как и DATE(...) группировки выше.
+    const dateStr = businessDay(date);
     result.push({
       date: dateStr,
       quantity: demandMap.get(dateStr) ?? 0,
@@ -148,8 +151,8 @@ async function computeStockouts(
   // getProductDemand достраивал ряд ровно на lookbackDays дней НАЗАД от
   // startDate, и сегодняшняя дата в этот ряд не попадала — выбранные строки за
   // сегодня молча выбрасывались при сшивании по дате.
-  const windowEnd = new Date();
-  windowEnd.setHours(0, 0, 0, 0);
+  // Полночь — ташкентская: сутки в отчётах ташкентские (lib/date-range).
+  const windowEnd = businessDayStart(businessDay(Date.now()));
 
   // Спрос и ожидаемые приходы — ДВА групповых запроса на весь тенант вместо
   // двух запросов на каждую строку склада.

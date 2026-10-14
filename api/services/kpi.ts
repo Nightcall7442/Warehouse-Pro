@@ -9,7 +9,7 @@ import {
 } from "./revenue-returns";
 import { productRates, salesByProduct, commissionOf, overridesUsed } from "./commission-base";
 import { logger } from "../lib/logger";
-import { untilDate } from "../lib/date-range";
+import { bizClock, untilDate } from "../lib/date-range";
 
 type DrizzleInstance = ReturnType<typeof import("../queries/connection").getDb>;
 
@@ -219,7 +219,7 @@ export async function calculateCourierStats(
       DATE() от той же даты, по которой отбирается период ниже, — считай мы по
       оформлению, день выхода на работу разошёлся бы с днём доставки.
     */
-    workDays: sql<number>`COUNT(DISTINCT CASE WHEN ${orders.status} = 'delivered' THEN DATE(COALESCE(${orders.deliveredAt}, ${orders.createdAt})) END)`,
+    workDays: sql<number>`COUNT(DISTINCT CASE WHEN ${orders.status} = 'delivered' THEN DATE(${bizClock(sql`COALESCE(${orders.deliveredAt}, ${orders.createdAt})`)}) END)`,
   }).from(orders)
     .where(and(
       eq(orders.tenantId, tenantId),
@@ -323,7 +323,7 @@ export async function getCourierDaily(
   periodEnd: Date,
 ): Promise<CourierDay[]> {
   const rows = await db.select({
-    date: sql<string>`DATE(COALESCE(${orders.deliveredAt}, ${orders.createdAt}))`,
+    date: sql<string>`DATE(${bizClock(sql`COALESCE(${orders.deliveredAt}, ${orders.createdAt})`)})`,
     // Тот же счёт, что и в показателях: доставленный заказ, а не отметка в
     // курьерском приложении.
     delivered: sql<number>`SUM(CASE WHEN ${orders.status} = 'delivered' THEN 1 ELSE 0 END)`,
@@ -336,8 +336,8 @@ export async function getCourierDaily(
       gte(sql`COALESCE(${orders.deliveredAt}, ${orders.createdAt})`, periodStart),
       lte(sql`COALESCE(${orders.deliveredAt}, ${orders.createdAt})`, periodEnd),
     ))
-    .groupBy(sql`DATE(COALESCE(${orders.deliveredAt}, ${orders.createdAt}))`)
-    .orderBy(sql`DATE(COALESCE(${orders.deliveredAt}, ${orders.createdAt}))`);
+    .groupBy(sql`DATE(${bizClock(sql`COALESCE(${orders.deliveredAt}, ${orders.createdAt})`)})`)
+    .orderBy(sql`DATE(${bizClock(sql`COALESCE(${orders.deliveredAt}, ${orders.createdAt})`)})`);
 
   return rows.map(r => ({
     date: toIsoDay(r.date),
@@ -392,7 +392,7 @@ export async function getCourierList(
       DATE() от той же даты, по которой отбирается период ниже, — считай мы по
       оформлению, день выхода на работу разошёлся бы с днём доставки.
     */
-    workDays: sql<number>`COUNT(DISTINCT CASE WHEN ${orders.status} = 'delivered' THEN DATE(COALESCE(${orders.deliveredAt}, ${orders.createdAt})) END)`,
+    workDays: sql<number>`COUNT(DISTINCT CASE WHEN ${orders.status} = 'delivered' THEN DATE(${bizClock(sql`COALESCE(${orders.deliveredAt}, ${orders.createdAt})`)}) END)`,
   }).from(orders)
     .where(and(
       eq(orders.tenantId, tenantId),
@@ -810,7 +810,7 @@ export async function calculateSalary(
     дороже все закрытые месяцы: август пересчитывался по сентябрьской
     ставке и переставал сходиться с тем, что по нему уже выплатили.
   */
-  const effectiveOn = `${periodEnd.getFullYear()}-${String(periodEnd.getMonth() + 1).padStart(2, "0")}-${String(periodEnd.getDate()).padStart(2, "0")}`;
+  const effectiveOn = dayKey(periodEnd);
 
   const [commissionRecord] = await db.select({
     commissionRate: sql<string>`commission_rate`,

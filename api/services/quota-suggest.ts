@@ -1,6 +1,8 @@
 import { eq, and, gte, lte, sql , inArray, isNull } from "drizzle-orm";
 import { REVENUE_ORDER_STATUSES } from "../lib/order-status";
 import { orders, dailyPlans, users } from "@db/schema";
+import { bizClock } from "../lib/date-range";
+import { businessDayEnd, businessDayStart } from "@contracts/business-time";
 
 type Db = ReturnType<typeof import("../queries/connection").getDb>;
 
@@ -36,11 +38,15 @@ export async function suggestQuotas(
 ): Promise<QuotaSuggestion[]> {
   const end = new Date(targetMonth);
   const start = new Date(end);
-  start.setMonth(start.getMonth() - 3);
+  start.setUTCMonth(start.getUTCMonth() - 3);
   const startStr = start.toISOString().split("T")[0];
   const endStr = new Date(end.getTime() - 86_400_000).toISOString().split("T")[0];
-  const periodStart = new Date(`${startStr}T00:00:00Z`);
-  const periodEnd = new Date(`${endStr}T23:59:59Z`);
+  // Заказы — отметки времени: границы по ташкентской полуночи. План визитов —
+  // колонка DATE, она хранит сам день, её сравниваем с днём без сдвига.
+  const periodStart = businessDayStart(startStr);
+  const periodEnd = businessDayEnd(endStr);
+  const planFrom = new Date(`${startStr}T00:00:00Z`);
+  const planTo = new Date(`${endStr}T00:00:00Z`);
 
   const agents = await db.select({ id: users.id, name: users.name })
     .from(users)
@@ -50,7 +56,7 @@ export async function suggestQuotas(
 
   for (const agent of agents) {
     const monthlyRevenue = await db.select({
-      month: sql<string>`DATE_FORMAT(${orders.createdAt}, '%Y-%m-01')`,
+      month: sql<string>`DATE_FORMAT(${bizClock(orders.createdAt)}, '%Y-%m-01')`,
       total: sql<string>`COALESCE(SUM(CAST(${orders.total} AS DECIMAL(15,2))), 0)`,
     }).from(orders)
       .where(and(
@@ -60,10 +66,10 @@ export async function suggestQuotas(
         gte(orders.createdAt, periodStart),
         lte(orders.createdAt, periodEnd),
       ))
-      .groupBy(sql`DATE_FORMAT(${orders.createdAt}, '%Y-%m-01')`);
+      .groupBy(sql`DATE_FORMAT(${bizClock(orders.createdAt)}, '%Y-%m-01')`);
 
     const monthlyOrders = await db.select({
-      month: sql<string>`DATE_FORMAT(${orders.createdAt}, '%Y-%m-01')`,
+      month: sql<string>`DATE_FORMAT(${bizClock(orders.createdAt)}, '%Y-%m-01')`,
       count: sql<string>`COUNT(*)`,
     }).from(orders)
       .where(and(
@@ -73,7 +79,7 @@ export async function suggestQuotas(
         gte(orders.createdAt, periodStart),
         lte(orders.createdAt, periodEnd),
       ))
-      .groupBy(sql`DATE_FORMAT(${orders.createdAt}, '%Y-%m-01')`);
+      .groupBy(sql`DATE_FORMAT(${bizClock(orders.createdAt)}, '%Y-%m-01')`);
 
     const monthlyVisits = await db.select({
       month: sql<string>`DATE_FORMAT(${dailyPlans.planDate}, '%Y-%m-01')`,
@@ -83,8 +89,8 @@ export async function suggestQuotas(
       .where(and(
         eq(dailyPlans.tenantId, tenantId),
         eq(dailyPlans.agentId, agent.id),
-        gte(dailyPlans.planDate, periodStart),
-        lte(dailyPlans.planDate, periodEnd),
+        gte(dailyPlans.planDate, planFrom),
+        lte(dailyPlans.planDate, planTo),
       ))
       .groupBy(sql`DATE_FORMAT(${dailyPlans.planDate}, '%Y-%m-01')`);
 

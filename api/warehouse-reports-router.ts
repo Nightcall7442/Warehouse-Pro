@@ -13,6 +13,7 @@ import { onDefaultWarehouse } from "./services/reorder";
 import { reportCached, ReportTTL } from "./lib/report-cache";
 import { expiryPlan, forViewer } from "./services/expiry-plan";
 import { summarizeExpiry } from "@contracts/expiry";
+import { bizClock } from "./lib/date-range";
 
 /*
   Кэш отчётов: один пересчёт на организацию, а не по одному на каждого, кто
@@ -109,7 +110,7 @@ export const warehouseReportsRouter = createRouter({
       const cutoff = new Date(Date.now() - days * 86400000);
 
       const result = await db.select({
-        date: sql<string>`DATE(${stockMovements.createdAt})`,
+        date: sql<string>`DATE(${bizClock(stockMovements.createdAt)})`,
         inQty: sql<number>`COALESCE(SUM(CASE WHEN ${stockMovements.type} = 'in' THEN ${stockMovements.quantity} ELSE 0 END), 0)`,
         outQty: sql<number>`COALESCE(SUM(CASE WHEN ${stockMovements.type} = 'out' THEN ${stockMovements.quantity} ELSE 0 END), 0)`,
         adjustmentQty: sql<number>`COALESCE(SUM(CASE WHEN ${stockMovements.type} = 'adjustment' THEN ${stockMovements.quantity} ELSE 0 END), 0)`,
@@ -121,8 +122,8 @@ export const warehouseReportsRouter = createRouter({
           ...(input?.warehouseId ? [eq(stockMovements.warehouseId, input.warehouseId)] : []),
           sql`${stockMovements.createdAt} >= ${cutoff}`,
         ))
-        .groupBy(sql`DATE(${stockMovements.createdAt})`)
-        .orderBy(sql`DATE(${stockMovements.createdAt})`);
+        .groupBy(sql`DATE(${bizClock(stockMovements.createdAt)})`)
+        .orderBy(sql`DATE(${bizClock(stockMovements.createdAt)})`);
 
       return result;
     })),
@@ -189,7 +190,7 @@ export const warehouseReportsRouter = createRouter({
 
       // Daily breakdown
       const daily = await db.select({
-        date: sql<string>`DATE(${arrivals.createdAt})`,
+        date: sql<string>`DATE(${bizClock(arrivals.createdAt)})`,
         arrivals: sql<number>`COUNT(*)`,
         fuelCost: sql<number>`COALESCE(SUM(${arrivals.fuelCost}), 0)`,
         tollCost: sql<number>`COALESCE(SUM(${arrivals.tollCost}), 0)`,
@@ -200,8 +201,8 @@ export const warehouseReportsRouter = createRouter({
           eq(arrivals.tenantId, tenantId),
           sql`${arrivals.createdAt} >= ${cutoff}`,
         ))
-        .groupBy(sql`DATE(${arrivals.createdAt})`)
-        .orderBy(sql`DATE(${arrivals.createdAt})`);
+        .groupBy(sql`DATE(${bizClock(arrivals.createdAt)})`)
+        .orderBy(sql`DATE(${bizClock(arrivals.createdAt)})`);
 
       return { summary, daily };
     })),

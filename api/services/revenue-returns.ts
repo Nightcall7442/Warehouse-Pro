@@ -68,6 +68,7 @@
 import { and, eq, sql, inArray } from "drizzle-orm";
 import { returns, returnItems, orderItems, products, orders } from "@db/schema";
 import { revenueOrderConditions } from "../lib/order-status";
+import { bizClock, sinceDay, untilDay } from "../lib/date-range";
 
 type Db = ReturnType<typeof import("../queries/connection").getDb>;
 
@@ -131,8 +132,8 @@ export async function returnsInPeriod(
   if (opts.shopIds && opts.shopIds.length === 0) return [];
   const rows = await db.select({
     id:            returns.id,
-    month:         sql<string>`DATE_FORMAT(${returns.createdAt}, '%Y-%m')`,
-    day:           sql<string>`DATE_FORMAT(${returns.createdAt}, '%Y-%m-%d')`,
+    month:         sql<string>`DATE_FORMAT(${bizClock(returns.createdAt)}, '%Y-%m')`,
+    day:           sql<string>`DATE_FORMAT(${bizClock(returns.createdAt)}, '%Y-%m-%d')`,
     amount:        returns.totalAmount,
     paymentMethod: orders.paymentMethod,
     agentId:       orders.agentId,
@@ -145,8 +146,8 @@ export async function returnsInPeriod(
     .where(and(
       eq(returns.tenantId, tenantId),
       eq(returns.status, "completed"),
-      sql`${returns.createdAt} >= ${from}`,
-      sql`${returns.createdAt} <= ${to + " 23:59:59"}`,
+      sinceDay(returns.createdAt, from),
+      untilDay(returns.createdAt, to),
       // Тот же отбор, что у выручки: доставлен, не удалён.
       ...revenueOrderConditions(tenantId),
       ...(opts.shopIds ? [inArray(orders.shopId, opts.shopIds)] : []),

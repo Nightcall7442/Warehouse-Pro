@@ -4,6 +4,8 @@ import { eq, and, sql, inArray } from "drizzle-orm";
 import { logger } from "../lib/logger";
 import { NotificationService } from "../services/NotificationService";
 import { orderStillOwes } from "../lib/order-status";
+import { dateColumnDay } from "../lib/period";
+import { businessToday } from "@contracts/business-time";
 
 type Db = ReturnType<typeof getDb>;
 
@@ -148,7 +150,8 @@ export function reminderSettled(
 export async function runDebtReminders() {
   const db = getDb();
   const today = new Date();
-  const todayStr = today.toISOString().slice(0, 10);
+  // «Сегодня» — по Ташкенту: срок долга — день, названный магазину.
+  const todayStr = businessToday(today);
 
   let sent = 0;
   let escalated = 0;
@@ -232,8 +235,9 @@ export async function runDebtReminders() {
     const overdueNames = await namingFor(db, overdueLive);
 
     for (const reminder of overdueLive) {
-      const dueDate = new Date(reminder.dueDate);
-      const daysOverdue = Math.floor((today.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24));
+      // Дни просрочки — между днями по Ташкенту, а не между моментами: в час
+      // ночи пятнадцатого долг со сроком четырнадцатого просрочен на день.
+      const daysOverdue = Math.round((Date.parse(`${todayStr}T00:00:00Z`) - Date.parse(`${dateColumnDay(reminder.dueDate)}T00:00:00Z`)) / (1000 * 60 * 60 * 24));
 
       // Notify CEO
       const ceos = await db.select({ id: users.id }).from(users)

@@ -12,6 +12,8 @@ import {
 } from "../contracts/pricing";
 import { recordLead } from "./services/leads";
 import { countFieldUsersOf } from "./lib/field-users";
+import { businessDayStart } from "@contracts/business-time";
+import { monthRange } from "./lib/period";
 
 /** Тарифный предел плюс докупленное. Безлимитному прибавлять нечего. */
 const withExtra = (base: number | null, extra: number | null) =>
@@ -57,7 +59,8 @@ export const billingRouter = createRouter({
     const isExpired    = !trialActive && !planActive;
 
     // Current usage
-    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    // Месяц тарифа — с полуночи первого числа по Ташкенту.
+    const startOfMonth = businessDayStart(monthRange(now).start);
     const [userCount, productCount, orderCount, fieldPeople] = await Promise.all([
       db.select({ c: sql<number>`count(*)` }).from(users).where(eq(users.tenantId, tenantId)),
       db.select({ c: sql<number>`count(*)` }).from(products).where(eq(products.tenantId, tenantId)),

@@ -214,16 +214,16 @@ export async function receivablesAging(db: Db, tenantId: number): Promise<Receiv
       SELECT
         o.shop_id AS shop_id,
         CASE
-          WHEN DATEDIFF(CURDATE(), DATE(COALESCE(o.first_ordered_at, o.created_at))) <= 7  THEN 'd0_7'
-          WHEN DATEDIFF(CURDATE(), DATE(COALESCE(o.first_ordered_at, o.created_at))) <= 30 THEN 'd8_30'
-          WHEN DATEDIFF(CURDATE(), DATE(COALESCE(o.first_ordered_at, o.created_at))) <= 60 THEN 'd31_60'
+          WHEN DATEDIFF(DATE(UTC_TIMESTAMP() + INTERVAL 5 HOUR), DATE(COALESCE(o.first_ordered_at, o.created_at) + INTERVAL 5 HOUR)) <= 7  THEN 'd0_7'
+          WHEN DATEDIFF(DATE(UTC_TIMESTAMP() + INTERVAL 5 HOUR), DATE(COALESCE(o.first_ordered_at, o.created_at) + INTERVAL 5 HOUR)) <= 30 THEN 'd8_30'
+          WHEN DATEDIFF(DATE(UTC_TIMESTAMP() + INTERVAL 5 HOUR), DATE(COALESCE(o.first_ordered_at, o.created_at) + INTERVAL 5 HOUR)) <= 60 THEN 'd31_60'
           ELSE 'd60plus'
         END AS bucket,
         SUM(GREATEST(0, CAST(o.total AS DECIMAL(15,2)) - COALESCE((
           SELECT SUM(CAST(p.amount AS DECIMAL(15,2))) FROM payments p
           WHERE p.order_id = o.id AND p.type = 'payment'
         ), 0))) AS amount,
-        MAX(DATEDIFF(CURDATE(), DATE(COALESCE(o.first_ordered_at, o.created_at)))) AS oldestDays
+        MAX(DATEDIFF(DATE(UTC_TIMESTAMP() + INTERVAL 5 HOUR), DATE(COALESCE(o.first_ordered_at, o.created_at) + INTERVAL 5 HOUR))) AS oldestDays
       FROM orders o
       WHERE o.tenant_id = ${tenantId}
         AND o.deleted_at IS NULL

@@ -30,6 +30,7 @@ const INTERNAL: Record<string, string> = {
   "api/services/stock-ledger.ts:404": "проверка партии на входе книги остатка — ошибка кода",
   "api/services/stock-ledger.ts:662": "проверка количества на входе книги остатка — ошибка кода",
   "api/services/onec-sync.ts:478": "в выгрузку оплат попала не оплата — ошибка кода",
+  "api/lib/date-range.ts:54": "день границы уже проверен схемой DAY на входе — не день здесь ошибка кода",
 };
 
 /**

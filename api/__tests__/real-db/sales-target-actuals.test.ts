@@ -109,7 +109,8 @@ describeIf("выполнение плана на настоящей базе", (
       терял бы дневную выручку в конце каждого месяца.
     */
     const id = await target();
-    await order({ date: "2026-09-30T18:30:00Z", total: "400000.00" });
+    // 23:30 тридцатого по Ташкенту: сутки плана ташкентские (lib/date-range).
+    await order({ date: "2026-09-30T23:30:00+05:00", total: "400000.00" });
 
     const out = await actualsForTargets(db, s.tenantId, [id]);
     expect(out.get(id)!.revenue).toBe(400000);
@@ -117,8 +118,10 @@ describeIf("выполнение плана на настоящей базе", (
 
   it("заказ соседнего месяца не считается", async () => {
     const id = await target();
-    await order({ date: "2026-10-01T00:30:00Z", total: "999999.00" });
-    await order({ date: "2026-08-31T23:30:00Z", total: "888888.00" });
+    // По полчаса за ташкентской полуночью с обеих сторон. Первый по UTC —
+    // ещё 30 сентября и при сутках по UTC попадал в план.
+    await order({ date: "2026-10-01T00:30:00+05:00", total: "999999.00" });
+    await order({ date: "2026-08-31T23:30:00+05:00", total: "888888.00" });
 
     const out = await actualsForTargets(db, s.tenantId, [id]);
     expect(out.get(id)!.revenue).toBe(0);

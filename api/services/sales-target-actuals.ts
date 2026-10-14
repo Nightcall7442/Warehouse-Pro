@@ -77,6 +77,10 @@ export async function actualsForTargets(
     period_end это DATE, то есть полночь, и заказы последнего дня плана иначе
     выпадают целиком.
 
+    Обе границы — ташкентские полночи: created_at сравнивается в UTC, а
+    полночь по Ташкенту — это 19:00 по UTC накануне, отсюда минус пять часов.
+    Иначе заказ в 03:00 первого числа считался в норму прошлого месяца.
+
     shop_id у плана может быть пуст — тогда план на всю работу агента, и
     условие по магазину не сужает ничего.
   */
@@ -91,8 +95,8 @@ export async function actualsForTargets(
       AND o.agent_id   = t.user_id
       AND o.deleted_at IS NULL
       AND o.status IN (${revenueStatuses})
-      AND o.created_at >= t.period_start
-      AND o.created_at <  DATE_ADD(t.period_end, INTERVAL 1 DAY)
+      AND o.created_at >= t.period_start - INTERVAL 5 HOUR
+      AND o.created_at <  DATE_ADD(t.period_end, INTERVAL 1 DAY) - INTERVAL 5 HOUR
       AND (t.shop_id IS NULL OR o.shop_id = t.shop_id)
     WHERE t.tenant_id = ${tenantId} AND t.id IN (${ids})
     GROUP BY t.id

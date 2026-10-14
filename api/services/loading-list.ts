@@ -11,6 +11,7 @@ import {
   OPEN_ORDER_STATUSES, ORDER_STATUS_LABELS, LOADING_LIST_STATUS_LABELS, holdsStock,
 } from "../lib/order-status";
 import { badRequest } from "../lib/errors";
+import { businessToday } from "@contracts/business-time";
 
 type Db = ReturnType<typeof import("../queries/connection").getDb>;
 
@@ -54,7 +55,7 @@ async function planBatches(db: Db, tenantId: number, warehouseId: number, need: 
     SELECT product_id, batch_number, DATE_FORMAT(expires_at, '%Y-%m-%d') AS expires_at, quantity FROM stock_batches
     WHERE tenant_id = ${tenantId} AND warehouse_id = ${warehouseId}
       AND product_id IN (${sql.join(ids.map(id => sql`${id}`), sql`, `)})
-      AND quantity > 0 AND (expires_at IS NULL OR expires_at >= CURDATE())
+      AND quantity > 0 AND (expires_at IS NULL OR expires_at >= DATE(UTC_TIMESTAMP() + INTERVAL 5 HOUR))
     ORDER BY product_id, expires_at IS NULL, expires_at, received_at, id
   `));
   const left = new Map(need);
@@ -328,7 +329,7 @@ export const LoadingListService = {
     const planned = warehouseId ? await planBatches(db, tenantId, warehouseId, need) : new Map<number, PlannedBatch[]>();
 
     // Generate list number
-    const date = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+    const date = businessToday().replace(/-/g, "");
     const rand = Math.random().toString(36).slice(2, 6).toUpperCase();
     const listNumber = `ZL-${date}-${rand}`;
 

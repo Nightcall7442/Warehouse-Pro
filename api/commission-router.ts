@@ -1,11 +1,11 @@
 import { z } from "zod";
-import { monthRange, dayKey } from "./lib/period";
+import { monthRange, dateColumnDay } from "./lib/period";
 import { TRPCError } from "@trpc/server";
 import { createRouter, operatorQuery, authedQuery, can } from "./middleware";
 import { getDb } from "./queries/connection";
 import { commissions, users, products, commissionProductRates } from "@db/schema";
-import { eq, and, gte, lte, desc, isNull , inArray, sql } from "drizzle-orm";
-import { onDate } from "./lib/date-range";
+import { eq, and, desc, isNull , inArray, sql } from "drizzle-orm";
+import { onDate, sinceDay, untilDay } from "./lib/date-range";
 import { REVENUE_ORDER_STATUSES } from "./lib/order-status";
 import { returnsInPeriod, returnedByAgent, returnedOf } from "./services/revenue-returns";
 import { cache, CacheKeys } from "./lib/cache";
@@ -221,11 +221,11 @@ export const commissionRouter = createRouter({
           // them by the same, later `input.periodEnd` pulled each later
           // period's sales into every earlier one — January's commission was
           // computed over Jan 1 through Dec 31.
-          // periodEnd comes back from a `date` column as a Date at midnight, so
-          // it has to be pushed to the end of that day or the last day's orders
-          // fall outside the range.
-          const agentPeriodEndDate = new Date(agent.periodEnd);
-          agentPeriodEndDate.setHours(23, 59, 59, 999);
+          // Дни периода — из колонок date; границы — ташкентские полночи
+          // (lib/date-range): последний день целиком, а ночные заказы — в
+          // своём дне, а не в соседнем по UTC.
+          const fromDay = dateColumnDay(agent.periodStart);
+          const toDay = dateColumnDay(agent.periodEnd);
           const [orderResult] = await db.select({
             total: sqlFn<string>`COALESCE(SUM(${orders.total}), 0)`,
           }).from(orders).where(and(
@@ -233,8 +233,8 @@ export const commissionRouter = createRouter({
             eq(orders.agentId, agent.userId),
             inArray(orders.status, REVENUE_ORDER_STATUSES),
             isNull(orders.deletedAt),
-            gte(orders.createdAt, agent.periodStart),
-            lte(orders.createdAt, agentPeriodEndDate),
+            sinceDay(orders.createdAt, fromDay),
+            untilDay(orders.createdAt, toDay),
           ));
 
           /*
@@ -255,7 +255,7 @@ export const commissionRouter = createRouter({
           */
           const returned = returnedOf(
             returnedByAgent(await returnsInPeriod(
-              db, ctx.tenant.id, dayKey(new Date(agent.periodStart)), dayKey(agentPeriodEndDate),
+              db, ctx.tenant.id, fromDay, toDay,
             )),
             agent.userId,
           );

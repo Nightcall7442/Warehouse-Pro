@@ -1,3 +1,5 @@
+import { BUSINESS_OFFSET_MS, businessDay } from "@contracts/business-time";
+
 /**
  * Границы отчётного периода — текущего или сдвинутого назад на offset периодов.
  *
@@ -13,33 +15,46 @@
  * показывал бы заодно и весь октябрь.
  */
 export function getPeriod(period: string, offset = 0): { periodStart: Date; periodEnd: Date } {
-  const now = new Date();
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
-  const endOf = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59);
+  /*
+    Календарь — ташкентский, а не часов процесса: сервер живёт в UTC, и по
+    его часам месяц начинался 1-го в 05:00 по Ташкенту, «сегодня» до пяти утра
+    было вчера. Границы — моменты, в которые по Ташкенту наступает день
+    (bizAt), поэтому и сравнения с отметками времени в базе, и ключи периода
+    (dayKey) называют один и тот же день. См. contracts/business-time.
+  */
+  const { y, m, d } = bizParts(Date.now());
+  const endOf = (yy: number, mm: number, dd: number) => bizAt(yy, mm, dd, 23, 59, 59);
+  const today = endOf(y, m, d);
 
   // «Сегодня» — для главной курьера: список доставок отдаёт только не
   // довезённое, и «Доставлено / Прогресс дня» считались из него нулём весь день.
   if (period === "today") {
-    const day = new Date(now.getFullYear(), now.getMonth(), now.getDate() - offset);
-    return { periodStart: day, periodEnd: offset === 0 ? today : endOf(day) };
+    return { periodStart: bizAt(y, m, d - offset), periodEnd: offset === 0 ? today : endOf(y, m, d - offset) };
   }
 
   if (period === "week") {
-    const end = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 7 * offset);
-    const periodStart = new Date(end.getFullYear(), end.getMonth(), end.getDate() - 6);
-    return { periodStart, periodEnd: offset === 0 ? today : endOf(end) };
+    const endDay = d - 7 * offset;
+    return { periodStart: bizAt(y, m, endDay - 6), periodEnd: offset === 0 ? today : endOf(y, m, endDay) };
   }
 
   if (period === "quarter") {
-    // Месяц с отрицательным номером Date переносит на прошлый год сам.
-    const periodStart = new Date(now.getFullYear(), (Math.floor(now.getMonth() / 3) - offset) * 3, 1);
-    const last = new Date(periodStart.getFullYear(), periodStart.getMonth() + 3, 0);
-    return { periodStart, periodEnd: offset === 0 ? today : endOf(last) };
+    // Месяц с отрицательным номером Date.UTC переносит на прошлый год сам.
+    const first = (Math.floor(m / 3) - offset) * 3;
+    return { periodStart: bizAt(y, first, 1), periodEnd: offset === 0 ? today : endOf(y, first + 3, 0) };
   }
 
-  const periodStart = new Date(now.getFullYear(), now.getMonth() - offset, 1);
-  const last = new Date(periodStart.getFullYear(), periodStart.getMonth() + 1, 0);
-  return { periodStart, periodEnd: offset === 0 ? today : endOf(last) };
+  return { periodStart: bizAt(y, m - offset, 1), periodEnd: offset === 0 ? today : endOf(y, m - offset + 1, 0) };
+}
+
+/** Год, месяц (с нуля) и число по Ташкенту. */
+function bizParts(at: number | Date): { y: number; m: number; d: number } {
+  const t = new Date(new Date(at).getTime() + BUSINESS_OFFSET_MS);
+  return { y: t.getUTCFullYear(), m: t.getUTCMonth(), d: t.getUTCDate() };
+}
+
+/** Момент, когда по Ташкенту наступают указанные день и час. Переполнение (день 0, месяц −1) — как у Date. */
+function bizAt(y: number, m: number, d: number, h = 0, mi = 0, sec = 0): Date {
+  return new Date(Date.UTC(y, m, d, h, mi, sec) - BUSINESS_OFFSET_MS);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -74,9 +89,15 @@ export function getPeriod(period: string, offset = 0): { periodStart: Date; peri
    api/__tests__/period-key-is-one-way.test.ts.
    ═══════════════════════════════════════════════════════════════════════════ */
 
-/** Дата как «ГГГГ-ММ-ДД» по календарю, а не по смещению UTC. */
+/**
+ * Дата как «ГГГГ-ММ-ДД» по ташкентскому календарю, а не по смещению UTC.
+ *
+ * Границы getPeriod — ташкентские полночи (по UTC это 19:00 накануне), и
+ * ключ периода обязан назвать тот же день, что и граница. Значения колонок
+ * DATE приходят полночью UTC — пять часов спустя по Ташкенту тот же день.
+ */
 export function dayKey(d: Date): string {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  return businessDay(d);
 }
 
 /**
@@ -99,10 +120,8 @@ export function dateColumnDay(value: Date | string): string {
   return dayKey(value);
 }
 
-/** Первое и последнее число месяца, в котором лежит `at`. */
+/** Первое и последнее число месяца, в котором лежит `at`, — по Ташкенту. */
 export function monthRange(at: Date = new Date()): { start: string; end: string } {
-  return {
-    start: dayKey(new Date(at.getFullYear(), at.getMonth(), 1)),
-    end:   dayKey(new Date(at.getFullYear(), at.getMonth() + 1, 0)),
-  };
+  const { y, m } = bizParts(at);
+  return { start: dayKey(bizAt(y, m, 1)), end: dayKey(bizAt(y, m + 1, 0)) };
 }

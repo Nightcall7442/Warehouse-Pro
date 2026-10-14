@@ -7,6 +7,7 @@ import {
   verifyVisit, calculateFraudMetrics, calculateFraudMetricsForAgents,
   type FraudMetrics, type VisitShopRow,
 } from "../../services/anti-fraud";
+import { BUSINESS_OFFSET_MS, businessDayStart } from "@contracts/business-time";
 
 /**
  * Проверка визитов за период: четыре запроса вместо запроса на каждый день
@@ -30,6 +31,11 @@ import {
  *   · сверка не пустая: есть и подозрительные, и чистые визиты, и визиты с
  *     длительностью;
  *   · запросов к базе — 4 на всех, у старого — больше, чем агенто-дней.
+ *
+ * Окно дня у обоих — ташкентские сутки (lib/date-range): старый расчёт
+ * приведён к тому же правилу, иначе сверка сравнивала бы окна, а не запросы.
+ * Точки в данных — по ташкентским часам, поэтому «ровно в полночь» — снова
+ * граница двух окон.
  *
  * Нарочная поломка (в calculateFraudMetricsForAgents): сделай окно дня
  * полуоткрытым (`p.t < to`) — падает сверка чисел; убери eq(tenantId) у
@@ -66,7 +72,7 @@ async function legacyFraudMetrics(db: Db, agentId: number, tenantId: number, per
 
   const gpsCache = new Map<string, GpsPing[]>();
   for (const [dayKey] of plansByDay) {
-    const dayStart = new Date(dayKey + "T00:00:00");
+    const dayStart = businessDayStart(dayKey);
     const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
     const pings = await db.select({
       lat: agentLocations.lat, lng: agentLocations.lng, createdAt: agentLocations.createdAt, mocked: agentLocations.mocked,
@@ -205,7 +211,8 @@ describe.skipIf(!hasRealDb)("проверка визитов за период: 
 
     const plans: Array<Record<string, unknown>> = [];
     const pings: Array<Record<string, unknown>> = [];
-    const at = (day: Date, minutes: number) => new Date(day.getFullYear(), day.getMonth(), day.getDate(), 0, minutes, 0);
+    // Минуты от полуночи по Ташкенту.
+    const at = (day: Date, minutes: number) => new Date(Date.UTC(day.getFullYear(), day.getMonth(), day.getDate(), 0, minutes, 0) - BUSINESS_OFFSET_MS);
     const jitter = (m: number) => (rand() - 0.5) * m;
 
     for (const agentId of agentIds) {

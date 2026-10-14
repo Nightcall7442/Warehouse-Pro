@@ -11,13 +11,15 @@ import { sanitizeString, sanitizeSearch } from "./lib/sanitize";
 import { cache, withTenantDataCache, CacheTTL } from "./lib/cache";
 import { verifyVisit } from "./services/anti-fraud";
 import { haversineKm } from "./lib/geo";
-import { onDate } from "./lib/date-range";
+import { bizClock, dayEndUtc, dayStartUtc, onDate } from "./lib/date-range";
 import { photoRef } from "./lib/photo-url";
 import { isDuplicateEntry } from "./lib/db-errors";
 import { affectedRows } from "./lib/db-rows";
 import { recordedAtInput, eventTime } from "./lib/event-time";
 import { NO_ORDER_REASONS } from "@contracts/no-order-reason";
 import { visitHasOrderSql, noOrderFields } from "./services/no-order-visits";
+import { businessDayStart, businessDaysAgo, businessToday } from "@contracts/business-time";
+import { dateColumnDay } from "./lib/period";
 
 
 /**
@@ -545,9 +547,11 @@ export const agentRouter = createRouter({
     .input(z.object({ agentId: z.number(), date: z.string().optional() }).optional())
     .query(async ({ input, ctx }) => {
       if (!input?.agentId) return [];
-      const dateStr = input.date ?? new Date().toISOString().split("T")[0];
-      const start = `${dateStr}T00:00:00`;
-      const end = `${dateStr}T23:59:59`;
+      // День — ташкентский: от полуночи до полуночи по Ташкенту, строками в
+      // UTC, как их сравнивает сессия MySQL (lib/date-range).
+      const dateStr = input.date ?? businessToday();
+      const start = dayStartUtc(dateStr);
+      const end = dayEndUtc(dateStr);
 
       return getDb().select({
         id: agentLocations.id,
@@ -574,7 +578,7 @@ export const agentRouter = createRouter({
           // дневной отрезок — то есть именно тот случай, ради которого поле и
           // заведено.
           sql`COALESCE(${agentLocations.recordedAt}, ${agentLocations.createdAt}) >= ${start}`,
-          sql`COALESCE(${agentLocations.recordedAt}, ${agentLocations.createdAt}) <= ${end}`,
+          sql`COALESCE(${agentLocations.recordedAt}, ${agentLocations.createdAt}) < ${end}`,
         ))
         .orderBy(sql`COALESCE(${agentLocations.recordedAt}, ${agentLocations.createdAt})`);
     }),
@@ -582,7 +586,7 @@ export const agentRouter = createRouter({
   getPlans: fieldSalesQuery
     .input(z.object({ agentId: z.number().optional(), date: z.string().optional() }))
     .query(async ({ input, ctx }) => {
-      const dateStr = input?.date ?? new Date().toISOString().split("T")[0];
+      const dateStr = input?.date ?? businessToday();
       const agentId = resolvePlanAgentFilter(ctx, input?.agentId);
 
       const conditions = [
@@ -639,7 +643,7 @@ export const agentRouter = createRouter({
     }))
     .query(async ({ input, ctx }) => {
       const db = getDb();
-      const dateStr = input.date ?? new Date().toISOString().split("T")[0];
+      const dateStr = input.date ?? businessToday();
       const agentId = resolvePlanAgentFilter(ctx, input.agentId);
 
       const conditions = [
@@ -800,7 +804,9 @@ export const agentRouter = createRouter({
 
       // Run fraud check before saving visit
       if (!isPrivileged) {
-        const dayStart = new Date(new Date(plan.planDate).toISOString().slice(0, 10));
+        // Сутки дня плана — по Ташкенту: точки GPS ночью и утром до пяти иначе
+        // приписывались соседнему дню.
+        const dayStart = businessDayStart(dateColumnDay(plan.planDate));
         const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
         const gpsPings = await db.select({
           lat: agentLocations.lat,
@@ -1215,7 +1221,7 @@ export const agentRouter = createRouter({
 
     // Calculate streak: consecutive days with at least 1 completed order
     const streakData = await db.select({
-      day: sql<string>`DATE(${orders.createdAt})`,
+      day: sql<string>`DATE(${bizClock(orders.createdAt)})`,
       count: sql<number>`count(*)`,
     })
       .from(orders)
@@ -1224,13 +1230,13 @@ export const agentRouter = createRouter({
         inArray(orders.status, REVENUE_ORDER_STATUSES), isNull(orders.deletedAt),
         sql`${orders.createdAt} >= ${new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString()}`,
       ))
-      .groupBy(sql`DATE(${orders.createdAt})`)
-      .orderBy(desc(sql`DATE(${orders.createdAt})`));
+      .groupBy(sql`DATE(${bizClock(orders.createdAt)})`)
+      .orderBy(desc(sql`DATE(${bizClock(orders.createdAt)})`));
 
     let streak = 0;
     // Start from the most recent active day, not necessarily today
     for (let i = 0; i < streakData.length; i++) {
-      const expectedDate = new Date(now.getTime() - i * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+      const expectedDate = businessDaysAgo(i, now);
       if (streakData[i]?.day === expectedDate && Number(streakData[i]?.count) > 0) {
         streak++;
       } else if (i === 0 && streakData[0]?.day !== expectedDate) {

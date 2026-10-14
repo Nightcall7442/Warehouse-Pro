@@ -3,6 +3,8 @@ import { getDb } from "../queries/connection";
 import { tenants, users, products, orders } from "@db/schema";
 import { PLANS } from "../../contracts/constants";
 import { effectivePlan } from "../../contracts/pricing";
+import { sinceDay } from "./date-range";
+import { monthRange } from "./period";
 
 type DbInstance = ReturnType<typeof getDb>;
 
@@ -64,18 +66,14 @@ export async function checkPlanLimits(
   } else if (resource === "orders") {
     limit = plan.maxOrdersMonth;
     if (limit !== null) {
-      const monthStart = new Date(
-        new Date().getFullYear(),
-        new Date().getMonth(),
-        1
-      ).toISOString();
+      // Месяц тарифа — ташкентский: с полуночи первого числа по Ташкенту.
       const [{ count }] = await db
         .select({ count: sql<number>`count(*)` })
         .from(orders)
         .where(
           and(
             eq(orders.tenantId, tenantId),
-            sql`${orders.createdAt} >= ${monthStart}`
+            sinceDay(orders.createdAt, monthRange().start)
           )
         );
       current = Number(count);
@@ -99,12 +97,10 @@ export async function monthlyOrderRoom(
 ): Promise<{ allowed: boolean; current: number; limit: number | null }> {
   const limit = PLANS[effectivePlan(plan, new Date())]?.maxOrdersMonth ?? null;
   if (limit === null) return { allowed: true, current: 0, limit: null };
-  const now = new Date();
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
   const [row] = await db
     .select({ count: sql<number>`count(*)` })
     .from(orders)
-    .where(and(eq(orders.tenantId, tenantId), sql`${orders.createdAt} >= ${monthStart}`));
+    .where(and(eq(orders.tenantId, tenantId), sinceDay(orders.createdAt, monthRange().start)));
   const current = Number(row?.count ?? 0);
   return { allowed: !(current >= limit), current, limit };
 }

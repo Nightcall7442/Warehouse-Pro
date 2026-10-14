@@ -223,17 +223,17 @@ export async function overdueDebtByShop(
           SELECT SUM(CAST(r.total_amount AS DECIMAL(15,2))) FROM returns r
           WHERE r.order_id = o.id AND r.tenant_id = o.tenant_id AND r.status = 'completed'
         ), 0)) AS owed,
-        DATEDIFF(CURDATE(), DATE(COALESCE(o.first_ordered_at, o.created_at))) AS age,
+        DATEDIFF(DATE(UTC_TIMESTAMP() + INTERVAL 5 HOUR), DATE(COALESCE(o.first_ordered_at, o.created_at) + INTERVAL 5 HOUR)) AS age,
         COALESCE(
           (SELECT MAX(dr.due_date) FROM debt_reminders dr
            WHERE dr.order_id = o.id AND dr.tenant_id = o.tenant_id),
-          DATE_ADD(DATE(COALESCE(o.delivered_at, o.first_ordered_at, o.created_at)), INTERVAL ${grace} DAY)
+          DATE_ADD(DATE(COALESCE(o.delivered_at, o.first_ordered_at, o.created_at) + INTERVAL 5 HOUR), INTERVAL ${grace} DAY)
         ) AS due
       FROM orders o
       WHERE o.shop_id IN (${sql.join(ids.map(id => sql`${id}`), sql`, `)}) AND o.tenant_id = ${tenantId}
         AND o.deleted_at IS NULL AND o.status = 'delivered'
     ) x
-    WHERE x.owed > 0 AND x.due < CURDATE()
+    WHERE x.owed > 0 AND x.due < DATE(UTC_TIMESTAMP() + INTERVAL 5 HOUR)
     GROUP BY x.shop_id
   `);
   const rows = (Array.isArray(result) ? result[0] : result) as unknown as Array<{ shopId: unknown; amount: unknown; oldestDays: unknown; shopDebt: unknown }>;

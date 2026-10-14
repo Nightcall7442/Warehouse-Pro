@@ -21,6 +21,7 @@ import { revenueOrderConditions } from "../lib/order-status";
 import { dayKey } from "../lib/period";
 import { returnedQtyByProduct } from "./revenue-returns";
 import { activeMarkdowns } from "./markdown";
+import { businessDayStart } from "@contracts/business-time";
 
 type Db = ReturnType<typeof import("../queries/connection").getDb>;
 
@@ -69,11 +70,14 @@ export interface ExpiryRow {
 }
 
 const round2 = (n: number): number => Math.round(n * 100) / 100;
+const DAY_MS = 86_400_000;
 
-/** Начало дня ГГГГ-ММ-ДД по местному календарю сервера (как dayKey). */
+/** Начало дня ГГГГ-ММ-ДД по Ташкенту (как dayKey). */
 function startOfDay(day: string): Date {
-  const [y, m, d] = day.split("-").map(Number);
-  return new Date(y, m - 1, d);
+  // Полночь по Ташкенту: окно темпа сравнивается с отметками времени продаж
+  // и возвратов, и сутки там ташкентские (lib/date-range). Сутки — ровно 24
+  // часа (часы не переводят), поэтому сдвиг ниже — ровно на дни.
+  return businessDayStart(day);
 }
 
 /** Продано штук по товарам за окно [from, to) — доставленные, не удалённые. */
@@ -106,12 +110,11 @@ export async function expiryPlan(
 ): Promise<ExpiryRow[]> {
   const today = opts.today ?? dayKey(new Date());
   /*
-    Горизонт — по календарю сервера, не через toISOString: колонка DATE, и
-    печать через UTC при восточном смещении дала бы вчерашний день (тот же
-    случай, что с ключом месяца в api/lib/period.ts).
+    Горизонт — по ташкентскому календарю (dayKey), не через toISOString:
+    колонка DATE, и печать через UTC при восточном смещении дала бы вчерашний
+    день (тот же случай, что с ключом месяца в api/lib/period.ts).
   */
-  const horizon = startOfDay(today);
-  horizon.setDate(horizon.getDate() + opts.withinDays);
+  const horizon = new Date(startOfDay(today).getTime() + opts.withinDays * DAY_MS);
   const until = dayKey(horizon);
 
   const batches = await db.select({
@@ -155,8 +158,7 @@ export async function expiryPlan(
     отчёта живёт по дню.
   */
   const to = startOfDay(today);
-  const from = new Date(to);
-  from.setDate(from.getDate() - EXPIRY_RULES.PACE_WINDOW_DAYS);
+  const from = new Date(to.getTime() - EXPIRY_RULES.PACE_WINDOW_DAYS * DAY_MS);
   const [sold, returned, marks] = await Promise.all([
     soldQtyByProduct(db, tenantId, from, to, ids),
     returnedQtyByProduct(db, tenantId, from, to, ids),

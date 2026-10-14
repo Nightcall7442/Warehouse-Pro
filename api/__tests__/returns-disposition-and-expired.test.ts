@@ -43,7 +43,8 @@ describe("просрочка вне отгрузки", () => {
   it("отгрузка не берёт просроченные партии, списание берёт их первыми", () => {
     const i = door.indexOf("async function consumeBatches");
     const body = door.slice(i, i + 2500);
-    expect(body).toContain("AND (expires_at IS NULL OR expires_at >= CURDATE())");
+    // «Сегодня» — по Ташкенту: CURDATE() сессии в UTC до пяти утра был вчера.
+    expect(body).toContain("AND (expires_at IS NULL OR expires_at >= DATE(UTC_TIMESTAMP() + INTERVAL 5 HOUR))");
     expect(body).toMatch(/expiredToo \? sql`/);
     expect(door).toContain('uniform(items, entry.shift), entry.reason === "manual_adjustment"');
     expect(door).toContain("inBatches - q, true)");

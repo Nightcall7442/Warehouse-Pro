@@ -261,9 +261,10 @@ describe("период акта: последний день — целиком"
   beforeEach(() => vi.clearAllMocks());
 
   it("«по 9-е» — это до конца 9-го, «с 1-го» — с его начала", () => {
+    // Сутки ташкентские: полночь 1-го по Ташкенту — 19:00 30-го по UTC.
     const { from, to } = statementBounds("2026-10-01", "2026-10-09");
-    expect(from?.toISOString()).toBe("2026-10-01T00:00:00.000Z");
-    expect(to?.toISOString()).toBe("2026-10-09T23:59:59.999Z");
+    expect(from?.toISOString()).toBe("2026-09-30T19:00:00.000Z");
+    expect(to?.toISOString()).toBe("2026-10-09T18:59:59.999Z");
   });
 
   it("пустые даты — открытый период, мусор — тоже, а не «Invalid Date»", () => {

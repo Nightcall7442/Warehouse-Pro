@@ -172,7 +172,7 @@ export const warehouseRouter = createRouter({
         category: products.category,
         value: sql<string>`COALESCE(${warehouseStock.currentStock} * COALESCE(${products.costPrice}, 0), 0)`,
         lastOrderDate: sql<Date | null>`MAX(CASE WHEN ${orders.status} = 'delivered' THEN ${orders.createdAt} END)`,
-        daysSinceOrder: sql<number>`CASE WHEN MAX(CASE WHEN ${orders.status} = 'delivered' THEN ${orders.createdAt} END) IS NULL THEN 99999 ELSE DATEDIFF(NOW(), MAX(CASE WHEN ${orders.status} = 'delivered' THEN ${orders.createdAt} END)) END`,
+        daysSinceOrder: sql<number>`CASE WHEN MAX(CASE WHEN ${orders.status} = 'delivered' THEN ${orders.createdAt} END) IS NULL THEN 99999 ELSE DATEDIFF(DATE(UTC_TIMESTAMP() + INTERVAL 5 HOUR), DATE(MAX(CASE WHEN ${orders.status} = 'delivered' THEN ${orders.createdAt} END) + INTERVAL 5 HOUR)) END`,
       })
         .from(warehouseStock)
         .leftJoin(products, and(eq(warehouseStock.productId, products.id), eq(products.tenantId, ctx.tenant.id)))

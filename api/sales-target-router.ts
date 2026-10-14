@@ -11,6 +11,7 @@ import { actualsForTargets } from "./services/sales-target-actuals";
 import { planForecast } from "./services/plan-forecast";
 import { reportCached, ReportTTL, invalidateReports } from "./lib/report-cache";
 import { dayKey } from "./lib/period";
+import { businessDayStart, businessToday } from "@contracts/business-time";
 
 /**
  * Норму ставят только своему сотруднику.
@@ -312,13 +313,9 @@ export const salesTargetRouter = createRouter({
         // agent whether they are on course — 60% is comfortable on day 25 and
         // alarming on day 5 — and the client can't derive this safely, since
         // the device clock and timezone need not agree with the server's.
-        daysTotal: new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate(),
-        daysElapsed: Math.min(
-          new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate(),
-          new Date().getFullYear() === now.getFullYear() && new Date().getMonth() === now.getMonth()
-            ? new Date().getDate()
-            : new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate(),
-        ),
+        // Дни — по ташкентскому календарю (monthRange, businessToday): по
+        // часам сервера (UTC) первое число наступало в 05:00.
+        ...monthPace(monthStart),
       };
     }),
 
@@ -388,3 +385,11 @@ export const salesTargetRouter = createRouter({
       });
     }),
 });
+
+/** Сколько дней в месяце и сколько из них прошло — по Ташкенту. */
+function monthPace(monthStart: string): { daysTotal: number; daysElapsed: number } {
+  const daysTotal = Number(monthRange(businessDayStart(monthStart)).end.slice(8));
+  const today = businessToday();
+  const daysElapsed = today.slice(0, 7) === monthStart.slice(0, 7) ? Number(today.slice(8)) : daysTotal;
+  return { daysTotal, daysElapsed: Math.min(daysTotal, daysElapsed) };
+}

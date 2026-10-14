@@ -1,5 +1,6 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
 import { getPeriod } from "../lib/period";
+import { businessDay } from "@contracts/business-time";
 
 /**
  * Сдвиг периода назад.
@@ -13,14 +14,16 @@ import { getPeriod } from "../lib/period";
  * не виден ни типам, ни линтеру.
  */
 
+// Моменты — по Ташкенту явно: календарь периода ташкентский, а не часов машины.
 const at = (iso: string) => {
   vi.useFakeTimers();
-  vi.setSystemTime(new Date(iso));
+  vi.setSystemTime(new Date(`${iso}+05:00`));
 };
 
 afterEach(() => vi.useRealTimers());
 
-const ymd = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+const ymd = (d: Date) => businessDay(d);
+const bizHour = (d: Date) => new Date(d.getTime() + 5 * 3600_000).getUTCHours();
 
 describe("месяц", () => {
   it("текущий — с первого числа по сегодня", () => {
@@ -39,7 +42,7 @@ describe("месяц", () => {
     const { periodStart, periodEnd } = getPeriod("month", 1);
     expect(ymd(periodStart)).toBe("2026-08-01");
     expect(ymd(periodEnd)).toBe("2026-08-31");
-    expect(periodEnd.getHours()).toBe(23);
+    expect(bizHour(periodEnd)).toBe(23);
   });
 
   it("длина месяца берётся настоящая, а не 30 дней", () => {
@@ -109,16 +112,35 @@ describe("сегодня", () => {
     at("2026-09-05T12:00:00");
     const today = getPeriod("today", 0);
     expect(ymd(today.periodStart)).toBe("2026-09-05");
-    expect(today.periodStart.getHours()).toBe(0);
+    expect(bizHour(today.periodStart)).toBe(0);
     expect(ymd(today.periodEnd)).toBe("2026-09-05");
     const yesterday = getPeriod("today", 1);
     expect(ymd(yesterday.periodStart)).toBe("2026-09-04");
     expect(ymd(yesterday.periodEnd)).toBe("2026-09-04");
-    expect(yesterday.periodEnd.getHours()).toBe(23);
+    expect(bizHour(yesterday.periodEnd)).toBe(23);
   });
 
   it("месячная граница: сегодня 1-е — вчера в прошлом месяце", () => {
     at("2026-10-01T09:00:00");
     expect(ymd(getPeriod("today", 1).periodStart)).toBe("2026-09-30");
+  });
+});
+
+describe("сутки — ташкентские, а не часов сервера", () => {
+  /*
+    Сервер живёт в UTC. По его часам месяц начинался 1-го в 05:00 по
+    Ташкенту, а «сегодня» до пяти утра было вчера: заказ в 03:30 первого
+    октября попадал в сентябрь.
+  */
+  it("в 03:30 первого октября по Ташкенту месяц — уже октябрь", () => {
+    at("2026-10-01T03:30:00");
+    const { periodStart, periodEnd } = getPeriod("month", 0);
+    expect(periodStart.toISOString()).toBe("2026-09-30T19:00:00.000Z");
+    expect(ymd(periodEnd)).toBe("2026-10-01");
+  });
+
+  it("«сегодня» начинается в ташкентскую полночь", () => {
+    at("2026-10-14T03:30:00");
+    expect(getPeriod("today", 0).periodStart.toISOString()).toBe("2026-10-13T19:00:00.000Z");
   });
 });

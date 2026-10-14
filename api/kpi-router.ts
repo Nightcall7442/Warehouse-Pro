@@ -652,8 +652,8 @@ export const kpiRouter = createRouter({
         .limit(1);
       if (!person) throw new TRPCError({ code: "NOT_FOUND", message: "Сотрудник не найден в вашей организации" });
 
-      const now = new Date();
-      const { start: monthStart, end: monthEnd } = monthRange(new Date(now.getFullYear(), now.getMonth() - input.offset, 1));
+      // Месяц со сдвигом — по Ташкенту, тем же расчётом, что у зарплат.
+      const { start: monthStart, end: monthEnd } = monthRange(getPeriod("month", input.offset).periodStart);
       const [terms] = await db.select({ id: commissions.id, status: commissions.status })
         .from(commissions)
         .where(and(

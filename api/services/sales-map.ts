@@ -34,6 +34,7 @@ import {
   previousPeriod, shopStateOf, SALES_MAP_RULES,
   type SalesMapBase, type SalesShopFacts,
 } from "@contracts/sales-map";
+import { dayEndUtc, dayStartUtc } from "../lib/date-range";
 
 type Db = ReturnType<typeof import("../queries/connection").getDb>;
 
@@ -76,8 +77,8 @@ export async function salesMapBase(db: Db, tenantId: number, from: string, to: s
     // от начала прошлого периода до конца текущего, и деление по дате.
     db.select({
       shopId: orders.shopId,
-      now: sql<string>`COALESCE(SUM(CASE WHEN ${orders.createdAt} >= ${from} THEN ${orders.total} ELSE 0 END), 0)`,
-      before: sql<string>`COALESCE(SUM(CASE WHEN ${orders.createdAt} < ${from} THEN ${orders.total} ELSE 0 END), 0)`,
+      now: sql<string>`COALESCE(SUM(CASE WHEN ${orders.createdAt} >= ${dayStartUtc(from)} THEN ${orders.total} ELSE 0 END), 0)`,
+      before: sql<string>`COALESCE(SUM(CASE WHEN ${orders.createdAt} < ${dayStartUtc(from)} THEN ${orders.total} ELSE 0 END), 0)`,
     })
       .from(orders)
       .where(and(...revenuePeriodConditions(tenantId, prevFrom, to)))
@@ -88,13 +89,13 @@ export async function salesMapBase(db: Db, tenantId: number, from: string, to: s
 
     db.execute(sql`
       SELECT o.shop_id AS shopId,
-             SUM(o.created_at >= ${from}) AS inPeriod,
-             SUM(o.created_at < ${from}) AS beforePeriod,
-             DATE_FORMAT(MAX(o.created_at), '%Y-%m-%d') AS lastDay
+             SUM(o.created_at >= ${dayStartUtc(from)}) AS inPeriod,
+             SUM(o.created_at < ${dayStartUtc(from)}) AS beforePeriod,
+             DATE_FORMAT(MAX(o.created_at) + INTERVAL 5 HOUR, '%Y-%m-%d') AS lastDay
       FROM orders o
       WHERE o.tenant_id = ${tenantId}
         AND o.deleted_at IS NULL AND o.status <> 'cancelled'
-        AND o.created_at >= ${lookbackFrom} AND o.created_at <= ${to + " 23:59:59"}
+        AND o.created_at >= ${dayStartUtc(lookbackFrom)} AND o.created_at < ${dayEndUtc(to)}
       GROUP BY o.shop_id
     `),
   ]);
