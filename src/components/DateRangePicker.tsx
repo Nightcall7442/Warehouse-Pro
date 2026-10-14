@@ -1,14 +1,14 @@
 import { useEffect, useRef, useState } from "react";
 import type { KeyboardEvent } from "react";
 import { CalendarDays, ChevronLeft, ChevronRight } from "lucide-react";
-import { format } from "date-fns";
+import { bizToday, format } from "@/lib/business-time";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useLang } from "@/i18n";
 import { dateLocale } from "@/lib/date-locale";
 import { useIsMobile } from "@/hooks/use-mobile";
 import {
   clampDay, monthCells, monthEndOf, monthOf, orderRange, parseDay,
-  quickRanges, rangeText, rangeTextShort, shiftDay, shiftMonthOf, toDay,
+  quickRanges, rangeText, rangeTextShort, shiftDay, shiftMonthOf,
 } from "@/lib/date-range";
 
 /**
@@ -61,12 +61,12 @@ export function DateRangePicker({
   const [draft, setDraft] = useState<string | null>(null);
   const [hover, setHover] = useState<string | null>(null);
   // Первый показанный месяц и день, на котором стоит клавиатура.
-  const [view, setView] = useState(() => monthOf(to || toDay(new Date())));
-  const [focus, setFocus] = useState(() => to || toDay(new Date()));
+  const [view, setView] = useState(() => monthOf(to || bizToday()));
+  const [focus, setFocus] = useState(() => to || bizToday());
   const gridRef = useRef<HTMLDivElement>(null);
   const keyMoved = useRef(false);
 
-  const today = toDay(new Date());
+  const today = bizToday();
   const anchor = clampDay(to || from || today, min, max);
 
   const openAt = () => {

@@ -9,7 +9,8 @@ import { unitShort } from "@/lib/units";
 import { notify } from "@/lib/toast";
 import { cssVar } from "@/lib/css-var";
 import { readableInk } from "@/lib/contrast";
-import { subDays, format, subMonths, startOfYear } from "date-fns";
+import { subDays, subMonths, startOfYear } from "date-fns";
+import { bizDateText, bizNow, bizToday, format } from "@/lib/business-time";
 import { paymentLabel } from "@/components/pnl/styles";
 import {
   PnLPeriodSelector,
@@ -55,17 +56,18 @@ const argb = (hex: string) => "FF" + hex.replace("#", "").toUpperCase();
 export default function PnL() {
   const [range, setRange] = useState<Range>("30d");
   const [customFrom, setCustomFrom] = useState(() =>
-    format(subDays(new Date(), 30), "yyyy-MM-dd")
+    format(subDays(bizNow(), 30), "yyyy-MM-dd")
   );
   const [customTo, setCustomTo] = useState(() =>
-    format(new Date(), "yyyy-MM-dd")
+    bizToday()
   );
   const { fmt, symbol } = useCurrency();
   const { lang } = useLang();
   const t = (ru: string, uz: string) => (lang === "uz" ? uz : ru);
 
   const { from, to } = useMemo(() => {
-    const now = new Date();
+    // «Сейчас» по Ташкенту: «с начала года» и «12 месяцев» — от ташкентской полуночи.
+    const now = bizNow();
     switch (range) {
       case "7d":
         return {
@@ -264,7 +266,7 @@ export default function PnL() {
     addTitle(
       ws1,
       `Доходы и расходы: ${human(from)} — ${human(to)}`,
-      `Сформирован: ${new Date().toLocaleDateString("ru-RU", { day: "2-digit", month: "long", year: "numeric" })}`,
+      `Сформирован: ${bizDateText(Date.now(), "ru-RU", { day: "2-digit", month: "long", year: "numeric" })}`,
       3
     );
     const head1 = addHead(ws1, ["Показатель", "Сумма", "Доля от выручки"]);

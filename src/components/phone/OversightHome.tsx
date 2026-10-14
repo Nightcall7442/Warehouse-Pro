@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router";
-import { format } from "date-fns";
+import { bizToday, format } from "@/lib/business-time";
 import { AlertCircle, TrendingDown, TrendingUp, ChevronRight, PieChart, MapPin, Calendar, ShoppingBag, User, Clipboard } from "lucide-react";
 import { trpc } from "@/providers/trpc";
 import { useLang } from "@/i18n";
@@ -13,7 +13,7 @@ import {
 import { CARD, orderTone, orderStatusWord, tone } from "./tones";
 import { PlanForecastCompact } from "@/components/plans/PlanForecast";
 import { DateRangePicker } from "@/components/DateRangePicker";
-import { homeRangeDates, toDay } from "@/lib/date-range";
+import { homeRangeDates } from "@/lib/date-range";
 
 /*
   Главная надзорных ролей на телефоне — SupervisorHome мобилки v8
@@ -40,7 +40,7 @@ export function OversightHome() {
   const [range, setRange] = useState<Range>("7d");
   // Свой период из календаря — важнее таблеток; null — работают таблетки.
   const [custom, setCustom] = useState<{ from: string; to: string } | null>(null);
-  const today = toDay(new Date());
+  const today = bizToday();
   const shownRange = custom ?? homeRangeDates(range, today);
 
   const { data: trends } = trpc.dashboard.trends.useQuery(custom ? { range, ...custom } : { range });

@@ -22,6 +22,8 @@
  * можно приложить к всплеску очереди за соединением.
  */
 
+import { bizTimeText } from "@/lib/business-time";
+
 export interface SeriesPoint {
   timestamp: number;
   value: number;
@@ -73,7 +75,7 @@ const GAUGES = [
 ] as const;
 
 function formatClock(ts: number): string {
-  return new Date(ts).toLocaleTimeString("ru", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+  return bizTimeText(ts, "ru", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 }
 
 export function buildMetricGrid(series: SeriesMap, spanSeconds: number): MetricRow[] {

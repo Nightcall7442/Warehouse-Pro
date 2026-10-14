@@ -8,6 +8,7 @@ import { labelled, ROLE_LABEL } from "@/lib/entity-labels";
 import { buildThread } from "@/lib/chat-thread";
 import { PlanPill } from "@/components/superadmin/console/ui";
 import { errorText } from "@/lib/error-text";
+import { bizDateText, bizTimeText } from "@/lib/business-time";
 
 /**
  * Обращения в поддержку — сторона платформы.
@@ -366,9 +367,9 @@ export function SupportInbox() {
                   }}>
                     <Archive size={13} style={{ color: "var(--color-warning-text, var(--color-warning))", flexShrink: 0 }} />
                     <span style={{ fontSize: "11.5px", lineHeight: 1.45, color: "var(--color-text-secondary)" }}>
-                      Разговор завершён {closedAt.toLocaleDateString("ru", { day: "numeric", month: "long" })}
+                      Разговор завершён {bizDateText(closedAt, "ru", { day: "numeric", month: "long" })}
                       {openRow?.closedBy === "silence" ? " — молчанием" : ""}. Переписка сотрётся{" "}
-                      {new Date(closedAt.getTime() + 7 * 86_400_000).toLocaleDateString("ru", { day: "numeric", month: "long" })}.
+                      {bizDateText(closedAt.getTime() + 7 * 86_400_000, "ru", { day: "numeric", month: "long" })}.
                       Ответ откроет разговор заново и отменит стирание.
                     </span>
                   </div>
@@ -448,8 +449,8 @@ function EmptyInbox() {
   );
 }
 
-const time = (d: Date) => d.toLocaleTimeString("ru", { hour: "2-digit", minute: "2-digit" });
-const dayName = (d: Date) => d.toLocaleDateString("ru", { day: "numeric", month: "long" });
+const time = (d: Date) => bizTimeText(d, "ru", { hour: "2-digit", minute: "2-digit" });
+const dayName = (d: Date) => bizDateText(d, "ru", { day: "numeric", month: "long" });
 
 /**
  * Давность в списке очереди.
@@ -464,5 +465,5 @@ function ago(at: Date): string {
   const h = Math.round(min / 60);
   if (h < 24) return `${h} ч`;
   const d = Math.round(h / 24);
-  return d < 30 ? `${d} дн` : at.toLocaleDateString("ru", { day: "2-digit", month: "2-digit" });
+  return d < 30 ? `${d} дн` : bizDateText(at, "ru", { day: "2-digit", month: "2-digit" });
 }

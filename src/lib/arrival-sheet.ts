@@ -7,6 +7,7 @@
  * что уходит на сервер, — всё здесь.
  */
 import { normalizeNumber } from "./grid-nav";
+import { bizDay } from "@/lib/business-time";
 
 export type SheetRow = {
   productId: number;
@@ -235,10 +236,10 @@ export function rowsFromDetail(items: Array<{
  * который горит сегодня, показывался бы вчерашним.
  */
 export function daysLeft(day: string, now: Date = new Date()): number {
-  const [y, m, d] = day.split("-").map(Number);
-  const due = new Date(y, m - 1, d).getTime();
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-  return Math.round((due - today) / 86_400_000);
+  // Оба дня — строки по Ташкенту, разница — в UTC-сутках строк: ни пояс
+  // устройства, ни переход на летнее время у него не сдвинут счёт.
+  const at = (d: string) => Date.parse(`${d}T00:00:00Z`);
+  return Math.round((at(day) - at(bizDay(now))) / 86_400_000);
 }
 
 function num(v: string | number): number {

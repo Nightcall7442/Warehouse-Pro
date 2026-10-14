@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useSellerCompany } from "@/hooks/useSellerCompany";
 import { keepPreviousData } from "@tanstack/react-query";
-import { format, parseISO } from "date-fns";
+import { bizDate, bizNow, bizTime, format } from "@/lib/business-time";
 import { dateLocale } from "@/lib/date-locale";
 import {
   Wallet, HandCoins,
@@ -103,7 +103,7 @@ type Payout = {
   paidByName: string | null;
 };
 
-const asDate = (v: string | Date) => (typeof v === "string" ? parseISO(v) : v);
+const asDate = (v: string | Date) => bizTime(v);
 
 /** «ВЫП-000042» — номер, который можно назвать вслух и найти. */
 const payoutNo = (p: Payout) => `${p.kind === "advance" ? "АВ" : "ВЫП"}-${String(p.id).padStart(6, "0")}`;
@@ -119,17 +119,17 @@ const initials = (name: string) =>
  * нажатия перестаёт понимать, что он смотрит.
  */
 function periodLabel(period: PeriodKind, offset: number, lang: string): string {
-  const now = new Date();
+  const now = bizNow();
   const loc = { locale: dateLocale(lang) };
   if (period === "month") {
-    return format(new Date(now.getFullYear(), now.getMonth() - offset, 1), "LLLL yyyy", loc);
+    return format(bizDate(now.getFullYear(), now.getMonth() - offset, 1), "LLLL yyyy", loc);
   }
   if (period === "quarter") {
-    const start = new Date(now.getFullYear(), (Math.floor(now.getMonth() / 3) - offset) * 3, 1);
+    const start = bizDate(now.getFullYear(), (Math.floor(now.getMonth() / 3) - offset) * 3, 1);
     return `${Math.floor(start.getMonth() / 3) + 1} ${lang === "uz" ? "chorak" : "квартал"} ${start.getFullYear()}`;
   }
-  const end = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 7 * offset);
-  const start = new Date(end.getFullYear(), end.getMonth(), end.getDate() - 6);
+  const end = bizDate(now.getFullYear(), now.getMonth(), now.getDate() - 7 * offset);
+  const start = bizDate(end.getFullYear(), end.getMonth(), end.getDate() - 6);
   return `${format(start, "d MMM", loc)} — ${format(end, "d MMM", loc)}`;
 }
 

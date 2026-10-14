@@ -23,6 +23,8 @@
    и тот же, и расходиться в том, где проходит граница суток, им нельзя.
    ═══════════════════════════════════════════════════════════════════════════ */
 
+import { bizDay } from "@/lib/business-time";
+
 export type ChatMessage = {
   id: number;
   /** Реплика со стороны платформы (поддержки), а не организации. */
@@ -55,9 +57,12 @@ function toDate(value: Date | string): Date | null {
   return Number.isNaN(d.getTime()) ? null : d;
 }
 
-/** Ключ суток по местному времени наблюдателя. */
+/**
+ * Ключ суток — по Ташкенту, а не по часам наблюдателя: у поддержки и у
+ * клиента граница суток одна, на каком бы поясе ни стоял чей-то компьютер.
+ */
 function dayKey(d: Date): string {
-  return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+  return bizDay(d);
 }
 
 /**

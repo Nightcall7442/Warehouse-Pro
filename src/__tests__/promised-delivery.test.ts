@@ -1,7 +1,8 @@
 import { describe, it, expect } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
-import { toLocalInput, promiseState } from "@/lib/promised-delivery";
+import { promiseState } from "@/lib/promised-delivery";
+import { fromBizInput, toBizInput } from "@/lib/business-time";
 
 /**
  * Обещанный срок доставки.
@@ -20,32 +21,29 @@ import { toLocalInput, promiseState } from "@/lib/promised-delivery";
  *      — соврать против неё.
  */
 
-describe("поле ввода показывает местное время", () => {
+describe("поле ввода показывает время по Ташкенту", () => {
   it("туда и обратно — то же самое мгновение", () => {
     /*
       Главная проверка. Через toISOString().slice(0,16) она бы не прошла: там
-      UTC, и на пять часов раньше введённого. Проверяем не буквой, а смыслом —
-      разбор строки обратно даёт исходное время.
+      UTC, и на пять часов раньше введённого. Через часы устройства — тоже: на
+      Маке с чужим поясом «18:30» в поле значило бы 18:30 того пояса.
     */
-    const d = new Date(2026, 8, 11, 18, 30); // 11.09.2026, 18:30 местного
-    const back = new Date(toLocalInput(d));
-    expect(back.getFullYear()).toBe(2026);
-    expect(back.getMonth()).toBe(8);
-    expect(back.getDate()).toBe(11);
-    expect(back.getHours()).toBe(18);
-    expect(back.getMinutes()).toBe(30);
+    const d = new Date("2026-09-11T13:30:00Z"); // 11.09.2026, 18:30 по Ташкенту
+    expect(toBizInput(d)).toBe("2026-09-11T18:30");
+    expect(fromBizInput(toBizInput(d))?.toISOString()).toBe(d.toISOString());
   });
 
   it("формат ровно тот, что принимает datetime-local", () => {
-    expect(toLocalInput(new Date(2026, 0, 5, 9, 5))).toBe("2026-01-05T09:05");
+    expect(toBizInput(new Date("2026-01-05T04:05:00Z"))).toBe("2026-01-05T09:05");
   });
 
   it("пусто остаётся пустым", () => {
     // Пустое поле означает «срок не называли» — подставлять сюда сегодняшнюю
     // дату нельзя ни в каком виде.
-    expect(toLocalInput(null)).toBe("");
-    expect(toLocalInput(undefined)).toBe("");
-    expect(toLocalInput("не дата")).toBe("");
+    expect(toBizInput(null)).toBe("");
+    expect(toBizInput(undefined)).toBe("");
+    expect(toBizInput("не дата")).toBe("");
+    expect(fromBizInput("")).toBeNull();
   });
 });
 
@@ -131,7 +129,7 @@ describe("срок ставит человек", () => {
       ошибочно поставленный срок. Свёрнутые в одно, они оставили бы его
       навсегда.
     */
-    expect(BLOCK).toContain("raw ? new Date(raw).toISOString() : null");
+    expect(BLOCK).toContain("raw ? fromBizInput(raw)?.toISOString() ?? null : null");
   });
 
   it("блок зовёт свою ручку, а не правит заказ целиком", () => {

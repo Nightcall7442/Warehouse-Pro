@@ -2,7 +2,7 @@ import { useState } from "react";
 import { trpc } from "@/providers/trpc";
 import { useLang } from "@/i18n";
 import { F, COLORS, ROLE_LABELS } from "@/components/users/types";
-import { format } from "date-fns";
+import { format } from "@/lib/business-time";
 import { MailCheck, MailWarning, Mails } from "lucide-react";
 
 /**

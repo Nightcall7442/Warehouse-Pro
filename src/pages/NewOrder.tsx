@@ -19,6 +19,7 @@ import { holdReasonText } from "@contracts/hold-reason";
 import { OverdueNotice } from "@/components/orders/OverdueNotice";
 import { useShopPrices } from "@/hooks/useOfflineCopy";
 import { errorText } from "@/lib/error-text";
+import { fromBizInput } from "@/lib/business-time";
 
 const LABELS_RU = ["Магазин", "Товары", "Итог"];
 const LABELS_UZ = ["Do'kon", "Mahsulotlar", "Xulosa"];
@@ -392,7 +393,7 @@ export default function NewOrder() {
         месте. Отправить «2026-09-11T18:00» как есть нельзя: на сервере оно
         прочиталось бы в его поясе и уехало бы на часы.
       */
-      promisedDeliveryAt: promisedAt ? new Date(promisedAt).toISOString() : undefined,
+      promisedDeliveryAt: promisedAt ? fromBizInput(promisedAt)?.toISOString() : undefined,
     };
 
     if (!navigator.onLine) {

@@ -2,7 +2,7 @@ import { useState } from "react";
 import { trpc } from "@/providers/trpc";
 import { notify } from "@/lib/toast";
 import { Chip, Empty, Pill } from "@/components/superadmin/console/ui";
-import { format } from "date-fns";
+import { format } from "@/lib/business-time";
 import { Check, Inbox, PhoneCall } from "lucide-react";
 import { formatUzPhone } from "@contracts/signup";
 import { errorText } from "@/lib/error-text";

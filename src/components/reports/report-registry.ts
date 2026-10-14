@@ -7,6 +7,7 @@ import {
   labelled, ACTIVE_STATUS_LABEL, ARRIVAL_STATUS_LABEL, PLAN_STATUS_LABEL,
   PAYMENT_METHOD_LABEL, ROLE_LABEL, TIER_LABEL,
 } from "@/lib/entity-labels";
+import { format } from "@/lib/business-time";
 
 /**
  * Every report the hub can produce, described rather than coded.
@@ -87,7 +88,9 @@ const DEBT_MOVEMENT_RU: Record<string, string> = {
 function formatDate(v: unknown): string {
   if (!v) return "—";
   const d = new Date(v as string);
-  return Number.isNaN(d.getTime()) ? String(v) : d.toISOString().slice(0, 10);
+  // День по Ташкенту: через toISOString вышел бы UTC, и всё, что сделано до
+  // пяти утра, ушло бы во вчера.
+  return Number.isNaN(d.getTime()) ? String(v) : format(d, "yyyy-MM-dd");
 }
 
 /** Date with the time, for logs where the hour is the point. */
@@ -95,7 +98,7 @@ function formatDateTime(v: unknown): string {
   if (!v) return "—";
   const d = new Date(v as string);
   if (Number.isNaN(d.getTime())) return String(v);
-  return `${d.toISOString().slice(0, 10)} ${d.toISOString().slice(11, 16)}`;
+  return format(d, "yyyy-MM-dd HH:mm");
 }
 
 

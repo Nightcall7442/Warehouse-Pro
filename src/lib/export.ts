@@ -3,6 +3,7 @@ import { openPrintWindowOrExplain } from "./print";
 import { notify } from "./toast";
 import { tt } from "@/i18n";
 import { errorText } from "@/lib/error-text";
+import { bizDateText, bizToday } from "@/lib/business-time";
 
 /**
  * Export data to Excel (.xlsx) file.
@@ -85,7 +86,7 @@ export async function exportToExcel(sheets: Array<{
     const a = document.createElement("a");
     a.href = url;
     // Имя файла по умолчанию — без названия системы: файл уходит наружу.
-    a.download = `${filename ?? `otchet-${new Date().toISOString().split("T")[0]}`}.xlsx`;
+    a.download = `${filename ?? `otchet-${bizToday()}`}.xlsx`;
     a.click();
     URL.revokeObjectURL(url);
   } catch (e) {
@@ -175,7 +176,7 @@ export function exportToPDF(title: string, contentHtml: string) {
     </head>
     <body>
       <h1>${escapeHtml(title)}</h1>
-      <div class="subtitle">${new Date().toLocaleDateString("ru")}</div>
+      <div class="subtitle">${bizDateText(Date.now(), "ru")}</div>
       ${contentHtml}
       <script>
         /* focus() до print(): без него окно печати в части сборок открывается

@@ -14,14 +14,14 @@ const base: ReconciliationPrintInput = {
   period: { from: "2026-10-01", to: "2026-10-09" },
   opening: 100000,
   rows: [
-    { date: new Date(2026, 9, 3, 12), kind: "order", doc: "З-15", note: null, debit: 50000, credit: 0 },
-    { date: new Date(2026, 9, 5, 12), kind: "payment", doc: null, note: "наличными", debit: 0, credit: 30000 },
+    { date: new Date("2026-10-03T12:00:00+05:00"), kind: "order", doc: "З-15", note: null, debit: 50000, credit: 0 },
+    { date: new Date("2026-10-05T12:00:00+05:00"), kind: "payment", doc: null, note: "наличными", debit: 0, credit: 30000 },
   ],
   totals: { debit: 50000, credit: 30000 },
   closing: 120000,
   currency: "сум",
   inWords: true,
-  today: new Date(2026, 9, 9, 12),
+  today: new Date("2026-10-09T12:00:00+05:00"),
 };
 
 /** Текст ячеек строки таблицы, у которой первая ячейка начинается с `label`. */

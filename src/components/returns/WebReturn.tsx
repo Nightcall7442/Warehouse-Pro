@@ -24,7 +24,7 @@
 import { useState } from "react";
 import { Link } from "react-router";
 import { Loader2, RotateCcw, ChevronRight } from "lucide-react";
-import { format } from "date-fns";
+import { format } from "@/lib/business-time";
 import { trpc } from "@/providers/trpc";
 import { useLang } from "@/i18n";
 import { useAuth } from "@/hooks/useAuth";

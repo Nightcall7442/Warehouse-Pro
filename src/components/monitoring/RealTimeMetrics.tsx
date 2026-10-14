@@ -1,6 +1,7 @@
 import { BarChart3 } from "lucide-react";
 import { COLORS, F } from "./theme";
 import { Section } from "./Section";
+import { bizTimeText } from "@/lib/business-time";
 
 interface MetricEntry {
   count: number;
@@ -39,7 +40,7 @@ export function RealTimeMetrics({ metrics }: RealTimeMetricsProps) {
                 <td style={{ padding: "10px 16px", fontFamily: "monospace", fontSize: "12px", color: COLORS.primaryText }}>{name}</td>
                 <td style={{ padding: "10px 16px", textAlign: "right", color: COLORS.textSecondary }}>{m.count}</td>
                 <td style={{ padding: "10px 16px", textAlign: "right", fontWeight: 600, color: COLORS.textPrimary }}>{m.lastValue}</td>
-                <td style={{ padding: "10px 16px", textAlign: "right", fontSize: "12px", color: COLORS.textTertiary }}>{new Date(m.lastTimestamp).toLocaleTimeString("ru")}</td>
+                <td style={{ padding: "10px 16px", textAlign: "right", fontSize: "12px", color: COLORS.textTertiary }}>{bizTimeText(m.lastTimestamp, "ru")}</td>
               </tr>
             ))}
           </tbody>

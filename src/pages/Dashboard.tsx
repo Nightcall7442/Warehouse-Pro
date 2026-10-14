@@ -6,7 +6,7 @@ import { useLang } from "@/i18n";
 import { useAuth } from "@/hooks/useAuth";
 import { useNavigate } from "react-router";
 import { getGreeting } from "@/lib/utils";
-import { format } from "date-fns";
+import { bizToday, format } from "@/lib/business-time";
 import { dateLocale } from "@/lib/date-locale";
 import { ClipboardList, TrendingUp, TrendingDown, Plus, AlertCircle, ArrowRight, PieChart, Activity } from "lucide-react";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart as RePieChart, Pie, Cell, BarChart, Bar } from "recharts";
@@ -21,7 +21,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { OversightHome } from "@/components/phone/OversightHome";
 import { PlanForecastCompact } from "@/components/plans/PlanForecast";
 import { DateRangePicker } from "@/components/DateRangePicker";
-import { homeRangeDates, toDay } from "@/lib/date-range";
+import { homeRangeDates } from "@/lib/date-range";
 
 type Range = "7d" | "30d" | "month";
 
@@ -157,7 +157,7 @@ function DesktopDashboard() {
   */
   const { data: lastWeek } = trpc.dashboard.trends.useQuery({ range: "7d" }, { enabled: custom !== null });
   const recent = custom ? lastWeek : trends;
-  const today = toDay(new Date());
+  const today = bizToday();
   const shownRange = custom ?? homeRangeDates(range, today);
   const { data: statusData } = trpc.dashboard.statusBreakdown.useQuery();
   const { data: activity } = trpc.dashboard.activity.useQuery();

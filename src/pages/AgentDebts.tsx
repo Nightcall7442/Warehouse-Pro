@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { format, parseISO } from "date-fns";
+import { bizTime, format } from "@/lib/business-time";
 import { dateLocale } from "@/lib/date-locale";
 import { Wallet, Phone, MapPin, Loader2, CheckCircle2 } from "lucide-react";
 import { useNavigate } from "react-router";
@@ -119,7 +119,7 @@ export default function AgentDebts() {
       {shown.map(d => {
         const remaining = Number(d.remaining);
         const paid = Number(d.paid);
-        const created = typeof d.createdAt === "string" ? parseISO(d.createdAt) : d.createdAt;
+        const created = bizTime(d.createdAt);
         // Сколько дней висит: «вчера отгрузили» и «забыли полгода назад» по сумме одинаковы.
         const days = Math.max(0, Math.floor((now - created.getTime()) / 86_400_000));
         return (

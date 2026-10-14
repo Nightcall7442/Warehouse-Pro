@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import { Camera, Clock, Route, ImageOff } from "lucide-react";
 import { PhotoOrIcon } from "@/components/PhotoOrIcon";
 import { countTo, sweepRing, revealRows, pulse } from "@/lib/tracking-motion";
+import { bizTimeText } from "@/lib/business-time";
 
 /**
  * День выбранного агента: что сделано, насколько это норма и чем подтверждено.
@@ -265,7 +266,7 @@ export function AgentDayPanel({
                 className="tap flex-shrink-0 rounded-lg overflow-hidden"
                 style={{ width: 44, height: 44, border: "1px solid var(--color-border)" }}
                 title={photo.at
-                  ? `${photo.shopName} · ${photo.at.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" })}`
+                  ? `${photo.shopName} · ${bizTimeText(photo.at, "ru-RU", { hour: "2-digit", minute: "2-digit" })}`
                   : photo.shopName}
               >
                 <PhotoOrIcon src={photo.url} alt={photo.shopName}

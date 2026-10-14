@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLang, useTranslate } from "@/i18n";
 import { cssVar } from "@/lib/css-var";
 import { useCurrency } from "@/hooks/useCurrency";
-import { format } from "date-fns";
+import { bizToday, format } from "@/lib/business-time";
 import { Radio, RefreshCw, MapPin, Store, Maximize2, Info } from "lucide-react";
 import {
   TIER_COLOR, TIER_LABEL, TIER_ORDER, shopPinSvg,
@@ -122,7 +122,7 @@ export default function SupervisorTracking() {
     Обновляется реже карты: план на день составляют утром, и визит отмечают
     руками — минуты здесь достаточно, а точки нужны каждые полминуты.
   */
-  const today = format(new Date(), "yyyy-MM-dd");
+  const today = bizToday();
   const plansQuery = trpc.agent.getPlans.useQuery({ date: today }, { refetchInterval: 60_000 });
   const normsQuery = trpc.salesTarget.summary.useQuery(undefined, { staleTime: 5 * 60_000 });
 

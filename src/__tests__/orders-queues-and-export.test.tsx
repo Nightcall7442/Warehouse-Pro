@@ -107,7 +107,9 @@ const tile = (label: string) => screen.getAllByRole("button").find(b => b.getAtt
 beforeEach(() => {
   // Только часы: таймеры React и testing-library остаются настоящими.
   vi.useFakeTimers({ toFake: ["Date"] });
-  vi.setSystemTime(new Date(2026, 9, 1, 10, 0)); // четверг, 1 октября
+  // Время — ташкентское: «сегодня» и неделя страницы считаются по Ташкенту, на
+  // каком бы поясе ни стоял компьютер (lib/business-time).
+  vi.setSystemTime(new Date("2026-10-01T10:00:00+05:00")); // четверг, 1 октября
   h.calls.length = 0;
   h.clientList.mockReset();
   h.exportToExcel.mockClear();
@@ -177,7 +179,7 @@ describe("чипы дат", () => {
   });
 
   it("воскресенье — ещё та же неделя, что началась в понедельник", () => {
-    vi.setSystemTime(new Date(2026, 9, 4, 18, 0)); // воскресенье
+    vi.setSystemTime(new Date("2026-10-04T18:00:00+05:00")); // воскресенье
     show();
     fireEvent.click(screen.getByRole("button", { name: /Эта неделя/ }));
     expect(lastTable()).toMatchObject({ dateFrom: "2026-09-28", dateTo: "2026-10-04" });

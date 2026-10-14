@@ -14,7 +14,7 @@ import { useCurrency } from "@/hooks/useCurrency";
 import { useLang } from "@/i18n";
 import { PAYMENT } from "@/components/orders/theme-tokens";
 import { labelled, ORDER_STATUS_LABEL, ADJUSTMENT_TYPE_LABEL } from "@/lib/entity-labels";
-import { format } from "date-fns";
+import { format } from "@/lib/business-time";
 import { dateLocale } from "@/lib/date-locale";
 import {
   ArrowLeft, Printer, FileDown, CheckCircle2,

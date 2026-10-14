@@ -22,7 +22,8 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
 import { render, screen, fireEvent, cleanup, within } from "@testing-library/react";
 import { MemoryRouter, useLocation } from "react-router";
-import { addDays, format } from "date-fns";
+import { bizToday } from "@/lib/business-time";
+import { shiftDay } from "@/lib/date-range";
 
 const state = vi.hoisted(() => ({
   role: "ceo",
@@ -117,7 +118,7 @@ describe("«Карта»: адрес, действия, права", () => {
     const rows = screen.getAllByTestId("sales-map-area");
     fireEvent.click(within(rows[0]).getByRole("button", { name: /Визиты/ }));
     fireEvent.click(screen.getByTestId("sales-map-plan-save"));
-    expect(state.plans).toEqual([{ agentId: 12, shopIds: [2], planDate: format(addDays(new Date(), 1), "yyyy-MM-dd"), notes: "Карта продаж: вернуть магазин" }]);
+    expect(state.plans).toEqual([{ agentId: 12, shopIds: [2], planDate: shiftDay(bizToday(), 1), notes: "Карта продаж: вернуть магазин" }]);
   });
 
   it("визиты у района без замолчавших — по галочке «и те, кто не заказывает»", () => {

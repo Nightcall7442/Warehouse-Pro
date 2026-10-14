@@ -6,6 +6,7 @@ import { useConfirm } from "@/components/ConfirmDialog";
 import { PremiumSelect } from "@/components/PremiumSelect";
 import { currentMonth, monthDays, monthLabel, weekdayOf } from "./month";
 import { errorText } from "@/lib/error-text";
+import { bizNow } from "@/lib/business-time";
 
 /*
   ── Месяц целиком ───────────────────────────────────────────────────────────
@@ -86,7 +87,7 @@ function SetupPanel({ month, lang, onDone }: { month: string; lang: string; onDo
     сообщении об успехе.
   */
   const isCurrentMonth = month === currentMonth();
-  const fromDay = isCurrentMonth && skipPast ? new Date().getDate() : undefined;
+  const fromDay = isCurrentMonth && skipPast ? bizNow().getDate() : undefined;
   const workDays = useMemo(
     () => monthDays(month)
       .filter(d => !fromDay || Number(d.slice(-2)) >= fromDay)

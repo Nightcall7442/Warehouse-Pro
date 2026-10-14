@@ -5,7 +5,7 @@ import { useLang } from "@/i18n";
 import { notificationText } from "@/lib/notification-text";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { PhoneNotifications } from "@/components/phone/PhoneNotifications";
-import { format, isToday, isYesterday } from "date-fns";
+import { bizDay, format, isBizToday, isBizYesterday } from "@/lib/business-time";
 import { dateLocale } from "@/lib/date-locale";
 import {
   Bell, BellOff, Check, CheckCheck, ChevronRight, CreditCard,
@@ -71,8 +71,8 @@ function ago(date: Date, lang: string): string {
 }
 
 function dayTitle(date: Date, lang: string): string {
-  if (isToday(date)) return lang === "uz" ? "Bugun" : "Сегодня";
-  if (isYesterday(date)) return lang === "uz" ? "Kecha" : "Вчера";
+  if (isBizToday(date)) return lang === "uz" ? "Bugun" : "Сегодня";
+  if (isBizYesterday(date)) return lang === "uz" ? "Kecha" : "Вчера";
   return format(date, "d MMMM yyyy", { locale: dateLocale(lang) });
 }
 
@@ -133,8 +133,8 @@ function DesktopNotifications() {
   const days = useMemo(() => {
     const map = new Map<string, Item[]>();
     for (const n of items) {
-      const d = new Date(n.createdAt);
-      const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+      // Сутки — по Ташкенту, как у заголовков «Сегодня» / «Вчера».
+      const key = bizDay(n.createdAt);
       (map.get(key) ?? map.set(key, []).get(key)!).push(n);
     }
     return [...map.values()];

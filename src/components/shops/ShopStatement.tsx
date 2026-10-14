@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { format } from "date-fns";
+import { bizNow, bizToday, format } from "@/lib/business-time";
 import { Printer, Loader2, ScrollText, FileDown } from "lucide-react";
 import { exportToExcel } from "@/lib/excel";
 import { trpc } from "@/providers/trpc";
@@ -9,7 +9,7 @@ import { useSellerCompany } from "@/hooks/useSellerCompany";
 import { SectionNotice } from "@/components/SectionNotice";
 import { PremiumSelect } from "@/components/PremiumSelect";
 import {
-  STATEMENT_PRESETS, ALL_TIME, presetRange, dayToRu, localDay, type StatementPreset, type StatementPeriod,
+  STATEMENT_PRESETS, ALL_TIME, presetRange, dayToRu, type StatementPreset, type StatementPeriod,
 } from "@contracts/statement-period";
 import { reconciliationHtml, reconciliationConclusion, reconciliationDocLabel } from "@/lib/reconciliation-print";
 import { DateRangePicker } from "@/components/DateRangePicker";
@@ -54,10 +54,10 @@ export function StatementPeriodPicker({ value, onChange }: {
   const t = useTranslate();
   const { lang } = useLang();
   const pick = (preset: StatementPreset) => {
-    const range = presetRange(preset);
+    const range = presetRange(preset, bizNow());
     // «Свой период» начинается с того, что уже видно на экране: человек
     // поправляет одну дату, а не набирает обе с нуля.
-    onChange(range ? { preset, ...range } : { preset, from: value.from, to: value.to || localDay(new Date()) });
+    onChange(range ? { preset, ...range } : { preset, from: value.from, to: value.to || bizToday() });
   };
   return (
     <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
@@ -74,7 +74,7 @@ export function StatementPeriodPicker({ value, onChange }: {
       <DateRangePicker
         from={value.from}
         to={value.to}
-        max={localDay(new Date())}
+        max={bizToday()}
         onChange={(from, to) => onChange({ preset: "custom", from, to })}
         active={value.preset === "custom"}
         align="start"
@@ -130,7 +130,7 @@ export function ShopStatement({ shopId, period: controlled, onPeriodChange }: {
   const kindLabel = (k: string) => KIND[k]?.[lang] ?? k;
 
   // Дата «на которую» акт: конец выбранного периода, у открытого — сегодня.
-  const asOf = period.to || localDay(new Date());
+  const asOf = period.to || bizToday();
   // Склонять прописью этот код умеет только сумы.
   const inWords = currency === "UZS" && symbolRu === "сум";
 

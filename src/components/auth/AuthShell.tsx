@@ -5,6 +5,7 @@ import { AppBrand } from "@/components/brand/AppBrand";
 import { recallBrand } from "@/lib/remembered-brand";
 import { useLang } from "@/i18n";
 import { APP_VERSION } from "@contracts/constants";
+import { bizNow } from "@/lib/business-time";
 
 /**
  * Разворот входа: тёмная половина слева, карточка справа.
@@ -104,7 +105,7 @@ export function AuthShell({ title, subtitle, children, footer }: {
           position: "relative", zIndex: 1, display: "flex", alignItems: "center",
           justifyContent: "space-between", fontSize: "12px", color: "var(--color-text-tertiary)",
         }}>
-          <span>{brand?.footerText?.trim() || `© ${new Date().getFullYear()} Warehouse Pro`}</span>
+          <span>{brand?.footerText?.trim() || `© ${bizNow().getFullYear()} Warehouse Pro`}</span>
           <span style={{ display: "flex", alignItems: "center", gap: "6px" }}>
             <span style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--color-success)" }} />
             v{APP_VERSION}

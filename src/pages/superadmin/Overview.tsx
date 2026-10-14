@@ -10,6 +10,7 @@ import { CallList } from "@/components/superadmin/console/CallList";
 import { backupState } from "@/components/superadmin/console/jobs";
 import { Count, Group, Line, PageHead, Panel, PlanPill, Row, Tile, type Tone } from "@/components/superadmin/console/ui";
 import { STAGE_LABEL, ago, day, money } from "@/components/superadmin/console/format";
+import { bizTimeText } from "@/lib/business-time";
 
 /* ═══════════════════════════════════════════════════════════════════════════
    «Обзор» — первый экран консоли платформы (/super-admin).
@@ -124,7 +125,7 @@ export default function Overview() {
                   right={<Count n={errors.data ? errors24 : "…"} tone={t(errors24, "danger")} />} to="/super-admin/system" testId="attn-errors" />
                 <Line />
                 <Row icon={Database} tone={jobs.data ? (backup.stale ? "danger" : "success") : "neutral"} title="Резервная копия базы"
-                  subtitle={!jobs.data ? "…" : backup.at ? `Последняя удачная — ${day(backup.at)} ${backup.at.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" })}, ${ago(backup.at)}` : "Удачных копий нет"}
+                  subtitle={!jobs.data ? "…" : backup.at ? `Последняя удачная — ${day(backup.at)} ${bizTimeText(backup.at, "ru-RU", { hour: "2-digit", minute: "2-digit" })}, ${ago(backup.at)}` : "Удачных копий нет"}
                   right={jobs.data && backup.stale ? <Count n="старше 26 ч" tone="danger" testId="attn-backup-stale" /> : undefined}
                   to="/super-admin/system?tab=jobs" testId="attn-backup" />
                 <Line />

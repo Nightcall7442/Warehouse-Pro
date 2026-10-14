@@ -1,6 +1,6 @@
 import { useId, type CSSProperties, type ReactNode } from "react";
 import { useNavigate } from "react-router";
-import { format } from "date-fns";
+import { format } from "@/lib/business-time";
 import { ArrowRight, Search } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";

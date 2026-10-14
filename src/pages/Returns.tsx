@@ -11,7 +11,7 @@ import { QueryErrorFallback } from "@/components/QueryErrorFallback";
 import { exportToExcel } from "@/lib/export";
 import { notify } from "@/lib/toast";
 import { F, COLORS, thStyle, tdStyle } from "@/components/users/types";
-import { format } from "date-fns";
+import { format } from "@/lib/business-time";
 import { labelled, ROLE_LABEL } from "@/lib/entity-labels";
 import {
   RotateCcw, Check, X, PackageCheck, FileSpreadsheet, ChevronDown, ChevronRight,

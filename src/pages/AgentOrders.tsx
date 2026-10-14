@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router";
-import { format, parseISO, isToday, isYesterday } from "date-fns";
+import { bizTime, format, isBizToday, isBizYesterday } from "@/lib/business-time";
 import { dateLocale } from "@/lib/date-locale";
 import { ChevronRight, Clipboard, ClipboardList, RefreshCw, Plus, WifiOff } from "lucide-react";
 import { trpc } from "@/providers/trpc";
@@ -37,13 +37,13 @@ type Order = {
 
 /** «Сегодня», «Вчера» или «5 сентября» — как в мобильном приложении. */
 function dayLabel(value: string | Date, uz: boolean): string {
-  const d = typeof value === "string" ? parseISO(value) : value;
-  if (isToday(d)) return uz ? "Bugun" : "Сегодня";
-  if (isYesterday(d)) return uz ? "Kecha" : "Вчера";
+  const d = bizTime(value);
+  if (isBizToday(d)) return uz ? "Bugun" : "Сегодня";
+  if (isBizYesterday(d)) return uz ? "Kecha" : "Вчера";
   return format(d, "d MMMM", { locale: dateLocale(uz ? "uz" : "ru") });
 }
 
-const asDate = (v: string | Date) => (typeof v === "string" ? parseISO(v) : v);
+const asDate = (v: string | Date) => bizTime(v);
 
 function Ring({ value, total, color, label }: { value: number; total: number; color: string; label: string }) {
   const pct = total > 0 ? Math.round((value / total) * 100) : 0;

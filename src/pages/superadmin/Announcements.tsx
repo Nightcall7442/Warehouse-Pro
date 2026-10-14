@@ -13,6 +13,7 @@ import { TENANT_PLAN_LABEL } from "@contracts/entity-labels";
 import { Chip, Empty, FieldLabel, PageHead, Panel, Pill, type Tone } from "@/components/superadmin/console/ui";
 import { dayTime } from "@/components/superadmin/console/format";
 import { errorText } from "@/lib/error-text";
+import { fromBizInput, toBizInput } from "@/lib/business-time";
 
 /* ═══════════════════════════════════════════════════════════════════════════
    «Объявления» — сообщения платформы организациям (/super-admin/announcements).
@@ -35,12 +36,6 @@ type Audience = "all" | "plans" | "tenants";
 const PLANS = ["trial", "standard", "basic", "pro", "exclusive"] as const;
 const input = { minHeight: 44, fontSize: 14 } as const;
 const HOUR = 3_600_000;
-
-/** Для <input type="datetime-local">: местное время без секунд. */
-function toLocalInput(d: Date): string {
-  const z = new Date(d.getTime() - d.getTimezoneOffset() * 60_000);
-  return z.toISOString().slice(0, 16);
-}
 
 function stateOf(a: Row, now: Date): { key: "live" | "scheduled" | "past"; label: string; tone: Tone } {
   if (a.endedAt) return { key: "past", label: "Завершено", tone: "neutral" };
@@ -151,8 +146,8 @@ function CreateForm({ onDone }: { onDone: () => void }) {
   const [audience, setAudience] = useState<Audience>("all");
   const [plans, setPlans] = useState<string[]>([]);
   const [tenantIds, setTenantIds] = useState<string[]>([]);
-  const [startsAt, setStartsAt] = useState(() => toLocalInput(new Date()));
-  const [endsAt, setEndsAt] = useState(() => toLocalInput(new Date(Date.now() + 24 * HOUR)));
+  const [startsAt, setStartsAt] = useState(() => toBizInput(Date.now()));
+  const [endsAt, setEndsAt] = useState(() => toBizInput(Date.now() + 24 * HOUR));
   const [previewLang, setPreviewLang] = useState<"ru" | "uz">("ru");
   const [openedAt] = useState(() => Date.now());
 
@@ -163,15 +158,16 @@ function CreateForm({ onDone }: { onDone: () => void }) {
 
   const orgOptions = useMemo(() => [...(orgs.data ?? [])].filter(o => !o.isSandbox)
     .sort((a, b) => a.name.localeCompare(b.name, "ru")).map(o => ({ value: String(o.id), label: o.name })), [orgs.data]);
-  const start = new Date(startsAt || openedAt);
-  const finish = endsAt ? new Date(endsAt) : null;
+  // Поля — по Ташкенту, а не по часам компьютера (lib/business-time).
+  const start = fromBizInput(startsAt) ?? new Date(openedAt);
+  const finish = endsAt ? fromBizInput(endsAt) : null;
   const uzPair = !uz || (titleUz.trim() !== "" && bodyUz.trim() !== "");
   const valid = title.trim().length >= 3 && body.trim() !== "" && uzPair
     && (audience !== "plans" || plans.length > 0) && (audience !== "tenants" || tenantIds.length > 0)
     && (!finish || finish > start);
   // «Запланировать», если начало заметно позже открытия формы.
   const later = start.getTime() > openedAt + 60_000;
-  const quick = (h: number | null) => setEndsAt(h === null ? "" : toLocalInput(new Date(start.getTime() + h * HOUR)));
+  const quick = (h: number | null) => setEndsAt(h === null ? "" : toBizInput(start.getTime() + h * HOUR));
   const shown = localized({ title: title || "Заголовок объявления", body: body || "Текст объявления", titleUz: uz ? titleUz : null, bodyUz: uz ? bodyUz : null }, previewLang);
 
   return (

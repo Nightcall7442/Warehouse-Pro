@@ -3,7 +3,8 @@ import { useCurrency } from "@/hooks/useCurrency";
 import { useLang } from "@/i18n";
 import { useAuth } from "@/hooks/useAuth";
 import { trpc } from "@/providers/trpc";
-import { format, addDays, subDays } from "date-fns";
+import { addDays, subDays } from "date-fns";
+import { bizNow, bizToday, format } from "@/lib/business-time";
 import { dateLocale } from "@/lib/date-locale";
 import {
   ChevronLeft, ChevronRight, CheckCircle2,
@@ -40,7 +41,7 @@ export default function AgentPlans() {
 }
 
 function DesktopAgentPlans() {
-  const [date, setDate] = useState(new Date());
+  const [date, setDate] = useState<Date>(() => bizNow());
   const { fmt }   = useCurrency();
   const { lang }  = useLang();
   const { user }  = useAuth();
@@ -48,7 +49,7 @@ function DesktopAgentPlans() {
   const isMerchandiser = user?.role === "merchandiser";
   const t = (ru: string, uz: string) => lang === "uz" ? uz : ru;
   const dateStr   = format(date, "yyyy-MM-dd");
-  const isToday   = dateStr === format(new Date(), "yyyy-MM-dd");
+  const isToday   = dateStr === bizToday();
 
   const { data: plans, isLoading, isError, refetch } = trpc.agent.getPlans.useQuery({ date: dateStr });
   const utils  = trpc.useUtils();

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { ChevronUp, ChevronDown, FileDown } from "lucide-react";
 import { useLang } from "@/i18n";
-import { format } from "date-fns";
+import { format } from "@/lib/business-time";
 import { trpc } from "@/providers/trpc";
 import { exportToExcel, formatMovementsForExport } from "@/lib/excel";
 import { MOVE_TYPE } from "./warehouse-utils";

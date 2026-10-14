@@ -75,7 +75,7 @@ const ownChartPnl = () => last("analytics.pnl", c => c.input.compareWithPrev ===
 
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ["Date"] });
-  vi.setSystemTime(new Date(2026, 9, 13, 12, 0));
+  vi.setSystemTime(new Date("2026-10-13T12:00:00+05:00")); // 13 октября, Ташкент
   h.calls.length = 0;
 });
 afterEach(() => { cleanup(); vi.useRealTimers(); });

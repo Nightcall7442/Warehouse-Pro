@@ -1,5 +1,5 @@
 import React from "react";
-import { format } from "date-fns";
+import { bizDate, format } from "@/lib/business-time";
 import { dateLocale } from "@/lib/date-locale";
 import { parseDay } from "@/lib/date-range";
 
@@ -166,7 +166,9 @@ export function monthLabel(month: string, lang: string = "ru"): string {
   if (!y || !m) return month;
   // Русская краткая форма приходит с точкой («сент.»): подпись «сент. 26»
   // длиннее нужного и при двенадцати месяцах перестаёт помещаться.
-  const name = format(new Date(y, m - 1, 1), "LLL", { locale: dateLocale(lang) }).replace(/\.$/, "");
+  // Первое число — по Ташкенту: местная полночь устройства восточнее Ташкента
+  // — это ещё прошлый месяц, и под октябрём стояло бы «сен».
+  const name = format(bizDate(y, m - 1, 1), "LLL", { locale: dateLocale(lang) }).replace(/\.$/, "");
   return `${name} ${String(y).slice(-2)}`;
 }
 

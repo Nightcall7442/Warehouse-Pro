@@ -2,7 +2,8 @@ import { useEffect, useState } from "react";
 import { useScrollTopOnChange } from "@/hooks/useScrollTopOnChange";
 import { trpc } from "@/providers/trpc";
 import { useLang } from "@/i18n";
-import { format } from "date-fns";
+import { bizDayStart, bizToday, format } from "@/lib/business-time";
+import { shiftDay } from "@/lib/date-range";
 import { dateLocale } from "@/lib/date-locale";
 import {
   Shield, Filter, ChevronLeft, ChevronRight, Search, BookOpen,
@@ -179,14 +180,10 @@ function formatTime(date: Date | string, lang: string): string {
   return format(new Date(date), "dd MMM yyyy, HH:mm", { locale: dateLocale(lang) });
 }
 
-/** Начало периода по кнопке: сегодня / 7 дней / 30 дней — по местному времени. */
+/** Начало периода по кнопке: сегодня / 7 дней / 30 дней — от полуночи по Ташкенту. */
 function periodFrom(preset: string): string | undefined {
-  const d = new Date();
-  d.setHours(0, 0, 0, 0);
-  if (preset === "today") return d.toISOString();
-  if (preset === "week") { d.setDate(d.getDate() - 6); return d.toISOString(); }
-  if (preset === "month") { d.setDate(d.getDate() - 29); return d.toISOString(); }
-  return undefined;
+  const back = preset === "today" ? 0 : preset === "week" ? 6 : preset === "month" ? 29 : null;
+  return back === null ? undefined : bizDayStart(shiftDay(bizToday(), -back)).toISOString();
 }
 
 const btn = (active: boolean): React.CSSProperties => ({
@@ -227,8 +224,9 @@ export default function AuditLog() {
     search: debounced || undefined,
     // Начало — местная полночь, как и конец ниже: new Date("ГГГГ-ММ-ДД")
     // давала полночь UTC, и в Ташкенте первые пять часов дня выпадали.
-    dateFrom: period === "custom" ? (dateFrom ? new Date(`${dateFrom}T00:00:00`).toISOString() : undefined) : periodFrom(period),
-    dateTo: period === "custom" && dateTo ? new Date(`${dateTo}T23:59:59.999`).toISOString() : undefined,
+    dateFrom: period === "custom" ? (dateFrom ? bizDayStart(dateFrom).toISOString() : undefined) : periodFrom(period),
+    // Конец дня — последняя миллисекунда перед полуночью следующего, по Ташкенту.
+    dateTo: period === "custom" && dateTo ? new Date(bizDayStart(shiftDay(dateTo, 1)).getTime() - 1).toISOString() : undefined,
   };
   const { data, isLoading, refetch, isRefetching } = trpc.audit.list.useQuery({ ...filters, limit, offset: page * limit });
   const { data: actors } = trpc.audit.actors.useQuery();
@@ -251,7 +249,7 @@ export default function AuditLog() {
       const blob = new Blob(["﻿" + res.csv], { type: "text/csv;charset=utf-8" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
-      a.href = url; a.download = `audit-${new Date().toISOString().slice(0, 10)}.csv`; a.click();
+      a.href = url; a.download = `audit-${bizToday()}.csv`; a.click();
       URL.revokeObjectURL(url);
       notify.success(t(`Выгружено записей: ${res.rows}`, `Yozuvlar yuklandi: ${res.rows}`));
     } catch (e) {
@@ -325,7 +323,7 @@ export default function AuditLog() {
         <DateRangePicker
           from={period === "custom" ? dateFrom : ""}
           to={period === "custom" ? dateTo : ""}
-          max={format(new Date(), "yyyy-MM-dd")}
+          max={bizToday()}
           onChange={(f, tt) => { setDateFrom(f); setDateTo(tt); setPeriod("custom"); reset(); }}
           placeholder={t("Период…", "Davr…")}
           active={period === "custom"}

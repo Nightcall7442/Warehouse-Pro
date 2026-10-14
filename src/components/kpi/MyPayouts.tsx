@@ -2,7 +2,7 @@ import { trpc } from "@/providers/trpc";
 import { useCurrency } from "@/hooks/useCurrency";
 import { notify } from "@/lib/toast";
 import { F, COLORS } from "@/components/users/types";
-import { format } from "date-fns";
+import { format } from "@/lib/business-time";
 import { BadgeCheck, HandCoins, Loader2 } from "lucide-react";
 import { errorText } from "@/lib/error-text";
 

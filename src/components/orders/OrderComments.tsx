@@ -7,6 +7,7 @@ import { notify } from "@/lib/toast";
 import { useTranslate } from "@/i18n";
 import { F, COLORS } from "./theme-tokens";
 import { errorText } from "@/lib/error-text";
+import { bizDateTimeText } from "@/lib/business-time";
 
 interface CommentNode {
   id: number;
@@ -39,7 +40,7 @@ function CommentItem({ comment, onReply }: { comment: CommentNode; onReply: (par
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
             <span style={{ fontFamily: F.body, fontSize: "12px", fontWeight: 600, color: COLORS.textPrimary }}>{comment.userName ?? "—"}</span>
-            <span style={{ fontFamily: F.body, fontSize: "10px", color: COLORS.textTertiary }}>{new Date(comment.createdAt).toLocaleString("ru")}</span>
+            <span style={{ fontFamily: F.body, fontSize: "10px", color: COLORS.textTertiary }}>{bizDateTimeText(comment.createdAt, "ru")}</span>
           </div>
           <p style={{ fontFamily: F.body, fontSize: "12px", color: COLORS.textPrimary, marginTop: "2px", whiteSpace: "pre-wrap" }}>{comment.content}</p>
           <button

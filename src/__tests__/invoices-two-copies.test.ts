@@ -2,6 +2,7 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import path from "node:path";
+import { bizDateText } from "@/lib/business-time";
 import {
   printUzWaybill, printBatchInvoices, printLoadingList, COPY_LABELS,
   type OrderDocData, type BatchOrderData, type LoadingListData,
@@ -145,7 +146,8 @@ describe("загрузочный лист: заказы и дата", () => {
   it("без даты составления печатается сегодняшняя, а не «Invalid Date»", () => {
     printLoadingList({ ...list, createdAt: null }, "aggregated", "сум");
     expect(text()).not.toContain("Invalid");
-    expect(text()).toContain(new Date().toLocaleDateString("ru-RU"));
+    // Сегодня — по Ташкенту, как и всё время на бумаге (lib/business-time).
+    expect(text()).toContain(bizDateText(Date.now(), "ru-RU"));
   });
 });
 

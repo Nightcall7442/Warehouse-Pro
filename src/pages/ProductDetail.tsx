@@ -9,7 +9,7 @@ import { notify } from "@/lib/toast";
 import { compressImage } from "@/lib/compress-image";
 import { useTranslate, useLang } from "@/i18n";
 import { useConfirm } from "@/components/ConfirmDialog";
-import { format } from "date-fns";
+import { format } from "@/lib/business-time";
 import { ArrowLeft, Package, Edit2, TrendingUp, TrendingDown, ArrowUpDown, Loader2, Camera, Tag, Scale, Boxes, AlertCircle, CheckCircle2 } from "lucide-react";
 import { PhotoOrIcon } from "@/components/PhotoOrIcon";
 import { ShopAvatar } from "@/components/shops/ShopAvatar";

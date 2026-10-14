@@ -5,7 +5,7 @@ import { useEffect } from "react";
 import {
   CheckCircle2, AlertTriangle, Zap, ExternalLink, Loader2,
 } from "lucide-react";
-import { format } from "date-fns";
+import { format } from "@/lib/business-time";
 import { PLANS } from '../../contracts/constants';
 import { FIELD_PRICE_UZS, GRANDFATHER_UNTIL, LEGACY_PRICES_UZS, formatDay, formatSum, isGrandfathered, isLegacyPlan } from '../../contracts/pricing';
 import { labelled, SUBSCRIPTION_STATUS_LABEL } from "@/lib/entity-labels";

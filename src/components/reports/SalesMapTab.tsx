@@ -1,6 +1,7 @@
 import { useMemo, useRef, useState } from "react";
 import { Link } from "react-router";
-import { addDays, format } from "date-fns";
+import { addDays } from "date-fns";
+import { bizNow, bizToday, format } from "@/lib/business-time";
 import { CalendarPlus, Crosshair, ExternalLink, FileDown, MapPinOff, Route, Store, TrendingDown, Wallet } from "lucide-react";
 import { trpc } from "@/providers/trpc";
 import { useLang } from "@/i18n";
@@ -120,7 +121,7 @@ function areaShopsLink(a: SalesArea): string | null {
 function PlanVisitsModal({ target, onClose, t }: { target: PlanTarget; onClose: () => void; t: (ru: string, uz: string) => string }) {
   const { data: agents } = trpc.agent.listAgents.useQuery();
   const [agentId, setAgentId] = useState(target.agentId != null ? String(target.agentId) : "");
-  const [day, setDay] = useState(() => format(addDays(new Date(), 1), "yyyy-MM-dd"));
+  const [day, setDay] = useState(() => format(addDays(bizNow(), 1), "yyyy-MM-dd"));
   const [withIdle, setWithIdle] = useState(target.silentIds.length === 0);
   const ids = [...target.silentIds, ...(withIdle ? target.idleIds : [])];
   const send = ids.slice(0, PLAN_MAX);
@@ -156,7 +157,7 @@ function PlanVisitsModal({ target, onClose, t }: { target: PlanTarget; onClose: 
         </div>
         <label className="block">
           <span className={modalFieldLabel}>{t("День визита", "Tashrif kuni")}</span>
-          <input type="date" className="neo-input w-full" value={day} min={format(new Date(), "yyyy-MM-dd")} onChange={e => setDay(e.target.value)} style={{ minHeight: 44 }} />
+          <input type="date" className="neo-input w-full" value={day} min={bizToday()} onChange={e => setDay(e.target.value)} style={{ minHeight: 44 }} />
         </label>
         <div style={{ fontSize: 14, color: COLORS.textPrimary }}>
           {target.silentIds.length > 0 && (
