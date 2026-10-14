@@ -106,6 +106,25 @@ function evalCond(row: any, cond: any): boolean {
           v instanceof Date ? v.toISOString().slice(0, 10) : String(v).slice(0, 10);
         return norm(actual) === norm(rhs);
       }
+      // Границы дня из lib/date-range: sql`${колонка} >= ${"ГГГГ-ММ-ДД чч:мм:сс"}`,
+      // и onDay — две такие через AND. Строка — момент по UTC, как его
+      // сравнивает сессия MySQL.
+      const vals = (cond.values ?? []) as unknown[];
+      const strs = (cond.strings ?? []) as string[];
+      const pairs: Array<[unknown, string, unknown]> = [];
+      for (let i = 0; i + 1 < vals.length; i += 2) {
+        if (i > 0 && strs[i]?.trim() !== "AND") { pairs.length = 0; break; }
+        pairs.push([vals[i], String(strs[i + 1] ?? "").trim(), vals[i + 1]]);
+      }
+      const at = (v: unknown) => v instanceof Date ? v.getTime() : Date.parse(`${String(v).replace(" ", "T")}Z`);
+      if (pairs.length > 0 && pairs.every(([l, o, r]) => colInfo.has(l) && [">=", "<", "<=", ">"].includes(o) && typeof r === "string" && !Number.isNaN(at(r)))) {
+        return pairs.every(([l, o, r]) => {
+          const actual = readCol(row, l);
+          if (actual == null) return false;
+          const a = at(actual), b = at(r);
+          return o === ">=" ? a >= b : o === "<" ? a < b : o === "<=" ? a <= b : a > b;
+        });
+      }
       return true; // прочие сырые выражения стенд по-прежнему не толкует
     }
     default: return true;

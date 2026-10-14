@@ -128,7 +128,7 @@ export const shopRouter = createRouter({
     // коррелированными SUM на строку. Теперь: один пересчёт на организацию
     // в минуту; платёж сбрасывает его через invalidateReports (services
     // записи), так что должник пропадает из списка сразу, а TTL — страховка.
-    // День в ключе обязателен: корзины считаются от CURDATE(), и без него
+    // День в ключе обязателен: корзины считаются от сегодняшнего дня по Ташкенту, и без него
     // в полночь минуту показывалась бы вчерашняя раскладка.
     return reportCached(ctx.tenant.id, "shop.receivablesAging", { day: dayKey(new Date()) }, ReportTTL.minute,
       () => receivablesAging(getDb(), ctx.tenant.id));

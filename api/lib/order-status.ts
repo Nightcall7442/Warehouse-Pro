@@ -28,6 +28,7 @@ import type { LoadingList, Return } from "@db/schema";
 */
 export { OPEN_ORDER_STATUSES, CLOSED_ORDER_STATUSES } from "@contracts/constants";
 import { OPEN_ORDER_STATUSES, CLOSED_ORDER_STATUSES } from "@contracts/constants";
+import { sinceDay, untilDay } from "./date-range";
 
 /**
  * The sale actually happened: goods handed over, money owed or paid.
@@ -141,8 +142,8 @@ export function revenueOrderConditions(tenantId: number): SQL[] {
 export function revenuePeriodConditions(tenantId: number, from: string, to: string): SQL[] {
   return [
     ...revenueOrderConditions(tenantId),
-    sql`${orders.createdAt} >= ${from}`,
-    sql`${orders.createdAt} <= ${to + " 23:59:59"}`,
+    sinceDay(orders.createdAt, from),
+    untilDay(orders.createdAt, to),
   ];
 }
 

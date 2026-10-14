@@ -169,13 +169,13 @@ describe("ключ отчёта — по датам периода, а не по
     // Сорок секунд — внутри TTL любой ручки: если бы ключ был по слову «month»,
     // октябрь получил бы сентябрьский ответ.
     vi.useFakeTimers({ toFake: ["Date"] });
-    vi.setSystemTime(new Date(2026, 8, 30, 23, 59, 30));
+    vi.setSystemTime(new Date("2026-09-30T23:59:30+05:00"));
     const r = await router();
     const ceo = r.createCaller(ctx(1, 1, "ceo"));
     await ceo.agentList({ period: "month" });
     expect(await cost(() => ceo.agentList({ period: "month" })), "в тех же сутках — не хит").toBe(0);
 
-    vi.setSystemTime(new Date(2026, 9, 1, 0, 0, 10));
+    vi.setSystemTime(new Date("2026-10-01T00:00:10+05:00"));
     expect(await cost(() => ceo.agentList({ period: "month" })), "октябрь отдан сентябрьским ответом").toBeGreaterThan(0);
   });
 });

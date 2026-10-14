@@ -2,6 +2,7 @@ import { and, asc, eq, gte, lte } from "drizzle-orm";
 import { agentLocations, dailyPlans, shops, users, visitReports } from "@db/schema";
 import { haversineKm, pathLengthKm } from "@contracts/geo";
 import { GEOFENCE_RADIUS, MIN_VISIT_DURATION } from "./anti-fraud";
+import { businessDayEnd, businessDayStart } from "@contracts/business-time";
 
 type Db = ReturnType<typeof import("../queries/connection").getDb>;
 
@@ -147,8 +148,9 @@ export async function buildGeoDay(
   agentId: number,
   day: string,
 ): Promise<GeoDay> {
-  const from = new Date(`${day}T00:00:00`);
-  const to = new Date(`${day}T23:59:59.999`);
+  // Сутки агента — ташкентские, на любом поясе сервера.
+  const from = businessDayStart(day);
+  const to = businessDayEnd(day);
 
   const [agent] = await db.select({ name: users.name }).from(users)
     .where(and(eq(users.id, agentId), eq(users.tenantId, tenantId))).limit(1);

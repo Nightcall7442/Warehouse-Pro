@@ -8,6 +8,7 @@ import { countFieldUsersOf } from "../lib/field-users";
 import { env } from "../lib/env";
 import { logger } from "../lib/logger";
 import { notifyAdmin, tgMessages } from "../lib/telegram";
+import { businessDayStart, businessToday } from "@contracts/business-time";
 
 /**
  * За сколько дней до конца ОПЛАЧЕННОГО срока напомнить директору.
@@ -76,7 +77,7 @@ export async function runTrialReminders(now = new Date()): Promise<{ sent: numbe
 
       // Check we haven't sent this reminder today (idempotency)
       const eventType = `${kind}_reminder_${daysLeft}d`;
-      const todayStart = new Date(now); todayStart.setHours(0,0,0,0);
+      const todayStart = businessDayStart(businessToday(now));
       const [alreadySent] = await db.select()
         .from(billingEvents)
         .where(and(

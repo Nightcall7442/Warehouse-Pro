@@ -8,6 +8,7 @@ import { logger } from "../lib/logger";
 import { onDate } from "../lib/date-range";
 import { lowStockCondition, onDefaultWarehouse } from "./reorder";
 import { seesCost } from "./expiry-plan";
+import { businessToday } from "@contracts/business-time";
 
 type Db = ReturnType<typeof import("../queries/connection").getDb>;
 
@@ -350,7 +351,7 @@ export const NotificationService = {
     // русские подсказки из кэша русского.
     const T = (ru: string, uz: string) => (lang === "uz" ? uz : ru);
     return withCache(cacheKey, CacheTTL.alerts, async () => {
-    const today = new Date().toISOString().split("T")[0];
+    const today = businessToday();
     const alerts: Array<{ type: string; title: string; message: string; severity: "info" | "warning" | "danger" }> = [];
 
     const [lowStock, pendingOrders, todayPlans, highDebt, expiring] = await Promise.all([

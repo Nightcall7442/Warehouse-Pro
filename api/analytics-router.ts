@@ -10,6 +10,8 @@ import { agentProductSales, productSales, ALL_TIME_FROM, ALL_TIME_TO } from "./s
 import { reportCached, ReportTTL } from "./lib/report-cache";
 import { periodGross } from "./services/period-gross";
 import { bucketSeries, monthBounds, seriesGranularity, type SeriesPoint } from "./services/pnl-series";
+import { bizClock, sinceDay, untilDay } from "./lib/date-range";
+import { businessDaysAgo } from "@contracts/business-time";
 
 /*
   Кэш отчётов.
@@ -53,9 +55,9 @@ export const analyticsRouter = createRouter({
     .query(({ input, ctx }) => reportCached(ctx.tenant.id, "analytics.salesByShop", input ?? {}, ReportTTL.minute, async () => {
       const db = getDb();
       const conditions = revenueOrderConditions(ctx.tenant.id);
-      if (input?.dateFrom) conditions.push(sql`${orders.createdAt} >= ${input.dateFrom}`);
+      if (input?.dateFrom) conditions.push(sinceDay(orders.createdAt, input.dateFrom));
       // P1-15 FIX: Include full last day by adding 23:59:59
-      if (input?.dateTo)   conditions.push(sql`${orders.createdAt} <= ${input.dateTo + " 23:59:59"}`);
+      if (input?.dateTo)   conditions.push(untilDay(orders.createdAt, input.dateTo));
       if (input?.agentId)     conditions.push(eq(orders.agentId, input.agentId));
       if (input?.territoryId) conditions.push(eq(shops.territoryId, input.territoryId));
 
@@ -151,8 +153,8 @@ export const analyticsRouter = createRouter({
       // миллионов попадал в выручку агента, и отчёт «Эффективность агентов»
       // расходился с «Продажами по магазинам» кратно.
       const conditions = revenueOrderConditions(ctx.tenant.id);
-      if (input?.dateFrom) conditions.push(sql`${orders.createdAt} >= ${input.dateFrom}`);
-      if (input?.dateTo)   conditions.push(sql`${orders.createdAt} <= ${input.dateTo + " 23:59:59"}`);
+      if (input?.dateFrom) conditions.push(sinceDay(orders.createdAt, input.dateFrom));
+      if (input?.dateTo)   conditions.push(untilDay(orders.createdAt, input.dateTo));
 
       const db = getDb();
       const rows = await db.select({
@@ -228,8 +230,8 @@ export const analyticsRouter = createRouter({
     }).optional())
     .query(({ input, ctx }) => reportCached(ctx.tenant.id, "analytics.cogsByProduct", input ?? {}, ReportTTL.fiveMin, async () => {
       const conditions = revenueOrderConditions(ctx.tenant.id);
-      if (input?.dateFrom) conditions.push(sql`${orders.createdAt} >= ${input.dateFrom}`);
-      if (input?.dateTo)   conditions.push(sql`${orders.createdAt} <= ${input.dateTo + " 23:59:59"}`);
+      if (input?.dateFrom) conditions.push(sinceDay(orders.createdAt, input.dateFrom));
+      if (input?.dateTo)   conditions.push(untilDay(orders.createdAt, input.dateTo));
       if (input?.category) conditions.push(eq(products.category, input.category));
 
       return getDb().select({
@@ -278,13 +280,13 @@ export const analyticsRouter = createRouter({
       const cutoff = new Date(Date.now() - input.days * MS_PER_DAY).toISOString();
 
       return getDb().select({
-        date: sql<string>`DATE(${orders.createdAt})`,
+        date: sql<string>`DATE(${bizClock(orders.createdAt)})`,
         revenue: sql<string>`COALESCE(SUM(${orders.total}), 0)`,
         orderCount: sql<number>`count(*)`,
       })
         .from(orders)
         .where(and(eq(orders.tenantId, ctx.tenant.id), eq(orders.shopId, input.shopId), inArray(orders.status, REVENUE_ORDER_STATUSES), isNull(orders.deletedAt), sql`${orders.createdAt} >= ${cutoff}`))
-        .groupBy(sql`DATE(${orders.createdAt})`).orderBy(sql`DATE(${orders.createdAt})`);
+        .groupBy(sql`DATE(${bizClock(orders.createdAt)})`).orderBy(sql`DATE(${bizClock(orders.createdAt)})`);
     }),
 
   // ── Debt Report ─────────────────────────────────────────────────────────────
@@ -333,7 +335,6 @@ export const analyticsRouter = createRouter({
     }).optional())
     .query(({ input, ctx }) => reportCached(ctx.tenant.id, "analytics.agentEfficiency", input ?? {}, ReportTTL.minute, async () => {
       const days = input?.days ?? 30;
-      const cutoff = new Date(Date.now() - days * MS_PER_DAY).toISOString();
       const ranged = Boolean(input?.dateFrom || input?.dateTo);
       /*
         Старый путь «N дней» — с НАЧАЛА дня отсечки, одной границей на заказы,
@@ -342,15 +343,16 @@ export const analyticsRouter = createRouter({
         возврат утром дня отсечки вычитался, а заказ того же утра в строку не
         попадал.
       */
-      const cutoffDay = cutoff.slice(0, 10);
+      // День отсечки — ташкентский: «30 дней» начинаются с полуночи по Ташкенту.
+      const cutoffDay = businessDaysAgo(days);
       // Границы — одни на заказы, визиты и возвраты. Верх — конец дня, как у
       // всех отчётов (revenuePeriodConditions).
       const orderBounds = ranged
         ? [
-          ...(input?.dateFrom ? [sql`${orders.createdAt} >= ${input.dateFrom}`] : []),
-          ...(input?.dateTo ? [sql`${orders.createdAt} <= ${input.dateTo + " 23:59:59"}`] : []),
+          ...(input?.dateFrom ? [sinceDay(orders.createdAt, input.dateFrom)] : []),
+          ...(input?.dateTo ? [untilDay(orders.createdAt, input.dateTo)] : []),
         ]
-        : [sql`${orders.createdAt} >= ${cutoffDay}`];
+        : [sinceDay(orders.createdAt, cutoffDay)];
       const planBounds = ranged
         ? [
           ...(input?.dateFrom ? [sql`${dailyPlans.planDate} >= ${input.dateFrom}`] : []),
@@ -519,8 +521,8 @@ export const analyticsRouter = createRouter({
           .from(salaryPayouts)
           .where(and(
             eq(salaryPayouts.tenantId, tid),
-            sql`${salaryPayouts.paidAt} >= ${dateFrom}`,
-            sql`${salaryPayouts.paidAt} <= ${dateTo + " 23:59:59"}`,
+            sinceDay(salaryPayouts.paidAt, dateFrom),
+            untilDay(salaryPayouts.paidAt, dateTo),
           ));
 
         /*
@@ -597,11 +599,11 @@ export const analyticsRouter = createRouter({
         // Формат — текстом запроса, а не параметром: с «?» на его месте MySQL
         // не узнаёт в GROUP BY выражение из SELECT (ONLY_FULL_GROUP_BY).
         const fmt = sql.raw(`'${step}'`);
-        const orderKey = sql<string>`DATE_FORMAT(${orders.createdAt}, ${fmt})`;
+        const orderKey = sql<string>`DATE_FORMAT(${bizClock(orders.createdAt)}, ${fmt})`;
         const window = [
           ...revenueOrderConditions(tid),
-          sql`${orders.createdAt} >= ${from}`,
-          sql`${orders.createdAt} <= ${to + " 23:59:59"}`,
+          sinceDay(orders.createdAt, from),
+          untilDay(orders.createdAt, to),
         ];
         const revenueRows = await db.select({
           key: orderKey,
@@ -642,7 +644,7 @@ export const analyticsRouter = createRouter({
           итога над графиком ровно на фонд оплаты труда, и сумма точек не
           сходилась с числом в шапке.
         */
-        const payrollKey = sql<string>`DATE_FORMAT(${salaryPayouts.paidAt}, ${fmt})`;
+        const payrollKey = sql<string>`DATE_FORMAT(${bizClock(salaryPayouts.paidAt)}, ${fmt})`;
         const payrollRows = await db.select({
           key: payrollKey,
           payroll: sql<string>`COALESCE(SUM(${salaryPayouts.amount}), 0)`,
@@ -650,8 +652,8 @@ export const analyticsRouter = createRouter({
           .from(salaryPayouts)
           .where(and(
             eq(salaryPayouts.tenantId, tid),
-            sql`${salaryPayouts.paidAt} >= ${from}`,
-            sql`${salaryPayouts.paidAt} <= ${to + " 23:59:59"}`,
+            sinceDay(salaryPayouts.paidAt, from),
+            untilDay(salaryPayouts.paidAt, to),
           ))
           .groupBy(payrollKey);
 
@@ -777,8 +779,8 @@ export const analyticsRouter = createRouter({
       // решают, продавать ли в долг, была выдумкой в разы.
       const periodConditions = [
         ...revenueOrderConditions(tid),
-        sql`${orders.createdAt} >= ${input.from}`,
-        sql`${orders.createdAt} <= ${input.to + " 23:59:59"}`,
+        sinceDay(orders.createdAt, input.from),
+        untilDay(orders.createdAt, input.to),
         ...(input.agentId ? [eq(orders.agentId, input.agentId)] : []),
       ];
 
@@ -853,7 +855,7 @@ export const analyticsRouter = createRouter({
       const tid = ctx.tenant.id;
 
       const rows = await db.select({
-        month: sql<string>`DATE_FORMAT(${orders.createdAt}, '%Y-%m')`,
+        month: sql<string>`DATE_FORMAT(${bizClock(orders.createdAt)}, '%Y-%m')`,
         paymentMethod: orders.paymentMethod,
         revenue: sql<string>`COALESCE(SUM(${orders.total}), 0)`,
       })
@@ -861,11 +863,11 @@ export const analyticsRouter = createRouter({
         .where(and(
           eq(orders.tenantId, tid),
           inArray(orders.status, REVENUE_ORDER_STATUSES), isNull(orders.deletedAt),
-          sql`${orders.createdAt} >= ${input.from}`,
-          sql`${orders.createdAt} <= ${input.to + " 23:59:59"}`,
+          sinceDay(orders.createdAt, input.from),
+          untilDay(orders.createdAt, input.to),
         ))
-        .groupBy(sql`DATE_FORMAT(${orders.createdAt}, '%Y-%m')`, orders.paymentMethod)
-        .orderBy(sql`DATE_FORMAT(${orders.createdAt}, '%Y-%m')`);
+        .groupBy(sql`DATE_FORMAT(${bizClock(orders.createdAt)}, '%Y-%m')`, orders.paymentMethod)
+        .orderBy(sql`DATE_FORMAT(${bizClock(orders.createdAt)}, '%Y-%m')`);
 
       // Pivot: group by month, columns per payment method
       const pivot: Record<string, { month: string; cash: number; transfer: number; debt: number; card: number }> = {};

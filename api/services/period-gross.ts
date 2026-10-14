@@ -18,6 +18,7 @@ import { and, eq, sql } from "drizzle-orm";
 import { orders, orderItems, products } from "@db/schema";
 import { revenueOrderConditions, revenuePeriodConditions, deliveredQty } from "../lib/order-status";
 import { returnsInPeriod, totalReturned, type ReturnRow, type ReturnedValue } from "./revenue-returns";
+import { sinceDay, untilDay } from "../lib/date-range";
 
 type Db = ReturnType<typeof import("../queries/connection").getDb>;
 
@@ -58,8 +59,8 @@ export async function periodGross(
     .leftJoin(orders, eq(orderItems.orderId, orders.id))
     .where(and(
       ...revenueOrderConditions(tenantId),
-      sql`${orders.createdAt} >= ${from}`,
-      sql`${orders.createdAt} <= ${to + " 23:59:59"}`,
+      sinceDay(orders.createdAt, from),
+      untilDay(orders.createdAt, to),
     ));
 
   const [revRow, cogsRow, returnRows] = await Promise.all([

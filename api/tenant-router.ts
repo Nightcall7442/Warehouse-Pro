@@ -528,10 +528,10 @@ export const tenantRouter = createRouter({
           .from(shops).where(eq(shops.tenantId, input.tenantId)),
       ]);
 
-      // Заказы по месяцам (последние 6)
+      // Заказы по месяцам (последние 6); месяц — по Ташкенту (lib/date-range: bizClock).
       const monthlyOrders = await db.execute(sql`
         SELECT
-          DATE_FORMAT(created_at, '%Y-%m') AS month,
+          DATE_FORMAT(created_at + INTERVAL 5 HOUR, '%Y-%m') AS month,
           COUNT(*) AS cnt,
           COALESCE(SUM(total), 0) AS total
         FROM orders
@@ -1086,9 +1086,9 @@ export const tenantRouter = createRouter({
       .select({ status: tenants.status, cnt: count(tenants.id) })
       .from(tenants).where(ne(tenants.slug, "system")).groupBy(tenants.status);
 
-    // Новые тенанты по месяцам (последние 6, без системного)
+    // Новые тенанты по месяцам (последние 6, без системного); месяц — по Ташкенту.
     const growth = await db.execute(sql`
-      SELECT DATE_FORMAT(created_at, '%Y-%m') AS month, COUNT(*) AS cnt
+      SELECT DATE_FORMAT(created_at + INTERVAL 5 HOUR, '%Y-%m') AS month, COUNT(*) AS cnt
       FROM tenants
       WHERE created_at >= DATE_SUB(NOW(), INTERVAL 6 MONTH)
         AND slug != 'system'

@@ -37,6 +37,8 @@ type Db = ReturnType<typeof import("../queries/connection").getDb>;
  * ${dailyPlans.shopId} у запроса из одной таблицы печатается без имени таблицы
  * и тихо становится orders.shop_id (memory: drizzle-correlated-subquery-trap).
  */
+// Сутки дня плана — ташкентские: created_at сравнивается в UTC, а полночь по
+// Ташкенту — это 19:00 по UTC накануне, поэтому минус пять часов.
 export function visitHasOrderSql(planAlias: "daily_plans" | "p"): SQL {
   const p = sql.raw(`\`${planAlias}\``);
   return sql`EXISTS (
@@ -45,8 +47,8 @@ export function visitHasOrderSql(planAlias: "daily_plans" | "p"): SQL {
       AND vo.shop_id = ${p}.shop_id
       AND vo.agent_id = ${p}.agent_id
       AND vo.deleted_at IS NULL
-      AND vo.created_at >= ${p}.plan_date
-      AND vo.created_at < DATE_ADD(${p}.plan_date, INTERVAL 1 DAY)
+      AND vo.created_at >= ${p}.plan_date - INTERVAL 5 HOUR
+      AND vo.created_at < DATE_ADD(${p}.plan_date, INTERVAL 1 DAY) - INTERVAL 5 HOUR
   )`;
 }
 

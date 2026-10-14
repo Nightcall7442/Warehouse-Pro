@@ -6,6 +6,7 @@ import type { Db, OrderViewer } from "./order-shared";
 import { couriers, viewerScope } from "./order-shared";
 import { orderMatches } from "../lib/order-search";
 import type { OrderSortKey, OrderSortDir } from "@contracts/order-list";
+import { sinceDay, untilDay } from "../lib/date-range";
 
 /*
   opts обязателен, а не необязателен.
@@ -64,8 +65,8 @@ export async function list(db: Db, tenantId: number, filters: Record<string, unk
   // Номер, магазин, владелец, телефон по цифрам — см. lib/order-search.
   if (f.search?.trim()) conditions.push(orderMatches(f.search, orders.orderNumber, shops));
   // P0-14 FIX: Implement date filters
-  if (f.dateFrom) conditions.push(sql`${orders.createdAt} >= ${f.dateFrom}`);
-  if (f.dateTo) conditions.push(sql`${orders.createdAt} <= ${f.dateTo + ' 23:59:59'}`);
+  if (f.dateFrom) conditions.push(sinceDay(orders.createdAt, f.dateFrom));
+  if (f.dateTo) conditions.push(untilDay(orders.createdAt, f.dateTo));
   // Hide deleted orders unless explicitly requested — except in the archive,
   // which is where they belong and already selects them above. Applying it
   // there would cancel that out and leave deleted orders in neither tab.

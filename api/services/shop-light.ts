@@ -22,13 +22,13 @@
      • последняя причина «без заказа» — services/no-order-visits.ts.
    ═══════════════════════════════════════════════════════════════════════════ */
 import { and, eq, inArray, isNull, or, sql } from "drizzle-orm";
-import { format, subDays } from "date-fns";
 import { orders, shops } from "@db/schema";
 import { lightOf, SHOP_LIGHT_RULES, type ShopLight } from "@contracts/shop-light";
 import { overdueByShops } from "./overdue-hold";
 import { returnsInPeriod, groupReturned } from "./revenue-returns";
 import { revenuePeriodConditions } from "../lib/order-status";
 import { lastNoOrderByShop } from "./no-order-visits";
+import { businessDaysAgo, businessToday } from "@contracts/business-time";
 
 type Db = ReturnType<typeof import("../queries/connection").getDb>;
 
@@ -71,8 +71,9 @@ export async function shopLights(db: Db, tenantId: number, shopIds: number[]): P
   if (base.length === 0) return out;
   const found = base.map(b => Number(b.id));
 
-  const to = format(new Date(), "yyyy-MM-dd");
-  const from = format(subDays(new Date(), SHOP_LIGHT_RULES.AVG_CHECK_DAYS), "yyyy-MM-dd");
+  // Дни — ташкентские, как и границы суток в revenuePeriodConditions.
+  const to = businessToday();
+  const from = businessDaysAgo(SHOP_LIGHT_RULES.AVG_CHECK_DAYS);
 
   const [overdue, rhythmRes, revenue, returned, lastNoOrder] = await Promise.all([
     overdueByShops(db, tenantId, found),
@@ -83,12 +84,12 @@ export async function shopLights(db: Db, tenantId: number, shopIds: number[]): P
     */
     db.execute(sql`
       SELECT o.shop_id AS shopId,
-             DATEDIFF(CURDATE(), l.last_day) AS daysSince,
-             COUNT(DISTINCT DATE(o.created_at)) AS orderDays,
-             DATEDIFF(l.last_day, MIN(DATE(o.created_at))) AS spanDays
+             DATEDIFF(DATE(UTC_TIMESTAMP() + INTERVAL 5 HOUR), l.last_day) AS daysSince,
+             COUNT(DISTINCT DATE(o.created_at + INTERVAL 5 HOUR)) AS orderDays,
+             DATEDIFF(l.last_day, MIN(DATE(o.created_at + INTERVAL 5 HOUR))) AS spanDays
       FROM orders o
       JOIN (
-        SELECT lo.shop_id, MAX(DATE(lo.created_at)) AS last_day
+        SELECT lo.shop_id, MAX(DATE(lo.created_at + INTERVAL 5 HOUR)) AS last_day
         FROM orders lo
         WHERE lo.tenant_id = ${tenantId}
           AND lo.shop_id IN (${sql.join(found.map(id => sql`${id}`), sql`, `)})
@@ -98,7 +99,7 @@ export async function shopLights(db: Db, tenantId: number, shopIds: number[]): P
       WHERE o.tenant_id = ${tenantId}
         AND o.shop_id IN (${sql.join(found.map(id => sql`${id}`), sql`, `)})
         AND o.deleted_at IS NULL AND o.status <> 'cancelled'
-        AND DATE(o.created_at) >= DATE_SUB(l.last_day, INTERVAL ${SHOP_LIGHT_RULES.RHYTHM_WINDOW_DAYS} DAY)
+        AND DATE(o.created_at + INTERVAL 5 HOUR) >= DATE_SUB(l.last_day, INTERVAL ${SHOP_LIGHT_RULES.RHYTHM_WINDOW_DAYS} DAY)
       GROUP BY o.shop_id, l.last_day
     `),
     db.select({

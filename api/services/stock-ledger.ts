@@ -227,7 +227,7 @@ export async function expiredByProduct(
     WHERE tenant_id = ${tenantId}
       AND warehouse_id = ${warehouseId}
       AND product_id IN (${sql.join(productIds.map(id => sql`${id}`), sql`, `)})
-      AND expires_at IS NOT NULL AND expires_at < CURDATE()
+      AND expires_at IS NOT NULL AND expires_at < DATE(UTC_TIMESTAMP() + INTERVAL 5 HOUR)
     GROUP BY product_id
   `);
   for (const r of resultRows<{ productId: number; qty: string }>(rows)) {
@@ -340,7 +340,7 @@ async function consumeBatches(
       AND warehouse_id = ${warehouseId}
       AND product_id = ${productId}
       AND quantity > 0
-      AND (expires_at IS NULL OR expires_at >= CURDATE())
+      AND (expires_at IS NULL OR expires_at >= DATE(UTC_TIMESTAMP() + INTERVAL 5 HOUR))
     ORDER BY expires_at IS NULL, expires_at, received_at, id
     FOR UPDATE
   `);

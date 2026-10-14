@@ -113,8 +113,8 @@ describe("правило периода", () => {
       возврат уменьшал разные месяцы в разных отчётах.
     */
     const where = HELPER.slice(HELPER.indexOf(".where(and("), HELPER.indexOf("if (rows.length === 0)"));
-    expect(where, "период считается не по дате возврата").toContain("${returns.createdAt} >=");
-    expect(where, "период считается не по дате возврата").toContain("${returns.createdAt} <=");
+    expect(where, "период считается не по дате возврата").toContain("sinceDay(returns.createdAt, from)");
+    expect(where, "период считается не по дате возврата").toContain("untilDay(returns.createdAt, to)");
     expect(where, "вернулся отбор по дате заказа").not.toContain("orders.createdAt");
   });
 

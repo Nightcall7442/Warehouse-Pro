@@ -19,6 +19,7 @@ import { tiyin } from "./services/payment";
 
 import { affectedRows } from "./lib/db-rows";
 import { recordAudit, auditActor } from "./services/audit-log";
+import { sinceDay } from "./lib/date-range";
 /**
  * Цена товара для возврата без заказа: последняя продажа этому магазину
  * (по ней он платил), а без продаж — карточка. Нет ни того, ни другого —
@@ -487,7 +488,7 @@ export const returnsRouter = createRouter({
         // никуда не двигался: поданные и — хуже — ОТКЛОНЁННЫЕ. Отказать в
         // возврате и увидеть его сумму в отчёте о возвратах.
         eq(returns.status, "completed"),
-        sql`${returns.createdAt} >= ${monthStart}`,
+        sinceDay(returns.createdAt, monthStart),
       ))
       .groupBy(returns.reason);
     });

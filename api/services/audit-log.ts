@@ -4,6 +4,7 @@ import { eq, and, or, desc, sql, gte, lte, like } from "drizzle-orm";
 import { logger } from "../lib/logger";
 import { getClientIp } from "../lib/rate-limit";
 import { labelFor, labelsFor } from "./audit-labels";
+import { BUSINESS_OFFSET_MS } from "@contracts/business-time";
 
 type Db = ReturnType<typeof import("../queries/connection").getDb>;
 
@@ -178,10 +179,11 @@ export async function auditActors(db: Db, tenantId: number): Promise<Array<{ id:
 /**
  * Export audit log as CSV string.
  */
-/** «06.08.2026 14:00» — как на экране, а не ISO с буквой T. */
+/** «06.08.2026 14:00» — как на экране: по Ташкенту, а не ISO с буквой T и не по UTC сервера. */
 function formatCsvDate(d: Date): string {
   const p = (n: number) => String(n).padStart(2, "0");
-  return `${p(d.getDate())}.${p(d.getMonth() + 1)}.${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}`;
+  const t = new Date(new Date(d).getTime() + BUSINESS_OFFSET_MS);
+  return `${p(t.getUTCDate())}.${p(t.getUTCMonth() + 1)}.${t.getUTCFullYear()} ${p(t.getUTCHours())}:${p(t.getUTCMinutes())}`;
 }
 
 export function exportAuditCsv(rows: ReturnType<typeof getAuditLog> extends Promise<infer R> ? (R extends { data: infer D } ? D : never) : never): string {

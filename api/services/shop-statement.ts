@@ -1,6 +1,7 @@
 import { and, eq, isNull, or, inArray, notInArray } from "drizzle-orm";
 import { shops, orders, payments, returns } from "@db/schema";
 import { getDb } from "../queries/connection";
+import { businessDayEnd, businessDayStart } from "@contracts/business-time";
 
 /* ═══════════════════════════════════════════════════════════════════════════
    Акт сверки с магазином: откуда взялось число долга.
@@ -84,7 +85,7 @@ export interface StatementRow {
  * сходился с тем, что видел бухгалтер. В акте с поставщиком это поправлено
  * давно (supplier-router, statement), здесь — нет.
  *
- * Сутки — по UTC, как везде в системе (api/lib/date-range.ts: onDay).
+ * Сутки — по Ташкенту, как везде в системе (api/lib/date-range.ts: onDay).
  * Строку не той формы разбираем как раньше: молча терять период хуже.
  */
 const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -92,7 +93,7 @@ export function statementBounds(from?: string, to?: string): { from?: Date; to?:
   const parse = (v: string | undefined, edge: "start" | "end") => {
     if (!v) return undefined;
     const d = DAY_RE.test(v)
-      ? new Date(`${v}T${edge === "start" ? "00:00:00.000" : "23:59:59.999"}Z`)
+      ? (edge === "start" ? businessDayStart(v) : businessDayEnd(v))
       : new Date(v);
     return Number.isNaN(d.getTime()) ? undefined : d;
   };

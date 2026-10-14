@@ -80,7 +80,8 @@ describe("exportAuditCsv — словами", () => {
   });
 
   it("дата — днём и временем, а не ISO с буквой T; без сотрудника — «Система»", () => {
-    const csv = exportAuditCsv([row({ actorName: null, actorId: null, createdAt: new Date(2026, 7, 6, 14, 5) })]);
+    // 09:05 по UTC — 14:05 по Ташкенту: время в выгрузке ташкентское, а не часов сервера.
+    const csv = exportAuditCsv([row({ actorName: null, actorId: null, createdAt: new Date("2026-08-06T09:05:00Z") })]);
     expect(csv).toContain('"06.08.2026 14:05"');
     expect(csv).toContain('"Система"');
     expect(csv).not.toContain("T09:00");

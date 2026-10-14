@@ -10,6 +10,7 @@ import { logger } from "./lib/logger";
 import { isDuplicateOf } from "./lib/db-errors";
 import type { getDb } from "./queries/connection";
 import { invalidateReports } from "./lib/report-cache";
+import { businessDayEnd, businessDayStart } from "@contracts/business-time";
 
 type Db = ReturnType<typeof getDb>;
 
@@ -91,14 +92,14 @@ const debtIn = (currency: "UZS" | "USD") => sql<string>`COALESCE((
  *
  * Считается на сервере, а не на клиенте: у клиента свой часовой пояс, и
  * «просрочено» наступало бы у него на день раньше или позже, чем на деле.
- * CURDATE() сравнивается с датой, а не с меткой времени, — срок «до 1 марта»
- * не должен истекать в полночь по Гринвичу.
+ * Сегодняшний день по Ташкенту сравнивается с датой, а не с меткой времени, —
+ * срок «до 1 марта» не должен истекать в полночь по Гринвичу.
  */
 const overdueCount = sql<number>`(
   SELECT COUNT(*) FROM supplies s
   WHERE s.supplier_id = \`suppliers\`.\`id\`
     AND s.due_date IS NOT NULL
-    AND s.due_date < CURDATE()
+    AND s.due_date < DATE(UTC_TIMESTAMP() + INTERVAL 5 HOUR)
     AND s.amount > COALESCE((
       SELECT SUM(p.amount) FROM supplier_payments p WHERE p.supply_id = s.id
     ), 0)
@@ -125,7 +126,7 @@ export const supplierRouter = createRouter({
       const overdue = (currency: "UZS" | "USD") => sql`COALESCE((
         SELECT SUM(s.amount - COALESCE((SELECT SUM(p.amount) FROM supplier_payments p WHERE p.supply_id = s.id), 0))
         FROM supplies s WHERE s.tenant_id = ${tenantId} AND s.currency = ${currency}
-          AND s.due_date IS NOT NULL AND s.due_date < CURDATE()
+          AND s.due_date IS NOT NULL AND s.due_date < DATE(UTC_TIMESTAMP() + INTERVAL 5 HOUR)
           AND s.amount > COALESCE((SELECT SUM(p.amount) FROM supplier_payments p WHERE p.supply_id = s.id), 0)
       ), 0)`;
       const paid30 = (currency: "UZS" | "USD") => sql`COALESCE((
@@ -737,10 +738,11 @@ export const supplierRouter = createRouter({
         })),
       ].sort((a, b) => a.date.getTime() - b.date.getTime());
 
-      const from = input.from ? new Date(input.from) : null;
+      // Сутки — ташкентские: с полуночи первого дня по конец последнего.
       // Конец дня, а не полночь: иначе «по 31 августа» отсекает всё, что
       // случилось 31 августа после полуночи, то есть весь этот день целиком.
-      const to   = input.to ? new Date(`${input.to}T23:59:59.999`) : null;
+      const from = input.from ? businessDayStart(input.from) : null;
+      const to   = input.to ? businessDayEnd(input.to) : null;
 
       const byCurrency = (["UZS", "USD"] as const).map(currency => {
         const all = events.filter(e => e.currency === currency);

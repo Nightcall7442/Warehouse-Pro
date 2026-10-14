@@ -23,6 +23,7 @@ import { orderMatches, shopMatches } from "./lib/order-search";
 import { ORDER_SORT_KEYS, ORDER_SORT_DIRS } from "@contracts/order-list";
 import { holdReasonText } from "@contracts/hold-reason";
 import { overdueHold } from "./services/overdue-hold";
+import { sinceDay, untilDay } from "./lib/date-range";
 
 /**
  * Скидка — процент от суммы заказа, от нуля до ста.
@@ -93,8 +94,8 @@ export const orderRouter = createRouter({
       else if (input?.agentId) conditions.push(eq(orders.agentId, input.agentId));
       if (input?.courierId) conditions.push(eq(orders.courierId, input.courierId));
       if (input?.paymentMethod) conditions.push(eq(orders.paymentMethod, input.paymentMethod as "cash" | "card" | "transfer" | "debt"));
-      if (input?.dateFrom) conditions.push(sql`${orders.createdAt} >= ${input.dateFrom}`);
-      if (input?.dateTo) conditions.push(sql`${orders.createdAt} <= ${input.dateTo + ' 23:59:59'}`);
+      if (input?.dateFrom) conditions.push(sinceDay(orders.createdAt, input.dateFrom));
+      if (input?.dateTo) conditions.push(untilDay(orders.createdAt, input.dateTo));
       // То же правило, что у таблицы: плитки считают ровно найденное (lib/order-search).
       if (input?.search?.trim()) conditions.push(orderMatches(input.search, orders.orderNumber, shops));
 
@@ -184,8 +185,8 @@ export const orderRouter = createRouter({
       // заказа или платежа сбрасывает через invalidateReports.
       return reportCached(tenantId, "order.agentSummary", input ?? {}, ReportTTL.live, async () => {
       const conditions = [eq(orders.tenantId, tenantId), isNull(orders.deletedAt)];
-      if (input?.dateFrom) conditions.push(sql`${orders.createdAt} >= ${input.dateFrom}`);
-      if (input?.dateTo)   conditions.push(sql`${orders.createdAt} <= ${input.dateTo + " 23:59:59"}`);
+      if (input?.dateFrom) conditions.push(sinceDay(orders.createdAt, input.dateFrom));
+      if (input?.dateTo)   conditions.push(untilDay(orders.createdAt, input.dateTo));
       if (input?.archived !== undefined) {
         conditions.push(input.archived
           ? inArray(orders.status, CLOSED_ORDER_STATUSES)

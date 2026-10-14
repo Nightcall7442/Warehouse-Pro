@@ -1,5 +1,6 @@
 import { eq, and, sql, desc } from "drizzle-orm";
 import { visitReports, dailyPlans, shops, users } from "@db/schema";
+import { sinceDay, untilDay } from "../lib/date-range";
 
 type Db = ReturnType<typeof import("../queries/connection").getDb>;
 
@@ -135,8 +136,8 @@ export const MerchandiserService = {
 
     const conditions = [
       eq(visitReports.tenantId, tenantId),
-      sql`${visitReports.createdAt} >= ${dateFrom}`,
-      sql`${visitReports.createdAt} <= ${dateTo + " 23:59:59"}`,
+      sinceDay(visitReports.createdAt, dateFrom),
+      untilDay(visitReports.createdAt, dateTo),
     ];
 
     const [data, countResult] = await Promise.all([

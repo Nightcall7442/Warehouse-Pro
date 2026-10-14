@@ -203,7 +203,8 @@ export async function shopScores(db: Db, tenantId: number, limit = 500): Promise
       -- Именно возраст заказа, а не срок из debt_due_date: срок проставляется
       -- только на пути частичной оплаты и у большинства долгов пуст, а
       -- «сколько магазин держит наши деньги» надо знать по всем.
-      SELECT o.shop_id, MAX(DATEDIFF(NOW(), o.created_at)) AS oldest_unpaid_days
+      -- Дни — ташкентские, как у дебиторки (services/receivables).
+      SELECT o.shop_id, MAX(DATEDIFF(DATE(UTC_TIMESTAMP() + INTERVAL 5 HOUR), DATE(o.created_at + INTERVAL 5 HOUR))) AS oldest_unpaid_days
       FROM orders o
       WHERE o.tenant_id = ${tenantId}
         AND o.deleted_at IS NULL

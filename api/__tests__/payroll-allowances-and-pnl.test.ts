@@ -44,7 +44,8 @@ describe("обед и дорожные", () => {
     expect(at, "рабочие дни не считаются вовсе").toBeGreaterThan(0);
     const expr = KPI_SERVICE.slice(at, KPI_SERVICE.indexOf("\n", at));
     expect(expr, "рабочие дни считаются заказами").toContain("COUNT(DISTINCT");
-    expect(expr, "день берётся не по дате доставки").toContain("DATE(COALESCE(");
+    // День — ташкентский (bizClock): доставка в 01:00 — того же числа, что на экране.
+    expect(expr, "день берётся не по дате доставки").toContain("DATE(${bizClock(sql`COALESCE(${orders.deliveredAt}");
     // Только довезённые: день, в который курьер ничего не довёз, следа выхода
     // на работу не оставляет, и платить за него не за что.
     expect(expr).toContain("= 'delivered'");
@@ -128,12 +129,11 @@ describe("зарплата в прибыли", () => {
     // Именно поэтому аванс попадает в свой месяц, а не в тот, за который выдан.
     const at = pnl.indexOf("const payrollRow");
     const q = pnl.slice(at, pnl.indexOf("));", at));
-    const bounds = [...q.matchAll(/sql`\$\{salaryPayouts\.(\w+)\}\s*([<>]=)/g)].map(m => [m[1], m[2]]);
-    expect(bounds, "границы периода выплат не найдены").toHaveLength(2);
-    expect(bounds.map(b => b[0])).toEqual(["paidAt", "paidAt"]);
-    // Верхняя граница — до конца дня: даты приходят полночью, и без этого
-    // выплаты последнего дня периода выпадали бы из расходов.
-    expect(q).toContain('dateTo + " 23:59:59"');
+    // Границы — ташкентские сутки (lib/date-range): с полуночи первого дня по
+    // полночь после последнего. Без верхней границы «до конца дня» выплаты
+    // последнего дня периода выпадали бы из расходов.
+    expect(q, "границы периода выплат не найдены").toContain("sinceDay(salaryPayouts.paidAt, dateFrom)");
+    expect(q).toContain("untilDay(salaryPayouts.paidAt, dateTo)");
   });
 
   it("считается только своя организация", () => {

@@ -1,5 +1,7 @@
 import { sql, eq, and, or, gte, lte, inArray } from "drizzle-orm";
 import { agentLocations, dailyPlans, shops } from "@db/schema";
+import { businessDayStart } from "@contracts/business-time";
+import { dateColumnDay } from "../lib/period";
 
 type DrizzleInstance = ReturnType<typeof import("../queries/connection").getDb>;
 
@@ -114,8 +116,8 @@ export async function verifyVisit(
       .limit(1))[0];
 
   if (!gpsPings) {
-    const planDate = new Date(plan.planDate);
-    const dayStart = new Date(planDate.getFullYear(), planDate.getMonth(), planDate.getDate());
+    // Точки GPS — отметки времени: сутки дня плана считаются по Ташкенту.
+    const dayStart = businessDayStart(dateColumnDay(plan.planDate));
     const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
     gpsPings = await db.select({
       lat: agentLocations.lat,
@@ -319,12 +321,12 @@ export async function calculateFraudMetricsForAgents(
   if (plans.length === 0) return result;
 
   /*
-    День визита — тем же ключом, что и раньше: дата плана в UTC
-    (toISOString), окно — от полуночи этого дня по часам сервера плюс сутки.
-    Смешанный ключ унаследован и сохранён намеренно: цель — убрать запросы, а
-    не сдвинуть окна, по которым уже считали.
+    День визита — дата плана (колонка DATE), окно — сутки этого дня по
+    Ташкенту: от ташкентской полуночи плюс сутки. По часам сервера (UTC) окно
+    начиналось в 05:00, и утренние точки агента уходили в чужой день — так же
+    считает и проверка визита в agent-router.
   */
-  const visitDayOf = (planDate: Date) => new Date(planDate).toISOString().slice(0, 10);
+  const visitDayOf = (planDate: Date) => dateColumnDay(planDate);
   const plansByAgent = new Map<number, typeof plans>();
   for (const plan of plans) {
     const list = plansByAgent.get(plan.agentId!) ?? [];
@@ -338,7 +340,7 @@ export async function calculateFraudMetricsForAgents(
     const days = [...new Set(list.map(p => visitDayOf(p.planDate)))].sort();
     let cur: { agentId: number; start: Date; end: Date } | null = null;
     for (const day of days) {
-      const start = new Date(day + "T00:00:00");
+      const start = businessDayStart(day);
       const end = new Date(start.getTime() + DAY_MS);
       if (cur && start.getTime() <= cur.end.getTime()) {
         if (end.getTime() > cur.end.getTime()) cur.end = end;
@@ -433,7 +435,7 @@ export async function calculateFraudMetricsForAgents(
     const dayPings = (day: string): GpsPing[] => {
       const known = pingsOfDay.get(day);
       if (known) return known;
-      const from = new Date(day + "T00:00:00").getTime();
+      const from = businessDayStart(day).getTime();
       const to = from + DAY_MS;
       const picked = all.filter(p => p.t >= from && p.t <= to);
       pingsOfDay.set(day, picked);

@@ -102,6 +102,7 @@ describe("показ учитывает время съёмки", () => {
     // которого поле и заведено.
     const track = SRC.slice(SRC.indexOf("agentLocations.agentId, input.agentId"));
     expect(track.slice(0, 900)).toMatch(/COALESCE\([\s\S]{0,120}\) >= /);
-    expect(track.slice(0, 900)).toMatch(/COALESCE\([\s\S]{0,120}\) <= /);
+    // Конец — полночь следующего дня по Ташкенту, сама не входит.
+    expect(track.slice(0, 900)).toMatch(/COALESCE\([\s\S]{0,120}\) < /);
   });
 });
