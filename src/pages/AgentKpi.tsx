@@ -21,6 +21,8 @@ import { ProductRates } from "@/components/kpi/ProductRates";
 import { MyPayouts } from "@/components/kpi/MyPayouts";
 import { GamificationCard } from "@/components/GamificationCard";
 import { errorText } from "@/lib/error-text";
+import { startOfMonth } from "date-fns";
+import { bizNow, bizToday, format } from "@/lib/business-time";
 
 interface KpiData {
   agentId: number; agentName: string; period: string;
@@ -1033,9 +1035,11 @@ function SalaryConfig({ t }: { t: (r: string, u: string) => string }) {
     });
 
   const handleCalc = () => {
-    const now = new Date();
-    const periodStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split("T")[0];
-    const periodEnd = now.toISOString().split("T")[0];
+    // Месяц по Ташкенту. Здесь стояла местная полночь первого числа через
+    // toISOString — в Ташкенте это 19:00 последнего дня прошлого месяца, и
+    // расчёт за октябрь начинался тридцатым сентября.
+    const periodStart = format(startOfMonth(bizNow()), "yyyy-MM-dd");
+    const periodEnd = bizToday();
     calcMutation.mutate({ periodType: "monthly", periodStart, periodEnd });
   };
 

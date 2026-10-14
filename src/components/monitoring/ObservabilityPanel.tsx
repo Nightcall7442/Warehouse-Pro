@@ -2,6 +2,7 @@ import { ExternalLink, ShieldAlert, Activity, Boxes, GaugeCircle } from "lucide-
 import { trpc } from "@/providers/trpc";
 import { COLORS, F } from "./theme";
 import { Section } from "./Section";
+import { bizDateTimeText } from "@/lib/business-time";
 
 /**
  * Служебные приборы, тревоги и разрез по ручкам.
@@ -86,7 +87,7 @@ export function ObservabilityPanel() {
                 <span style={{ fontSize: "12px", color: COLORS.textSecondary }}>{a.summary}</span>
                 {a.since && (
                   <span style={{ fontSize: "11px", color: COLORS.textTertiary, marginLeft: "auto" }}>
-                    с {new Date(a.since).toLocaleString("ru")}
+                    с {bizDateTimeText(a.since, "ru")}
                   </span>
                 )}
               </div>

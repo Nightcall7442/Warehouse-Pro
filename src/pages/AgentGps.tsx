@@ -2,7 +2,7 @@ import { useState, useCallback } from "react";
 import { trpc } from "@/providers/trpc";
 import { useTranslate } from "@/i18n";
 import { MapPin, Radio, CheckCircle2, AlertCircle, Loader2, Navigation, Info } from "lucide-react";
-import { format } from "date-fns";
+import { format } from "@/lib/business-time";
 import { plural } from "@/lib/plural";
 import { PING_MIN, useLastPing } from "@/hooks/useLocationPing";
 import { CARD } from "@/components/phone/tones";

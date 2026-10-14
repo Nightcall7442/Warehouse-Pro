@@ -6,6 +6,7 @@ import { BackupSection } from "@/components/superadmin/BackupSection";
 import { JOB_LABEL, OUTCOME, backupState, duration, jobSchedule, type JobRow } from "@/components/superadmin/console/jobs";
 import { Empty, Loading, PageHead, Pill, TabBar } from "@/components/superadmin/console/ui";
 import { ago, day } from "@/components/superadmin/console/format";
+import { bizTimeText } from "@/lib/business-time";
 
 /* ═══════════════════════════════════════════════════════════════════════════
    «Система» — /super-admin/system.
@@ -50,7 +51,7 @@ function Backup() {
       <div className="neo-card neo-card-static flex items-center gap-3 flex-wrap" style={{ padding: 16, borderRadius: 20 }} data-testid="backup-last">
         <Pill tone={!data ? "neutral" : b.stale ? "danger" : "success"}>{!data ? "…" : b.stale ? "Старше 26 часов" : "Свежая"}</Pill>
         <span style={{ fontSize: 13.5, color: "var(--color-text-secondary)" }}>
-          Последняя удачная ночная копия: {b.at ? <b style={{ color: "var(--color-text-primary)" }}>{day(b.at)} {b.at.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" })} · {ago(b.at)}</b> : "не было"}
+          Последняя удачная ночная копия: {b.at ? <b style={{ color: "var(--color-text-primary)" }}>{day(b.at)} {bizTimeText(b.at, "ru-RU", { hour: "2-digit", minute: "2-digit" })} · {ago(b.at)}</b> : "не было"}
         </span>
       </div>
       <BackupSection />

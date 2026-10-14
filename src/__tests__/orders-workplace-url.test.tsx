@@ -167,7 +167,7 @@ const show = (entries: string[], index = entries.length - 1) => render(
 
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ["Date"] });
-  vi.setSystemTime(new Date(2026, 9, 1, 10, 0)); // 1 октября
+  vi.setSystemTime(new Date("2026-10-01T10:00:00+05:00")); // 1 октября, Ташкент
   h.calls.length = 0;
   h.clientList.mockReset();
   h.exportToExcel.mockClear();

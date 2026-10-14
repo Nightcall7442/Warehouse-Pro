@@ -1,6 +1,7 @@
 import { useRef, useState } from "react";
 import { useNavigate } from "react-router";
-import { format, addDays, subDays } from "date-fns";
+import { addDays, subDays } from "date-fns";
+import { bizNow, bizToday, format } from "@/lib/business-time";
 import { Calendar, Camera, Check, CheckCircle2, ChevronLeft, ChevronRight, Circle, Clock, DollarSign, Loader2, MapPin, PlusCircle, ShoppingCart, AlertCircle } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { trpc } from "@/providers/trpc";
@@ -197,9 +198,9 @@ export function PhonePlan() {
   const isMerch = user?.role === "merchandiser";
   const utils = trpc.useUtils();
 
-  const [day, setDay] = useState(() => new Date());
+  const [day, setDay] = useState<Date>(() => bizNow());
   const dayStr = format(day, "yyyy-MM-dd");
-  const isToday = dayStr === format(new Date(), "yyyy-MM-dd");
+  const isToday = dayStr === bizToday();
   const { data: plans, isLoading, isError, refetch } = trpc.agent.getPlans.useQuery({ date: dayStr });
   const update = trpc.agent.updatePlanStatus.useMutation({
     onSuccess: () => { utils.agent.getPlans.invalidate(); utils.salesTarget.myQuota.invalidate(); },
@@ -241,7 +242,7 @@ export function PhonePlan() {
           className="flex items-center justify-center flex-shrink-0 rounded-full" style={{ ...CARD, width: 44, height: 44, color: "var(--color-text-primary)" }}>
           <ChevronLeft size={18} />
         </button>
-        <button type="button" onClick={() => setDay(new Date())} disabled={isToday}
+        <button type="button" onClick={() => setDay(bizNow())} disabled={isToday}
           className="flex-1 min-w-0 text-center" style={{ ...CARD, borderRadius: 16, padding: "6px 12px" }}>
           <span className="block capitalize truncate" style={{ fontSize: 15, fontWeight: 700, color: "var(--color-text-primary)" }}>
             {isToday ? t("Сегодня", "Bugun") : format(day, "EEEE", { locale: dateLocale(lang) })}

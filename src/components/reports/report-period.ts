@@ -1,4 +1,5 @@
-import { format, subDays } from "date-fns";
+import { subDays } from "date-fns";
+import { bizNow, bizToday, format } from "@/lib/business-time";
 import { useUrlState, type UrlCodec } from "@/hooks/useUrlState";
 
 /*
@@ -21,12 +22,12 @@ export function dateCodec(fallback: string): UrlCodec<string> {
 export const PRESET_DAYS = [7, 30, 90] as const;
 
 export function useReportPeriod() {
-  const today = ymd(new Date());
-  const monthAgo = ymd(subDays(new Date(), 30));
+  const today = bizToday();
+  const monthAgo = ymd(subDays(bizNow(), 30));
   const [from, setFrom] = useUrlState("from", monthAgo, dateCodec(monthAgo));
   const [to, setTo] = useUrlState("to", today, dateCodec(today));
-  const preset = (days: number) => { setFrom(ymd(subDays(new Date(), days))); setTo(today); };
-  const presetOn = (days: number) => to === today && from === ymd(subDays(new Date(), days));
+  const preset = (days: number) => { setFrom(ymd(subDays(bizNow(), days))); setTo(today); };
+  const presetOn = (days: number) => to === today && from === ymd(subDays(bizNow(), days));
   return { from, to, today, setFrom, setTo, preset, presetOn };
 }
 

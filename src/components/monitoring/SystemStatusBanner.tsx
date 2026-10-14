@@ -1,6 +1,7 @@
 import { CheckCircle2, AlertTriangle } from "lucide-react";
 import { COLORS, F, SHADOW } from "./theme";
 import { Badge } from "./Badge";
+import { bizTimeText } from "@/lib/business-time";
 
 interface ServerData {
   status?: string;
@@ -34,7 +35,7 @@ export function SystemStatusBanner({ server, database, timestamp }: SystemStatus
           <Badge status={dbOk ? "connected" : "disconnected"} label={`БД: ${dbOk ? "OK" : "FAIL"}`} />
         </div>
       </div>
-      <div style={{ fontSize: "12px", color: COLORS.textTertiary, fontFamily: F.body }}>{timestamp && new Date(timestamp).toLocaleTimeString("ru")}</div>
+      <div style={{ fontSize: "12px", color: COLORS.textTertiary, fontFamily: F.body }}>{timestamp && bizTimeText(timestamp, "ru")}</div>
     </div>
   );
 }

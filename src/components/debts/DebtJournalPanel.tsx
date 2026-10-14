@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useScrollTopOnChange } from "@/hooks/useScrollTopOnChange";
 import { Link } from "react-router";
-import { format } from "date-fns";
+import { bizToday, format } from "@/lib/business-time";
 import { ScrollText, FileDown, ChevronLeft, ChevronRight, Search } from "lucide-react";
 import { trpc } from "@/providers/trpc";
 import { useTranslate, useLang } from "@/i18n";
@@ -12,7 +12,7 @@ import { SectionNotice } from "@/components/SectionNotice";
 import { PremiumSelect } from "@/components/PremiumSelect";
 import { errorText } from "@/lib/error-text";
 import { DateRangePicker } from "@/components/DateRangePicker";
-import { shiftDay, toDay } from "@/lib/date-range";
+import { shiftDay } from "@/lib/date-range";
 
 /**
  * Полный архив задолженности: кто когда взял в долг и кто когда погасил.
@@ -101,7 +101,7 @@ export function DebtJournalPanel() {
     if (next === "all") { setFrom(""); setTo(""); return; }
     // Местные даты, а не toISOString(): в Ташкенте до пяти утра UTC-строка
     // давала вчерашнее число, и «30 дней» кончались вчера.
-    const today = toDay(new Date());
+    const today = bizToday();
     setFrom(shiftDay(today, -Number(next)));
     setTo(today);
   });
@@ -213,7 +213,7 @@ export function DebtJournalPanel() {
         <DateRangePicker
           from={from}
           to={to}
-          max={toDay(new Date())}
+          max={bizToday()}
           onChange={(f, tt) => refilter(() => { setSpan("custom"); setFrom(f); setTo(tt); })}
           placeholder={t("Выбрать даты", "Sanani tanlang")}
           active={span === "custom"}

@@ -6,6 +6,7 @@ import { useLang } from "@/i18n";
 import { useAuth } from "@/hooks/useAuth";
 import { buildThread } from "@/lib/chat-thread";
 import { errorText } from "@/lib/error-text";
+import { bizDateText, bizTimeText } from "@/lib/business-time";
 
 /**
  * Чат с поддержкой платформы — возможность тарифа Exclusive.
@@ -138,8 +139,8 @@ export default function Support() {
   const last = messages[messages.length - 1];
   const awaiting = Boolean(last && !last.fromPlatform) || send.isPending;
 
-  const time = (d: Date) => d.toLocaleTimeString(lang === "uz" ? "uz" : "ru", { hour: "2-digit", minute: "2-digit" });
-  const dayName = (d: Date) => d.toLocaleDateString(lang === "uz" ? "uz" : "ru", { day: "numeric", month: "long" });
+  const time = (d: Date) => bizTimeText(d, lang === "uz" ? "uz" : "ru", { hour: "2-digit", minute: "2-digit" });
+  const dayName = (d: Date) => bizDateText(d, lang === "uz" ? "uz" : "ru", { day: "numeric", month: "long" });
 
   // ── Тариф не тот ──────────────────────────────────────────────────────────
   if (!isLoading && !available) {
@@ -397,7 +398,7 @@ export default function Support() {
               {/* Прямо сказать, когда исчезнет переписка, и что это отменимо.
                   Тихое удаление через неделю выглядело бы как пропажа. */}
               <p style={{ fontSize: "11.5px", lineHeight: 1.5, color: "var(--color-text-secondary)", marginTop: "2px" }}>
-                {purgeAt && `${t("Переписка будет удалена", "Yozishmalar o'chiriladi")} ${purgeAt.toLocaleDateString(lang === "uz" ? "uz" : "ru", { day: "numeric", month: "long" })}. `}
+                {purgeAt && `${t("Переписка будет удалена", "Yozishmalar o'chiriladi")} ${bizDateText(purgeAt, lang === "uz" ? "uz" : "ru", { day: "numeric", month: "long" })}. `}
                 {t("Напишите ещё раз — разговор продолжится, и удаления не будет.", "Yana yozing — suhbat davom etadi va o'chirilmaydi.")}
               </p>
             </div>

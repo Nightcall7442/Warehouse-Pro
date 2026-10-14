@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { format } from "date-fns";
+import { bizToday, format } from "@/lib/business-time";
 import { Printer, Pencil, Loader2, AlertTriangle } from "lucide-react";
 import { trpc } from "@/providers/trpc";
 import { AppModal } from "@/components/ui/AppModal";
@@ -316,7 +316,7 @@ export function CounterpartyDetail({ supplierId, lang, onClose, onEdit, onPay, o
             <DateRangePicker
               from={from}
               to={to}
-              max={format(new Date(), "yyyy-MM-dd")}
+              max={bizToday()}
               onChange={(f, tt) => { setFrom(f); setTo(tt); }}
               onClear={() => { setFrom(""); setTo(""); }}
               placeholder={t("За всё время", "Butun davr")}

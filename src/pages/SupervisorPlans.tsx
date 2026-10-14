@@ -5,7 +5,8 @@ import { PLAN_STATUS_LABEL } from "@/lib/entity-labels";
 import { trpc } from "@/providers/trpc";
 import { notify } from "@/lib/toast";
 import { useConfirm } from "@/components/ConfirmDialog";
-import { format, addDays, subDays } from "date-fns";
+import { addDays, subDays } from "date-fns";
+import { bizNow, bizToday, format } from "@/lib/business-time";
 import { dateLocale } from "@/lib/date-locale";
 import {
   ChevronLeft, ChevronRight, Plus, X,
@@ -233,7 +234,7 @@ function CreatePlanForm({ date, onDone, lang }: { date: string; onDone: () => vo
 
 // ── Главная страница планов супервайзера ──────────────────────────────────────
 export default function SupervisorPlans() {
-  const [date,        setDate]        = useState(new Date());
+  const [date,        setDate]        = useState<Date>(() => bizNow());
   /*
     День, месяц и нормы — три взгляда на одно и то же, поэтому вкладки, а не
     три страницы: месяц расставляют и тут же смотрят, что вышло по дням, а
@@ -257,7 +258,7 @@ export default function SupervisorPlans() {
   const { dialog }           = useConfirm();
 
   const dateStr = format(date, "yyyy-MM-dd");
-  const isToday = dateStr === format(new Date(), "yyyy-MM-dd");
+  const isToday = dateStr === bizToday();
 
   const { data: agents } = trpc.agent.listAgents.useQuery();
   const { data: plans, isLoading } = trpc.agent.getPlans.useQuery(

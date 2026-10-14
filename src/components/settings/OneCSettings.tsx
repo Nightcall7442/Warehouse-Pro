@@ -8,6 +8,7 @@ import { colorMix } from "@/lib/color-mix";
 import { FieldGroup, Field, FieldRow, SaveBar } from "./ui";
 import { Loader2, CheckCircle2, XCircle, RefreshCw, Search, Plus, RotateCcw } from "lucide-react";
 import { errorText } from "@/lib/error-text";
+import { bizDateTimeText } from "@/lib/business-time";
 
 /**
  * 1С — рабочее место директора, а не список ручек.
@@ -151,7 +152,7 @@ export function OneCSettings() {
   const status = statusQ.data;
   const presetOptions = Object.entries(presetsQ.data ?? {}).map(([value, l]) => ({ value, label: lang === "uz" ? l.uz : l.ru }));
   const toOptions = (rows?: Array<{ key: string; name: string }>) => (rows ?? []).map(r => ({ value: r.key, label: r.name }));
-  const fmt = (iso: string | null | undefined) => (iso ? new Date(iso).toLocaleString("ru") : t("ещё не было", "hali bo'lmagan"));
+  const fmt = (iso: string | null | undefined) => (iso ? bizDateTimeText(iso, "ru") : t("ещё не было", "hali bo'lmagan"));
   const STATUS_LABEL: Record<string, string> = {
     pending: t("в очереди", "navbatda"), done: t("выгружено", "yuklandi"), failed: t("отказ", "xato"), skipped: t("ждёт решения", "qaror kutmoqda"),
   };

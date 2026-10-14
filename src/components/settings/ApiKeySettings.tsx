@@ -6,7 +6,7 @@ import { useConfirm } from "@/components/ConfirmDialog";
 import { SectionNotice } from "@/components/SectionNotice";
 import { notify } from "@/lib/toast";
 import { FieldGroup, Field, FieldRow } from "./ui";
-import { format } from "date-fns";
+import { format } from "@/lib/business-time";
 import { Trash2 } from "lucide-react";
 import { errorText } from "@/lib/error-text";
 

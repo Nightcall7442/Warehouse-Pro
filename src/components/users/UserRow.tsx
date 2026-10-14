@@ -1,4 +1,4 @@
-import { format } from "date-fns";
+import { format } from "@/lib/business-time";
 import { KeyRound, Power, MapPin, ShieldCheck } from "lucide-react";
 import { tdStyle, COLORS, F, type User, type Lang } from "./types";
 import { RoleBadge } from "./RoleBadge";

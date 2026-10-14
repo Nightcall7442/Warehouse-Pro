@@ -5,6 +5,7 @@ import { trpc } from "@/providers/trpc";
 import { lokiExploreUrl } from "@/lib/grafana-link";
 import { COLORS, F, statusColor, timeAgo } from "./theme";
 import { CopyButton } from "./CopyButton";
+import { bizDateTimeText } from "@/lib/business-time";
 
 interface ErrorDetailModalProps {
   errorId: string;
@@ -100,7 +101,7 @@ export function ErrorDetailModal({ errorId, onClose }: ErrorDetailModalProps) {
 
               <div style={{ borderRadius: "12px", border: `1px solid ${COLORS.border}`, overflow: "hidden" }}>
                 {[
-                  ["Время", new Date(error.timestamp).toLocaleString("ru")],
+                  ["Время", bizDateTimeText(error.timestamp, "ru")],
                   ["Прошло", timeAgo(error.timestamp)],
                   ["Метод", error.method],
                   ["Путь", error.path],

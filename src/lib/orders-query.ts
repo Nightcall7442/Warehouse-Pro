@@ -1,4 +1,5 @@
-import { format, startOfMonth, startOfWeek, subDays } from "date-fns";
+import { startOfMonth, startOfWeek, subDays } from "date-fns";
+import { bizNow, format } from "@/lib/business-time";
 import type { OrderSortKey, OrderSortDir } from "@contracts/order-list";
 
 /*
@@ -77,7 +78,8 @@ function withFallback(v: OrdersView, fallback: Period): Period {
   return { dateFrom: v.dateFrom || fallback.dateFrom, dateTo: v.dateTo || fallback.dateTo };
 }
 
-export function ordersQuery(v: OrdersView, today: Date = new Date()) {
+/** `today` — «сейчас» по Ташкенту: чипы и месяц считаются от его полуночи, а не от часов устройства. */
+export function ordersQuery(v: OrdersView, today: Date = bizNow()) {
   const preset = presetPeriod(v.chips.datePreset, today);
   const awaitingMoney = v.status === "money";
   const status = (v.chips.status ?? (awaitingMoney ? "" : v.status)) || undefined;

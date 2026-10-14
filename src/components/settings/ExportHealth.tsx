@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { trpc } from "@/providers/trpc";
 import { useLang } from "@/i18n";
-import { format } from "date-fns";
+import { format } from "@/lib/business-time";
 import { Activity, AlertTriangle, CheckCircle2 } from "lucide-react";
 import { FieldGroup } from "./ui";
 

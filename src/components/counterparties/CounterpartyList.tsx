@@ -1,5 +1,5 @@
 import { AlertTriangle, Phone, Package } from "lucide-react";
-import { format } from "date-fns";
+import { format } from "@/lib/business-time";
 import { F, COLORS, SHADOW, money } from "./constants";
 
 export interface CounterpartyRow {

@@ -25,6 +25,7 @@ import { join } from "node:path";
 import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
 import { render, screen, fireEvent, cleanup, waitFor, within } from "@testing-library/react";
 import { format, addDays, subDays } from "date-fns";
+import { bizNow } from "@/lib/business-time";
 
 const state = vi.hoisted(() => ({
   role: "agent",
@@ -108,7 +109,8 @@ describe("PhonePlan: вернулось то, что было у большог�
   });
 
   it("переход по дням: вчера, завтра и обратно к сегодня", () => {
-    const today = new Date();
+    // «Сегодня» телефона — ташкентское, на каком бы поясе ни стоял компьютер.
+    const today = bizNow();
     render(<PhonePlan />);
     expect(state.dates.at(-1)).toBe(ymd(today));
 

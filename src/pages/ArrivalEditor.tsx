@@ -1,6 +1,6 @@
 import { useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { UNSAFE_NavigationContext, useBeforeUnload, useNavigate, useParams } from "react-router";
-import { format } from "date-fns";
+import { bizToday, format } from "@/lib/business-time";
 import { ArrowLeft, Plus, Printer, ScanLine, Trash2, Loader2, CheckCircle2, Truck, ListChecks } from "lucide-react";
 import { trpc } from "@/providers/trpc";
 import { useLang } from "@/i18n";
@@ -29,7 +29,7 @@ import { errorText } from "@/lib/error-text";
 
 type Head = ArrivalDraft["form"];
 
-const today = () => format(new Date(), "yyyy-MM-dd");
+const today = () => bizToday();
 const emptyDraft = (): ArrivalDraft => ({
   form: { truckId: "", driverName: "", driverPhone: "", arrivalDate: today(), fuelCost: "0", tollCost: "0", otherCost: "0", notes: "" },
   supplierMode: "none", supplierId: 0, newSupplierName: "", supplyAmount: "", supplyCurrency: "UZS", supplyRate: "", supplyDueDate: "",

@@ -1,5 +1,5 @@
 import { FileDown, FileSpreadsheet } from "lucide-react";
-import { format } from "date-fns";
+import { bizToday } from "@/lib/business-time";
 import { DateRangePicker } from "@/components/DateRangePicker";
 import { F, COLORS } from "./styles";
 import type { Lang } from "@/i18n";
@@ -118,7 +118,7 @@ export function PnLPeriodSelector({
           from={from}
           to={to}
           onChange={onCustomRange}
-          max={format(new Date(), "yyyy-MM-dd")}
+          max={bizToday()}
           active={range === "custom"}
           aria-label={t("Период", "Davr")}
           testId="pnl-calendar"

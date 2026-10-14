@@ -6,6 +6,7 @@ import { PhotoOrIcon } from "@/components/PhotoOrIcon";
 import { PremiumSelect } from "@/components/PremiumSelect";
 import { monthEnd, monthLabel } from "./month";
 import { useOverlay } from "@/lib/overlay";
+import { format } from "@/lib/business-time";
 
 /*
   ── Отчёты о визитах ────────────────────────────────────────────────────────
@@ -51,10 +52,7 @@ function presence(checklist: Checklist | null): { present: number; total: number
   return { present, total, pct: total > 0 ? Math.round((present / total) * 100) : null };
 }
 
-const fmtWhen = (v: string | Date) => {
-  const d = new Date(v);
-  return `${String(d.getDate()).padStart(2, "0")}.${String(d.getMonth() + 1).padStart(2, "0")} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
-};
+const fmtWhen = (v: string | Date) => format(v, "dd.MM HH:mm");
 
 // ── Карточка одного отчёта ────────────────────────────────────────────────────
 function ReportCard({ report, onOpen, lang }: { report: Report; onOpen: () => void; lang: string }) {

@@ -5,7 +5,7 @@ import { useCurrency } from "@/hooks/useCurrency";
 import { useAuth } from "@/hooks/useAuth";
 import { useNavigate } from "react-router";
 import { plural } from "@/lib/plural";
-import { format } from "date-fns";
+import { bizToday, format } from "@/lib/business-time";
 import {
   CheckCircle2, Clock, Calendar, MapPin, ChevronRight, AlertCircle, Wallet,
   Plus, ShoppingBag, Navigation, Maximize, User, Clipboard, TrendingUp,
@@ -150,7 +150,7 @@ export default function AgentDashboard() {
   // «Мои заказы сегодня» — именно сегодня и не больше пяти, как в мобилке: это
   // витрина, а итог дня считает сервер (плашка выше списка).
   const todayOrders = useMemo(() => {
-    const today = format(new Date(), "yyyy-MM-dd");
+    const today = bizToday();
     return (mine?.data ?? []).filter(o => o.createdAt && format(new Date(o.createdAt), "yyyy-MM-dd") === today).slice(0, 5);
   }, [mine]);
 

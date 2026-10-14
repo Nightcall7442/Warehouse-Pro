@@ -1,5 +1,6 @@
 import { CheckCircle2, AlertTriangle, CalendarDays, Wallet } from "lucide-react";
 import { DaysRing } from "./DaysRing";
+import { bizDateText } from "@/lib/business-time";
 
 interface HeroStatusCardProps {
   daysLeft: number;
@@ -31,7 +32,7 @@ export function HeroStatusCard({
 }: HeroStatusCardProps) {
   const date = endsAt ? new Date(endsAt) : null;
   const dateText = date && !Number.isNaN(date.getTime())
-    ? date.toLocaleDateString(lang === "uz" ? "uz" : "ru", { day: "numeric", month: "long", year: "numeric" })
+    ? bizDateText(date, lang === "uz" ? "uz" : "ru", { day: "numeric", month: "long", year: "numeric" })
     : null;
 
   return (

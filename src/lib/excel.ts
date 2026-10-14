@@ -7,6 +7,7 @@
 import { movementKind, movementDocument, movementNote } from "@/lib/stock-movement-text";
 import { formatQty } from "@/lib/format";
 import { notify } from "@/lib/toast";
+import { bizDateText, bizDateTimeText } from "@/lib/business-time";
 import { tt } from "@/i18n";
 import { unitShort } from "@/lib/units";
 import { VAT_RATE_LABEL, type VatRate } from "@contracts/tax-requisites";
@@ -166,7 +167,7 @@ export async function exportToExcel(
   const headers = Object.keys(rows[0]);
 
   // Title date
-  const titleDate = new Date().toLocaleDateString("ru-RU", {
+  const titleDate = bizDateText(Date.now(), "ru-RU", {
     day: "2-digit", month: "long", year: "numeric",
   });
 
@@ -375,10 +376,14 @@ function toDate(value: unknown): Date | null {
   return null;
 }
 
+/** Дата на бумаге — по Ташкенту, как на экране (lib/business-time), а не по часам компьютера. */
+const paperDay = (v: unknown) => { const d = toDate(v); return d ? bizDateText(d, "ru-RU") : null; };
+const paperDayTime = (v: unknown) => { const d = toDate(v); return d ? bizDateTimeText(d, "ru-RU") : null; };
+
 export function formatOrdersForExport(orders: Record<string, unknown>[]) {
   return orders.map(o => ({
     "Заказ №":   String(o.orderNumber ?? ""),
-    "Дата":      toDate(o.createdAt)?.toLocaleDateString("ru-RU") ?? "",
+    "Дата":      paperDay(o.createdAt) ?? "",
     "Магазин":   String(o.shopName ?? ""),
     "Территория":String(o.territoryName ?? ""),
     "Агент":     String(o.agentName ?? ""),
@@ -393,7 +398,7 @@ export function formatOrdersForExport(orders: Record<string, unknown>[]) {
 export function formatArrivalsForExport(arrivals: Record<string, unknown>[]) {
   return arrivals.map(a => ({
     "Приход №":      String(a.arrivalNumber ?? ""),
-    "Дата":          toDate(a.arrivalDate)?.toLocaleDateString("ru-RU") ?? "",
+    "Дата":          paperDay(a.arrivalDate) ?? "",
     "Грузовик":      String(a.truckId ?? ""),
     "Водитель":      String(a.driverName ?? ""),
     "Телефон":       String(a.driverPhone ?? ""),
@@ -438,7 +443,7 @@ export function formatWarehouseForExport(stock: Record<string, unknown>[]) {
  */
 export function formatMovementsForExport(movements: Record<string, unknown>[], lang = "ru") {
   return movements.map(m => ({
-    "Дата":       toDate(m.createdAt)?.toLocaleDateString("ru-RU") ?? "",
+    "Дата":       paperDay(m.createdAt) ?? "",
     "Вид":        movementKind(m.type as string, lang),
     "Количество": formatQty(m.quantity as number),
     "Документ":   movementDocument(m.referenceType as string, m.referenceNumber as string | null, lang),
@@ -499,7 +504,7 @@ export function formatUsersForExport(users: Record<string, unknown>[]) {
     "Телефон":     String(u.phone ?? ""),
     "Роль":        labelled(ROLE_LABEL, u.role),
     "Статус":      labelled(ACTIVE_STATUS_LABEL, u.status),
-    "Последний вход": toDate(u.lastSignInAt)?.toLocaleString("ru-RU") ?? "",
+    "Последний вход": paperDayTime(u.lastSignInAt) ?? "",
   }));
 }
 
@@ -526,7 +531,7 @@ export function formatDeadStockForExport(items: Record<string, unknown>[]) {
     "Себестоимость": Number(s.costPrice ?? 0),
     "Цена продажи":  Number(s.unitPrice ?? 0),
     "Стоимость":     Number(s.value ?? 0),
-    "Последний заказ": toDate(s.lastOrderDate)?.toLocaleDateString("ru-RU") ?? "Никогда",
+    "Последний заказ": paperDay(s.lastOrderDate) ?? "Никогда",
     "Дней без продаж": Number(s.daysSinceOrder ?? 99999),
   }));
 }

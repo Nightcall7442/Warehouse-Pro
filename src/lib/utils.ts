@@ -1,12 +1,13 @@
 import { clsx, type ClassValue } from "clsx"
 import { twMerge } from "tailwind-merge"
+import { bizNow } from "@/lib/business-time";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
 export function getGreeting(t: (ru: string, uz: string) => string): string {
-  const hour = new Date().getHours();
+  const hour = bizNow().getHours();
   return hour < 12
     ? t("Доброе утро", "Xayrli ertalab")
     : hour < 18

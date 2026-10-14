@@ -10,6 +10,8 @@
   который экспортирует и компонент, и функции, теряет горячую замену.
 */
 
+import { bizNow, format } from "@/lib/business-time";
+
 const MONTHS_RU = ["Январь", "Февраль", "Март", "Апрель", "Май", "Июнь", "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь"];
 const MONTHS_UZ = ["Yanvar", "Fevral", "Mart", "Aprel", "May", "Iyun", "Iyul", "Avgust", "Sentabr", "Oktabr", "Noyabr", "Dekabr"];
 
@@ -43,7 +45,7 @@ export function shiftMonth(month: string, n: number): string {
   return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
 }
 
+/** Текущий месяц по Ташкенту — тот же, что на сервере у любого устройства. */
 export function currentMonth(): string {
-  const now = new Date();
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  return format(bizNow(), "yyyy-MM");
 }

@@ -17,6 +17,7 @@ import { notify } from "@/lib/toast";
 import { plural } from "@/lib/plural";
 import { addToCart, asLine, clearCart, useCatalogCart } from "@/lib/catalog-cart";
 import { CARD } from "@/components/phone/tones";
+import { bizDateTimeText } from "@/lib/business-time";
 
 /* ═══════════════════════════════════════════════════════════════════════════
    КАТАЛОГ АГЕНТА — то, чем он пользуется у прилавка.
@@ -364,7 +365,7 @@ export default function Catalog() {
           color: "var(--color-warning-text)",
         }}>
           {tr("Нет связи. Каталог с устройства", "Aloqa yo'q. Katalog qurilmadan")}
-          {savedAt ? " · " + new Date(savedAt).toLocaleString("ru-RU") : ""}
+          {savedAt ? " · " + bizDateTimeText(savedAt, "ru-RU") : ""}
         </div>
       )}
 

@@ -15,6 +15,7 @@ import { useConfirm } from "@/components/ConfirmDialog";
 import { useInvalidateOrderCaches } from "@/hooks/useOrderCacheSync";
 import type { PaymentMethod } from "@/components/orders";
 import { errorText } from "@/lib/error-text";
+import { bizDateTimeText } from "@/lib/business-time";
 
 // Pending orders come back from IndexedDB as untyped records — narrow the
 // stored method back to the union order.create accepts before syncing.
@@ -175,7 +176,7 @@ export default function OfflineOrders() {
                       </span>
                     </div>
                     <p className="text-xs text-secondary mt-1">
-                      {lang === "uz" ? "Saqlangan:" : "Сохранён:"} {new Date(order.savedAt as string).toLocaleString("ru-RU")}
+                      {lang === "uz" ? "Saqlangan:" : "Сохранён:"} {bizDateTimeText(order.savedAt as string, "ru-RU")}
                     </p>
                     <p className="text-xs text-secondary">
                       {(order.items as Array<unknown>)?.length ?? 0} {lang === "uz" ? "ta mahsulot" : "товаров"} · {fmt(total)}
@@ -239,7 +240,8 @@ export default function OfflineOrders() {
             ? "Internet bo'lmasa yangi buyurtma yaratganingizda u avtomatik qurilmaga saqlanadi. Internet paydo bo'lganda avtomatik yuboriladi."
             : "При создании заказа без интернета он автоматически сохраняется на устройстве. При восстановлении связи — автоматически отправляется на сервер."}
         </p>
-      </div>
+      </div>
+
       {dialog}
     </div>
   );

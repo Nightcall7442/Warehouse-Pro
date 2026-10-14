@@ -7,6 +7,7 @@ import { useLang } from "@/i18n";
 import { notificationText } from "@/lib/notification-text";
 import { EmptyState } from "./kit";
 import { CARD } from "./tones";
+import { bizDateTimeText } from "@/lib/business-time";
 
 /*
   Уведомления на телефоне — экран мобилки v8 (Warehouse-Pro-Mobile,
@@ -87,7 +88,7 @@ export function PhoneNotifications() {
           {items.map(n => {
             const Icon = ICON[n.type] ?? Info;
             const text = notificationText(n, lang);
-            const when = new Date(n.createdAt).toLocaleString(lang === "uz" ? "uz-Latn-UZ" : "ru-RU", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+            const when = bizDateTimeText(n.createdAt, lang === "uz" ? "uz-Latn-UZ" : "ru-RU", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
             return (
               <button
                 key={n.id}

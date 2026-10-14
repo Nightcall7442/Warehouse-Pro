@@ -1,10 +1,11 @@
 import { useMemo, useState } from "react";
-import { format, subDays } from "date-fns";
+import { subDays } from "date-fns";
+import { bizNow, format } from "@/lib/business-time";
 import { CATEGORY_ORDER, CATEGORY_TITLES, visibleReports, type ReportCategory } from "./report-registry";
 import { ReportCard } from "./ReportCard";
 import { DateRangePicker } from "@/components/DateRangePicker";
 
-const dayOf = (back: number) => format(subDays(new Date(), back), "yyyy-MM-dd");
+const dayOf = (back: number) => format(subDays(bizNow(), back), "yyyy-MM-dd");
 const PRESETS = [7, 30, 90];
 
 /**

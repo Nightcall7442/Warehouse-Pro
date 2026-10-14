@@ -1,4 +1,5 @@
-import { addDays, addMonths, endOfMonth, format, startOfMonth, subMonths } from "date-fns";
+import { addDays, addMonths, endOfMonth, startOfMonth, subMonths } from "date-fns";
+import { bizDate, format } from "@/lib/business-time";
 
 /*
   Арифметика календаря периода (components/DateRangePicker).
@@ -6,22 +7,24 @@ import { addDays, addMonths, endOfMonth, format, startOfMonth, subMonths } from 
   День — строка «ГГГГ-ММ-ДД», как её ждут все отчёты на сервере, а не Date:
   строки сравниваются как строки, и «13 сентября» не съезжает на двенадцатое
   от того, в каком поясе открыт браузер. Date появляется только внутри, чтобы
-  прибавить день или месяц, и строится как местная полночь (parseDay): date-fns
-  считает в местном времени, а new Date("ГГГГ-ММ-ДД") дал бы полночь UTC.
+  прибавить день или месяц, и строится как полночь по Ташкенту (parseDay):
+  date-fns считает в поясе самой даты, а format (lib/business-time) печатает
+  по Ташкенту. Местная полночь устройства восточнее Ташкента — это вечер
+  предыдущего дня по Ташкенту, и «13 октября» печаталось бы двенадцатым.
 
   Отдельным файлом от компонента — по требованию сборщика: файл, который
   экспортирует и компонент, и функции, теряет горячую замену.
 */
 
-/** Местная дата в «ГГГГ-ММ-ДД». */
+/** Дата в «ГГГГ-ММ-ДД» по Ташкенту. */
 export function toDay(d: Date): string {
   return format(d, "yyyy-MM-dd");
 }
 
-/** «ГГГГ-ММ-ДД» в местную полночь. */
+/** «ГГГГ-ММ-ДД» в полночь по Ташкенту. */
 export function parseDay(day: string): Date {
   const [y, m, d] = day.split("-").map(Number);
-  return new Date(y, m - 1, d);
+  return bizDate(y, m - 1, d);
 }
 
 export function shiftDay(day: string, n: number): string {

@@ -6,7 +6,7 @@ import { notify } from "@/lib/toast";
 import { useCurrency } from "@/hooks/useCurrency";
 import { SectionNotice } from "@/components/SectionNotice";
 import { F, COLORS } from "@/components/users/types";
-import { format } from "date-fns";
+import { format } from "@/lib/business-time";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from "recharts";

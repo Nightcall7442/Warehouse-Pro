@@ -11,7 +11,8 @@ import { exportToExcel } from "@/lib/export";
 import { ROLE_LABEL } from "@/lib/entity-labels";
 import { RISK_LABEL, LEVEL_LABEL, riskDetail, type RiskFactor, type RiskLevel } from "@/lib/risk-labels";
 import { F, COLORS, thStyle, tdStyle } from "@/components/users/types";
-import { format, subDays, addDays } from "date-fns";
+import { subDays, addDays } from "date-fns";
+import { format } from "@/lib/business-time";
 import { ShieldCheck, ShieldAlert, MessageSquareWarning, HandCoins, FileSpreadsheet, ChevronDown, ChevronRight, ExternalLink, Wallet } from "lucide-react";
 import { errorText } from "@/lib/error-text";
 

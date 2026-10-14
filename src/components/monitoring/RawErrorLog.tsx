@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { trpc } from "@/providers/trpc";
 import { F, COLORS } from "@/components/users/types";
-import { format } from "date-fns";
+import { format } from "@/lib/business-time";
 
 /**
  * Сырой журнал ошибок — по времени, а не по видам.

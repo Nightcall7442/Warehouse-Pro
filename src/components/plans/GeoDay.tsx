@@ -1,5 +1,6 @@
 import { AlertTriangle, Camera, ClipboardList, Loader2, MapPin, Navigation, Timer } from "lucide-react";
 import { trpc } from "@/providers/trpc";
+import { bizTimeText } from "@/lib/business-time";
 
 /*
   ── Как прошёл день ─────────────────────────────────────────────────────────
@@ -17,7 +18,7 @@ import { trpc } from "@/providers/trpc";
 */
 
 const hhmm = (iso: string | null) =>
-  iso ? new Date(iso).toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" }) : "—";
+  iso ? bizTimeText(iso, "ru-RU", { hour: "2-digit", minute: "2-digit" }) : "—";
 
 /** Минуты человеческим языком: 95 → «1 ч 35 мин». */
 function dur(min: number | null, lang: string): string {

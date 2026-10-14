@@ -1,4 +1,4 @@
-import { format } from "date-fns";
+import { bizToday } from "@/lib/business-time";
 import { useTranslate } from "@/i18n";
 import { DateRangePicker } from "@/components/DateRangePicker";
 import type { SectionPeriod } from "@/hooks/useSectionPeriod";
@@ -21,7 +21,7 @@ export function SectionPeriodPicker({ period, testId, compact, align }: {
     <DateRangePicker
       from={period.from}
       to={period.to}
-      max={format(new Date(), "yyyy-MM-dd")}
+      max={bizToday()}
       onChange={period.set}
       onClear={period.own ? period.reset : undefined}
       active={period.own}

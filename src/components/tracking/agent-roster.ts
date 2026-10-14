@@ -23,7 +23,7 @@
  * агента «онлайн» и ставила его метку туда, где его давно нет.
  */
 
-import { format } from "date-fns";
+import { format } from "@/lib/business-time";
 
 /** Сколько сигнал считается свежим. Дольше — человек уже мог уехать. */
 export const ONLINE_WINDOW_MS = 10 * 60_000;

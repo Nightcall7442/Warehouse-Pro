@@ -1,5 +1,7 @@
 /* Подписи и числа консоли платформы — только по-русски (владелец, 01.10.2026). */
 
+import { bizDateText, bizTimeText } from "@/lib/business-time";
+
 /** Этапы пробного периода — как в панели владельца (api/services/owner-panel.ts, TRIAL_STAGES). */
 export const STAGE_LABEL: Record<string, string> = {
   registered:    "Регистрация",
@@ -16,7 +18,7 @@ export const money = (n: number) => new Intl.NumberFormat("ru-RU").format(Math.r
 
 /** «12.10.2026» — даты в консоли только по-русски. */
 export const day = (d: Date | string | null | undefined) =>
-  d ? new Date(d).toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric" }) : "—";
+  d ? bizDateText(d, "ru-RU", { day: "2-digit", month: "2-digit", year: "numeric" }) : "—";
 
 /** «только что», «12 мин назад», «3 ч назад», «вчера», «5 дн. назад», дальше — дата. */
 export function ago(d: Date | string | null | undefined, now = new Date()): string {
@@ -40,4 +42,4 @@ export const dayOf = (iso: string | null | undefined) => {
 
 /** «12.10.2026 14:05» — когда в журнале. */
 export const dayTime = (d: Date | string | null | undefined) =>
-  d ? `${day(d)} ${new Date(d).toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" })}` : "—";
+  d ? `${day(d)} ${bizTimeText(d, "ru-RU", { hour: "2-digit", minute: "2-digit" })}` : "—";

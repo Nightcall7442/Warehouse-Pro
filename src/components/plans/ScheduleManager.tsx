@@ -7,6 +7,8 @@ import { PremiumSelect } from "@/components/PremiumSelect";
 import { useShopSearch } from "@/hooks/useShopSearch";
 import { errorText } from "@/lib/error-text";
 import { DateRangePicker } from "@/components/DateRangePicker";
+import { shiftDay } from "@/lib/date-range";
+import { bizToday } from "@/lib/business-time";
 
 const DAY_NAMES_RU = ["ВС", "ПН", "ВТ", "СР", "ЧТ", "ПТ", "СБ"];
 const DAY_NAMES_UZ = ["Yak", "Dush", "Sesh", "Chor", "Pay", "Jum", "Shan"];
@@ -19,15 +21,8 @@ export function ScheduleManager({ lang }: { lang: string }) {
   const utils = trpc.useUtils();
 
   const [selectedAgent, setSelectedAgent] = useState<number | undefined>(undefined);
-  const [startDate, setStartDate] = useState(() => {
-    const d = new Date();
-    return d.toISOString().split("T")[0];
-  });
-  const [endDate, setEndDate] = useState(() => {
-    const d = new Date();
-    d.setDate(d.getDate() + 7);
-    return d.toISOString().split("T")[0];
-  });
+  const [startDate, setStartDate] = useState(() => bizToday());
+  const [endDate, setEndDate] = useState(() => shiftDay(bizToday(), 7));
 
   /*
     Агенты берутся из agent.listAgents, а не из user.list.

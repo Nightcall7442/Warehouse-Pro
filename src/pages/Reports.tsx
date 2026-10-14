@@ -3,7 +3,8 @@ import { trpc } from "@/providers/trpc";
 import { useCurrency } from "@/hooks/useCurrency";
 import { useLang } from "@/i18n";
 import { useAuth } from "@/hooks/useAuth";
-import { differenceInCalendarDays, format, subDays } from "date-fns";
+import { differenceInCalendarDays, subDays } from "date-fns";
+import { bizNow, bizToday, format } from "@/lib/business-time";
 import { FileDown, Printer, LayoutDashboard, ShoppingCart, Award, LayoutGrid, Wallet, CircleSlash, TrendingUp, ChartBarStacked, MapPinned } from "lucide-react";
 import { exportToExcel } from "@/lib/excel";
 import { exportToPDF, escapeHtml } from "@/lib/export";
@@ -154,8 +155,8 @@ export default function Reports() {
   const { lang } = useLang();
   const t = useCallback((ru: string, uz: string) => lang === "uz" ? uz : ru, [lang]);
 
-  const from = custom?.from ?? format(subDays(new Date(), presetDays), "yyyy-MM-dd");
-  const to = custom?.to ?? format(new Date(), "yyyy-MM-dd");
+  const from = custom?.from ?? format(subDays(bizNow(), presetDays), "yyyy-MM-dd");
+  const to = custom?.to ?? bizToday();
   const span = custom ? differenceInCalendarDays(parseDay(to), parseDay(from)) : presetDays;
   // Один день в календаре — «за 1 день», а не «за 0 дней».
   const days = Math.max(1, span);
@@ -450,7 +451,7 @@ export default function Reports() {
     // Named like the hub's files — id then period — so the whole downloads
     // folder sorts and reads the same way. `report-<today>` said neither which
     // report it was nor what it covered.
-    await exportToExcel(rows, custom ? `summary-${from}_${to}` : `summary-last${days}d-${format(new Date(), "yyyy-MM-dd")}`, t("Отчёт", "Hisobot"), `${t("Сводный отчёт", "Yig'ma hisobot")} — ${format(new Date(), "dd.MM.yyyy")}`);
+    await exportToExcel(rows, custom ? `summary-${from}_${to}` : `summary-last${days}d-${bizToday()}`, t("Отчёт", "Hisobot"), `${t("Сводный отчёт", "Yig'ma hisobot")} — ${format(new Date(), "dd.MM.yyyy")}`);
   };
 
   const handleExportPDF = () => {
@@ -543,7 +544,7 @@ export default function Reports() {
           <DateRangePicker
             from={from}
             to={to}
-            max={format(new Date(), "yyyy-MM-dd")}
+            max={bizToday()}
             onChange={(f, tt) => setCustom({ from: f, to: tt })}
             active={custom !== null}
             aria-label={t("Период", "Davr")}

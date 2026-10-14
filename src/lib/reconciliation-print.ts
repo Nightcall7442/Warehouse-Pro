@@ -1,6 +1,6 @@
-import { format } from "date-fns";
+import { bizDay, format } from "@/lib/business-time";
 import { amountInWords } from "@contracts/amount-in-words";
-import { dayToRu, localDay } from "@contracts/statement-period";
+import { dayToRu } from "@contracts/statement-period";
 
 /* ═══════════════════════════════════════════════════════════════════════════
    Печатный акт сверки — по образцу 1С.
@@ -91,7 +91,8 @@ export function reconciliationHtml(input: ReconciliationPrintInput): string {
   const today = input.today ?? new Date();
   const ours = input.company.name || "Наша организация";
   const fromRu = input.period.from ? dayToRu(input.period.from) : "";
-  const toRu = dayToRu(input.period.to || localDay(today));
+  // «По сегодня» — по Ташкенту, а не по часам компьютера, на котором печатают.
+  const toRu = dayToRu(input.period.to || bizDay(today));
   const periodText = fromRu ? `${fromRu} — ${toRu}` : `весь период по ${toRu}`;
 
   const blank = `<td></td><td></td><td></td><td></td>`;

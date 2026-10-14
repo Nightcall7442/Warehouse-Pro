@@ -20,6 +20,8 @@
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, cleanup } from "@testing-library/react";
+import { bizDayStart, bizToday } from "@/lib/business-time";
+import { shiftDay } from "@/lib/date-range";
 
 const state: {
   available: boolean;
@@ -63,11 +65,12 @@ beforeEach(() => {
   state.purgeAt = null;
 });
 
-/** Сегодняшнее время — чтобы разделитель суток был предсказуем. */
+/**
+ * Сегодняшнее время по Ташкенту — чтобы разделитель суток был предсказуем:
+ * сутки в чате ташкентские, на каком бы поясе ни стоял компьютер.
+ */
 function todayAt(h: number, m: number): Date {
-  const d = new Date();
-  d.setHours(h, m, 0, 0);
-  return d;
+  return new Date(bizDayStart(bizToday()).getTime() + (h * 60 + m) * 60_000);
 }
 
 describe("экран поддержки", () => {
@@ -138,8 +141,7 @@ describe("разговор виден как разговор", () => {
   });
 
   it("разные сутки разделены заголовком", () => {
-    const yesterday = new Date(Date.now() - 86_400_000);
-    yesterday.setHours(18, 0, 0, 0);
+    const yesterday = new Date(bizDayStart(shiftDay(bizToday(), -1)).getTime() + 18 * 3_600_000);
     state.messages = [
       { id: 1, fromPlatform: false, authorName: null, body: "Вчерашнее", createdAt: yesterday, readAt: null },
       { id: 2, fromPlatform: true, authorName: "Поддержка", body: "Сегодняшнее", createdAt: todayAt(9, 0), readAt: null },

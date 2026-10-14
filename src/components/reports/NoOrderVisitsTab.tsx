@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
-import { format, subDays } from "date-fns";
+import { subDays } from "date-fns";
+import { bizNow, bizToday, format } from "@/lib/business-time";
 import { CircleSlash, FileDown, MapPin, PackageCheck, Swords, HelpCircle, Lightbulb } from "lucide-react";
 import { trpc } from "@/providers/trpc";
 import { useLang } from "@/i18n";
@@ -71,8 +72,8 @@ const REASON_TONE: Record<NoOrderReason | "none", string> = {
 export function NoOrderVisitsTab() {
   const { lang } = useLang();
   const t = (ru: string, uz: string) => (lang === "uz" ? uz : ru);
-  const today = ymd(new Date());
-  const monthAgo = ymd(subDays(new Date(), 30));
+  const today = bizToday();
+  const monthAgo = ymd(subDays(bizNow(), 30));
 
   const [from, setFrom] = useUrlState("from", monthAgo, dateCodec(monthAgo));
   const [to, setTo] = useUrlState("to", today, dateCodec(today));
@@ -84,8 +85,8 @@ export function NoOrderVisitsTab() {
   const { data: territories } = trpc.territory.list.useQuery();
 
   const reasonText = (r: string | null, note?: string | null) => noOrderReasonText(isNoOrderReason(r) ? r : null, note, lang);
-  const preset = (days: number) => { setFrom(ymd(subDays(new Date(), days))); setTo(ymd(new Date())); };
-  const presetOn = (days: number) => to === today && from === ymd(subDays(new Date(), days));
+  const preset = (days: number) => { setFrom(ymd(subDays(bizNow(), days))); setTo(bizToday()); };
+  const presetOn = (days: number) => to === today && from === ymd(subDays(bizNow(), days));
 
   const agentOptions = useMemo(() => [
     { value: "", label: t("Все агенты", "Barcha agentlar") },

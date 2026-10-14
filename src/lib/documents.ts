@@ -8,6 +8,7 @@ import { PAYMENT_METHOD_LABEL } from "@contracts/entity-labels";
 import { resolveInvoiceOptions, type InvoiceOptions, type InvoiceTemplateId } from "@contracts/invoice-template";
 import type { VatRate } from "@contracts/tax-requisites";
 import { COPY_LABELS, debtBlock, renderInvoiceDocument, type InvoiceView } from "./invoice-templates";
+import { bizDateText, bizDateTimeText } from "@/lib/business-time";
 export { COPY_LABELS };
 
 /**
@@ -439,7 +440,7 @@ function partialNote(item: DocItem, size = "8pt"): string {
 }
 
 // ── 1. РАСХОДНАЯ НАКЛАДНАЯ (Uzbekistan standard) — 2 копии на листе ──────────
-const stamp = () => new Date().toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
+const stamp = () => bizDateTimeText(Date.now(), "ru-RU", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
 
 /** Карточка заказа → общая форма для шаблонов. */
 export function invoiceViewFromOrderDoc(d: OrderDocData): InvoiceView {
@@ -461,7 +462,7 @@ export function invoiceViewFromOrderDoc(d: OrderDocData): InvoiceView {
 export function invoiceViewFromBatch(o: BatchOrderData, company: CompanyInfo, currency: string, footerNote?: string): InvoiceView {
   const last = o.paymentHistory[0];
   return {
-    number: o.orderNumber, date: new Date(o.createdAt).toLocaleDateString("ru-RU"), printedAt: stamp(), currency,
+    number: o.orderNumber, date: bizDateText(o.createdAt, "ru-RU"), printedAt: stamp(), currency,
     company: { ...company },
     shop: { name: o.shopName ?? "", phone: o.shopPhone ?? undefined, address: o.shopAddress ?? undefined, inn: o.shopTaxId ?? undefined },
     agent: o.agentName ? { name: o.agentName, phone: o.agentPhone ?? undefined } : undefined,
@@ -475,7 +476,7 @@ export function invoiceViewFromBatch(o: BatchOrderData, company: CompanyInfo, cu
     subtotal: Number(o.subtotal), discount: Number(o.discount), total: Number(o.total),
     paymentLabel: PAYMENT_METHOD_LABEL[o.paymentMethod as keyof typeof PAYMENT_METHOD_LABEL]?.ru,
     isPartial: Boolean(o.isPartial), notes: o.notes ?? undefined,
-    debt: { current: o.shopDebtAmount, lastPayment: last ? { amount: Number(last.amount), date: new Date(last.createdAt).toLocaleDateString("ru-RU") } : undefined },
+    debt: { current: o.shopDebtAmount, lastPayment: last ? { amount: Number(last.amount), date: bizDateText(last.createdAt, "ru-RU") } : undefined },
     footerNote,
   };
 }
@@ -1056,7 +1057,7 @@ function buildTTNInvoice(order: BatchOrderData, company: CompanyInfo, currency: 
   return `
       <div style="text-align:center;margin-bottom:8px">
         <div style="font-size:14pt;font-weight:800">ТОВАРНО-ТРАНСПОРТНАЯ НАКЛАДНАЯ</div>
-        <div style="font-size:10pt;color:#666">№ ${escapeHtml(order.orderNumber)} от ${new Date(order.createdAt).toLocaleDateString("ru-RU")}</div>
+        <div style="font-size:10pt;color:#666">№ ${escapeHtml(order.orderNumber)} от ${bizDateText(order.createdAt, "ru-RU")}</div>
       </div>
 
       <table class="no-border" style="margin-bottom:6px;font-size:9pt">
@@ -1389,7 +1390,7 @@ const PAYMENT_LABEL: Record<string, string> = { cash: "Наличные", card: 
 
 function listDate(data: LoadingListData): string {
   const d = data.createdAt ? new Date(data.createdAt) : new Date();
-  return (Number.isNaN(d.getTime()) ? new Date() : d).toLocaleDateString("ru-RU");
+  return bizDateText(Number.isNaN(d.getTime()) ? Date.now() : d, "ru-RU");
 }
 
 // Route/agent matrix — products × agents, with cash/debt/total money rows per agent

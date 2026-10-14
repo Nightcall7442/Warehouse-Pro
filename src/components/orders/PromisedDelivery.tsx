@@ -4,8 +4,9 @@ import { trpc } from "@/providers/trpc";
 import { notify } from "@/lib/toast";
 import { useTranslate } from "@/i18n";
 import { OPEN_ORDER_STATUSES } from "@contracts/constants";
-import { toLocalInput, promiseState } from "@/lib/promised-delivery";
+import { promiseState } from "@/lib/promised-delivery";
 import { errorText } from "@/lib/error-text";
+import { bizDateTimeText, fromBizInput, toBizInput } from "@/lib/business-time";
 
 /* ═══════════════════════════════════════════════════════════════════════════
    Обещанный срок доставки.
@@ -46,7 +47,7 @@ export function PromisedDelivery({ orderId, promisedDeliveryAt, status, delivere
   const t = useTranslate();
   const utils = trpc.useUtils();
   const [editing, setEditing] = useState(false);
-  const [value, setValue] = useState(() => toLocalInput(promisedDeliveryAt));
+  const [value, setValue] = useState(() => toBizInput(promisedDeliveryAt));
 
   const open = (OPEN_ORDER_STATUSES as readonly string[]).includes(status);
   const state = promiseState(promisedDeliveryAt, status, deliveredAt);
@@ -65,7 +66,7 @@ export function PromisedDelivery({ orderId, promisedDeliveryAt, status, delivere
       orderId,
       // Пустое поле — снятое обещание, а не «оставить как было»: иначе
       // ошибочно поставленный срок нечем было бы убрать.
-      promisedDeliveryAt: raw ? new Date(raw).toISOString() : null,
+      promisedDeliveryAt: raw ? fromBizInput(raw)?.toISOString() ?? null : null,
     });
   };
 
@@ -97,7 +98,7 @@ export function PromisedDelivery({ orderId, promisedDeliveryAt, status, delivere
             type="button"
             className="neo-btn"
             disabled={save.isPending}
-            onClick={() => { setValue(toLocalInput(promisedDeliveryAt)); setEditing(false); }}
+            onClick={() => { setValue(toBizInput(promisedDeliveryAt)); setEditing(false); }}
             style={{ display: "inline-flex", alignItems: "center", gap: "4px", padding: "6px 12px" }}
           >
             <X size={13} /> {t("Отмена", "Bekor")}
@@ -108,7 +109,7 @@ export function PromisedDelivery({ orderId, promisedDeliveryAt, status, delivere
           <span className="text-sm text-primary">
             {state.kind === "none"
               ? t("Срок не называли", "Muddat aytilmagan")
-              : new Date(promisedDeliveryAt as string | Date).toLocaleString("ru")}
+              : bizDateTimeText(promisedDeliveryAt as string | Date, "ru")}
           </span>
 
           {state.kind === "late" && (

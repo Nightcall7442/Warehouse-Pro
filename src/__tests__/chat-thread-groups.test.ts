@@ -12,11 +12,16 @@
 import { describe, it, expect } from "vitest";
 import { buildThread, GROUP_GAP_MS } from "@/lib/chat-thread";
 
-const NOW = new Date("2026-09-08T15:00:00");
+/*
+  Время во всех проверках — ташкентское (+05:00): граница суток в чате —
+  полночь по Ташкенту, на каком бы поясе ни стоял компьютер (lib/business-time).
+*/
+const at = (iso: string) => new Date(`${iso}+05:00`);
+const NOW = at("2026-09-08T15:00:00");
 
-/** Сообщение: id, сторона, смещение от полудня указанных суток. */
+/** Сообщение: id, сторона, время по Ташкенту. */
 function msg(id: number, fromPlatform: boolean, iso: string) {
-  return { id, fromPlatform, createdAt: new Date(iso) };
+  return { id, fromPlatform, createdAt: at(iso) };
 }
 
 const kinds = (rows: ReturnType<typeof buildThread>) => rows.map(r => r.kind);
@@ -53,7 +58,7 @@ describe("группы реплик", () => {
       Возврат заслуживает своего времени под пузырём, иначе реплика через час
       выглядит продолжением предыдущей фразы.
     */
-    const later = new Date(new Date("2026-09-08T10:00:00").getTime() + GROUP_GAP_MS + 1000);
+    const later = new Date(at("2026-09-08T10:00:00").getTime() + GROUP_GAP_MS + 1000);
     const rows = buildThread([
       msg(1, false, "2026-09-08T10:00:00"),
       { id: 2, fromPlatform: false, createdAt: later },
@@ -101,7 +106,7 @@ describe("границы суток", () => {
 
   it("«сегодня» и «вчера» считаются от переданного момента, а не от часов", () => {
     // Иначе проверка начинала бы падать в полночь, а не при поломке.
-    const rows = buildThread([msg(1, false, "2026-09-08T09:00:00")], new Date("2026-09-09T09:00:00"));
+    const rows = buildThread([msg(1, false, "2026-09-08T09:00:00")], at("2026-09-09T09:00:00"));
     expect(rows[0].kind === "day" && rows[0].when).toBe("yesterday");
   });
 });
@@ -114,7 +119,7 @@ describe("испорченные данные", () => {
   it("дата строкой разбирается так же, как объектом", () => {
     // superjson отдаёт Date, голый JSON — строку. Разница незаметна ровно до
     // того момента, когда окажется, что она есть.
-    const rows = buildThread([{ id: 1, fromPlatform: true, createdAt: "2026-09-08T10:00:00" }], NOW);
+    const rows = buildThread([{ id: 1, fromPlatform: true, createdAt: "2026-09-08T10:00:00+05:00" }], NOW);
     expect(rows[0].kind === "day" && rows[0].when).toBe("today");
   });
 
