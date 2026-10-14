@@ -9,9 +9,10 @@ import { PhotoOrIcon } from "@/components/PhotoOrIcon";
 import { useDemoStatus } from "@/components/pitch/demo-access";
 import {
   pick, TEAM, ENGINEERING, PROBLEMS, ROLES, WHY_US, ROADMAP, CURRENT_STAGE, NEXT_STEPS,
-  STAGES, TECH, AI_NOW, AI_PLANNED, TRACTION, HIRING,
+  STAGES, TECH, AI_NOW, AI_PLANNED, TRACTION, HIRING, DAYS_TO_PAYING, fmtNum as fmt, mrrMln,
   type L, type StepState,
 } from "@/components/pitch/pitch-content";
+import ClosingSection from "@/components/pitch/ClosingSection";
 import MarketSection from "@/components/pitch/MarketSection";
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -37,10 +38,10 @@ const NAV: Array<{ href: string; label: L }> = [
   { href: "#yol-xaritasi", label: { uz: "Yo'l xaritasi", ru: "Дорожная карта" } },
   { href: "#amalga-oshirish", label: { uz: "Reja", ru: "Внедрение" } },
   { href: "#demo", label: { uz: "Demo", ru: "Демо" } },
+  { href: "#xulosa", label: { uz: "Xulosa", ru: "Итог" } },
   { href: "#api", label: { uz: "API", ru: "API" } },
 ];
 
-const fmt = (n: number) => n.toLocaleString("ru-RU").replace(/[\u00a0\u202f]/g, "\u2009");
 
 export default function Pitch() {
   return (
@@ -64,6 +65,7 @@ function PitchBody() {
       <Roadmap />
       <Implementation />
       <DemoTeaser />
+      <ClosingSection />
       <ApiSection status={status} />
     </>
   );
@@ -72,6 +74,35 @@ function PitchBody() {
 function useTr() {
   const { lang } = useLang();
   return { lang, tr: (uz: string, ru: string) => (lang === "uz" ? uz : ru) };
+}
+
+/*
+  Доказательство — на первом экране.
+
+  Жюри решает, читать ли дальше, за первые секунды, а платящие клиенты стояли
+  только во второй главе, под тринадцатью строками проблем и лентой экранов
+  телефона. Первый экран говорил «что это», но не «работает ли». Числа — те
+  же, что в «Результатах» (TRACTION), и ведут туда.
+*/
+function HeroProof() {
+  const { tr } = useTr();
+  const items: Array<{ v: string; label: string }> = [
+    { v: fmt(TRACTION.paying), label: tr("pullik distribyutor", "платящих дистрибьютора") },
+    { v: `${mrrMln()} ${tr("mln so'm", "млн сум")}`, label: tr("oylik tushum (MRR)", "выручка в месяц (MRR)") },
+    { v: fmt(TRACTION.deliveredOrders30d), label: tr("buyurtma, 30 kunda", "заказов за 30 дней") },
+    { v: `${DAYS_TO_PAYING} ${tr("kun", "дней")}`, label: tr("birinchi commitdan pullik mijozgacha", "от первого коммита до платящих клиентов") },
+  ];
+  return (
+    <a href="#natijalar" data-testid="pitch-hero-proof" className="p-rise p-focus grid grid-cols-2 lg:grid-cols-4"
+      style={{ marginTop: 36, gap: 1, background: "var(--rule-strong)", border: "1px solid var(--rule-strong)", borderRadius: 16, overflow: "hidden", textDecoration: "none", color: "inherit", animationDelay: "150ms" }}>
+      {items.map(it => (
+        <span key={it.label} style={{ display: "block", padding: "16px 18px", background: "var(--bg)" }}>
+          <span style={{ display: "block", fontSize: "clamp(22px, 2.6vw, 30px)", fontWeight: 800, letterSpacing: "-0.035em", lineHeight: 1.1, fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>{it.v}</span>
+          <span className="p-mono" style={{ display: "block", marginTop: 6, fontSize: 10.5, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--faint)" }}>{it.label}</span>
+        </span>
+      ))}
+    </a>
+  );
 }
 
 /* ── Первый экран ───────────────────────────────────────────────────────── */
@@ -104,6 +135,7 @@ function Hero() {
             <ArrowLink to="#muammo">{tr("Muammodan boshlash", "Начать с проблемы")}</ArrowLink>
           </div>
         </div>
+        <HeroProof />
 
         {/* Кадры настоящей программы: директор за компьютером, агент с телефоном. */}
         <div className="p-rise" style={{ position: "relative", marginTop: 56, animationDelay: "180ms", paddingRight: "clamp(56px, 14vw, 200px)" }}>
@@ -246,7 +278,7 @@ function Team() {
    Числа — из TRACTION (откуда каждое — там же). Имён клиентов нет. */
 function Traction() {
   const { tr } = useTr();
-  const mrr = (TRACTION.mrrUzs / 1_000_000).toFixed(2).replace(".", ",");
+  const mrr = mrrMln();
   // «млн» — подписью рядом с числом, а не частью числа: целиком «2,67 mln»
   // не помещалось в клетку из пяти на широком экране и обрезалось.
   const cells: Array<{ v: string; suffix?: string; label: string; accent?: boolean }> = [
@@ -326,6 +358,15 @@ function WhyUs() {
       )}
       band
     >
+      {/* Скорость — главный довод одного инженера с ИИ-агентами, и сказать его
+          надо словами жюри: не «сколько коммитов», а «сколько дней до денег». */}
+      <p data-testid="pitch-why-speed" style={{ margin: "0 0 28px", fontSize: "clamp(20px, 2.4vw, 28px)", fontWeight: 800, letterSpacing: "-0.03em", lineHeight: 1.25, maxWidth: "36ch" }}>
+        <span style={{ color: "var(--accent)" }}>{DAYS_TO_PAYING} {tr("kun", "дней")}</span>
+        {tr(
+          ` — birinchi commitdan (${ENGINEERING.since}) ${TRACTION.paying} ta pullik distribyutorgacha (${TRACTION.asOf}).`,
+          ` — от первого коммита (${ENGINEERING.since}) до ${TRACTION.paying} платящих дистрибьюторов (${TRACTION.asOf}).`,
+        )}
+      </p>
       <div data-testid="pitch-why-numbers" className="grid grid-cols-2 lg:grid-cols-4" style={{ gap: 1, background: "var(--rule-strong)", borderTop: "1px solid var(--rule-strong)", borderBottom: "1px solid var(--rule-strong)" }}>
         {numbers.map(n => (
           <div key={n.label} style={{ padding: "28px 20px 26px", background: "var(--bg)" }}>
@@ -401,8 +442,12 @@ function Roadmap() {
         <Mono style={{ color: "var(--accent-text)" }}>{tr("KEYINGI QADAMLAR", "СЛЕДУЮЩИЕ ШАГИ")}</Mono>
         <ul style={{ listStyle: "none", padding: 0, margin: "12px 0 0", borderTop: "1px solid var(--rule-strong)" }} className="grid md:grid-cols-2 md:gap-x-16">
           {NEXT_STEPS.map(s => (
-            <li key={s.ru} className="p-row" style={{ padding: "14px 0", fontSize: 15, display: "flex", gap: 12 }}>
-              <span aria-hidden="true" style={{ color: "var(--accent)" }}>→</span>{pick(lang, s)}
+            <li key={s.what.ru} data-testid="pitch-next-step" className="p-row" style={{ padding: "14px 0", fontSize: 15, display: "flex", gap: 12, alignItems: "baseline" }}>
+              <span aria-hidden="true" style={{ color: "var(--accent)" }}>→</span>
+              <span style={{ flex: 1 }}>{pick(lang, s.what)}</span>
+              {s.when && (
+                <span className="p-mono" style={{ fontSize: 11.5, letterSpacing: "0.06em", color: "var(--accent-text)", whiteSpace: "nowrap" }}>{pick(lang, s.when)}</span>
+              )}
             </li>
           ))}
         </ul>

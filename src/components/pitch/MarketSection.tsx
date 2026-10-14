@@ -1,7 +1,7 @@
 import { useLang } from "@/i18n";
 import { FIELD_PRICE_UZS, MIN_FIELD_USERS, ANNUAL_DISCOUNT, formatSum, monthlyPrice } from "@contracts/pricing";
 import { Chapter, Mono } from "./pitch-ui";
-import { pick, MARKET_PROOF, ALTERNATIVES, DIFFERENTIATORS, PARITY, IDEAS, GAPS } from "./pitch-content";
+import { pick, MARKET_PROOF, MARKET_SIZE, ALTERNATIVES, DIFFERENTIATORS, PARITY, IDEAS, GAPS } from "./pitch-content";
 
 /**
  * 03 · Рынок, конкуренты и бизнес-модель (09.10.2026).
@@ -33,6 +33,23 @@ export default function MarketSection() {
       </>}
       band
     >
+      {/* Сначала — насколько рынок велик, потом — сколько стоим и с кем
+          спорим. Каждое число — со своей ссылкой, без нашей оценки сверху. */}
+      <div data-testid="pitch-market-size" style={{ marginBottom: 56 }}>
+        <Mono style={{ color: "var(--accent-text)" }}>{tr("BOZOR HAJMI", "ОБЪЁМ РЫНКА")}</Mono>
+        <div className="grid grid-cols-2 lg:grid-cols-4" style={{ marginTop: 12, gap: 1, background: "var(--rule-strong)", borderTop: "1px solid var(--rule-strong)", borderBottom: "1px solid var(--rule-strong)" }}>
+          {MARKET_SIZE.map(m => (
+            <div key={m.source.href} style={{ padding: "24px 20px 22px", background: "var(--band)" }}>
+              <div style={{ fontSize: "clamp(28px, 3.4vw, 44px)", fontWeight: 800, letterSpacing: "-0.04em", lineHeight: 1, fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>{pick(lang, m.value)}</div>
+              <div style={{ marginTop: 10, fontSize: 14, lineHeight: 1.45, color: "var(--soft)" }}>{pick(lang, m.label)}</div>
+              <a href={m.source.href} target="_blank" rel="noopener noreferrer" className="p-mono p-focus" data-testid="pitch-market-size-source"
+                style={{ display: "inline-block", marginTop: 10, fontSize: 11.5, color: "var(--accent-text)", textDecoration: "underline", textUnderlineOffset: 4 }}>
+                {m.source.label} ↗
+              </a>
+            </div>
+          ))}
+        </div>
+      </div>
       <div className="grid lg:grid-cols-12" style={{ gap: "48px 64px" }}>
         <div className="lg:col-span-5" data-testid="pitch-business-model">
           <Mono style={{ color: "var(--accent-text)" }}>{tr("BIZNES MODEL", "БИЗНЕС-МОДЕЛЬ")}</Mono>

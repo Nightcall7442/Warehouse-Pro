@@ -90,6 +90,43 @@ export const MARKET_PROOF: { text: L; source: { label: string; href: string } } 
   },
 };
 
+/*
+  Объём рынка — вопрос жюри номер один. Только опубликованные числа со
+  ссылкой; своей оценки «TAM» здесь нет: числа FMCG-дистрибьюторов и
+  агентов на дистрибьютора не публикует никто, а выдуманный множитель
+  жюри разберёт первым же вопросом.
+
+  Собрано 13.10.2026 по выдержкам поиска: открыть страницы из среды
+  разработки не удалось (сеть закрыта). ПЕРЕД ПОДАЧЕЙ — пройти по каждой
+  ссылке и сверить число.
+  · 58 261 — оптовая торговля ВСЕХ отраслей, в основном малые и микро;
+  · 482,4 трлн — розничный товарооборот 2025 (+11,2 %);
+  · 84 % — доля традиционной торговли (частное исследование INFOLine);
+  · конкуренты — их собственные слова (основатель, сайт).
+*/
+export const MARKET_SIZE: Array<{ value: L; label: L; source: { label: string; href: string } }> = [
+  {
+    value: { uz: "58 261", ru: "58 261" },
+    label: { uz: "ulgurji savdo korxonasi, 01.09.2026", ru: "предприятие оптовой торговли, 01.09.2026" },
+    source: { label: "stat.uz, 30.09.2026", href: "https://stat.uz/img/news/ichki-savdo-08_2026-en_p68088.pdf" },
+  },
+  {
+    value: { uz: "482 trln so'm", ru: "482 трлн сум" },
+    label: { uz: "chakana savdo aylanmasi, 2025 (+11,2%)", ru: "розничный товарооборот, 2025 (+11,2%)" },
+    source: { label: "stat.uz, 01.2026", href: "https://stat.uz/img/news/talil-2025-jil-yanvar-dekabr-lotin-_p29731.pdf" },
+  },
+  {
+    value: { uz: "84%", ru: "84%" },
+    label: { uz: "savdo — an'anaviy do'konlar orqali, 2025", ru: "торговли — через традиционные магазины, 2025" },
+    source: { label: "INFOLine · Kursiv, 17.04.2026", href: "https://uz.kursiv.media/2026-04-17/belorusy-vdvoe-chashhe-pokupayut-onlajn-chem-kyrgyzstanczy-chto-v-uzbekistane/" },
+  },
+  {
+    value: { uz: "3 000+", ru: "3 000+" },
+    label: { uz: "Sales Doctor mijozi — asoschi so'zi bilan", ru: "клиентов Sales Doctor — со слов основателя" },
+    source: { label: "digitalbusiness.kz, 18.09.2026", href: "https://digitalbusiness.kz/2026-09-18/uzbekistanets-zapustil-servis-po-avtomatizatsii-distributsii-i-vishel-na-viruchku-4-mln-v-god/" },
+  },
+];
+
 export const ALTERNATIVES: Array<{ name: L; what: L }> = [
   {
     name: { uz: "Qog'oz, Excel, Telegram", ru: "Бумага, Excel, Telegram" },
@@ -224,6 +261,29 @@ export const TRACTION = {
   shops: 2385,
   deliveredOrders30d: 654,
 } as const;
+
+/**
+ * Дни от первого коммита до даты, на которую посчитаны платящие клиенты.
+ *
+ * Жюри первым делом спрашивает «сколько времени ушло» — и ответ сильнее
+ * любого числа коммитов: от пустого репозитория до платящих дистрибьюторов.
+ * Считается из ENGINEERING.since и TRACTION.asOf, а не вписано рукой: даты
+ * пересчитывают перед подачей, и число обязано поехать вместе с ними.
+ */
+export function daysBetween(from: string, to: string): number {
+  const ms = (d: string) => {
+    const [dd, mm, yyyy] = d.split(".").map(Number);
+    return Date.UTC(yyyy, mm - 1, dd);
+  };
+  return Math.round((ms(to) - ms(from)) / 86_400_000);
+}
+export const DAYS_TO_PAYING = daysBetween(ENGINEERING.since, TRACTION.asOf);
+
+/** Число с узким пробелом между разрядами: «2 385», а не «2385» или «2,385». */
+export const fmtNum = (n: number) => n.toLocaleString("ru-RU").replace(/[\u00a0\u202f]/g, "\u2009");
+
+/** Месячная выручка в миллионах сумов, «2,67», — одна запись на всю страницу. */
+export const mrrMln = () => (TRACTION.mrrUzs / 1_000_000).toFixed(2).replace(".", ",");
 
 /* ── Муаммо → Ечим ─────────────────────────────────────────────────────── */
 export const PROBLEMS: Array<{ topic: L; problem: L; solution: L }> = [
@@ -419,12 +479,54 @@ export const ROADMAP: Array<{ key: StageKey; name: L; d: L }> = [
 ];
 export const CURRENT_STAGE: StageKey = "launched";
 
-export const NEXT_STEPS: L[] = [
-  { uz: "iOS ilovasini App Store'da nashr qilish", ru: "Публикация iOS-приложения в App Store" },
-  { uz: "Android ilovasini Google Play'da nashr qilish", ru: "Публикация Android-приложения в Google Play" },
-  { uz: "Yangi distribyutorlarni ulash va ularning so'rovlari bo'yicha rivojlantirish", ru: "Подключение новых дистрибьюторов и развитие по их запросам" },
-  { uz: "AI funksiyalari — quyidagi rejaga ko'ra", ru: "Функции ИИ — по плану ниже" },
+/*
+  Ответ владельца 13.10.2026: приложения в сторах — ноябрь 2026; цель —
+  10 платящих дистрибьюторов к концу 2026. «Следующие шаги» без сроков жюри
+  читает как «когда-нибудь», поэтому у шага есть when — и он рисуется.
+*/
+export const GOAL_PAYING = { count: 10, by: { uz: "2026-yil oxirigacha", ru: "до конца 2026" } as L } as const;
+const STORES_BY: L = { uz: "2026-yil noyabr", ru: "ноябрь 2026" };
+
+export const NEXT_STEPS: Array<{ what: L; when?: L }> = [
+  {
+    what: {
+      uz: `${GOAL_PAYING.count} ta pullik distribyutor (hozir ${TRACTION.paying} ta)`,
+      ru: `${GOAL_PAYING.count} платящих дистрибьюторов (сейчас ${TRACTION.paying})`,
+    },
+    when: GOAL_PAYING.by,
+  },
+  { what: { uz: "iOS ilovasini App Store'da nashr qilish", ru: "Публикация iOS-приложения в App Store" }, when: STORES_BY },
+  { what: { uz: "Android ilovasini Google Play'da nashr qilish", ru: "Публикация Android-приложения в Google Play" }, when: STORES_BY },
+  { what: { uz: "AI funksiyalari — quyidagi rejaga ko'ra", ru: "Функции ИИ — по плану ниже" } },
 ];
+
+/*
+  Что просим у Pitch Day — ответ владельца 13.10.2026: инвестиции, пилотные
+  клиенты и выход на производителей.
+
+  Сумма инвестиций и на что они пойдут ещё не названы. Пока amount пуст,
+  строка «Инвестиции» не рисуется вовсе: «инвестиции — сумма уточняется» на
+  странице для жюри хуже, чем ничего.
+*/
+export const ASK: { investment: { amount: L | null; use: L | null }; items: Array<{ t: L; d: L }> } = {
+  investment: { amount: null, use: null },
+  items: [
+    {
+      t: { uz: "Pilot mijozlar", ru: "Пилотные клиенты" },
+      d: {
+        uz: "Distribyutorlar bilan tanishtiring: 14 kun bepul sinov, ma'lumotlarni ko'chirish va xodimlarni o'qitishda yordam beramiz.",
+        ru: "Познакомьте с дистрибьюторами: 14 дней бесплатно, с переносом данных и обучением людей поможем.",
+      },
+    },
+    {
+      t: { uz: "Ishlab chiqaruvchilarga chiqish", ru: "Выход на производителей" },
+      d: {
+        uz: "Brend o'z distribyutorlariga bitta tizimni tavsiya qilsa, bitta uchrashuv uning barcha distribyutorlariga yo'l ochadi.",
+        ru: "Если бренд рекомендует одну систему своим дистрибьюторам, одна встреча открывает дорогу ко всем его дистрибьюторам.",
+      },
+    },
+  ],
+};
 
 /* ── Как внедряем ───────────────────────────────────────────────────────── */
 export type StepState = "done" | "now" | "planned";
