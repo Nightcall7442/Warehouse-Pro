@@ -228,5 +228,12 @@ describe("откуда берутся продажи и возвраты", () =>
     expect(calc, "«Рассчитать» считает комиссию не общим расчётом").toContain("commissionFor(");
     expect(calc, "«Рассчитать» снова умножает на один процент")
       .not.toMatch(/\*\s*\(\s*Number\(\s*agent\.commissionRate/);
+
+    // И сам общий расчёт — по товарам, а не одним процентом.
+    const fnAt = BASE.indexOf("export async function commissionFor");
+    expect(fnAt, "общий расчёт commissionFor не найден").toBeGreaterThan(0);
+    const shared = BASE.slice(fnAt, BASE.indexOf("\nexport ", fnAt + 1));
+    expect(shared, "общий расчёт не раскладывает продажи по товарам").toContain("salesByProduct(");
+    expect(shared, "общий расчёт не применяет ставки по товарам").toContain("commissionOf(byProduct");
   });
 });
