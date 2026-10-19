@@ -9,7 +9,8 @@ import { onDate, sinceDay, untilDay } from "./lib/date-range";
 import { REVENUE_ORDER_STATUSES } from "./lib/order-status";
 import { returnsInPeriod, returnedByAgent, returnedOf } from "./services/revenue-returns";
 import { cache, CacheKeys } from "./lib/cache";
-import { rateRows } from "./services/commission-base";
+import { rateRows, productRates, agentCommission } from "./services/commission-base";
+import { businessDayStart, businessDayEnd } from "@contracts/business-time";
 import { invalidateReports } from "./lib/report-cache";
 import { carriedPayTerms } from "./services/pay-terms";
 
@@ -226,6 +227,8 @@ export const commissionRouter = createRouter({
 
       const { orders } = await import("@db/schema");
       const { sql: sqlFn } = await import("drizzle-orm");
+      // Ставки по товарам — на организацию: один запрос на весь расчёт.
+      const rates = await productRates(db, ctx.tenant.id);
 
       const results = await Promise.all(
         agentCommissions.map(async (agent) => {
@@ -275,7 +278,20 @@ export const commissionRouter = createRouter({
           );
 
           const salesAmount = Math.max(0, Number(orderResult.total) - returned.amount);
-          const commissionAmount = salesAmount * (Number(agent.commissionRate) / 100);
+          /*
+            Комиссия — той же формулой, что у экрана зарплаты: по ставкам
+            товаров, остальное процентом человека (services/commission-base.ts).
+
+            Здесь стояло salesAmount × ставка человека — на всё. Строка
+            комиссии одна на двоих, и финансист утверждал то, что посчиталось
+            последним: открыли зарплату — одна сумма, нажали «Рассчитать» —
+            другая (аудит 19.10.2026).
+          */
+          const { commissionAmount } = await agentCommission(
+            db, ctx.tenant.id, agent.userId,
+            businessDayStart(fromDay), businessDayEnd(toDay),
+            salesAmount, Number(agent.commissionRate), rates,
+          );
 
           // Статус в условии UPDATE повторно, а не только в выборке выше:
           // между SELECT и этим UPDATE проходят десятки запросов к orders и
