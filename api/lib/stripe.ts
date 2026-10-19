@@ -46,6 +46,19 @@ export const PLANS: Record<PlanKey, (typeof BASE_PLANS)[PlanKey] & { price: numb
 };
 
 export async function verifyWebhook(body: string, signature: string): Promise<Stripe.Event> {
+  /*
+    Без секрета вебхук закрыт целиком (аудит 19.10.2026).
+
+    Подпись Stripe — HMAC тела секретом вебхука, и библиотека пустой секрет
+    не отвергает: подпись пустым ключом посчитает кто угодно. Задан ключ
+    Stripe, а секрет пуст — и любой «оплачивал» себе тариф или отключал
+    чужую организацию поддельным событием. Падать при старте не стали: в бою
+    это уронило бы весь сервис ради одного вебхука, а отказ закрывает дыру и
+    так. Проверка — api/__tests__/stripe-webhook-secret.test.ts.
+  */
+  if (!env.stripeWebhookSecret?.trim()) {
+    throw new Error("STRIPE_WEBHOOK_SECRET is not configured.");
+  }
   const stripe = getStripe();
   return stripe.webhooks.constructEventAsync(body, signature, env.stripeWebhookSecret);
 }
