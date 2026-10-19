@@ -211,8 +211,17 @@ export const commissionRouter = createRouter({
           eq(commissions.tenantId, ctx.tenant.id),
           eq(commissions.periodType, input.periodType),
           eq(commissions.status, "pending"),
+          /*
+            Строки, чей период НАЧИНАЕТСЯ в диапазоне, — а не кончается в нём.
+
+            Экран шлёт «с первого числа по сегодня», а строка месяца кончается
+            последним днём месяца. Отбор по period_end <= сегодня текущий месяц
+            не находил вовсе: «Рассчитать» отвечал «обновлено 0» до конца
+            месяца (аудит 19.10.2026). Считается строка всё равно по своим
+            датам, ниже, так что чужие дни в неё не попадут.
+          */
           sql`${commissions.periodStart} >= ${input.periodStart}`,
-          sql`${commissions.periodEnd} <= ${input.periodEnd}`,
+          sql`${commissions.periodStart} <= ${input.periodEnd}`,
         ));
 
       const { orders } = await import("@db/schema");
