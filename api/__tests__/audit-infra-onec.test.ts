@@ -127,6 +127,7 @@ bridge.names = PRESETS.bp_uz;
 import { OneCMapper } from "../services/onec-mapper";
 import { OneCSyncService } from "../services/onec-sync";
 import { runBackup } from "../cron/backup";
+import { businessToday } from "@contracts/business-time";
 import { createRouter, publicQuery } from "../middleware";
 import { fetchRequestHandler } from "@trpc/server/adapters/fetch";
 import type { TrpcContext } from "../context";
@@ -188,7 +189,9 @@ describe("ночной дамп базы не лежит рядом с публ�
     await runBackup();
     await runBackup();
 
-    const today = new Date().toISOString().split("T")[0];
+    // Дата в имени — ташкентская (cron/backup.ts), а не из toISOString: с
+    // 19:00 до полуночи по UTC там уже завтра, и проверка падала по вечерам.
+    const today = businessToday();
     const keys = putCalls.map(c => String(c.Key));
     expect(keys).toHaveLength(2);
     // Раньше ключ был ровно таким — и подставлялся в публичный адрес бакета.

@@ -37,6 +37,7 @@ import { eq, sql } from "drizzle-orm";
 import * as schema from "@db/schema";
 import { recalcShopDebt } from "../../services/shop-debt";
 import { ctxFor, hasRealDb, connectRealDb, closeRealDb, truncateAll, seed, type ServiceDb, type Seeded } from "./harness";
+import { businessDaysAgo, businessToday } from "@contracts/business-time";
 
 let current: ServiceDb;
 vi.mock("../../queries/connection", () => ({ getDb: () => current, getPool: () => null }));
@@ -162,7 +163,9 @@ describe.skipIf(!hasRealDb)("светофор магазина", () => {
   });
 
   it("5. последняя причина «без заказа»; визит с заказом не в счёт", async () => {
-    const day = async (k: number) => String(((await db.execute(sql`SELECT DATE_FORMAT(DATE_SUB(CURDATE(), INTERVAL ${k} DAY), '%Y-%m-%d') AS d`)) as unknown as [Array<{ d: string }>])[0][0].d);
+    // Дни по Ташкенту, а не от CURDATE() сессии в UTC: с 19:00 до полуночи по
+    // UTC план вставал на день раньше заказа, и визит с заказом шёл в счёт.
+    const day = async (k: number) => businessDaysAgo(k);
     await db.insert(schema.dailyPlans).values([
       { tenantId: s.tenantId, agentId: s.agentId, shopId: sh.steady, planDate: sql`${await day(10)}` as never, status: "visited", noOrderReason: "has_stock" },
       // 7 дней назад у «Ровного» был заказ того же агента — причина не в счёт.
@@ -205,7 +208,7 @@ describe.skipIf(!hasRealDb)("светофор магазина", () => {
     expect(await agent.light({ shopId: sh.foreign })).toBeNull();
     expect(await (await as("agent", otherAgent)).light({ shopId: sh.foreign })).toMatchObject({ shopId: sh.foreign });
 
-    await db.insert(schema.dailyPlans).values({ tenantId: s.tenantId, agentId: s.agentId, shopId: sh.foreign, planDate: sql`CURDATE()` as never });
+    await db.insert(schema.dailyPlans).values({ tenantId: s.tenantId, agentId: s.agentId, shopId: sh.foreign, planDate: sql`${businessToday()}` as never });
     expect(await agent.light({ shopId: sh.foreign }), "магазин из плана агента остался чужим").toMatchObject({ shopId: sh.foreign });
     expect(await (await as("supervisor", 999)).light({ shopId: sh.foreign })).toMatchObject({ shopId: sh.foreign });
   });
