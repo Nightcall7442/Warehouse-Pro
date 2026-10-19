@@ -11,6 +11,7 @@ import { returnsInPeriod, returnedByAgent, returnedOf } from "./services/revenue
 import { cache, CacheKeys } from "./lib/cache";
 import { rateRows } from "./services/commission-base";
 import { invalidateReports } from "./lib/report-cache";
+import { carriedPayTerms } from "./services/pay-terms";
 
 /**
  * Проверить, что сотрудник, которому назначают ставку, из этой организации.
@@ -153,14 +154,18 @@ export const commissionRouter = createRouter({
           })
           .where(eq(commissions.id, existing.id));
       } else {
+        // Не переданное — как в прошлом месяце, а не ноль: оклад сюда не
+        // приходит вовсе и раньше обнулялся (services/pay-terms.ts).
+        const carried = await carriedPayTerms(db, ctx.tenant.id, input.userId, monthStart);
         await db.insert(commissions).values({
+          ...carried,
           tenantId: ctx.tenant.id,
           userId: input.userId,
           commissionRate: input.commissionRate.toFixed(2),
-          deliveryRate: (input.deliveryRate ?? 0).toFixed(2),
-          courierPayMode: input.courierPayMode ?? "per_delivery",
-          mealAllowance: (input.mealAllowance ?? 0).toFixed(2),
-          travelAllowance: (input.travelAllowance ?? 0).toFixed(2),
+          ...(input.deliveryRate === undefined ? {} : { deliveryRate: input.deliveryRate.toFixed(2) }),
+          ...(input.courierPayMode === undefined ? {} : { courierPayMode: input.courierPayMode }),
+          ...(input.mealAllowance === undefined ? {} : { mealAllowance: input.mealAllowance.toFixed(2) }),
+          ...(input.travelAllowance === undefined ? {} : { travelAllowance: input.travelAllowance.toFixed(2) }),
           periodType: "monthly",
           // These are `date` columns, so drizzle types them as Date, but the
           // period is keyed by the "YYYY-MM-DD" string the lookup above uses —
