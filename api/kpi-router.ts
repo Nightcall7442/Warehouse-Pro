@@ -15,6 +15,7 @@ import { NotificationService } from "./services/NotificationService";
 import { sendPushToUser } from "./services/push-service";
 import { alias } from "drizzle-orm/mysql-core";
 import { eq, and, sql, gte, lte, desc } from "drizzle-orm";
+import { carriedPayTerms } from "./services/pay-terms";
 
 /*
   Кэш отчётов этого роутера.
@@ -671,6 +672,9 @@ export const kpiRouter = createRouter({
         await db.update(commissions).set({ fraudDeduction: value }).where(eq(commissions.id, terms.id));
       } else if (value != null) {
         await db.insert(commissions).values({
+          // Условия прошлого месяца — иначе строка с одним вычетом обнулила
+          // бы оклад и ставки этого месяца (services/pay-terms.ts).
+          ...(await carriedPayTerms(db, ctx.tenant.id, person.id, monthStart)),
           tenantId: ctx.tenant.id, userId: person.id, periodType: "monthly",
           periodStart: sql`${monthStart}`, periodEnd: sql`${monthEnd}`,
           fraudDeduction: value,
@@ -733,11 +737,15 @@ export const kpiRouter = createRouter({
           })
           .where(eq(commissions.id, existingTerms.id));
       } else {
+        // Ставка не передана — остаётся прошлая, а не ноль; доставка и
+        // надбавки — тоже прошлые (services/pay-terms.ts).
+        const carried = await carriedPayTerms(db, ctx.tenant.id, person.id, monthStart);
         await db.insert(commissions).values({
+          ...carried,
           tenantId:       ctx.tenant.id,
           userId:         person.id,
           baseSalary:     input.baseSalary.toFixed(2),
-          commissionRate: (input.commissionRate ?? 0).toFixed(2),
+          commissionRate: input.commissionRate != null ? input.commissionRate.toFixed(2) : (carried.commissionRate ?? "0.00"),
           periodType:     "monthly",
           periodStart:    sql`${monthStart}`,
           periodEnd:      sql`${monthEnd}`,

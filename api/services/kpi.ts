@@ -1079,6 +1079,14 @@ export async function calculateSalary(
               tenantId,
               userId: agentId,
               commissionRate: commissionRate.toFixed(2),
+              // Условия, по которым только что считали, — прошлого месяца:
+              // строки за этот ещё нет. Без них новая строка обнуляла оклад,
+              // ставку доставки и надбавки (services/pay-terms.ts).
+              baseSalary: baseSalary.toFixed(2),
+              deliveryRate: deliveryRate.toFixed(2),
+              courierPayMode,
+              mealAllowance: mealAllowance.toFixed(2),
+              travelAllowance: travelAllowance.toFixed(2),
               periodType: "monthly",
               periodStart: sql`${monthStart}`,
               periodEnd: sql`${monthEnd}`,

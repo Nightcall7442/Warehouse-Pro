@@ -147,6 +147,38 @@ function requireScope(scopes: string[], required: string): boolean {
   return scopes.includes("read") || scopes.includes(required);
 }
 
+/*
+  Что видит интегратор — списком, а не select() всей строки.
+
+  select() отдавал наружу всё, что лежит в таблице, и закупочная цена товара
+  (costPrice) и позиции уходила по ключу API любому интегратору: он видел
+  маржу дистрибьютора. Новая колонка в таблице тоже уходила бы сама. Теперь
+  наружу идёт только перечисленное здесь; закупочной цены в списках нет и
+  быть не должно — стережёт api/__tests__/public-api-no-cost.test.ts.
+*/
+const PUBLIC_PRODUCT = {
+  id: products.id, tenantId: products.tenantId, code: products.code, barcode: products.barcode,
+  name: products.name, category: products.category, unitPrice: products.unitPrice, unit: products.unit,
+  unitWeight: products.unitWeight, packSize: products.packSize, packLabel: products.packLabel,
+  ikpu: products.ikpu, packageCode: products.packageCode, vatRate: products.vatRate,
+  description: products.description, photoUrl: products.photoUrl, reorderPoint: products.reorderPoint,
+  status: products.status, createdAt: products.createdAt, updatedAt: products.updatedAt,
+};
+
+const PUBLIC_ORDER = {
+  id: orders.id, orderNumber: orders.orderNumber, status: orders.status,
+  total: orders.total, subtotal: orders.subtotal, discount: orders.discount,
+  shopId: orders.shopId, agentId: orders.agentId, notes: orders.notes,
+  createdAt: orders.createdAt,
+};
+
+const PUBLIC_ORDER_ITEM = {
+  id: orderItems.id, orderId: orderItems.orderId, productId: orderItems.productId,
+  quantity: orderItems.quantity, unitPrice: orderItems.unitPrice, subtotal: orderItems.subtotal,
+  priceListId: orderItems.priceListId, deliveredQuantity: orderItems.deliveredQuantity,
+  returnReason: orderItems.returnReason, returnPhotos: orderItems.returnPhotos, createdAt: orderItems.createdAt,
+};
+
 // ══════════════════════════════════════════════════════════════════════════════
 // PRODUCTS
 // ══════════════════════════════════════════════════════════════════════════════
@@ -161,7 +193,7 @@ app.get("/products", async (c) => {
   const limit = pageLimit(c.req.query("limit"));
   const offset = Number(c.req.query("offset") ?? 0);
 
-  const rows = await db.select().from(products)
+  const rows = await db.select(PUBLIC_PRODUCT).from(products)
     .where(eq(products.tenantId, tenantId))
     .orderBy(desc(products.createdAt))
     .limit(limit).offset(offset);
@@ -180,7 +212,7 @@ app.get("/products/:id", async (c) => {
 
   const db = getDb();
   const id = Number(c.req.param("id"));
-  const [row] = await db.select().from(products)
+  const [row] = await db.select(PUBLIC_PRODUCT).from(products)
     .where(and(eq(products.id, id), eq(products.tenantId, tenantId))).limit(1);
   if (!row) return c.json({ error: "Product not found" }, 404);
   return c.json({ data: row });
@@ -210,16 +242,14 @@ app.get("/orders/:id", async (c) => {
 
   const db = getDb();
   const id = Number(c.req.param("id"));
-  const [order] = await db.select({
-    id: orders.id, orderNumber: orders.orderNumber, status: orders.status,
-    total: orders.total, subtotal: orders.subtotal, discount: orders.discount,
-    shopId: orders.shopId, agentId: orders.agentId, notes: orders.notes,
-    createdAt: orders.createdAt,
-  }).from(orders)
+  const [order] = await db.select(PUBLIC_ORDER).from(orders)
     .where(and(eq(orders.id, id), eq(orders.tenantId, tenantId))).limit(1);
   if (!order) return c.json({ error: "Order not found" }, 404);
 
-  const items = await db.select().from(orderItems)
+  // Форма строки прежняя — { order_items, orders }, как отдавал join, — но
+  // колонки перечислены: без закупочной цены позиции и без служебных полей
+  // заказа.
+  const items = await db.select({ order_items: PUBLIC_ORDER_ITEM, orders: PUBLIC_ORDER }).from(orderItems)
     .innerJoin(orders, eq(orderItems.orderId, orders.id))
     .where(and(eq(orderItems.orderId, id), eq(orders.tenantId, tenantId)));
   return c.json({ data: { ...order, items } });

@@ -12,6 +12,15 @@ import { uiLang } from "@/lib/ui-text";
 
 type Organization = { tenantId: number; name: string };
 
+/*
+  Клавиатура iPhone не правит логин и пароль. Без этого «показать пароль»
+  делает поле обычным текстом, и iOS ставит первую букву заглавной, «исправляет»
+  слова и меняет кавычки — уходит не тот пароль, который человек набирал.
+  Агент с iPhone не мог войти, а с теми же данными в APK входил (15.10.2026).
+  Проверка — src/__tests__/login-on-iphone.test.tsx.
+*/
+const NO_KEYBOARD_REWRITES = { autoCapitalize: "none", autoCorrect: "off", spellCheck: false } as const;
+
 /**
  * Вход.
  *
@@ -79,8 +88,10 @@ export default function Login() {
         // x-lang — отказ входа приходит на языке интерфейса (api/http/auth.ts).
         headers: { "Content-Type": "application/json", "x-lang": uiLang() },
         credentials: "include",
+        // Логин — как в APK (app/(auth)/login.tsx): без пробелов по краям и
+        // строчными. Пароль — как набран.
         body: JSON.stringify({
-          email, password,
+          email: email.trim().toLowerCase(), password,
           ...(tenantId === undefined ? {} : { tenantId }),
           ...(code ? { code } : {}),
         }),
@@ -138,7 +149,8 @@ export default function Login() {
             placeholder="you@company.com"
             value={email}
             onChange={e => { setEmail(e.target.value); setOrgChoice(null); }}
-            autoComplete="email"
+            autoComplete="username"
+            {...NO_KEYBOARD_REWRITES}
             disabled={isPending}
           />
         </Field>
@@ -154,6 +166,7 @@ export default function Login() {
             value={password}
             onChange={e => { setPassword(e.target.value); setOrgChoice(null); }}
             autoComplete="current-password"
+            {...NO_KEYBOARD_REWRITES}
             disabled={isPending}
           />
           <button
