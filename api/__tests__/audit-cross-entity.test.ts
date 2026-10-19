@@ -60,6 +60,7 @@ vi.mock("../lib/cache", () => {
 
 import {
   commissions, users, territories, shops, agentTerritories, agentLocations, orders, returns,
+  commissionProductRates,
 } from "@db/schema";
 
 // ── Поддельная база ──────────────────────────────────────────────────────────
@@ -75,6 +76,8 @@ type Joined = Record<string, Row | null>;
 
 const TABLES: Record<string, object> = {
   commissions, users, territories, shops, agentTerritories, agentLocations, orders, returns,
+  // «Рассчитать» читает ставки по товарам — общий расчёт с экраном зарплаты.
+  commissionProductRates,
 };
 
 const colInfo = new Map<unknown, { table: string; field: string }>();
@@ -381,6 +384,7 @@ function reset() {
     agentLocations: [],
     orders: [],
     returns: [],
+    commissionProductRates: [],
   };
 }
 

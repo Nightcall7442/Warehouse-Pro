@@ -134,7 +134,7 @@ describe("правило периода", () => {
     const CALLERS = [
       "analytics-router.ts",    // P&L, помесячный ряд, разбивка по способу оплаты
       "dashboard-router.ts",    // плитка «валовая прибыль»
-      "commission-router.ts",   // база комиссии
+      "services/commission-base.ts", // база комиссии: «Рассчитать» и зарплата
       "services/kpi.ts",        // карточка, список, ведомость
     ];
     for (const rel of CALLERS) {

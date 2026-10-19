@@ -4,12 +4,10 @@ import { TRPCError } from "@trpc/server";
 import { createRouter, operatorQuery, authedQuery, can } from "./middleware";
 import { getDb } from "./queries/connection";
 import { commissions, users, products, commissionProductRates } from "@db/schema";
-import { eq, and, desc, isNull , inArray, sql } from "drizzle-orm";
-import { onDate, sinceDay, untilDay } from "./lib/date-range";
-import { REVENUE_ORDER_STATUSES } from "./lib/order-status";
-import { returnsInPeriod, returnedByAgent, returnedOf } from "./services/revenue-returns";
+import { eq, and, desc, sql } from "drizzle-orm";
+import { onDate } from "./lib/date-range";
 import { cache, CacheKeys } from "./lib/cache";
-import { rateRows } from "./services/commission-base";
+import { rateRows, productRates, commissionFor } from "./services/commission-base";
 import { invalidateReports } from "./lib/report-cache";
 import { carriedPayTerms } from "./services/pay-terms";
 
@@ -224,8 +222,9 @@ export const commissionRouter = createRouter({
           sql`${commissions.periodStart} <= ${input.periodEnd}`,
         ));
 
-      const { orders } = await import("@db/schema");
-      const { sql: sqlFn } = await import("drizzle-orm");
+      // Ставки по товарам — одни на всю организацию: читаем один раз, а не
+      // на каждую строку.
+      const rates = await productRates(db, ctx.tenant.id);
 
       const results = await Promise.all(
         agentCommissions.map(async (agent) => {
@@ -240,42 +239,21 @@ export const commissionRouter = createRouter({
           // своём дне, а не в соседнем по UTC.
           const fromDay = dateColumnDay(agent.periodStart);
           const toDay = dateColumnDay(agent.periodEnd);
-          const [orderResult] = await db.select({
-            total: sqlFn<string>`COALESCE(SUM(${orders.total}), 0)`,
-          }).from(orders).where(and(
-            eq(orders.tenantId, ctx.tenant.id),
-            eq(orders.agentId, agent.userId),
-            inArray(orders.status, REVENUE_ORDER_STATUSES),
-            isNull(orders.deletedAt),
-            sinceDay(orders.createdAt, fromDay),
-            untilDay(orders.createdAt, toDay),
-          ));
 
           /*
-            Возвраты — общим правилом (services/revenue-returns.ts).
+            Формула — общая с экраном зарплаты (services/commission-base.ts):
+            ставки по товарам, остальное — процент из этой строки.
 
-            Здесь стоял свой запрос, и он ошибался дважды.
-
-            Во-первых, брал возвраты по дате ЗАКАЗА, а прибыль на соседней
-            странице — по дате проведения возврата. Один и тот же возврат
-            уменьшал разные месяцы в двух отчётах.
-
-            Во-вторых, и это дороже, у него не было отбора по статусу заказа
-            вовсе — только `deleted_at IS NULL`. Заказ, отменённый после
-            проведения возврата, выпадал из суммы продаж целиком (статус
-            фильтруется выше) и продолжал вычитаться возвратом: те же деньги
-            уходили из базы комиссии дважды. У агента с одной отменой месяц
-            обнулялся на ровном месте, и Math.max(0, …) это прятал.
+            Здесь стояло своё умножение продаж на один процент человека, а
+            экран зарплаты считал по товарам. Строку они пишут одну, и
+            финансист утверждал то, что посчиталось последним (аудит
+            19.10.2026). Возвраты считаются там же и тем же общим правилом
+            (services/revenue-returns.ts): по дате проведения и только по
+            заказам, которые сами считаются выручкой.
           */
-          const returned = returnedOf(
-            returnedByAgent(await returnsInPeriod(
-              db, ctx.tenant.id, fromDay, toDay,
-            )),
-            agent.userId,
+          const { salesAmount, commissionAmount } = await commissionFor(
+            db, ctx.tenant.id, agent.userId, fromDay, toDay, Number(agent.commissionRate), rates,
           );
-
-          const salesAmount = Math.max(0, Number(orderResult.total) - returned.amount);
-          const commissionAmount = salesAmount * (Number(agent.commissionRate) / 100);
 
           // Статус в условии UPDATE повторно, а не только в выборке выше:
           // между SELECT и этим UPDATE проходят десятки запросов к orders и

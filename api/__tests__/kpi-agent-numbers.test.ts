@@ -81,7 +81,13 @@ describe("выручка в списке и в карточке", () => {
     */
     for (const fn of MONEY_FUNCTIONS) {
       const body = bodyOf(fn);
-      expect(body, `${fn}: возвраты не учитываются`).toContain("returnsInPeriod(");
+      /*
+        Зарплата берёт базу комиссии из общего расчёта (commissionFor в
+        services/commission-base.ts), а возвраты вычитаются там — тем же
+        returnsInPeriod; за ним следит returns-netted-one-way.test.ts.
+      */
+      const nets = fn.endsWith("calculateSalary") ? "commissionFor(" : "returnsInPeriod(";
+      expect(body, `${fn}: возвраты не учитываются`).toContain(nets);
       expect(body, `${fn}: вернулся свой запрос по таблице возвратов`)
         .not.toContain("from(returns)");
     }

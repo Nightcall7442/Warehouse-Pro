@@ -49,8 +49,8 @@ function fakeDb(sold: Array<{ productId: number; amount: string }>,
 }
 
 const P = (id: number, amount: number) => ({ productId: id, amount: amount.toFixed(2) });
-const FROM = new Date("2026-09-01");
-const TO = new Date("2026-09-30");
+const FROM = "2026-09-01";
+const TO = "2026-09-30";
 
 describe("пустой список ставок ничего не меняет", () => {
   it("комиссия — ровно продажи × процент человека", () => {
@@ -193,11 +193,11 @@ describe("откуда берутся продажи и возвраты", () =>
       нижнюю границу на orders.createdAt, и слово в запросе всё равно есть —
       страж молчал, а период разъезжался ровно на месяц.
     */
-    const bounds = [...q.matchAll(/sql`\$\{(\w+)\.createdAt\}\s*([<>]=)/g)].map(m => [m[1], m[2]]);
+    const bounds = [...q.matchAll(/(sinceDay|untilDay)\((\w+)\.createdAt,/g)].map(m => [m[2], m[1]]);
     expect(bounds, "границы периода возвратов не найдены").toHaveLength(2);
     expect(bounds.map(b => b[0]), "возвраты берутся не по дате проведения")
       .toEqual(["returns", "returns"]);
-    expect(bounds.map(b => b[1]).sort()).toEqual(["<=", ">="]);
+    expect(bounds.map(b => b[1]).sort()).toEqual(["sinceDay", "untilDay"]);
     expect(q, "непроведённые возвраты тоже вычитаются").toContain('eq(returns.status, "completed")');
     /*
       Агент — из ЗАКАЗА, а не из документа возврата. Это разные люди: возврат
@@ -208,16 +208,25 @@ describe("откуда берутся продажи и возвраты", () =>
       .toContain("revenueOrderConditions(tenantId)");
   });
 
-  it("зарплата зовёт общий расчёт, а не считает процент сама", () => {
+  it("зарплата и «Рассчитать» зовут общий расчёт, а не считают процент сами", () => {
     /*
       Пока умножение стояло на месте, ставки по товарам можно было завести и
       не заметить, что комиссия их не видит: число выглядит правдоподобно при
-      любом проценте.
+      любом проценте. Ровно так и вышло с «Рассчитать»: зарплату перевели на
+      ставки по товарам, а он по-прежнему умножал продажи на один процент
+      и писал своё число в ту же строку (аудит 19.10.2026).
     */
     const at = KPI.indexOf("export async function calculateSalary");
     const body = KPI.slice(at, KPI.indexOf("\nfunction calculateCompositeScore", at));
     expect(body, "комиссия снова считается на месте")
       .not.toContain("salesAmount * (commissionRate / 100)");
-    expect(body, "разложение по товарам не запрашивается").toContain("commissionOf(byProduct");
+    expect(body, "зарплата считает комиссию не общим расчётом").toContain("commissionFor(");
+
+    const ROUTER = read("api/commission-router.ts");
+    const from = ROUTER.indexOf("calculate: operatorQuery");
+    const calc = ROUTER.slice(from, ROUTER.indexOf("productRates: authedQuery", from));
+    expect(calc, "«Рассчитать» считает комиссию не общим расчётом").toContain("commissionFor(");
+    expect(calc, "«Рассчитать» снова умножает на один процент")
+      .not.toMatch(/\*\s*\(\s*Number\(\s*agent\.commissionRate/);
   });
 });

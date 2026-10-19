@@ -7,7 +7,7 @@ import { calculateFraudMetrics, calculateFraudMetricsForAgents, type FraudMetric
 import {
   returnsInPeriod, returnedByAgent, returnedOf, type ReturnedValue,
 } from "./revenue-returns";
-import { productRates, salesByProduct, commissionOf, overridesUsed } from "./commission-base";
+import { commissionFor } from "./commission-base";
 import { logger } from "../lib/logger";
 import { bizClock, untilDate } from "../lib/date-range";
 
@@ -842,52 +842,18 @@ export async function calculateSalary(
   const courierPayMode: CourierPayMode =
     commissionRecord?.courierPayMode === "percent" ? "percent" : "per_delivery";
 
-  const [salesStats] = await db.select({
-    salesAmount: sql<string>`COALESCE(SUM(CAST(total AS DECIMAL(15,2))), 0)`,
-  }).from(orders)
-    .where(and(
-      eq(orders.tenantId, tenantId),
-      eq(orders.agentId, agentId),
-      inArray(orders.status, REVENUE_ORDER_STATUSES),
-      isNull(orders.deletedAt),
-      gte(orders.createdAt, periodStart),
-      lte(orders.createdAt, periodEnd),
-    ));
-
   /*
-    База комиссии — за вычетом возвратов, тем же правилом, что и выручка в
-    карточке. Здесь стоял свой запрос по дате ЗАКАЗА и без отбора по статусу:
-    возврат по потом отменённому заказу уменьшал базу второй раз.
+    Комиссия — общим расчётом (services/commission-base.ts, commissionFor),
+    тем же, что у «Рассчитать»: оба пишут одну строку комиссии.
+
+    Продажи за вычетом возвратов, по ТОВАРАМ: товар со своей ставкой — по ней,
+    остальное — по проценту человека. Пока ни одному товару не назначено
+    своей ставки, выходит ровно salesAmount × commissionRate / 100 — то самое
+    число, что и раньше.
   */
-  const returnedSales = returnedOf(
-    returnedByAgent(await returnsInPeriod(db, tenantId, dayKey(periodStart), dayKey(periodEnd))),
-    agentId,
+  const { salesAmount, commissionAmount, productRateCount } = await commissionFor(
+    db, tenantId, agentId, dayKey(periodStart), dayKey(periodEnd), commissionRate,
   );
-
-  const salesAmount = Math.max(0, Number(salesStats?.salesAmount ?? 0) - returnedSales.amount);
-
-  /*
-    Комиссия — по ТОВАРАМ, а не одним процентом на всё.
-
-    Жалоба арендатора: у него разные проценты для разных товаров, а система
-    знала один на человека. Ставки по товарам живут в отдельной таблице
-    (services/commission-base.ts), продажи раскладываются по ней же, а
-    остальное считается прежним процентом человека.
-
-    Пока ни одному товару не назначено своей ставки, здесь получается ровно
-    salesAmount × commissionRate / 100 — то самое число, что и раньше. Это не
-    совпадение, а свойство разложения: сумма частей равна salesAmount. На него
-    стоит отдельная проверка, потому что включение раздела не должно менять
-    зарплату тем, кому ничего не меняли.
-  */
-  const rates = await productRates(db, tenantId);
-  const byProduct = rates.size === 0
-    // Ставок нет вовсе — раскладывать незачем: два запроса к order_items и
-    // return_items на каждого человека за ответ, который и так известен.
-    ? new Map<number, number>()
-    : await salesByProduct(db, tenantId, agentId, periodStart, periodEnd, salesAmount);
-  const commissionAmount = commissionOf(byProduct, rates, commissionRate, salesAmount);
-  const productRateCount = overridesUsed(byProduct, rates);
 
   /*
     ── Премии в зарплате больше нет ──────────────────────────────────────────

@@ -20,6 +20,12 @@
    Свойство важнее удобства: включение раздела не должно менять зарплату
    людям, которым ничего не меняли.
 
+   ── Формула одна ────────────────────────────────────────────────────────────
+
+   Месячную строку комиссии пишут двое: «Рассчитать» и экран зарплаты. Оба
+   зовут commissionFor ниже и больше ничего не умножают сами — иначе в
+   ведомости оказывается то, что посчиталось последним.
+
    ── Как сходится сумма ──────────────────────────────────────────────────────
 
    Строк заказа и суммы заказа две разные величины: скидка живёт на заказе
@@ -47,7 +53,9 @@ import { and, eq, sql, inArray } from "drizzle-orm";
 import {
   orderItems, orders, returnItems, returns, commissionProductRates,
 } from "@db/schema";
-import { revenueOrderConditions, deliveredQty } from "../lib/order-status";
+import { revenueOrderConditions, revenuePeriodConditions, deliveredQty } from "../lib/order-status";
+import { sinceDay, untilDay } from "../lib/date-range";
+import { returnsInPeriod, returnedByAgent, returnedOf } from "./revenue-returns";
 
 type Db = ReturnType<typeof import("../queries/connection").getDb>;
 
@@ -84,8 +92,8 @@ export async function salesByProduct(
   db: Db,
   tenantId: number,
   agentId: number,
-  periodStart: Date,
-  periodEnd: Date,
+  fromDay: string,
+  toDay: string,
   salesAmount: number,
 ): Promise<SalesByProduct> {
   // Нечего раскладывать — и запросов не нужно.
@@ -100,8 +108,8 @@ export async function salesByProduct(
     .where(and(
       ...revenueOrderConditions(tenantId),
       eq(orders.agentId, agentId),
-      sql`${orders.createdAt} >= ${periodStart}`,
-      sql`${orders.createdAt} <= ${periodEnd}`,
+      sinceDay(orders.createdAt, fromDay),
+      untilDay(orders.createdAt, toDay),
     ))
     .groupBy(orderItems.productId);
 
@@ -124,8 +132,8 @@ export async function salesByProduct(
     .where(and(
       eq(returns.tenantId, tenantId),
       eq(returns.status, "completed"),
-      sql`${returns.createdAt} >= ${periodStart}`,
-      sql`${returns.createdAt} <= ${periodEnd}`,
+      sinceDay(returns.createdAt, fromDay),
+      untilDay(returns.createdAt, toDay),
       ...revenueOrderConditions(tenantId),
       eq(orders.agentId, agentId),
     ))
@@ -187,6 +195,71 @@ export function overridesUsed(byProduct: SalesByProduct, rates: Map<number, numb
   let n = 0;
   for (const productId of byProduct.keys()) if (rates.has(productId)) n++;
   return n;
+}
+
+/** Комиссия человека за период — то, что пишется в строку commissions. */
+export interface Commission {
+  /** Продажи за вычетом возвратов — база комиссии. */
+  salesAmount: number;
+  commissionAmount: number;
+  /** У скольких проданных товаров своя ставка — для подписи на экране зарплаты. */
+  productRateCount: number;
+}
+
+/**
+ * Комиссия человека за дни fromDay…toDay включительно, по Ташкенту.
+ *
+ * ОДНА формула на всё, что пишет месячную строку комиссии: и «Рассчитать»
+ * (commission-router), и экран зарплаты (services/kpi.ts, calculateSalary).
+ *
+ * Аудит 19.10.2026, «Две формулы комиссии пишут в одну строку»: «Рассчитать»
+ * умножал продажи на одну ставку человека, а экран зарплаты учитывал ставки
+ * по товарам. Строка у них общая, и финансист утверждал то, что посчиталось
+ * последним: у агента с продажами на 100 000 по ставке 10 % и на 200 000 по
+ * 5 % «Рассчитать» писал 15 000, а открытый после него экран зарплаты —
+ * 20 000. Оставлены ставки по товарам: их заводит арендатор, а без них этот
+ * расчёт даёт ровно продажи × процент человека (см. commissionOf).
+ *
+ * `rates` — ставки по товарам, если вызывающий уже их прочитал: «Рассчитать»
+ * считает строки всей организации разом, и читать одну и ту же таблицу на
+ * каждого человека незачем.
+ */
+export async function commissionFor(
+  db: Db,
+  tenantId: number,
+  agentId: number,
+  fromDay: string,
+  toDay: string,
+  defaultRate: number,
+  rates?: Map<number, number>,
+): Promise<Commission> {
+  const [sold] = await db.select({
+    total: sql<string>`COALESCE(SUM(${orders.total}), 0)`,
+  }).from(orders).where(and(
+    ...revenuePeriodConditions(tenantId, fromDay, toDay),
+    eq(orders.agentId, agentId),
+  ));
+
+  // Возвраты — общим правилом (services/revenue-returns.ts): по дате
+  // проведения и только по заказам, которые сами считаются выручкой.
+  const returned = returnedOf(
+    returnedByAgent(await returnsInPeriod(db, tenantId, fromDay, toDay)),
+    agentId,
+  );
+  const salesAmount = Math.max(0, Number(sold?.total ?? 0) - returned.amount);
+
+  const byRate = rates ?? await productRates(db, tenantId);
+  const byProduct = byRate.size === 0
+    // Ставок нет вовсе — раскладывать незачем: два запроса к order_items и
+    // return_items на каждого человека за ответ, который и так известен.
+    ? new Map<number, number>()
+    : await salesByProduct(db, tenantId, agentId, fromDay, toDay, salesAmount);
+
+  return {
+    salesAmount,
+    commissionAmount: commissionOf(byProduct, byRate, defaultRate, salesAmount),
+    productRateCount: overridesUsed(byProduct, byRate),
+  };
 }
 
 /**
