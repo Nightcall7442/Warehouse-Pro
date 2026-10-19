@@ -33,6 +33,7 @@ import { sql } from "drizzle-orm";
 import * as schema from "@db/schema";
 import type { NoOrderReason } from "@contracts/no-order-reason";
 import { ctxFor, hasRealDb, connectRealDb, closeRealDb, truncateAll, seed, type ServiceDb, type Seeded } from "./harness";
+import { businessDaysAgo } from "@contracts/business-time";
 
 let current: ServiceDb;
 vi.mock("../../queries/connection", () => ({ getDb: () => current, getPool: () => null }));
@@ -48,9 +49,10 @@ describe.skipIf(!hasRealDb)("отчёт «Визиты без заказа»", (
   beforeAll(async () => { db = await connectRealDb(); current = db; }, 180_000);
   afterAll(async () => { await closeRealDb(); });
 
+  // Дни по Ташкенту, как у отчёта, а не от CURDATE(): сессия MySQL в UTC, и
+  // с 19:00 до полуночи по UTC все визиты съезжали на день назад.
   async function day(k: number): Promise<string> {
-    const r = await db.execute(sql`SELECT DATE_FORMAT(DATE_SUB(CURDATE(), INTERVAL ${k} DAY), '%Y-%m-%d') AS d`);
-    return String((r as unknown as [Array<{ d: string }>])[0][0].d);
+    return businessDaysAgo(k);
   }
   async function visit(agentId: number, shopId: number, k: number, status: "visited" | "skipped" | "planned", reason: NoOrderReason | null, tenantId = s.tenantId) {
     await db.insert(schema.dailyPlans).values({

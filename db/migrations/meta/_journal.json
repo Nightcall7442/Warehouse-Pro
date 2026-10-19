@@ -505,6 +505,13 @@
       "when": 1791651015091,
       "tag": "0071_subscription_expiry_notice",
       "breakpoints": true
+    },
+    {
+      "idx": 72,
+      "version": "5",
+      "when": 1792445294727,
+      "tag": "0072_commission_month_end",
+      "breakpoints": true
     }
   ]
 }

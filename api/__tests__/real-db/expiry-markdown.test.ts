@@ -36,6 +36,7 @@ import { invalidateReports } from "../../lib/report-cache";
 import { receiveStock, shipStock } from "../../services/stock-ledger";
 import { OrderService } from "../../services/order";
 import { dayKey } from "../../lib/period";
+import { businessDayStart, businessDaysAgo } from "@contracts/business-time";
 
 let current: ServiceDb;
 vi.mock("../../queries/connection", () => ({
@@ -45,8 +46,14 @@ vi.mock("../../queries/connection", () => ({
 
 /** День «через n дней» по календарю сервера — как считает сам план. */
 const day = (n: number) => { const d = new Date(); d.setDate(d.getDate() + n); return dayKey(d); };
-/** Полдень n дней назад, целые секунды: MySQL округляет доли ВВЕРХ. */
-const noonAgo = (n: number) => { const d = new Date(); d.setDate(d.getDate() - n); d.setHours(12, 0, 0, 0); return d; };
+/**
+ * Полдень по Ташкенту n дней назад, целые секунды: MySQL округляет доли ВВЕРХ.
+ *
+ * Не полдень по часам процесса: стенд живёт в UTC, и с 19:00 до полуночи по
+ * UTC в Ташкенте уже завтра — «сегодняшняя» продажа в 12:00 UTC попадала во
+ * вчерашний ташкентский день и в окно темпа, и проверка падала по вечерам.
+ */
+const noonAgo = (n: number) => new Date(businessDayStart(businessDaysAgo(n)).getTime() + 12 * 3_600_000);
 
 describe.skipIf(!hasRealDb)("«Сроки» и уценка на настоящей базе", () => {
   let db: ServiceDb;

@@ -1,6 +1,6 @@
 import { sql, eq, and, gte, lte, inArray, isNull, isNotNull, desc } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
-import { dayKey } from "../lib/period";
+import { dayKey, monthRange } from "../lib/period";
 import { REVENUE_ORDER_STATUSES, revenueOrderConditions } from "../lib/order-status";
 import { orders, dailyPlans, shops, salesTargets, commissions, agentLocations, visitReports, users, payments } from "@db/schema";
 import { calculateFraudMetrics, calculateFraudMetricsForAgents, type FraudMetrics } from "./anti-fraud";
@@ -1017,8 +1017,15 @@ export async function calculateSalary(
     ставка и расчёт разошлись бы на день, то есть на две строки комиссии за
     один месяц — обе одобряемые и обе оплачиваемые.
   */
+  /*
+    Конец — последний день МЕСЯЦА, а не конец просмотренного периода (аудит
+    19.10.2026). У текущего месяца getPeriod кончается «сегодня», и строка,
+    заведённая 5-го, навсегда кончалась 5-м: «Рассчитать» считает каждую
+    строку по её собственным датам и продажи после 5-го не видел. Строки
+    «Ставки», «Оклада» и «Вычета» и так кончаются концом месяца (monthRange).
+  */
   const monthStart = dayKey(periodStart);
-  const monthEnd = dayKey(periodEnd);
+  const monthEnd = monthRange(periodStart).end;
 
   // Курьеру строку комиссии не пишем: salesAmount и commissionAmount у него
   // нулевые по определению, и запись означала бы «комиссия ноль» вместо

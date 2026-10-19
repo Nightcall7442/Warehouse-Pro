@@ -35,6 +35,7 @@ import { describe, it, expect, beforeAll, beforeEach, afterAll, vi } from "vites
 import { eq, sql } from "drizzle-orm";
 import * as schema from "@db/schema";
 import { ctxFor, hasRealDb, connectRealDb, closeRealDb, truncateAll, seed, type ServiceDb, type Seeded } from "./harness";
+import { businessToday } from "@contracts/business-time";
 
 let current: ServiceDb;
 vi.mock("../../queries/connection", () => ({ getDb: () => current, getPool: () => null }));
@@ -57,9 +58,10 @@ describe.skipIf(!hasRealDb)("причина «без заказа» при за�
   const router = async () => (await import("../../agent-router")).agentRouter;
   const asAgent = async (id = s.agentId) => (await router()).createCaller(ctxFor(db, s.tenantId, id, "agent"));
 
+  // «Сегодня» по Ташкенту, как у getPlans, а не CURDATE(): сессия MySQL в
+  // UTC, и с 19:00 до полуночи по UTC план вставал на вчерашний день.
   async function today(): Promise<string> {
-    const r = await db.execute(sql`SELECT DATE_FORMAT(CURDATE(), '%Y-%m-%d') AS d`);
-    return String((r as unknown as [Array<{ d: string }>])[0][0].d);
+    return businessToday();
   }
   async function plan(agentId = s.agentId, day?: string): Promise<number> {
     const [r] = await db.insert(schema.dailyPlans).values({
