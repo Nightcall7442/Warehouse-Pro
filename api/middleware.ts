@@ -299,7 +299,10 @@ const GLOBAL_RATE_LIMIT = {
   windowMs:  env.rateLimitWindowMs,
   limit:     env.rateLimitGlobalMax,
   namespace: "global",
-};
+  // В памяти: стоит на каждом запросе, Redis здесь — лишнее ожидание до базы
+  // (см. local в lib/rate-limit.ts).
+  local:     true,
+} as const;
 
 const withGlobalRateLimit = t.middleware(async ({ ctx, next }) => {
   // Per user, not per IP: createContext has already resolved ctx.user from the
@@ -359,7 +362,7 @@ const mutationRateLimit = (namespace: string, limit: number, windowMs: number = 
       // minutes" is a budget for one agent. Shared across every agent in every
       // tenant it became roughly a dozen orders each before the day stopped.
       const subject = rateLimitSubject(ctx.req, ctx.user ? `user:${ctx.user.id}` : null);
-      if (!(await checkRateLimit(subject, { windowMs, limit, namespace }))) {
+      if (!(await checkRateLimit(subject, { windowMs, limit, namespace, local: true }))) {
         throw new TRPCError({
           code:    "TOO_MANY_REQUESTS",
           message: "Слишком много запросов. Попробуйте позже.",
