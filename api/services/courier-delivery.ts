@@ -1,7 +1,7 @@
 import { inBackground } from "../lib/graceful-shutdown";
 import { orders, users, shops, payments, orderItems, warehouseStock, orderAdjustments } from "@db/schema";
 import { ORDER_STATUS_LABELS } from "../lib/order-status";
-import { eq, and, sql, isNull } from "drizzle-orm";
+import { eq, and, sql, isNull, notInArray } from "drizzle-orm";
 import { logger } from "../lib/logger";
 import { sendPushToUser } from "./push-service";
 import { sanitizeString } from "../lib/sanitize";
@@ -730,10 +730,27 @@ export async function markFailed(db: Db, tenantId: number, courierId: number, in
   const safeReason = input.reason ? sanitizeString(input.reason) : "";
 
   await db.transaction(async (tx) => {
-    // Update order status — keep deliveryStatus for history, but allow reassignment
-    await tx.update(orders)
+    /*
+      Запись — только из того состояния, которое проверено выше, тем же
+      приёмом, что у completeDelivery (affectedRows === 1).
+
+      Здесь стоял UPDATE по одному id (аудит 19.10.2026). Проверка выше идёт
+      вне транзакции, и между ней и записью курьер — или повтор из офлайн-
+      очереди телефона — успевал закрыть заказ доставкой. «Не довёз» тогда
+      возвращал доставленный заказ в «новый»: долг магазина выпадал из
+      расчёта, а следующая доставка списывала товар второй раз. Теперь такой
+      UPDATE не находит строки, и отметка отказывает.
+    */
+    const [failedResult] = await tx.update(orders)
       .set({ deliveryStatus: "failed", status: "new", courierId: null })
-      .where(and(eq(orders.id, input.orderId), eq(orders.tenantId, tenantId)));
+      .where(and(
+        eq(orders.id, input.orderId), eq(orders.tenantId, tenantId), eq(orders.courierId, courierId),
+        sql`${orders.deliveryStatus} IN ('assigned', 'out_for_delivery')`,
+        notInArray(orders.status, ["delivered", "cancelled", "returned"]),
+      ));
+    if ((failedResult as { affectedRows?: number }).affectedRows !== 1) {
+      throw new Error("Заказ уже завершён, отменён или возвращён — повторное действие невозможно");
+    }
 
     // The reservation deliberately stays in place. The goods never left the
     // warehouse (current_stock is only touched on delivery) and the order goes
