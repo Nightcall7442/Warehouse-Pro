@@ -338,6 +338,30 @@ export const orderRouter = createRouter({
       return { url: d.url, number: d.number, total: d.total, html: await receiptHtml(d) };
     }),
 
+  /*
+    «Ссылка для магазина»: где заказ — принят, у курьера, в пути, доставлен.
+    Кто видит заказ — может отправить ссылку на него магазину (агент — своему).
+    На закрытый (отменён, возвращён, ждёт подтверждения) и давно доставленный
+    ссылку не дают: страница по ней всё равно скажет «ссылки нет».
+  */
+  trackingLink: orderReaderQuery
+    .input(z.object({ id: z.number().int().positive() }))
+    .query(async ({ input, ctx }) => {
+      const { trackingUrl, trackHidden } = await import("./services/tracking");
+      const { viewerScope } = await import("./services/order-shared");
+      const [o] = await ctx.db.select({
+        id: orders.id, orderNumber: orders.orderNumber, status: orders.status, deliveryStatus: orders.deliveryStatus,
+        deliveredAt: orders.deliveredAt, deletedAt: orders.deletedAt,
+      }).from(orders)
+        .where(and(eq(orders.id, input.id), eq(orders.tenantId, ctx.tenant.id), ...viewerScope({ userId: ctx.user.id, userRole: ctx.user.role as string })))
+        .limit(1);
+      if (!o) throw new TRPCError({ code: "NOT_FOUND", message: "Заказ не найден" });
+      if (trackHidden(o, Date.now())) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Ссылку для магазина дают на заказ в работе или доставленный за последние три дня" });
+      }
+      return { url: trackingUrl(o.id), number: o.orderNumber };
+    }),
+
   myOrders: fieldSalesQuery.query(async ({ ctx }) => {
     return OrderService.myOrders(ctx.db, ctx.tenant.id, ctx.user.id);
   }),

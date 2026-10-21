@@ -128,6 +128,41 @@ describe("ручка /api/photos", () => {
   });
 });
 
+/*
+  Фото вручения (courier.saveProof) — той же ручкой: /api/photos/delivery/<id
+  попытки>/<номер>. Карточка заказа получает только число снимков; номер вне
+  списка до базы не доходит, организация — из сессии.
+*/
+describe("ручка /api/photos/delivery", () => {
+  async function app(photo: string | null) {
+    vi.resetModules();
+    const select = vi.fn(() => ({ from: () => ({ where: () => ({ limit: async () => [{ photo }] }) }) }));
+    vi.doMock("../queries/connection", () => ({ getDb: () => ({ select }) }));
+    vi.doMock("../auth", () => ({ authenticateRequest: async () => ({ tenant: { id: 1 }, user: { id: 1 } }) }));
+    const { default: photos } = await import("../photos");
+    return { photos, select };
+  }
+
+  it("снимок строкой данных — отдаётся байтами; номер вне 0..10 и пустой элемент — 404 без базы", async () => {
+    const { photos, select } = await app("data:image/png;base64,iVBORw==");
+    const r = await photos.request("/delivery/5/0");
+    expect(r.status).toBe(200);
+    expect(r.headers.get("content-type")).toBe("image/png");
+    expect(select).toHaveBeenCalledTimes(1);
+    for (const bad of ["/delivery/5/11", "/delivery/5/-1", "/delivery/5/1.5"]) {
+      expect((await photos.request(bad)).status).toBe(404);
+    }
+    expect(select).toHaveBeenCalledTimes(1);
+    const { photos: none } = await app("null");
+    expect((await none.request("/delivery/5/2")).status).toBe(404);
+  });
+
+  it("SVG в списке снимков наружу не уходит", async () => {
+    const { photos } = await app("data:image/svg+xml;base64,PHN2Zz4=");
+    expect((await photos.request("/delivery/5/0")).status).toBe(404);
+  });
+});
+
 describe("карточки берут фото той же ссылкой, что и списки", () => {
   it("getById товара и магазина — через photoRef; сырой столбец наружу не уходит", () => {
     const product = read("api/product-router.ts");

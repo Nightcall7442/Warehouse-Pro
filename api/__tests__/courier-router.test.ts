@@ -47,7 +47,7 @@ vi.mock("../services/push-service", () => ({
   sendPushToUser: vi.fn(async () => {}),
 }));
 
-import { orders, shops, users, payments, notifications, orderItems, warehouseStock, warehouses, orderAdjustments, deliveryEvents } from "@db/schema";
+import { orders, shops, users, payments, notifications, orderItems, warehouseStock, warehouses, orderAdjustments, deliveryEvents, auditLog } from "@db/schema";
 import { makeConditionEvaluator } from "./helpers/fake-conditions";
 import { businessDaysAgo, businessToday } from "@contracts/business-time";
 
@@ -90,6 +90,8 @@ let adjustmentsTable: FakeAdjustment[] = [];
 let nextAdjustmentId = 1;
 /** Журнал попыток доставки: «не довёз» без строки здесь — та самая потеря курьера. */
 let eventsTable: Array<Record<string, unknown>> = [];
+/** Журнал аудита: перенос офисом и порядок объезда пишут сюда строго, в той же транзакции. */
+let auditTable: Array<Record<string, unknown>> = [];
 let stocksTable: FakeStock[] = [];
 let nextPaymentId = 10;
 let nextNotifId = 10;
@@ -118,6 +120,7 @@ function resetTables() {
   ];
   adjustmentsTable = [];
   eventsTable = [];
+  auditTable = [];
   stocksTable = [
     { id: 1, productId: 1, tenantId: 1, warehouseId: 1, currentStock: "100.00", reserved: "15.00", available: "85.00" },
     { id: 2, productId: 2, tenantId: 1, warehouseId: 1, currentStock: "50.00", reserved: "5.00", available: "45.00" },
@@ -143,6 +146,7 @@ function tableOf(ref: unknown): string {
   if (ref === warehouses) return "warehouses";
   if (ref === orderAdjustments) return "orderAdjustments";
   if (ref === deliveryEvents) return "deliveryEvents";
+  if (ref === auditLog) return "auditLog";
   return "other";
 }
 
@@ -157,6 +161,7 @@ function rowsFor(table: string): Record<string, unknown>[] {
   if (table === "warehouses") return warehousesTable as unknown as Record<string, unknown>[];
   if (table === "orderAdjustments") return adjustmentsTable as unknown as Record<string, unknown>[];
   if (table === "deliveryEvents") return eventsTable;
+  if (table === "auditLog") return auditTable;
   return [];
 }
 
@@ -262,6 +267,10 @@ function makeMockDb() {
           const id = eventsTable.length + 1;
           eventsTable.push({ id, ...vals });
           return Promise.resolve([{ insertId: id }]);
+        }
+        if (table === "auditLog") {
+          auditTable.push({ ...vals });
+          return Promise.resolve([{ insertId: auditTable.length }]);
         }
         if (table === "notifications") {
           const id = nextNotifId++;
@@ -616,6 +625,22 @@ describe("courier.markFailed — причина и журнал попыток",
     expect(eventsTable).toHaveLength(0);
   });
 
+  it("тот же ключ двумя запросами разом: второй ждал замка, заказ уже снят — дубль, а не отказ", async () => {
+    const { courierRouter } = await import("../courier-router");
+    const caller = courierRouter.createCaller(makeCtx(1, 100, "courier"));
+    // Первый запрос коммитится, пока второй стоит на замке строки: второй
+    // прошёл проверки вне транзакции, а его UPDATE уже не находит заказа.
+    const plain = mockDb.transaction;
+    mockDb.transaction = async (fn: (tx: Record<string, unknown>) => Promise<unknown>) => {
+      Object.assign(ordersTable.find(o => o.id === 1)!, { status: "new", deliveryStatus: "failed", courierId: null });
+      eventsTable.push({ id: 1, tenantId: 1, orderId: 1, courierId: 100, kind: "failed", idempotencyKey: "q-00000009" });
+      return plain(fn);
+    };
+    await expect(caller.markFailed({ orderId: 1, reasonCode: "no_answer", idempotencyKey: "q-00000009" }))
+      .resolves.toEqual({ success: true, duplicate: true });
+    expect(eventsTable).toHaveLength(1);
+  });
+
   it("место в маршруте и плановый день стираются вместе с курьером", async () => {
     Object.assign(ordersTable.find(o => o.id === 1)!, { routeSeq: 3, plannedDeliveryDate: businessToday() });
     const { courierRouter } = await import("../courier-router");
@@ -914,3 +939,234 @@ describe("courier.completeDelivery — частичный возврат", () =>
     expect(adjustmentsTable, "в журнал ушла запись об операции, которой не было").toHaveLength(0);
   });
 });
+
+/*
+  ── Перенос доставки ─────────────────────────────────────────────────────────
+
+  Раньше у курьера было два исхода: «доставлено» и «не доставлено». Просьба
+  магазина «привезите в четверг» превращалась в срыв: заказ слетал с курьера,
+  и про четверг помнил только оператор. Теперь курьер переносит заказ на день —
+  с завтра и не дальше двух недель по Ташкенту, — заказ остаётся за ним, а в
+  журнале попыток остаётся строка «перенесено».
+
+  Нарочная поломка: в rescheduleByCourier поставь assertPlanDay(…, 0, …) —
+  падает «сегодня нельзя»; убери eq(orders.courierId, courierId) — падает
+  «чужой заказ».
+*/
+describe("courier.reschedule", () => {
+  const tomorrow = () => businessDaysAgo(-1);
+
+  it("курьер переносит свой заказ: день записан, «в пути» → «назначен», место сброшено, строка в журнале", async () => {
+    Object.assign(ordersTable.find(o => o.id === 3)!, { routeSeq: 2 });
+    const { courierRouter } = await import("../courier-router");
+    const caller = courierRouter.createCaller(makeCtx(1, 100, "courier"));
+    const r = await caller.reschedule({ orderId: 3, date: tomorrow(), lat: "41.3", lng: "69.2", idempotencyKey: "resched-0001" });
+    expect(r).toMatchObject({ success: true, plannedDeliveryDate: tomorrow() });
+
+    const o = ordersTable.find(x => x.id === 3)! as unknown as Record<string, unknown>;
+    expect(o).toMatchObject({ plannedDeliveryDate: tomorrow(), deliveryStatus: "assigned", routeSeq: null, courierId: 100, status: "processing" });
+    expect(eventsTable).toHaveLength(1);
+    expect(eventsTable[0]).toMatchObject({
+      tenantId: 1, orderId: 3, courierId: 100, kind: "rescheduled",
+      reasonCode: "asked_reschedule", rescheduledTo: tomorrow(), lat: "41.3", lng: "69.2", idempotencyKey: "resched-0001",
+    });
+  });
+
+  it("на сегодня, дальше 14 дней и несуществующий день — отказ, заказ не тронут", async () => {
+    const { courierRouter } = await import("../courier-router");
+    const caller = courierRouter.createCaller(makeCtx(1, 100, "courier"));
+    await expect(caller.reschedule({ orderId: 1, date: businessToday() })).rejects.toThrow(/с завтрашнего дня/);
+    await expect(caller.reschedule({ orderId: 1, date: businessDaysAgo(-15) })).rejects.toThrow(/не дальше чем на 14/);
+    await expect(caller.reschedule({ orderId: 1, date: "2027-02-30" })).rejects.toThrow(/Такой даты не существует/);
+    await expect(caller.reschedule({ orderId: 1, date: "завтра" })).rejects.toThrow();
+    expect((ordersTable.find(o => o.id === 1) as unknown as Record<string, unknown>).plannedDeliveryDate).toBeUndefined();
+    expect(eventsTable).toHaveLength(0);
+  });
+
+  it("+14 дней — можно (граница включается)", async () => {
+    const { courierRouter } = await import("../courier-router");
+    const caller = courierRouter.createCaller(makeCtx(1, 100, "courier"));
+    await expect(caller.reschedule({ orderId: 1, date: businessDaysAgo(-14) })).resolves.toMatchObject({ success: true });
+  });
+
+  it("чужой заказ, заказ без курьера и отменённый — отказ", async () => {
+    usersTable.push({ id: 101, tenantId: 1, name: "Courier Two", email: "c2@test.com", role: "courier", status: "active" });
+    const { courierRouter } = await import("../courier-router");
+    const other = courierRouter.createCaller(makeCtx(1, 101, "courier"));
+    await expect(other.reschedule({ orderId: 1, date: tomorrow() })).rejects.toThrow(/не назначен на вас/);
+
+    const me = courierRouter.createCaller(makeCtx(1, 100, "courier"));
+    await expect(me.reschedule({ orderId: 2, date: tomorrow() })).rejects.toThrow(/не назначен на вас/);
+    ordersTable.find(o => o.id === 1)!.status = "cancelled";
+    await expect(me.reschedule({ orderId: 1, date: tomorrow() })).rejects.toThrow(/не назначен на вас/);
+    expect(eventsTable).toHaveLength(0);
+  });
+
+  it("«Другое» без пояснения — отказ; повтор с тем же ключом — дубль, вторая строка не пишется", async () => {
+    const { courierRouter } = await import("../courier-router");
+    const caller = courierRouter.createCaller(makeCtx(1, 100, "courier"));
+    await expect(caller.reschedule({ orderId: 1, date: tomorrow(), reasonCode: "other" })).rejects.toThrow(/«Другое»/);
+
+    await caller.reschedule({ orderId: 1, date: tomorrow(), reasonCode: "shop_closed", idempotencyKey: "resched-0002" });
+    const again = await caller.reschedule({ orderId: 1, date: tomorrow(), reasonCode: "shop_closed", idempotencyKey: "resched-0002" });
+    expect(again).toEqual({ success: true, duplicate: true });
+    expect(eventsTable).toHaveLength(1);
+    expect(eventsTable[0].reasonCode).toBe("shop_closed");
+  });
+
+  it("перенесённый уходит из сегодняшнего списка курьера и виден с includeLater", async () => {
+    const { courierRouter } = await import("../courier-router");
+    const caller = courierRouter.createCaller(makeCtx(1, 100, "courier"));
+    await caller.reschedule({ orderId: 3, date: tomorrow() });
+    const ids = (rows: Array<{ id: number }>) => rows.map(r => r.id).sort();
+    expect(ids(await caller.listMyDeliveries())).toEqual([1]);
+    expect(ids(await caller.listMyDeliveries({ includeLater: true }))).toEqual([1, 3]);
+  });
+});
+
+/*
+  ── Перенос из офиса ─────────────────────────────────────────────────────────
+
+  Офис ставит день и на сегодня (вернуть в развоз), но только заказу с
+  курьером: назначение план сбрасывает, и день у заказа без курьера пропал бы
+  молча. След — в журнале аудита, в той же транзакции.
+*/
+describe("courier.officeReschedule", () => {
+  it("оператор ставит день заказу курьера: строка журнала без курьера, след в аудите", async () => {
+    const { courierRouter } = await import("../courier-router");
+    const caller = courierRouter.createCaller(makeCtx(1, 1, "operator"));
+    const day = businessToday();
+    await caller.officeReschedule({ orderId: 3, date: day, reasonCode: "no_owner" });
+    expect(ordersTable.find(o => o.id === 3)).toMatchObject({ plannedDeliveryDate: day, deliveryStatus: "assigned", courierId: 100 });
+    expect(eventsTable[0]).toMatchObject({ orderId: 3, courierId: null, kind: "rescheduled", reasonCode: "no_owner", rescheduledTo: day });
+    expect(auditTable).toHaveLength(1);
+    expect(auditTable[0]).toMatchObject({ action: "order.delivery_rescheduled", targetType: "order", targetId: 3, tenantId: 1 });
+    expect(auditTable[0].meta).toMatchObject({ plannedDate: day, orderNumber: "ORD-003" });
+    // Курьеру — уведомление, что день его заказа изменился.
+    expect(notificationsTable.some(n => n.userId === 100)).toBe(true);
+  });
+
+  it("заказ без курьера и закрытый — отказ; вчера — отказ", async () => {
+    const { courierRouter } = await import("../courier-router");
+    const caller = courierRouter.createCaller(makeCtx(1, 1, "operator"));
+    await expect(caller.officeReschedule({ orderId: 2, date: businessToday() })).rejects.toThrow(/Сначала назначьте курьера/);
+    await expect(caller.officeReschedule({ orderId: 1, date: businessDaysAgo(1) })).rejects.toThrow(/с сегодняшнего/);
+    ordersTable.find(o => o.id === 1)!.status = "delivered";
+    await expect(caller.officeReschedule({ orderId: 1, date: businessToday() })).rejects.toThrow(/уже закрыт/);
+    expect(eventsTable).toHaveLength(0);
+    expect(auditTable).toHaveLength(0);
+  });
+
+  it("агенту и курьеру ручка закрыта", async () => {
+    const { courierRouter } = await import("../courier-router");
+    await expect(courierRouter.createCaller(makeCtx(1, 10, "agent")).officeReschedule({ orderId: 1, date: businessToday() })).rejects.toThrow();
+    await expect(courierRouter.createCaller(makeCtx(1, 100, "courier")).officeReschedule({ orderId: 1, date: businessToday() })).rejects.toThrow();
+    expect(eventsTable).toHaveLength(0);
+  });
+});
+
+/*
+  ── Подтверждение вручения ───────────────────────────────────────────────────
+
+  После «Доставлено» курьер прикладывает фото и подпись. Повтор из очереди
+  ничего не меняет, записанную подпись поверх не переписать, чужой курьер и
+  офис — отказ, недоставленный и давний заказ — отказ.
+*/
+describe("courier.saveProof", () => {
+  const PHOTO = "data:image/jpeg;base64,/9j/AAAA";
+  const SIG = { w: 1000, h: 400, strokes: [[10, 20, 30, 40, 50, 60], [100, 100, 200, 200]] };
+
+  function delivered(daysAgo = 0, withEvent = true) {
+    Object.assign(ordersTable.find(o => o.id === 1)!, {
+      status: "delivered", deliveryStatus: "delivered", deliveredAt: new Date(Date.now() - daysAgo * 86_400_000),
+    });
+    if (withEvent) eventsTable.push({ id: 1, tenantId: 1, orderId: 1, courierId: 100, kind: "delivered", photos: null, signature: null, recipientName: null });
+  }
+
+  it("фото, подпись и имя ложатся на строку вручения; повтор — дубль, фото не задвоено", async () => {
+    delivered();
+    const { courierRouter } = await import("../courier-router");
+    const caller = courierRouter.createCaller(makeCtx(1, 100, "courier"));
+    const r = await caller.saveProof({ orderId: 1, photo: PHOTO, signature: SIG, recipientName: "Дилшод" });
+    expect(r).toMatchObject({ success: true, photoCount: 1, hasSignature: true, recipientName: "Дилшод" });
+    expect(eventsTable[0]).toMatchObject({ photos: [PHOTO], signature: SIG, recipientName: "Дилшод" });
+
+    const again = await caller.saveProof({ orderId: 1, photo: PHOTO, signature: SIG, recipientName: "Дилшод" });
+    expect(again).toMatchObject({ duplicate: true, photoCount: 1 });
+    expect(eventsTable[0].photos).toEqual([PHOTO]);
+  });
+
+  it("записанную подпись и имя поверх не переписать; новое фото — добавляется, не больше трёх", async () => {
+    delivered();
+    const { courierRouter } = await import("../courier-router");
+    const caller = courierRouter.createCaller(makeCtx(1, 100, "courier"));
+    await caller.saveProof({ orderId: 1, signature: SIG, recipientName: "Дилшод" });
+    const other = { w: 500, h: 500, strokes: [[1, 1, 2, 2]] };
+    const r = await caller.saveProof({ orderId: 1, signature: other, recipientName: "Кто-то другой" });
+    expect(r).toMatchObject({ duplicate: true, recipientName: "Дилшод" });
+    expect(eventsTable[0]).toMatchObject({ signature: SIG, recipientName: "Дилшод" });
+
+    for (const n of [1, 2, 3]) await caller.saveProof({ orderId: 1, photo: `${PHOTO}${n}` });
+    expect(eventsTable[0].photos).toHaveLength(3);
+    await expect(caller.saveProof({ orderId: 1, photo: `${PHOTO}4` })).rejects.toThrow(/не больше 3/);
+  });
+
+  it("доставлен до появления журнала — строка вручения пишется со временем доставки", async () => {
+    delivered(1, false);
+    const { courierRouter } = await import("../courier-router");
+    const caller = courierRouter.createCaller(makeCtx(1, 100, "courier"));
+    await caller.saveProof({ orderId: 1, photo: PHOTO });
+    expect(eventsTable).toHaveLength(1);
+    expect(eventsTable[0]).toMatchObject({ orderId: 1, courierId: 100, kind: "delivered", photos: [PHOTO] });
+    expect(eventsTable[0].recordedAt).toEqual(ordersTable.find(o => o.id === 1)!.deliveredAt);
+  });
+
+  it("недоставленный, доставленный 8 дней назад, чужой — отказ", async () => {
+    const { courierRouter } = await import("../courier-router");
+    const caller = courierRouter.createCaller(makeCtx(1, 100, "courier"));
+    await expect(caller.saveProof({ orderId: 1, photo: PHOTO })).rejects.toThrow(/к доставленному заказу/);
+    delivered(8);
+    await expect(caller.saveProof({ orderId: 1, photo: PHOTO })).rejects.toThrow(/в течение 7 дней/);
+
+    usersTable.push({ id: 101, tenantId: 1, name: "Courier Two", email: "c2@test.com", role: "courier", status: "active" });
+    ordersTable.find(o => o.id === 1)!.deliveredAt = new Date();
+    await expect(courierRouter.createCaller(makeCtx(1, 101, "courier")).saveProof({ orderId: 1, photo: PHOTO })).rejects.toThrow(/не назначен на вас/);
+    expect(eventsTable[0].photos).toBeNull();
+  });
+
+  it("офис и директор подтверждение не пишут — это слово курьера", async () => {
+    delivered();
+    const { courierRouter } = await import("../courier-router");
+    for (const role of ["operator", "ceo"]) {
+      await expect(courierRouter.createCaller(makeCtx(1, 100, role)).saveProof({ orderId: 1, photo: PHOTO })).rejects.toThrow(/Insufficient permissions/);
+    }
+    expect(eventsTable[0].photos).toBeNull();
+  });
+
+  it("чужой адрес, SVG и подпись вне рамки — отказ", async () => {
+    delivered();
+    const { courierRouter } = await import("../courier-router");
+    const caller = courierRouter.createCaller(makeCtx(1, 100, "courier"));
+    await expect(caller.saveProof({ orderId: 1, photo: "https://evil.example.com/x.jpg" })).rejects.toThrow(/хранилища этой организации/);
+    await expect(caller.saveProof({ orderId: 1, photo: "data:image/svg+xml;base64,PHN2Zz4=" })).rejects.toThrow();
+    await expect(caller.saveProof({ orderId: 1, signature: { w: 500, h: 200, strokes: [[10, 10, 600, 10]] } })).rejects.toThrow(/Подпись не читается/);
+    await expect(caller.saveProof({ orderId: 1, signature: { w: 500, h: 200, strokes: [[10, 10, 20]] } })).rejects.toThrow(/Подпись не читается/);
+    await expect(caller.saveProof({ orderId: 1, signature: { w: 500, h: 200, strokes: [[10.5, 10, 20, 20]] } })).rejects.toThrow();
+    await expect(caller.saveProof({ orderId: 1 })).rejects.toThrow(/Нечего сохранить/);
+    expect(eventsTable[0]).toMatchObject({ photos: null, signature: null });
+  });
+
+  it("один запрос — далеко от предела тела в 10 МБ, слишком большое фото — отказ", async () => {
+    const { PROOF_PHOTO_MAX_CHARS, SIGNATURE_MAX_STROKES, SIGNATURE_SCALE } = await import("../services/delivery-proof");
+    // Худший случай подписи по схеме входа: 50 штрихов по 2000 чисел «1000,».
+    const worstSignature = SIGNATURE_MAX_STROKES * 2000 * String(SIGNATURE_SCALE).length + SIGNATURE_MAX_STROKES * 2000;
+    expect(PROOF_PHOTO_MAX_CHARS + worstSignature + 1000).toBeLessThan(10 * 1024 * 1024 / 4);
+
+    delivered();
+    const { courierRouter } = await import("../courier-router");
+    const caller = courierRouter.createCaller(makeCtx(1, 100, "courier"));
+    const huge = "data:image/jpeg;base64," + "A".repeat(PROOF_PHOTO_MAX_CHARS);
+    await expect(caller.saveProof({ orderId: 1, photo: huge })).rejects.toThrow(/Фото слишком большое/);
+  });
+});
+

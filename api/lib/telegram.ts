@@ -205,6 +205,18 @@ export const tgMessages = {
     (o.reason ? `❗ ${tgEscape(o.reason)}\n` : "") +
     (o.courier ? `🚚 ${tgEscape(o.courier)}` : ""),
 
+  /**
+   * Курьер перенёс доставку на другой день (courier.reschedule): сегодня не
+   * приедет. День — двумя языками в одной строке: сообщение уходит и в общий
+   * чат, где читают и по-русски, и по-узбекски.
+   */
+  deliveryRescheduled: (o: { number: string; shop: string; total: string; day: string; reason?: string | null; courier?: string | null }) =>
+    `📅 <b>Заказ ${tgEscape(o.number)}: доставка перенесена</b>\n` +
+    `🏪 ${tgEscape(o.shop)}\n💰 ${tgEscape(o.total)}\n` +
+    `➡️ На ${tgEscape(o.day)} / ${tgEscape(o.day)} ga ko'chirildi\n` +
+    (o.reason ? `❗ ${tgEscape(o.reason)}\n` : "") +
+    (o.courier ? `🚚 ${tgEscape(o.courier)}` : ""),
+
   /** Сборка листа закрылась с недостачей: что не доложили. */
   pickingShort: (listNumber: string, lines: Array<{ name: string; required: number; picked: number; unit: string }>) =>
     `📋 <b>Лист ${tgEscape(listNumber)}: недостача при сборке</b>\n` +

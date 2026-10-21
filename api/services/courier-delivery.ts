@@ -760,7 +760,7 @@ export async function markFailed(db: Db, tenantId: number, courierId: number, in
   const words = reasonWords(reason.code, reason.note);
 
   try {
-    await db.transaction(async (tx) => {
+    const replay = await db.transaction(async (tx) => {
       /*
         Условие — в самом UPDATE, и число изменённых строк проверяется.
 
@@ -783,6 +783,10 @@ export async function markFailed(db: Db, tenantId: number, courierId: number, in
           inArray(orders.status, OPEN_ORDER_STATUSES),
         ));
       if (affectedRows(res) !== 1) {
+        // Тот же ключ пришёл двумя запросами разом: этот ждал замка строки,
+        // пока первый проводил «не довёз», и после него заказ уже снят с
+        // курьера. Это дубль, а не отказ — строка первого уже видна.
+        if (await eventByKey(tx, tenantId, input.idempotencyKey)) return true;
         throw badRequest("Заказ уже завершён, отменён или возвращён — повторное действие невозможно");
       }
 
@@ -802,7 +806,9 @@ export async function markFailed(db: Db, tenantId: number, courierId: number, in
       // Releasing here made the same units sellable twice and drove `reserved`
       // negative once the retried delivery completed. Stock is returned only
       // when the order is cancelled or deleted.
+      return false;
     });
+    if (replay) return { success: true, duplicate: true };
   } catch (e) {
     // Тот же ключ пришёл двумя запросами разом: второй упёрся в уникальный
     // индекс, его транзакция откатилась целиком — первый всё провёл.

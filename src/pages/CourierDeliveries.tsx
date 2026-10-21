@@ -4,13 +4,19 @@ import { useLang, useTranslate } from "@/i18n";
 import { useAuth } from "@/hooks/useAuth";
 import { useCurrency } from "@/hooks/useCurrency";
 import { cssVar } from "@/lib/css-var";
+import { loadYandexMaps } from "@/lib/yandex-maps";
 import { useState, useRef, useEffect, useMemo } from "react";
-import { Truck, MapPin, CheckCircle2, Package, ArrowRight, ChevronRight } from "lucide-react";
+import { Truck, MapPin, CheckCircle2, Package, ArrowRight, ChevronRight, CalendarClock } from "lucide-react";
 import { useNavigate } from "react-router";
 import { notify } from "@/lib/toast";
 import { QueryErrorFallback } from "@/components/QueryErrorFallback";
 import { formatQty } from "@/lib/format";
 import { CARD } from "@/components/phone/tones";
+import { FailReasonDialog, RescheduleDialog } from "@/components/delivery/DeliveryDialogs";
+import { ProofSheet, type ProofTarget } from "@/components/delivery/ProofSheet";
+import { newEventKey } from "@/components/delivery/links";
+import { balloonHtml } from "@/components/delivery/dispatch";
+import { ddmm } from "@/components/delivery/plan-days";
 import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "../../api/router";
 
@@ -73,6 +79,14 @@ export default function CourierDeliveries() {
   const t = useTranslate();
   const { lang, t: tKey } = useLang();
   const [cashInput, setCashInput] = useState<Record<number, string>>({});
+  /*
+    Окна курьера: почему не довёз, на какой день перенёс, подтверждение
+    вручения. Ключ записи — один на открытое окно: двойное нажатие или
+    повтор запроса не запишет вторую попытку (delivery_events).
+  */
+  const [failFor, setFailFor] = useState<{ order: Delivery; key: string } | null>(null);
+  const [rescheduleFor, setRescheduleFor] = useState<{ order: Delivery; key: string } | null>(null);
+  const [proofFor, setProofFor] = useState<ProofTarget | null>(null);
   const invalidateOrderCaches = useInvalidateOrderCaches();
 
   const { data: deliveries, isLoading, isLoadingError, refetch } = trpc.courier.listMyDeliveries.useQuery(undefined);
@@ -86,14 +100,17 @@ export default function CourierDeliveries() {
   });
 
   const markDelivered = trpc.courier.markDelivered.useMutation({
-    onSuccess: () => {
+    onSuccess: (_r, vars) => {
       invalidateOrderCaches();
       notify.success(tKey("common.success"));
       setCashInput(prev => {
         const next = { ...prev };
-        delete next[markDelivered.variables?.orderId ?? 0];
+        delete next[vars.orderId];
         return next;
       });
+      // Сразу — подтверждение вручения: магазин ещё рядом, расписаться есть кому.
+      const o = deliveries?.find(d => d.id === vars.orderId);
+      setProofFor({ orderId: vars.orderId, orderNumber: o?.orderNumber, shopName: o?.shopName });
     },
     onError: (e) => notify.error(errorText(e)),
   });
@@ -101,7 +118,18 @@ export default function CourierDeliveries() {
   const markFailed = trpc.courier.markFailed.useMutation({
     onSuccess: () => {
       invalidateOrderCaches();
-      notify.success(t("Доставка отменена", "Yetkazish bekor qilindi"));
+      setFailFor(null);
+      notify.success(t("Отмечено: не доставлено — заказ вернулся в офис", "Belgilandi: yetkazilmadi — buyurtma ofisga qaytdi"));
+    },
+    onError: (e) => notify.error(errorText(e)),
+  });
+
+  const reschedule = trpc.courier.reschedule.useMutation({
+    // День — из запроса: повтор с тем же ключом отвечает «уже записано» без даты.
+    onSuccess: (_r, vars) => {
+      invalidateOrderCaches();
+      setRescheduleFor(null);
+      notify.success(t(`Перенесено на ${ddmm(vars.date)} — заказ остаётся за вами`, `${ddmm(vars.date)} ga ko'chirildi — buyurtma sizda qoladi`));
     },
     onError: (e) => notify.error(errorText(e)),
   });
@@ -123,6 +151,8 @@ export default function CourierDeliveries() {
     нули), а «Выехал по всем» сервер пускает только назначенному курьеру.
   */
   const isCourier = user?.role === "courier";
+  const openFail = (order: Delivery) => setFailFor({ order, key: newEventKey() });
+  const openReschedule = (order: Delivery) => setRescheduleFor({ order, key: newEventKey() });
   const assigned = (deliveries ?? []).filter((d) => d.deliveryStatus === "assigned");
   const inTransit = (deliveries ?? []).filter((d) => d.deliveryStatus === "out_for_delivery");
 
@@ -183,7 +213,8 @@ export default function CourierDeliveries() {
                 orderId: order.id,
                 cashAmount: cashInput[order.id] || undefined,
               })}
-              onFail={() => markFailed.mutate({ orderId: order.id })}
+              onFail={() => openFail(order)}
+              onReschedule={() => openReschedule(order)}
               isPending={markDelivered.isPending}
               canAct={isCourier}
             />
@@ -250,6 +281,15 @@ export default function CourierDeliveries() {
                   {t("Взять в доставку", "Yetkazishga olish")}
                 </button>}
               </div>
+              {/* Магазин ещё до выезда просит «привезите в пятницу» — перенос
+                  прямо отсюда, не выезжая. */}
+              {isCourier && (
+                <button type="button" onClick={() => openReschedule(order)}
+                  className="neo-btn flex items-center gap-2 text-sm w-full justify-center" data-testid="courier-reschedule">
+                  <CalendarClock size={14} />
+                  {t("Перенести на другой день", "Boshqa kunga ko'chirish")}
+                </button>
+              )}
             </div>
           ))}
         </div>
@@ -263,6 +303,28 @@ export default function CourierDeliveries() {
       )}
 
       {isCourier && <MonthTotals />}
+
+      {failFor && (
+        <FailReasonDialog
+          orderNumber={failFor.order.orderNumber}
+          shopName={failFor.order.shopName}
+          busy={markFailed.isPending}
+          onCancel={() => setFailFor(null)}
+          onConfirm={(c) => markFailed.mutate({ orderId: failFor.order.id, ...c, idempotencyKey: failFor.key })}
+          onReschedule={() => { const o = failFor.order; setFailFor(null); openReschedule(o); }}
+        />
+      )}
+      {rescheduleFor && (
+        <RescheduleDialog
+          mode="courier"
+          orderNumber={rescheduleFor.order.orderNumber}
+          shopName={rescheduleFor.order.shopName}
+          busy={reschedule.isPending}
+          onCancel={() => setRescheduleFor(null)}
+          onConfirm={(c) => reschedule.mutate({ orderId: rescheduleFor.order.id, ...c, idempotencyKey: rescheduleFor.key })}
+        />
+      )}
+      {proofFor && <ProofSheet target={proofFor} onClose={() => setProofFor(null)} />}
     </div>
   );
 }
@@ -272,6 +334,7 @@ function MapView({ deliveries }: { deliveries: Delivery[] | undefined }) {
   const mapRef = useRef<YandexMap | null>(null);
   const mapDivRef = useRef<HTMLDivElement>(null);
   const markersRef = useRef<YandexPlacemark[]>([]);
+  const [ready, setReady] = useState(false);
 
   const allDeliveries = useMemo(() => deliveries ?? [], [deliveries]);
 
@@ -286,97 +349,66 @@ function MapView({ deliveries }: { deliveries: Delivery[] | undefined }) {
       })),
     [allDeliveries, t]
   );
+  const hasMarkers = mapMarkers.length > 0;
 
+  /*
+    Карта — общим загрузчиком скрипта (lib/yandex-maps.ts). Здесь стояла
+    проверка window.ymaps без загрузки: карта появлялась, только если
+    скрипт уже подтянула другая страница, а открытая первой — пустой блок.
+  */
   useEffect(() => {
-    const div = mapDivRef.current;
-    const ymaps = window.ymaps;
-    if (!div || mapRef.current || !ymaps) return;
-
-    ymaps.ready(() => {
-      const center = mapMarkers.length > 0
-        ? [mapMarkers.reduce((s, m) => s + m.lat, 0) / mapMarkers.length, mapMarkers.reduce((s, m) => s + m.lng, 0) / mapMarkers.length]
-        : [41.2995, 69.2401];
-
-      const map = new ymaps.Map(div, {
-        center,
-        zoom: 12,
-        controls: ["zoomControl", "fullscreenControl"],
-      });
-
-      mapRef.current = map;
-
-      mapMarkers.forEach((m) => {
-        // Цвет читается из темы значением, а не переменной: SVG ниже уходит в
-        // data:-адрес, отдельным документом, и var(--…) там не разбирается —
-        // метка выходила чёрной независимо от состояния доставки.
-        const color = m.status === "out_for_delivery" ? cssVar("--color-warning-text", "#7a5810")
-          : m.status === "delivered" ? cssVar("--color-success-text", "#157a45")
-          : cssVar("--color-primary-text", "#53637d");
-        const placemark = new ymaps.Placemark(
-          [m.lat, m.lng],
-          {
-            balloonContentHeader: `<b style="font-family:Inter,sans-serif;font-size:14px">${m.name}</b>`,
-            hintContent: m.name,
-          },
-          {
-            iconLayout: "default#imageWithContent",
-            iconImageHref: `data:image/svg+xml,${encodeURIComponent(`
-              <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
-                <circle cx="16" cy="16" r="14" fill="${color}" stroke="white" stroke-width="2"/>
-              </svg>
-            `)}`,
-            iconImageSize: [32, 32],
-            iconImageOffset: [-16, -16],
-          }
-        );
-        map.geoObjects.add(placemark);
-        markersRef.current.push(placemark);
-      });
-
-      if (mapMarkers.length > 1) {
-        const bounds = map.geoObjects.getBounds();
-        if (bounds) map.setBounds(bounds, { checkZoomRange: true, zoomMargin: 40 });
-      }
-    });
-  }, [mapMarkers]);
+    if (!hasMarkers) return;
+    let alive = true;
+    loadYandexMaps().then(ymaps => ymaps.ready(() => {
+      const div = mapDivRef.current;
+      if (!alive || !div || mapRef.current) return;
+      mapRef.current = new ymaps.Map(div, { center: [41.2995, 69.2401], zoom: 12, controls: ["zoomControl", "fullscreenControl"] });
+      setReady(true);
+    })).catch(() => { /* без карты список работает */ });
+    return () => { alive = false; };
+  }, [hasMarkers]);
 
   useEffect(() => {
     const ymaps = window.ymaps;
     const map = mapRef.current;
-    if (!ymaps || !map) return;
-    ymaps.ready(() => {
-      markersRef.current.forEach((m) => map.geoObjects.remove(m));
-      markersRef.current = [];
-      mapMarkers.forEach((m) => {
-        const color = m.status === "out_for_delivery" ? "var(--color-warning-text)" : m.status === "delivered" ? "var(--color-success-text)" : "var(--color-primary-text)";
-        const placemark = new ymaps.Placemark(
-          [m.lat, m.lng],
-          {
-            balloonContentHeader: `<b style="font-family:Inter,sans-serif;font-size:14px">${m.name}</b>`,
-            hintContent: m.name,
-          },
-          {
-            iconLayout: "default#imageWithContent",
-            iconImageHref: `data:image/svg+xml,${encodeURIComponent(`
-              <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
-                <circle cx="16" cy="16" r="14" fill="${color}" stroke="white" stroke-width="2"/>
-              </svg>
-            `)}`,
-            iconImageSize: [32, 32],
-            iconImageOffset: [-16, -16],
-          }
-        );
-        map.geoObjects.add(placemark);
-        markersRef.current.push(placemark);
-      });
-      if (mapMarkers.length > 1) {
-        const bounds = map.geoObjects.getBounds();
-        if (bounds) map.setBounds(bounds, { checkZoomRange: true, zoomMargin: 40 });
-      }
+    if (!ready || !ymaps || !map) return;
+    markersRef.current.forEach((m) => map.geoObjects.remove(m));
+    markersRef.current = [];
+    mapMarkers.forEach((m) => {
+      // Цвет читается из темы значением, а не переменной: SVG ниже уходит в
+      // data:-адрес, отдельным документом, и var(--…) там не разбирается —
+      // метка выходила чёрной независимо от состояния доставки.
+      const color = m.status === "out_for_delivery" ? cssVar("--color-warning-text", "#7a5810")
+        : m.status === "delivered" ? cssVar("--color-success-text", "#157a45")
+        : cssVar("--color-primary-text", "#53637d");
+      // Название магазина вводит человек: в подсказку — только экранированным.
+      const b = balloonHtml(m.name);
+      const placemark = new ymaps.Placemark(
+        [m.lat, m.lng],
+        { balloonContentHeader: b.header, hintContent: b.hint },
+        {
+          iconLayout: "default#imageWithContent",
+          iconImageHref: `data:image/svg+xml,${encodeURIComponent(`
+            <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
+              <circle cx="16" cy="16" r="14" fill="${color}" stroke="white" stroke-width="2"/>
+            </svg>
+          `)}`,
+          iconImageSize: [32, 32],
+          iconImageOffset: [-16, -16],
+        }
+      );
+      map.geoObjects.add(placemark);
+      markersRef.current.push(placemark);
     });
-  }, [mapMarkers]);
+    if (mapMarkers.length > 1) {
+      const bounds = map.geoObjects.getBounds();
+      if (bounds) map.setBounds(bounds, { checkZoomRange: true, zoomMargin: 40 });
+    } else if (mapMarkers.length === 1) {
+      map.setCenter([mapMarkers[0].lat, mapMarkers[0].lng], 14);
+    }
+  }, [mapMarkers, ready]);
 
-  if (mapMarkers.length === 0) return null;
+  if (!hasMarkers) return null;
 
   return (
     <div className="neo-card overflow-hidden" style={{ minHeight: 300, position: "relative" }}>
@@ -386,7 +418,7 @@ function MapView({ deliveries }: { deliveries: Delivery[] | undefined }) {
 }
 
 function DeliveryCard({
-  order, fmt, t, cashInput, onCashChange, onDeliver, onFail, isPending, canAct,
+  order, fmt, t, cashInput, onCashChange, onDeliver, onFail, onReschedule, isPending, canAct,
 }: {
   order: Delivery;
   fmt: (v: string | number) => string;
@@ -395,6 +427,7 @@ function DeliveryCard({
   onCashChange: (v: string) => void;
   onDeliver: () => void;
   onFail: () => void;
+  onReschedule: () => void;
   isPending: boolean;
   /* Отметить доставку может только сам курьер: сервер ищет заказ с
      courier_id = тот, кто жмёт. Директору и оператору эти кнопки отвечали
@@ -462,12 +495,24 @@ function DeliveryCard({
         <CheckCircle2 size={16} />
         {isPending ? t("Отправка...", "Yuborilmoqda...") : t("Доставлено", "Yetkazildi")}
       </button>
-      <button
-        onClick={onFail}
-        className="w-full neo-btn flex items-center justify-center gap-2 text-sm text-danger border-danger/30 hover:bg-danger/10"
-      >
-        {t("Не доставлено", "Yetkazilmadi")}
-      </button>
+      <div className="flex gap-2">
+        <button
+          onClick={onFail}
+          className="flex-1 neo-btn flex items-center justify-center gap-2 text-sm text-danger border-danger/30 hover:bg-danger/10"
+          data-testid="courier-fail"
+        >
+          {t("Не доставлено", "Yetkazilmadi")}
+        </button>
+        <button
+          type="button"
+          onClick={onReschedule}
+          className="flex-1 neo-btn flex items-center justify-center gap-2 text-sm"
+          data-testid="courier-reschedule"
+        >
+          <CalendarClock size={14} />
+          {t("Перенести", "Ko'chirish")}
+        </button>
+      </div>
       </>)}
     </div>
   );

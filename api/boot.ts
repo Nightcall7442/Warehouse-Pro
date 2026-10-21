@@ -434,6 +434,28 @@ app.post("/r/:token/word", async (c) => {
   return c.redirect(r.redirect, 303);
 });
 
+// ── «Где мой заказ» для магазина: публичная страница по подписанной метке (services/tracking.ts) ──
+// Предел частоты — по адресу (если прокси его называет) и по заказу: без
+// доверенного прокси адреса нет, и тогда держит хотя бы второй. Метка с
+// неверной подписью до базы и до счётчиков не доходит — иначе каждая
+// выдуманная метка заводила бы свой счётчик в памяти.
+app.get("/t/:token", async (c) => {
+  const { checkRateLimit, rateLimitSubject } = await import("./lib/rate-limit");
+  const { trackingPage, trackLang, parseTrackToken } = await import("./services/tracking");
+  const lang = trackLang(c.req.query("lang"), c.req.header("accept-language"));
+  const token = c.req.param("token").slice(0, 64);
+  c.header("Cache-Control", "no-store");
+  c.header("X-Robots-Tag", "noindex");
+  const orderId = parseTrackToken(token);
+  if (orderId && (!(await checkRateLimit(rateLimitSubject(c.req.raw), { windowMs: 60_000, limit: 60, namespace: "track.page" }))
+    || !(await checkRateLimit(String(orderId), { windowMs: 60_000, limit: 30, namespace: "track.order" })))) {
+    return c.text(lang === "uz" ? "So'rovlar juda ko'p. Bir daqiqa kuting." : "Слишком много запросов. Подождите минуту.", 429);
+  }
+  const { getDb } = await import("./queries/connection");
+  const r = await trackingPage(getDb(), token, lang);
+  return c.html(r.html, r.status as 200 | 404);
+});
+
 // ── Руководство дистрибьютора — за сессией и разрешением организации ─────────
 app.route("/", manual);
 

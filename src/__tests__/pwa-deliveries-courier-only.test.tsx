@@ -11,6 +11,7 @@
  *
  * Нарочная поломка: убери `isCourier &&` у MonthTotals или у кнопки
  * courier-take-all в CourierDeliveries.tsx.
+
  */
 import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
 import { render, screen, cleanup } from "@testing-library/react";
@@ -27,6 +28,7 @@ vi.mock("@/providers/trpc", () => {
         markOutForDelivery: { useMutation: mutation },
         markDelivered: { useMutation: mutation },
         markFailed: { useMutation: mutation },
+        reschedule: { useMutation: mutation },
       },
       kpi: { courierKpi: { useQuery: () => { state.kpiCalls++; return { data: { delivered: 0, failed: 0, successRate: 0, workDays: 0 } }; } } },
     },
@@ -67,6 +69,7 @@ describe("/deliveries: курьерское — только курьеру", ()
       expect(screen.queryByTestId("courier-month-totals")).toBeNull();
       expect(state.kpiCalls, "courierKpi спрошен за директора").toBe(0);
       expect(screen.queryByTestId("courier-take-all")).toBeNull();
+      expect(screen.queryByTestId("courier-reschedule")).toBeNull();
     });
   }
 });

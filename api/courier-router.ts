@@ -1,23 +1,42 @@
 import { inBackground } from "./lib/graceful-shutdown";
 import { z } from "zod";
-import { createRouter, courierQuery, operatorQuery } from "./middleware";
+import { TRPCError } from "@trpc/server";
+import { createRouter, courierQuery, operatorQuery, can } from "./middleware";
 import { getDb } from "./queries/connection";
 import { markDelivered, completeDelivery, markFailed } from "./services/courier-delivery";
 import { orders, shops, users, orderItems, products } from "@db/schema";
 import { OPEN_ORDER_STATUSES } from "./lib/order-status";
-import { eq, and, sql, desc, asc, isNull, inArray, or, lte } from "drizzle-orm";
+import { eq, and, sql, desc, asc } from "drizzle-orm";
 import { businessToday } from "@contracts/business-time";
+import { ErrorMessages } from "@contracts/constants";
 import { sseBus } from "./lib/sse";
 import { logger } from "./lib/logger";
 import { NotificationService } from "./services/NotificationService";
 import { recordedAtInput } from "./lib/event-time";
 import { DELIVERY_FAIL_REASONS, DELIVERY_FAIL_NOTE_MAX } from "@contracts/delivery-fail-reason";
+import { isSafePhotoValue, PHOTO_VALUE_ERROR } from "./lib/photo-value";
+import { auditActor } from "./services/audit-log";
+import { rescheduleByCourier, rescheduleByOffice } from "./services/delivery-plan";
+import { saveProof } from "./services/delivery-proof";
+import { PROOF_PHOTO_MAX_CHARS, SIGNATURE_MAX_STROKES, SIGNATURE_SCALE, SIGNATURE_STROKE_MAX_POINTS } from "@contracts/delivery-proof";
+import { inRunConditions, dueBy } from "./services/dispatch-board";
 
 /** Координаты строкой, как у точек GPS (agent.saveLocation). */
 const latInput = z.string().refine(v => { const n = Number(v); return v.trim() !== "" && Number.isFinite(n) && n >= -90 && n <= 90; }, "Широта должна быть от -90 до 90").optional();
 const lngInput = z.string().refine(v => { const n = Number(v); return v.trim() !== "" && Number.isFinite(n) && n >= -180 && n <= 180; }, "Долгота должна быть от -180 до 180").optional();
 /** Ключ записи очереди телефона (uuid или свой): столбец delivery_events.idempotency_key — 64. */
 const idempotencyKeyInput = z.string().min(8).max(64).optional();
+const dayInput = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Дата в формате ГГГГ-ММ-ДД");
+const failReasonInput = {
+  reasonCode: z.enum(DELIVERY_FAIL_REASONS).optional(),
+  note: z.string().max(DELIVERY_FAIL_NOTE_MAX).optional(),
+};
+/** Подпись — рамка и штрихи числами (contracts/delivery-proof.ts: signatureProblem). */
+const signatureInput = z.object({
+  w: z.number().int().min(1).max(SIGNATURE_SCALE),
+  h: z.number().int().min(1).max(SIGNATURE_SCALE),
+  strokes: z.array(z.array(z.number().int().min(0).max(SIGNATURE_SCALE)).max(SIGNATURE_STROKE_MAX_POINTS * 2)).min(1).max(SIGNATURE_MAX_STROKES),
+});
 
 export const courierRouter = createRouter({
   /*
@@ -71,14 +90,9 @@ export const courierRouter = createRouter({
         routeSeq: orders.routeSeq,
         courierId: orders.courierId,
       };
-      const open = [
-        eq(orders.tenantId, tenantId),
-        // Удалённый заказ курьеру не показывается: его резерв уже вернулся
-        // на склад, и везти по нему нечего.
-        isNull(orders.deletedAt),
-        inArray(orders.status, OPEN_ORDER_STATUSES),
-        inArray(orders.deliveryStatus, ["assigned", "out_for_delivery"]),
-      ];
+      // Те же условия, что у доски развоза (services/dispatch-board.ts):
+      // курьер и диспетчер видят один и тот же список.
+      const open = inRunConditions(tenantId);
 
       if (!courierId) {
         return db.select({ ...fields, courierName: users.name })
@@ -96,7 +110,7 @@ export const courierRouter = createRouter({
         .where(and(
           ...open,
           eq(orders.courierId, courierId),
-          ...(input?.includeLater ? [] : [or(isNull(orders.plannedDeliveryDate), lte(orders.plannedDeliveryDate, today))]),
+          ...(input?.includeLater ? [] : [dueBy(today)]),
         ))
         .orderBy(sql`${orders.routeSeq} IS NULL`, asc(orders.routeSeq), desc(orders.createdAt))
         .limit(100);
@@ -292,4 +306,50 @@ export const courierRouter = createRouter({
       idempotencyKey: idempotencyKeyInput,
     }))
     .mutation(({ input, ctx }) => markFailed(getDb(), ctx.tenant.id, ctx.user.id, input)),
+
+  /*
+    «Перенести на…» — курьер переносит свой заказ на другой день (с завтра,
+    не дальше двух недель). Заказ остаётся за ним и возвращается в его список
+    в этот день. Перенос — не срыв: в KPI «Сорвано» не идёт.
+  */
+  reschedule: courierQuery
+    .input(z.object({
+      orderId: z.number().int().positive(),
+      date: dayInput,
+      ...failReasonInput,
+      recordedAt: recordedAtInput,
+      lat: latInput,
+      lng: lngInput,
+      idempotencyKey: idempotencyKeyInput,
+    }))
+    .mutation(({ input, ctx }) => rescheduleByCourier(getDb(), ctx.tenant.id, ctx.user.id, input)),
+
+  /** Офис ставит заказу курьера день доставки — и на сегодня тоже (вернуть в развоз). */
+  officeReschedule: operatorQuery.use(can("orders.edit"))
+    .input(z.object({
+      orderId: z.number().int().positive(),
+      date: dayInput,
+      ...failReasonInput,
+    }))
+    .mutation(({ input, ctx }) => rescheduleByOffice(getDb(), auditActor(ctx), input)),
+
+  /*
+    Подтверждение вручения — после «Доставлено», отдельным запросом: фото,
+    подпись, имя принявшего. Одно фото за запрос — тело остаётся далеко от
+    предела в 10 МБ и на слабой связи уходит целиком.
+
+    Только курьер: подтверждение — слово того, кто стоял у прилавка, а не
+    офиса, дописанное потом.
+  */
+  saveProof: courierQuery
+    .input(z.object({
+      orderId: z.number().int().positive(),
+      photo: z.string().max(PROOF_PHOTO_MAX_CHARS, "Фото слишком большое — снимите ещё раз").refine(isSafePhotoValue, PHOTO_VALUE_ERROR).optional(),
+      signature: signatureInput.optional(),
+      recipientName: z.string().max(120).optional(),
+    }))
+    .mutation(({ input, ctx }) => {
+      if (ctx.user.role !== "courier") throw new TRPCError({ code: "FORBIDDEN", message: ErrorMessages.insufficientRole });
+      return saveProof(getDb(), ctx.tenant.id, ctx.user.id, input);
+    }),
 });
