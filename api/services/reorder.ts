@@ -1,5 +1,9 @@
-import { and, eq, sql, isNull, isNotNull, inArray } from "drizzle-orm";
-import { products, warehouseStock, warehouses, users, settings } from "@db/schema";
+import { TRPCError } from "@trpc/server";
+import { and, eq, ne, sql, isNull, isNotNull, inArray } from "drizzle-orm";
+import {
+  products, warehouseStock, warehouses, users, settings, orders, orderItems,
+  purchaseOrders, purchaseOrderItems, arrivals, arrivalItems, suppliers,
+} from "@db/schema";
 import { getDb } from "../queries/connection";
 import { logger } from "../lib/logger";
 import { sseBus } from "../lib/sse";
@@ -86,6 +90,241 @@ export async function lowStockRows(db: Db, tenantId: number, limit = 100): Promi
     .where(and(eq(warehouseStock.tenantId, tenantId), eq(products.status, "active"), onDefaultWarehouse(tenantId), lowStockCondition()))
     .orderBy(sql`${warehouseStock.available} / NULLIF(${products.reorderPoint}, 0)`)
     .limit(limit);
+}
+
+/*
+  Сколько дозаказать — «Дозаказ» на складе и черновики заказов поставщикам.
+
+  ── Что было ────────────────────────────────────────────────────────────────
+
+  reorderSuggestions считал «2 × порог − остаток» по ФИЗИЧЕСКОМУ остатку и
+  по всем складам сразу, если склад не выбран: один товар приходил строкой
+  на каждый склад, а зарезервированное под заказы магазинов считалось
+  лежащим на полке. И не знал, что уже едет: заказ поставщику, согласованный
+  вчера, предлагался снова — и его заказывали дважды.
+
+  ── Как теперь ──────────────────────────────────────────────────────────────
+
+  Склад — выбранный, иначе основной (с него продают, ADR 0008). Какие
+  товары — то же одно правило lowStockCondition(). Сколько:
+
+      цель     = максимум запаса товара, а если не задан — 2 × точка;
+      в пути   = неполученный остаток открытых заказов поставщикам на этот
+                 склад (черновик, на согласовании, согласован, принят
+                 частично) + приходы без заказа, ещё не проведённые, на этот
+                 склад;
+      заказать = цель − свободно − в пути, не меньше нуля, вверх до целой
+                 упаковки (если тара задана), иначе до целой единицы у
+                 штучных и до сотых у весовых.
+
+  Приход по заказу в «в пути» отдельно не считается: он уже сидит в остатке
+  заказа и уменьшит его при проведении — иначе тот же товар считался бы
+  дважды. Черновики считаются нарочно: созданные отсюда же заказы тут же
+  перестают предлагаться снова.
+
+  Поставщик строки — поставщик товара по умолчанию, если он действует;
+  иначе тот, кто привёз товар последним (по проведённым приходам с
+  поставкой); иначе никто — человек выберет сам.
+*/
+
+/** Штучные единицы: дозаказ — целым числом. Вес, объём и длина — до сотых. */
+const COUNTABLE_UNITS = new Set(["pcs", "box", "pack", "block"]);
+
+/** Заказ поставщику ещё ждёт товар — его остаток «в пути». */
+export const OPEN_PO_STATUSES = ["draft", "pending_approval", "approved", "partially_received"] as const;
+
+export interface ReorderQuantityInput {
+  point: number;
+  /** Максимум запаса; null — не задан. */
+  max: number | null;
+  available: number;
+  inbound: number;
+  /** Сколько единиц в упаковке; null или 0 — тары нет. */
+  packSize: number | null;
+  unit: string | null;
+}
+
+/** Цель и сколько заказать — чистая арифметика, в сотых, чтобы 0,1 + 0,2 не давали хвоста. */
+export function reorderQuantity(i: ReorderQuantityInput): { target: number; suggested: number } {
+  const cents = (n: number) => Math.round(n * 100);
+  const target = i.max != null && i.max > 0 ? i.max : i.point * 2;
+  const need = cents(target) - cents(i.available) - cents(i.inbound);
+  if (need <= 0) return { target, suggested: 0 };
+  const pack = i.packSize != null && i.packSize > 0 ? cents(i.packSize) : 0;
+  const step = pack > 0 ? pack : COUNTABLE_UNITS.has(i.unit ?? "pcs") ? 100 : 1;
+  return { target, suggested: (Math.ceil(need / step) * step) / 100 };
+}
+
+export type SupplierSource = "default" | "last";
+
+// Тип, а не interface: строки уходят в выгрузку Excel как Record<string, unknown>.
+export type ReorderPlanRow = {
+  productId: number;
+  productName: string;
+  productCode: string;
+  unit: string | null;
+  packSize: string | null;
+  currentStock: string;
+  available: string;
+  reorderPoint: string;
+  reorderMax: string | null;
+  unitPrice: string;
+  costPrice: string;
+  /** Продажи в день за 30 дней — строкой с одним знаком, как раньше. */
+  avgDailySales: string;
+  /** По свободному остатку; 999 — продаж не было. */
+  daysUntilStockout: number;
+  target: number;
+  inbound: number;
+  suggestedQty: number;
+  suggestedCost: number;
+  supplierId: number | null;
+  supplierName: string | null;
+  /** Откуда поставщик: из карточки товара или по последнему приходу. */
+  supplierSource: SupplierSource | null;
+  warehouseId: number;
+};
+
+type ResultRows<T> = [T[], unknown];
+
+/**
+ * План дозаказа склада (см. разбор выше). Пустой список — у организации нет
+ * основного склада; чужой склад — «не найден».
+ */
+export async function reorderPlan(db: Db, tenantId: number, warehouseId?: number): Promise<ReorderPlanRow[]> {
+  const whCols = { id: warehouses.id, isDefault: warehouses.isDefault };
+  const [defaultWh] = await db.select(whCols).from(warehouses)
+    .where(and(eq(warehouses.tenantId, tenantId), eq(warehouses.isDefault, true))).limit(1);
+  let wh = defaultWh;
+  if (warehouseId) {
+    [wh] = await db.select(whCols).from(warehouses)
+      .where(and(eq(warehouses.id, warehouseId), eq(warehouses.tenantId, tenantId))).limit(1);
+    if (!wh) throw new TRPCError({ code: "NOT_FOUND", message: "Склад не найден" });
+  }
+  if (!wh) return [];
+  const whId = Number(wh.id);
+
+  const days30 = new Date(Date.now() - 30 * 86400000).toISOString();
+  const rows = await db.select({
+    productId: products.id,
+    productName: products.name,
+    productCode: products.code,
+    unit: products.unit,
+    packSize: products.packSize,
+    currentStock: warehouseStock.currentStock,
+    available: warehouseStock.available,
+    reorderPoint: products.reorderPoint,
+    reorderMax: products.reorderMax,
+    unitPrice: products.unitPrice,
+    costPrice: products.costPrice,
+    defaultSupplierId: products.defaultSupplierId,
+    avgDailySales: sql<string>`COALESCE((SELECT SUM(${orderItems.quantity}) FROM ${orderItems} INNER JOIN ${orders} ON ${orderItems.orderId} = ${orders.id} WHERE ${orderItems.productId} = ${products.id} AND ${orders.tenantId} = ${tenantId} AND ${orders.status} = 'delivered' AND ${orders.createdAt} >= ${days30}) / 30, 0)`,
+  })
+    .from(warehouseStock)
+    .innerJoin(products, and(eq(products.id, warehouseStock.productId), eq(products.tenantId, tenantId)))
+    .where(and(
+      eq(warehouseStock.tenantId, tenantId),
+      eq(warehouseStock.warehouseId, whId),
+      eq(products.status, "active"),
+      lowStockCondition(),
+    ))
+    .orderBy(sql`${warehouseStock.available} / NULLIF(${products.reorderPoint}, 0)`);
+  if (rows.length === 0) return [];
+
+  const ids = rows.map(r => Number(r.productId));
+  const [poOpen, looseArrivals, lastDelivered] = await Promise.all([
+    // Неполученный остаток открытых заказов поставщикам на этот склад.
+    db.select({
+      productId: purchaseOrderItems.productId,
+      qty: sql<string>`SUM(GREATEST(${purchaseOrderItems.quantity} - ${purchaseOrderItems.receivedQty}, 0))`,
+    }).from(purchaseOrderItems)
+      .innerJoin(purchaseOrders, eq(purchaseOrders.id, purchaseOrderItems.purchaseOrderId))
+      .where(and(
+        eq(purchaseOrders.tenantId, tenantId),
+        eq(purchaseOrders.warehouseId, whId),
+        inArray(purchaseOrders.status, [...OPEN_PO_STATUSES]),
+        inArray(purchaseOrderItems.productId, ids),
+      ))
+      .groupBy(purchaseOrderItems.productId),
+    // Приходы без заказа, ещё не проведённые: без склада — лягут на основной.
+    db.select({
+      productId: arrivalItems.productId,
+      qty: sql<string>`SUM(GREATEST(COALESCE(${arrivalItems.expectedQuantity}, 0), ${arrivalItems.quantity}))`,
+    }).from(arrivalItems)
+      .innerJoin(arrivals, eq(arrivals.id, arrivalItems.arrivalId))
+      .where(and(
+        eq(arrivals.tenantId, tenantId),
+        isNull(arrivals.purchaseOrderId),
+        ne(arrivals.status, "completed"),
+        sql`COALESCE(${arrivals.warehouseId}, ${defaultWh ? Number(defaultWh.id) : null}) = ${whId}`,
+        inArray(arrivalItems.productId, ids),
+      ))
+      .groupBy(arrivalItems.productId),
+    // Кто привёз товар последним: проведённый приход с поставкой, действующий поставщик.
+    db.execute(sql`
+      SELECT x.product_id AS productId, x.supplier_id AS supplierId, x.name AS name FROM (
+        SELECT ai.product_id, s.supplier_id, sup.name,
+               ROW_NUMBER() OVER (PARTITION BY ai.product_id ORDER BY a.arrival_date DESC, a.id DESC) AS rn
+        FROM arrival_items ai
+        JOIN arrivals a ON a.id = ai.arrival_id
+        JOIN supplies s ON s.arrival_id = a.id AND s.tenant_id = a.tenant_id
+        JOIN suppliers sup ON sup.id = s.supplier_id AND sup.tenant_id = a.tenant_id
+        WHERE a.tenant_id = ${tenantId} AND a.status = 'completed' AND ai.quantity > 0 AND sup.status = 'active'
+          AND ai.product_id IN (${sql.join(ids.map(id => sql`${id}`), sql`, `)})
+      ) x WHERE x.rn = 1
+    `) as unknown as Promise<ResultRows<{ productId: number; supplierId: number; name: string }>>,
+  ]);
+
+  const inbound = new Map<number, number>();
+  for (const r of [...poOpen, ...looseArrivals]) {
+    inbound.set(Number(r.productId), (inbound.get(Number(r.productId)) ?? 0) + Number(r.qty ?? 0));
+  }
+  const last = new Map(lastDelivered[0].map(r => [Number(r.productId), { id: Number(r.supplierId), name: String(r.name) }]));
+
+  const defaultIds = [...new Set(rows.map(r => r.defaultSupplierId).filter((v): v is number => v != null))];
+  const activeDefaults = new Map((defaultIds.length === 0 ? [] : await db.select({ id: suppliers.id, name: suppliers.name })
+    .from(suppliers)
+    .where(and(eq(suppliers.tenantId, tenantId), eq(suppliers.status, "active"), inArray(suppliers.id, defaultIds))))
+    .map(s => [Number(s.id), s.name]));
+
+  return rows.map(r => {
+    const productId = Number(r.productId);
+    const available = Number(r.available ?? 0);
+    const avgDaily = Number(r.avgDailySales ?? 0);
+    const inb = Math.round((inbound.get(productId) ?? 0) * 100) / 100;
+    const { target, suggested } = reorderQuantity({
+      point: Number(r.reorderPoint ?? 0),
+      max: r.reorderMax == null ? null : Number(r.reorderMax),
+      available, inbound: inb,
+      packSize: r.packSize == null ? null : Number(r.packSize),
+      unit: r.unit,
+    });
+    const own = r.defaultSupplierId != null ? activeDefaults.get(Number(r.defaultSupplierId)) : undefined;
+    const prev = own === undefined ? last.get(productId) : undefined;
+    return {
+      productId,
+      productName: r.productName,
+      productCode: r.productCode,
+      unit: r.unit,
+      packSize: r.packSize,
+      currentStock: String(r.currentStock),
+      available: String(r.available),
+      reorderPoint: String(r.reorderPoint),
+      reorderMax: r.reorderMax,
+      unitPrice: String(r.unitPrice),
+      costPrice: String(r.costPrice),
+      avgDailySales: avgDaily.toFixed(1),
+      daysUntilStockout: avgDaily > 0 ? Math.max(0, Math.round(available / avgDaily)) : 999,
+      target,
+      inbound: inb,
+      suggestedQty: suggested,
+      suggestedCost: Math.round(suggested * Number(r.costPrice ?? 0)),
+      supplierId: own !== undefined ? Number(r.defaultSupplierId) : prev?.id ?? null,
+      supplierName: own ?? prev?.name ?? null,
+      supplierSource: own !== undefined ? "default" : prev ? "last" : null,
+      warehouseId: whId,
+    };
+  });
 }
 
 /**

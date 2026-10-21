@@ -539,13 +539,23 @@ export function formatDeadStockForExport(items: Record<string, unknown>[]) {
   }));
 }
 
+/**
+ * «Дозаказ». Поставщик — тот, к кому товар уйдёт в заказ; «Свободно» —
+ * остаток за вычетом резерва (от него и считается «Заказать»); «Максимум» —
+ * до скольких дозаказываем (не задан у товара — 2 × порог); «В пути» —
+ * открытые заказы поставщикам и приходы без заказа.
+ */
 export function formatReorderForExport(items: Record<string, unknown>[]) {
   return items.map(s => ({
     "Товар":         String(s.productName ?? ""),
     "Код":           String(s.productCode ?? ""),
+    "Поставщик":     String(s.supplierName ?? ""),
     "Единица":       unitShort(s.unit as string | null | undefined),
     "Остаток":       Number(s.currentStock ?? 0),
+    "Свободно":      Number(s.available ?? s.currentStock ?? 0),
     "Порог":         Number(s.reorderPoint ?? 0),
+    "Максимум":      Number(s.target ?? 0),
+    "В пути":        Number(s.inbound ?? 0),
     "Продажи/день":  Number(s.avgDailySales ?? 0),
     "Дней до конца": Number(s.daysUntilStockout ?? 0),
     "Заказать":      Number(s.suggestedQty ?? 0),
