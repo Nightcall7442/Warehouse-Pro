@@ -27,8 +27,8 @@ import { errorText } from "@/lib/error-text";
 const LABELS: Record<OperatorCapability, { ru: string; uz: string; hintRu: string; hintUz: string }> = {
   "orders.edit": {
     ru: "Править заказы", uz: "Buyurtmalarni tahrirlash",
-    hintRu: "Менять состав и суммы уже оформленного заказа.",
-    hintUz: "Rasmiylashtirilgan buyurtma tarkibi va summasini o'zgartirish.",
+    hintRu: "Менять состав и суммы уже оформленного заказа, день доставки и порядок объезда на доске развоза.",
+    hintUz: "Rasmiylashtirilgan buyurtma tarkibi va summasini, yetkazish kunini va yetkazish doskasidagi aylanish tartibini o'zgartirish.",
   },
   "orders.delete": {
     ru: "Удалять заказы", uz: "Buyurtmalarni o'chirish",
@@ -52,8 +52,8 @@ const LABELS: Record<OperatorCapability, { ru: string; uz: string; hintRu: strin
   },
   "warehouse.adjust": {
     ru: "Править остатки и перемещать", uz: "Qoldiqlarni tuzatish va ko'chirish",
-    hintRu: "Ручная корректировка количества на складе и перемещения между складами.",
-    hintUz: "Ombordagi miqdorni qo'lda tuzatish va omborlar orasida ko'chirish.",
+    hintRu: "Ручная корректировка количества на складе, инвентаризация и перемещения между складами.",
+    hintUz: "Ombordagi miqdorni qo'lda tuzatish, inventarizatsiya va omborlar orasida ko'chirish.",
   },
   "warehouse.apply": {
     ru: "Проводить правку остатков без утверждения", uz: "Qoldiq tuzatishini tasdiqsiz o'tkazish",
@@ -62,8 +62,8 @@ const LABELS: Record<OperatorCapability, { ru: string; uz: string; hintRu: strin
   },
   "suppliers.manage": {
     ru: "Вести поставщиков", uz: "Yetkazib beruvchilar",
-    hintRu: "Заводить поставщиков и проводить оплаты им.",
-    hintUz: "Yetkazib beruvchilarni yaratish va ularga to'lash.",
+    hintRu: "Заводить поставщиков и проводить оплаты им, приходы и заказы поставщикам — и из «Дозаказа».",
+    hintUz: "Yetkazib beruvchilarni yaratish va ularga to'lash, kirimlar va yetkazib beruvchilarga buyurtmalar — «Qayta buyurtma»dan ham.",
   },
   "shops.delete": {
     ru: "Убирать магазины", uz: "Do'konlarni olib tashlash",
