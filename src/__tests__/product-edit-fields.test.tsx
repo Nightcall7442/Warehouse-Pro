@@ -33,7 +33,7 @@ const trpcStub = vi.hoisted(() => {
       getById: { useQuery: query({
         id: 7, code: "A-100", name: "Печенье", category: "Кондитерские",
         unit: "block", unitPrice: "12000.00", costPrice: "9000.00",
-        unitWeight: "8.000", reorderPoint: "10.00", description: "", photoUrl: null,
+        unitWeight: "8.000", reorderPoint: "10.00", reorderMax: "40.00", description: "", photoUrl: null,
       }) },
       categories: { useQuery: query(["Кондитерские", "Напитки", "Бакалея"]) },
       update: { useMutation: () => ({ mutate: update, isPending: false }) },
@@ -111,6 +111,22 @@ describe("Правка товара", () => {
     click(within(screen.getByRole("listbox")).getByRole("option", { name: "Мельница" }));
     click(screen.getByRole("button", { name: /Сохранить/ }));
     expect(update).toHaveBeenCalledWith(expect.objectContaining({ id: 7, defaultSupplierId: 6 }));
+  });
+
+  it("максимум запаса: показан сохранённый, пустое поле уходит пустым — сервер снимает максимум", () => {
+    update.mockClear();
+    renderPage();
+    startEditing();
+
+    const max = screen.getByTestId("product-edit-reorder-max") as HTMLInputElement;
+    expect(max.value).toBe("40.00");
+    fireEvent.change(max, { target: { value: "60" } });
+    click(screen.getByRole("button", { name: /Сохранить/ }));
+    expect(update).toHaveBeenLastCalledWith(expect.objectContaining({ id: 7, reorderMax: "60" }));
+
+    fireEvent.change(max, { target: { value: "" } });
+    click(screen.getByRole("button", { name: /Сохранить/ }));
+    expect(update).toHaveBeenLastCalledWith(expect.objectContaining({ id: 7, reorderMax: "" }));
   });
 
   it("предлагает уже заведённые категории", () => {

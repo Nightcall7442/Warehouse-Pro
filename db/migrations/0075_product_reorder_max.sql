@@ -1,0 +1,1 @@
+ALTER TABLE `products` ADD `reorder_max` decimal(10,2);

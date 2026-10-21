@@ -49,7 +49,7 @@ vi.mock("../lib/sanitize", () => ({
 import { products, warehouseStock, orderItems, stockMovements, warehouses, productBarcodes, suppliers } from "@db/schema";
 import { makeConditionEvaluator } from "./helpers/fake-conditions";
 
-interface FakeProduct { id: number; tenantId: number; code: string; barcode: string; name: string; category: string; costPrice: string; unitPrice: string; unit: string; unitWeight: string; description: string | null; photoUrl: string | null; reorderPoint: string; status: string; createdAt: Date; }
+interface FakeProduct { id: number; tenantId: number; code: string; barcode: string; name: string; category: string; costPrice: string; unitPrice: string; unit: string; unitWeight: string; description: string | null; photoUrl: string | null; reorderPoint: string; reorderMax?: string | null; status: string; createdAt: Date; }
 interface FakeStock { id: number; productId: number; tenantId: number; warehouseId: number; currentStock: string; reserved: string; available: string; }
 interface FakeOrderItem { id: number; orderId: number; productId: number; quantity: string; unitPrice: string; subtotal: string; createdAt: Date; }
 interface FakeStockMovement { id: number; tenantId: number; productId: number; type: string; quantity: string; notes: string | null; createdAt: Date; }
@@ -249,6 +249,7 @@ function makeMockDb() {
             unitPrice: (vals.unitPrice as string) ?? "0.00", unit: (vals.unit as string) ?? "pcs",
             unitWeight: (vals.unitWeight as string) ?? "0.000", description: (vals.description as string) ?? null,
             photoUrl: (vals.photoUrl as string) ?? null, reorderPoint: (vals.reorderPoint as string) ?? "10.00",
+            reorderMax: (vals.reorderMax as string | null | undefined) ?? null,
             status: (vals.status as string) ?? "active", createdAt: new Date(),
           });
           return Promise.resolve([{ insertId: id }]);
@@ -498,6 +499,49 @@ describe("product: поставщик по умолчанию", () => {
     expect(asOperator?.defaultSupplierId).toBe(5);
     const asAgent = await productRouter.createCaller({ ...makeCtx(1, 1, "agent"), db: mockDb }).getById({ id: 1 });
     expect(asAgent?.defaultSupplierId).toBeUndefined();
+  });
+});
+
+describe("product: максимум запаса", () => {
+  /*
+    До скольких дозаказывать, когда остаток дошёл до точки. Пусто — вдвое
+    больше точки (как «Дозаказ» считал до этого поля). Ниже точки — отказ:
+    товар «заканчивается» на точке, и дозаказ должен поднять его выше, а не
+    оставить там же. Проверяется то, что останется после правки.
+  */
+  const max = (id: number) => productsTable.find(p => p.id === id)!.reorderMax;
+
+  it("записывается, снимается пустым полем; карточка его отдаёт", async () => {
+    const { productRouter } = await import("../product-router");
+    const caller = productRouter.createCaller({ ...makeCtx(1, 1), db: mockDb });
+    await caller.update({ id: 1, reorderMax: "60" });
+    expect(max(1)).toBe("60");
+    expect((await caller.getById({ id: 1 }))?.reorderMax).toBe("60");
+    await caller.update({ id: 1, reorderMax: "" });
+    expect(max(1)).toBeNull();
+  });
+
+  it("ниже точки — отказ; новая точка выше прежнего максимума — тоже; товар не тронут", async () => {
+    const { productRouter } = await import("../product-router");
+    const caller = productRouter.createCaller({ ...makeCtx(1, 1), db: mockDb });
+    // У товара точка 20.
+    await expect(caller.update({ id: 1, reorderMax: "10" })).rejects.toThrow("Максимум запаса меньше точки заказа");
+    expect(max(1) ?? null).toBeNull();
+
+    await caller.update({ id: 1, reorderMax: "60" });
+    await expect(caller.update({ id: 1, reorderPoint: "70.00", name: "Новое" })).rejects.toThrow("Максимум запаса меньше точки заказа");
+    expect(productsTable.find(p => p.id === 1)!.reorderPoint).toBe("20.00");
+    expect(productsTable.find(p => p.id === 1)!.name).toBe("Widget A");
+    // Точку подняли вместе с максимумом — можно.
+    await caller.update({ id: 1, reorderPoint: "70.00", reorderMax: "100" });
+    expect(max(1)).toBe("100");
+
+    const before = productsTable.length;
+    await expect(caller.create({ code: "N-2", name: "Новый", unitPrice: "10", reorderPoint: "10.00", reorderMax: "5" }))
+      .rejects.toThrow("Максимум запаса меньше точки заказа");
+    expect(productsTable.length).toBe(before);
+    const ok = await caller.create({ code: "N-3", name: "Новый", unitPrice: "10", reorderPoint: "10.00", reorderMax: "40" });
+    expect(max(ok.id)).toBe("40");
   });
 });
 

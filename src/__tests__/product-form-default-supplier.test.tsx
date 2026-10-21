@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 /**
- * Новый товар — сразу с поставщиком по умолчанию.
+ * Новый товар — сразу с тем, что нужно «Дозаказу»: поставщиком по
+ * умолчанию и максимумом запаса.
  *
  * Поставщик по умолчанию решает, к кому «Дозаказ» положит товар в заказ.
  * Вписать его можно было только в карточке уже заведённого товара; теперь —
@@ -41,5 +42,29 @@ describe("форма товара: поставщик по умолчанию", 
   it("поставщиков не дали — поля нет", () => {
     mount();
     expect(screen.queryByRole("combobox", { name: "Поставщик по умолчанию" })).toBeNull();
+  });
+});
+
+describe("форма товара: максимум запаса", () => {
+  it("уходит вместе с товаром; пусто — поля в запросе нет (дозаказ до 2 × порог)", () => {
+    const onSave = mount();
+    fireEvent.change(screen.getByTestId("product-reorder-max"), { target: { value: "40" } });
+    fireEvent.click(screen.getByTestId("product-save"));
+    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ reorderPoint: "10.00", reorderMax: "40" }));
+
+    cleanup();
+    const plain = mount();
+    fireEvent.click(screen.getByTestId("product-save"));
+    expect(plain.mock.calls[0][0]).toMatchObject({ reorderMax: undefined });
+  });
+
+  it("ниже порога — сказано у поля, и форма не уходит", () => {
+    const onSave = mount();
+    fireEvent.change(screen.getByTestId("product-reorder-max"), { target: { value: "5" } });
+    expect(screen.getByRole("alert").textContent).toBe("Максимум не может быть меньше порога");
+    const save = screen.getByTestId("product-save") as HTMLButtonElement;
+    expect(save.disabled).toBe(true);
+    fireEvent.click(save);
+    expect(onSave).not.toHaveBeenCalled();
   });
 });

@@ -95,6 +95,29 @@ async function getDefaultWarehouseId(db: ReturnType<typeof getDb>, tenantId: num
 const defaultSupplierInput = z.number().int().positive().nullable().optional();
 
 /**
+ * Максимум запаса — до скольких дозаказывать. Пусто (или "") — не задан:
+ * «Дозаказ» берёт вдвое больше точки заказа, как до этого поля.
+ */
+const reorderMaxInput = z.preprocess(
+  v => (v === "" ? null : v),
+  z.string().regex(/^\d+(\.\d{1,2})?$/, "Максимум запаса — число")
+    .refine(v => Number(v) > 0 && Number(v) <= 99_999_999, "Максимум запаса — больше нуля и не больше 99 999 999")
+    .nullable().optional(),
+);
+
+const REORDER_MAX_BELOW_POINT = "Максимум запаса меньше точки заказа — дозаказ не дотянул бы и до точки";
+
+/**
+ * Максимум ниже точки — бессмыслица: товар «заканчивается» на точке, а
+ * дозаказ должен поднять его до максимума, то есть выше. Проверяется то,
+ * что останется после правки: новая точка против прежнего максимума тоже.
+ */
+function assertReorderMax(point: string | number | null | undefined, max: string | number | null | undefined) {
+  if (max == null) return;
+  if (Number(max) < Number(point ?? 0)) throw new TRPCError({ code: "BAD_REQUEST", message: REORDER_MAX_BELOW_POINT });
+}
+
+/**
  * Поставщик по умолчанию — только свой и действующий. Чужой номер — «не
  * найден», а не «нет доступа»: иначе ответ подсказал бы, что такой есть у
  * другой организации. Снятие (null) и «не трогать» (undefined) не проверяются.
@@ -352,7 +375,7 @@ export const productRouter = createRouter({
         ikpu: products.ikpu, packageCode: products.packageCode, vatRate: products.vatRate,
         // Через ручку, как в списке: прямая ссылка на бакет открывалась не всегда.
         photoUrl: photoRef("product", products.id, products.photoUrl, products.updatedAt),
-        reorderPoint: products.reorderPoint, status: products.status,
+        reorderPoint: products.reorderPoint, reorderMax: products.reorderMax, status: products.status,
         defaultSupplierId: products.defaultSupplierId,
         createdAt: products.createdAt,
       }).from(products)
@@ -427,6 +450,8 @@ export const productRouter = createRouter({
       photoUrl:     z.string().max(2_800_000, "Файл слишком большой (макс. 2 МБ)")
         .refine(isSafePhotoValue, PHOTO_VALUE_ERROR).optional(),
       reorderPoint: decimalOrDefault("10.00").optional(),
+      // До скольких дозаказывать; пусто — вдвое больше точки.
+      reorderMax:   reorderMaxInput,
       // Дополнительные штрих-коды; основной — barcode выше.
       extraBarcodes: extraBarcodesInput.optional(),
       defaultSupplierId: defaultSupplierInput,
@@ -466,6 +491,7 @@ export const productRouter = createRouter({
         // Не указали — порог из настроек организации, а не молчаливые «10».
         reorderPoint: input.reorderPoint ?? await defaultReorderPoint(db, tenantId),
       };
+      assertReorderMax(sanitized.reorderPoint, sanitized.reorderMax);
 
       /*
         Категория пишется так, как её уже пишут у этого арендатора.
@@ -556,6 +582,8 @@ export const productRouter = createRouter({
       photoUrl:     z.string().max(2_800_000, "Файл слишком большой (макс. 2 МБ)")
         .refine(isSafePhotoValue, PHOTO_VALUE_ERROR).nullable().optional(),
       reorderPoint: decimalOrDefault("10.00").optional(),
+      // null или "" — снять максимум (дозаказ до 2 × точки); не прислан — не трогать.
+      reorderMax:   reorderMaxInput,
       status:       z.enum(["active", "inactive"]).optional(),
       // null — снять поставщика по умолчанию; не прислан — не трогать.
       defaultSupplierId: defaultSupplierInput,
@@ -582,11 +610,14 @@ export const productRouter = createRouter({
 
       // Цена, себестоимость, точка заказа и статус — то, о чём спорят; след
       // пишется в той же транзакции, что и правка: без следа нет правки.
-      const TRACED = ["unitPrice", "costPrice", "reorderPoint", "status"];
+      const TRACED = ["unitPrice", "costPrice", "reorderPoint", "reorderMax", "status"];
       await getDb().transaction(async (tx) => {
-        const [before] = await tx.select({ unitPrice: products.unitPrice, costPrice: products.costPrice, reorderPoint: products.reorderPoint, status: products.status, code: products.code, barcode: products.barcode })
+        const [before] = await tx.select({ unitPrice: products.unitPrice, costPrice: products.costPrice, reorderPoint: products.reorderPoint, reorderMax: products.reorderMax, status: products.status, code: products.code, barcode: products.barcode })
           .from(products).where(and(eq(products.id, id), eq(products.tenantId, ctx.tenant.id))).for("update").limit(1);
         if (!before) throw new Error("Товар не найден");
+        if (data.reorderPoint !== undefined || data.reorderMax !== undefined) {
+          assertReorderMax(data.reorderPoint ?? before.reorderPoint, data.reorderMax !== undefined ? data.reorderMax : before.reorderMax);
+        }
         if (touchesBarcodes) {
           /*
             Проверяется то, что останется после правки: новый основной против

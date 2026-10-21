@@ -29,6 +29,8 @@ export type ProductDraft = {
   packSize:     string;
   packLabel:    string;
   reorderPoint: string;
+  /** До скольких дозаказывать; пусто — вдвое больше порога (undefined в запросе). */
+  reorderMax?:  string;
   description:  string;
   photoUrl?:    string;
   /** Для ЭСФ и фискализации; пусто — не задано. */
@@ -67,6 +69,9 @@ export function ProductForm({ onSave, onCancel, isPending, lang, categories = []
   const [extras, setExtras] = useState<string[]>([]);
   const [supplierId, setSupplierId] = useState("");
   const taxBad = isBadIkpu(tax.ikpu);
+  const [reorderMax, setReorderMax] = useState("");
+  // Максимум ниже порога сервер не примет — сказать сразу, у поля.
+  const maxBad = reorderMax.trim() !== "" && Number(reorderMax) < Number(d.reorderPoint || 0);
   const [photo, setPhoto] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const handlePhoto = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -121,6 +126,15 @@ export function ProductForm({ onSave, onCancel, isPending, lang, categories = []
           <DecimalInput data-testid="product-price" className="neo-input font-data" placeholder={t("Цена продажи *", "Sotish narxi *")} value={d.unitPrice} onValueChange={v => setD({ ...d, unitPrice: v })} />
           <DecimalInput className="neo-input font-data" placeholder={t("Масса 1 ед. в кг (ящик=8)", "1 dona vazni, kg")} value={d.unitWeight} onValueChange={v => setD({ ...d, unitWeight: v })} />
           <DecimalInput className="neo-input font-data" placeholder={t("Порог дозаказа", "Qayta buyurtma chegarasi")} value={d.reorderPoint} onValueChange={v => setD({ ...d, reorderPoint: v })} />
+          <div>
+            <DecimalInput data-testid="product-reorder-max" className="neo-input font-data w-full" aria-label={t("Максимум запаса", "Maksimal zaxira")}
+              placeholder={t("Максимум запаса (пусто — 2 × порог)", "Maksimal zaxira (bo'sh — 2 × chegara)")} value={reorderMax} onValueChange={setReorderMax} />
+            {maxBad && (
+              <p role="alert" className="text-xs mt-1" style={{ color: "var(--color-danger-text)" }}>
+                {t("Максимум не может быть меньше порога", "Maksimal zaxira chegaradan kichik bo'lmasin")}
+              </p>
+            )}
+          </div>
           <DecimalInput className="neo-input font-data" placeholder={t("В упаковке, ед. (12)", "Qadoqda, dona (12)")} value={d.packSize} onValueChange={v => setD({ ...d, packSize: v })} data-testid="product-pack-size" />
           <input className="neo-input" placeholder={t("Название упаковки (коробка)", "Qadoq nomi (quti)")} value={d.packLabel} onChange={e => setD({ ...d, packLabel: e.target.value })} />
           <ProductTaxFields lang={lang} value={tax} onChange={patch => setTax(x => ({ ...x, ...patch }))} />
@@ -140,13 +154,14 @@ export function ProductForm({ onSave, onCancel, isPending, lang, categories = []
         </div>
       </div>
       <div style={{ display: "flex", gap: "8px", marginTop: "16px" }}>
-        <button data-testid="product-save" onClick={() => d.code && d.name && d.unitPrice && !taxBad && onSave({
+        <button data-testid="product-save" onClick={() => d.code && d.name && d.unitPrice && !taxBad && !maxBad && onSave({
             ...d, photoUrl: photo ?? undefined,
             ikpu: tax.ikpu.trim() || undefined, packageCode: tax.packageCode.trim() || undefined,
             vatRate: VAT_RATES.find(r => r === tax.vatRate),
             extraBarcodes: extraBarcodesPayload(extras),
             defaultSupplierId: supplierId ? Number(supplierId) : undefined,
-          })} disabled={isPending || taxBad}
+            reorderMax: reorderMax.trim() || undefined,
+          })} disabled={isPending || taxBad || maxBad}
           className="neo-btn-primary flex-1 sm:flex-none flex items-center justify-center gap-2">
           {isPending && <Loader2 size={14} className="animate-spin" />}{t("Сохранить", "Saqlash")}
         </button>

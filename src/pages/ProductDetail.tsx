@@ -224,6 +224,12 @@ export default function ProductDetail() {
                 <DecimalInput className="neo-input font-data" placeholder={tr("Порог дозаказа","Qayta buyurtma chegarasi")}
                   value={String(editData.reorderPoint ?? product.reorderPoint ?? "")}
                   onValueChange={v=>setEditData((d: Record<string, unknown>)=>({...d,reorderPoint:v}))}/>
+                {/* До скольких дозаказывать; пустое поле снимает максимум — дозаказ до 2 × порог. */}
+                <DecimalInput className="neo-input font-data" data-testid="product-edit-reorder-max"
+                  aria-label={tr("Максимум запаса","Maksimal zaxira")}
+                  placeholder={tr("Максимум запаса (пусто — 2 × порог)","Maksimal zaxira (bo'sh — 2 × chegara)")}
+                  value={String(editData.reorderMax !== undefined ? (editData.reorderMax ?? "") : (product.reorderMax ?? ""))}
+                  onValueChange={v=>setEditData((d: Record<string, unknown>)=>({...d,reorderMax:v}))}/>
                 {/* Упаковка: «12» и «коробка». Пусто — тары нет. */}
                 <DecimalInput className="neo-input font-data" placeholder={tr("В упаковке, ед. (12)","Qadoqda, dona (12)")}
                   value={String(editData.packSize ?? product.packSize ?? "")}

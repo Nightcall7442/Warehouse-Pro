@@ -161,7 +161,7 @@ const FIELD_LABEL: Record<string, Label> = {
   status: { ru: "статус", uz: "holat" }, address: { ru: "адрес", uz: "manzil" }, unitPrice: { ru: "цена", uz: "narx" }, costPrice: { ru: "себестоимость", uz: "tannarx" },
   creditLimit: { ru: "кредитный лимит", uz: "kredit limiti" }, code: { ru: "код", uz: "kod" }, category: { ru: "категория", uz: "toifa" },
   unit: { ru: "единица", uz: "birlik" }, minStock: { ru: "мин. остаток", uz: "min. qoldiq" }, territoryId: { ru: "территория", uz: "hudud" },
-  reorderPoint: { ru: "точка дозаказа", uz: "qayta buyurtma nuqtasi" }, unitWeight: { ru: "вес единицы", uz: "birlik vazni" },
+  reorderPoint: { ru: "точка дозаказа", uz: "qayta buyurtma nuqtasi" }, reorderMax: { ru: "максимум запаса", uz: "maksimal zaxira" }, unitWeight: { ru: "вес единицы", uz: "birlik vazni" },
   packSize: { ru: "упаковка", uz: "qadoq" }, packLabel: { ru: "название упаковки", uz: "qadoq nomi" }, description: { ru: "описание", uz: "tavsif" },
   barcode: { ru: "штрих-код", uz: "shtrix-kod" }, companyName: { ru: "название компании", uz: "kompaniya nomi" }, logoUrl: { ru: "логотип", uz: "logotip" },
   currency: { ru: "валюта", uz: "valyuta" }, timezone: { ru: "часовой пояс", uz: "vaqt mintaqasi" },

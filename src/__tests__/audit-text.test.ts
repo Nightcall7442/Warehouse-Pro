@@ -79,6 +79,9 @@ describe("describeMeta — все ключи журнала", () => {
 
   it("правка товара: список изменённых полей — названиями полей", () => {
     expect(describeMeta({ code: "THS1-03", changed: ["unitPrice", "reorderPoint"] }, "ru")).toBe("Код: THS1-03 · Изменено: цена, точка дозаказа");
+    // Максимум запаса — пара «было → стало» под своим именем, а не reorderMax.
+    expect(describeMeta({ changed: { reorderMax: { from: null, to: "60" } } }, "ru")).toBe("максимум запаса: — → 60");
+    expect(describeMeta({ changed: { reorderMax: { from: "40", to: "60" } } }, "uz")).toBe("maksimal zaxira: 40 → 60");
   });
 
   it("правка настроек: changed как пары «было → стало»", () => {
