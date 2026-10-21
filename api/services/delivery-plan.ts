@@ -183,10 +183,12 @@ export async function rescheduleByOffice(db: Db, actor: Pick<AuditRecord, "tenan
     title: { ru: "День доставки изменён", uz: "Yetkazish kuni o'zgartirildi" },
     message: { ru: `Заказ ${order.orderNumber} — доставка ${ddmm(input.date)}`, uz: `Buyurtma ${order.orderNumber} — yetkazish ${ddmm(input.date)}` },
   });
+  // «order.assigned», как у назначения: телефон по нажатию открывает список
+  // доставок — там заказ и стоит в своём дне (см. courier-router, assignCourier).
   inBackground(sendPushToUser(courierId, {
     title: "День доставки изменён",
     body: `Заказ ${order.orderNumber} — доставка ${ddmm(input.date)}`,
-    data: { type: "delivery", orderId: order.id },
+    data: { type: "order.assigned", orderId: order.id },
   }).catch(() => { /* push необязателен */ }));
 
   logger.info("order delivery rescheduled by office", { orderId: order.id, date: input.date, actorId: actor.actorId });

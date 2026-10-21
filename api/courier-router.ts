@@ -168,10 +168,15 @@ export const courierRouter = createRouter({
       });
 
       // Push курьеру — после ответа: оператор не ждёт Expo.
+      //
+      // Тип — «order.assigned»: его телефон знает с первых сборок и по
+      // нажатию открывает список доставок. Здесь стоял «delivery», которого
+      // не знала ни одна сборка: нажатие открывало приложение на главной, и
+      // курьер искал новый заказ сам.
       inBackground(import("./services/push-service").then(({ sendPushToUser }) => sendPushToUser(input.courierId, {
         title: "Назначен заказ на доставку",
         body: `Заказ ${order.orderNumber} → ${shop?.name ?? "Магазин"}`,
-        data: { type: "delivery", orderId: input.orderId },
+        data: { type: "order.assigned", orderId: input.orderId },
       })).catch(() => { /* push is non-critical */ }));
 
       sseBus.emit({

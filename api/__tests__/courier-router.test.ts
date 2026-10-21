@@ -386,6 +386,14 @@ describe("courier.assignCourier", () => {
     const caller = courierRouter.createCaller(makeCtx(1, 1));
     await expect(caller.assignCourier({ orderId: 2, courierId: 999 })).rejects.toThrow("Курьер не найден");
   });
+
+  it("push курьеру — с типом, который телефон знает: нажатие открывает доставки", async () => {
+    // Был «delivery» — его не знала ни одна сборка телефона, нажатие вело на главную.
+    const { sendPushToUser } = await import("../services/push-service");
+    const { courierRouter } = await import("../courier-router");
+    await courierRouter.createCaller(makeCtx(1, 1)).assignCourier({ orderId: 2, courierId: 100 });
+    await vi.waitFor(() => expect(sendPushToUser).toHaveBeenCalledWith(100, expect.objectContaining({ data: { type: "order.assigned", orderId: 2 } })));
+  });
 });
 
 /*
@@ -1042,8 +1050,11 @@ describe("courier.officeReschedule", () => {
     expect(auditTable).toHaveLength(1);
     expect(auditTable[0]).toMatchObject({ action: "order.delivery_rescheduled", targetType: "order", targetId: 3, tenantId: 1 });
     expect(auditTable[0].meta).toMatchObject({ plannedDate: day, orderNumber: "ORD-003" });
-    // Курьеру — уведомление, что день его заказа изменился.
+    // Курьеру — уведомление, что день его заказа изменился; push — типом,
+    // по которому телефон открывает доставки.
     expect(notificationsTable.some(n => n.userId === 100)).toBe(true);
+    const { sendPushToUser } = await import("../services/push-service");
+    await vi.waitFor(() => expect(sendPushToUser).toHaveBeenCalledWith(100, expect.objectContaining({ data: { type: "order.assigned", orderId: 3 } })));
   });
 
   it("заказ без курьера и закрытый — отказ; вчера — отказ", async () => {
