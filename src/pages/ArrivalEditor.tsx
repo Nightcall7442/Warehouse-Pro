@@ -1,11 +1,12 @@
-import { useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { UNSAFE_NavigationContext, useBeforeUnload, useNavigate, useParams } from "react-router";
+import { useEffect, useMemo, useState } from "react";
+import { useNavigate, useParams } from "react-router";
 import { bizToday, format } from "@/lib/business-time";
 import { ArrowLeft, Plus, Printer, ScanLine, Trash2, Loader2, CheckCircle2, Truck, ListChecks } from "lucide-react";
 import { trpc } from "@/providers/trpc";
 import { useLang } from "@/i18n";
 import { useAuth } from "@/hooks/useAuth";
 import { useCan } from "@/hooks/useCan";
+import { useLeaveGuard } from "@/hooks/useLeaveGuard";
 import { useCurrency } from "@/hooks/useCurrency";
 import { useSellerCompany } from "@/hooks/useSellerCompany";
 import { notify } from "@/lib/toast";
@@ -86,6 +87,9 @@ export default function ArrivalEditor() {
   const detailQ = trpc.arrival.getById.useQuery({ id: arrivalId ?? 0 }, { enabled: !isNew });
   const supplyQ = trpc.supplier.getSupplyByArrival.useQuery({ arrivalId: arrivalId ?? 0 }, { enabled: !isNew });
   const detail = detailQ.data ?? null;
+  // Приход по заказу поставщику: ссылка назад и поставщик, пока долга ещё нет.
+  const linkedOrder = detail?.purchaseOrder ?? null;
+  const supplierName = supplyQ.data?.supplierName ?? linkedOrder?.supplierName ?? null;
 
   /* Новый — черновик у браузера; сохранённый — правки поверх документа, пока их не сохранили. */
   const [draft, setDraft] = useState<ArrivalDraft>(() => (isNew && user ? loadArrivalDraft(user.id) : null) ?? emptyDraft());
@@ -131,33 +135,16 @@ export default function ArrivalEditor() {
   const setHead = (patch: Partial<Head>) => isNew ? setDraft(d => ({ ...d, form: { ...d.form, ...patch } })) : setEdit(e => ({ ...(e ?? base!), head: { ...(e ?? base!).head, ...patch } }));
 
   /*
-    Уход с несохранёнными правками — спросить. У нового прихода черновик в
-    браузере, а правки сохранённого живут только здесь: сорок строк «пришло»,
-    набранных при разгрузке, пропадали от «← Приходы», пункта меню или
-    перезагрузки. useBlocker требует data router, а у нас BrowserRouter —
-    поэтому перехвачен navigator.push: через него идут и ссылки, и navigate() меню.
+    Уход с несохранёнными правками — спросить (hooks/useLeaveGuard). У нового
+    прихода черновик в браузере, а правки сохранённого живут только здесь:
+    сорок строк «пришло», набранных при разгрузке, пропадали от «← Приходы»,
+    пункта меню или перезагрузки.
   */
-  const askLeave = useRef<(() => Promise<boolean>) | null>(null);
-  useEffect(() => {
-    askLeave.current = !isNew && edit != null ? () => confirm({
-      title: t("Уйти без сохранения?", "Saqlamasdan chiqilsinmi?"),
-      message: t("Несохранённые правки документа пропадут.", "Hujjatdagi saqlanmagan o'zgarishlar yo'qoladi."),
-      confirmText: t("Уйти", "Chiqish"), danger: true,
-    }) : null;
-  });
-  const { navigator } = useContext(UNSAFE_NavigationContext);
-  /* eslint-disable react-hooks/immutability -- navigator это history роутера, а не состояние React */
-  useEffect(() => {
-    const push = navigator.push;
-    navigator.push = (...a: Parameters<typeof push>) => {
-      const ask = askLeave.current;
-      if (!ask) return push(...a);
-      void ask().then(ok => { if (ok) push(...a); });
-    };
-    return () => { navigator.push = push; };
-  }, [navigator]);
-  /* eslint-enable react-hooks/immutability */
-  useBeforeUnload(useCallback((e: BeforeUnloadEvent) => { if (askLeave.current) e.preventDefault(); }, []));
+  const releaseLeave = useLeaveGuard(!isNew && edit != null ? () => confirm({
+    title: t("Уйти без сохранения?", "Saqlamasdan chiqilsinmi?"),
+    message: t("Несохранённые правки документа пропадут.", "Hujjatdagi saqlanmagan o'zgarishlar yo'qoladi."),
+    confirmText: t("Уйти", "Chiqish"), danger: true,
+  }) : null);
 
   const sum = totals(rows);
   const markup = markupPct(sum.costSum, sum.saleSum);
@@ -320,7 +307,7 @@ export default function ArrivalEditor() {
     if (!arrivalId) return;
     const ok = await confirm({ title: t("Удалить приход?", "Kelish o'chirilsinmi?"), message: t("Данные будут удалены безвозвратно.", "Ma'lumotlar qaytarib bo'lmaydigan tarzda o'chiriladi."), confirmText: t("Удалить", "O'chirish"), danger: true });
     if (!ok) return;
-    try { await deleteMutation.mutateAsync({ id: arrivalId }); await utils.arrival.list.invalidate(); askLeave.current = null; navigate("/arrivals"); } catch (e) { notify.error(errorText(e)); }
+    try { await deleteMutation.mutateAsync({ id: arrivalId }); await utils.arrival.list.invalidate(); releaseLeave(); navigate("/arrivals"); } catch (e) { notify.error(errorText(e)); }
   };
 
   const discard = async () => {
@@ -333,7 +320,7 @@ export default function ArrivalEditor() {
   const printInvoice = () => printArrivalReceipt({
     number: detail?.arrivalNumber ?? t("черновик", "qoralama"),
     date: head.arrivalDate.split("-").reverse().join("."),
-    supplier: { name: supplyQ.data?.supplierName ?? (isNew && d.supplierMode === "existing" ? suppliersQ.data?.find(s => s.id === d.supplierId)?.name : d.newSupplierName) ?? "—" },
+    supplier: { name: supplierName ?? (isNew && d.supplierMode === "existing" ? suppliersQ.data?.find(s => s.id === d.supplierId)?.name : d.newSupplierName) ?? "—" },
     receiver: seller,
     items: rows.map(r => {
       const qty = Number(r.quantity || 0), price = Number(r.costPrice || 0);
@@ -370,7 +357,13 @@ export default function ArrivalEditor() {
           </h1>
           <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: "var(--color-text-secondary)", marginTop: 2, flexWrap: "wrap" }}>
             {!isNew && <span style={{ fontWeight: 700, color: statusColor }} data-testid="arrival-status">● {labelled(ARRIVAL_STATUS_LABEL, status, lang)}</span>}
-            {supplyQ.data?.supplierName && <span>{supplyQ.data.supplierName}</span>}
+            {supplierName && <span>{supplierName}</span>}
+            {linkedOrder && (
+              <button type="button" onClick={() => navigate(`/purchase-orders/${linkedOrder.id}`)} data-testid="arrival-order-link"
+                style={{ border: "none", background: "none", padding: 0, cursor: "pointer", font: "inherit", fontWeight: 600, color: "var(--color-primary-text)", textDecoration: "underline" }}>
+                {t(`по заказу ${linkedOrder.number}`, `${linkedOrder.number} buyurtma bo'yicha`)}
+              </button>
+            )}
             {dirty && !isNew && <span style={{ color: "var(--color-warning-text)", fontWeight: 600 }}>{t("есть несохранённые правки", "saqlanmagan o'zgarishlar bor")}</span>}
           </div>
         </div>
@@ -504,9 +497,19 @@ export default function ArrivalEditor() {
         </div>
       )}
 
+      {/* Заказ в чужой валюте: себестоимость строки — цена заказа по курсу, её
+          пересчитывает сервер (по ней же считается долг), так что правка цены
+          здесь не сохранится. Лучше сказать заранее, чем молча вернуть своё. */}
+      {linkedOrder && !completed && linkedOrder.currency !== currency.trim().toUpperCase() && (
+        <p data-testid="arrival-order-currency" style={{ margin: 0, fontSize: 12, color: "var(--color-warning-text)" }}>
+          {t(`Заказ ${linkedOrder.number} в ${linkedOrder.currency}: себестоимость строк считается по цене заказа и курсу — правка цены здесь не сохранится.`,
+             `${linkedOrder.number} buyurtma ${linkedOrder.currency} da: tannarx buyurtma narxi va kurs bo'yicha hisoblanadi — bu yerda narxni o'zgartirish saqlanmaydi.`)}
+        </p>
+      )}
+
       <ArrivalSheet rows={rows} onChange={setRows} readOnly={readOnly} arrivalDate={head.arrivalDate} onAddClick={() => setPicking(true)} />
 
-      {!isNew && arrivalId && <SupplierDebtSection arrivalId={arrivalId} />}
+      {!isNew && arrivalId && <SupplierDebtSection arrivalId={arrivalId} order={linkedOrder} completed={completed} />}
 
       {/* ── Сохранение нового ──────────────────────────────────────────── */}
       {isNew && (

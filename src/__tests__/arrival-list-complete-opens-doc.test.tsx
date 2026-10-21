@@ -33,7 +33,7 @@ const row = (id: number, status: string) => ({
   supplierName: "Завод", supplyAmount: "1000", supplyPaid: "0", supplyDebt: "1000", supplyCurrency: "UZS", totalExpense: "0",
 });
 vi.mock("@/providers/trpc", () => {
-  const list = { data: [row(5, "unloading"), row(6, "pending")], total: 2 };
+  const list = { data: [row(5, "unloading"), { ...row(6, "pending"), purchaseOrderId: 3, purchaseOrderNumber: "PO-3" }], total: 2 };
   const mutation = () => ({ mutate: (v: unknown) => mutated.push(v), isPending: false });
   return {
     trpc: {
@@ -73,5 +73,11 @@ describe("список приходов: «Завершить»", () => {
       .replace(/\/\*[\s\S]*?\*\//g, " ").replace(/(^|[^:])\/\/.*$/gm, "$1");
     expect(src).not.toMatch(/status:\s*"completed"/);
     expect(src).toContain('t("Завершить", "Yakunlash")');
+  });
+
+  it("приход по заказу поставщику — номер заказа под номером прихода", () => {
+    render(<LangProvider><Arrivals /></LangProvider>);
+    expect(screen.getByTestId("arrival-po-6").textContent).toBe("по заказу PO-3");
+    expect(screen.queryByTestId("arrival-po-5")).toBeNull();
   });
 });

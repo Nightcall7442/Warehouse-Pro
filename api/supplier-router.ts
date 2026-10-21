@@ -810,10 +810,25 @@ export const arrivalSupplyColumns = {
     JOIN supplies s ON s.id = p.supply_id
     WHERE s.arrival_id = \`arrivals\`.\`id\`
   )`,
-  supplierName: sql<string | null>`(
+  /*
+    Поставщик — из поставки. У прихода по заказу поставки до проведения нет
+    вовсе: долг рождается при проведении (ADR 0013), — и список показывал
+    у такого прихода прочерк, хотя поставщик известен. Тогда — поставщик
+    заказа.
+  */
+  supplierName: sql<string | null>`COALESCE((
     SELECT sup.name FROM supplies s
     JOIN suppliers sup ON sup.id = s.supplier_id
     WHERE s.arrival_id = \`arrivals\`.\`id\` LIMIT 1
+  ), (
+    SELECT sup.name FROM purchase_orders po
+    JOIN suppliers sup ON sup.id = po.supplier_id
+    WHERE po.id = \`arrivals\`.\`purchase_order_id\` AND po.tenant_id = \`arrivals\`.\`tenant_id\`
+  ))`,
+  /** Номер заказа поставщику, по которому заведён приход; null — приход сам по себе. */
+  purchaseOrderNumber: sql<string | null>`(
+    SELECT po.number FROM purchase_orders po
+    WHERE po.id = \`arrivals\`.\`purchase_order_id\` AND po.tenant_id = \`arrivals\`.\`tenant_id\`
   )`,
   /** Сумма товаров прихода — Σ(количество × себестоимость). */
   goodsTotal: sql<string>`COALESCE((

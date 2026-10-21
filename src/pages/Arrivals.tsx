@@ -331,7 +331,11 @@ export default function Arrivals() {
               <tr><td colSpan={7} style={{ textAlign: "center", padding: "48px 16px", color: COLORS.textTertiary, fontSize: "14px" }}>{t("Нет приходов", "Kelishlar yo'q")}</td></tr>
             ) : arrivals.map((a) => (
               <tr key={a.id} className="row-hover" style={{ cursor: "pointer" }} onClick={() => navigate(`/arrivals/${a.id}`)}>
-                <td style={{ ...tdStyle, fontWeight: 500 }}>{a.arrivalNumber}</td>
+                <td style={{ ...tdStyle, fontWeight: 500 }}>
+                  {a.arrivalNumber}
+                  {/* Приход по заказу поставщику: номер заказа — под номером прихода. */}
+                  {a.purchaseOrderNumber && <div style={{ fontSize: "11px", color: COLORS.textTertiary }} data-testid={`arrival-po-${a.id}`}>{t(`по заказу ${a.purchaseOrderNumber}`, `${a.purchaseOrderNumber} buyurtma bo'yicha`)}</div>}
+                </td>
                 <td style={{ ...tdStyle, color: COLORS.textSecondary }}>{a.arrivalDate ? format(new Date(a.arrivalDate), "dd.MM.yyyy") : "—"}</td>
                 <td style={{ ...tdStyle, color: COLORS.textSecondary }}>
                   {a.supplierName ?? "—"}

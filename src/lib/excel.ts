@@ -399,6 +399,9 @@ export function formatArrivalsForExport(arrivals: Record<string, unknown>[]) {
   return arrivals.map(a => ({
     "Приход №":      String(a.arrivalNumber ?? ""),
     "Дата":          paperDay(a.arrivalDate) ?? "",
+    // Поставщик — из поставки, у прихода по заказу до проведения — из заказа (arrival.list).
+    "Поставщик":     String(a.supplierName ?? ""),
+    "Заказ поставщику": String(a.purchaseOrderNumber ?? ""),
     "Грузовик":      String(a.truckId ?? ""),
     "Водитель":      String(a.driverName ?? ""),
     "Телефон":       String(a.driverPhone ?? ""),

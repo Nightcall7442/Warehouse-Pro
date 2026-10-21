@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { createRouter, operatorQuery, can } from "./middleware";
 import { createArrival, updateArrival, deleteArrival, setArrivalItems } from "./services/arrival";
-import { arrivals } from "@db/schema";
+import { arrivals, purchaseOrders, suppliers } from "@db/schema";
 import { eq, and, sql, desc } from "drizzle-orm";
 import { decimalOrDefault } from "./lib/zod-decimal";
 import { arrivalSupplyColumns } from "./supplier-router";
@@ -88,6 +88,7 @@ export const arrivalRouter = createRouter({
           fuelCost: arrivals.fuelCost, tollCost: arrivals.tollCost, otherCost: arrivals.otherCost,
           totalExpense: arrivals.totalExpense, arrivalDate: arrivals.arrivalDate,
           arrivalTime: arrivals.arrivalTime, createdAt: arrivals.createdAt,
+          purchaseOrderId: arrivals.purchaseOrderId,
           ...arrivalSupplyColumns,
         }).from(arrivals).where(where).limit(pageSize).offset(offset).orderBy(desc(arrivals.createdAt)),
         db.select({
@@ -142,9 +143,24 @@ export const arrivalRouter = createRouter({
         notes: arrivals.notes, createdAt: arrivals.createdAt,
         // Версия документа: с ней редактор отдаёт строки в setItems.
         updatedAt: arrivals.updatedAt,
+        purchaseOrderId: arrivals.purchaseOrderId, warehouseId: arrivals.warehouseId,
       }).from(arrivals)
         .where(and(eq(arrivals.id, input.id), eq(arrivals.tenantId, tenantId))).limit(1);
       if (!arrival) return null;
+
+      /*
+        Заказ поставщику, по которому заведён приход: экран ведёт к нему
+        ссылкой и, пока долга ещё нет (он рождается при проведении, ADR 0013),
+        называет поставщика заказа. Заказ — только своей организации.
+      */
+      const [purchaseOrder] = arrival.purchaseOrderId == null ? [] : await db.select({
+        id: purchaseOrders.id, number: purchaseOrders.number, status: purchaseOrders.status,
+        currency: purchaseOrders.currency, paymentTermsDays: purchaseOrders.paymentTermsDays,
+        supplierId: purchaseOrders.supplierId, supplierName: suppliers.name,
+      }).from(purchaseOrders)
+        .innerJoin(suppliers, and(eq(suppliers.id, purchaseOrders.supplierId), eq(suppliers.tenantId, tenantId)))
+        .where(and(eq(purchaseOrders.id, arrival.purchaseOrderId), eq(purchaseOrders.tenantId, tenantId)))
+        .limit(1);
 
       // Always use raw SQL for items — avoids Drizzle referencing non-existent columns
       let items: Array<{ id: number; productId: number; quantity: number; expectedQuantity: number | null; condition: string; notes: string; productName: string; productCode: string; barcode: string | null; costPrice: string; sellingPrice: string; batchNumber: string | null; expiresAt: string | null; unit: string | null; unitWeight: string | null; packSize: string | null; packLabel: string | null }>;
@@ -178,7 +194,7 @@ export const arrivalRouter = createRouter({
         items = [];
       }
 
-      return { ...arrival, items };
+      return { ...arrival, items, purchaseOrder: purchaseOrder ?? null };
     }),
 
   // Приход — поставка: под «Поставщики, поставки и оплаты им». Без этого

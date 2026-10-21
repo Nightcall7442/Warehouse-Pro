@@ -341,6 +341,47 @@ describe.skipIf(!hasRealDb)("заказ поставщику: согласова
     expect((await c.getById({ id: bare })).paymentTermsDays).toBeNull();
   });
 
+  it("приход по заказу в списке и в документе: поставщик и номер заказа, пока поставки нет", async () => {
+    const { id, number } = await approvedOrder();
+    const { arrivalId } = await (await po()).receive({ id, arrivalDate: DAY });
+
+    // До проведения поставки нет (ADR 0013) — поставщик берётся из заказа, а не прочерк.
+    const listed = (await (await arr()).list()).data.find(r => r.id === arrivalId)!;
+    expect(listed.supplierName).toBe("Завод");
+    expect(listed.purchaseOrderNumber).toBe(number);
+    expect(listed.purchaseOrderId).toBe(id);
+    const doc = (await (await arr()).getById({ id: arrivalId }))!;
+    expect(doc.purchaseOrder).toMatchObject({ id, number, supplierId, supplierName: "Завод", currency: "UZS", paymentTermsDays: 10 });
+
+    // Приход сам по себе — ни заказа, ни поставщика.
+    const plain = await (await arr()).create({ arrivalDate: DAY, items: [{ productId: s.productId, quantity: "1", costPrice: "50" }] });
+    const plainId = plain.id;
+    const plainRow = (await (await arr()).list()).data.find(r => r.id === plainId)!;
+    expect(plainRow.supplierName).toBeNull();
+    expect(plainRow.purchaseOrderNumber).toBeNull();
+    expect((await (await arr()).getById({ id: plainId }))!.purchaseOrder).toBeNull();
+  });
+
+  it("ссылка прихода на чужой заказ не раскрывает ни номера, ни поставщика", async () => {
+    // Своя организация такой ссылки не заведёт; проверяется, что чтение всё равно смотрит организацию.
+    const d = db as any;
+    const [foreignSup] = await d.insert(schema.suppliers).values({ tenantId: s.otherTenantId, name: "Чужой завод" });
+    const [foreignWh] = await d.insert(schema.warehouses).values({ tenantId: s.otherTenantId, name: "Чужой склад", isDefault: true });
+    const [stranger] = await d.insert(schema.users).values({ tenantId: s.otherTenantId, name: "Чужой", email: "y@other.local", passwordHash: "x", role: "operator" });
+    const [foreignPo] = await d.insert(schema.purchaseOrders).values({
+      tenantId: s.otherTenantId, number: "PO-77", supplierId: Number(foreignSup.insertId), warehouseId: Number(foreignWh.insertId),
+      currency: "UZS", status: "approved", createdBy: Number(stranger.insertId),
+    });
+    const plain = await (await arr()).create({ arrivalDate: DAY, items: [{ productId: s.productId, quantity: "1", costPrice: "50" }] });
+    const arrivalId = plain.id;
+    await db.execute(sql`UPDATE arrivals SET purchase_order_id = ${Number(foreignPo.insertId)} WHERE id = ${arrivalId}`);
+
+    const row = (await (await arr()).list()).data.find(r => r.id === arrivalId)!;
+    expect(row.supplierName).toBeNull();
+    expect(row.purchaseOrderNumber).toBeNull();
+    expect((await (await arr()).getById({ id: arrivalId }))!.purchaseOrder).toBeNull();
+  });
+
   it("чужая организация: ни заказа, ни поставщика", async () => {
     const { id } = await approvedOrder();
     const d = db as any;

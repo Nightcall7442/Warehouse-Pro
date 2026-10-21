@@ -169,6 +169,18 @@ describe("приходы в отчёте", () => {
   });
 });
 
+describe("приходы и заказы поставщикам в отчёте", () => {
+  it("у прихода — поставщик и заказ, по которому он пришёл", () => {
+    const [row] = formatArrivalsForExport([{ arrivalNumber: "П-8", status: "completed", supplierName: "Завод", purchaseOrderNumber: "PO-3" }]);
+    expect(row["Поставщик"]).toBe("Завод");
+    expect(row["Заказ поставщику"]).toBe("PO-3");
+    const [bare] = formatArrivalsForExport([{ arrivalNumber: "П-9", status: "draft" }]);
+    expect(bare["Поставщик"]).toBe("");
+    expect(bare["Заказ поставщику"]).toBe("");
+  });
+
+});
+
 describe("магазины и оценка склада", () => {
   it("строки магазинов собираются без потерь полей", () => {
     const rows = formatShopsForExport([{ name: "Магазин 1" }, { name: "Магазин 2" }]);
