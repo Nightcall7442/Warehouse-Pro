@@ -60,6 +60,16 @@ describe("номер документа за движением", () => {
     }
   });
 
+  it("перемещение документом называется номером документа «ПМ-…», а не номером строки", () => {
+    // Строк у документа перемещения много (по партии на строку), а номер один —
+    // движение ссылается на документ, и номер берётся из него.
+    expect(NUMBERED_REFERENCES).toContain("transfer_doc_out");
+    expect(NUMBERED_REFERENCES).toContain("transfer_doc_in");
+    expect(code("api/lib/movement-reference.ts")).toContain("d.number FROM stock_transfer_docs d");
+    expect(movementDocument("transfer_doc_out", "ПМ-3")).toBe("Перемещение со склада №ПМ-3");
+    expect(movementDocument("transfer_doc_in", "ПМ-3", "uz")).toBe("Omborga ko'chirish №ПМ-3");
+  });
+
   it("текст: номер с бумаги печатается, без номера — без «№»", () => {
     expect(movementDocument("order_delivery", "ORD-01001")).toBe("Доставка заказа №ORD-01001");
     expect(movementDocument("arrival", "ARR-0007", "uz")).toBe("Kirim №ARR-0007");

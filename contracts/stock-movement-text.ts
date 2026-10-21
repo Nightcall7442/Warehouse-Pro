@@ -54,6 +54,9 @@ const NUMBERED: Record<string, { ru: string; uz: string }> = {
   return_completed: { ru: "Оформленный возврат", uz: "Rasmiylashtirilgan qaytarish" },
   transfer_out:     { ru: "Перемещение со склада", uz: "Ombordan ko'chirish" },
   transfer_in:      { ru: "Перемещение на склад",  uz: "Omborga ko'chirish" },
+  // Документ перемещения «ПМ-12»: ушло с этого склада / пришло на него (или вернулось при отмене).
+  transfer_doc_out: { ru: "Перемещение со склада", uz: "Ombordan ko'chirish" },
+  transfer_doc_in:  { ru: "Перемещение на склад",  uz: "Omborga ko'chirish" },
 };
 
 /** События без своего документа: номера у них нет и быть не может. */
