@@ -34,6 +34,7 @@ vi.mock("@/providers/trpc", () => {
         board: { useQuery: () => { state.boardCalls++; return { data: { day: "2026-10-21", couriers: [], stops: [] }, isLoading: false }; } },
         dayTrack: { useQuery: () => ({ data: undefined }) },
         setRouteOrder: { useMutation: mutation },
+        officeReschedule: { useMutation: mutation },
       },
       useUtils: () => ({ courier: { board: { invalidate: () => {} }, suggestRoute: { fetch: async () => ({ orderIds: [], km: 0, noGps: 0, fromCourier: false }) } } }),
       kpi: { courierKpi: { useQuery: () => { state.kpiCalls++; return { data: { delivered: 0, failed: 0, successRate: 0, workDays: 0 } }; } } },
@@ -41,6 +42,8 @@ vi.mock("@/providers/trpc", () => {
   };
 });
 vi.mock("@/hooks/useOrderCacheSync", () => ({ useInvalidateOrderCaches: () => () => {} }));
+// Доска развоза спрашивает права (сохранить порядок, перенести) — здесь все есть.
+vi.mock("@/hooks/useCan", () => ({ useCan: () => () => true }));
 vi.mock("@/i18n", () => ({ useLang: () => ({ lang: "ru", t: (k: string) => k }), useTranslate: () => (ru: string) => ru }));
 vi.mock("@/hooks/useAuth", () => ({ useAuth: () => ({ user: { id: 5, role: state.role, name: "Смотрящий" } }) }));
 vi.mock("@/hooks/useCurrency", () => ({ useCurrency: () => ({ fmt: (v: unknown) => `${v} сум` }) }));

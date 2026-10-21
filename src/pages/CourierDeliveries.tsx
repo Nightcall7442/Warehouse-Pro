@@ -6,7 +6,7 @@ import { useCurrency } from "@/hooks/useCurrency";
 import { cssVar } from "@/lib/css-var";
 import { loadYandexMaps } from "@/lib/yandex-maps";
 import { useState, useRef, useEffect, useMemo } from "react";
-import { Truck, MapPin, CheckCircle2, Package, ArrowRight, ChevronRight, CalendarClock } from "lucide-react";
+import { Truck, MapPin, CheckCircle2, Package, ArrowRight, ChevronRight, ChevronDown, CalendarClock, Hourglass } from "lucide-react";
 import { useNavigate } from "react-router";
 import { notify } from "@/lib/toast";
 import { QueryErrorFallback } from "@/components/QueryErrorFallback";
@@ -18,6 +18,8 @@ import { ProofSheet, type ProofTarget } from "@/components/delivery/ProofSheet";
 import { newEventKey } from "@/components/delivery/links";
 import { balloonHtml } from "@/components/delivery/dispatch";
 import { ddmm } from "@/components/delivery/plan-days";
+import { bizToday } from "@/lib/business-time";
+import { freshPlace, warmFix } from "@/lib/last-fix";
 import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "../../api/router";
 
@@ -88,9 +90,21 @@ export default function CourierDeliveries() {
   const [failFor, setFailFor] = useState<{ order: Delivery; key: string } | null>(null);
   const [rescheduleFor, setRescheduleFor] = useState<{ order: Delivery; key: string } | null>(null);
   const [proofFor, setProofFor] = useState<ProofTarget | null>(null);
+  /** «Перенесено» свёрнуто: эти заказы сегодня не везут. */
+  const [laterOpen, setLaterOpen] = useState(false);
   const invalidateOrderCaches = useInvalidateOrderCaches();
+  const isCourierUser = user?.role === "courier";
 
-  const { data: deliveries, isLoading, isLoadingError, refetch } = trpc.courier.listMyDeliveries.useQuery(undefined);
+  /*
+    Курьеру — и перенесённые на другие дни (includeLater): они уходят в
+    свёрнутый раздел «Перенесено», а не пропадают до своего дня. Офису
+    сервер и так отдаёт все открытые заказы в развозе.
+  */
+  const { data: deliveries, isLoading, isLoadingError, refetch } = trpc.courier.listMyDeliveries.useQuery(isCourierUser ? { includeLater: true } : undefined);
+
+  // Точка телефона для отметок — заранее, чтобы «Доставлено» не ждало GPS
+  // (lib/last-fix.ts). Разрешение здесь не спрашивается.
+  useEffect(() => { if (isCourierUser) warmFix(); }, [isCourierUser]);
 
   const markOutForDelivery = trpc.courier.markOutForDelivery.useMutation({
     onSuccess: () => {
@@ -151,11 +165,21 @@ export default function CourierDeliveries() {
     Итоги месяца без courierId считаются по самому смотрящему (у директора
     нули), а «Выехал по всем» сервер пускает только назначенному курьеру.
   */
-  const isCourier = user?.role === "courier";
-  const openFail = (order: Delivery) => setFailFor({ order, key: newEventKey() });
-  const openReschedule = (order: Delivery) => setRescheduleFor({ order, key: newEventKey() });
-  const assigned = (deliveries ?? []).filter((d) => d.deliveryStatus === "assigned");
-  const inTransit = (deliveries ?? []).filter((d) => d.deliveryStatus === "out_for_delivery");
+  const isCourier = isCourierUser;
+  const openFail = (order: Delivery) => { warmFix(); setFailFor({ order, key: newEventKey() }); };
+  const openReschedule = (order: Delivery) => { warmFix(); setRescheduleFor({ order, key: newEventKey() }); };
+  /*
+    Перенесённые на другой день — отдельно и свёрнуто. Здесь они считались в
+    «Ожидают» без даты: офис видел заказ, который сегодня никто не повезёт, а
+    курьер их не видел вовсе.
+  */
+  const today = bizToday();
+  const isLater = (d: Delivery) => !!d.plannedDeliveryDate && d.plannedDeliveryDate > today;
+  const current = (deliveries ?? []).filter((d) => !isLater(d));
+  const later = (deliveries ?? []).filter(isLater)
+    .sort((a, b) => (a.plannedDeliveryDate ?? "").localeCompare(b.plannedDeliveryDate ?? ""));
+  const assigned = current.filter((d) => d.deliveryStatus === "assigned");
+  const inTransit = current.filter((d) => d.deliveryStatus === "out_for_delivery");
 
   return (
     <div className="max-w-3xl mx-auto space-y-4 p-4">
@@ -195,7 +219,7 @@ export default function CourierDeliveries() {
       {/* Офису — доска развоза: курьеры, карта, порядок объезда. Курьеру —
           карта своих адресов (на телефоне её заменяет список). */}
       {isCourier
-        ? <div className="hidden md:block"><MapView deliveries={deliveries} /></div>
+        ? <div className="hidden md:block"><MapView deliveries={current} /></div>
         : <DispatchBoard />}
 
       {/* In Transit */}
@@ -216,11 +240,14 @@ export default function CourierDeliveries() {
               onDeliver={() => markDelivered.mutate({
                 orderId: order.id,
                 cashAmount: cashInput[order.id] || undefined,
+                // Где нажато — на доску развоза и в карточку заказа.
+                ...freshPlace(),
               })}
               onFail={() => openFail(order)}
               onReschedule={() => openReschedule(order)}
               isPending={markDelivered.isPending}
               canAct={isCourier}
+              showCourier={!isCourier}
             />
           ))}
         </div>
@@ -257,6 +284,7 @@ export default function CourierDeliveries() {
                   {labelled(DELIVERY_STATUS_LABEL, order.deliveryStatus, lang)}
                 </span>
               </div>
+              <DeliveryTags order={order} showCourier={!isCourier} t={t} />
               {order.shopAddress && (
                 <p className="text-xs text-secondary flex items-center gap-1">
                   <MapPin size={12} />{order.shopAddress}{order.shopCity ? `, ${order.shopCity}` : ""}
@@ -299,6 +327,31 @@ export default function CourierDeliveries() {
         </div>
       )}
 
+      {/* Перенесённые на другие дни — свёрнуто, по дням. */}
+      {later.length > 0 && (
+        <div className="space-y-2" data-testid="deliveries-later">
+          <button type="button" onClick={() => setLaterOpen(v => !v)} aria-expanded={laterOpen}
+            className="font-semibold text-sm text-secondary flex items-center gap-2 w-full text-left" style={{ minHeight: 40, background: "transparent", border: "none", padding: 0 }}
+            data-testid="deliveries-later-toggle">
+            <CalendarClock size={16} className="text-info" />
+            <span className="flex-1">{t(`Перенесено (${later.length})`, `Ko'chirilgan (${later.length})`)}</span>
+            {laterOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+          </button>
+          {laterOpen && later.map((order) => (
+            <div key={order.id} className="neo-card" style={{ padding: "12px 16px" }} data-testid="deliveries-later-card">
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="font-semibold">{order.orderNumber}</p>
+                  <p className="text-sm text-secondary truncate">{order.shopName}</p>
+                </div>
+                <span className="font-data text-sm flex-shrink-0">{fmt(order.total)}</span>
+              </div>
+              <DeliveryTags order={order} showCourier={!isCourier} t={t} />
+            </div>
+          ))}
+        </div>
+      )}
+
       {(!deliveries || deliveries.length === 0) && (
         <div className="text-center py-20 text-secondary">
           <Truck size={48} className="mx-auto mb-4 opacity-30" />
@@ -314,7 +367,7 @@ export default function CourierDeliveries() {
           shopName={failFor.order.shopName}
           busy={markFailed.isPending}
           onCancel={() => setFailFor(null)}
-          onConfirm={(c) => markFailed.mutate({ orderId: failFor.order.id, ...c, idempotencyKey: failFor.key })}
+          onConfirm={(c) => markFailed.mutate({ orderId: failFor.order.id, ...c, idempotencyKey: failFor.key, ...freshPlace() })}
           onReschedule={() => { const o = failFor.order; setFailFor(null); openReschedule(o); }}
         />
       )}
@@ -325,7 +378,7 @@ export default function CourierDeliveries() {
           shopName={rescheduleFor.order.shopName}
           busy={reschedule.isPending}
           onCancel={() => setRescheduleFor(null)}
-          onConfirm={(c) => reschedule.mutate({ orderId: rescheduleFor.order.id, ...c, idempotencyKey: rescheduleFor.key })}
+          onConfirm={(c) => reschedule.mutate({ orderId: rescheduleFor.order.id, ...c, idempotencyKey: rescheduleFor.key, ...freshPlace() })}
         />
       )}
       {proofFor && <ProofSheet target={proofFor} onClose={() => setProofFor(null)} />}
@@ -421,8 +474,41 @@ function MapView({ deliveries }: { deliveries: Delivery[] | undefined }) {
   );
 }
 
+/*
+  Под номером заказа — что о нём надо знать до выезда: место в маршруте
+  (его ставит диспетчер), чей он (офису), на какой день перенесён и не ждёт
+  ли он решения офиса. Сервер это отдавал, а карточки не показывали: офис не
+  видел, у кого заказ, курьер — свой порядок объезда.
+*/
+function DeliveryTags({ order, showCourier, t }: { order: Delivery; showCourier: boolean; t: (ru: string, uz: string) => string }) {
+  const held = order.status === "pending";
+  const tags = [
+    order.routeSeq != null && (
+      <span key="seq" className="font-data font-bold" title={t("Место в маршруте", "Marshrutdagi o'rni")} data-testid="delivery-route-seq">
+        №{order.routeSeq}
+      </span>
+    ),
+    showCourier && order.courierName && (
+      <span key="courier" className="flex items-center gap-1" data-testid="delivery-courier"><Truck size={12} />{order.courierName}</span>
+    ),
+    order.plannedDeliveryDate && (
+      <span key="day" className="flex items-center gap-1" data-testid="delivery-planned">
+        <CalendarClock size={12} />{t(`на ${ddmm(order.plannedDeliveryDate)}`, `${ddmm(order.plannedDeliveryDate)} ga`)}
+      </span>
+    ),
+    held && (
+      <span key="held" className="flex items-center gap-1" style={{ color: "var(--color-warning-text)" }}
+        title={t("Заказ ждёт решения офиса — везти рано", "Buyurtma ofis qarorini kutmoqda — olib borishga erta")} data-testid="delivery-held">
+        <Hourglass size={12} />{t("Ждёт офиса", "Ofis qarorini kutmoqda")}
+      </span>
+    ),
+  ].filter(Boolean);
+  if (tags.length === 0) return null;
+  return <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs" style={{ color: "var(--color-text-secondary)" }}>{tags}</div>;
+}
+
 function DeliveryCard({
-  order, fmt, t, cashInput, onCashChange, onDeliver, onFail, onReschedule, isPending, canAct,
+  order, fmt, t, cashInput, onCashChange, onDeliver, onFail, onReschedule, isPending, canAct, showCourier,
 }: {
   order: Delivery;
   fmt: (v: string | number) => string;
@@ -437,6 +523,8 @@ function DeliveryCard({
      courier_id = тот, кто жмёт. Директору и оператору эти кнопки отвечали
      «Заказ не найден или не назначен на вас». */
   canAct: boolean;
+  /** Офису — чей заказ. */
+  showCourier: boolean;
 }) {
   const { lang } = useLang();
   return (
@@ -450,6 +538,7 @@ function DeliveryCard({
           {labelled(DELIVERY_STATUS_LABEL, order.deliveryStatus, lang)}
         </span>
       </div>
+      <DeliveryTags order={order} showCourier={showCourier} t={t} />
       {order.shopAddress && (
         <p className="text-xs text-secondary flex items-center gap-1">
           <MapPin size={12} />{order.shopAddress}{order.shopCity ? `, ${order.shopCity}` : ""}

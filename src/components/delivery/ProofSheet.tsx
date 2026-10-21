@@ -5,6 +5,7 @@ import { useLang } from "@/i18n";
 import { notify } from "@/lib/toast";
 import { errorText } from "@/lib/error-text";
 import { compressImage } from "@/lib/compress-image";
+import { freshPlace } from "@/lib/last-fix";
 import { PROOF_MAX_PHOTOS, PROOF_PHOTO_MAX_CHARS, type Signature } from "@contracts/delivery-proof";
 import { DeliverySheet } from "./DeliverySheet";
 import { SignaturePad } from "./SignaturePad";
@@ -67,6 +68,8 @@ export function ProofSheet({ target, onClose }: { target: ProofTarget; onClose: 
         ...(first ? { photo: first } : {}),
         ...(signature ? { signature } : {}),
         ...(name ? { recipientName: name } : {}),
+        // Точка — ляжет, только если у отметки «Доставлено» своей нет.
+        ...freshPlace(),
       });
       for (const photo of rest) await saveProof.mutateAsync({ orderId: target.orderId, photo });
       notify.success(t("Подтверждение сохранено", "Tasdiq saqlandi"));
