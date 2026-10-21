@@ -43,6 +43,8 @@ const trpcStub = vi.hoisted(() => {
     warehouseReports: {
       productBatches: { useQuery: query({ onHand: 8, inBatches: 8, untracked: 0, batches: [{ batchId: 1, batchNumber: "П-1", expiresAt: "2026-12-01", daysLeft: 77, quantity: "8.000" }] }) },
     },
+    // Правка карточки спрашивает список поставщиков (поставщик по умолчанию).
+    supplier: { list: { useQuery: query([]) } },
     useUtils: () => ({ product: { getById: { invalidate: vi.fn() }, list: { invalidate: vi.fn() } } }),
   };
 });

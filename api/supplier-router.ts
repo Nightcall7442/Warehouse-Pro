@@ -40,6 +40,9 @@ type Db = ReturnType<typeof getDb>;
  * ниже разложены по валютам: debtUzs и debtUsd отдельными полями.
  */
 
+/** Отсрочка оплаты поставщику: целые дни, до года. */
+const paymentTermsInput = z.number().int().min(0).max(365).nullable().optional();
+
 /** Проверить, что контрагент из запроса принадлежит этой организации. */
 async function assertOwnSupplier(db: Db, tenantId: number, supplierId: number) {
   const [found] = await db.select({ id: suppliers.id })
@@ -191,6 +194,7 @@ export const supplierRouter = createRouter({
         address:       suppliers.address,
         notes:         suppliers.notes,
         status:        suppliers.status,
+        paymentTermsDays: suppliers.paymentTermsDays,
         debtUzs:       debtIn("UZS"),
         debtUsd:       debtIn("USD"),
         overdueCount,
@@ -233,6 +237,9 @@ export const supplierRouter = createRouter({
       inn:         z.string().max(32).optional(),
       address:     z.string().max(500).optional(),
       notes:       z.string().max(2000).optional(),
+      // Отсрочка оплаты в днях: её берёт заказ поставщику, а от него — срок
+      // долга при приёмке (ADR 0013). Пусто — платим по факту.
+      paymentTermsDays: paymentTermsInput,
     }))
     .mutation(async ({ input, ctx }) => {
       const db = ctx.db;
@@ -245,6 +252,7 @@ export const supplierRouter = createRouter({
           inn:         input.inn,
           address:     input.address ? sanitizeString(input.address) : undefined,
           notes:       input.notes ? sanitizeString(input.notes) : undefined,
+          paymentTermsDays: input.paymentTermsDays ?? null,
         });
         return { id: Number(result.insertId) };
       } catch (e) {
@@ -269,6 +277,8 @@ export const supplierRouter = createRouter({
       address:     z.string().max(500).nullable().optional(),
       notes:       z.string().max(2000).nullable().optional(),
       status:      z.enum(["active", "inactive"]).optional(),
+      // null — снять отсрочку; не прислана — не трогать.
+      paymentTermsDays: paymentTermsInput,
     }))
     .mutation(async ({ input, ctx }) => {
       const db = ctx.db;
@@ -800,10 +810,25 @@ export const arrivalSupplyColumns = {
     JOIN supplies s ON s.id = p.supply_id
     WHERE s.arrival_id = \`arrivals\`.\`id\`
   )`,
-  supplierName: sql<string | null>`(
+  /*
+    Поставщик — из поставки. У прихода по заказу поставки до проведения нет
+    вовсе: долг рождается при проведении (ADR 0013), — и список показывал
+    у такого прихода прочерк, хотя поставщик известен. Тогда — поставщик
+    заказа.
+  */
+  supplierName: sql<string | null>`COALESCE((
     SELECT sup.name FROM supplies s
     JOIN suppliers sup ON sup.id = s.supplier_id
     WHERE s.arrival_id = \`arrivals\`.\`id\` LIMIT 1
+  ), (
+    SELECT sup.name FROM purchase_orders po
+    JOIN suppliers sup ON sup.id = po.supplier_id
+    WHERE po.id = \`arrivals\`.\`purchase_order_id\` AND po.tenant_id = \`arrivals\`.\`tenant_id\`
+  ))`,
+  /** Номер заказа поставщику, по которому заведён приход; null — приход сам по себе. */
+  purchaseOrderNumber: sql<string | null>`(
+    SELECT po.number FROM purchase_orders po
+    WHERE po.id = \`arrivals\`.\`purchase_order_id\` AND po.tenant_id = \`arrivals\`.\`tenant_id\`
   )`,
   /** Сумма товаров прихода — Σ(количество × себестоимость). */
   goodsTotal: sql<string>`COALESCE((

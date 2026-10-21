@@ -39,7 +39,7 @@ import {
   labelled, ORDER_STATUS_LABEL, ROLE_LABEL, DELIVERY_STATUS_LABEL,
   PAYMENT_METHOD_LABEL, ARRIVAL_STATUS_LABEL, PLAN_STATUS_LABEL,
   ACTIVE_STATUS_LABEL, TENANT_PLAN_LABEL, SUBSCRIPTION_STATUS_LABEL,
-  ADJUSTMENT_TYPE_LABEL, type Label,
+  ADJUSTMENT_TYPE_LABEL, PURCHASE_ORDER_STATUS_LABEL, type Label,
 } from "@/lib/entity-labels";
 import { ORDER_STATUS_LABELS as SERVER_LABELS } from "../../api/lib/order-status";
 
@@ -96,6 +96,7 @@ describe("словарь состояний — один на приложени
       ["arrivals",      "status",          ARRIVAL_STATUS_LABEL],
       ["dailyPlans",    "status",          PLAN_STATUS_LABEL],
       ["orderAdjustments", "type",         ADJUSTMENT_TYPE_LABEL],
+      ["purchaseOrders", "status",         PURCHASE_ORDER_STATUS_LABEL],
     ];
 
     const missing: string[] = [];

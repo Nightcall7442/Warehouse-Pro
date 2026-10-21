@@ -17,6 +17,7 @@ import type { CellValue } from "exceljs";
 import { firstRow } from "./lib/db-rows";
 import { uploadBase64ToS3 } from "./lib/photo-upload";
 import { invalidateReports } from "./lib/report-cache";
+import { barcodeKey, extraBarcodeOwners } from "./services/product-barcodes";
 import { IKPU_ERROR, IKPU_RE, PACKAGE_CODE_MAX, TAX_ID_ERROR, TAX_ID_RE, onlyDigitsInput, parseVatRate, type VatRate } from "@contracts/tax-requisites";
 /**
  * A spreadsheet cell is whatever exceljs hands back — a string or number for
@@ -482,6 +483,19 @@ export const importRouter = createRouter({
           });
         }
 
+        /*
+          Штрих-код из файла, который уже стоит дополнительным у другого
+          товара, — отказ строке. Иначе скан этого кода вёл бы к двум товарам
+          сразу, и какой из них ляжет в заказ, решал бы случай. Чьи коды —
+          читается одним запросом на весь файл, а не по строке.
+        */
+        const extraOwners = await extraBarcodeOwners(db, tenantId, parsedRows.flatMap(r => (r.barcode ? [r.barcode] : [])));
+        const importable = parsedRows.filter(row => {
+          const owner = row.barcode ? extraOwners.get(barcodeKey(row.barcode)) : undefined;
+          if (owner) errors.push(`Строка ${row.rowNum}: штрих-код «${row.barcode}» уже стоит у товара «${owner.name}»`);
+          return !owner;
+        });
+
         // Import products — no transaction to avoid MySQL error state cascading
         // Each row has its own try/catch for partial success
         {
@@ -557,8 +571,8 @@ export const importRouter = createRouter({
               errors.push(`Строка ${row.rowNum}: ${fullMsg}`);
             }
           };
-          for (let i = 0; i < parsedRows.length; i += CHUNK) {
-            const chunk = parsedRows.slice(i, i + CHUNK);
+          for (let i = 0; i < importable.length; i += CHUNK) {
+            const chunk = importable.slice(i, i + CHUNK);
             const photos = new Map<number, string | undefined>();
             for (const row of chunk) {
               let photoUrl = row.photoUrl;

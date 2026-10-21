@@ -9,13 +9,20 @@ import { PremiumSelect } from "@/components/PremiumSelect";
 import { labelled, PAYMENT_METHOD_LABEL } from "@/lib/entity-labels";
 import { errorText } from "@/lib/error-text";
 
+/** Заказ поставщику, по которому заведён приход (arrival.getById → purchaseOrder). */
+export interface LinkedOrder { id: number; number: string; supplierName: string; paymentTermsDays: number | null }
+
 // ── Supplier Debt Section ────────────────────────────────────────────────────
 //
 // Показывается внутри карточки прихода, если к нему привязана поставка
 // (arrival.create принимал поле supplier). Для приходов без поставщика —
 // подавляющее большинство существующих — не рендерит ничего: возврат null
 // ниже по компоненту.
-export function SupplierDebtSection({ arrivalId }: { arrivalId: number }) {
+//
+// Приход по заказу поставщику поставки до проведения не имеет: долг
+// рождается при проведении и на принятое (ADR 0013). Блок не пропадает
+// молча — он называет поставщика заказа и говорит, когда появится долг.
+export function SupplierDebtSection({ arrivalId, order, completed }: { arrivalId: number; order?: LinkedOrder | null; completed?: boolean }) {
   // useCurrency() не используется: у долга поставщику своя валюта (может
   // быть долларовой), а не валюта организации, которую отдаёт fmt().
   const { lang } = useLang();
@@ -45,6 +52,28 @@ export function SupplierDebtSection({ arrivalId }: { arrivalId: number }) {
   });
 
   if (isLoading) return null;
+  if (!supply && order) {
+    const terms = order.paymentTermsDays;
+    return (
+      <div style={{ marginTop: "20px" }} data-testid="supplier-debt-by-order">
+        <p style={{ fontSize: "12px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--color-text-tertiary)", marginBottom: "12px" }}>
+          {t("Долг поставщику", "Yetkazib beruvchiga qarz")}
+        </p>
+        <div style={{ padding: "16px", borderRadius: "12px", background: "var(--color-surface-light)" }}>
+          <p style={{ fontSize: "14px", fontWeight: 600, color: "var(--color-text-primary)", margin: 0 }}>{order.supplierName}</p>
+          <p style={{ fontSize: "11px", color: "var(--color-text-tertiary)", margin: "2px 0 8px" }}>{t(`По заказу ${order.number}`, `${order.number} buyurtma bo'yicha`)}</p>
+          <p style={{ fontSize: "13px", color: "var(--color-text-secondary)", margin: 0 }}>
+            {completed
+              // Проведён, а поставки нет: принятое стоит ноль — долга нет и не будет.
+              ? t("Долга по приходу нет: принятое по цене — ноль.", "Kirim bo'yicha qarz yo'q: qabul qilingan narxi — nol.")
+              : terms != null
+                ? t(`Долг появится, когда приход проведут: на принятое количество, срок — через ${terms} дн.`, `Qarz kirim yakunlanganda paydo bo'ladi: qabul qilingan miqdorga, muddat — ${terms} kundan keyin.`)
+                : t("Долг появится, когда приход проведут: на принятое количество.", "Qarz kirim yakunlanganda paydo bo'ladi: qabul qilingan miqdorga.")}
+          </p>
+        </div>
+      </div>
+    );
+  }
   if (!supply) return null;
 
   const currencyFmt = (n: number) => `${n.toLocaleString("ru-RU")} ${supply.currency}`;

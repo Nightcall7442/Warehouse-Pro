@@ -1,5 +1,5 @@
 import {
-  labelled, ORDER_STATUS_LABEL, PAYMENT_METHOD_LABEL, ROLE_LABEL, ACTIVE_STATUS_LABEL,
+  labelled, ORDER_STATUS_LABEL, PAYMENT_METHOD_LABEL, ROLE_LABEL, ACTIVE_STATUS_LABEL, PURCHASE_ORDER_STATUS_LABEL,
   type Label, type Lang,
 } from "./entity-labels";
 import { movementKind } from "./stock-movement-text";
@@ -71,6 +71,10 @@ const KEY_LABEL: Record<string, Label> = {
   plan: { ru: "Тариф", uz: "Tarif" }, days: { ru: "Дней", uz: "Kun" }, filename: { ru: "Файл", uz: "Fayl" }, size: { ru: "Размер", uz: "Hajm" },
   deleted: { ru: "Удалено записей", uz: "O'chirilgan yozuvlar" }, retentionDays: { ru: "Хранить дней", uz: "Saqlash kunlari" },
   month: { ru: "Месяц", uz: "Oy" }, monthStart: { ru: "Месяц", uz: "Oy" },
+  // заказ поставщику
+  supplier: { ru: "Поставщик", uz: "Yetkazib beruvchi" }, debt: { ru: "Долг поставщику", uz: "Yetkazib beruvchiga qarz" },
+  dueDate: { ru: "Срок оплаты", uz: "To'lov muddati" },
+  fromReorder: { ru: "Из дозаказа", uz: "Qayta buyurtmadan" },
 };
 
 /** Подписи действий журнала — по-русски и по-узбекски; на экране и в CSV одни слова. */
@@ -131,6 +135,15 @@ export const AUDIT_ACTION_LABEL: Record<string, Label> = {
   "arrival.completed": { ru: "Приход оприходован", uz: "Kirim qabul qilindi" },
   "product.cost_averaged": { ru: "Себестоимость усреднена по приходу", uz: "Tannarx kirim bo'yicha o'rtacha hisoblandi" },
   "supplier.return_goods": { ru: "Возврат поставщику", uz: "Yetkazib beruvchiga qaytarish" },
+  "purchase_order.created": { ru: "Заведён заказ поставщику", uz: "Yetkazib beruvchiga buyurtma yaratildi" },
+  "purchase_order.updated": { ru: "Изменён заказ поставщику", uz: "Yetkazib beruvchiga buyurtma o'zgartirildi" },
+  "purchase_order.submitted": { ru: "Заказ поставщику отправлен на согласование", uz: "Yetkazib beruvchiga buyurtma kelishuvga yuborildi" },
+  "purchase_order.approved": { ru: "Заказ поставщику согласован", uz: "Yetkazib beruvchiga buyurtma kelishildi" },
+  "purchase_order.rejected": { ru: "Заказ поставщику возвращён на доработку", uz: "Yetkazib beruvchiga buyurtma qayta ishlashga qaytarildi" },
+  "purchase_order.cancelled": { ru: "Заказ поставщику отменён", uz: "Yetkazib beruvchiga buyurtma bekor qilindi" },
+  "purchase_order.closed": { ru: "Заказ поставщику закрыт с недовозом", uz: "Yetkazib beruvchiga buyurtma kam kelgan holda yopildi" },
+  "purchase_order.receiving": { ru: "Заведён приход по заказу поставщику", uz: "Yetkazib beruvchi buyurtmasi bo'yicha kirim yaratildi" },
+  "purchase_order.received": { ru: "Принят товар по заказу поставщику", uz: "Yetkazib beruvchi buyurtmasi bo'yicha tovar qabul qilindi" },
   "loading_list.created": { ru: "Создан лист загрузки", uz: "Yuklash varag'i yaratildi" },
   "loading_list.picked": { ru: "Лист загрузки собран", uz: "Yuklash varag'i yig'ildi" },
   "salary.rate_set": { ru: "Установлена ставка зарплаты", uz: "Ish haqi stavkasi belgilandi" },
@@ -152,7 +165,7 @@ const HIDDEN = new Set(["shopId", "productId", "warehouseId", "agentId", "orderI
 const MONEY_KEYS = new Set(["amount", "total", "sum", "remaining", "creditLimit", "price", "was", "unitPrice", "costPrice", "credited", "baseSalary", "totalBefore", "totalAfter", "shortageCost"]);
 const PERCENT_KEYS = new Set(["discountPct", "commissionRate"]);
 const WEIGHT_KEYS = new Set(["totalWeight"]);
-const DATE_KEYS = new Set(["expiresAt", "monthStart"]);
+const DATE_KEYS = new Set(["expiresAt", "monthStart", "dueDate"]);
 const STATUS_KEYS = new Set(["from", "to", "status", "newStatus", "statusBefore"]);
 const BOOL: Label = { ru: "да", uz: "ha" }; const BOOL_NO: Label = { ru: "нет", uz: "yo'q" };
 
@@ -161,7 +174,7 @@ const FIELD_LABEL: Record<string, Label> = {
   status: { ru: "статус", uz: "holat" }, address: { ru: "адрес", uz: "manzil" }, unitPrice: { ru: "цена", uz: "narx" }, costPrice: { ru: "себестоимость", uz: "tannarx" },
   creditLimit: { ru: "кредитный лимит", uz: "kredit limiti" }, code: { ru: "код", uz: "kod" }, category: { ru: "категория", uz: "toifa" },
   unit: { ru: "единица", uz: "birlik" }, minStock: { ru: "мин. остаток", uz: "min. qoldiq" }, territoryId: { ru: "территория", uz: "hudud" },
-  reorderPoint: { ru: "точка дозаказа", uz: "qayta buyurtma nuqtasi" }, unitWeight: { ru: "вес единицы", uz: "birlik vazni" },
+  reorderPoint: { ru: "точка дозаказа", uz: "qayta buyurtma nuqtasi" }, reorderMax: { ru: "максимум запаса", uz: "maksimal zaxira" }, unitWeight: { ru: "вес единицы", uz: "birlik vazni" },
   packSize: { ru: "упаковка", uz: "qadoq" }, packLabel: { ru: "название упаковки", uz: "qadoq nomi" }, description: { ru: "описание", uz: "tavsif" },
   barcode: { ru: "штрих-код", uz: "shtrix-kod" }, companyName: { ru: "название компании", uz: "kompaniya nomi" }, logoUrl: { ru: "логотип", uz: "logotip" },
   currency: { ru: "валюта", uz: "valyuta" }, timezone: { ru: "часовой пояс", uz: "vaqt mintaqasi" },
@@ -174,6 +187,9 @@ const FIELD_LABEL: Record<string, Label> = {
 
 /** Статусы, которых нет среди статусов заказа: доступ, ключи, возвраты. */
 const EXTRA_STATUS: Record<string, Label> = {
+  // Состояния заказа поставщику; совпадающие с состояниями заказа магазина
+  // (cancelled) называются так же — словарь заказа идёт поверх.
+  ...PURCHASE_ORDER_STATUS_LABEL,
   ...ACTIVE_STATUS_LABEL,
   revoked: { ru: "Отозван", uz: "Bekor qilingan" },
   approved: { ru: "Одобрен", uz: "Tasdiqlangan" }, rejected: { ru: "Отклонён", uz: "Rad etilgan" }, completed: { ru: "Завершён", uz: "Yakunlangan" },

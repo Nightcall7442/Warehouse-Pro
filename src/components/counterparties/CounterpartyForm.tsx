@@ -11,6 +11,8 @@ export interface CounterpartyFormValues {
   inn: string;
   address: string;
   notes: string;
+  /** Отсрочка оплаты, дней; пусто — платим по факту. */
+  paymentTermsDays: string;
 }
 
 /**
@@ -37,10 +39,13 @@ export function CounterpartyForm({ open, initial, isPending, onSave, onClose }: 
     inn:         initial?.inn ?? "",
     address:     initial?.address ?? "",
     notes:       initial?.notes ?? "",
+    paymentTermsDays: initial?.paymentTermsDays == null ? "" : String(initial.paymentTermsDays),
   });
 
   const set = (k: keyof CounterpartyFormValues) => (v: string) => setForm(p => ({ ...p, [k]: v }));
-  const canSave = form.name.trim().length > 0 && !isPending;
+  const terms = form.paymentTermsDays.trim();
+  const termsOk = terms === "" || (/^\d+$/.test(terms) && Number(terms) <= 365);
+  const canSave = form.name.trim().length > 0 && termsOk && !isPending;
   // Промах мимо окна не должен стирать набранное: dirty у AppModal как раз
   // для этого — закрыть можно крестиком или «Отменой», осознанно.
   const dirty = Object.values(form).some(v => v.trim() !== "");
@@ -100,6 +105,19 @@ export function CounterpartyForm({ open, initial, isPending, onSave, onClose }: 
             <label className={modalFieldLabel}>{t("Адрес", "Manzil")}</label>
             <input className="neo-input" style={{ width: "100%" }} value={form.address} onChange={e => set("address")(e.target.value)} />
           </div>
+        </div>
+        <div>
+          <label className={modalFieldLabel}>{t("Отсрочка оплаты, дней", "To'lov kechiktirish, kun")}</label>
+          <input
+            data-testid="counterparty-terms"
+            className="neo-input"
+            style={{ width: "100%" }}
+            inputMode="numeric"
+            placeholder={t("Пусто — оплата по факту", "Bo'sh — yetkazib berilganda to'lanadi")}
+            value={form.paymentTermsDays}
+            onChange={e => set("paymentTermsDays")(e.target.value.replace(/[^\d]/g, "").slice(0, 3))}
+          />
+          {!termsOk && <p className="text-xs mt-1" style={{ color: "var(--color-danger)" }}>{t("От 0 до 365 дней", "0 dan 365 kungacha")}</p>}
         </div>
         <div>
           <label className={modalFieldLabel}>{t("Примечания", "Izohlar")}</label>

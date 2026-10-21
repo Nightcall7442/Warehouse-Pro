@@ -89,7 +89,12 @@ export function connectLiveEvents(catchUp: (since: number) => Promise<LiveEvent[
 */
 const REFRESH: Record<string, readonly (readonly string[])[]> = {
   "order.changed": ORDER_AFFECTED_ROUTERS.map(r => [r]),
-  "arrival.completed": [["warehouse"], ["warehouseMulti"], ["warehouseReports"], ["product"]],
+  /*
+    Проведённый приход двигает не только склад: у прихода по заказу растёт
+    «принято» и меняется состояние заказа, рождается долг поставщику
+    (ADR 0013), а список приходов у соседа должен показать «завершён».
+  */
+  "arrival.completed": [["warehouse"], ["warehouseMulti"], ["warehouseReports"], ["product"], ["purchaseOrder"], ["arrival"], ["supplier"]],
   // Ответ поддержки адресован одному человеку — сервер шлёт его только ему.
   "support.message": [["support", "thread"], ["support", "unread"]],
 };

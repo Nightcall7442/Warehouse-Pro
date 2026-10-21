@@ -1,5 +1,5 @@
 import { and, eq, inArray } from "drizzle-orm";
-import { orders, shops, products, users, arrivals, loadingLists, stockCounts, stockTransferDocs, priceLists, apiKeys, tenants, supplies, suppliers, returns, payments } from "@db/schema";
+import { orders, shops, products, users, arrivals, loadingLists, stockCounts, stockTransferDocs, priceLists, apiKeys, tenants, supplies, suppliers, returns, payments, purchaseOrders } from "@db/schema";
 
 type Db = ReturnType<typeof import("../queries/connection").getDb>;
 
@@ -68,6 +68,12 @@ const LOADERS: Record<string, Loader> = {
     const rows = await db.select({ id: supplies.id, n: supplies.supplyNumber, sup: suppliers.name })
       .from(supplies).leftJoin(suppliers, eq(suppliers.id, supplies.supplierId))
       .where(and(eq(supplies.tenantId, tenantId), inArray(supplies.id, ids)));
+    return new Map(rows.map(r => [r.id, r.sup ? `${r.n} · ${r.sup}` : r.n]));
+  },
+  purchase_order: async (db, tenantId, ids) => {
+    const rows = await db.select({ id: purchaseOrders.id, n: purchaseOrders.number, sup: suppliers.name })
+      .from(purchaseOrders).leftJoin(suppliers, and(eq(suppliers.id, purchaseOrders.supplierId), eq(suppliers.tenantId, tenantId)))
+      .where(and(eq(purchaseOrders.tenantId, tenantId), inArray(purchaseOrders.id, ids)));
     return new Map(rows.map(r => [r.id, r.sup ? `${r.n} · ${r.sup}` : r.n]));
   },
   return: async (db, tenantId, ids) => {

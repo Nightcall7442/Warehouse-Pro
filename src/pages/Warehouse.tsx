@@ -15,7 +15,7 @@ import {
 import { exportToExcel, formatWarehouseForExport, formatStockValuationForExport, formatDeadStockForExport, formatReorderForExport } from "@/lib/excel";
 import { useCurrency } from "@/hooks/useCurrency";
 import { notify } from "@/lib/toast";
-import { AdjustModal, unitLabel, toKg } from "@/components/warehouse";
+import { AdjustModal, toKg } from "@/components/warehouse";
 import { useConfirm } from "@/components/ConfirmDialog";
 import { QueryErrorFallback } from "@/components/QueryErrorFallback";
 import { formatQty } from "@/lib/format";
@@ -31,6 +31,7 @@ import { WarehouseCompare } from "@/components/warehouse/WarehouseCompare";
 import { StockCounts } from "@/components/warehouse/StockCounts";
 import { DemandForecast } from "@/components/warehouse/DemandForecast";
 import { ExpiringBatches } from "@/components/warehouse/ExpiringBatches";
+import { ReorderPlan } from "@/components/warehouse/ReorderPlan";
 import WarehouseReports from "@/pages/WarehouseReports";
 import { errorText } from "@/lib/error-text";
 
@@ -318,7 +319,8 @@ export default function Warehouse() {
   const tabs = useMemo(() => [
     { key: "stock" as const, label: t("Остатки", "Qoldiqlar"), icon: <Layers size={15} />, count: 0, warn: false },
     // «Дозаказ» отвечает «что УЖЕ ниже порога» — состояние на сегодня.
-    { key: "reorder" as const, label: t("Дозаказ", "Qayta buyurtma"), icon: <ShoppingCart size={15} />, count: reorderSuggestions?.length ?? 0, warn: true },
+    // Считается то, что ещё нужно заказать: заказанное и едущее уже не «горит».
+    { key: "reorder" as const, label: t("Дозаказ", "Qayta buyurtma"), icon: <ShoppingCart size={15} />, count: reorderSuggestions?.filter(r => r.suggestedQty > 0).length ?? 0, warn: true },
     // «Сроки» — что не успеет продаться до срока и что с этим делать.
     { key: "expiry" as const, label: t("Сроки", "Muddatlar"), icon: <CalendarClock size={15} />, count: expiryCount, warn: true },
     { key: "deadstock" as const, label: t("Мёртвый сток", "O'lik stok"), icon: <Clock size={15} />, count: deadCount, warn: false },
@@ -765,78 +767,14 @@ export default function Warehouse() {
       )}
 
       {/* ── REORDER TAB ────────────────────────────────────────────────────── */}
+      {/* По поставщикам, с «в пути» и максимумом запаса; черновики заказов — одной кнопкой (ReorderPlan). */}
       {activeTab === "reorder" && (
-        <>
-          {!reorderSuggestions?.length ? (
-            <EmptyTab icon={<ShoppingCart size={24} />} title={t("Все товары в наличии", "Barcha mahsulotlar mavjud")}
-              hint={t("Нет товаров, требующих дозаказа", "Qayta buyurtma kerak bo'lgan mahsulot yo'q")} />
-          ) : isMobile ? (
-            <div className="space-y-3">
-              {reorderSuggestions.map((item) => {
-                const daysLeft = Number(item.daysUntilStockout ?? 999);
-                const badgeColor = daysLeft <= 3 ? COLORS.dangerText : daysLeft <= 7 ? COLORS.warningText : COLORS.textSecondary;
-                return (
-                  <div key={item.productId} style={{ ...TABLE_CARD, borderRadius: "16px", display: "flex" }}>
-                    <div style={{ width: "4px", flexShrink: 0, background: badgeColor }} />
-                    <div style={{ flex: 1, padding: "14px 16px" }}>
-                      <div className="flex items-center justify-between gap-2 mb-2">
-                        <span className="text-sm font-semibold truncate" style={{ color: COLORS.textPrimary }}>{item.productName}</span>
-                        <DaysBadge color={badgeColor}>{daysLeft} {t("дн до конца", "kun qoldi")}</DaysBadge>
-                      </div>
-                      <div className="flex items-center justify-between text-xs" style={{ color: COLORS.textTertiary }}>
-                        <span>{t("Остаток:", "Qoldiq:")} {formatQty(item.currentStock)} / {formatQty(item.reorderPoint, 0)} {unitLabel(item.unit ?? undefined, lang)}</span>
-                        <span className="font-semibold" style={{ color: badgeColor }}>+{item.suggestedQty} {unitLabel(item.unit ?? undefined, lang)}</span>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          ) : (
-            <div style={TABLE_CARD}>
-              <div style={{ overflowX: "auto" }}>
-              <table className="data-table">
-                <thead>
-                  <tr>
-                    {[t("ТОВАР","MAHSULOT"), t("ОСТАТОК","QOLDIQ"), t("ПОРОГ","CHEGARA"), t("ПРОДАЖИ/ДЕНЬ","SOTISH/KUN"), t("ДНЕЙ ДО КОНЦА","KUN QOLDI"), t("ЗАКАЗАТЬ","BUYURTMA BERISH"), t("СТОИМОСТЬ","NARX")].map((h, i) => (
-                      <th key={h} style={i >= 1 && i !== 4 ? { textAlign: "right" } : undefined}>{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {reorderSuggestions.map((item) => {
-                    const daysLeft = Number(item.daysUntilStockout ?? 999);
-                    const isUrgent = daysLeft <= 3;
-                    const badgeColor = isUrgent ? COLORS.dangerText : daysLeft <= 7 ? COLORS.warningText : COLORS.textSecondary;
-                    const u = unitLabel(item.unit ?? undefined, lang);
-                    const num: React.CSSProperties = { textAlign: "right", fontFamily: F.display, fontVariantNumeric: "tabular-nums" };
-                    return (
-                      <tr key={item.productId} style={isUrgent ? { background: colorMix(COLORS.danger, 4) } : undefined}>
-                        <td>
-                          <div className="flex items-center gap-2">
-                            {isUrgent && <AlertTriangle size={13} color={COLORS.dangerText} />}
-                            <span style={{ fontWeight: 500 }}>{item.productName}</span>
-                          </div>
-                        </td>
-                        <td style={{ ...num, fontWeight: 700, color: badgeColor }}>{formatQty(item.currentStock)} {u}</td>
-                        <td style={{ ...num, color: COLORS.textTertiary }}>{formatQty(item.reorderPoint, 0)} {u}</td>
-                        <td style={{ ...num, color: COLORS.textSecondary }}>{item.avgDailySales}</td>
-                        <td><DaysBadge color={badgeColor}>{daysLeft} {t("дн", "kun")}</DaysBadge></td>
-                        <td style={{ ...num, fontWeight: 700, color: COLORS.primaryText }}>+{item.suggestedQty} {u}</td>
-                        <td style={{ ...num, fontWeight: 700 }}>{fmt(Number(item.suggestedCost ?? 0).toFixed(0))}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-              </div>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px", flexWrap: "wrap", padding: "10px 16px", borderTop: `1px solid ${COLORS.border}`, fontSize: "12px", color: COLORS.textTertiary }}>
-                <span>{reorderSuggestions.length} {t("товаров", "mahsulot")}</span>
-                <span>{t("Общая стоимость дозаказа:", "Umumiy buyurtma qiymati:")} <b style={{ color: COLORS.textPrimary }}>{fmt(reorderSuggestions.reduce((acc, r) => acc + Number(r.suggestedCost ?? 0), 0).toFixed(0))}</b></span>
-              </div>
-            </div>
-          )}
-        </>
+        !reorderSuggestions?.length ? (
+          <EmptyTab icon={<ShoppingCart size={24} />} title={t("Все товары в наличии", "Barcha mahsulotlar mavjud")}
+            hint={t("Нет товаров, требующих дозаказа", "Qayta buyurtma kerak bo'lgan mahsulot yo'q")} />
+        ) : (
+          <ReorderPlan rows={reorderSuggestions} warehouseId={multi ? (warehouseId ?? undefined) : undefined} lang={lang === "uz" ? "uz" : "ru"} />
+        )
       )}
     </div>
     {dialog}

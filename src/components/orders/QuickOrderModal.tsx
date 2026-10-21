@@ -14,6 +14,7 @@ import { priceAt } from "@contracts/price-tiers";
 import { holdReasonText } from "@contracts/hold-reason";
 import type { QuickOrderLine, QuickOrderStart } from "@/lib/quick-order";
 import { errorText } from "@/lib/error-text";
+import { findScanned } from "@/lib/scan-match";
 
 type CartItem = QuickOrderLine;
 
@@ -252,8 +253,7 @@ export function QuickOrderModal({ open, onOpenChange, preselectedShopId, initial
   const [pendingScan, setPendingScan] = useState<string | null>(null);
   useEffect(() => {
     if (!pendingScan || !productsData || productSearch !== pendingScan) return;
-    const norm = pendingScan.trim().toLowerCase();
-    const hit = productsData.find(p => (p.barcode ?? "").toLowerCase() === norm || (p.code ?? "").toLowerCase() === norm);
+    const hit = findScanned(productsData, pendingScan);
     /* eslint-disable react-hooks/set-state-in-effect */
     setPendingScan(null);
     if (!hit) return;

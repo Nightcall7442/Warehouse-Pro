@@ -1,11 +1,12 @@
-import { useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { UNSAFE_NavigationContext, useBeforeUnload, useNavigate, useParams } from "react-router";
+import { useEffect, useMemo, useState } from "react";
+import { useNavigate, useParams } from "react-router";
 import { bizToday, format } from "@/lib/business-time";
 import { ArrowLeft, Plus, Printer, ScanLine, Trash2, Loader2, CheckCircle2, Truck, ListChecks } from "lucide-react";
 import { trpc } from "@/providers/trpc";
 import { useLang } from "@/i18n";
 import { useAuth } from "@/hooks/useAuth";
 import { useCan } from "@/hooks/useCan";
+import { useLeaveGuard } from "@/hooks/useLeaveGuard";
 import { useCurrency } from "@/hooks/useCurrency";
 import { useSellerCompany } from "@/hooks/useSellerCompany";
 import { notify } from "@/lib/toast";
@@ -20,6 +21,7 @@ import { saveArrivalDraft, loadArrivalDraft, clearArrivalDraft, arrivalDraftHasW
 import { DecimalInput } from "@/components/ui/DecimalInput";
 import { PremiumSelect } from "@/components/PremiumSelect";
 import { BarcodeScanner } from "@/components/BarcodeScanner";
+import { findScanned } from "@/lib/scan-match";
 import { QueryErrorFallback } from "@/components/QueryErrorFallback";
 import { useConfirm } from "@/components/ConfirmDialog";
 import { ArrivalSheet } from "@/components/arrivals/ArrivalSheet";
@@ -85,6 +87,13 @@ export default function ArrivalEditor() {
   const detailQ = trpc.arrival.getById.useQuery({ id: arrivalId ?? 0 }, { enabled: !isNew });
   const supplyQ = trpc.supplier.getSupplyByArrival.useQuery({ arrivalId: arrivalId ?? 0 }, { enabled: !isNew });
   const detail = detailQ.data ?? null;
+  // Приход по заказу поставщику: ссылка назад и поставщик, пока долга ещё нет.
+  const linkedOrder = detail?.purchaseOrder ?? null;
+  const supplierName = supplyQ.data?.supplierName ?? linkedOrder?.supplierName ?? null;
+  // Себестоимость по заказу в другой валюте сервер выводит из цены заказа и
+  // курса — только для пары сум–доллар (purchase-order-receipt.priceInTenantCurrency).
+  const tenantCurrency = currency.trim().toUpperCase();
+  const costLocked = linkedOrder != null && linkedOrder.currency !== tenantCurrency && (tenantCurrency === "UZS" || tenantCurrency === "USD");
 
   /* Новый — черновик у браузера; сохранённый — правки поверх документа, пока их не сохранили. */
   const [draft, setDraft] = useState<ArrivalDraft>(() => (isNew && user ? loadArrivalDraft(user.id) : null) ?? emptyDraft());
@@ -111,6 +120,14 @@ export default function ArrivalEditor() {
 
   const catalog = useMemo(() => (productsQ.data?.data ?? []) as PickerProduct[], [productsQ.data]);
   const byId = useMemo(() => new Map(catalog.map(p => [p.id, p])), [catalog]);
+  /*
+    Приход по заказу принимает только заказанное (сервер отказывает
+    остальному на сохранении): выбор и сканер — по товарам заказа, а скан
+    чужого товара говорит, куда его деть, а не молча добавляет строку,
+    которую потом не сохранить.
+  */
+  const orderProducts = useMemo(() => linkedOrder ? new Set(linkedOrder.productIds) : null, [linkedOrder]);
+  const pickable = useMemo(() => orderProducts ? catalog.filter(p => orderProducts.has(p.id)) : catalog, [catalog, orderProducts]);
 
   const head: Head = isNew ? draft.form : (edit?.head ?? base?.head ?? emptyDraft().form);
   const rawRows = useMemo(() => isNew ? draft.rows : (edit?.rows ?? base?.rows ?? []), [isNew, draft.rows, edit, base]);
@@ -130,33 +147,16 @@ export default function ArrivalEditor() {
   const setHead = (patch: Partial<Head>) => isNew ? setDraft(d => ({ ...d, form: { ...d.form, ...patch } })) : setEdit(e => ({ ...(e ?? base!), head: { ...(e ?? base!).head, ...patch } }));
 
   /*
-    Уход с несохранёнными правками — спросить. У нового прихода черновик в
-    браузере, а правки сохранённого живут только здесь: сорок строк «пришло»,
-    набранных при разгрузке, пропадали от «← Приходы», пункта меню или
-    перезагрузки. useBlocker требует data router, а у нас BrowserRouter —
-    поэтому перехвачен navigator.push: через него идут и ссылки, и navigate() меню.
+    Уход с несохранёнными правками — спросить (hooks/useLeaveGuard). У нового
+    прихода черновик в браузере, а правки сохранённого живут только здесь:
+    сорок строк «пришло», набранных при разгрузке, пропадали от «← Приходы»,
+    пункта меню или перезагрузки.
   */
-  const askLeave = useRef<(() => Promise<boolean>) | null>(null);
-  useEffect(() => {
-    askLeave.current = !isNew && edit != null ? () => confirm({
-      title: t("Уйти без сохранения?", "Saqlamasdan chiqilsinmi?"),
-      message: t("Несохранённые правки документа пропадут.", "Hujjatdagi saqlanmagan o'zgarishlar yo'qoladi."),
-      confirmText: t("Уйти", "Chiqish"), danger: true,
-    }) : null;
-  });
-  const { navigator } = useContext(UNSAFE_NavigationContext);
-  /* eslint-disable react-hooks/immutability -- navigator это history роутера, а не состояние React */
-  useEffect(() => {
-    const push = navigator.push;
-    navigator.push = (...a: Parameters<typeof push>) => {
-      const ask = askLeave.current;
-      if (!ask) return push(...a);
-      void ask().then(ok => { if (ok) push(...a); });
-    };
-    return () => { navigator.push = push; };
-  }, [navigator]);
-  /* eslint-enable react-hooks/immutability */
-  useBeforeUnload(useCallback((e: BeforeUnloadEvent) => { if (askLeave.current) e.preventDefault(); }, []));
+  const releaseLeave = useLeaveGuard(!isNew && edit != null ? () => confirm({
+    title: t("Уйти без сохранения?", "Saqlamasdan chiqilsinmi?"),
+    message: t("Несохранённые правки документа пропадут.", "Hujjatdagi saqlanmagan o'zgarishlar yo'qoladi."),
+    confirmText: t("Уйти", "Chiqish"), danger: true,
+  }) : null);
 
   const sum = totals(rows);
   const markup = markupPct(sum.costSum, sum.saleSum);
@@ -179,11 +179,15 @@ export default function ArrivalEditor() {
     setTimeout(() => focusCell("arrival", { row: first, col: "quantity" }), 50);
   };
   const onScanned = (code: string) => {
-    const norm = code.trim().toLowerCase();
-    const p = catalog.find(x => (x.barcode ?? "").toLowerCase() === norm || (x.code ?? "").toLowerCase() === norm);
+    const p = findScanned(catalog, code);
     if (!p) {
       setLastScanned(t(`Не найден: ${code}`, `Topilmadi: ${code}`));
       notify.error(t(`Товар со штрих-кодом ${code} не найден`, `${code} shtrix-kodli mahsulot topilmadi`));
+      return;
+    }
+    if (orderProducts && linkedOrder && !orderProducts.has(p.id)) {
+      setLastScanned(t(`Не из заказа: ${p.name}`, `Buyurtmada yo'q: ${p.name}`));
+      notify.error(t(`«${p.name}» нет в заказе ${linkedOrder.number} — оформите его отдельным приходом`, `«${p.name}» ${linkedOrder.number} buyurtmada yo'q — uni alohida kirim bilan rasmiylashtiring`));
       return;
     }
     setRows(applyScan(rows, p));
@@ -208,8 +212,21 @@ export default function ArrivalEditor() {
   const deleteMutation = trpc.arrival.delete.useMutation();
   const busy = createMutation.isPending || updateStatus.isPending || setItems.isPending || deleteMutation.isPending;
 
+  /*
+    После сохранения и проведения — всё, что этот документ меняет. Долг по
+    приходу из заказа рождается проведением (ADR 0013): без перечитывания
+    поставки блок долга, запомнивший «поставки ещё нет», сразу после
+    проведения говорил «долга по приходу нет», пока не придёт живое событие
+    (а без него — до перезагрузки). Заказ узнаёт «принято» тем же проведением.
+  */
   const refresh = async () => {
-    await Promise.all([utils.arrival.list.invalidate(), arrivalId ? utils.arrival.getById.invalidate({ id: arrivalId }) : Promise.resolve()]);
+    await Promise.all([
+      utils.arrival.list.invalidate(),
+      arrivalId ? utils.arrival.getById.invalidate({ id: arrivalId }) : Promise.resolve(),
+      arrivalId ? utils.supplier.getSupplyByArrival.invalidate({ arrivalId }) : Promise.resolve(),
+      linkedOrder ? utils.purchaseOrder.getById.invalidate({ id: linkedOrder.id }) : Promise.resolve(),
+      linkedOrder ? utils.purchaseOrder.list.invalidate() : Promise.resolve(),
+    ]);
   };
   const guard = (): boolean => {
     if (issues.length > 0) {
@@ -320,7 +337,7 @@ export default function ArrivalEditor() {
     if (!arrivalId) return;
     const ok = await confirm({ title: t("Удалить приход?", "Kelish o'chirilsinmi?"), message: t("Данные будут удалены безвозвратно.", "Ma'lumotlar qaytarib bo'lmaydigan tarzda o'chiriladi."), confirmText: t("Удалить", "O'chirish"), danger: true });
     if (!ok) return;
-    try { await deleteMutation.mutateAsync({ id: arrivalId }); await utils.arrival.list.invalidate(); askLeave.current = null; navigate("/arrivals"); } catch (e) { notify.error(errorText(e)); }
+    try { await deleteMutation.mutateAsync({ id: arrivalId }); await utils.arrival.list.invalidate(); releaseLeave(); navigate("/arrivals"); } catch (e) { notify.error(errorText(e)); }
   };
 
   const discard = async () => {
@@ -333,7 +350,7 @@ export default function ArrivalEditor() {
   const printInvoice = () => printArrivalReceipt({
     number: detail?.arrivalNumber ?? t("черновик", "qoralama"),
     date: head.arrivalDate.split("-").reverse().join("."),
-    supplier: { name: supplyQ.data?.supplierName ?? (isNew && d.supplierMode === "existing" ? suppliersQ.data?.find(s => s.id === d.supplierId)?.name : d.newSupplierName) ?? "—" },
+    supplier: { name: supplierName ?? (isNew && d.supplierMode === "existing" ? suppliersQ.data?.find(s => s.id === d.supplierId)?.name : d.newSupplierName) ?? "—" },
     receiver: seller,
     items: rows.map(r => {
       const qty = Number(r.quantity || 0), price = Number(r.costPrice || 0);
@@ -370,7 +387,13 @@ export default function ArrivalEditor() {
           </h1>
           <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: "var(--color-text-secondary)", marginTop: 2, flexWrap: "wrap" }}>
             {!isNew && <span style={{ fontWeight: 700, color: statusColor }} data-testid="arrival-status">● {labelled(ARRIVAL_STATUS_LABEL, status, lang)}</span>}
-            {supplyQ.data?.supplierName && <span>{supplyQ.data.supplierName}</span>}
+            {supplierName && <span>{supplierName}</span>}
+            {linkedOrder && (
+              <button type="button" onClick={() => navigate(`/purchase-orders/${linkedOrder.id}`)} data-testid="arrival-order-link"
+                style={{ border: "none", background: "none", padding: 0, cursor: "pointer", font: "inherit", fontWeight: 600, color: "var(--color-primary-text)", textDecoration: "underline" }}>
+                {t(`по заказу ${linkedOrder.number}`, `${linkedOrder.number} buyurtma bo'yicha`)}
+              </button>
+            )}
             {dirty && !isNew && <span style={{ color: "var(--color-warning-text)", fontWeight: 600 }}>{t("есть несохранённые правки", "saqlanmagan o'zgarishlar bor")}</span>}
           </div>
         </div>
@@ -504,9 +527,19 @@ export default function ArrivalEditor() {
         </div>
       )}
 
-      <ArrivalSheet rows={rows} onChange={setRows} readOnly={readOnly} arrivalDate={head.arrivalDate} onAddClick={() => setPicking(true)} />
+      {/* Заказ в чужой валюте: себестоимость строки — цена заказа по курсу, её
+          пересчитывает сервер (по ней же считается долг), поэтому столбец
+          себестоимости здесь не правится — и сказано почему. */}
+      {linkedOrder && !completed && costLocked && (
+        <p data-testid="arrival-order-currency" style={{ margin: 0, fontSize: 12, color: "var(--color-warning-text)" }}>
+          {t(`Заказ ${linkedOrder.number} в ${linkedOrder.currency}: себестоимость строк — цена заказа по курсу, её считает система. Цену меняют в заказе.`,
+             `${linkedOrder.number} buyurtma ${linkedOrder.currency} da: qatorlar tannarxi — kurs bo'yicha buyurtma narxi, uni tizim hisoblaydi. Narx buyurtmada o'zgartiriladi.`)}
+        </p>
+      )}
 
-      {!isNew && arrivalId && <SupplierDebtSection arrivalId={arrivalId} />}
+      <ArrivalSheet rows={rows} onChange={setRows} readOnly={readOnly} costLocked={costLocked} arrivalDate={head.arrivalDate} onAddClick={() => setPicking(true)} />
+
+      {!isNew && arrivalId && <SupplierDebtSection arrivalId={arrivalId} order={linkedOrder} completed={completed} />}
 
       {/* ── Сохранение нового ──────────────────────────────────────────── */}
       {isNew && (
@@ -527,7 +560,7 @@ export default function ArrivalEditor() {
       )}
 
       {picking && (
-        <ProductMultiPicker onClose={() => setPicking(false)} products={catalog} already={new Set(rows.map(r => r.productId))} onPick={onPick} />
+        <ProductMultiPicker onClose={() => setPicking(false)} products={pickable} already={new Set(rows.map(r => r.productId))} onPick={onPick} />
       )}
       {scanning && (
         <BarcodeScanner

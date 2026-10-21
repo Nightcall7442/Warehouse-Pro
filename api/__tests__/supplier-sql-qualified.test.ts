@@ -36,20 +36,40 @@ import path from "node:path";
  * не создают. Запрещена подстановка ОБЪЕКТА КОЛОНКИ.
  */
 
-const FILE = path.resolve(__dirname, "../supplier-router.ts");
-const src = fs.readFileSync(FILE, "utf8");
+/*
+ * Файлы с коррелирующими подзапросами по поставщикам: сам роутер
+ * поставщиков и роутер заказов поставщикам (итог, остаток к приёму и
+ * непроведённые приходы в списке заказов считаются подзапросами по
+ * purchase_orders).
+ */
+const FILES = [
+  {
+    name: "supplier-router",
+    file: "../supplier-router.ts",
+    /** Таблицы, чьи колонки нельзя подставлять внутрь sql``-подзапросов. */
+    tables: ["suppliers", "supplies", "supplierPayments", "arrivals", "arrivalItems", "users"],
+    minSelects: 5,
+    qualified: ["\\`supplies\\`.\\`id\\`", "\\`suppliers\\`.\\`id\\`", "\\`arrivals\\`.\\`id\\`"],
+  },
+  {
+    name: "purchase-order-router",
+    file: "../purchase-order-router.ts",
+    tables: ["purchaseOrders", "purchaseOrderItems", "suppliers", "warehouses", "products", "arrivals", "users"],
+    minSelects: 3,
+    qualified: ["\\`purchase_orders\\`.\\`id\\`"],
+  },
+] as const;
 
-/** Таблицы, чьи колонки нельзя подставлять внутрь sql``-подзапросов. */
-const TABLES = ["suppliers", "supplies", "supplierPayments", "arrivals", "arrivalItems", "users"];
+describe.each(FILES)("$name: подзапросы уточнены именем таблицы", ({ file, tables, minSelects, qualified }) => {
+  const src = fs.readFileSync(path.resolve(__dirname, file), "utf8");
 
-describe("supplier-router: подзапросы уточнены именем таблицы", () => {
   it("файл на месте и содержит sql-подзапросы", () => {
     // Иначе проверки ниже пройдут на пустом месте и не будут значить ничего.
     expect(src).toContain("sql<");
-    expect(src.match(/SELECT/g)?.length ?? 0).toBeGreaterThan(5);
+    expect(src.match(/SELECT/g)?.length ?? 0).toBeGreaterThan(minSelects);
   });
 
-  it.each(TABLES)("не подставляет колонки %s объектом drizzle", (table) => {
+  it.each(tables)("не подставляет колонки %s объектом drizzle", (table) => {
     // Ищем `${table.something}` — подстановку объекта колонки.
     const found = [...src.matchAll(new RegExp(`\\$\\{${table}\\.[a-zA-Z]`, "g"))];
     // Строки, попавшие в комментарий-разбор, к делу не относятся: это текст,
@@ -64,8 +84,6 @@ describe("supplier-router: подзапросы уточнены именем т
   it("корреляция написана уточнённой формой", () => {
     // Встречная проверка: если бы уточнённых ссылок не было вовсе, запрет
     // выше выполнялся бы сам собой и ничего не означал.
-    expect(src).toContain("\\`supplies\\`.\\`id\\`");
-    expect(src).toContain("\\`suppliers\\`.\\`id\\`");
-    expect(src).toContain("\\`arrivals\\`.\\`id\\`");
+    for (const ref of qualified) expect(src).toContain(ref);
   });
 });

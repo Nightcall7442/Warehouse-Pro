@@ -12,6 +12,8 @@ import {
   formatReorderForExport,
   formatUsersForExport,
   formatPnLForExport,
+  formatPurchaseOrdersForExport,
+  formatPurchaseOrderLinesForExport,
 } from "@/lib/excel";
 
 /**
@@ -169,6 +171,49 @@ describe("приходы в отчёте", () => {
   });
 });
 
+describe("приходы и заказы поставщикам в отчёте", () => {
+  it("у прихода — поставщик и заказ, по которому он пришёл", () => {
+    const [row] = formatArrivalsForExport([{ arrivalNumber: "П-8", status: "completed", supplierName: "Завод", purchaseOrderNumber: "PO-3" }]);
+    expect(row["Поставщик"]).toBe("Завод");
+    expect(row["Заказ поставщику"]).toBe("PO-3");
+    const [bare] = formatArrivalsForExport([{ arrivalNumber: "П-9", status: "draft" }]);
+    expect(bare["Поставщик"]).toBe("");
+    expect(bare["Заказ поставщику"]).toBe("");
+  });
+
+  it("заказы: состояние словом, дни бумагой, деньги не складываются через валюты", () => {
+    const [row] = formatPurchaseOrdersForExport([{
+      number: "PO-1", createdAt: new Date("2026-10-20T20:30:00Z"), supplierName: "Завод", warehouseName: "Основной",
+      status: "partially_received", expectedDate: "2026-10-25", currency: "USD", total: "250.5", remaining: 100,
+      paymentTermsDays: 0, expectedPaymentDate: "2026-11-04", source: "reorder",
+    }]);
+    expect(row["Статус"]).toBe("Принят частично");
+    // 20:30 UTC — уже 21 октября в Ташкенте.
+    expect(row["Дата"]).toBe("21.10.2026");
+    expect(row["Ждём к"]).toBe("25.10.2026");
+    expect(row["Оплата ожидается"]).toBe("04.11.2026");
+    expect(row["Сумма заказа"]).toBe(250.5);
+    // Ноль дней — оплата сразу, а не «не указано».
+    expect(row["Отсрочка, дней"]).toBe(0);
+    expect(row["Откуда"]).toBe("Из дозаказа");
+    // Сумы с долларами в «ИТОГО» не сложить: имена денежных колонок не из суммируемых.
+    expect(Object.keys(row)).not.toContain("Сумма");
+    const [manual] = formatPurchaseOrdersForExport([{ number: "PO-2", status: "draft", paymentTermsDays: null }]);
+    expect(manual["Отсрочка, дней"]).toBe("");
+    expect(manual["Ждём к"]).toBe("");
+    expect(manual["Откуда"]).toBe("Вручную");
+    expect(Object.values(manual).join(" ")).not.toMatch(/undefined|NaN/);
+  });
+
+  it("строки заказа: сумма строки — количество на цену, без копеечного хвоста", () => {
+    const [line] = formatPurchaseOrderLinesForExport([{ productName: "Мука", productCode: "M-1", unit: "kg", quantity: "3", unitPrice: "0.1", receivedQty: 1, remaining: 2 }]);
+    expect(line["Сумма"]).toBe(0.3);
+    expect(line["Заказано"]).toBe(3);
+    expect(line["Принято"]).toBe(1);
+    expect(line["Осталось"]).toBe(2);
+  });
+});
+
 describe("магазины и оценка склада", () => {
   it("строки магазинов собираются без потерь полей", () => {
     const rows = formatShopsForExport([{ name: "Магазин 1" }, { name: "Магазин 2" }]);
@@ -192,6 +237,15 @@ describe("товары и агенты в отчёте", () => {
     // Показать его — забота формата клетки, хранить — забота значения.
     expect(row["Вес (кг)"]).toBe(0.125);
     expect(row["Мин. остаток"]).toBe(10);
+  });
+
+  it("дополнительные штрих-коды — через запятую, без них — пусто", () => {
+    const [withExtras, without] = formatProductsForExport([
+      { barcode: "4870000000017", barcodes: ["4870000000024", "4870000000031"] },
+      { barcode: "4870000000048" },
+    ]);
+    expect(withExtras["Доп. штрихкоды"]).toBe("4870000000024, 4870000000031");
+    expect(without["Доп. штрихкоды"]).toBe("");
   });
 
   it("товар без цен даёт нули, а не пустые ячейки", () => {
@@ -237,6 +291,19 @@ describe("мёртвый сток и дозаказ", () => {
     expect(row["Продажи/день"]).toBe(0.44);
     expect(row["Дней до конца"]).toBe(12);
     expect(row["Заказать"]).toBe(50);
+  });
+
+  it("дозаказ: поставщик, свободный остаток, максимум и «в пути» — рядом с «Заказать»", () => {
+    // Колонки добавлены вместе с поставщиком и «в пути» в warehouse.reorderSuggestions.
+    const [row] = formatReorderForExport([{
+      productName: "Мука", supplierName: "Завод", currentStock: "10.000", available: "6.000",
+      reorderPoint: "20.00", target: 50, inbound: 14, unapproved: 10, suggestedQty: 20, suggestedCost: 1500,
+    }]);
+    // «В пути» — согласованное; черновики — своей колонкой: не едут, но вычтены.
+    expect(row).toMatchObject({ "Поставщик": "Завод", "Остаток": 10, "Свободно": 6, "Максимум": 50, "В пути": 14, "Не согласовано": 10, "Заказать": 20 });
+    const [bare] = formatReorderForExport([{ productName: "Без поставщика", currentStock: "3" }]);
+    expect(bare["Поставщик"]).toBe("");
+    expect(bare["Свободно"]).toBe(3);
   });
 });
 

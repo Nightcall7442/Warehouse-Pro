@@ -1,15 +1,19 @@
 import { useState } from "react";
+import { useNavigate } from "react-router";
 import { bizToday, format } from "@/lib/business-time";
-import { Printer, Pencil, Loader2, AlertTriangle } from "lucide-react";
+import { Printer, Pencil, Loader2, AlertTriangle, Plus } from "lucide-react";
 import { trpc } from "@/providers/trpc";
+import { useCan } from "@/hooks/useCan";
 import { AppModal } from "@/components/ui/AppModal";
+import { PurchaseOrderStatusBadge } from "@/components/purchase-orders/PurchaseOrderStatusBadge";
+import { dayText } from "@/components/purchase-orders/day-text";
 import { COLORS, F, money, PAYMENT_METHODS } from "./constants";
 import type { PayableSupply } from "./PaymentForm";
 
 import { useSellerCompany } from "@/hooks/useSellerCompany";
 import { DateRangePicker } from "@/components/DateRangePicker";
 
-type Tab = "debts" | "payments" | "reconciliation";
+type Tab = "debts" | "payments" | "reconciliation" | "orders";
 
 const th: React.CSSProperties = {
   fontFamily: F.display, fontSize: "10px", fontWeight: 600, textTransform: "uppercase",
@@ -28,10 +32,11 @@ const esc = (s: string | null | undefined) =>
 /**
  * Карточка контрагента: долги, платежи и акт сверки.
  *
- * Три вкладки, а не один длинный свиток: у них разные вопросы. «Сколько
+ * Вкладки, а не один длинный свиток: у них разные вопросы. «Сколько
  * должны и по каким партиям» — вкладка долгов, «когда и чем платили» —
- * платежей, «сойдёмся ли мы с заводом» — акт сверки. Смешать их в одну ленту
- * значит заставить искать нужное в чужих строках.
+ * платежей, «сойдёмся ли мы с заводом» — акт сверки, «что ещё ждём от
+ * него» — заказы поставщику (долга они не создают, ADR 0013). Смешать их в
+ * одну ленту значит заставить искать нужное в чужих строках.
  */
 export function CounterpartyDetail({ supplierId, lang, onClose, onEdit, onPay, onReturn }: {
   supplierId: number;
@@ -45,6 +50,8 @@ export function CounterpartyDetail({ supplierId, lang, onClose, onEdit, onPay, o
 }) {
   const t = (ru: string, uz: string) => lang === "uz" ? uz : ru;
   const [tab, setTab] = useState<Tab>("debts");
+  const navigate = useNavigate();
+  const can = useCan();
 
   // Своя сторона акта сверки — оттуда же, откуда её берут накладные.
 
@@ -63,6 +70,9 @@ export function CounterpartyDetail({ supplierId, lang, onClose, onEdit, onPay, o
       { supplierId, from: from || undefined, to: to || undefined },
       { enabled: tab === "reconciliation" },
     );
+
+  const { data: orders, isLoading: ordersLoading } =
+    trpc.purchaseOrder.list.useQuery({ supplierId, pageSize: 50 }, { enabled: tab === "orders" });
 
   const rows = supplies?.data ?? [];
   const name = rows[0]?.supplierName ?? reconciliation?.supplier?.name ?? "";
@@ -200,6 +210,7 @@ export function CounterpartyDetail({ supplierId, lang, onClose, onEdit, onPay, o
           { key: "debts" as const,          label: t("Долги", "Qarzlar") },
           { key: "payments" as const,       label: t("Платежи", "To'lovlar") },
           { key: "reconciliation" as const, label: t("Акт сверки", "Solishtirma dalolatnoma") },
+          { key: "orders" as const,         label: t("Заказы", "Buyurtmalar") },
         ]).map(x => (
           <button
             key={x.key}
@@ -306,6 +317,54 @@ export function CounterpartyDetail({ supplierId, lang, onClose, onEdit, onPay, o
             </table>
           </div>
         )
+      )}
+
+      {/* ── Заказы поставщику ── */}
+      {tab === "orders" && (
+        <div>
+          {can("suppliers.manage") && (
+            <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "10px" }}>
+              <button className="neo-btn-primary neo-btn-sm" data-testid="cp-new-order"
+                onClick={() => navigate(`/purchase-orders/new?supplierId=${supplierId}`)}
+                style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                <Plus size={14} /> {t("Новый заказ", "Yangi buyurtma")}
+              </button>
+            </div>
+          )}
+          {ordersLoading ? <Loading /> : (orders?.data ?? []).length === 0 ? (
+            <Empty text={t("Заказов этому поставщику не было", "Bu yetkazib beruvchiga buyurtmalar bo'lmagan")} />
+          ) : (
+            <div style={{ overflowX: "auto", borderRadius: "12px", border: `1px solid ${COLORS.border}` }}>
+              <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0, minWidth: "620px" }}>
+                <thead>
+                  <tr>{[t("Заказ", "Buyurtma"), t("Дата", "Sana"), t("Состояние", "Holat"), t("Ждём", "Kutamiz"), t("Сумма", "Summa"), t("Не получено", "Olinmagan")].map(h => <th key={h} style={th}>{h}</th>)}</tr>
+                </thead>
+                <tbody>
+                  {(orders?.data ?? []).map(o => (
+                    <tr key={o.id} data-testid={`cp-order-${o.id}`} onClick={() => navigate(`/purchase-orders/${o.id}`)} style={{ cursor: "pointer" }}
+                      tabIndex={0} onKeyDown={e => { if (e.key === "Enter") navigate(`/purchase-orders/${o.id}`); }}>
+                      <td style={{ ...td, fontWeight: 600, color: COLORS.primaryText }}>{o.number}</td>
+                      <td style={{ ...td, whiteSpace: "nowrap", color: COLORS.textSecondary }}>{format(new Date(o.createdAt), "dd.MM.yyyy")}</td>
+                      <td style={td}><PurchaseOrderStatusBadge status={o.status} /></td>
+                      <td style={{ ...td, whiteSpace: "nowrap", color: COLORS.textSecondary }}>{dayText(o.expectedDate)}</td>
+                      <td style={{ ...td, whiteSpace: "nowrap" }}>{money(o.total, o.currency)}</td>
+                      <td style={{ ...td, whiteSpace: "nowrap", fontWeight: 600 }}>{o.remaining > 0 ? money(o.remaining, o.currency) : "—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+          {/* Здесь — последние 50; остальное — во вкладке заказов с этим поставщиком в фильтре, а не молча обрезано. */}
+          {orders && orders.total > orders.data.length && (
+            <div data-testid="cp-orders-more" style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap", marginTop: "10px", fontSize: "12px", color: COLORS.textSecondary }}>
+              {t(`Показаны последние ${orders.data.length} из ${orders.total}`, `Oxirgi ${orders.data.length} ta ko'rsatilgan, jami ${orders.total}`)}
+              <button className="neo-btn neo-btn-sm" data-testid="cp-orders-all" onClick={() => navigate(`/arrivals?tab=orders&supplierId=${supplierId}`)}>
+                {t("Все заказы поставщика", "Yetkazib beruvchining barcha buyurtmalari")}
+              </button>
+            </div>
+          )}
+        </div>
       )}
 
       {/* ── Акт сверки ── */}

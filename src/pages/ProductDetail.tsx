@@ -10,7 +10,7 @@ import { compressImage } from "@/lib/compress-image";
 import { useTranslate, useLang } from "@/i18n";
 import { useConfirm } from "@/components/ConfirmDialog";
 import { format } from "@/lib/business-time";
-import { ArrowLeft, Package, Edit2, TrendingUp, TrendingDown, ArrowUpDown, Loader2, Camera, Tag, Scale, Boxes, AlertCircle, CheckCircle2 } from "lucide-react";
+import { ArrowLeft, Package, Edit2, TrendingUp, TrendingDown, ArrowUpDown, Loader2, Camera, Tag, Scale, Boxes, AlertCircle, CheckCircle2, Truck } from "lucide-react";
 import { PhotoOrIcon } from "@/components/PhotoOrIcon";
 import { ShopAvatar } from "@/components/shops/ShopAvatar";
 import { productInitials } from "@/lib/shop-avatar";
@@ -20,6 +20,8 @@ import { exportToExcel, formatMovementsForExport } from "@/lib/excel";
 import { PremiumSelect } from "@/components/PremiumSelect";
 import { CategoryAutocomplete } from "@/components/products/CategoryAutocomplete";
 import { ProductTaxFields } from "@/components/products/ProductTaxFields";
+import { ExtraBarcodesEditor } from "@/components/products/ExtraBarcodesEditor";
+import { extraBarcodesPayload } from "@contracts/product-barcodes";
 import { VAT_RATE_LABEL, isBadIkpu } from "@contracts/tax-requisites";
 import { QueryErrorFallback } from "@/components/QueryErrorFallback";
 import { formatQty } from "@/lib/format";
@@ -71,6 +73,9 @@ export default function ProductDetail() {
   const { data: product, isLoading, isLoadingError, refetch } = trpc.product.getById.useQuery({ id: Number(id) }, { enabled: !!id });
   // Список уже заведённых категорий — для подсказки в правке.
   const { data: categories } = trpc.product.categories.useQuery();
+  // Поставщики — только в правке: список открыт оператору и директору, а
+  // карточку смотрят и агенты.
+  const { data: supplierOptions } = trpc.supplier.list.useQuery(undefined, { enabled: editing });
 
   /*
     Разрез остатка по партиям.
@@ -122,6 +127,36 @@ export default function ProductDetail() {
   const stock      = product.stock;
   const movements  = (product.movements ?? []);
   const low        = stock && Number(stock.available) < Number(product.reorderPoint);
+
+  /*
+    Максимум ниже порога сервер не примет («Максимум запаса меньше точки
+    заказа»). Форма нового товара это ловит до отправки; здесь правка
+    отправлялась и падала уведомлением. Сравниваем то, что останется после
+    правки: новый порог со старым максимумом — тоже.
+  */
+  const editPoint = String(editData.reorderPoint ?? product.reorderPoint ?? "");
+  const editMax   = String(editData.reorderMax !== undefined ? (editData.reorderMax ?? "") : (product.reorderMax ?? ""));
+  const maxBad    = editing && editMax.trim() !== "" && Number(editMax) < Number(editPoint || 0);
+
+  /*
+    Список поставщиков отдаёт только действующих. Выключенный поставщик по
+    умолчанию в нём не находился, и поле показывало «нет», хотя ссылка
+    стояла, — сохранение без правки этого поля её не трогает, но человек
+    видел неправду. Добавляем его в список с пометкой.
+  */
+  const currentSupplier = product.defaultSupplier ?? null;
+  const supplierChoices = [
+    ...(supplierOptions ?? []).map(s => ({ value: String(s.id), label: s.name })),
+    ...(currentSupplier && !(supplierOptions ?? []).some(s => s.id === currentSupplier.id)
+      ? [{ value: String(currentSupplier.id), label: `${currentSupplier.name} (${tr("выключен","o'chirilgan")})` }]
+      : []),
+  ];
+  // Закупочные сведения — тем, кто закупает (как себестоимость).
+  const purchasingView = canOperate(user?.role);
+  // Цель «Дозаказа» (ADR 0014): максимум, а без него — 2 × порог.
+  const reorderTarget = product.reorderMax != null && String(product.reorderMax) !== ""
+    ? formatQty(product.reorderMax)
+    : `${formatQty(2 * Number(product.reorderPoint))} (2 × ${tr("порог","chegara")})`;
 
   // Короткая подпись рядом с числом: «12 шт», а не «12 штук».
   const unitLabel = (u?: string) => unitShort(u, lang);
@@ -190,6 +225,14 @@ export default function ProductDetail() {
                     defaultValue={product[k] ?? ""}
                     onChange={e=>setEditData((d: Record<string, unknown>)=>({...d,[k]:e.target.value}))}/>
                 ))}
+                {/* Основной штрих-код — тот, что печатают этикетки; пусто — штрих-кода нет. */}
+                <input className="neo-input font-data" placeholder={tr("Штрих-код","Shtrix-kod")} aria-label={tr("Штрих-код","Shtrix-kod")}
+                  data-testid="product-edit-barcode" maxLength={100} autoComplete="off"
+                  value={String(editData.barcode ?? product.barcode ?? "")}
+                  onChange={e=>setEditData((d: Record<string, unknown>)=>({...d,barcode:e.target.value}))}/>
+                <ExtraBarcodesEditor lang={lang}
+                  value={Array.isArray(editData.extraBarcodes) ? editData.extraBarcodes as string[] : product.barcodes ?? []}
+                  onChange={v=>setEditData((d: Record<string, unknown>)=>({...d,extraBarcodes:v}))}/>
                 <CategoryAutocomplete
                   value={String(editData.category ?? product.category ?? "")}
                   onChange={v=>setEditData((d: Record<string, unknown>)=>({...d,category:v}))}
@@ -211,6 +254,19 @@ export default function ProductDetail() {
                 <DecimalInput className="neo-input font-data" placeholder={tr("Порог дозаказа","Qayta buyurtma chegarasi")}
                   value={String(editData.reorderPoint ?? product.reorderPoint ?? "")}
                   onValueChange={v=>setEditData((d: Record<string, unknown>)=>({...d,reorderPoint:v}))}/>
+                {/* До скольких дозаказывать; пустое поле снимает максимум — дозаказ до 2 × порог. */}
+                <div>
+                  <DecimalInput className="neo-input font-data w-full" data-testid="product-edit-reorder-max"
+                    aria-label={tr("Максимум запаса","Maksimal zaxira")}
+                    placeholder={tr("Максимум запаса (пусто — 2 × порог)","Maksimal zaxira (bo'sh — 2 × chegara)")}
+                    value={editMax}
+                    onValueChange={v=>setEditData((d: Record<string, unknown>)=>({...d,reorderMax:v}))}/>
+                  {maxBad && (
+                    <p role="alert" className="text-xs mt-1" style={{ color: "var(--color-danger-text)" }}>
+                      {tr("Максимум не может быть меньше порога","Maksimal zaxira chegaradan kichik bo'lmasin")}
+                    </p>
+                  )}
+                </div>
                 {/* Упаковка: «12» и «коробка». Пусто — тары нет. */}
                 <DecimalInput className="neo-input font-data" placeholder={tr("В упаковке, ед. (12)","Qadoqda, dona (12)")}
                   value={String(editData.packSize ?? product.packSize ?? "")}
@@ -218,6 +274,16 @@ export default function ProductDetail() {
                 <input className="neo-input" placeholder={tr("Название упаковки (коробка)","Qadoq nomi (quti)")}
                   value={String(editData.packLabel ?? product.packLabel ?? "")}
                   onChange={e=>setEditData((d: Record<string, unknown>)=>({...d,packLabel:e.target.value}))}/>
+                {/* У кого обычно закупаем: его подставит заказ поставщику. */}
+                <PremiumSelect
+                  aria-label={tr("Поставщик по умолчанию","Standart yetkazib beruvchi")}
+                  value={String(editData.defaultSupplierId !== undefined ? (editData.defaultSupplierId ?? "") : (product.defaultSupplierId ?? ""))}
+                  onChange={v=>setEditData((d: Record<string, unknown>)=>({...d,defaultSupplierId: v === "" ? null : Number(v)}))}
+                  options={[
+                    { value: "", label: tr("Поставщик по умолчанию — нет","Standart yetkazib beruvchi — yo'q") },
+                    ...supplierChoices,
+                  ]}
+                  width="100%" />
                 <ProductTaxFields lang={lang}
                   value={{
                     ikpu: String(editData.ikpu ?? product.ikpu ?? ""),
@@ -229,7 +295,8 @@ export default function ProductDetail() {
                   defaultValue={product.description ?? ""}
                   onChange={e=>setEditData((d: Record<string, unknown>)=>({...d,description:e.target.value}))}/>
                 <div className="col-span-2 flex gap-2">
-                  <button onClick={()=>updateProduct.mutate({id:product.id,...editData})} disabled={updateProduct.isPending || isBadIkpu(String(editData.ikpu ?? ""))}
+                  <button onClick={()=>updateProduct.mutate({id:product.id,...editData,
+                      ...(Array.isArray(editData.extraBarcodes) ? { extraBarcodes: extraBarcodesPayload(editData.extraBarcodes as string[]) } : {})})} disabled={updateProduct.isPending || maxBad || isBadIkpu(String(editData.ikpu ?? ""))}
                     className="neo-btn-primary flex items-center gap-2">
                     {updateProduct.isPending&&<Loader2 size={14} className="animate-spin"/>}{tr("Сохранить","Saqlash")}
                   </button>
@@ -256,6 +323,13 @@ export default function ProductDetail() {
                 <div className="flex items-center gap-4 mt-3 flex-wrap text-sm text-secondary">
                   {product.category && <span className="flex items-center gap-1.5"><Tag size={13} />{product.category}</span>}
                   {product.barcode && <span className="flex items-center gap-1.5 font-data">{product.barcode}</span>}
+                  {/* Дополнительные штрих-коды — по ним сканер находит тот же товар. */}
+                  {(product.barcodes ?? []).length > 0 && (
+                    <span className="flex items-center gap-1.5 font-data" data-testid="product-extra-barcodes-view"
+                      title={tr("Дополнительные штрих-коды","Qo'shimcha shtrix-kodlar")}>
+                      + {product.barcodes.join(", ")}
+                    </span>
+                  )}
                   {product.packSize != null && Number(product.packSize) > 0 && (
                     <span className="flex items-center gap-1.5" data-testid="product-pack">
                       <Boxes size={13} />1 {product.packLabel || tr("упаковка","qadoq")} = {formatQty(product.packSize)} {unitLabel(product.unit)}
@@ -269,6 +343,22 @@ export default function ProductDetail() {
                   {Number(product.unitWeight) > 0 && (
                     <span className="flex items-center gap-1.5">
                       <Scale size={13} />1 {unitLabel(product.unit)} = {formatQty(product.unitWeight)} {tr("кг","kg")}
+                    </span>
+                  )}
+                  {/* До скольких «Дозаказ» поднимает остаток и у кого закупаем —
+                      то, что раньше было видно только в правке. */}
+                  {purchasingView && Number(product.reorderPoint) > 0 && (
+                    <span className="flex items-center gap-1.5" data-testid="product-reorder-range">
+                      <TrendingUp size={13} />
+                      {tr(`Дозаказ: порог ${formatQty(product.reorderPoint)}, до ${reorderTarget} ${unitLabel(product.unit)}`,
+                          `Qayta buyurtma: chegara ${formatQty(product.reorderPoint)}, ${reorderTarget} ${unitLabel(product.unit)} gacha`)}
+                    </span>
+                  )}
+                  {purchasingView && currentSupplier && (
+                    <span className="flex items-center gap-1.5" data-testid="product-default-supplier"
+                      title={tr("Поставщик по умолчанию","Standart yetkazib beruvchi")}>
+                      <Truck size={13} />{currentSupplier.name}
+                      {!currentSupplier.active && ` (${tr("выключен","o'chirilgan")})`}
                     </span>
                   )}
                 </div>

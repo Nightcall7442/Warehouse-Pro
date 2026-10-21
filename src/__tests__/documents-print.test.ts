@@ -2,7 +2,7 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import {
   printUzWaybill, printArrivalReceipt, printTorg12, printInvoice,
-  printBatchInvoices, printLoadingList,
+  printBatchInvoices, printLoadingList, printPurchaseOrder,
   type OrderDocData, type ArrivalDocData, type BatchOrderData, type LoadingListData,
 } from "@/lib/documents";
 
@@ -273,5 +273,52 @@ describe("печатные документы: пользовательский 
 
     printLoadingList(list, "aggregated", "сум");
     expect(written).not.toContain("<script>");
+  });
+});
+
+describe("заказ поставщику", () => {
+  const po = (over: Record<string, unknown> = {}) => ({
+    number: "PO-7", date: "20.10.2026",
+    supplier: { name: "Завод <Север>", inn: "309999999" }, buyer: { ...COMPANY, director: "Директоров" },
+    warehouse: "Основной", currency: "UZS", expectedDate: "25.10.2026", paymentTermsDays: 10,
+    items: [{ name: "Мука", code: "M-1", unit: "kg", qty: 3, price: 0.1 }, { name: "Сахар", unit: "pcs", qty: 2, price: 1000 }],
+    status: "approved", approvedBy: "Иван",
+    ...over,
+  });
+
+  it("итог сходится со строками, условия оплаты и срок — словами", () => {
+    printPurchaseOrder(po());
+    const doc = text();
+    expect(doc).toContain("ЗАКАЗ ПОСТАВЩИКУ");
+    expect(doc).toContain("№ PO-7 от 20.10.2026");
+    expect(doc).toContain("отсрочка 10 дн. с даты поставки");
+    expect(doc).toContain("25.10.2026");
+    // 3 × 0,1 + 2 × 1000 = 2000,3 — без хвоста 0,30000000000000004.
+    expect(doc).toMatch(/ИТОГО: 2\s?000,3 UZS/);
+    expect(doc).toContain("Иван");
+    expect(doc).not.toContain("ещё не согласован");
+    // Имя поставщика — текст, а не разметка.
+    expect(written).toContain("Завод &lt;Север&gt;");
+  });
+
+  it("несогласованный заказ так и помечен, оплата без отсрочки — по факту", () => {
+    printPurchaseOrder(po({ status: "pending_approval", approvedBy: null, paymentTermsDays: null, currency: "USD", rate: 12650 }));
+    const doc = text();
+    expect(doc).toContain("Заказ ещё не согласован директором.");
+    expect(doc).toContain("по факту поставки");
+    expect(doc).toMatch(/USD, курс 12\s?650 сум за \$1/);
+    // Подпись согласующего — директор из реквизитов, пока согласовавшего нет.
+    expect(doc).toContain("Директоров");
+  });
+
+  it("подпись «Заказал» — кто завёл; отменённый и закрытый так и помечены", () => {
+    printPurchaseOrder(po({ createdBy: "Оператор Олег" }));
+    expect(text()).toContain("Оператор Олег");
+    expect(text()).not.toContain("ОТМЕНЁН");
+
+    printPurchaseOrder(po({ status: "cancelled" }));
+    expect(text()).toContain("ЗАКАЗ ОТМЕНЁН — не исполнять.");
+    printPurchaseOrder(po({ status: "closed" }));
+    expect(text()).toContain("Заказ закрыт: недопоставленный остаток не поставлять.");
   });
 });

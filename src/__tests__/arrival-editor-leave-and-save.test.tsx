@@ -36,7 +36,11 @@ vi.mock("@/providers/trpc", () => {
   const mutation = (fn: (v: unknown) => unknown) => () => ({ mutateAsync: fn, isPending: false });
   return {
     trpc: {
-      useUtils: () => ({ arrival: { list: { invalidate: async () => {} }, getById: { invalidate: async () => {} } } }),
+      useUtils: () => ({
+        arrival: { list: { invalidate: async () => {} }, getById: { invalidate: async () => {} } },
+        // Сохранение и проведение перечитывают и поставку по приходу (блок долга).
+        supplier: { getSupplyByArrival: { invalidate: async () => {} } },
+      }),
       product: { list: { useQuery: () => ({ data: { data: [] } }) } },
       supplier: {
         list: { useQuery: () => ({ data: [] }) },

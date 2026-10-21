@@ -6,6 +6,7 @@ import { trpc } from "@/providers/trpc";
 import { useLang } from "@/i18n";
 import { Package, Search, ShoppingCart, Plus, Minus, Trash2, ChevronUp, ChevronDown, X, ScanLine, History } from "lucide-react";
 import { BarcodeScanner } from "@/components/BarcodeScanner";
+import { findScanned } from "@/lib/scan-match";
 import { notify } from "@/lib/toast";
 import { unitLabel } from "./types";
 import type { OrderItem } from "./types";
@@ -94,8 +95,7 @@ export function ProductSelector({ items, onChange, cartOpen = false, onCartOpenC
     связи. Не нашли — код попадает в поиск, чтобы было видно, чего нет.
   */
   const onScanned = (code: string) => {
-    const norm = code.trim().toLowerCase();
-    const product = (catalog ?? []).find(p => (p.barcode ?? "").toLowerCase() === norm || (p.code ?? "").toLowerCase() === norm);
+    const product = findScanned(catalog, code);
     if (!product) {
       setLastScanned(t(`Не найден: ${code}`, `Topilmadi: ${code}`));
       setSearch(code);
@@ -451,8 +451,7 @@ export function ProductSelector({ items, onChange, cartOpen = false, onCartOpenC
               // точное совпадение по штрих-коду или коду — в корзину, поле пусто.
               onKeyDown={e => {
                 if (e.key !== "Enter" || !search.trim()) return;
-                const norm = search.trim().toLowerCase();
-                const hit = (catalog ?? []).find(p => (p.barcode ?? "").toLowerCase() === norm || (p.code ?? "").toLowerCase() === norm);
+                const hit = findScanned(catalog, search);
                 if (!hit) return;
                 e.preventDefault();
                 addToCart(hit, 1);

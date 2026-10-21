@@ -50,6 +50,10 @@ const COVERAGE: Array<[string, string]> = [
   ["stock_count.submit",         "api/services/stock-count.ts"],
   ["stock_count.approve",        "api/services/stock-count.ts"],
   ["stock_count.reject",         "api/services/stock-count.ts"],
+  // Заказ поставщику: согласование — обещание денег, приёмка — сам долг (ADR 0013).
+  ["purchase_order.approved",    "api/services/purchase-order.ts"],
+  ["purchase_order.receiving",   "api/services/purchase-order.ts"],
+  ["purchase_order.received",    "api/services/purchase-order-receipt.ts"],
 ];
 
 /** Действия, след которых обязан быть в транзакции (strict), — и файл, где смотреть. */
@@ -65,6 +69,9 @@ const STRICT: Array<[string, string]> = [
   ["stock.transfer_cancelled",  "api/services/stock-transfer.ts"],
   // Утверждённая правка остатка без следа в журнале — ровно то, ради чего утверждение заводили.
   ["stock_count.approve",       "api/services/stock-count.ts"],
+  ["purchase_order.updated",    "api/services/purchase-order.ts"],
+  ["purchase_order.approved",   "api/services/purchase-order.ts"],
+  ["purchase_order.received",   "api/services/purchase-order-receipt.ts"],
 ];
 
 describe("журнал действий", () => {

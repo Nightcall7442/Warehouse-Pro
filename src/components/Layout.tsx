@@ -72,6 +72,7 @@ const PAGE_META: Record<string, { title: PageTitle; parent?: PageTitle; parentPa
   "/audit-log":         { title: { ru: "Журнал действий", uz: "Harakatlar jurnali" } },
   "/control":           { title: { ru: "Контроль", uz: "Nazorat" } },
   "/arrivals":          { title: { ru: "Приходы",       uz: "Kirim" } },
+  "/purchase-orders":   { title: { ru: "Заказ поставщику", uz: "Yetkazib beruvchiga buyurtma" }, parent: { ru: "Приходы", uz: "Kirim" }, parentPath: "/arrivals?tab=orders" },
   "/pnl":               { title: { ru: "P&L",           uz: "P&L" } },
   "/reconciliation":    { title: { ru: "Акт сверки",    uz: "Solishtirma dalolatnoma" } },
   "/salaries":          { title: { ru: "Зарплаты",      uz: "Ish haqi" } },

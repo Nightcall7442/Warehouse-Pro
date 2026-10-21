@@ -5,6 +5,9 @@ vi.mock("drizzle-orm", () => ({
   and: (...conds: unknown[]) => ({ __kind: "and", conds }),
   // Поиск — по названию ИЛИ коду ИЛИ штрих-коду.
   or:  (...conds: unknown[]) => ({ __kind: "or", conds }),
+  ne:  (col: unknown, val: unknown) => ({ __kind: "ne", col, val }),
+  // Дополнительные штрих-коды читаются списком товаров страницы.
+  inArray: (col: unknown, values: unknown[]) => ({ __kind: "inArray", col, values }),
   desc: (col: unknown) => ({ __kind: "desc", col }),
   like: (col: unknown, val: unknown) => ({ __kind: "like", col, val }),
   sql: (strings: TemplateStringsArray, ...values: unknown[]) => ({ __kind: "sql", strings, values }),
@@ -43,20 +46,24 @@ vi.mock("../lib/sanitize", () => ({
   sanitizeSearch: (s: string) => s.replace(/['";\\]/g, "").replace(/--/g, "").trim(),
 }));
 
-import { products, warehouseStock, orderItems, stockMovements, warehouses } from "@db/schema";
+import { products, warehouseStock, orderItems, stockMovements, warehouses, productBarcodes, suppliers } from "@db/schema";
 import { makeConditionEvaluator } from "./helpers/fake-conditions";
 
-interface FakeProduct { id: number; tenantId: number; code: string; barcode: string; name: string; category: string; costPrice: string; unitPrice: string; unit: string; unitWeight: string; description: string | null; photoUrl: string | null; reorderPoint: string; status: string; createdAt: Date; }
+interface FakeProduct { id: number; tenantId: number; code: string; barcode: string; name: string; category: string; costPrice: string; unitPrice: string; unit: string; unitWeight: string; description: string | null; photoUrl: string | null; reorderPoint: string; reorderMax?: string | null; status: string; createdAt: Date; }
 interface FakeStock { id: number; productId: number; tenantId: number; warehouseId: number; currentStock: string; reserved: string; available: string; }
 interface FakeOrderItem { id: number; orderId: number; productId: number; quantity: string; unitPrice: string; subtotal: string; createdAt: Date; }
 interface FakeStockMovement { id: number; tenantId: number; productId: number; type: string; quantity: string; notes: string | null; createdAt: Date; }
 interface FakeWarehouse { id: number; tenantId: number; name: string; address: string; city: string; isDefault: boolean; status: string; createdAt: Date; }
+interface FakeBarcode { id: number; tenantId: number; productId: number; barcode: string; }
+interface FakeSupplier { id: number; tenantId: number; name: string; status: string; }
 
 let productsTable: FakeProduct[] = [];
 let stockTable: FakeStock[] = [];
 let orderItemsTable: FakeOrderItem[] = [];
 let movementsTable: FakeStockMovement[] = [];
 let warehousesTable: FakeWarehouse[] = [];
+let barcodesTable: FakeBarcode[] = [];
+let suppliersTable: FakeSupplier[] = [];
 let nextProductId = 10;
 let nextStockId = 10;
 
@@ -74,6 +81,18 @@ function resetTables() {
   warehousesTable = [
     { id: 1, tenantId: 1, name: "Main Warehouse", address: "Test", city: "Test", isDefault: true, status: "active", createdAt: new Date() },
   ];
+  // Второй штрих-код у Widget A — этикетка другого поставщика; у соседней
+  // организации тот же код ведёт к её товару.
+  barcodesTable = [
+    { id: 1, tenantId: 1, productId: 1, barcode: "EXTRA-A" },
+    { id: 2, tenantId: 2, productId: 99, barcode: "EXTRA-B" },
+  ];
+  // Поставщики: свой действующий, свой выключенный и чужой.
+  suppliersTable = [
+    { id: 5, tenantId: 1, name: "Завод", status: "active" },
+    { id: 6, tenantId: 1, name: "Старый завод", status: "inactive" },
+    { id: 7, tenantId: 2, name: "Чужой завод", status: "active" },
+  ];
   nextProductId = 10;
   nextStockId = 10;
 }
@@ -84,6 +103,8 @@ function tableOf(ref: unknown): string {
   if (ref === orderItems) return "orderItems";
   if (ref === stockMovements) return "stockMovements";
   if (ref === warehouses) return "warehouses";
+  if (ref === productBarcodes) return "productBarcodes";
+  if (ref === suppliers) return "suppliers";
   return "other";
 }
 
@@ -93,6 +114,8 @@ function rowsFor(table: string): Record<string, unknown>[] {
   if (table === "orderItems") return orderItemsTable as unknown as Record<string, unknown>[];
   if (table === "stockMovements") return movementsTable as unknown as Record<string, unknown>[];
   if (table === "warehouses") return warehousesTable as unknown as Record<string, unknown>[];
+  if (table === "productBarcodes") return barcodesTable as unknown as Record<string, unknown>[];
+  if (table === "suppliers") return suppliersTable as unknown as Record<string, unknown>[];
   return [];
 }
 
@@ -102,6 +125,8 @@ for (const [field, col] of Object.entries(warehouseStock)) columnToFieldName.set
 for (const [field, col] of Object.entries(orderItems)) columnToFieldName.set(col, field);
 for (const [field, col] of Object.entries(stockMovements)) columnToFieldName.set(col, field);
 for (const [field, col] of Object.entries(warehouses)) columnToFieldName.set(col, field);
+for (const [field, col] of Object.entries(productBarcodes)) columnToFieldName.set(col, field);
+for (const [field, col] of Object.entries(suppliers)) columnToFieldName.set(col, field);
 
 /**
  * Разбор условий отдан общему строгому разборщику.
@@ -119,9 +144,20 @@ for (const [field, col] of Object.entries(warehouses)) columnToFieldName.set(col
 const evalCond = makeConditionEvaluator({
   fieldOf: col => columnToFieldName.get(col) ?? (col as { name?: string } | null)?.name,
   treatMissingColumnAsMatch: true,
-  // Сырой sql`` этот стенд не воспроизводит; условие считается выполненным.
-  // Решение записано здесь, а не спрятано в умолчании разборщика.
-  rawSql: () => true,
+  /*
+    Один сырой sql`` стенд разбирает: «у товара есть дополнительный
+    штрих-код» (services/product-barcodes.ts, hasExtraBarcode). Его
+    подстановки — колонка товара, организация, код. Посчитай стенд его
+    выполненным, как остальные, — поиск находил бы ВСЕ товары, и проверка
+    «часть чужого штрих-кода — не находка» ниже потеряла бы смысл.
+    Прочий сырой sql`` не воспроизводится и считается выполненным.
+  */
+  rawSql: (cond, row) => {
+    const text = ((cond.strings as string[] | undefined) ?? []).join("?");
+    if (!text.includes("product_barcodes")) return true;
+    const [, tenantId, code] = cond.values as unknown[];
+    return barcodesTable.some(b => b.productId === row.id && b.tenantId === tenantId && b.barcode.toLowerCase() === String(code).toLowerCase());
+  },
 });
 
 function chainable(rows: Record<string, unknown>[]) {
@@ -213,6 +249,7 @@ function makeMockDb() {
             unitPrice: (vals.unitPrice as string) ?? "0.00", unit: (vals.unit as string) ?? "pcs",
             unitWeight: (vals.unitWeight as string) ?? "0.000", description: (vals.description as string) ?? null,
             photoUrl: (vals.photoUrl as string) ?? null, reorderPoint: (vals.reorderPoint as string) ?? "10.00",
+            reorderMax: (vals.reorderMax as string | null | undefined) ?? null,
             status: (vals.status as string) ?? "active", createdAt: new Date(),
           });
           return Promise.resolve([{ insertId: id }]);
@@ -340,6 +377,23 @@ describe("product.list", () => {
     // часть чужого штрих-кода — не находка
     expect(((await caller.list({ search: "C00" })) as any).data).toHaveLength(0);
   });
+
+  it("находит по дополнительному штрих-коду и отдаёт их списком; чужой организации — не находка", async () => {
+    // Скан второй этикетки того же товара отвечал «ничего»: искали только
+    // основной штрих-код.
+    const { productRouter } = await import("../product-router");
+    const caller = productRouter.createCaller({ ...makeCtx(1, 10), db: mockDb });
+    const hit = (await caller.list({ search: "extra-a" })) as any;
+    expect(hit.data.map((p: any) => p.id)).toEqual([1]);
+    expect(hit.data[0].barcodes).toEqual(["EXTRA-A"]);
+    // Код соседней организации ведёт к её товару, а не к нашему.
+    expect(((await caller.list({ search: "EXTRA-B" })) as any).data).toHaveLength(0);
+    // Часть дополнительного кода — тоже не находка.
+    expect(((await caller.list({ search: "EXTRA" })) as any).data).toHaveLength(0);
+    // У товара без дополнительных — пустой список, а не отсутствие поля.
+    const all = (await caller.list()) as any;
+    expect(all.data.find((p: any) => p.id === 2).barcodes).toEqual([]);
+  });
 });
 
 describe("product.getById", () => {
@@ -355,6 +409,7 @@ describe("product.getById", () => {
     expect((result!.stock as any).currentStock).toBe("100.00");
     expect(result!.movements).toHaveLength(1);
     expect(result!.movements[0].type).toBe("in");
+    expect(result!.barcodes).toEqual(["EXTRA-A"]);
   });
 
   it("returns null for non-existent", async () => {
@@ -408,6 +463,103 @@ describe("product.update", () => {
     const updated = productsTable.find((p) => p.id === 1)!;
     expect(updated.name).toBe("Updated Widget");
     expect(updated.unitPrice).toBe("120.00");
+  });
+});
+
+describe("product: поставщик по умолчанию", () => {
+  /*
+    Его подставит заказ поставщику. Номер приходит с клиента — значит,
+    проверяется организация (чужой — «не найден», а не «нет доступа») и то,
+    что поставщик не выключен: заказывать у него никто не станет.
+  */
+  it("свой действующий — записывается, null — снимается", async () => {
+    const { productRouter } = await import("../product-router");
+    const caller = productRouter.createCaller({ ...makeCtx(1, 1), db: mockDb });
+    await caller.update({ id: 1, defaultSupplierId: 5 });
+    expect((productsTable.find(p => p.id === 1) as unknown as { defaultSupplierId: number }).defaultSupplierId).toBe(5);
+    await caller.update({ id: 1, defaultSupplierId: null });
+    expect((productsTable.find(p => p.id === 1) as unknown as { defaultSupplierId: number | null }).defaultSupplierId).toBeNull();
+  });
+
+  it("чужой — «не найден», выключенный — отказ с именем; товар не тронут", async () => {
+    const { productRouter } = await import("../product-router");
+    const caller = productRouter.createCaller({ ...makeCtx(1, 1), db: mockDb });
+    await expect(caller.update({ id: 1, defaultSupplierId: 7, name: "Новое" })).rejects.toMatchObject({ code: "NOT_FOUND", message: "Поставщик не найден" });
+    await expect(caller.update({ id: 1, defaultSupplierId: 6 })).rejects.toThrow(/«Старый завод» выключен/);
+    expect(productsTable.find(p => p.id === 1)!.name).toBe("Widget A");
+    const before = productsTable.length;
+    await expect(caller.create({ code: "N-1", name: "Новый", unitPrice: "10", defaultSupplierId: 7 })).rejects.toMatchObject({ code: "NOT_FOUND" });
+    expect(productsTable.length).toBe(before);
+  });
+
+  it("карточка отдаёт его оператору, но не агенту — как и себестоимость", async () => {
+    (productsTable[0] as unknown as { defaultSupplierId: number }).defaultSupplierId = 5;
+    const { productRouter } = await import("../product-router");
+    const asOperator = await productRouter.createCaller({ ...makeCtx(1, 1), db: mockDb }).getById({ id: 1 });
+    expect(asOperator?.defaultSupplierId).toBe(5);
+    const asAgent = await productRouter.createCaller({ ...makeCtx(1, 1, "agent"), db: mockDb }).getById({ id: 1 });
+    expect(asAgent?.defaultSupplierId).toBeUndefined();
+  });
+
+  it("карточка отдаёт имя поставщика и что он выключен — агенту ничего", async () => {
+    /*
+      Список поставщиков в правке — только действующие: выключенного там нет,
+      и без имени из карточки поле показывало бы пустоту.
+    */
+    (productsTable[0] as unknown as { defaultSupplierId: number }).defaultSupplierId = 6;
+    const { productRouter } = await import("../product-router");
+    const asOperator = await productRouter.createCaller({ ...makeCtx(1, 1), db: mockDb }).getById({ id: 1 });
+    expect(asOperator?.defaultSupplier).toEqual({ id: 6, name: "Старый завод", active: false });
+    const asAgent = await productRouter.createCaller({ ...makeCtx(1, 1, "agent"), db: mockDb }).getById({ id: 1 });
+    expect(asAgent?.defaultSupplier).toBeNull();
+
+    // Ссылка на чужого поставщика имени не раскрывает.
+    (productsTable[0] as unknown as { defaultSupplierId: number }).defaultSupplierId = 7;
+    const foreign = await productRouter.createCaller({ ...makeCtx(1, 1), db: mockDb }).getById({ id: 1 });
+    expect(foreign?.defaultSupplier).toBeNull();
+  });
+});
+
+describe("product: максимум запаса", () => {
+  /*
+    До скольких дозаказывать, когда остаток дошёл до точки. Пусто — вдвое
+    больше точки (как «Дозаказ» считал до этого поля). Ниже точки — отказ:
+    товар «заканчивается» на точке, и дозаказ должен поднять его выше, а не
+    оставить там же. Проверяется то, что останется после правки.
+  */
+  const max = (id: number) => productsTable.find(p => p.id === id)!.reorderMax;
+
+  it("записывается, снимается пустым полем; карточка его отдаёт", async () => {
+    const { productRouter } = await import("../product-router");
+    const caller = productRouter.createCaller({ ...makeCtx(1, 1), db: mockDb });
+    await caller.update({ id: 1, reorderMax: "60" });
+    expect(max(1)).toBe("60");
+    expect((await caller.getById({ id: 1 }))?.reorderMax).toBe("60");
+    await caller.update({ id: 1, reorderMax: "" });
+    expect(max(1)).toBeNull();
+  });
+
+  it("ниже точки — отказ; новая точка выше прежнего максимума — тоже; товар не тронут", async () => {
+    const { productRouter } = await import("../product-router");
+    const caller = productRouter.createCaller({ ...makeCtx(1, 1), db: mockDb });
+    // У товара точка 20.
+    await expect(caller.update({ id: 1, reorderMax: "10" })).rejects.toThrow("Максимум запаса меньше точки заказа");
+    expect(max(1) ?? null).toBeNull();
+
+    await caller.update({ id: 1, reorderMax: "60" });
+    await expect(caller.update({ id: 1, reorderPoint: "70.00", name: "Новое" })).rejects.toThrow("Максимум запаса меньше точки заказа");
+    expect(productsTable.find(p => p.id === 1)!.reorderPoint).toBe("20.00");
+    expect(productsTable.find(p => p.id === 1)!.name).toBe("Widget A");
+    // Точку подняли вместе с максимумом — можно.
+    await caller.update({ id: 1, reorderPoint: "70.00", reorderMax: "100" });
+    expect(max(1)).toBe("100");
+
+    const before = productsTable.length;
+    await expect(caller.create({ code: "N-2", name: "Новый", unitPrice: "10", reorderPoint: "10.00", reorderMax: "5" }))
+      .rejects.toThrow("Максимум запаса меньше точки заказа");
+    expect(productsTable.length).toBe(before);
+    const ok = await caller.create({ code: "N-3", name: "Новый", unitPrice: "10", reorderPoint: "10.00", reorderMax: "40" });
+    expect(max(ok.id)).toBe("40");
   });
 });
 

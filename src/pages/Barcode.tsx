@@ -17,6 +17,7 @@ import { useLang } from "@/i18n";
 import { useAuth } from "@/hooks/useAuth";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { BarcodeScanner } from "@/components/BarcodeScanner";
+import { findScanned } from "@/lib/scan-match";
 import { useNavigate } from "react-router";
 import { notify } from "@/lib/toast";
 import { addToCart, asLine } from "@/lib/catalog-cart";
@@ -27,7 +28,7 @@ import { unitShort } from "@/lib/units";
 import { Scan, Package, Plus, Printer, AlertTriangle, RefreshCw, ShoppingCart } from "lucide-react";
 
 type Found = {
-  id: number; name: string; code: string; barcode: string | null; unitPrice: string;
+  id: number; name: string; code: string; barcode: string | null; barcodes?: string[]; unitPrice: string;
   unit: string | null; available: string | null; reorderPoint?: string | null; unitWeight?: string | number | null;
 };
 
@@ -52,8 +53,9 @@ export default function BarcodePage() {
     { enabled: searchCode.length > 1 }
   );
   const list = (products?.data ?? []) as Found[];
-  // Отсканированный код — точным совпадением: поиск по подстроке нашёл бы и соседей.
-  const found = scanned ? list.find(p => p.barcode === scanned || p.code === scanned) ?? (list.length === 1 ? list[0] : undefined) : undefined;
+  // Отсканированный код — точным совпадением: поиск по подстроке нашёл бы и
+  // соседей. По любому из штрих-кодов товара и без регистра — как везде.
+  const found = scanned ? findScanned(list, scanned) ?? (list.length === 1 ? list[0] : undefined) : undefined;
 
   const handleScan = (code: string) => {
     setScanning(false);

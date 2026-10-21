@@ -16,14 +16,15 @@ import { PremiumSelect } from "@/components/PremiumSelect";
 import { QueryErrorFallback } from "@/components/QueryErrorFallback";
 import { useConfirm } from "@/components/ConfirmDialog";
 import { CounterpartiesSection } from "@/components/counterparties";
+import { PurchaseOrdersSection } from "@/components/purchase-orders/PurchaseOrdersSection";
 import { money } from "@/components/counterparties/constants";
 import { useUrlState, urlEnum } from "@/hooks/useUrlState";
 import { colorMix } from "@/lib/color-mix";
 import { errorText } from "@/lib/error-text";
 
 
-/** Вкладка живёт в адресе: ссылку на раздел долгов можно переслать. */
-const TAB_CODEC = urlEnum(["arrivals", "counterparties"] as const, "arrivals");
+/** Вкладка живёт в адресе: ссылку на раздел долгов или заказов можно переслать. */
+const TAB_CODEC = urlEnum(["arrivals", "counterparties", "orders"] as const, "arrivals");
 
 const F = { display: "'Manrope', -apple-system, sans-serif", body: "'Manrope', -apple-system, sans-serif" };
 const COLORS = {
@@ -195,7 +196,9 @@ export default function Arrivals() {
           <p style={{ fontSize: "13px", color: COLORS.textSecondary, margin: "4px 0 0" }}>
             {tab === "counterparties"
               ? t("Расчёты с поставщиками и задолженность", "Yetkazib beruvchilar bilan hisob-kitob va qarzdorlik")
-              : t("Поступление товаров на склад", "Omborga mahsulot kelishi")}
+              : tab === "orders"
+                ? t("Что, сколько и почём ждём от поставщиков", "Yetkazib beruvchilardan nima, qancha va qanchadan kutamiz")
+                : t("Поступление товаров на склад", "Omborga mahsulot kelishi")}
           </p>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
@@ -226,6 +229,8 @@ export default function Arrivals() {
         {([
           { key: "arrivals" as const,       label: t("Приходы", "Kelishlar") },
           { key: "counterparties" as const, label: t("Контрагенты и долги", "Kontragentlar va qarzlar") },
+          // Заказ — до прихода: что ждём от поставщика. Долг он не создаёт (ADR 0013).
+          { key: "orders" as const,         label: t("Заказы поставщикам", "Yetkazib beruvchiga buyurtmalar") },
         ]).map(x => (
           <button
             key={x.key}
@@ -248,6 +253,7 @@ export default function Arrivals() {
       {/* Раздел монтируется только когда выбран: пока открыты приходы, ни один
           его запрос не уходит на сервер. */}
       {tab === "counterparties" && <CounterpartiesSection />}
+      {tab === "orders" && <PurchaseOrdersSection />}
 
       {tab === "arrivals" && <>
       {/* KPI Cards */}
@@ -325,7 +331,11 @@ export default function Arrivals() {
               <tr><td colSpan={7} style={{ textAlign: "center", padding: "48px 16px", color: COLORS.textTertiary, fontSize: "14px" }}>{t("Нет приходов", "Kelishlar yo'q")}</td></tr>
             ) : arrivals.map((a) => (
               <tr key={a.id} className="row-hover" style={{ cursor: "pointer" }} onClick={() => navigate(`/arrivals/${a.id}`)}>
-                <td style={{ ...tdStyle, fontWeight: 500 }}>{a.arrivalNumber}</td>
+                <td style={{ ...tdStyle, fontWeight: 500 }}>
+                  {a.arrivalNumber}
+                  {/* Приход по заказу поставщику: номер заказа — под номером прихода. */}
+                  {a.purchaseOrderNumber && <div style={{ fontSize: "11px", color: COLORS.textTertiary }} data-testid={`arrival-po-${a.id}`}>{t(`по заказу ${a.purchaseOrderNumber}`, `${a.purchaseOrderNumber} buyurtma bo'yicha`)}</div>}
+                </td>
                 <td style={{ ...tdStyle, color: COLORS.textSecondary }}>{a.arrivalDate ? format(new Date(a.arrivalDate), "dd.MM.yyyy") : "—"}</td>
                 <td style={{ ...tdStyle, color: COLORS.textSecondary }}>
                   {a.supplierName ?? "—"}

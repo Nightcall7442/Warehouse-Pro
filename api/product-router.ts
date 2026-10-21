@@ -5,7 +5,7 @@ import { s3Client, publicUrl } from "./lib/s3";
 import { isSafePhotoValue, PHOTO_VALUE_ERROR } from "./lib/photo-value";
 import { createRouter, operatorQuery, fieldSalesQuery, can } from "./middleware";
 import { getDb } from "./queries/connection";
-import { products, warehouseStock, stockMovements, warehouses, orders } from "@db/schema";
+import { products, warehouseStock, stockMovements, warehouses, orders, suppliers } from "@db/schema";
 import { eq, like, and, or, sql, desc, isNull } from "drizzle-orm";
 import { movementReferenceNumber } from "./lib/movement-reference";
 import { sanitizeString, sanitizeSearch } from "./lib/sanitize";
@@ -24,6 +24,18 @@ import { activeMarkdowns, capAtMarkdown, type ActiveMarkdown } from "./services/
 import { invalidateReports } from "./lib/report-cache";
 import { salesWarehouseFor, defaultWarehouseId, mayChooseWarehouse } from "./services/sales-warehouse";
 import { viewerScope, orderAccessError } from "./services/order-shared";
+import {
+  MAX_EXTRA_BARCODES, assertBarcodesFree, cleanExtraBarcodes, extraBarcodesOf, hasExtraBarcode,
+  replaceExtraBarcodes, withBarcodes,
+} from "./services/product-barcodes";
+
+/**
+ * Дополнительные штрих-коды карточки: список целиком, как его видит форма.
+ * Пустые строки допустимы — форма оставляет пустое поле под новый код, —
+ * их отбрасывает cleanExtraBarcodes.
+ */
+const extraBarcodesInput = z.array(z.string().trim().max(100, "Штрих-код — не длиннее 100 знаков"))
+  .max(MAX_EXTRA_BARCODES, `Не больше ${MAX_EXTRA_BARCODES} дополнительных штрих-кодов`);
 
 /** Уценка для экрана: цена и последний день — партия и служебное не нужны. */
 const markdownView = (m: ActiveMarkdown | null): { price: string; endsOn: string } | null =>
@@ -119,17 +131,62 @@ async function getDefaultWarehouseId(db: ReturnType<typeof getDb>, tenantId: num
   return defaultWarehouseId(db, tenantId);
 }
 
+/** Поставщик по умолчанию: его подставит заказ поставщику из предложения дозаказа. */
+const defaultSupplierInput = z.number().int().positive().nullable().optional();
+
+/**
+ * Максимум запаса — до скольких дозаказывать. Пусто (или "") — не задан:
+ * «Дозаказ» берёт вдвое больше точки заказа, как до этого поля.
+ */
+const reorderMaxInput = z.preprocess(
+  v => (v === "" ? null : v),
+  z.string().regex(/^\d+(\.\d{1,2})?$/, "Максимум запаса — число")
+    .refine(v => Number(v) > 0 && Number(v) <= 99_999_999, "Максимум запаса — больше нуля и не больше 99 999 999")
+    .nullable().optional(),
+);
+
+const REORDER_MAX_BELOW_POINT = "Максимум запаса меньше точки заказа — дозаказ не дотянул бы и до точки";
+
+/**
+ * Максимум ниже точки — бессмыслица: товар «заканчивается» на точке, а
+ * дозаказ должен поднять его до максимума, то есть выше. Проверяется то,
+ * что останется после правки: новая точка против прежнего максимума тоже.
+ */
+function assertReorderMax(point: string | number | null | undefined, max: string | number | null | undefined) {
+  if (max == null) return;
+  if (Number(max) < Number(point ?? 0)) throw new TRPCError({ code: "BAD_REQUEST", message: REORDER_MAX_BELOW_POINT });
+}
+
+/**
+ * Поставщик по умолчанию — только свой и действующий. Чужой номер — «не
+ * найден», а не «нет доступа»: иначе ответ подсказал бы, что такой есть у
+ * другой организации. Снятие (null) и «не трогать» (undefined) не проверяются.
+ */
+async function assertDefaultSupplier(db: ReturnType<typeof getDb>, tenantId: number, supplierId: number | null | undefined) {
+  if (supplierId == null) return;
+  const [supplier] = await db.select({ name: suppliers.name, status: suppliers.status })
+    .from(suppliers)
+    .where(and(eq(suppliers.id, supplierId), eq(suppliers.tenantId, tenantId)))
+    .limit(1);
+  if (!supplier) throw new TRPCError({ code: "NOT_FOUND", message: "Поставщик не найден" });
+  if (supplier.status !== "active") {
+    throw new TRPCError({ code: "BAD_REQUEST", message: `Поставщик «${supplier.name}» выключен — включите его или выберите другого` });
+  }
+}
+
 /**
  * Поиск товара — по названию, коду и штрих-коду.
  *
  * Искалось только по названию: страница «Штрих-коды» после скана искала
  * «4870001234567» в названии и отвечала «Товар не найден», хотя штрих-код в
  * карточке стоял. Код и штрих-код сравниваются целиком: скан — точное
- * совпадение, а «12» в середине чужого штрих-кода — не находка.
+ * совпадение, а «12» в середине чужого штрих-кода — не находка. Дополнительные
+ * штрих-коды (product_barcodes) — так же целиком: скан второй этикетки того же
+ * товара должен находить его, а не «ничего».
  */
-function productMatches(raw: string) {
+function productMatches(raw: string, tenantId: number) {
   const q = sanitizeSearch(raw);
-  return or(like(products.name, `%${q}%`), eq(products.code, q), eq(products.barcode, q))!;
+  return or(like(products.name, `%${q}%`), eq(products.code, q), eq(products.barcode, q), hasExtraBarcode(tenantId, q))!;
 }
 
 export const productRouter = createRouter({
@@ -150,7 +207,7 @@ export const productRouter = createRouter({
       return withTenantDataCache(tenantId, cacheKey, CacheTTL.products, async () => {
 
       const conditions = [eq(products.tenantId, tenantId), eq(products.status, "active")];
-      if (input?.search)   conditions.push(productMatches(input.search));
+      if (input?.search)   conditions.push(productMatches(input.search, tenantId));
       if (input?.category) conditions.push(eq(products.category, input?.category));
       const where = and(...conditions);
 
@@ -211,17 +268,20 @@ export const productRouter = createRouter({
       // markdown — уценка по сроку (services/markdown.ts): агент видит «продать
       // первым» и цену, по которой уйдёт заказ. Без магазина цена — карточка,
       // срезанная потолком уценки: заказ любому магазину не дороже её.
+      // barcodes — дополнительные штрих-коды: копия каталога на телефоне и
+      // сканер окна заказа находят товар и по ним, без похода на сервер.
+      const extras = await extraBarcodesOf(db, tenantId, data.map(r => Number(r.id)));
       if (!input?.shopId) {
         // Уценка — только партий склада каталога (ADR 0012).
         const marks = await activeMarkdowns(db, tenantId, data.map(r => Number(r.id)), undefined, warehouseId);
-        return data.map(r => {
+        return withBarcodes(data, extras).map(r => {
           const mark = marks.get(Number(r.id)) ?? null;
           return { ...r, basePrice: r.unitPrice, unitPrice: capAtMarkdown(String(r.unitPrice), mark ?? undefined).price, priceListId: null as number | null, tiers: null as PriceTier[] | null, markdown: markdownView(mark) };
         });
       }
       const priced = await resolveCatalog(db, tenantId, { shopId: input.shopId, priceListId: input.priceListId ?? null },
         new Map(data.map(r => [Number(r.id), String(r.unitPrice)])), warehouseId);
-      return data.map(r => { const p = priced.get(Number(r.id)); return { ...r, basePrice: r.unitPrice, unitPrice: p?.price ?? r.unitPrice, priceListId: p?.priceListId ?? null, tiers: p?.tiers ?? null, markdown: markdownView(p?.markdown ?? null) }; });
+      return withBarcodes(data, extras).map(r => { const p = priced.get(Number(r.id)); return { ...r, basePrice: r.unitPrice, unitPrice: p?.price ?? r.unitPrice, priceListId: p?.priceListId ?? null, tiers: p?.tiers ?? null, markdown: markdownView(p?.markdown ?? null) }; });
       });
     }),
 
@@ -263,7 +323,7 @@ export const productRouter = createRouter({
       return withTenantDataCache(tenantId, cacheKey, CacheTTL.products, async () => {
       const conditions = [eq(products.tenantId, tenantId)];
       if (!input?.includeAll) conditions.push(eq(products.status, "active"));
-      if (input?.search)   conditions.push(productMatches(input.search));
+      if (input?.search)   conditions.push(productMatches(input.search, tenantId));
       if (input?.category) conditions.push(eq(products.category, input?.category));
       const where = and(...conditions);
 
@@ -328,7 +388,8 @@ export const productRouter = createRouter({
         ? await resolveCatalog(db, tenantId, { shopId: input.shopId, priceListId: input.priceListId ?? null },
             new Map(data.map(r => [Number(r.id), String(r.unitPrice)])), warehouseId)
         : null;
-      const visible = data.map(row => {
+      const extras = await extraBarcodesOf(db, tenantId, data.map(r => Number(r.id)));
+      const visible = withBarcodes(data, extras).map(row => {
         const r = priced?.get(Number(row.id));
         return {
           ...row,
@@ -358,7 +419,8 @@ export const productRouter = createRouter({
         ikpu: products.ikpu, packageCode: products.packageCode, vatRate: products.vatRate,
         // Через ручку, как в списке: прямая ссылка на бакет открывалась не всегда.
         photoUrl: photoRef("product", products.id, products.photoUrl, products.updatedAt),
-        reorderPoint: products.reorderPoint, status: products.status,
+        reorderPoint: products.reorderPoint, reorderMax: products.reorderMax, status: products.status,
+        defaultSupplierId: products.defaultSupplierId,
         createdAt: products.createdAt,
       }).from(products)
         .where(and(eq(products.id, input.id), eq(products.tenantId, tenantId)))
@@ -375,7 +437,13 @@ export const productRouter = createRouter({
         eq(warehouseStock.warehouseId, warehouseId ?? 0),
       );
 
-      const [stockResult, movements] = await Promise.all([
+      // Same rule as list(): the product card shows cost, an agent's app must
+      // not. Applied here, once the full object is assembled — returning early
+      // at the point the row is read would have left the screen with no stock
+      // and no movement history.
+      const canSeeCost = ctx.user.role === "ceo" || ctx.user.role === "operator";
+
+      const [stockResult, movements, extras, defaultSupplierRow] = await Promise.all([
         db.select({
           id: warehouseStock.id, currentStock: warehouseStock.currentStock,
           reserved: warehouseStock.reserved, available: warehouseStock.available,
@@ -391,17 +459,30 @@ export const productRouter = createRouter({
           .where(and(eq(stockMovements.productId, product.id), eq(stockMovements.tenantId, tenantId)))
           .orderBy(desc(stockMovements.createdAt))
           .limit(20),
+        extraBarcodesOf(db, tenantId, [product.id]),
+        /*
+          Имя и состояние поставщика по умолчанию — карточке. Список поставщиков
+          в правке отдаёт только действующих: выключенный поставщик по умолчанию
+          в нём не находился, и поле показывало пустоту, будто поставщика нет,
+          а в просмотре его не было вовсе. Свой организации — фильтр по tenant.
+        */
+        canSeeCost && product.defaultSupplierId != null
+          ? db.select({ id: suppliers.id, name: suppliers.name, status: suppliers.status }).from(suppliers)
+              .where(and(eq(suppliers.id, product.defaultSupplierId), eq(suppliers.tenantId, tenantId)))
+              .limit(1)
+              .then(rows => rows[0] ?? null)
+          : Promise.resolve(null),
       ]);
-
-      // Same rule as list(): the product card shows cost, an agent's app must
-      // not. Applied here, once the full object is assembled — returning early
-      // at the point the row is read would have left the screen with no stock
-      // and no movement history.
-      const canSeeCost = ctx.user.role === "ceo" || ctx.user.role === "operator";
 
       return {
         ...product,
         costPrice: canSeeCost ? product.costPrice : undefined,
+        // У кого закупаем — то же, что себестоимость: агенту это знать незачем.
+        defaultSupplierId: canSeeCost ? product.defaultSupplierId : undefined,
+        defaultSupplier: defaultSupplierRow
+          ? { id: defaultSupplierRow.id, name: defaultSupplierRow.name, active: defaultSupplierRow.status === "active" }
+          : null,
+        barcodes: extras.get(product.id) ?? [],
         stock: stockResult[0] ?? null,
         movements,
       };
@@ -428,6 +509,11 @@ export const productRouter = createRouter({
       photoUrl:     z.string().max(2_800_000, "Файл слишком большой (макс. 2 МБ)")
         .refine(isSafePhotoValue, PHOTO_VALUE_ERROR).optional(),
       reorderPoint: decimalOrDefault("10.00").optional(),
+      // До скольких дозаказывать; пусто — вдвое больше точки.
+      reorderMax:   reorderMaxInput,
+      // Дополнительные штрих-коды; основной — barcode выше.
+      extraBarcodes: extraBarcodesInput.optional(),
+      defaultSupplierId: defaultSupplierInput,
     }))
     .mutation(async ({ input, ctx }) => {
       const db       = getDb();
@@ -453,8 +539,10 @@ export const productRouter = createRouter({
         });
       }
 
+      await assertDefaultSupplier(db, tenantId, input.defaultSupplierId);
+      const { extraBarcodes, ...fields } = input;
       const sanitized = {
-        ...input,
+        ...fields,
         code: sanitizeString(input.code),
         name: sanitizeString(input.name),
         category: input.category ? sanitizeString(input.category) : undefined,
@@ -462,6 +550,7 @@ export const productRouter = createRouter({
         // Не указали — порог из настроек организации, а не молчаливые «10».
         reorderPoint: input.reorderPoint ?? await defaultReorderPoint(db, tenantId),
       };
+      assertReorderMax(sanitized.reorderPoint, sanitized.reorderMax);
 
       /*
         Категория пишется так, как её уже пишут у этого арендатора.
@@ -478,8 +567,14 @@ export const productRouter = createRouter({
       sanitized.category = existingSpelling(sanitized.category, knownCategories) ?? undefined;
 
       const productId = await db.transaction(async (tx) => {
+        // Один код — один товар: и основной, и дополнительные не должны
+        // уже стоять у другого товара (services/product-barcodes.ts).
+        const extras = cleanExtraBarcodes(sanitized.barcode, extraBarcodes ?? []);
+        await assertBarcodesFree(tx, tenantId, null, { main: sanitized.barcode, extras });
+
         const [result] = await tx.insert(products).values({ tenantId, ...sanitized, status: "active" });
         const id = Number(result.insertId);
+        await replaceExtraBarcodes(tx, tenantId, id, extras);
 
         // Get or create default warehouse
         let [defaultWarehouse] = await tx.select({ id: warehouses.id })
@@ -522,6 +617,14 @@ export const productRouter = createRouter({
     .input(z.object({
       id:           z.number(),
       code:         z.string().min(1).optional(),
+      /*
+        Основной штрих-код. Правки его не было вовсе — поле молча отбрасывалось
+        схемой, и сменить код этикетки можно было только удалив товар. Пусто —
+        штрих-кода нет. Необязательное: старые клиенты его не шлют.
+      */
+      barcode:      z.string().trim().max(100, "Штрих-код — не длиннее 100 знаков").nullable().optional(),
+      // Дополнительные штрих-коды — весь список; не прислан — не трогаем.
+      extraBarcodes: extraBarcodesInput.optional(),
       name:         z.string().min(1).optional(),
       category:     z.string().optional(),
       costPrice:    decimalOrDefault("0.00").refine(v => v === undefined || Number(v) >= 0, "Цена не может быть отрицательной").optional(),
@@ -538,11 +641,18 @@ export const productRouter = createRouter({
       photoUrl:     z.string().max(2_800_000, "Файл слишком большой (макс. 2 МБ)")
         .refine(isSafePhotoValue, PHOTO_VALUE_ERROR).nullable().optional(),
       reorderPoint: decimalOrDefault("10.00").optional(),
+      // null или "" — снять максимум (дозаказ до 2 × точки); не прислан — не трогать.
+      reorderMax:   reorderMaxInput,
       status:       z.enum(["active", "inactive"]).optional(),
+      // null — снять поставщика по умолчанию; не прислан — не трогать.
+      defaultSupplierId: defaultSupplierInput,
     }))
     .mutation(async ({ input, ctx }) => {
-      const { id, ...data } = input;
+      const { id, extraBarcodes, ...data } = input;
+      await assertDefaultSupplier(getDb(), ctx.tenant.id, data.defaultSupplierId);
       const sanitized: Record<string, unknown> = { ...data };
+      if (data.barcode !== undefined) sanitized.barcode = data.barcode || null;
+      const touchesBarcodes = data.barcode !== undefined || extraBarcodes !== undefined;
       if (typeof data.code === "string") sanitized.code = sanitizeString(data.code);
       if (typeof data.name === "string") sanitized.name = sanitizeString(data.name);
       if (typeof data.category === "string") {
@@ -555,15 +665,32 @@ export const productRouter = createRouter({
       if (typeof data.description === "string") sanitized.description = sanitizeString(data.description);
 
       // Skip update if no fields to set
-      if (Object.keys(sanitized).length === 0) return { success: true };
+      if (Object.keys(sanitized).length === 0 && !touchesBarcodes) return { success: true };
 
       // Цена, себестоимость, точка заказа и статус — то, о чём спорят; след
       // пишется в той же транзакции, что и правка: без следа нет правки.
-      const TRACED = ["unitPrice", "costPrice", "reorderPoint", "status"];
+      const TRACED = ["unitPrice", "costPrice", "reorderPoint", "reorderMax", "status"];
       await getDb().transaction(async (tx) => {
-        const [before] = await tx.select({ unitPrice: products.unitPrice, costPrice: products.costPrice, reorderPoint: products.reorderPoint, status: products.status, code: products.code })
+        const [before] = await tx.select({ unitPrice: products.unitPrice, costPrice: products.costPrice, reorderPoint: products.reorderPoint, reorderMax: products.reorderMax, status: products.status, code: products.code, barcode: products.barcode })
           .from(products).where(and(eq(products.id, id), eq(products.tenantId, ctx.tenant.id))).for("update").limit(1);
         if (!before) throw new Error("Товар не найден");
+        if (data.reorderPoint !== undefined || data.reorderMax !== undefined) {
+          assertReorderMax(data.reorderPoint ?? before.reorderPoint, data.reorderMax !== undefined ? data.reorderMax : before.reorderMax);
+        }
+        if (touchesBarcodes) {
+          /*
+            Проверяется то, что останется после правки: новый основной против
+            чужих дополнительных, дополнительные — против чужих основных и
+            дополнительных. Дополнительные переписываются и тогда, когда
+            сменили только основной: код, ставший основным, из списка
+            дополнительных уходит — дважды у одного товара он не нужен.
+          */
+          const main = data.barcode !== undefined ? (data.barcode || null) : before.barcode;
+          const extras = cleanExtraBarcodes(main, extraBarcodes ?? (await extraBarcodesOf(tx, ctx.tenant.id, [id])).get(id) ?? []);
+          await assertBarcodesFree(tx, ctx.tenant.id, id, { main, extras });
+          await replaceExtraBarcodes(tx, ctx.tenant.id, id, extras);
+        }
+        if (Object.keys(sanitized).length === 0) return;
         // Тот же разбор, что и при создании: сменить код товара на уже занятый
         // так же обычно, как завести его дважды.
         await tx.update(products).set(sanitized)

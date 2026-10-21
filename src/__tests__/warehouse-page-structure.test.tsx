@@ -64,7 +64,14 @@ const stub = vi.hoisted(() => {
       product: { delete: { useMutation: m(() => {}) } },
       // Счётчик «Инвентаризации» у директора — документы на утверждении.
       stockCount: { list: { useQuery: q(() => state.counts) } },
-      useUtils: () => ({ warehouseMulti: { getStock: { invalidate: vi.fn() } } }),
+      // «Дозаказ» заводит черновики заказов поставщикам (components/warehouse/ReorderPlan).
+      purchaseOrder: { createFromSuggestions: { useMutation: m(() => {}) } },
+      supplier: { list: { useQuery: q(() => []) } },
+      useUtils: () => ({
+        warehouseMulti: { getStock: { invalidate: vi.fn() } },
+        purchaseOrder: { list: { invalidate: vi.fn() } },
+        warehouse: { reorderSuggestions: { invalidate: vi.fn() } },
+      }),
     },
   };
 });
@@ -150,7 +157,8 @@ describe("каркас страницы", () => {
     mount();
     fireEvent.click(screen.getByText("НИЖЕ ПОРОГА").closest(".kpi-hero")!);
     expect(screen.getByRole("tab", { name: /^Дозаказ/ }).getAttribute("aria-selected")).toBe("true");
-    expect(screen.getByText("+12 кг")).toBeTruthy();
+    // «Дозаказ» теперь правит количество в поле — сколько заказать, видно в нём.
+    expect((screen.getByTestId("reorder-qty-2") as HTMLInputElement).value).toBe("12");
     fireEvent.click(screen.getByText(/^БЕЗ ПРОДАЖ/).closest(".kpi-hero")!);
     expect(screen.getByRole("tab", { name: /^Мёртвый сток/ }).getAttribute("aria-selected")).toBe("true");
     expect(screen.getByText("Кефир")).toBeTruthy();

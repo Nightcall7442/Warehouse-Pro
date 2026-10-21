@@ -20,7 +20,9 @@
  *     order.stats / agentSummary (префикс [["order"]]), Главную и «Контроль»;
  *     сто событий подряд — одно перечитывание;
  *   · после обрыва — переподключение и догон с последней метки;
- *   · arrival.completed колокольчик не трогает, а склад перечитывает.
+ *   · arrival.completed колокольчик не трогает, а склад перечитывает — и
+ *     заказы поставщикам, приходы и долги поставщикам: проведение по заказу
+ *     двигает «принято» и рождает долг.
  *
  * Нарочная поломка: верни в useNotifications свой new EventSource — падает
  * первый тест; убери "control" из ORDER_AFFECTED_ROUTERS или окно склейки —
@@ -115,7 +117,7 @@ describe("что перечитать по событию", () => {
     expect(probe.getQueryCache().getAll().every(q => q.state.isInvalidated)).toBe(true);
   });
 
-  it("arrival.completed — склад и товары; чужие виды — ничего", async () => {
+  it("arrival.completed — склад, товары, заказы поставщикам, приходы и долги; чужие виды — ничего", async () => {
     vi.useFakeTimers();
     const { refreshFor, REFRESH_WINDOW_MS } = await import("@/lib/live-events");
     const qc = new QueryClient();
@@ -125,7 +127,7 @@ describe("что перечитать по событию", () => {
     refreshFor(qc, { type: "connected" });
     vi.advanceTimersByTime(REFRESH_WINDOW_MS);
     expect(spy.mock.calls.map(c => JSON.stringify(c[0]?.queryKey)).sort()).toEqual(
-      [[["product"]], [["warehouse"]], [["warehouseMulti"]], [["warehouseReports"]]].map(k => JSON.stringify(k)).sort(),
+      [[["product"]], [["warehouse"]], [["warehouseMulti"]], [["warehouseReports"]], [["purchaseOrder"]], [["arrival"]], [["supplier"]]].map(k => JSON.stringify(k)).sort(),
     );
   });
 });

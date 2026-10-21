@@ -5,10 +5,11 @@ import {
   orderItems,
   warehouses,
 } from "@db/schema";
-import { eq, like, and, sql, desc } from "drizzle-orm";
+import { eq, like, and, or, sql, desc } from "drizzle-orm";
 import { movementReferenceNumber } from "../lib/movement-reference";
 import { sanitizeString, sanitizeSearch } from "../lib/sanitize";
 import { cache, withTenantDataCache, CacheKeys, CacheTTL } from "../lib/cache";
+import { hasExtraBarcode, mainBarcodeFirst } from "./product-barcodes";
 
 type DrizzleInstance = ReturnType<typeof import("../queries/connection").getDb>;
 
@@ -277,9 +278,14 @@ export const ProductService = {
   },
 
   /**
-   * Товар по штрих-коду с остатком склада продажи. Склад решает вызывающий
-   * (product-router: склад агента, иначе основной — ADR 0012); не передал —
-   * основной, как было.
+   * Товар по скану: основной штрих-код или дополнительный (product_barcodes),
+   * с остатком склада продажи. Склад решает вызывающий (product-router: склад
+   * агента, иначе основной — ADR 0012); не передал — основной, как было.
+   *
+   * Порядок задан явно. Было `.limit(1)` без сортировки — при двух товарах с
+   * одним кодом база отдавала какой придётся. Теперь первым идёт совпадение
+   * по основному штрих-коду, затем действующий товар раньше снятого, затем
+   * старший по номеру: ответ на один и тот же скан всегда один.
    */
   async searchByBarcode(db: DrizzleInstance, tenantId: number, barcode: string, salesWarehouseId?: number | null) {
     const warehouseId = salesWarehouseId !== undefined ? salesWarehouseId : await getDefaultWarehouseId(db, tenantId);
@@ -297,7 +303,8 @@ export const ProductService = {
     })
       .from(products)
       .leftJoin(warehouseStock, stockJoinCond)
-      .where(and(eq(products.tenantId, tenantId), eq(products.barcode, barcode)))
+      .where(and(eq(products.tenantId, tenantId), or(eq(products.barcode, barcode), hasExtraBarcode(tenantId, barcode))))
+      .orderBy(mainBarcodeFirst(barcode), sql`CASE WHEN ${products.status} = 'active' THEN 0 ELSE 1 END`, products.id)
       .limit(1);
     return result[0] ?? null;
   },

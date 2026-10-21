@@ -6,6 +6,8 @@ import { CategoryAutocomplete } from "./CategoryAutocomplete";
 import { notify } from "@/lib/toast";
 import { COLORS, SHADOW, F, UNITS, type Unit } from "./constants";
 import { ProductTaxFields } from "./ProductTaxFields";
+import { ExtraBarcodesEditor } from "./ExtraBarcodesEditor";
+import { extraBarcodesPayload } from "@contracts/product-barcodes";
 import { VAT_RATES, isBadIkpu, type VatRate } from "@contracts/tax-requisites";
 
 /**
@@ -27,12 +29,18 @@ export type ProductDraft = {
   packSize:     string;
   packLabel:    string;
   reorderPoint: string;
+  /** До скольких дозаказывать; пусто — вдвое больше порога (undefined в запросе). */
+  reorderMax?:  string;
   description:  string;
   photoUrl?:    string;
   /** Для ЭСФ и фискализации; пусто — не задано. */
   ikpu?:        string;
   packageCode?: string;
   vatRate?:     VatRate;
+  /** Дополнительные штрих-коды; основной — barcode. */
+  extraBarcodes?: string[];
+  /** У кого обычно закупаем; не задан — undefined. */
+  defaultSupplierId?: number;
 };
 
 export interface ProductFormProps {
@@ -41,17 +49,29 @@ export interface ProductFormProps {
   isPending: boolean;
   lang: string;
   categories?: string[];
+  /**
+   * Поставщики для «поставщика по умолчанию» — у кого обычно закупаем: его
+   * подставит заказ из «Дозаказа». Список грузит страница (operatorQuery);
+   * пусто — поля нет. Пояснение здесь, а не у поля: комментарий в разметке
+   * ниже accept="image/*" сбивает счёт цветов в color-by-number.
+   */
+  suppliers?: Array<{ id: number; name: string }>;
 }
 
 function isUnit(v: string): v is Unit {
   return UNITS.some(u => u.value === v);
 }
 
-export function ProductForm({ onSave, onCancel, isPending, lang, categories = [] }: ProductFormProps) {
+export function ProductForm({ onSave, onCancel, isPending, lang, categories = [], suppliers = [] }: ProductFormProps) {
   const t = (ru: string, uz: string) => lang === "uz" ? uz : ru;
   const [d, setD] = useState<Omit<ProductDraft, "photoUrl">>({ code: "", barcode: "", name: "", category: "", costPrice: "", unitPrice: "", unit: "pcs", unitWeight: "", packSize: "", packLabel: "", reorderPoint: "10.00", description: "" });
   const [tax, setTax] = useState({ ikpu: "", packageCode: "", vatRate: "" });
+  const [extras, setExtras] = useState<string[]>([]);
+  const [supplierId, setSupplierId] = useState("");
   const taxBad = isBadIkpu(tax.ikpu);
+  const [reorderMax, setReorderMax] = useState("");
+  // Максимум ниже порога сервер не примет — сказать сразу, у поля.
+  const maxBad = reorderMax.trim() !== "" && Number(reorderMax) < Number(d.reorderPoint || 0);
   const [photo, setPhoto] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const handlePhoto = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -106,18 +126,42 @@ export function ProductForm({ onSave, onCancel, isPending, lang, categories = []
           <DecimalInput data-testid="product-price" className="neo-input font-data" placeholder={t("Цена продажи *", "Sotish narxi *")} value={d.unitPrice} onValueChange={v => setD({ ...d, unitPrice: v })} />
           <DecimalInput className="neo-input font-data" placeholder={t("Масса 1 ед. в кг (ящик=8)", "1 dona vazni, kg")} value={d.unitWeight} onValueChange={v => setD({ ...d, unitWeight: v })} />
           <DecimalInput className="neo-input font-data" placeholder={t("Порог дозаказа", "Qayta buyurtma chegarasi")} value={d.reorderPoint} onValueChange={v => setD({ ...d, reorderPoint: v })} />
+          <div>
+            <DecimalInput data-testid="product-reorder-max" className="neo-input font-data w-full" aria-label={t("Максимум запаса", "Maksimal zaxira")}
+              placeholder={t("Максимум запаса (пусто — 2 × порог)", "Maksimal zaxira (bo'sh — 2 × chegara)")} value={reorderMax} onValueChange={setReorderMax} />
+            {maxBad && (
+              <p role="alert" className="text-xs mt-1" style={{ color: "var(--color-danger-text)" }}>
+                {t("Максимум не может быть меньше порога", "Maksimal zaxira chegaradan kichik bo'lmasin")}
+              </p>
+            )}
+          </div>
           <DecimalInput className="neo-input font-data" placeholder={t("В упаковке, ед. (12)", "Qadoqda, dona (12)")} value={d.packSize} onValueChange={v => setD({ ...d, packSize: v })} data-testid="product-pack-size" />
           <input className="neo-input" placeholder={t("Название упаковки (коробка)", "Qadoq nomi (quti)")} value={d.packLabel} onChange={e => setD({ ...d, packLabel: e.target.value })} />
           <ProductTaxFields lang={lang} value={tax} onChange={patch => setTax(x => ({ ...x, ...patch }))} />
+          {suppliers.length > 0 && (
+            <PremiumSelect
+              aria-label={t("Поставщик по умолчанию", "Standart yetkazib beruvchi")}
+              value={supplierId}
+              onChange={setSupplierId}
+              options={[
+                { value: "", label: t("Поставщик по умолчанию — нет", "Standart yetkazib beruvchi — yo'q") },
+                ...suppliers.map(sp => ({ value: String(sp.id), label: sp.name })),
+              ]}
+              width="100%" />
+          )}
+          <ExtraBarcodesEditor lang={lang} value={extras} onChange={setExtras} />
           <input className="neo-input sm:col-span-2" placeholder={t("Описание", "Tavsif")} value={d.description} onChange={e => setD({ ...d, description: e.target.value })} />
         </div>
       </div>
       <div style={{ display: "flex", gap: "8px", marginTop: "16px" }}>
-        <button data-testid="product-save" onClick={() => d.code && d.name && d.unitPrice && !taxBad && onSave({
+        <button data-testid="product-save" onClick={() => d.code && d.name && d.unitPrice && !taxBad && !maxBad && onSave({
             ...d, photoUrl: photo ?? undefined,
             ikpu: tax.ikpu.trim() || undefined, packageCode: tax.packageCode.trim() || undefined,
             vatRate: VAT_RATES.find(r => r === tax.vatRate),
-          })} disabled={isPending || taxBad}
+            extraBarcodes: extraBarcodesPayload(extras),
+            defaultSupplierId: supplierId ? Number(supplierId) : undefined,
+            reorderMax: reorderMax.trim() || undefined,
+          })} disabled={isPending || taxBad || maxBad}
           className="neo-btn-primary flex-1 sm:flex-none flex items-center justify-center gap-2">
           {isPending && <Loader2 size={14} className="animate-spin" />}{t("Сохранить", "Saqlash")}
         </button>

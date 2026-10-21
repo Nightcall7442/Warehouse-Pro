@@ -61,6 +61,9 @@ export default function Products() {
   const debouncedSearch = useDebouncedValue(search);
   const [category, setCategory] = useState<string | undefined>(undefined);
   const [showForm, setShowForm] = useState(false);
+  // Поставщики — только для формы нового товара: список открыт директору и
+  // оператору, а страницу каталога смотрят и полевые роли.
+  const { data: supplierOptions } = trpc.supplier.list.useQuery(undefined, { enabled: showForm && canEdit });
   const [showImport, setShowImport] = useState(false);
   const [showCategoryManager, setShowCategoryManager] = useState(false);
   const [selected, setSelected] = useState<Set<number>>(new Set());
@@ -220,7 +223,7 @@ export default function Products() {
 
       {/* Form Section */}
       <div key="form-section">
-        {showForm && <ProductForm isPending={createMutation.isPending} lang={lang} categories={(categories ?? []).map(c => String(c))} onSave={d => createMutation.mutate(d)} onCancel={() => setShowForm(false)} />}
+        {showForm && <ProductForm isPending={createMutation.isPending} lang={lang} categories={(categories ?? []).map(c => String(c))} suppliers={supplierOptions ?? []} onSave={d => createMutation.mutate(d)} onCancel={() => setShowForm(false)} />}
       </div>
 
       {/* KPI Cards */}

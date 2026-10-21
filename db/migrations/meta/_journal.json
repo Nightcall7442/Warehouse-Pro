@@ -547,6 +547,27 @@
       "when": 1792588238700,
       "tag": "0077_stock_count_number_unique",
       "breakpoints": true
+    },
+    {
+      "idx": 78,
+      "version": "5",
+      "when": 1792592470465,
+      "tag": "0078_product_barcodes",
+      "breakpoints": true
+    },
+    {
+      "idx": 79,
+      "version": "5",
+      "when": 1792592471658,
+      "tag": "0079_purchase_orders",
+      "breakpoints": true
+    },
+    {
+      "idx": 80,
+      "version": "5",
+      "when": 1792592472831,
+      "tag": "0080_product_reorder_max",
+      "breakpoints": true
     }
   ]
 }

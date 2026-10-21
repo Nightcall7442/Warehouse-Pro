@@ -21,10 +21,15 @@ const GRID = "arrival";
  * пачкой, а количества вбиваются столбцом, как в Excel: Enter и стрелки
  * ходят по столбцу, столбец из Excel вставляется целиком.
  */
-export function ArrivalSheet({ rows, onChange, readOnly, arrivalDate, onAddClick }: {
+export function ArrivalSheet({ rows, onChange, readOnly, costLocked, arrivalDate, onAddClick }: {
   rows: SheetRow[];
   onChange: (rows: SheetRow[]) => void;
   readOnly?: boolean;
+  /**
+   * Себестоимость не правится: у прихода по заказу в чужой валюте её считает
+   * сервер из цены заказа и курса, и правка всё равно не сохранилась бы.
+   */
+  costLocked?: boolean;
   arrivalDate: string;
   onAddClick?: () => void;
 }) {
@@ -162,7 +167,7 @@ export function ArrivalSheet({ rows, onChange, readOnly, arrivalDate, onAddClick
                   }}>
                     {d == null ? "" : d === 0 ? "✓" : `${d > 0 ? "+" : ""}${formatQty(d)}`}
                   </td>
-                  <td className="num" style={{ width: 120 }}>{readOnly ? ro(r.costPrice ? fmt(r.costPrice) : "", true) : cell(i, "costPrice", { numeric: true })}</td>
+                  <td className="num" style={{ width: 120 }}>{readOnly || costLocked ? ro(r.costPrice ? fmt(r.costPrice) : "", true) : cell(i, "costPrice", { numeric: true })}</td>
                   <td className="num" style={{ padding: "0 8px", whiteSpace: "nowrap", fontWeight: 600, fontVariantNumeric: "tabular-nums" }}>{sum > 0 ? fmt(sum) : ""}</td>
                   <td className="num" style={{ width: 120 }}>{readOnly ? ro(r.sellingPrice ? fmt(r.sellingPrice) : "", true) : cell(i, "sellingPrice", { numeric: true })}</td>
                   <td className="num" style={{ padding: "0 8px", whiteSpace: "nowrap", color: m != null && m < 0 ? "var(--color-danger-text)" : "var(--color-text-secondary)", fontVariantNumeric: "tabular-nums" }}>

@@ -198,6 +198,8 @@ export function CounterpartiesSection() {
               inn:         values.inn.trim() || undefined,
               address:     values.address.trim() || undefined,
               notes:       values.notes.trim() || undefined,
+              // Пусто — без отсрочки: при правке это снимает прежнюю.
+              paymentTermsDays: values.paymentTermsDays.trim() === "" ? null : Number(values.paymentTermsDays),
             };
             if (editing) updateMutation.mutate({ id: editing.id, ...payload });
             else createMutation.mutate(payload);

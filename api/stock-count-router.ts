@@ -9,6 +9,7 @@ import { assertProductsBelongToTenant } from "./lib/tenant-refs";
 import { cache } from "./lib/cache";
 import { retryOnDeadlock } from "./lib/db-errors";
 import { invalidateReports } from "./lib/report-cache";
+import { extraBarcodesOf } from "./services/product-barcodes";
 
 type Db = ReturnType<typeof import("./queries/connection").getDb>;
 
@@ -146,7 +147,10 @@ export const stockCountRouter = createRouter({
         ))
         .where(eq(stockCountItems.countId, count.id))
         .orderBy(products.name);
-      return { ...count, items };
+      // Сканер инвентаризации ищет строку и по дополнительным штрих-кодам:
+      // на полке стоит та этикетка, что пришла, а не та, что в карточке.
+      const extras = await extraBarcodesOf(db, ctx.tenant.id, items.map(i => Number(i.productId)));
+      return { ...count, items: items.map(i => ({ ...i, barcodes: extras.get(Number(i.productId)) ?? [] })) };
     }),
 
   /** Посчитанное по одному товару; сканер зовёт с delta: +1. */

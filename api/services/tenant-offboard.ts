@@ -69,6 +69,10 @@ export const OFFBOARD_ORDER: readonly OffboardStep[] = [
   "payments",
   { table: "price_list_assignments", via: { column: "price_list_id", parent: "price_lists" } },
   { table: "price_list_items", via: { column: "price_list_id", parent: "price_lists" } },
+  // Дополнительные штрих-коды держат товар — уходят раньше товаров.
+  "product_barcodes",
+  // Строки заказа поставщику своей организации не знают — уходят через заказ, раньше товаров.
+  { table: "purchase_order_items", via: { column: "purchase_order_id", parent: "purchase_orders" } },
   { table: "return_items", via: { column: "return_id", parent: "returns" } },
   "role_permissions",
   "salary_payouts",
@@ -101,6 +105,8 @@ export const OFFBOARD_ORDER: readonly OffboardStep[] = [
   "stock_counts",
   "supplies",
   "arrivals",
+  // Заказ поставщику держит поставщика, склад и автора; приход ссылается на заказ — приходы раньше.
+  "purchase_orders",
   "orders",
   // Заказ помнит свой прайс-лист (orders.price_list_id) — списки после заказов.
   "price_lists",

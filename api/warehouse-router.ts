@@ -4,7 +4,7 @@ import { warehouseStock, products, stockMovements, settings, orderItems, orders,
 import { eq, like, and, sql, desc } from "drizzle-orm";
 import { movementReferenceNumber } from "./lib/movement-reference";
 import { StockService } from "./services/stock";
-import { lowStockCondition } from "./services/reorder";
+import { reorderPlan } from "./services/reorder";
 import { dayStartUtc } from "./lib/date-range";
 import { firstRow } from "./lib/db-rows";
 import { businessDaysAgo } from "@contracts/business-time";
@@ -236,50 +236,18 @@ export const warehouseRouter = createRouter({
     }),
 
   // ── Auto-Replenishment Suggestions ──────────────────────────────────────────
+  /*
+    Что и сколько дозаказать на складе (services/reorder.ts → reorderPlan).
+
+    Склад не выбран — основной, а не все разом: один товар приходил строкой
+    на каждый склад. Сколько — от свободного остатка, а не физического, и за
+    вычетом того, что уже едет (открытые заказы поставщикам и приходы без
+    заказа). Ответ — тот же плоский список с прежними полями; новые поля
+    (свободно, максимум, в пути, поставщик) только добавлены.
+  */
   reorderSuggestions: operatorQuery
     .input(z.object({ warehouseId: z.number().int().positive().optional() }).optional())
-    .query(async ({ input, ctx }) => {
-    const db = ctx.db;
-    const tenantId = ctx.tenant.id;
-    const days30 = new Date(Date.now() - 30 * 86400000).toISOString();
-
-    // Products below reorder point with sales velocity
-    const results = await db.select({
-      productId: products.id,
-      productName: products.name,
-      productCode: products.code,
-      currentStock: warehouseStock.currentStock,
-      reorderPoint: products.reorderPoint,
-      unit: products.unit,
-      unitPrice: products.unitPrice,
-      costPrice: products.costPrice,
-      avgDailySales: sql<string>`COALESCE((SELECT SUM(${orderItems.quantity}) FROM ${orderItems} INNER JOIN ${orders} ON ${orderItems.orderId} = ${orders.id} WHERE ${orderItems.productId} = ${products.id} AND ${orders.tenantId} = ${tenantId} AND ${orders.status} = 'delivered' AND ${orders.createdAt} >= ${days30}) / 30, 0)`,
-    })
-      .from(warehouseStock)
-      .leftJoin(products, and(eq(warehouseStock.productId, products.id), eq(products.tenantId, ctx.tenant.id)))
-      .where(and(
-        eq(warehouseStock.tenantId, tenantId),
-        ...(input?.warehouseId ? [eq(warehouseStock.warehouseId, input.warehouseId)] : []),
-        lowStockCondition(),
-      ))
-      .orderBy(sql`${warehouseStock.available} / NULLIF(${products.reorderPoint}, 0)`);
-
-    return results.map(r => {
-      const avgDaily = Number(r.avgDailySales);
-      const current = Number(r.currentStock ?? 0);
-      const reorderAt = Number(r.reorderPoint ?? 0);
-      const daysUntilStockout = avgDaily > 0 ? Math.round(current / avgDaily) : 999;
-      const suggestedQty = Math.max(0, reorderAt * 2 - current); // Заказать до 2x порога
-
-      return {
-        ...r,
-        avgDailySales: avgDaily.toFixed(1),
-        daysUntilStockout,
-        suggestedQty: Math.round(suggestedQty),
-        suggestedCost: Math.round(suggestedQty * Number(r.costPrice ?? 0)),
-      };
-    });
-  }),
+    .query(({ input, ctx }) => reorderPlan(ctx.db, ctx.tenant.id, input?.warehouseId)),
 
   /** Create missing warehouse_stock rows for products that don't have one */
   backfillStock: operatorQuery.use(can("warehouse.adjust"))
