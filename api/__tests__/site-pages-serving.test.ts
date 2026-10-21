@@ -166,11 +166,42 @@ describe("один адрес у страницы: 301", () => {
     expect(res.headers.get("location")).toBe(to);
   });
 
-  it("«/ru//evil.com» не уводит на чужой сайт", async () => {
-    const res = await app.request("/ru//evil.com");
-    expect(res.status).toBe(301);
-    expect(res.headers.get("location")).toBe("/evil.com");
+  /*
+    Переезд с /ru/… отвечает на любой адрес, и его может подсунуть кто угодно.
+    Hono отдаёт путь раскодированным: %5C — «\», %09 — табуляция, а браузер
+    читает «/\evil.com» и «/<табуляция>/evil.com» как «//evil.com» — чужой
+    сайт (проверено в Chromium). Нарочная поломка:
+    вернуть в siteRedirect «"/" + остаток после /ru» — падают все строки ниже.
+  */
+  it.each([
+    "/ru//evil.com",
+    "/ru/%5Cevil.com",
+    "/ru/%5C%5Cevil.com",
+    "/ru/%09/evil.com",
+    "/ru/%0A/evil.com",
+    "/ru/%2F%2Fevil.com",
+    "/ru/orders/%5C%5Cevil.com",
+    "/ru/nonexistent",
+  ])("%s — не переезд на чужой адрес, а 404", async p => {
+    const res = await app.request(p, { headers: html });
+    expect(res.headers.get("location")).toBeNull();
+    expect(res.status).toBe(404);
+  });
+
+  it("переезд с /ru ведёт только на свой известный адрес", () => {
     expect(siteRedirect("//evil.com/")).toBeNull();
+    for (const p of ["/ru/\\evil.com", "/ru/\t/evil.com", "/ru/\n/evil.com", "/ru/evil.com", "/ru/orders\\x"]) {
+      expect(siteRedirect(p), JSON.stringify(p)).toBeNull();
+    }
+    // Свои адреса — по-прежнему переезд: страница сайта, конкурса, раздел приложения.
+    expect(siteRedirect("/ru/demo")).toBe("/demo");
+    expect(siteRedirect("/ru/orders/123")).toBe("/orders/123");
+    expect(siteRedirect("/ru/uz/compare")).toBe("/uz/compare");
+    for (const p of SITE_PAGES.flatMap(pg => pageLangs(pg).map(l => pg.paths[l]!))) {
+      const target = siteRedirect("/ru" + (p === "/" ? "" : p));
+      expect(target, p).toBe(p);
+      expect(new URL(target!, "https://www.warehouse-pro.uz/").origin).toBe("https://www.warehouse-pro.uz");
+    }
   });
 
   it("кадры под /landing/ — статика, не переезд", async () => {

@@ -48,15 +48,37 @@ const PITCH_PAGES = new Set(["/pitch", "/demo"]);
 const trimSlash = (p: string) => (p.length > 1 ? p.replace(/\/+$/, "") || "/" : p);
 
 /**
+ * Символы адреса раздела приложения. Ни «\», ни управляющих: Hono отдаёт
+ * путь уже раскодированным (%5C → «\», %09 → табуляция), а браузер читает
+ * «/\evil.com» и «/<табуляция>/evil.com» как «//evil.com» — чужой сайт.
+ */
+const PLAIN_PATH = /^\/[A-Za-z0-9\-._~%/]*$/;
+
+/**
+ * /ru/… → тот же адрес без приставки — но только на свой известный адрес.
+ *
+ * Переезд — ответ на любой адрес под /ru, его может подсунуть кто угодно
+ * («warehouse-pro.uz/ru/%5Cevil.com» в письме). Поэтому цель — не «что
+ * осталось после /ru», а страница сайта, конкурса или раздел приложения с
+ * простыми символами в адресе. Всё прочее под /ru — не переезд, а честный
+ * 404 (isUnknownPage: «ru» не раздел приложения).
+ */
+function movedFromRu(reqPath: string): string | null {
+  const target = trimSlash("/" + reqPath.slice(3).replace(/^\/+/, ""));
+  if (siteRoute(target) || PITCH_PAGES.has(target)) return target;
+  const first = target.split("/")[1] ?? "";
+  return APP_ROOTS.includes(first) && PLAIN_PATH.test(target) ? target : null;
+}
+
+/**
  * Куда переехал адрес — или null, если он на месте.
  *
- * Целевой адрес всегда начинается с одной косой: «/ru//evil.com» не должен
- * превратиться в «//evil.com» — браузер понял бы его как чужой сайт.
+ * Цель — всегда свой адрес: страница сайта, конкурса или раздел приложения.
+ * «/ru//evil.com», «/ru/%5Cevil.com», «/ru/%09/evil.com» не уводят на чужой
+ * сайт — браузер понял бы «//», «/\» и «/<табуляция>/» как другой домен.
  */
 export function siteRedirect(reqPath: string): string | null {
-  if (reqPath === "/ru" || reqPath.startsWith("/ru/")) {
-    return trimSlash("/" + reqPath.slice(3).replace(/^\/+/, ""));
-  }
+  if (reqPath === "/ru" || reqPath.startsWith("/ru/")) return movedFromRu(reqPath);
   if (reqPath === "/landing" || reqPath === "/landing/") return "/";
   if (reqPath.length > 1 && reqPath.endsWith("/")) {
     const bare = trimSlash(reqPath);
