@@ -25,6 +25,9 @@
          Ссылка canonical названа явно и с www — тем адресом, который сейчас
          действительно отдаёт приложение. Без неё Google сам выбирает
          «главный» адрес из встреченных вариантов и может выбрать не тот. -->
+    <!-- Метки seo: блок между ними сборка заменяет <head> каждой страницы
+         сайта на её языке (scripts/prerender.mjs, src/site/site-head.ts). -->
+    <!--seo-->
     <title>Warehouse Pro — склад, заказы и торговые агенты в одной системе</title>
     <meta name="description" content="Учёт склада, заказы, торговые агенты и долги магазинов в одной программе для дистрибьюторов. Работает офлайн на телефоне агента, 14 дней бесплатно. Ургенч, Хорезм." />
     <link rel="canonical" href="https://www.warehouse-pro.uz/" />
@@ -43,35 +46,6 @@
     <meta name="twitter:title" content="Warehouse Pro — склад, заказы и торговые агенты" />
     <meta name="twitter:description" content="Учёт склада, заказы и торговые агенты в одной программе. 14 дней бесплатно." />
     <meta name="twitter:image" content="https://www.warehouse-pro.uz/icon-512.png" />
-    <!-- Значок в выдаче поиска.
-         /favicon.ico отдавал 404: тег rel="icon" был, а прямого запроса по
-         корневому адресу — а его делают и поисковики, и браузеры — никто не
-         обслуживал. Файл собран из icon-192.png тем же изображением.
-         sizes="any" на ICO означает «подойдёт для любого размера»: браузер
-         предпочтёт PNG нужного размера, а тот, кто спрашивает просто значок,
-         получит ICO. -->
-    <link rel="icon" href="/favicon.ico" sizes="any" />
-    <link rel="icon" href="/icon-192.png" type="image/png" sizes="192x192" />
-    <link rel="icon" href="/icon-512.png" type="image/png" sizes="512x512" />
-    <!-- Родной размер Apple — 180. Раньше сюда вёл icon-192, и iOS его
-         пересжимала. Отдельный файл ещё и лежит по адресу, который часть
-         версий iOS пробует напрямую, не заглядывая в разметку. -->
-    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
-    <!-- VitePWA injects its own <link rel="manifest"> (manifest.webmanifest,
-         generated from vite.config.ts) at build time. A hand-authored one
-         used to sit here too, pointing at a hand-maintained public/manifest.json
-         that had drifted from vite.config.ts. Two manifest links is undefined
-         behaviour per spec — the browser picks one, and this one (being first
-         in the head) is what iOS Safari was reading for "Add to Home Screen." -->
-    <!-- Manrope и JetBrains Mono: у обоих есть кириллица. DM Sans её не имел, и
-         каждое русское слово набиралось системным шрифтом — Segoe UI рядом с
-         геометрической латиницей. Решение владельца от 07.09.2026 для мобилки,
-         теперь и веб. Файлы — свои (public/fonts, @font-face в src/index.css),
-         не с Google Fonts. Кириллический Manrope нужен первому же заголовку —
-         браузер узнал бы о нём только из CSS, поэтому он предзагружается.
-         crossorigin обязателен и для своего домена: шрифты грузятся в режиме
-         CORS, без него предзагрузка не совпадёт с запросом и уйдёт впустую. -->
-    <link rel="preload" href="/fonts/manrope-cyrillic-wght-normal.woff2" as="font" type="font/woff2" crossorigin />
     <!-- Что это за сайт, словами, которые понимает поиск.
          Разметка schema.org сама по себе позиции не поднимает — она отвечает
          на вопрос «что это такое»: программа, деловая, для Узбекистана, на
@@ -111,6 +85,36 @@
         }
       }
     </script>
+    <!--/seo-->
+    <!-- Значок в выдаче поиска.
+         /favicon.ico отдавал 404: тег rel="icon" был, а прямого запроса по
+         корневому адресу — а его делают и поисковики, и браузеры — никто не
+         обслуживал. Файл собран из icon-192.png тем же изображением.
+         sizes="any" на ICO означает «подойдёт для любого размера»: браузер
+         предпочтёт PNG нужного размера, а тот, кто спрашивает просто значок,
+         получит ICO. -->
+    <link rel="icon" href="/favicon.ico" sizes="any" />
+    <link rel="icon" href="/icon-192.png" type="image/png" sizes="192x192" />
+    <link rel="icon" href="/icon-512.png" type="image/png" sizes="512x512" />
+    <!-- Родной размер Apple — 180. Раньше сюда вёл icon-192, и iOS его
+         пересжимала. Отдельный файл ещё и лежит по адресу, который часть
+         версий iOS пробует напрямую, не заглядывая в разметку. -->
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <!-- VitePWA injects its own <link rel="manifest"> (manifest.webmanifest,
+         generated from vite.config.ts) at build time. A hand-authored one
+         used to sit here too, pointing at a hand-maintained public/manifest.json
+         that had drifted from vite.config.ts. Two manifest links is undefined
+         behaviour per spec — the browser picks one, and this one (being first
+         in the head) is what iOS Safari was reading for "Add to Home Screen." -->
+    <!-- Manrope и JetBrains Mono: у обоих есть кириллица. DM Sans её не имел, и
+         каждое русское слово набиралось системным шрифтом — Segoe UI рядом с
+         геометрической латиницей. Решение владельца от 07.09.2026 для мобилки,
+         теперь и веб. Файлы — свои (public/fonts, @font-face в src/index.css),
+         не с Google Fonts. Кириллический Manrope нужен первому же заголовку —
+         браузер узнал бы о нём только из CSS, поэтому он предзагружается.
+         crossorigin обязателен и для своего домена: шрифты грузятся в режиме
+         CORS, без него предзагрузка не совпадёт с запросом и уйдёт впустую. -->
+    <link rel="preload" href="/fonts/manrope-cyrillic-wght-normal.woff2" as="font" type="font/woff2" crossorigin />
   </head>
   <body>
     <!-- ── Что видно до того, как загрузится приложение ────────────────────

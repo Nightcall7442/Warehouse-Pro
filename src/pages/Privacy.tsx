@@ -38,7 +38,7 @@ export default function Privacy() {
     <div style={{ minHeight: "100vh", background: "var(--color-bg)" }}>
       <div style={{ maxWidth: "760px", margin: "0 auto", padding: "48px 20px 80px" }}>
         <Link
-          to="/landing"
+          to="/"
           style={{
             display: "inline-flex", alignItems: "center", gap: "8px",
             fontSize: "13px", color: "var(--color-text-secondary)", textDecoration: "none",
@@ -210,7 +210,7 @@ export default function Privacy() {
               Warehouse Pro:{" "}
               <a href={`mailto:${CONTACT.email}`} data-testid="privacy-support-email" style={{ color: "var(--color-primary-text)" }}>{CONTACT.email}</a>.
               Остальные контакты — на{" "}
-              <Link to="/landing" style={{ color: "var(--color-primary-text)" }}>главной странице</Link>.
+              <Link to="/" style={{ color: "var(--color-primary-text)" }}>главной странице</Link>.
             </P>
           </Section>
         </div>

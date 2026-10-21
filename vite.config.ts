@@ -174,6 +174,9 @@ export default defineConfig(({ isSsrBuild }) => ({
     // light-start-entry находит входы приложения и сайта в собранном dist.
     // Пререндер уносит её из dist/public — раздавать её незачем.
     manifest:    !isSsrBuild,
+    // Сборке для Node картинки и шрифты из public/ ни к чему: она только
+    // рисует HTML, и dist/ssr удаляется сразу после пререндера.
+    copyPublicDir: !isSsrBuild,
     // NOTE: no manualChunks here on purpose. The previous hand-written grouping
     // pulled react-dom into "vendor-charts" (recharts + lodash + d3), which made
     // that 448 KB chunk a static dependency of the entry — recharts was downloaded

@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { useTranslate } from "@/i18n";
+import { usePrerender } from "@/site/prerender";
 import { LX, MONO } from "./landing-tokens";
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -71,6 +72,7 @@ const H = ROWS * CELL_H;
 
 export default function TallyField() {
   const tr = useTranslate();
+  const prerender = usePrerender();
   const ref = useRef<SVGSVGElement>(null);
 
   useEffect(() => {
@@ -138,7 +140,11 @@ export default function TallyField() {
         <span>{COLS} × {ROWS} — {tr("занятость ячеек", "katakchalar bandligi")}</span>
         <span className="hidden sm:inline">{tr("обновляется на глазах", "ko'z oldingizda yangilanadi")}</span>
       </div>
-      <svg
+      {/* В готовом HTML (сборка сайта) поля нет — пустое место той же высоты:
+          1 536 меток — 181 КБ разметки, которые робот читал бы как страницу,
+          а браузер разбирал бы до первого текста. Скрипт рисует поле на это
+          место — ниже ничто не сдвигается. */}
+      {prerender ? <div data-testid="tally-placeholder" style={{ height: H }} /> : <svg
         ref={ref}
         viewBox={`0 0 ${W} ${H}`}
         width="100%"
@@ -158,7 +164,7 @@ export default function TallyField() {
             style={{ transformOrigin: `${c.x + MARK_W / 2}px ${c.y + MARK_H}px` }}
           />
         ))}
-      </svg>
+      </svg>}
       <div
         className="max-w-[1240px] mx-auto px-6 flex flex-wrap gap-x-7 gap-y-1 mt-5 text-[13px] font-medium"
         style={{ color: LX.inkSoft }}

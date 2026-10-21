@@ -6,6 +6,7 @@ import { LogoMark } from "@/components/brand/Logo";
 import { PreferLang, UrlLang, useLang, type Lang } from "@/i18n";
 import { langFromSearch } from "@/i18n/page-lang";
 import { useTheme } from "@/hooks/useTheme";
+import { usePrerender } from "@/site/prerender";
 import { pick, type L } from "./pitch-content";
 import { PITCH_CSS } from "./pitch-tokens";
 import { useDisclosure } from "@/components/landing/use-disclosure";
@@ -67,6 +68,10 @@ export function PitchShell({ title, children, nav, lang = "uz", site = false }: 
 function ShellInner({ title, children, nav, site }: { title: L; children: ReactNode; nav?: Array<{ href: string; label: L }>; site: boolean }) {
   const { lang } = useLang();
   const { theme } = useTheme();
+  // Готовый HTML (сборка сайта) не знает темы человека: тон «auto» берёт её
+  // из системы (prefers-color-scheme, PITCH_CSS) — та же, что потом выберет
+  // useTheme без сохранённой. Иначе тёмная страница мигала бы светлой.
+  const tone = usePrerender() ? "auto" : theme;
   useEffect(() => {
     const prevTitle = document.title;
     const prevLang = document.documentElement.lang;
@@ -75,7 +80,7 @@ function ShellInner({ title, children, nav, site }: { title: L; children: ReactN
     return () => { document.title = prevTitle; document.documentElement.lang = prevLang; };
   }, [lang, title]);
   return (
-    <div className="pitch" data-tone={theme} data-testid="pitch-root" lang={lang}>
+    <div className="pitch" data-tone={tone} data-testid="pitch-root" lang={lang}>
       <style>{PITCH_CSS}</style>
       <div aria-hidden="true" style={{ position: "absolute", inset: "0 0 auto 0", height: 900, background: "var(--glow)", pointerEvents: "none" }} />
       <PitchHeader nav={nav} site={site} />

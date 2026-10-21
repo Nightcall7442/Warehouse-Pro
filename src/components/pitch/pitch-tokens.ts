@@ -10,6 +10,23 @@
  * 5.0:1, --teal 5.3:1. Светлые --faint, --accent-text и --teal темнее, чем
  * у лендинга: на полосе #ece8df лендинговые давали 4.4–4.6.
  */
+/** Светлый тон — одни и те же переменные для явной темы и для «auto» на светлой системе. */
+const LIGHT_TONE = `
+  --bg: #f4f2ed; --band: #ece8df; --panel: #faf9f5; --raised: #ffffff;
+  --text: #26231e; --soft: #57534a; --faint: #67635a;
+  --rule: rgba(72,66,55,0.16); --rule-strong: rgba(72,66,55,0.32);
+  --accent: #a8763e; --accent-text: #835a2b; --accent-soft: rgba(168,118,62,0.10);
+  --teal: #0d6a62; --teal-soft: rgba(15,118,110,0.08);
+  --btn-bg: #26231e; --btn-fg: #f4f2ed;
+  --code-bg: #26231e;
+  --glow: radial-gradient(1200px 520px at 78% -10%, rgba(168,118,62,0.12), transparent 62%);
+`;
+
+/*
+  Тон «auto» — только у готового HTML сайта (/compare, собранного заранее):
+  тема человека при сборке неизвестна, и до скрипта страница следует системе.
+  Скрипт ставит настоящий тон из useTheme.
+*/
 export const PITCH_CSS = `
 .pitch {
   --bg: #15130f; --band: #1b1915; --panel: #221f1a; --raised: #2a2620;
@@ -27,15 +44,9 @@ export const PITCH_CSS = `
   min-height: 100vh; min-height: 100dvh;
   overflow-x: clip;
 }
-.pitch[data-tone="light"] {
-  --bg: #f4f2ed; --band: #ece8df; --panel: #faf9f5; --raised: #ffffff;
-  --text: #26231e; --soft: #57534a; --faint: #67635a;
-  --rule: rgba(72,66,55,0.16); --rule-strong: rgba(72,66,55,0.32);
-  --accent: #a8763e; --accent-text: #835a2b; --accent-soft: rgba(168,118,62,0.10);
-  --teal: #0d6a62; --teal-soft: rgba(15,118,110,0.08);
-  --btn-bg: #26231e; --btn-fg: #f4f2ed;
-  --code-bg: #26231e;
-  --glow: radial-gradient(1200px 520px at 78% -10%, rgba(168,118,62,0.12), transparent 62%);
+.pitch[data-tone="light"] {${LIGHT_TONE}}
+@media (prefers-color-scheme: light) {
+  .pitch[data-tone="auto"] {${LIGHT_TONE}}
 }
 .pitch ::selection { background: var(--accent); color: var(--btn-fg); }
 .pitch a { color: inherit; }

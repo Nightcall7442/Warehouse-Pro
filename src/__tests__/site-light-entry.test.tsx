@@ -19,7 +19,8 @@ import { MemoryRouter } from "react-router";
  *    отказа и повторная отправка после него; второй щелчок, пока первая
  *    заявка в пути, второй заявки не шлёт.
  * 4. Маршруты сайта: узбекская страница по-узбекски и с <html lang="uz">;
- *    адрес не сайта (/register) — полной загрузкой с теми же метками.
+ *    адрес не сайта (/register) — полной загрузкой с теми же метками;
+ *    ожившая страница помечает #root (data-live) — её ждут проверки e2e.
  *
  * Нарочная поломка: в main.tsx грузить сайт без проверки hadSession —
  * падает «входивший получает приложение»; убрать x-lang из lib/client-fetch
@@ -185,6 +186,19 @@ describe("маршруты сайта", () => {
     await draw("/uz/compare");
     expect(document.documentElement.lang).toBe("uz");
     expect(localStorage.getItem("lang")).toBeNull();
+  });
+
+  it("ожившая страница ставит метку data-live на #root — до неё готовый HTML ещё не нажимается", async () => {
+    const root = document.createElement("div");
+    root.id = "root";
+    document.body.appendChild(root);
+    try {
+      expect(root.hasAttribute("data-live")).toBe(false);
+      await draw("/");
+      expect(root.hasAttribute("data-live")).toBe(true);
+    } finally {
+      root.remove();
+    }
   });
 
   it("адрес не сайта — полной загрузкой, с метками в адресе", async () => {
