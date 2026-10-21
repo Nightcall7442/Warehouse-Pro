@@ -29,8 +29,12 @@ describe("x-client-version → client_requests_total", () => {
     expect(boot).toContain('if (path.startsWith("/api/")) clientRequestsTotal.inc(clientVersionOf(c.req.header("x-client-version")));');
     expect(boot).toMatch(/allowHeaders: \[[^\]]*"x-client-version"/);
     expect(readFileSync("api/prometheus-metrics.ts", "utf-8")).toContain('name: "client_requests_total"');
-    const web = readFileSync("src/providers/trpc.client.ts", "utf-8");
+    // Заголовок ставит общий clientFetch: им ходят и приложение
+    // (providers/trpc.client), и лёгкий вход сайта (lib/public-api).
+    const web = readFileSync("src/lib/client-fetch.ts", "utf-8");
     expect(web).toContain('headers.set("x-client-version", CLIENT_VERSION)');
     expect(web).toContain("`web/${import.meta.env.VITE_APP_VERSION || \"dev\"}`");
+    expect(readFileSync("src/providers/trpc.client.ts", "utf-8")).toMatch(/const customFetch = clientFetch;/);
+    expect(readFileSync("src/lib/public-api.ts", "utf-8")).toMatch(/fetch: clientFetch/);
   });
 });
