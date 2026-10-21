@@ -6,6 +6,7 @@ import { useHotkeys } from "@/hooks/useHotkeys";
 import Layout from "@/components/Layout";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import { lazyWithRecovery } from "@/lib/stale-app-recovery";
+import UzSite from "@/components/landing/UzSite";
 import { CommandPalette } from "@/components/CommandPalette";
 import { QuickOrderHost } from "@/components/orders/QuickOrderHost";
 import { NoAccess } from "@/components/NoAccess";
@@ -221,6 +222,13 @@ export default function App() {
         <Route path="/pitch"              element={<Pitch />} />
         <Route path="/demo"               element={<PitchDemo />} />
         <Route path="/compare"            element={<Compare />} />
+        {/* Узбекский сайт: те же лендинг и сравнение, язык — из адреса, а не
+            из сохранённого выбора (UzSite). Service worker сюда не ходит
+            (navigateFallbackDenylist в vite.config.ts): страницы сайта отдаёт
+            сервер, и закэшированная старая оболочка не должна их подменять. */}
+        <Route path="/uz"                 element={<UzSite path="/"><Landing /></UzSite>} />
+        <Route path="/uz/compare"         element={<UzSite path="/compare"><Compare /></UzSite>} />
+        <Route path="/uz/*"               element={<Navigate to="/uz" replace />} />
         <Route path="/"                   element={<RootGate />} />
 
         <Route element={<AppLayout />}>

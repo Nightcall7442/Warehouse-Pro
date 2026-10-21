@@ -94,8 +94,14 @@ export default defineConfig({
           «Страница не найдена». В свежем браузере всё работало — поэтому
           на стенде не ловилось, а у арендатора с установленной PWA ловилось
           всегда. Проверяется в api/__tests__/manual-is-gated.test.ts.
+
+          /uz — узбекский сайт. Его страницы будет отдавать сервер готовым
+          HTML (своя карточка, свой язык); старый service worker подсунул бы
+          закэшированную оболочку прежней версии, где маршрута /uz нет, —
+          и человек с установленной PWA увидел бы «Страница не найдена».
+          Регулярка с якорем: /uzum или /uzbek не задеваются.
         */
-        navigateFallbackDenylist: [/^\/api\//, /^\/manual(\/|$)/],
+        navigateFallbackDenylist: [/^\/api\//, /^\/manual(\/|$)/, /^\/uz(\/|$)/],
         globPatterns:             ["**/*.{js,css,html,json,png,svg,ico}"],
         cleanupOutdatedCaches:    true,
         clientsClaim:             true,

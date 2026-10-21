@@ -16,6 +16,10 @@ COPY db/ db/
 COPY contracts/ contracts/
 COPY src/ src/
 COPY public/ public/
+# Сборочные скрипты: заготовка под шаги сборки после vite build (готовые
+# страницы сайта из того же кода). Без этой строки `node scripts/…` в
+# npm run build падал бы только здесь — локально и в CI папка на месте.
+COPY scripts/ scripts/
 # Руководство дистрибьютора: отдаётся сервером за сессией (api/manual.ts), не статикой.
 COPY docs/manual/ docs/manual/
 COPY .env.example .env

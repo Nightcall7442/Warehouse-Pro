@@ -170,10 +170,22 @@ describe("service worker и /manual/", () => {
     }
   });
 
+  /*
+    Узбекский сайт (/uz, /uz/compare) отдаёт сервер. Закэшированная оболочка
+    прежней версии маршрута /uz не знает — человек с установленной PWA видел
+    бы «Страница не найдена» вместо сайта.
+  */
+  it("узбекский сайт идёт мимо service worker", () => {
+    for (const p of ["/uz", "/uz/", "/uz/compare", "/uz/compare?utm_source=tg"]) {
+      expect(caught(p), `${p} перехватит service worker — откроется старая оболочка без маршрута /uz`).toBe(true);
+    }
+  });
+
   it("а само приложение — по-прежнему через него", () => {
     // Иначе PWA перестанет открываться офлайн: /orders/new и план на день
     // стоят в ярлыках манифеста, и без оболочки они мертвы без сети.
-    for (const p of ["/", "/orders/new", "/agent/plans", "/manualnyj-vvod", "/settings"]) {
+    // /uzum, /users — похожие адреса не должны выпасть вместе с /uz.
+    for (const p of ["/", "/orders/new", "/agent/plans", "/manualnyj-vvod", "/settings", "/users", "/uzum", "/compare"]) {
       expect(caught(p), `${p} выпал из PWA`).toBe(false);
     }
   });

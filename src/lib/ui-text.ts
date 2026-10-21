@@ -1,3 +1,5 @@
+import { pageLangOverride } from "@/i18n/page-lang";
+
 /**
  * Двуязычная строка там, куда не дотягивается контекст языка.
  *
@@ -8,6 +10,9 @@
  * В обычном компоненте пользоваться этим не нужно: там есть useTranslate().
  */
 export function uiText(ru: string, uz: string): string {
+  // Язык из адреса (/uz, ?lang=) сильнее сохранённого — см. i18n/page-lang.
+  const fromUrl = pageLangOverride();
+  if (fromUrl) return fromUrl === "uz" ? uz : ru;
   try {
     return localStorage.getItem("lang") === "uz" ? uz : ru;
   } catch {
@@ -21,6 +26,8 @@ export function uiText(ru: string, uz: string): string {
  * каждом запросе к серверу и errorText (src/lib/error-text.ts).
  */
 export function uiLang(): "ru" | "uz" {
+  const fromUrl = pageLangOverride();
+  if (fromUrl) return fromUrl;
   try {
     return localStorage.getItem("lang") === "uz" ? "uz" : "ru";
   } catch {

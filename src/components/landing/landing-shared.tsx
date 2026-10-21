@@ -1,5 +1,5 @@
 import { useEffect, useState, useId, type ReactNode, type CSSProperties } from "react";
-import { cn, LX, MONO, useInView } from "./landing-tokens";
+import { cn, LX, MONO, useInView, linkProps } from "./landing-tokens";
 
 /* ═══════════════════════════════════════════════════════════════════════════
    СКЛАДСКАЯ КНИГА — дизайн-система лендинга
@@ -215,15 +215,6 @@ export function Stamp({
 /* ── Кнопки ────────────────────────────────────────────────────────────────
    Чернильная — единственный сильный элемент; призрачная — контур на
    волосяной линии. Никаких выпуклых теней. */
-/**
- * Внешняя ссылка открывается в новой вкладке, якорь на этой же странице — нет.
- *
- * Раньше target="_blank" ставился на любой href, поэтому кнопка героя
- * «Посмотреть интерфейс» с href="#product" открывала копию лендинга в новой
- * вкладке вместо того, чтобы прокрутить к окну продукта.
- */
-const linkProps = (href: string) =>
-  href.startsWith("#") ? {} : { target: "_blank" as const, rel: "noreferrer" };
 
 export function BtnInk({
   children,

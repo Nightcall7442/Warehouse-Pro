@@ -124,6 +124,22 @@ export const tgLink = (text?: string) =>
     ? `https://t.me/${CONTACT.telegram}${text ? `?text=${encodeURIComponent(text)}` : ""}`
     : null;
 
+/**
+ * В новой вкладке открывается только чужой сайт (Telegram и т. п.); якорь и
+ * страница этого же сайта — в той же.
+ *
+ * Раньше target="_blank" ставился на любой href, поэтому кнопка героя
+ * «Посмотреть интерфейс» с href="#product" открывала копию лендинга в новой
+ * вкладке вместо того, чтобы прокрутить к окну продукта. Потом исключением
+ * стал якорь — но не свои страницы: «Начать бесплатно» ссылкой на /register
+ * открыла бы регистрацию в новой вкладке, а с noreferrer — ещё и без
+ * sessionStorage, где лежат метки рекламы (lib/attribution).
+ */
+export const isExternalHref = (href: string) => /^https?:\/\//i.test(href) || href.startsWith("//");
+
+export const linkProps = (href: string) =>
+  isExternalHref(href) ? { target: "_blank" as const, rel: "noreferrer" } : {};
+
 export function useInView<T extends HTMLElement>(threshold = 0.3) {
   const ref = useRef<T>(null);
   const [seen, setSeen] = useState(false);
