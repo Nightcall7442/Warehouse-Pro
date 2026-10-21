@@ -91,12 +91,15 @@ export async function salesWarehouseFor(db: Db | Tx, tenantId: number, q: SalesW
   if (q.agentId) {
     // Склад из карточки — только пока с него продают. Сняли отметку или
     // отключили склад — агент молча возвращается к основному, а не остаётся
-    // без каталога.
-    const [own] = await db.select({ id: warehouses.id }).from(users)
-      .innerJoin(warehouses, and(eq(warehouses.id, users.warehouseId), sellableWarehouse(tenantId)))
+    // без каталога. Двумя запросами, а не соединением: у большинства
+    // сотрудников склада нет, и второй запрос им не нужен.
+    const [agent] = await db.select({ warehouseId: users.warehouseId }).from(users)
       .where(and(eq(users.id, q.agentId), eq(users.tenantId, tenantId)))
       .limit(1);
-    if (own) return Number(own.id);
+    if (agent?.warehouseId) {
+      const own = await findSellableWarehouse(db, tenantId, Number(agent.warehouseId));
+      if (own) return own.id;
+    }
   }
   return defaultWarehouseId(db, tenantId);
 }

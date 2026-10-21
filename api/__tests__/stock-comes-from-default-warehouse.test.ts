@@ -104,24 +104,29 @@ describe("каталог и заказ — один склад продажи", 
 
 describe("salesWarehouseFor: порядок выбора", () => {
   /**
-   * Подделка двух запросов правила: «склад из карточки сотрудника» (через
-   * users) и «основной» (warehouses). Что вернуть — по таблице в from().
+   * Подделка запросов правила: «склад из карточки сотрудника» (users),
+   * «с этого склада продают» и «основной» (warehouses). Что вернуть — по
+   * таблице в from() и по проекции: проверка склада спрашивает и имя.
    */
   async function rule(rows: { sellable?: number[]; agentWarehouse?: number | null; defaultId?: number | null }) {
     const { salesWarehouseFor } = await import("../services/sales-warehouse");
     const schema = await import("@db/schema");
     const calls: string[] = [];
     const db = {
-      select: () => ({
+      select: (proj: Record<string, unknown>) => ({
         from: (table: unknown) => {
           const fromUsers = table === schema.users;
+          const sellableCheck = "name" in proj;
           const q = {
-            innerJoin: () => q,
             where: () => q,
             limit: async () => {
-              if (fromUsers) { calls.push("agent"); return rows.agentWarehouse ? [{ id: rows.agentWarehouse }] : []; }
-              calls.push("warehouse");
-              return rows.sellable?.length ? [{ id: rows.sellable[0], name: "Склад" }] : rows.defaultId ? [{ id: rows.defaultId }] : [];
+              if (fromUsers) { calls.push("agent"); return [{ warehouseId: rows.agentWarehouse ?? null }]; }
+              if (sellableCheck) {
+                calls.push("sellable");
+                return rows.sellable?.length ? [{ id: rows.sellable[0], name: "Склад" }] : [];
+              }
+              calls.push("default");
+              return rows.defaultId ? [{ id: rows.defaultId }] : [];
             },
           };
           return q;
@@ -131,18 +136,23 @@ describe("salesWarehouseFor: порядок выбора", () => {
     return { salesWarehouseFor: (q: Parameters<typeof salesWarehouseFor>[2]) => salesWarehouseFor(db, 1, q), calls };
   }
 
-  it("без выбора и без склада у агента — основной; со складом агента — его", async () => {
+  it("без выбора и без склада у агента — основной; со складом агента — его, пока с него продают", async () => {
     const plain = await rule({ defaultId: 3 });
     expect(await plain.salesWarehouseFor({ agentId: 7 })).toBe(3);
-    expect(plain.calls).toEqual(["agent", "warehouse"]);
-    const branch = await rule({ agentWarehouse: 9, defaultId: 3 });
+    expect(plain.calls).toEqual(["agent", "default"]);
+    const branch = await rule({ agentWarehouse: 9, sellable: [9], defaultId: 3 });
     expect(await branch.salesWarehouseFor({ agentId: 7 })).toBe(9);
-    expect(branch.calls).toEqual(["agent"]);
+    expect(branch.calls).toEqual(["agent", "sellable"]);
+    // Склад сняли с продаж — агент на основном, а не без каталога.
+    const unmarked = await rule({ agentWarehouse: 9, sellable: [], defaultId: 3 });
+    expect(await unmarked.salesWarehouseFor({ agentId: 7 })).toBe(3);
+    expect(unmarked.calls).toEqual(["agent", "sellable", "default"]);
   });
 
   it("явный выбор: офису — проверенный склад, полевому — отказ без похода в базу", async () => {
     const office = await rule({ sellable: [5] });
     expect(await office.salesWarehouseFor({ requested: 5, agentId: 7, mayChoose: true })).toBe(5);
+    expect(office.calls).toEqual(["sellable"]);
     const field = await rule({ sellable: [5] });
     await expect(field.salesWarehouseFor({ requested: 5, agentId: 7, mayChoose: false })).rejects.toThrow("Склад заказа выбирает офис");
     expect(field.calls).toEqual([]);
