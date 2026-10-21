@@ -122,7 +122,7 @@ export function ReorderPlan({ rows, warehouseId, lang }: { rows: ReorderRow[]; w
             <div style={{ overflowX: "auto" }}>
               <table className="data-table">
                 <thead>
-                  <tr>{head.map((h, i) => <th key={i} style={i >= 2 && i !== 7 ? { textAlign: "right" } : undefined}>{h}</th>)}</tr>
+                  <tr>{head.map((h, i) => <th key={i} style={i >= 2 ? { textAlign: "right" } : undefined}>{h}</th>)}</tr>
                 </thead>
                 <tbody>
                   {g.rows.map(r => {
