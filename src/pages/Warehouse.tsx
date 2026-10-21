@@ -640,7 +640,7 @@ export default function Warehouse() {
 
       {activeTab === "reports" && <WarehouseReports />}
 
-      {/* Продают только с основного склада — раздел сам показывает, где лежит партия. */}
+      {/* Продают с основного склада и с точек продаж (ADR 0012) — раздел сам показывает, где лежит партия. */}
       {activeTab === "expiry" && <ExpiringBatches onOpenTransfers={() => setActiveTab("transfers")} />}
 
       {activeTab === "transfers" && multi && (

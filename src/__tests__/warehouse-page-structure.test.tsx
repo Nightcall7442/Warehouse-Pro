@@ -169,7 +169,7 @@ describe("каркас страницы", () => {
     expect(tab.textContent).toBe("Сроки3");
     expect(tab.getAttribute("aria-selected")).toBe("true");
     expect(screen.getByTestId("tab-expiry")).toBeTruthy();
-    expect(screen.queryByTestId("warehouse-chips"), "продают только с основного — выбор склада здесь ни к чему").toBeNull();
+    expect(screen.queryByTestId("warehouse-chips"), "раздел сам называет склад партии — выбор склада здесь ни к чему").toBeNull();
   });
 
   it("при нескольких складах — «Сравнение» и «Перемещения» в ленте, фишки складов над ней", () => {

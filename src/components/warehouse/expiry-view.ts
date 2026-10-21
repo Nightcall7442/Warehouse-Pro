@@ -52,7 +52,8 @@ export function firstGroup(rows: ReadonlyArray<Pick<ExpiryRowServer, "verdict">>
 
 export const VERDICT_LABEL: Record<ExpiryVerdict, { ru: string; uz: string; tone: "danger" | "warning" | "success" }> = {
   expired:   { ru: "Просрочено", uz: "Muddati o'tgan", tone: "danger" },
-  elsewhere: { ru: "Не на основном складе", uz: "Asosiy omborda emas", tone: "warning" },
+  // Склад, с которого не продают: не основной и не точка продаж (ADR 0012).
+  elsewhere: { ru: "Не на складе продаж", uz: "Savdo omborida emas", tone: "warning" },
   no_sales:  { ru: "Нет продаж", uz: "Sotuv yo'q", tone: "danger" },
   short:     { ru: "Не успеет", uz: "Ulgurmaydi", tone: "warning" },
   sells:     { ru: "Успеет", uz: "Ulguradi", tone: "success" },

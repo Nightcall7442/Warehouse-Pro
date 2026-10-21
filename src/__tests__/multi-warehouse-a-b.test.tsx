@@ -108,7 +108,7 @@ describe("A — один склад: ничего лишнего", () => {
 
   it("страница склада: фишки, «Сравнение» и «Перемещения» — только при multi", () => {
     const page = read("src/pages/Warehouse.tsx");
-    // «Сроки» тоже без фишек: продают только с основного, раздел сам говорит, где лежит партия.
+    // «Сроки» тоже без фишек: раздел сам говорит, где лежит партия и продают ли с того склада (ADR 0012).
     expect(page).toContain("{multi && activeTab !== \"compare\" && activeTab !== \"transfers\" && activeTab !== \"reports\" && activeTab !== \"expiry\" && (");
     expect(page).toContain("...(multi ? [");
     expect(page).toContain('{ key: "compare" as const');

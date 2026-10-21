@@ -39,7 +39,8 @@ import { errorText } from "@/lib/error-text";
  *
  *   не успеет / нет продаж — уценить (цена-потолок для всех магазинов, пока
  *                            партия жива; агенты видят «Продать первым»);
- *   не на основном складе  — переместить: продают только с основного;
+ *   на складе, с которого не продают — переместить: продают с основного и
+ *                            с точек продаж (ADR 0012), склад хранения ждёт;
  *   просрочено             — списать (окно движения, заполненное заранее);
  *   успеет                 — ничего не делать.
  *
@@ -52,7 +53,7 @@ import { errorText } from "@/lib/error-text";
  * подпись говорит об этом прямо.
  */
 export function ExpiringBatches({ onOpenTransfers }: {
-  /** «Переместить на основной» — раздел перемещений той же страницы склада. */
+  /** «Переместить туда, где продают» — раздел перемещений той же страницы склада. */
   onOpenTransfers?: () => void;
 } = {}) {
   const { lang } = useLang();
@@ -443,7 +444,7 @@ function ExpiryRowCard({ r, seesCost, canPrice, canAdjust, opening, clearing, on
           ) : r.verdict === "elsewhere" ? (
             <button type="button" className="neo-btn tap w-full lg:w-auto" onClick={onMove}>
               <ArrowLeftRight size={14} />
-              {t("Переместить на основной", "Asosiyga ko'chirish")}
+              {t("Переместить туда, где продают", "Sotiladigan omborga ko'chirish")}
             </button>
           ) : r.verdict === "expired" ? (
             canAdjust ? (
