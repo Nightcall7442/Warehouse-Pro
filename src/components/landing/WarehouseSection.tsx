@@ -31,14 +31,16 @@ export default function WarehouseSection() {
   const caps = [
     { t: tr("Остатки по каждому складу", "Har bir ombor qoldig'i"), d: tr("Остаток, резерв под заказы и свободное — три числа, а не одно", "Qoldiq, buyurtma zaxirasi va bo'sh — bitta emas, uchta raqam") },
     { t: tr("Приходы с партиями", "Partiyali kirimlar"), d: tr("Закупочная цена, партия, срок годности — по каждой позиции", "Xarid narxi, partiya, yaroqlilik muddati — har bir pozitsiyada") },
-    { t: tr("Инвентаризация", "Inventarizatsiya"), d: tr("Пересчёт по факту и акт расхождений — кто, когда, на сколько", "Haqiqiy sanoq va farqlar dalolatnomasi — kim, qachon, qancha") },
+    { t: tr("Инвентаризация", "Inventarizatsiya"), d: tr("Весь склад, категория или выбранные товары; расхождения ложатся движениями в журнал, по желанию — после утверждения директора", "Butun ombor, turkum yoki tanlangan tovarlar; farqlar jurnalga harakat bo'lib tushadi, xohishga ko'ra — direktor tasdig'idan keyin") },
     { t: tr("Корректировки", "Tuzatishlar"), d: tr("Каждая — с автором и временем; «просто поправить цифру» нельзя", "Har biri — muallif va vaqt bilan; «shunchaki raqamni to'g'rilash» yo'q") },
     { t: tr("Движения", "Harakatlar"), d: tr("Что пришло, что ушло, по какому документу", "Nima keldi, nima ketdi, qaysi hujjat bo'yicha") },
     { t: tr("Оценка склада", "Ombor bahosi"), d: tr("Сколько денег лежит на полках прямо сейчас", "Hozir javonlarda qancha pul yotibdi") },
     { t: tr("Лежалый товар и дозаказ", "Turib qolgan mahsulot va qayta buyurtma"), d: tr("Что не продавалось месяц, что скоро просрочится и что заканчивается раньше, чем приедет", "Bir oy sotilmagan, tez orada muddati o'tadigan va kelguncha tugab qoladigan") },
-    { t: tr("Перемещения", "Ko'chirishlar"), d: tr("Между складами: создали, завершили — товар переехал", "Omborlar orasida: yaratdingiz, yakunladingiz — mahsulot ko'chdi") },
+    { t: tr("Перемещения", "Ko'chirishlar"), d: tr("Между складами — своими партиями и сроками; по желанию — в два шага: товар «в пути», пока получатель не примет", "Omborlar orasida — o'z partiyalari va muddatlari bilan; xohishga ko'ra — ikki bosqichda: qabul qiluvchi qabul qilmaguncha tovar «yo'lda»") },
     { t: tr("Возвраты", "Qaytarishlar"), d: tr("Отдельный документ после доставки — со статусами и сводкой", "Yetkazishdan keyin alohida hujjat — holatlar va xulosa bilan") },
     { t: tr("Контрагенты", "Kontragentlar"), d: tr("Поставки, платежи поставщику, сверка взаиморасчётов", "Yetkazib beruvchi ta'minoti, to'lovlari, o'zaro hisob solishtiruvi") },
+    { t: tr("Заказы поставщикам", "Yetkazib beruvchiga buyurtmalar"), d: tr("Черновики из «Дозаказа» по поставщикам, согласование директора, отсрочка оплаты; долг — когда приход проведён", "«Qayta buyurtma»dan yetkazib beruvchilar bo'yicha qoralamalar, direktor kelishuvi, to'lov kechiktirishi; qarz — kirim o'tkazilganda") },
+    { t: tr("Штрих-коды", "Shtrix-kodlar"), d: tr("Основной и до 20 дополнительных — блок, пачка, этикетка второго поставщика; сканер находит товар по любому", "Asosiy va 20 tagacha qo'shimcha — blok, pachka, ikkinchi yetkazib beruvchi yorlig'i; skaner mahsulotni istalgani bo'yicha topadi") },
     { t: tr("Отчёты склада", "Ombor hisobotlari"), d: tr("По категориям, движения, топ по стоимости, оборачиваемость", "Kategoriya bo'yicha, harakatlar, qiymat bo'yicha top, aylanma") },
     { t: tr("Обмен с 1С", "1C bilan almashinuv"), d: tr("Номенклатура и цены — из 1С, заказы и оплаты — в 1С, по OData, без двойного ввода", "Nomenklatura va narxlar — 1C'dan, buyurtmalar va to'lovlar — 1C'ga, OData orqali, ikki marta kiritishsiz") },
   ];

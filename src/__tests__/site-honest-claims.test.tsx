@@ -35,6 +35,21 @@ import { readFileSync, readdirSync } from "node:fs";
  *     товары и цены только приходят из 1С, заказы и оплаты только уходят в
  *     неё, контрагенты сопоставляются с магазинами.
  *
+ * Третий проход (после слияния складской, закупочной и доставочной веток,
+ * 21.10.2026) — описание догнало код, и стражи держат то, что легко
+ * разъехаться:
+ *
+ *   · перемещение в два шага («в пути») и утверждение инвентаризации
+ *     директором включаются по желанию — по умолчанию их нет. Фраза без
+ *     «по желанию» обещает покупателю порядок, которого он после
+ *     регистрации не увидит;
+ *   · числа в тексте — из кода: «до 20 дополнительных» штрих-кодов
+ *     (MAX_EXTRA_BARCODES), «одиннадцать галочек» прав оператора
+ *     (OPERATOR_CAPABILITIES; было «десять» — галочка перемещений добавилась);
+ *   · руководство больше не говорит «Продажа при этом всегда идёт с
+ *     основного склада» (есть точки продаж) и «Заказ поставщику оформляется
+ *     приходом» (есть заказы поставщикам с согласованием).
+ *
  * Сравнение, конкурс и статьи проверяются по исходному тексту: их страницы
  * тянут сеть и демо, а обещание живёт в строке, где бы её ни показали.
  *
@@ -49,6 +64,8 @@ const { default: Landing } = await import("@/pages/Landing");
 const { LangProvider } = await import("@/i18n");
 const { PaymentMethodsCard } = await import("@/components/billing/PaymentMethodsCard");
 const { FAQ_ITEMS } = await import("@/components/landing/site-content");
+const { MAX_EXTRA_BARCODES } = await import("@contracts/product-barcodes");
+const { OPERATOR_CAPABILITIES } = await import("@contracts/constants");
 
 beforeEach(() => {
   localStorage.clear();
@@ -146,5 +163,59 @@ describe("README", () => {
     const agent = /`(agent-[a-z]+@demo-uz\.uz)`/.exec(readme)?.[1];
     expect(agent, "в README нет демо-агента").toBeTruthy();
     expect(seed).toContain(agent!);
+  });
+});
+
+describe("после слияния: склад, закупки и доставка — как в коде", () => {
+  const strip = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+  /** Всё, что описывает продукт покупателю: лендинг, сравнение, конкурс, README. */
+  const surfaces = () => [
+    ...readdirSync("src/components/landing").filter(f => /\.tsx?$/.test(f)).map(f => `src/components/landing/${f}`),
+    "src/components/compare/compare-content.ts", "src/components/pitch/pitch-content.ts", "README.md",
+  ].map(f => [f, strip(readFileSync(f, "utf8"))] as const);
+  /** Кусок фразы: до точки, точки с запятой, кавычки строки или конца строки. */
+  const clauses = (text: string) => text.split(/[.;\n"`]/);
+
+  it("«в два шага» и утверждение инвентаризации названы включаемыми по желанию", () => {
+    let ru = 0, uz = 0;
+    for (const [f, text] of surfaces()) {
+      for (const c of clauses(text)) {
+        if (/в два шага|«в пути»|утвержден\S* директора|с его утверждением/.test(c)) {
+          ru++;
+          expect(c, f).toMatch(/по желанию|по настройке|по выбору|можно включить/);
+        }
+        if (/ikki bosqich|direktor tasdig'i/.test(c)) {
+          uz++;
+          expect(c, f).toMatch(/xohishga ko'ra/);
+        }
+      }
+    }
+    // Страж не пустой: фразы есть, и каждая проверена.
+    expect(ru).toBeGreaterThanOrEqual(4);
+    expect(uz).toBeGreaterThanOrEqual(3);
+  });
+
+  it("числа берутся из кода: дополнительные штрих-коды и галочки прав оператора", () => {
+    const warehouse = readFileSync("src/components/landing/WarehouseSection.tsx", "utf8");
+    expect(warehouse).toContain(`до ${MAX_EXTRA_BARCODES} дополнительных`);
+    expect(warehouse).toContain(`${MAX_EXTRA_BARCODES} tagacha qo'shimcha`);
+
+    const words: Record<number, [string, string]> = {
+      10: ["десять", "o'nta"], 11: ["одиннадцать", "o'n bitta"], 12: ["двенадцать", "o'n ikkita"],
+    };
+    const [ru, uz] = words[OPERATOR_CAPABILITIES.length] ?? ["?", "?"];
+    const manual = readFileSync("scripts/manual_content.py", "utf8");
+    const ruSaid = [...manual.matchAll(/«Права оператора»: (\S+) галочек/g)].map(m => m[1]);
+    const uzSaid = [...manual.matchAll(/«Operator huquqlari»: ([a-z' ]+?) belgi\b/g)].map(m => m[1]);
+    expect(ruSaid.length, "руководство перестало называть число галочек — страж ничего не держит").toBeGreaterThan(0);
+    expect(uzSaid.length).toBe(ruSaid.length);
+    for (const w of ruSaid) expect(w).toBe(ru);
+    for (const w of uzSaid) expect(w).toBe(uz);
+  });
+
+  it("руководство не повторяет того, что слияние сделало неправдой", () => {
+    const manual = readFileSync("scripts/manual_content.py", "utf8");
+    expect(manual).not.toMatch(/всегда идёт с основного склада|doim asosiy ombordan/);
+    expect(manual).not.toMatch(/Заказ поставщику оформляется приходом|buyurtma tovar kelganda kirim bilan rasmiylashtiriladi/);
   });
 });

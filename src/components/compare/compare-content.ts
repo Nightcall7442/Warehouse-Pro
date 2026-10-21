@@ -88,8 +88,8 @@ export const AREAS: Area[] = [
   {
     area: { ru: "Доставка и «частично доставлен»", uz: "Yetkazish va «qisman yetkazildi»" },
     ours: {
-      ru: "Отметки курьера, частичная доставка, отказ у двери, наличные и недостача; расчёт по заказу закрывает офис.",
-      uz: "Kuryer belgilari, qisman yetkazish, eshik oldida rad etish, naqd pul va kamomad; buyurtma hisob-kitobini ofis yopadi.",
+      ru: "Порядок объезда на доске развоза и курьер на карте; частичная доставка и возврат; «не доставлено» с причиной из списка и перенос на другой день; фото и подпись при вручении; ссылка «где мой заказ» для магазина; наличные и недостача, расчёт по заказу закрывает офис.",
+      uz: "Yetkazish doskasida aylanish tartibi va xaritada kuryer; qisman yetkazish va qaytarish; ro'yxatdan sabab bilan «yetkazilmadi» va boshqa kunga ko'chirish; topshirishda rasm va imzo; do'kon uchun «buyurtmam qayerda» havolasi; naqd pul va kamomad, buyurtma hisob-kitobini ofis yopadi.",
     },
     salesDoctor: null,
     smartup: { text: { ru: "Заявлена логистика; частичная доставка — уточняйте.", uz: "Logistika e'lon qilingan; qisman yetkazish — aniqlang." }, source: "smartup" },
@@ -124,17 +124,26 @@ export const AREAS: Area[] = [
   {
     area: { ru: "Склад", uz: "Ombor" },
     ours: {
-      ru: "Партии и сроки годности, списание по FEFO, несколько складов, перемещения, инвентаризация, приход и долг поставщику.",
-      uz: "Partiyalar va yaroqlilik muddati, FEFO bo'yicha chiqim, bir nechta ombor, ko'chirishlar, inventarizatsiya, kirim va ta'minotchi qarzi.",
+      ru: "Партии и сроки годности, списание по FEFO, несколько складов и точки продаж, перемещения с партиями (по желанию — в два шага, «в пути»), инвентаризация всего склада, категории или выбранных товаров (по желанию — с утверждением директора), дополнительные штрих-коды.",
+      uz: "Partiyalar va yaroqlilik muddati, FEFO bo'yicha chiqim, bir nechta ombor va savdo nuqtalari, partiyalari bilan ko'chirish (xohishga ko'ra — ikki bosqichda, «yo'lda»), butun ombor, turkum yoki tanlangan tovarlar inventarizatsiyasi (xohishga ko'ra — direktor tasdig'i bilan), qo'shimcha shtrix-kodlar.",
     },
     salesDoctor: { text: { ru: "Заявлено: склад и остатки в реальном времени.", uz: "E'lon qilingan: ombor va qoldiqlar real vaqtda." }, source: "sd-interview" },
     smartup: { text: { ru: "Заявлен складской учёт.", uz: "Ombor hisobi e'lon qilingan." }, source: "smartup" },
   },
   {
+    area: { ru: "Закупки у поставщиков", uz: "Yetkazib beruvchilardan xarid" },
+    ours: {
+      ru: "«Дозаказ» по продажам, сгруппированный по поставщикам; заказы поставщикам с согласованием директора и отсрочкой оплаты; приход по заказу частями, долг поставщику — при проведении прихода.",
+      uz: "Sotuvga qarab «Qayta buyurtma», yetkazib beruvchilar bo'yicha guruhlangan; direktor kelishuvi va to'lov kechiktirishi bilan yetkazib beruvchiga buyurtmalar; buyurtma bo'yicha qismlab kirim, yetkazib beruvchiga qarz — kirim o'tkazilganda.",
+    },
+    salesDoctor: null,
+    smartup: null,
+  },
+  {
     area: { ru: "Отчёты", uz: "Hisobotlar" },
     ours: {
-      ru: "P&L, ABC, «Агент × Товар» в тех же деньгах, что P&L, долги, карта продаж, визиты без заказа; выгрузки в Excel.",
-      uz: "P&L, ABC, P&L bilan bir xil puldagi «Agent × Tovar», qarzlar, savdo xaritasi, buyurtmasiz tashriflar; Excel'ga eksport.",
+      ru: "P&L, ABC, «Агент × Товар» в тех же деньгах, что P&L, долги, карта продаж, визиты без заказа, недоставленные заказы по причинам; выгрузки в Excel.",
+      uz: "P&L, ABC, P&L bilan bir xil puldagi «Agent × Tovar», qarzlar, savdo xaritasi, buyurtmasiz tashriflar, sabablari bilan yetkazilmagan buyurtmalar; Excel'ga eksport.",
     },
     salesDoctor: { text: { ru: "Заявлены аналитика и готовые PIVOT-отчёты.", uz: "Tahlil va tayyor PIVOT-hisobotlar e'lon qilingan." }, source: "sd-ad" },
     smartup: null,

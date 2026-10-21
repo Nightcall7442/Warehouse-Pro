@@ -178,9 +178,11 @@ export const PARITY: L[] = [
   { uz: "Oflayn buyurtma, katalog, qoldiq va do'kon narxi", ru: "Офлайн-заказ, каталог, остаток и цена магазина" },
   { uz: "Narx varaqlari, miqdor pog'onalari, chegirma chegarasi", ru: "Прайс-листы, ступени по количеству, порог скидки" },
   { uz: "Buyurtma bo'yicha qarz, kredit limiti, yuklashni to'xtatish", ru: "Долг по заказу, кредитный лимит, стоп отгрузки" },
-  { uz: "Ombor: partiyalar, muddatlar, FEFO, bir nechta ombor", ru: "Склад: партии, сроки, FEFO, несколько складов" },
+  { uz: "Ombor: partiyalar, muddatlar, FEFO, bir nechta ombor, partiyali ko'chirish, tanlab inventarizatsiya", ru: "Склад: партии, сроки, FEFO, несколько складов, перемещения с партиями, выборочная инвентаризация" },
+  { uz: "Qayta buyurtma, kelishiladigan va to'lov muddatli yetkazib beruvchi buyurtmasi", ru: "Дозаказ, заказ поставщику с согласованием и отсрочкой оплаты" },
   { uz: "Kirim, ta'minotchi qarzi va unga qaytarish", ru: "Приход, долг поставщику и возврат ему" },
   { uz: "Kuryer yetkazishi, naqd pul va kamomad", ru: "Доставка курьером, наличные и недостача" },
+  { uz: "Aylanish tartibi, xaritada kuryer, topshirishda rasm va imzo, yetkazilmaslik sababi va ko'chirish, do'kon uchun havola", ru: "Порядок объезда, курьер на карте, фото и подпись при вручении, причина срыва и перенос, ссылка для магазина" },
   { uz: "Qaytarishlar sababi bilan", ru: "Возвраты с причиной" },
   { uz: "Tashriflar rejasi, GPS, buyurtmasiz tashrif sababi", ru: "План визитов, GPS, причина визита без заказа" },
   { uz: "Merchandayzer fotohisoboti", ru: "Фотоотчёт мерчендайзера" },
@@ -394,8 +396,8 @@ export const PROBLEMS: Array<{ topic: L; problem: L; solution: L }> = [
       ru: "Приход от поставщика вбивают руками, долг поставщику — в отдельной тетради.",
     },
     solution: {
-      uz: "Kirim Excelga o'xshash jadvalda; ta'minotchiga qarz, solishtirma dalolatnoma va ta'minotchiga qaytarish — bitta joyda.",
-      ru: "Приход — в таблице как в Excel; долг поставщику, акт сверки и возврат поставщику — в одном месте.",
+      uz: "Qayta buyurtmadan ta'minotchilar bo'yicha buyurtma qoralamalari, direktor kelishuvi va to'lov muddati; kirim Excelga o'xshash jadvalda; ta'minotchiga qarz, solishtirma dalolatnoma va ta'minotchiga qaytarish — bitta joyda.",
+      ru: "Из дозаказа — черновики заказов по поставщикам, согласование директора и отсрочка оплаты; приход — в таблице как в Excel; долг поставщику, акт сверки и возврат поставщику — в одном месте.",
     },
   },
   {

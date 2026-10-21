@@ -115,6 +115,7 @@ export default function TrackingSection() {
               tr("Заряд телефона каждого: разряжен — значит, точки перестанут приходить", "Har birining telefon quvvati: quvvat tugasa — nuqtalar kelmay qoladi"),
               tr("Визиты: был в точке, проехал мимо или ушёл без заказа — видно всё", "Tashriflar: nuqtada bo'ldi, o'tib ketdi yoki buyurtmasiz ketdi — hammasi ko'rinadi"),
               tr("Планы визитов на месяц и нормы продаж — расставили, программа считает выполнение", "Oylik tashrif rejalari va savdo normalari — belgiladingiz, dastur bajarilishini hisoblaydi"),
+              tr("Курьеры — на той же карте и на доске развоза: порядок объезда и путь за день; место курьер включает сам", "Kuryerlar — o'sha xaritada va yetkazish doskasida: aylanish tartibi va kunlik yo'l; joylashuvni kuryer o'zi yoqadi"),
             ].map(item => (
               <li key={item} className="flex items-start gap-3 text-[15px]" style={{ color: LX.softOnInk }}>
                 <Check size={15} strokeWidth={3} className="mt-1 shrink-0" style={{ color: LX.brassOnNight }} />

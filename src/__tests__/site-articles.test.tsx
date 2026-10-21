@@ -9,6 +9,9 @@ import { ARTICLE_TEXTS } from "@/site/articles/texts";
 import type { ArticleBlock, ArticleText, L } from "@/site/articles/types";
 import { pageLangOverride } from "@/i18n/page-lang";
 import { FIELD_PRICE_UZS, formatSum } from "@contracts/pricing";
+import { DELIVERY_FAIL_LABEL, DELIVERY_FAIL_REASONS } from "@contracts/delivery-fail-reason";
+import { PROOF_MAX_PHOTOS } from "@contracts/delivery-proof";
+import { MAX_EXTRA_BARCODES } from "@contracts/product-barcodes";
 import {
   ARTICLE_KEYS, ARTICLE_SLUGS, SITE_LANGS, SITE_PAGES, absoluteUrl, alternatesOf, ogImagePath, pageLangs, sitePage,
   type ArticleKey, type SiteLang,
@@ -29,18 +32,22 @@ import {
  * 3. Карта сайта: у каждой статьи — пара ru/uz с x-default.
  * 4. Тексты: русская версия — 700–1200 слов, узбекская — латиницей и с
  *    обычным апострофом (do'kon), как весь сайт; структура обеих одна.
- * 5. Честность: ни конкурентов, ни «iOS и Android», а статья о доставке не
- *    обещает того, чего в основной ветке нет (слежения за курьером и
- *    подтверждения вручения снимком). Статья о складе не говорит прежнего
+ * 5. Честность: ни конкурентов, ни «iOS и Android». Статья о доставке — как
+ *    после слияния ветки доставки: порядок объезда, курьер на карте,
+ *    подтверждение вручения, причины и перенос, ссылка для магазина; числа
+ *    в ней (причины, фото, дни ссылки) — из кода, а магазину она не обещает
+ *    ни карты, ни точного времени. Статья о складе не говорит прежнего
  *    «продают только с основного» и «товар сразу на складе-получателе»:
  *    после слияния веток склада и закупок есть точки продаж (ADR 0012),
- *    перемещение в два шага и «Дозаказ» по выбранному складу.
+ *    перемещение в два шага и «Дозаказ» по выбранному складу; включаемое
+ *    (точки продаж, два шага, утверждение правок) названо включаемым.
  * 6. Связи: подвал лендинга ведёт на все статьи на своём языке, статьи — друг
  *    на друга, приложение (App.tsx) знает их адреса.
  *
  * Нарочная поломка: поменять слово в ответе FAQ только в site-head — падает
- * «FAQPage слово в слово»; вписать в статью о доставке «GPS курьера» —
- * «доставка»; заменить апостроф в узбекском на «ʻ» — «узбекский текст».
+ * «FAQPage слово в слово»; добавить причину в DELIVERY_FAIL_REASONS или
+ * вписать в статью о доставке «в реальном времени» — «доставка»; заменить
+ * апостроф в узбекском на «ʻ» — «узбекский текст».
  */
 
 const decode = (s: string) =>
@@ -282,7 +289,7 @@ describe("тексты статей", () => {
     }
   });
 
-  it("статья о складе — как после слияния: точки продаж, перемещение в два шага, «Дозаказ» по складу", () => {
+  it("статья о складе — как после слияния: точки продаж, два шага, «Дозаказ», заказы поставщикам, выборочный пересчёт, штрих-коды", () => {
     for (const s of everyPair("warehouse")) {
       // «С основного склада» — только рядом с точками продаж, «сразу на
       // складе-получателе» — только рядом с двумя шагами.
@@ -290,20 +297,67 @@ describe("тексты статей", () => {
       if (/asosiy ombordan/.test(s.uz)) expect(s.uz, s.uz).toMatch(/savdo nuqtasi/);
       if (/сразу числится на складе-получателе/.test(s.ru)) expect(s.ru, s.ru).toMatch(/в два шага/);
       expect(s.ru, s.ru).not.toMatch(/перевезти на основной склад|на основном складе опустился/);
+      // Включаемое — включаемым: точки продаж, два шага и утверждение правок
+      // названы рядом с тем, что они не по умолчанию.
+      if (/с основного склада/.test(s.ru)) expect(s.ru, s.ru).toMatch(/По умолчанию/);
+      if (/в два шага/.test(s.ru)) expect(s.ru, s.ru).toMatch(/можно включить/);
+      if (/«На утверждение»/.test(s.ru)) expect(s.ru, s.ru).toMatch(/по желанию[\s\S]*По умолчанию оператор проводит/);
+      // Долг поставщику — при проведении прихода (ADR 0013), а не при согласовании.
+      expect(s.ru, s.ru).not.toMatch(/долг[^.]*(при|после) согласовани/i);
     }
+    const ru = everyPair("warehouse").map(s => s.ru).join("\n");
+    const uz = everyPair("warehouse").map(s => s.uz).join("\n");
+    // Выборочная инвентаризация, заказы поставщикам с согласованием и
+    // отсрочкой, дополнительные штрих-коды — словами экранов.
+    for (const re of [/на одну категорию или на выбранные товары/, /«Заказы поставщикам»/, /«Отправить на согласование»/, /«Отсрочка, дней»/, /«Дополнительные штрих-коды»/, /«Создать заказы поставщикам»/]) {
+      expect(ru).toMatch(re);
+    }
+    for (const re of [/bitta turkum yoki tanlangan tovarlar/, /«Yetkazib beruvchiga buyurtmalar»/, /«Kelishuvga yuborish»/, /«Kechiktirish, kun»/, /«Qo'shimcha shtrix-kodlar»/]) {
+      expect(uz).toMatch(re);
+    }
+    // Предел дополнительных штрих-кодов — из кода.
+    expect(ru).toContain(`— до ${MAX_EXTRA_BARCODES}:`);
+    expect(uz).toContain(`— ${MAX_EXTRA_BARCODES} tagacha:`);
   });
 
-  it("статья о доставке — только то, что есть: ни слежения за курьером, ни подтверждения снимком", () => {
-    for (const s of everyPair("delivery")) {
-      expect(s.ru, s.ru).not.toMatch(/GPS|геолокац|слежени|фото|снимк|подпис/i);
-      expect(s.uz, s.uz).not.toMatch(/GPS|geolokats|kuzatuv|surat|foto|imzo/i);
+  it("статья о доставке — как после слияния: шесть тем, числа из кода, магазину ни карты, ни обещаний", () => {
+    const pairs = everyPair("delivery");
+    const ru = pairs.map(s => s.ru).join("\n");
+    const uz = pairs.map(s => s.uz).join("\n");
+    // Порядок объезда, курьер на карте, подтверждение вручения, перенос и
+    // ссылка для магазина — словами экранов, на обоих языках.
+    for (const re of [/«Предложить порядок»/, /на карте GPS/, /«Подтверждение вручения»/, /подпись получателя/, /«Перенести»/, /«Ссылка для магазина»/, /«Недоставленные»/]) {
+      expect(ru).toMatch(re);
     }
-    // И в отданной странице — в самой статье; «Ещё по теме» ниже честно
-    // пересказывает статью об агентах, где GPS есть.
+    for (const re of [/«Tartib taklif qilish»/, /GPS xaritasida/, /«Topshirish tasdig'i»/, /qabul qiluvchining[^.]*imzosi/, /«Ko'chirish»/, /«Do'kon uchun havola»/, /«Yetkazilmagan»/]) {
+      expect(uz).toMatch(re);
+    }
+    // Числа — из кода, а не из памяти: сколько причин, сколько фото, сколько
+    // дней после доставки открывается ссылка.
+    expect(ru).toContain(`одну из ${DELIVERY_FAIL_REASONS.length} причин`);
+    expect(uz).toContain(`${DELIVERY_FAIL_REASONS.length} ta sababdan`);
+    expect(ru).toContain(`до ${PROOF_MAX_PHOTOS} фото`);
+    expect(uz).toContain(`${PROOF_MAX_PHOTOS} tagacha rasm`);
+    const trackDays = Number(/TRACK_VISIBLE_DAYS = (\d+);/.exec(readFileSync(path.join(process.cwd(), "api/services/tracking.ts"), "utf8"))![1]);
+    expect(ru).toContain(`Через ${trackDays} дня после доставки`);
+    expect(uz).toContain(`Yetkazilgandan ${trackDays} kun o'tgach`);
+    // Причины в «ёлочках» — дословно из списка причин (первая — кнопка).
+    const fail = ARTICLE_TEXTS.delivery.sections.find(s => s.id === "fail")!.blocks[0] as { p: L };
+    const faq = ARTICLE_TEXTS.delivery.faq.map(x => x.a);
+    const quoted = (s: string) => [...s.matchAll(/«([^»]+)»/g)].map(m => m[1]);
     for (const l of SITE_LANGS) {
-      const body = /<article[\s\S]*<\/article>/.exec(renderPage(sitePage("delivery").paths[l]!).html)![0];
-      expect(textOf(body)).not.toMatch(/GPS/);
+      const labels = Object.values(DELIVERY_FAIL_LABEL).map(x => x[l]);
+      const named = quoted(fail.p[l]).slice(1);
+      expect(named.length, l).toBeGreaterThanOrEqual(3);
+      for (const q of named) expect(labels, q).toContain(q);
+      expect(faq.some(a => a[l].includes(`«${DELIVERY_FAIL_LABEL.asked_reschedule[l]}»`)), l).toBe(true);
     }
+    // Магазину страница даёт шаги и «примерно через» при свежей точке —
+    // не карту, не «реальное время» и не SMS: такого в коде нет.
+    expect(ru).not.toMatch(/реальн[а-я]* времен|точн[а-я]* врем|онлайн|SMS|СМС/i);
+    expect(uz).not.toMatch(/real vaqt|aniq vaqt|onlayn|SMS/i);
+    expect(ru).toMatch(/магазин карты не видит/);
+    expect(uz).toMatch(/do'kon xaritani ko'rmaydi/);
   });
 });
 
