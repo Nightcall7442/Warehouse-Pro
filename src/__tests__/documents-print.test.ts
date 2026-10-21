@@ -310,4 +310,15 @@ describe("заказ поставщику", () => {
     // Подпись согласующего — директор из реквизитов, пока согласовавшего нет.
     expect(doc).toContain("Директоров");
   });
+
+  it("подпись «Заказал» — кто завёл; отменённый и закрытый так и помечены", () => {
+    printPurchaseOrder(po({ createdBy: "Оператор Олег" }));
+    expect(text()).toContain("Оператор Олег");
+    expect(text()).not.toContain("ОТМЕНЁН");
+
+    printPurchaseOrder(po({ status: "cancelled" }));
+    expect(text()).toContain("ЗАКАЗ ОТМЕНЁН — не исполнять.");
+    printPurchaseOrder(po({ status: "closed" }));
+    expect(text()).toContain("Заказ закрыт: недопоставленный остаток не поставлять.");
+  });
 });

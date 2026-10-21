@@ -632,6 +632,8 @@ export type PurchaseOrderDocData = {
   items:     Array<{ name: string; code?: string; unit?: string; qty: number; price: number }>;
   notes?:    string | null;
   status:    string;
+  /** Кто завёл заказ — подпись «Заказал». */
+  createdBy?: string | null;
   approvedBy?: string | null;
 };
 
@@ -657,6 +659,11 @@ export function printPurchaseOrder(data: PurchaseOrderDocData) {
     </tr>`).join("");
   const terms = data.paymentTermsDays == null ? "по факту поставки" : `отсрочка ${data.paymentTermsDays} дн. с даты поставки`;
   const approved = data.status !== "draft" && data.status !== "pending_approval";
+  // Отменённый или закрытый заказ на бумаге не должен выглядеть живым: лист
+  // могут переслать заводу и после отмены.
+  const statusMark = data.status === "cancelled"
+    ? "ЗАКАЗ ОТМЕНЁН — не исполнять."
+    : data.status === "closed" ? "Заказ закрыт: недопоставленный остаток не поставлять." : "";
 
   const html = `
     <table class="no-border" style="margin-bottom:8px">
@@ -682,6 +689,7 @@ export function printPurchaseOrder(data: PurchaseOrderDocData) {
 
     <div class="title">ЗАКАЗ ПОСТАВЩИКУ</div>
     <div class="subtitle">№ ${escapeHtml(data.number)} от ${escapeHtml(data.date)}</div>
+    ${statusMark ? `<p style="text-align:center;font-size:12pt;margin:4px 0 8px"><b>${statusMark}</b></p>` : ""}
 
     <div class="meta">
       ${metaRow("Склад доставки:", data.warehouse)}
@@ -718,7 +726,7 @@ export function printPurchaseOrder(data: PurchaseOrderDocData) {
         <div class="sig-col">
           <div class="sig-label">Заказал</div>
           <div class="sig-line"></div>
-          <div class="sig-label">___________________________</div>
+          <div class="sig-label">${escapeHtml(data.createdBy ?? "___________________________")}</div>
         </div>
         <div class="sig-col">
           <div class="sig-label">Согласовал (Директор)</div>

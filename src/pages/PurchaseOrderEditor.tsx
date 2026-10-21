@@ -11,6 +11,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useCan } from "@/hooks/useCan";
 import { useLeaveGuard } from "@/hooks/useLeaveGuard";
 import { useSellerCompany } from "@/hooks/useSellerCompany";
+import { useCurrency } from "@/hooks/useCurrency";
 import { notify } from "@/lib/toast";
 import { errorText } from "@/lib/error-text";
 import { formatQty } from "@/lib/format";
@@ -33,7 +34,8 @@ type Order = inferRouterOutputs<AppRouter>["purchaseOrder"]["getById"];
 interface Head {
   supplierId: string;
   warehouseId: string;
-  currency: "UZS" | "USD";
+  /** Пусто — валюта организации (у нового заказа, пока её не выбрали). */
+  currency: "UZS" | "USD" | "";
   rateToUzs: string;
   /** Пусто — как у поставщика. */
   paymentTermsDays: string;
@@ -106,6 +108,14 @@ function OrderScreen({ order, stale, onDirty, onDiscard }: {
   const can = useCan();
   const { confirm, dialog } = useConfirm();
   const { company: seller } = useSellerCompany();
+  const settingsQ = trpc.settings.get.useQuery();
+  /*
+    Валюта организации. Новый заказ — в ней, пока не выбрали другую: у
+    организации в долларах сумы по умолчанию давали заказ «в сумах» с
+    долларовыми ценами из карточки — и долг при приёмке по этим числам.
+    Себестоимость из карточки подставляется в цену только в той же валюте.
+  */
+  const tenantCurrency = String(useCurrency().currency ?? "UZS").trim().toUpperCase();
 
   const isCeo = user?.role === "ceo";
   const canManage = can("suppliers.manage");
@@ -117,7 +127,10 @@ function OrderScreen({ order, stale, onDirty, onDiscard }: {
 
   const suppliersQ = trpc.supplier.list.useQuery(undefined, { enabled: editable });
   const warehousesQ = trpc.warehouseMulti.list.useQuery(undefined, { enabled: editable });
-  const productsQ = trpc.product.list.useQuery({ page: 1, pageSize: 10000, includeAll: true }, { enabled: editable });
+  // Только товары в продаже: снятый с продажи сервер в заказ не пустит, и
+  // выбрать его, чтобы узнать об этом на сохранении, незачем. Имена строк
+  // заказа — из самого заказа, каталог для них не нужен.
+  const productsQ = trpc.product.list.useQuery({ page: 1, pageSize: 10000 }, { enabled: editable });
   const catalog = useMemo(() => (productsQ.data?.data ?? []) as PickerProduct[], [productsQ.data]);
 
   const [head, setHead] = useState<Head>(() => order ? {
@@ -131,7 +144,7 @@ function OrderScreen({ order, stale, onDirty, onDiscard }: {
   } : {
     // «Новый заказ» из карточки контрагента приходит с поставщиком в адресе.
     supplierId: /^\d+$/.test(params.get("supplierId") ?? "") ? String(params.get("supplierId")) : "",
-    warehouseId: "", currency: "UZS", rateToUzs: "", paymentTermsDays: "", expectedDate: "", notes: "",
+    warehouseId: "", currency: "", rateToUzs: "", paymentTermsDays: "", expectedDate: "", notes: "",
   });
   const [lines, setLines] = useState<Line[]>(() => (order?.items ?? []).map(i => ({
     productId: i.productId, name: i.productName, code: i.productCode ?? "",
@@ -182,11 +195,21 @@ function OrderScreen({ order, stale, onDirty, onDiscard }: {
   const submit = trpc.purchaseOrder.submit.useMutation({ onSuccess: () => { notify.success(t("Заказ отправлен директору", "Buyurtma direktorga yuborildi")); refresh(); }, onError });
   const approve = trpc.purchaseOrder.approve.useMutation({ onSuccess: () => { notify.success(t("Заказ согласован", "Buyurtma kelishildi")); refresh(); }, onError: onDecisionError });
   const reject = trpc.purchaseOrder.reject.useMutation({ onSuccess: () => { notify.success(t("Заказ возвращён на доработку", "Buyurtma qayta ishlashga qaytarildi")); setRejecting(false); refresh(); }, onError: onDecisionError });
-  const cancel = trpc.purchaseOrder.cancel.useMutation({ onSuccess: () => { notify.success(t("Готово", "Tayyor")); refresh(); }, onError });
+  const cancel = trpc.purchaseOrder.cancel.useMutation({
+    onSuccess: r => {
+      notify.success(r.status === "closed"
+        ? t("Заказ закрыт: остаток больше не ждём", "Buyurtma yopildi: qoldiq endi kutilmaydi")
+        : t("Заказ отменён", "Buyurtma bekor qilindi"));
+      refresh();
+    },
+    onError,
+  });
   const receive = trpc.purchaseOrder.receive.useMutation({
     onSuccess: r => { notify.success(t(`Заведён приход ${r.arrivalNumber}`, `${r.arrivalNumber} kirimi yaratildi`)); refresh(); navigate(`/arrivals/${r.arrivalId}`); },
     onError,
   });
+  /** Валюта заказа на экране: выбранная, а у нового — организации (сумы, если у неё третья). */
+  const currency: "UZS" | "USD" = head.currency || (tenantCurrency === "USD" ? "USD" : "UZS");
   const busy = create.isPending || update.isPending || submit.isPending || approve.isPending || reject.isPending || cancel.isPending || receive.isPending;
 
   const total = lines.reduce((s, l) => s + Number(l.quantity || 0) * Number(l.unitPrice || 0), 0);
@@ -203,8 +226,8 @@ function OrderScreen({ order, stale, onDirty, onDiscard }: {
   const payload = () => ({
     supplierId: Number(head.supplierId),
     warehouseId: head.warehouseId ? Number(head.warehouseId) : undefined,
-    currency: head.currency,
-    rateToUzs: head.currency === "USD" && head.rateToUzs ? head.rateToUzs : null,
+    currency,
+    rateToUzs: currency === "USD" && head.rateToUzs ? head.rateToUzs : null,
     paymentTermsDays: head.paymentTermsDays === "" ? undefined : Number(head.paymentTermsDays),
     expectedDate: head.expectedDate || null,
     notes: head.notes.trim() || null,
@@ -251,8 +274,9 @@ function OrderScreen({ order, stale, onDirty, onDiscard }: {
   const onPick = (picked: PickerProduct[]) => {
     setLines(ls => [...ls, ...picked.filter(p => !ls.some(l => l.productId === p.id)).map(p => ({
       productId: p.id, name: p.name, code: p.code ?? "", quantity: "",
-      // Цена прошлой закупки подходит только заказу в сумах; в долларах её вписывают по счёту.
-      unitPrice: head.currency === "UZS" && Number(p.costPrice ?? 0) > 0 ? String(Number(p.costPrice)) : "",
+      // Себестоимость — в валюте организации: ценой она годится только заказу в той же валюте,
+      // в другой цену вписывают по счёту поставщика.
+      unitPrice: currency === tenantCurrency && Number(p.costPrice ?? 0) > 0 ? String(Number(p.costPrice)) : "",
     }))]);
     markDirty();
     setPicking(false);
@@ -272,6 +296,7 @@ function OrderScreen({ order, stale, onDirty, onDiscard }: {
     items: order.items.map(i => ({ name: i.productName, code: i.productCode ?? undefined, unit: i.unit ?? undefined, qty: i.quantity, price: i.unitPrice })),
     notes: order.notes,
     status: order.status,
+    createdBy: order.createdByName,
     approvedBy: order.approvedByName,
   });
   const excel = (order: Order) => exportToExcel(
@@ -290,6 +315,13 @@ function OrderScreen({ order, stale, onDirty, onDiscard }: {
   const warehouses = (warehousesQ.data ?? []).filter(w => w.status === "active" || String(w.id) === head.warehouseId);
   const defaultWarehouse = warehouses.find(w => w.isDefault);
   const ready = order != null && !dirty;
+  /*
+    Всё, что ещё ждём, уже в непроведённом приходе — новый приход заводить
+    не из чего (сервер так и откажет): принимают в открытом.
+  */
+  const coveredByArrival = openArrival != null && (order?.items ?? []).every(i => i.remaining - i.inTransit <= 0.005);
+  // Реквизитов организации нет — заказчика на листе не будет: печать ждёт их и говорит, где их вписать.
+  const noSeller = !seller.name && !settingsQ.isLoading;
 
   const th: React.CSSProperties = {
     fontFamily: F.display, fontSize: "10px", fontWeight: 600, textTransform: "uppercase",
@@ -317,10 +349,18 @@ function OrderScreen({ order, stale, onDirty, onDiscard }: {
         {order && (
           <>
             {/* Пока реквизиты не приехали, заказчика на листе нет — печать ждёт их, а не уходит с пустой шапкой. */}
-            <button className="neo-btn" data-testid="po-print" disabled={dirty || !seller.name} onClick={() => print(order)} title={dirty ? t("Сохраните правки — печатается сохранённый заказ", "O'zgarishlarni saqlang — saqlangan buyurtma chop etiladi") : undefined}
+            <button className="neo-btn" data-testid="po-print" disabled={dirty || !seller.name} onClick={() => print(order)}
+              title={dirty
+                ? t("Сохраните правки — печатается сохранённый заказ", "O'zgarishlarni saqlang — saqlangan buyurtma chop etiladi")
+                : noSeller ? t("Нет реквизитов организации — их заполняют в «Настройках»", "Tashkilot rekvizitlari yo'q — ular «Sozlamalar»da to'ldiriladi") : undefined}
               style={{ display: "flex", alignItems: "center", gap: "6px", opacity: dirty || !seller.name ? 0.5 : 1 }}>
               <Printer size={14} /> {t("Печать", "Chop etish")}
             </button>
+            {noSeller && (
+              <button className="neo-btn" data-testid="po-print-settings" onClick={() => navigate("/settings")} style={{ fontSize: "12px" }}>
+                {t("Заполнить реквизиты для печати", "Chop etish uchun rekvizitlarni to'ldirish")}
+              </button>
+            )}
             <button className="neo-btn" data-testid="po-excel" disabled={dirty} onClick={() => void excel(order)} style={{ display: "flex", alignItems: "center", gap: "6px", opacity: dirty ? 0.5 : 1 }}>
               <FileDown size={14} /> Excel
             </button>
@@ -414,14 +454,14 @@ function OrderScreen({ order, stale, onDirty, onDiscard }: {
           {editable ? (
             <PremiumSelect
               aria-label={t("Валюта", "Valyuta")}
-              value={head.currency}
+              value={currency}
               onChange={v => setH("currency", v as Head["currency"])}
               options={[{ value: "UZS", label: "UZS" }, { value: "USD", label: "USD" }]}
               width="100%"
             />
           ) : <div>{order?.currency}</div>}
         </div>
-        {head.currency === "USD" && (
+        {currency === "USD" && (
           <div>
             <label className={modalFieldLabel}>{t("Курс, сумов за доллар", "Kurs, dollar uchun so'm")}</label>
             {editable
@@ -467,7 +507,7 @@ function OrderScreen({ order, stale, onDirty, onDiscard }: {
             <tr>
               <th style={th}>{t("Товар", "Mahsulot")}</th>
               <th style={{ ...th, textAlign: "right" }}>{t("Заказано", "Buyurtma qilingan")}</th>
-              <th style={{ ...th, textAlign: "right" }}>{t("Цена", "Narx")}, {head.currency}</th>
+              <th style={{ ...th, textAlign: "right" }}>{t("Цена", "Narx")}, {currency}</th>
               <th style={{ ...th, textAlign: "right" }}>{t("Сумма", "Summa")}</th>
               {order && <th style={{ ...th, textAlign: "right" }}>{t("Принято", "Qabul qilingan")}</th>}
               {order && <th style={{ ...th, textAlign: "right" }}>{t("Осталось", "Qoldi")}</th>}
@@ -494,7 +534,7 @@ function OrderScreen({ order, stale, onDirty, onDiscard }: {
                       ? <DecimalInput aria-label={t("Цена", "Narx")} className="neo-input font-data" style={{ width: "120px", textAlign: "right" }} value={l.unitPrice} onValueChange={v => setLine(l.productId, { unitPrice: v })} />
                       : Number(l.unitPrice).toLocaleString("ru-RU", { maximumFractionDigits: 2 })}
                   </td>
-                  <td style={num}>{money(Number(l.quantity || 0) * Number(l.unitPrice || 0), head.currency)}</td>
+                  <td style={num}>{money(Number(l.quantity || 0) * Number(l.unitPrice || 0), currency)}</td>
                   {order && <td style={num}>{got ? formatQty(got.receivedQty) : "—"}{got && got.over > 0 && <span style={{ color: COLORS.warningText }}> (+{formatQty(got.over)})</span>}</td>}
                   {order && <td style={num}>{got ? formatQty(got.remaining) : "—"}</td>}
                   {order && <td style={num}>{got && got.inTransit > 0 ? formatQty(got.inTransit) : "—"}</td>}
@@ -518,7 +558,7 @@ function OrderScreen({ order, stale, onDirty, onDiscard }: {
             ? <button className="neo-btn" data-testid="po-add-lines" onClick={() => setPicking(true)} style={{ display: "flex", alignItems: "center", gap: "6px" }}><Plus size={14} /> {t("Товары", "Mahsulotlar")}</button>
             : <span />}
           <div style={{ fontFamily: F.display, fontWeight: 700, fontSize: "16px" }} data-testid="po-total">
-            {t("Итого", "Jami")}: {money(total, head.currency)}
+            {t("Итого", "Jami")}: {money(total, currency)}
           </div>
         </div>
       </div>
@@ -571,7 +611,7 @@ function OrderScreen({ order, stale, onDirty, onDiscard }: {
             <Undo2 size={14} /> {t("Вернуть на доработку", "Qayta ishlashga qaytarish")}
           </button>
         )}
-        {ready && canManage && (status === "approved" || status === "partially_received") && (
+        {ready && canManage && !coveredByArrival && (status === "approved" || status === "partially_received") && (
           <button className="neo-btn-primary" data-testid="po-receive" disabled={busy} onClick={() => receive.mutate({ id: order.id })} style={{ display: "flex", alignItems: "center", gap: "6px" }}>
             {receive.isPending ? <Loader2 size={14} className="animate-spin" /> : <Truck size={14} />} {t("Принять товар", "Mahsulotni qabul qilish")}
           </button>

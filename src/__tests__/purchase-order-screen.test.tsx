@@ -25,6 +25,7 @@ const calls = vi.hoisted(() => ({
 }));
 const state = vi.hoisted(() => ({
   role: "operator", status: "approved" as string, updatedAt: "2026-10-20T10:00:00Z", price: 80,
+  tenantCurrency: "UZS", companyName: "ООО Тест" as string | null, inTransit: 0,
   arrivals: [{ id: 40, arrivalNumber: "ARR-40", status: "completed", arrivalDate: "2026-10-21" }] as Array<Record<string, unknown>>,
 }));
 
@@ -45,7 +46,7 @@ const trpcStub = vi.hoisted(() => {
     createdAt: new Date("2026-10-20T10:00:00Z"), updatedAt: new Date(state.updatedAt),
     createdByName: "Оператор", approvedByName: null, expectedPaymentDate: "2026-11-04",
     items: [{ id: 1, productId: 3, quantity: 10, unitPrice: state.price, receivedQty: 4, note: null, productName: "Мука", productCode: "M-1",
-      barcode: null, unit: "pcs", packSize: null, packLabel: null, remaining: 6, over: 0, inTransit: 0 }],
+      barcode: null, unit: "pcs", packSize: null, packLabel: null, remaining: 6, over: 0, inTransit: state.inTransit }],
     arrivals: state.arrivals,
     total: 800,
   });
@@ -58,7 +59,7 @@ const trpcStub = vi.hoisted(() => {
       submit: { useMutation: mutation(calls.submit) },
       approve: { useMutation: mutation(calls.approve) },
       reject: { useMutation: mutation(calls.reject) },
-      cancel: { useMutation: mutation(calls.cancel) },
+      cancel: { useMutation: mutation(calls.cancel, { status: "cancelled" }) },
       receive: { useMutation: mutation(calls.receive, { arrivalId: 41, arrivalNumber: "ARR-41" }) },
     },
     supplier: { list: { useQuery: query(() => [{ id: 5, name: "Завод", paymentTermsDays: 14 }]) } },
@@ -66,7 +67,7 @@ const trpcStub = vi.hoisted(() => {
     product: { list: { useQuery: query(() => ({ data: [{ id: 3, name: "Мука", code: "M-1", unit: "pcs", costPrice: "75.00" }] })) } },
     auth: { me: { useQuery: query(() => ({ id: 1, name: "Кто-то", role: state.role })) } },
     // Реквизиты заказчика для печати.
-    settings: { get: { useQuery: query(() => ({ companyName: "ООО Тест", companyInn: "300000001" })) } },
+    settings: { get: { useQuery: query(() => ({ companyName: state.companyName, companyInn: "300000001", currency: state.tenantCurrency })) } },
     branding: { get: { useQuery: query(() => ({})) } },
     useUtils: () => ({ purchaseOrder: { getById: { invalidate: vi.fn() }, list: { invalidate: vi.fn() } } }),
   };
@@ -74,7 +75,7 @@ const trpcStub = vi.hoisted(() => {
 
 vi.mock("@/providers/trpc", () => ({ trpc: trpcStub }));
 // Окно выбора товаров печатает цены валютой организации.
-vi.mock("@/hooks/useCurrency", () => ({ useCurrency: () => ({ fmt: (v: unknown) => String(v) }) }));
+vi.mock("@/hooks/useCurrency", () => ({ useCurrency: () => ({ fmt: (v: unknown) => String(v), currency: state.tenantCurrency }) }));
 // Окно печати и файл не открываются: проверяется, что в них уходит.
 vi.mock("@/lib/documents", async orig => ({ ...(await orig<typeof import("@/lib/documents")>()), printPurchaseOrder: calls.print }));
 vi.mock("@/lib/excel", async orig => ({ ...(await orig<typeof import("@/lib/excel")>()), exportToExcel: calls.excel }));
@@ -106,6 +107,7 @@ beforeEach(() => {
   for (const f of Object.values(calls)) f.mockClear();
   state.updatedAt = "2026-10-20T10:00:00Z";
   state.price = 80;
+  state.tenantCurrency = "UZS"; state.companyName = "ООО Тест"; state.inTransit = 0;
   state.arrivals = [{ id: 40, arrivalNumber: "ARR-40", status: "completed", arrivalDate: "2026-10-21" }];
 });
 
@@ -292,6 +294,49 @@ describe("заказ поставщику на экране", () => {
     state.role = "operator";
     renderAt("/purchase-orders/new?supplierId=5");
     expect(screen.getByRole("combobox", { name: "Поставщик" }).textContent).toContain("Завод");
+  });
+
+  it("организация в долларах: новый заказ в долларах, себестоимость из карточки — ценой", () => {
+    state.role = "operator"; state.tenantCurrency = "USD";
+    renderAt("/purchase-orders/new?supplierId=5");
+    expect(screen.getByRole("combobox", { name: "Валюта" }).textContent).toContain("USD");
+    act(() => { fireEvent.click(screen.getByTestId("po-add-lines")); });
+    act(() => { fireEvent.click(screen.getByTestId("picker-item-3")); });
+    act(() => { fireEvent.click(screen.getByTestId("picker-add")); });
+    expect((screen.getByLabelText("Цена") as HTMLInputElement).value).toBe("75");
+    cleanup();
+
+    // Организация в сумах, заказ переключили на доллары — сумовая себестоимость ценой не подставляется.
+    state.tenantCurrency = "UZS";
+    renderAt("/purchase-orders/new?supplierId=5");
+    act(() => { fireEvent.click(screen.getByRole("combobox", { name: "Валюта" })); });
+    act(() => { fireEvent.click(screen.getByRole("option", { name: "USD" })); });
+    act(() => { fireEvent.click(screen.getByTestId("po-add-lines")); });
+    act(() => { fireEvent.click(screen.getByTestId("picker-item-3")); });
+    act(() => { fireEvent.click(screen.getByTestId("picker-add")); });
+    expect((screen.getByLabelText("Цена") as HTMLInputElement).value).toBe("");
+  });
+
+  it("всё, что ждём, уже в открытом приходе — «Принять товар» не предлагается", () => {
+    state.role = "operator"; state.status = "approved";
+    state.arrivals = [{ id: 42, arrivalNumber: "ARR-42", status: "draft", arrivalDate: "2026-10-21" }];
+    state.inTransit = 6;
+    renderAt("/purchase-orders/9");
+    expect(screen.queryByTestId("po-receive")).toBeNull();
+    cleanup();
+    // Приход везёт не всё — остальное принимают вторым приходом.
+    state.inTransit = 2;
+    renderAt("/purchase-orders/9");
+    expect(screen.getByTestId("po-receive")).toBeTruthy();
+  });
+
+  it("отмена говорит, что сделано; без реквизитов печать объясняет, где их заполнить", () => {
+    state.role = "operator"; state.status = "draft"; state.companyName = null;
+    renderAt("/purchase-orders/9");
+    expect((screen.getByTestId("po-print") as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.getByTestId("po-print").getAttribute("title")).toContain("Настройках");
+    act(() => { fireEvent.click(screen.getByTestId("po-print-settings")); });
+    expect(screen.queryByTestId("po-print")).toBeNull();
   });
 
   it("пустая отсрочка говорит, какую возьмёт заказ — из карточки поставщика", () => {
