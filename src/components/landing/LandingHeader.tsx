@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useTranslate, useLang } from "@/i18n";
 import { Menu, X, Send, Phone } from "lucide-react";
 import { cn, LX, MONO, CONTACT, tgLink } from "./landing-tokens";
+import { useDisclosure } from "./use-disclosure";
 
 /** Переключатель языка: посетитель-узбек не должен искать его в приложении. */
 function LangSwitch({ className }: { className?: string }) {
@@ -41,7 +42,9 @@ export default function LandingHeader() {
   const navigate = useNavigate();
   const tr = useTranslate();
   const [scrolled, setScrolled] = useState(false);
-  const [open, setOpen] = useState(false);
+  // Esc, касание мимо, переход — закрывают; aria-expanded/controls — на кнопке.
+  const menu = useDisclosure("lx-menu");
+  const open = menu.open;
 
   useEffect(() => {
     const h = () => setScrolled(window.scrollY > 16);
@@ -143,10 +146,10 @@ export default function LandingHeader() {
         <LangSwitch />
         <button
           type="button"
+          {...menu.toggleProps}
           aria-label={open ? tr("Закрыть меню", "Menyuni yopish") : tr("Открыть меню", "Menyuni ochish")}
           className="lg:hidden w-[44px] h-[44px] rounded-md flex items-center justify-center cursor-pointer"
           style={{ border: `1px solid ${LX.ruleStrong}`, color: LX.ink }}
-          onClick={() => setOpen(!open)}
         >
           {open ? <X size={18} /> : <Menu size={18} />}
         </button>
@@ -160,7 +163,7 @@ export default function LandingHeader() {
         «Начать» неожиданно уводил на регистрацию.
       */}
       <div
-        inert={!open}
+        {...menu.panelProps}
         className={cn("lg:hidden overflow-hidden transition-all duration-300 lx-anim", open ? "max-h-[420px]" : "max-h-0")}
         style={{ background: "rgba(244,242,237,0.97)", borderBottom: open ? `1px solid ${LX.rule}` : "none" }}
       >
@@ -169,7 +172,7 @@ export default function LandingHeader() {
             <a
               key={item.href}
               href={item.href}
-              onClick={() => setOpen(false)}
+              onClick={() => menu.close()}
               className="block px-3 py-2.5 text-[14px] rounded-md"
               style={{ color: LX.inkSoft }}
             >

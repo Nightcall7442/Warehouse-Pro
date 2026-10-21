@@ -73,7 +73,24 @@ test.describe("телефон", () => {
     await uz.tap();
     await expect(uz).toHaveAttribute("aria-pressed", "true");
     await menu.tap();
-    await expect(page.locator("nav button:visible", { hasText: /^(Войти|Kirish)$/ })).toBeVisible();
+    await expect(page.locator("nav button:visible, nav a:visible", { hasText: /^(Войти|Kirish)$/ })).toBeVisible();
+    await expect(menu).toHaveAttribute("aria-expanded", "true");
+    // Esc закрывает меню и возвращает фокус на кнопку (use-disclosure).
+    await page.keyboard.press("Escape");
+    await expect(menu).toHaveAttribute("aria-expanded", "false");
+  });
+
+  test("сравнение на телефоне: меню с разделами, «Войти» и «Начать»", async ({ page }) => {
+    // Раньше разделы шапки были hidden lg:flex — на телефоне не было ни меню,
+    // ни входа, ни регистрации.
+    await page.goto("/compare");
+    const toggle = page.getByTestId("pitch-menu-toggle");
+    const box = (await toggle.boundingBox())!;
+    expect(box.height, "цель касания ниже 44 точек").toBeGreaterThanOrEqual(44);
+    await toggle.tap();
+    await expect(page.getByTestId("pitch-menu-register")).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(toggle).toHaveAttribute("aria-expanded", "false");
   });
 
   test("заказы: сумма в карточке одной строкой и на экране", async ({ page }) => {
