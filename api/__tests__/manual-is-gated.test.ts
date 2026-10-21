@@ -170,10 +170,18 @@ describe("service worker и /manual/", () => {
     }
   });
 
+  it("страницы магазина — чек /r/ и «где мой заказ» /t/ — тоже мимо него", () => {
+    // Их рисует сервер (api/boot.ts). Оператор проверял скопированную ссылку
+    // в браузере с установленной PWA и видел 404 приложения.
+    for (const p of ["/r/12.abcdefghijklmnopqrstuv", "/r/12.abc/word", "/t/12.abcdefghijklmnopqrstuv", "/t/12.abc?lang=uz"]) {
+      expect(caught(p), `${p} перехватит service worker — вместо страницы магазина 404 приложения`).toBe(true);
+    }
+  });
+
   it("а само приложение — по-прежнему через него", () => {
     // Иначе PWA перестанет открываться офлайн: /orders/new и план на день
     // стоят в ярлыках манифеста, и без оболочки они мертвы без сети.
-    for (const p of ["/", "/orders/new", "/agent/plans", "/manualnyj-vvod", "/settings"]) {
+    for (const p of ["/", "/orders/new", "/agent/plans", "/manualnyj-vvod", "/settings", "/reports", "/returns"]) {
       expect(caught(p), `${p} выпал из PWA`).toBe(false);
     }
   });
