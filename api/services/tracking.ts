@@ -1,12 +1,13 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { and, desc, eq, gte, isNotNull, lt, ne, sql } from "drizzle-orm";
-import { agentLocations, orders, settings, shops, tenants, users } from "@db/schema";
-import { businessToday } from "@contracts/business-time";
+import { agentLocations, deliveryEvents, orders, settings, shops, tenants, users } from "@db/schema";
+import { businessDay, businessToday } from "@contracts/business-time";
 import { haversineKm } from "@contracts/geo";
 import { coordsOf } from "@contracts/route-order";
 import { env } from "../lib/env";
 import { appLink } from "../lib/telegram";
 import { dueBy, inRunConditions } from "./dispatch-board";
+import { receiptToken } from "./receipt";
 import type { Db } from "./order-shared";
 
 /*
@@ -26,7 +27,10 @@ import type { Db } from "./order-shared";
    • курьер — только по имени, без фамилии и телефона;
    • координат нет ни в каком виде: ни курьера, ни магазина. Минуты
      считаются на сервере, наружу уходит только число;
-   • сумм, товаров и долга нет — это не чек (чек — /r/…, своя подпись);
+   • сумм, товаров и долга нет — это не чек (чек — /r/…, своя подпись).
+     Доставленному — ссылка на чек: там магазин подтверждает получение
+     («всё пришло» / «есть вопрос»), и ссылка слежения — та же дверь, что
+     QR на бумажной накладной;
    • отменённый, удалённый, ждущий подтверждения заказ, заказ
      приостановленной организации и доставленный больше трёх дней назад —
      «ссылки нет», как будто её и не было.
@@ -92,7 +96,15 @@ const T = {
   onWay: { ru: (n: string | null) => n ? `Курьер ${n} едет к вам` : "Курьер едет к вам", uz: (n: string | null) => n ? `Kuryer ${n} sizga yo'lda` : "Kuryer sizga yo'lda" },
   today: { ru: (n: string | null) => n ? `Заказ у курьера ${n}, доставка сегодня` : "Заказ у курьера, доставка сегодня", uz: (n: string | null) => n ? `Buyurtma kuryer ${n}da, bugun yetkaziladi` : "Buyurtma kuryerda, bugun yetkaziladi" },
   planned: { ru: (d: string) => `Доставка запланирована на ${d}`, uz: (d: string) => `Yetkazish ${d} ga rejalashtirilgan` },
-  failed: { ru: "Сегодня доставить не получилось — поставщик свяжется с вами", uz: "Bugun yetkazib bo'lmadi — yetkazib beruvchi siz bilan bog'lanadi" },
+  /*
+    Срыв — без обещаний. Здесь стояло «поставщик свяжется с вами», и так —
+    на каждом открытии, хоть через неделю, а звонить магазину никто не
+    напоминает. «Сегодня» — только в день срыва; перенесённый заказ сюда не
+    попадает: у него свой день («запланирована на»).
+  */
+  failedToday: { ru: "Сегодня доставить не получилось. Новый день доставки уточняется", uz: "Bugun yetkazib bo'lmadi. Yangi yetkazish kuni aniqlanmoqda" },
+  failed: { ru: "Доставка не состоялась. Новый день доставки уточняется", uz: "Yetkazish amalga oshmadi. Yangi yetkazish kuni aniqlanmoqda" },
+  receipt: { ru: "Накладная и подтверждение получения", uz: "Yuk xati va qabul qilganini tasdiqlash" },
   accepted: { ru: "Заказ принят и готовится к отправке", uz: "Buyurtma qabul qilindi va jo'natishga tayyorlanmoqda" },
   ahead: { ru: (n: number) => `Перед вами адресов: ${n}`, uz: (n: number) => `Sizdan oldin manzillar: ${n}` },
   eta: { ru: (m: number) => `Примерно через ${m} мин`, uz: (m: number) => `Taxminan ${m} daqiqadan keyin` },
@@ -184,7 +196,11 @@ export async function trackingPage(db: Db, token: string, lang: Lang, now: numbe
       if (eta.minutes != null) extra.push(T.eta[lang](eta.minutes));
     }
   } else if (o.deliveryStatus === "failed") {
-    line = T.failed[lang];
+    const [last] = await db.select({ at: deliveryEvents.recordedAt }).from(deliveryEvents)
+      .where(and(eq(deliveryEvents.tenantId, o.tenantId), eq(deliveryEvents.orderId, o.id), eq(deliveryEvents.kind, "failed")))
+      .orderBy(desc(deliveryEvents.id))
+      .limit(1);
+    line = last?.at && businessDay(last.at) === today ? T.failedToday[lang] : T.failed[lang];
   } else {
     line = T.accepted[lang];
   }
@@ -198,6 +214,7 @@ export async function trackingPage(db: Db, token: string, lang: Lang, now: numbe
     <ol>${steps}</ol>
     <div class="st">${esc(line)}</div>
     ${extra.map(x => `<div class="sub">${esc(x)}</div>`).join("")}
+    ${step === 3 ? `<div class="ph"><a href="/r/${esc(receiptToken(o.id))}">${esc(T.receipt[lang])}</a></div>` : ""}
     ${cfg?.phone ? `<div class="ph">${esc(T.phone[lang])}: <a href="tel:${esc(cfg.phone.replace(/[^\d+]/g, ""))}">${esc(cfg.phone)}</a></div>` : ""}
   </div>
   ${step < 3 ? `<div class="f">${esc(T.refresh[lang])}</div>` : ""}`;

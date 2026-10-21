@@ -11,6 +11,8 @@
  *  4. На странице курьер — только по имени; координат нет ни магазина, ни
  *     курьера, хотя минуты по ним посчитаны; текст экранируется.
  *  5. Язык: ?lang=uz, иначе заголовок браузера, иначе русский.
+ *  6. Доставленному — ссылка на чек (/r/), где магазин подтверждает
+ *     получение; сорванному — без обещания «поставщик свяжется».
  *
  * Нарочная поломка: в sig() замени "track:" на "receipt:" — падает 1; убери
  * проверку tenantStatus — падает 3; верни в страницу courier?.name — падает 4.
@@ -118,6 +120,23 @@ describe("что на странице", () => {
     ]), trackToken(77), "uz", NOW);
     expect(done.html).toContain("Yetkazildi 21.10");
     expect(done.html).not.toContain('http-equiv="refresh"');
+    // Доставленному — ссылка на чек: там магазин подтверждает получение.
+    expect(done.html).toContain(`href="/r/${receiptToken(77)}"`);
+    expect(noPing.html).not.toContain("/r/");
+  });
+
+  /*
+    Срыв — без обещаний: «поставщик свяжется с вами» висело на странице хоть
+    неделю, а позвонить магазину никто не напоминает. «Сегодня» — только в
+    день срыва.
+  */
+  it("4. не доставлен — без обещания позвонить; «сегодня» — только в день срыва", async () => {
+    const failed = { ...baseOrder, status: "new", deliveryStatus: "failed", courierId: null };
+    const today = await trackingPage(queueDb([[failed], [{ company: "Склад" }], [{ at: new Date(NOW - 3_600_000) }]]), trackToken(77), "ru", NOW);
+    expect(today.html).toContain("Сегодня доставить не получилось. Новый день доставки уточняется");
+    const earlier = await trackingPage(queueDb([[failed], [{ company: "Склад" }], [{ at: new Date(NOW - 2 * 86_400_000) }]]), trackToken(77), "uz", NOW);
+    expect(earlier.html).toContain("Yetkazish amalga oshmadi. Yangi yetkazish kuni aniqlanmoqda");
+    for (const r of [today, earlier]) expect(r.html).not.toMatch(/свяжется|bog'lanadi/);
   });
 
   it("4. перенесённый на будущий день — «запланирована на», без минут", async () => {
