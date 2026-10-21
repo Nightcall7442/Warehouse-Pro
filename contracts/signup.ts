@@ -103,7 +103,8 @@ export const SIGNUP_ANSWER_LABEL: Record<SignupAnswer, { ru: string; uz: string 
 };
 
 /**
- * Метка из адреса (utm_source, ref) — только буквы, цифры, «_ . -», до 60 знаков.
+ * Метка из адреса (utm_source, utm_medium, utm_campaign, ref) — только буквы,
+ * цифры, «_ . -», до 60 знаков.
  *
  * Адрес страницы набирает кто угодно; в запись и в сообщение владельцу
  * попадает только то, что похоже на метку, а не произвольный текст.
@@ -113,25 +114,55 @@ export function cleanSignupTag(raw: string | null | undefined): string | null {
   return v || null;
 }
 
+/** Потолок строки источника: столбцы tenants.signup_source и leads.utm — varchar(200). */
+export const SIGNUP_SOURCE_MAX = 200;
+
+/** Метки и ответ, из которых складывается строка источника. Всё необязательно. */
+export interface SignupSourceInput {
+  answer?: string | null;
+  utmSource?: string | null;
+  utmMedium?: string | null;
+  utmCampaign?: string | null;
+  ref?: string | null;
+}
+
 /**
- * Источник одной строкой для столбца tenants.signup_source:
- * «answer=telegram; utm_source=ig_sept; ref=bekzod». Ничего нет — null.
+ * Источник одной строкой для столбцов tenants.signup_source и leads.utm:
+ * «answer=telegram; utm_source=ig_sept; utm_medium=cpc; utm_campaign=okt;
+ * ref=bekzod». Ничего нет — null.
  *
  * Пары «ключ=значение», а не просто значения: строку читают и глазами в
  * базе, и там должно быть видно, что человек ответил сам, а что пришло из
  * ссылки.
+ *
+ * ── Потолок ─────────────────────────────────────────────────────────────────
+ *
+ * Каждая метка — до 60 знаков (cleanSignupTag), а с utm_medium и
+ * utm_campaign пяти пар хватает на 300 с лишним знаков при столбце в 200.
+ * Не влезло — вставка упала бы, и регистрация или заявка потерялась бы из-за
+ * рекламной метки, которую человек и не видел. Поэтому лишнее отбрасывается
+ * целыми парами, от наименее нужной: сначала utm_medium (канал обычно и так
+ * виден по источнику), потом utm_campaign. Ответ человека, utm_source и ref
+ * остаются всегда: вместе они не длиннее 160 знаков.
  */
-export function composeSignupSource(src: { answer?: string | null; utmSource?: string | null; ref?: string | null } | null | undefined): string | null {
+export function composeSignupSource(src: SignupSourceInput | null | undefined): string | null {
   if (!src) return null;
   const answer = (SIGNUP_ANSWERS as readonly string[]).includes(src.answer ?? "") ? src.answer : null;
-  const utm = cleanSignupTag(src.utmSource);
-  const ref = cleanSignupTag(src.ref);
-  const parts = [
-    answer ? `answer=${answer}` : null,
-    utm ? `utm_source=${utm}` : null,
-    ref ? `ref=${ref}` : null,
-  ].filter(Boolean);
-  return parts.length ? parts.join("; ") : null;
+  const pairs: Array<[key: string, value: string | null]> = [
+    ["answer", answer ?? null],
+    ["utm_source", cleanSignupTag(src.utmSource)],
+    ["utm_medium", cleanSignupTag(src.utmMedium)],
+    ["utm_campaign", cleanSignupTag(src.utmCampaign)],
+    ["ref", cleanSignupTag(src.ref)],
+  ];
+  const join = (ps: typeof pairs) => ps.filter(([, v]) => v).map(([k, v]) => `${k}=${v}`).join("; ");
+  let kept = pairs;
+  for (const drop of ["utm_medium", "utm_campaign"]) {
+    if (join(kept).length <= SIGNUP_SOURCE_MAX) break;
+    kept = kept.filter(([k]) => k !== drop);
+  }
+  const line = join(kept);
+  return line ? line.slice(0, SIGNUP_SOURCE_MAX) : null;
 }
 
 /** Строка из столбца — словами: «Telegram · utm_source: ig_sept · ref: bekzod». */

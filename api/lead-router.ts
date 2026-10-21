@@ -6,6 +6,19 @@ import { ipOf, recordPlatformAudit } from "./services/platform-audit";
 import { checkRateLimit, rateLimitSubject, getClientIp } from "./lib/rate-limit";
 import { leads } from "@db/schema";
 import { recordLead } from "./services/leads";
+import { composeSignupSource } from "@contracts/signup";
+
+/**
+ * Метки рекламной ссылки, с которой человек пришёл на сайт (lib/attribution
+ * на экране). Всё необязательно, и длинная метка отбрасывается (`catch`), а
+ * не отказывает заявке: её человек не видел и исправить не может.
+ */
+const leadAttribution = z.object({
+  utmSource:   z.string().max(200).optional().catch(undefined),
+  utmMedium:   z.string().max(200).optional().catch(undefined),
+  utmCampaign: z.string().max(200).optional().catch(undefined),
+  ref:         z.string().max(200).optional().catch(undefined),
+}).optional().catch(undefined);
 
 /**
  * Заявки с лендинга.
@@ -38,6 +51,7 @@ export const leadRouter = createRouter({
       phone:   z.string().trim().regex(PHONE, "Проверьте номер телефона"),
       comment: z.string().trim().max(2000).optional(),
       source:  z.string().trim().max(64).optional(),
+      attribution: leadAttribution,
     }))
     .mutation(async ({ input, ctx }) => {
       // По номеру телефона: он единственное, что сервер тут может опознать,
@@ -60,7 +74,11 @@ export const leadRouter = createRouter({
       // Порядок «запись → уведомление → отметка» живёт в services/leads.ts:
       // заявка из подписки принимается тем же путём, и второй копии быть не
       // должно — она разошлась бы с этой.
-      await recordLead(ctx.db, input);
+      // Метки чистятся и складываются тем же правилом, что у регистрации
+      // (contracts/signup): одна строка того же вида в leads.utm и в
+      // tenants.signup_source — по ним видно, какая реклама приводит людей.
+      const { attribution, ...lead } = input;
+      await recordLead(ctx.db, { ...lead, utm: composeSignupSource(attribution) });
       return { ok: true };
     }),
 

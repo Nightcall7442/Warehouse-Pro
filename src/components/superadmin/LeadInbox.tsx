@@ -4,7 +4,7 @@ import { notify } from "@/lib/toast";
 import { Chip, Empty, Pill } from "@/components/superadmin/console/ui";
 import { format } from "@/lib/business-time";
 import { Check, Inbox, PhoneCall } from "lucide-react";
-import { formatUzPhone } from "@contracts/signup";
+import { formatUzPhone, describeSignupSource } from "@contracts/signup";
 import { errorText } from "@/lib/error-text";
 
 /**
@@ -71,6 +71,13 @@ export function LeadInbox() {
                     {l.createdAt ? format(new Date(l.createdAt), "dd.MM.yyyy HH:mm") : ""}
                     {l.source ? ` · ${l.source}` : ""}
                   </div>
+                  {/* С какой рекламы пришёл человек — словами, как источник
+                      регистрации в карточке организации (leads.utm). */}
+                  {l.utm ? (
+                    <div data-testid="lead-utm" style={{ fontSize: 12.5, color: "var(--color-text-tertiary)", marginTop: 2, overflowWrap: "anywhere" }}>
+                      Метки: {describeSignupSource(l.utm, "ru")}
+                    </div>
+                  ) : null}
                 </div>
                 <div className="flex flex-col items-end gap-1 flex-shrink-0">
                   {/* Не дошло в телеграм — значит канал сломан, и это другая

@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   normalizeUzPhone, formatUzPhone, maskUzPhoneNational,
-  composeSignupSource, describeSignupSource, cleanSignupTag,
+  composeSignupSource, describeSignupSource, cleanSignupTag, SIGNUP_SOURCE_MAX,
 } from "@contracts/signup";
 import { tgMessages } from "../lib/telegram";
 
@@ -24,7 +24,8 @@ import { tgMessages } from "../lib/telegram";
  * Нарочная поломка: убрать проверку первой цифры (/^[2-9]/) — падает «ноль
  * после кода»; убрать срезание 998 в маске — «вставка целиком»; пропустить
  * метку без чистки — «метка из адреса»; убрать tgEscape у названия —
- * «экранирование».
+ * «экранирование»; убрать отбрасывание пар в composeSignupSource — «пять
+ * длинных меток» (строка в 300 знаков уронила бы вставку в varchar(200)).
  */
 describe("номер Узбекистана", () => {
   it.each([
@@ -85,6 +86,31 @@ describe("откуда узнали", () => {
     expect(composeSignupSource(undefined)).toBeNull();
     // Неизвестный ответ не записывается: список вариантов закрыт.
     expect(composeSignupSource({ answer: "hacker" })).toBeNull();
+  });
+
+  it("utm_medium и utm_campaign — между источником и ref, по порядку", () => {
+    expect(composeSignupSource({ answer: "instagram", utmSource: "ig", utmMedium: "cpc", utmCampaign: "okt_2026", ref: "bekzod" }))
+      .toBe("answer=instagram; utm_source=ig; utm_medium=cpc; utm_campaign=okt_2026; ref=bekzod");
+    expect(composeSignupSource({ utmCampaign: "okt" })).toBe("utm_campaign=okt");
+    expect(describeSignupSource("utm_source=ig; utm_medium=cpc; utm_campaign=okt"))
+      .toBe("utm_source: ig · utm_medium: cpc · utm_campaign: okt");
+  });
+
+  it("пять длинных меток — не длиннее столбца: сначала уходит utm_medium, потом utm_campaign", () => {
+    const long = (c: string) => c.repeat(80); // после чистки — 60 знаков
+    const all = { answer: "instagram", utmSource: long("s"), utmMedium: long("m"), utmCampaign: long("c"), ref: long("r") };
+    const line = composeSignupSource(all)!;
+    expect(line.length).toBeLessThanOrEqual(SIGNUP_SOURCE_MAX);
+    expect(SIGNUP_SOURCE_MAX).toBe(200);
+    // Ответ, источник и ref остаются всегда; канал и кампания — по месту.
+    expect(line).toBe(`answer=instagram; utm_source=${"s".repeat(60)}; ref=${"r".repeat(60)}`);
+    // Без ref кампания помещается — уходит только канал.
+    const noRef = composeSignupSource({ ...all, ref: null })!;
+    expect(noRef.length).toBeLessThanOrEqual(SIGNUP_SOURCE_MAX);
+    expect(noRef).toBe(`answer=instagram; utm_source=${"s".repeat(60)}; utm_campaign=${"c".repeat(60)}`);
+    // Короткие метки не трогаются вовсе.
+    expect(composeSignupSource({ utmSource: "a", utmMedium: "b", utmCampaign: "c", ref: "d" }))
+      .toBe("utm_source=a; utm_medium=b; utm_campaign=c; ref=d");
   });
 
   it("метка из адреса — только буквы, цифры и _.-, до 60 знаков", () => {
