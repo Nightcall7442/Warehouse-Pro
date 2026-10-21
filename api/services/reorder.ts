@@ -8,6 +8,7 @@ import { getDb } from "../queries/connection";
 import { logger } from "../lib/logger";
 import { sseBus } from "../lib/sse";
 import { markLowStockAlerted } from "./stock-ledger";
+import { inTransitByProduct } from "./stock-transfer";
 
 /*
   Точка заказа — одна.
@@ -118,7 +119,8 @@ export async function lowStockRows(db: Db, tenantId: number, limit = 100): Promi
       цель           = максимум запаса товара, а если не задан — 2 × точка;
       в пути         = неполученный остаток согласованных заказов поставщикам
                        на этот склад (согласован, принят частично) + приходы
-                       без заказа, ещё не проведённые, на этот склад;
+                       без заказа, ещё не проведённые, на этот склад +
+                       перемещения «в пути» на этот склад;
       не согласовано = количество в черновиках и заказах на согласовании на
                        этот склад — с номерами заказов;
       заказать       = цель − свободно − в пути − не согласовано, не меньше
@@ -128,6 +130,16 @@ export async function lowStockRows(db: Db, tenantId: number, limit = 100): Promi
   Приход по заказу в «в пути» отдельно не считается: он уже сидит в остатке
   заказа и уменьшит его при проведении — иначе тот же товар считался бы
   дважды.
+
+  Перемещение «в пути» (отправлено, не принято) — тоже едет на склад: с
+  отправителя товар уже списан, на получателе ещё не числится. Без него
+  филиал, к которому основной склад везёт машину сахара, видел бы нехватку
+  и заказывал тот же сахар у завода второй раз.
+
+  Продажи в день — по заказам этого склада (ADR 0012: у заказа свой склад,
+  старые заказы без склада — основного). Продажи филиала не торопят
+  основной склад, и наоборот; со склада хранения не продают — его «дней до
+  нуля» нет.
 
   Черновик и заказ на согласовании — ещё не «в пути»: товар никто не везёт,
   и так его и не называем. Но и предлагать его снова нельзя: созданные
@@ -190,7 +202,7 @@ export type ReorderPlanRow = {
   /** По свободному остатку; 999 — продаж не было. */
   daysUntilStockout: number;
   target: number;
-  /** В пути: согласованные заказы и приходы без заказа. */
+  /** В пути: согласованные заказы, приходы без заказа и перемещения на этот склад. */
   inbound: number;
   /** В черновиках и на согласовании — вычтено из «заказать», но не «в пути». */
   unapproved: number;
@@ -223,6 +235,7 @@ export async function reorderPlan(db: Db, tenantId: number, warehouseId?: number
   }
   if (!wh) return [];
   const whId = Number(wh.id);
+  const defaultWhId = defaultWh ? Number(defaultWh.id) : null;
 
   const days30 = new Date(Date.now() - 30 * 86400000).toISOString();
   const rows = await db.select({
@@ -238,7 +251,7 @@ export async function reorderPlan(db: Db, tenantId: number, warehouseId?: number
     unitPrice: products.unitPrice,
     costPrice: products.costPrice,
     defaultSupplierId: products.defaultSupplierId,
-    avgDailySales: sql<string>`COALESCE((SELECT SUM(${orderItems.quantity}) FROM ${orderItems} INNER JOIN ${orders} ON ${orderItems.orderId} = ${orders.id} WHERE ${orderItems.productId} = ${products.id} AND ${orders.tenantId} = ${tenantId} AND ${orders.status} = 'delivered' AND ${orders.createdAt} >= ${days30}) / 30, 0)`,
+    avgDailySales: sql<string>`COALESCE((SELECT SUM(${orderItems.quantity}) FROM ${orderItems} INNER JOIN ${orders} ON ${orderItems.orderId} = ${orders.id} WHERE ${orderItems.productId} = ${products.id} AND ${orders.tenantId} = ${tenantId} AND ${orders.status} = 'delivered' AND ${orders.createdAt} >= ${days30} AND COALESCE(${orders.warehouseId}, ${defaultWhId}) = ${whId}) / 30, 0)`,
   })
     .from(warehouseStock)
     .innerJoin(products, and(eq(products.id, warehouseStock.productId), eq(products.tenantId, tenantId)))
@@ -252,7 +265,7 @@ export async function reorderPlan(db: Db, tenantId: number, warehouseId?: number
   if (rows.length === 0) return [];
 
   const ids = rows.map(r => Number(r.productId));
-  const [poOpen, looseArrivals, lastDelivered] = await Promise.all([
+  const [poOpen, looseArrivals, lastDelivered, transfers] = await Promise.all([
     // Неполученный остаток открытых заказов поставщикам на этот склад — по
     // заказу: у несогласованных нужны номера, у согласованных — только сумма.
     db.select({
@@ -280,7 +293,7 @@ export async function reorderPlan(db: Db, tenantId: number, warehouseId?: number
         eq(arrivals.tenantId, tenantId),
         isNull(arrivals.purchaseOrderId),
         ne(arrivals.status, "completed"),
-        sql`COALESCE(${arrivals.warehouseId}, ${defaultWh ? Number(defaultWh.id) : null}) = ${whId}`,
+        sql`COALESCE(${arrivals.warehouseId}, ${defaultWhId}) = ${whId}`,
         inArray(arrivalItems.productId, ids),
       ))
       .groupBy(arrivalItems.productId),
@@ -297,6 +310,8 @@ export async function reorderPlan(db: Db, tenantId: number, warehouseId?: number
           AND ai.product_id IN (${sql.join(ids.map(id => sql`${id}`), sql`, `)})
       ) x WHERE x.rn = 1
     `) as unknown as Promise<ResultRows<{ productId: number; supplierId: number; name: string }>>,
+    // Перемещения, отправленные на этот склад и ещё не принятые.
+    inTransitByProduct(db, tenantId, ids, whId),
   ]);
 
   const inbound = new Map<number, number>();
@@ -313,6 +328,7 @@ export async function reorderPlan(db: Db, tenantId: number, warehouseId?: number
     }
   }
   for (const r of looseArrivals) add(Number(r.productId), Number(r.qty ?? 0));
+  for (const [productId, qty] of transfers) add(productId, qty);
   const last = new Map(lastDelivered[0].map(r => [Number(r.productId), { id: Number(r.supplierId), name: String(r.name) }]));
 
   const defaultIds = [...new Set(rows.map(r => r.defaultSupplierId).filter((v): v is number => v != null))];

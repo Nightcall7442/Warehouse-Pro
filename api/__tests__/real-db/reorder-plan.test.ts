@@ -16,7 +16,10 @@ import { ctxFor, hasRealDb, connectRealDb, closeRealDb, truncateAll, seed, count
  * заказу (убери isNull(arrivals.purchaseOrderId)) — «в пути» насчитает
  * принятый заказ дважды; убери eq(purchaseOrders.warehouseId, whId) —
  * чужой склад уменьшит заказ основного; перестань вычитать «не
- * согласовано» — черновик из «Дозаказа» предложится второй раз.
+ * согласовано» — черновик из «Дозаказа» предложится второй раз; не
+ * добавляй перемещения «в пути» — филиал закажет у завода то, что ему уже
+ * везут; убери склад из продаж в день — основной склад торопят продажи
+ * филиала.
  */
 
 const DAY = "2026-10-01";
@@ -128,6 +131,42 @@ describe.skipIf(!hasRealDb)("дозаказ: склад, свободный ос
     // На втором складе — своё: приход 6 в пути, черновик 7 не согласован.
     await (db as any).insert(schema.warehouseStock).values({ tenantId: s.tenantId, productId: s.productId, warehouseId: secondWh, currentStock: "0.000", reserved: "0.000", available: "0.000" });
     expect(await rowOf(s.productId, secondWh)).toMatchObject({ inbound: 6, unapproved: 7, suggestedQty: 37 });
+  });
+
+  it("в пути — и перемещение «в пути» на этот склад; продажи в день — по заказам этого склада", async () => {
+    // Второй склад: товара нет, точка 20 — нужно 40. Основной везёт ему 5,
+    // отправлено и не принято: у основного свободно 6 − 5 = 1.
+    await (db as any).insert(schema.warehouseStock).values({ tenantId: s.tenantId, productId: s.productId, warehouseId: secondWh, currentStock: "0.000", reserved: "0.000", available: "0.000" });
+    const { transferStock, receiveTransfer } = await import("../../services/stock-transfer");
+    const ceo = { id: ceoId, name: "Директор", role: "ceo" };
+    const doc = await transferStock(db as never, s.tenantId, ceo, { fromWarehouseId: s.warehouseId, toWarehouseId: secondWh, mode: "transit", items: [{ productId: s.productId, quantity: 5 }] });
+    expect(doc).toMatchObject({ status: "in_transit" });
+
+    // Получатель: 5 едут — заказать у завода 40 − 0 − 5 = 35, а не 40.
+    expect(await rowOf(s.productId, secondWh)).toMatchObject({ inbound: 5, suggestedQty: 35 });
+    // Отправитель: ушедшее к нему не едет — 40 − 1 = 39.
+    expect(await rowOf(s.productId)).toMatchObject({ inbound: 0, suggestedQty: 39 });
+
+    // Продажи за 30 дней: 30 со основного (старый заказ без склада — основного),
+    // 60 со второго; позавчерашний отменённый и заказ старше 30 дней не в счёт.
+    let n = 0;
+    const sale = async (quantity: number, warehouseId: number | null, status = "delivered", daysAgo = 2) => {
+      const [o] = await (db as any).insert(schema.orders).values({
+        tenantId: s.tenantId, shopId: s.shopId, agentId: s.agentId, orderNumber: `№R-${++n}`, status, paymentMethod: "cash",
+        subtotal: "0.00", total: "0.00", warehouseId, createdAt: sql`DATE_SUB(NOW(), INTERVAL ${daysAgo} DAY)`,
+      });
+      await (db as any).insert(schema.orderItems).values({ orderId: Number(o.insertId), productId: s.productId, quantity: quantity.toFixed(2), unitPrice: "0.00", subtotal: "0.00" });
+    };
+    await sale(30, null);
+    await sale(60, secondWh);
+    await sale(300, secondWh, "cancelled");
+    await sale(300, s.warehouseId, "delivered", 40);
+    expect(await rowOf(s.productId)).toMatchObject({ avgDailySales: "1.0", daysUntilStockout: 1 });
+    expect(await rowOf(s.productId, secondWh)).toMatchObject({ avgDailySales: "2.0", daysUntilStockout: 0 });
+
+    // Приняли — товар на полке получателя, «в пути» больше нет.
+    await receiveTransfer(db as never, s.tenantId, ceo, { docId: doc.id });
+    expect(await rowOf(s.productId, secondWh)).toMatchObject({ inbound: 0, suggestedQty: 35 });
   });
 
   it("поставщик: из карточки, если действует; иначе кто привёз последним; иначе никто", async () => {
