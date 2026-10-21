@@ -512,6 +512,13 @@
       "when": 1792445294727,
       "tag": "0072_commission_month_end",
       "breakpoints": true
+    },
+    {
+      "idx": 73,
+      "version": "5",
+      "when": 1792568910577,
+      "tag": "0073_transfer_docs",
+      "breakpoints": true
     }
   ]
 }

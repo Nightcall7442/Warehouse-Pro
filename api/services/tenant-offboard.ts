@@ -79,6 +79,8 @@ export const OFFBOARD_ORDER: readonly OffboardStep[] = [
   { table: "stock_count_items", via: { column: "count_id", parent: "stock_counts" } },
   "stock_movements",
   "stock_transfers",
+  // Документ перемещения — после своих строк (stock_transfers.doc_id → docs) и до складов.
+  "stock_transfer_docs",
   "subscriptions",
   "supplier_payments",
   "support_messages",

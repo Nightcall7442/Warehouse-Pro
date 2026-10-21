@@ -651,9 +651,64 @@ export const warehouses = mysqlTable("warehouses", {
 export type Warehouse       = typeof warehouses.$inferSelect;
 export type InsertWarehouse = typeof warehouses.$inferInsert;
 
+/* ============================================
+   STOCK TRANSFER DOCS — документ перемещения
+
+   ── Зачем документ, если строки уже есть ────────────────────────────────────
+
+   Строка stock_transfers была одна на товар, без общего номера: перемещение из
+   десяти позиций — десять несвязанных строк, и в истории движений вместо
+   номера документа стоял внутренний номер строки. Документ даёт номер с
+   бумаги («ПМ-12»), общий статус и одно место, где записана недостача.
+
+   ── Два режима ──────────────────────────────────────────────────────────────
+
+   instant — как решил владелец 16.09.2026: товар сразу на складе-получателе,
+   документ сразу «принят». transit — по настройке организации
+   (settings.transfer_two_step): товар ушёл со склада и «в пути», пока
+   получатель не примет его по строкам; недоехавшее остаётся на документе
+   недостачей. Отменить можно только то, что ещё в пути, — товар вернётся на
+   склад-отправитель теми же партиями.
+   ============================================ */
+export const stockTransferDocs = mysqlTable("stock_transfer_docs", {
+  id:              serial("id").primaryKey(),
+  tenantId:        bigint("tenant_id", { mode: "number", unsigned: true }).notNull().references(() => tenants.id, { onDelete: "restrict" }),
+  /** Номер с бумаги, порядковый в организации: «ПМ-12». */
+  number:          varchar("number", { length: 30 }).notNull(),
+  fromWarehouseId: bigint("from_warehouse_id", { mode: "number", unsigned: true }).notNull().references(() => warehouses.id, { onDelete: "restrict" }),
+  toWarehouseId:   bigint("to_warehouse_id", { mode: "number", unsigned: true }).notNull().references(() => warehouses.id, { onDelete: "restrict" }),
+  mode:            mysqlEnum("mode", ["instant", "transit"]).default("instant").notNull(),
+  status:          mysqlEnum("status", ["in_transit", "received", "received_short", "cancelled"]).notNull(),
+  notes:           text("notes"),
+  /*
+    Недостача при приёмке — по себестоимости на момент приёмки (партии, иначе
+    карточки). Слепком: цена карточки потом меняется, а потерянное в пути —
+    уже деньги, о которых спорят.
+  */
+  shortageCost:    decimal("shortage_cost", { precision: 14, scale: 2 }),
+  createdBy:       bigint("created_by", { mode: "number", unsigned: true }).references(() => users.id, { onDelete: "restrict" }),
+  createdAt:       timestamp("created_at").defaultNow().notNull(),
+  receivedBy:      bigint("received_by", { mode: "number", unsigned: true }).references(() => users.id, { onDelete: "restrict" }),
+  receivedAt:      timestamp("received_at"),
+  cancelledBy:     bigint("cancelled_by", { mode: "number", unsigned: true }).references(() => users.id, { onDelete: "restrict" }),
+  cancelledAt:     timestamp("cancelled_at"),
+}, (t) => ({
+  numberUq:  uniqueIndex("uq_transfer_docs_tenant_number").on(t.tenantId, t.number),
+  statusIdx: index("idx_transfer_docs_tenant_status").on(t.tenantId, t.status),
+}));
+
+export type StockTransferDoc = typeof stockTransferDocs.$inferSelect;
+
 // ============================================
 // STOCK TRANSFERS (inter-warehouse)
 // ============================================
+/*
+  Строка перемещения. Старые строки — по одной на товар, без документа
+  (doc_id пуст); новые — по одной на ЧАСТЬ ПАРТИИ внутри документа: товар,
+  ушедший двумя партиями, — две строки, у каждой свой номер партии, срок и
+  себестоимость. По ним товар ложится на склад-получатель той же партией, а
+  при отмене возвращается ею же.
+*/
 export const stockTransfers = mysqlTable("stock_transfers", {
   id:            serial("id").primaryKey(),
   tenantId:      bigint("tenant_id", { mode: "number", unsigned: true }).notNull().references(() => tenants.id, { onDelete: "restrict" }),
@@ -666,11 +721,22 @@ export const stockTransfers = mysqlTable("stock_transfers", {
   createdBy:     bigint("created_by", { mode: "number", unsigned: true }).references(() => users.id, { onDelete: "restrict" }),
   createdAt:     timestamp("created_at").defaultNow().notNull(),
   completedAt:   timestamp("completed_at"),
+  /** Документ; пусто у строк, заведённых до документов. */
+  docId:         bigint("doc_id", { mode: "number", unsigned: true }).references(() => stockTransferDocs.id, { onDelete: "restrict" }),
+  batchNumber:   varchar("batch_number", { length: 64 }),
+  expiresAt:     date("expires_at", { mode: "string" }),
+  /** Себестоимость единицы этой партии; пусто — партии без цены или остаток без партии. */
+  batchCost:     decimal("batch_cost", { precision: 12, scale: 2 }),
+  /** Строка приёмки партии — переезжает вместе с партией. */
+  arrivalItemId: bigint("arrival_item_id", { mode: "number", unsigned: true }),
+  /** Сколько принял склад-получатель; пусто — ещё в пути. */
+  receivedQuantity: decimal("received_quantity", { precision: 12, scale: 2 }),
 }, (t) => ({
   tenantIdx:   index("idx_transfers_tenant").on(t.tenantId),
   fromIdx:     index("idx_transfers_from").on(t.fromWarehouseId),
   toIdx:       index("idx_transfers_to").on(t.toWarehouseId),
   statusIdx:   index("idx_transfers_status").on(t.status),
+  docIdx:      index("idx_transfers_doc").on(t.docId),
 }));
 
 export type StockTransfer       = typeof stockTransfers.$inferSelect;
@@ -1601,6 +1667,14 @@ export const settings = mysqlTable("settings", {
     успевает продать товар и заплатить на следующем или через один визит.
   */
   overdueGraceDays:    int("overdue_grace_days").default(14).notNull(),
+  /*
+    Перемещение в два шага: товар «в пути», пока склад-получатель его не
+    примет. Выключено по умолчанию нарочно — владелец 16.09.2026 выбрал один
+    шаг («цепочка раздражает»), и у работающих организаций перемещение не
+    должно вдруг повиснуть посреди дня. Включают те, у кого склады далеко
+    друг от друга и машина едет часами.
+  */
+  transferTwoStep:     boolean("transfer_two_step").default(false).notNull(),
   createdAt:           timestamp("created_at").defaultNow().notNull(),
   updatedAt:           timestamp("updated_at").defaultNow().notNull().$onUpdate(() => new Date()),
 });
