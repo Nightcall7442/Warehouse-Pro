@@ -13,7 +13,7 @@ import { COLORS, thStyle, tdStyle } from "@/components/users/types";
 import { dayText } from "./transfer-text";
 
 export type TransferDocLine = {
-  id: number; productName: string; unit: string | null; quantity: number;
+  id: number; productId?: number; productName: string; unit: string | null; quantity: number;
   batchNumber: string | null; expiresAt: string | null;
   /** Себестоимость единицы: партии, иначе карточки, — во что обойдётся недостача. */
   unitCost?: number | null;

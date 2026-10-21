@@ -193,6 +193,24 @@ describe("партии вручную", () => {
     ]);
   });
 
+  it("партии не загрузились — отказ с повтором, а не «на складе этого товара нет»", () => {
+    const orig = h.trpc.warehouseReports.productBatches.useQuery;
+    const refetch = vi.fn();
+    h.trpc.warehouseReports.productBatches.useQuery = (() => ({ data: undefined, isLoading: false, isLoadingError: true, isError: true, refetch })) as unknown as typeof orig;
+    try {
+      wrap(<StockTransfers warehouses={TWO} />);
+      addWater();
+      fireEvent.click(screen.getByTestId("transfer-manual-1"));
+      const err = screen.getByTestId("transfer-picker-error-1");
+      expect(err.textContent).toContain("Не удалось загрузить партии");
+      expect(screen.queryByText("На складе-отправителе этого товара нет")).toBeNull();
+      fireEvent.click(within(err).getByRole("button"));
+      expect(refetch).toHaveBeenCalled();
+    } finally {
+      h.trpc.warehouseReports.productBatches.useQuery = orig;
+    }
+  });
+
   it("уценённая партия, выбранная целиком, названа своим номером, а не номером строки в базе", () => {
     h.state.batches = {
       onHand: 4, inBatches: 4, untracked: 0,
@@ -269,6 +287,31 @@ describe("«в пути»", () => {
     expect(h.state.receiveTransfer).not.toHaveBeenCalled();
   });
 
+  it("в списке — сколько чего едет, по товарам и в их единицах; сумма по документу не складывает разное", () => {
+    h.state.inTransit = [{
+      ...IN_TRANSIT,
+      lines: [...IN_TRANSIT.lines, { id: 33, productId: 2, productName: "Мука", unit: "kg", quantity: 2.5, receivedQuantity: null, batchNumber: null, expiresAt: null, unitCost: 5000 }],
+    }];
+    wrap(<StockTransfers warehouses={TWO} />);
+    expect(screen.getByTestId("transfer-in-transit-items-3").textContent).toBe("Вода — 7 шт, Мука — 2.5 кг");
+  });
+
+  it("список «в пути» не загрузился — отказ с повтором, а не пустота", () => {
+    const orig = h.trpc.warehouseMulti.transferDocs.useQuery;
+    const refetch = vi.fn();
+    h.trpc.warehouseMulti.transferDocs.useQuery = ((input?: { status?: string }) => input?.status === "in_transit"
+      ? { data: undefined, isLoading: false, isLoadingError: true, isError: true, refetch }
+      : orig(input)) as typeof orig;
+    try {
+      wrap(<StockTransfers warehouses={TWO} />);
+      expect(screen.getByRole("alert").textContent).toContain("Не удалось загрузить перемещения");
+      fireEvent.click(within(screen.getByRole("alert")).getByRole("button"));
+      expect(refetch).toHaveBeenCalled();
+    } finally {
+      h.trpc.warehouseMulti.transferDocs.useQuery = orig;
+    }
+  });
+
   it("без права — документ виден, а принять и отменить нечем", () => {
     h.state.inTransit = [IN_TRANSIT];
     wrap(<StockTransfers warehouses={TWO} canTransfer={false} />);
@@ -281,14 +324,19 @@ describe("«в пути»", () => {
 describe("история и прежние строки", () => {
   it("документы — с номером, недостачей и отменой; прежние строки спрашиваются как legacy", () => {
     h.state.history = [
-      { ...IN_TRANSIT, id: 2, number: "ПМ-2", status: "received_short", receivedQuantity: 6, shortageQty: 1, shortageCost: "9000.00" },
+      {
+        ...IN_TRANSIT, id: 2, number: "ПМ-2", status: "received_short", receivedQuantity: 6, shortageQty: 1, shortageCost: "9000.00",
+        lines: [{ ...IN_TRANSIT.lines[0], receivedQuantity: 3 }, { ...IN_TRANSIT.lines[1], receivedQuantity: 3 }],
+      },
       { ...IN_TRANSIT, id: 1, number: "ПМ-1", status: "cancelled" },
     ];
     h.state.legacy = [{ id: 9, docId: null, fromWarehouseId: 1, toWarehouseId: 2, productId: 1, productName: "Вода", quantity: "4.00", status: "pending", notes: null, createdAt: new Date(), completedAt: null }];
     wrap(<StockTransfers warehouses={TWO} />);
     const hist = screen.getByTestId("transfer-history");
     expect(hist.textContent).toContain("ПМ-2");
-    expect(hist.textContent).toMatch(/Недостача 1/);
+    // Недостача — по товарам и в их единицах, а не суммой по документу.
+    expect(hist.textContent).toMatch(/Недостача: Вода — 1 шт · 9\s000/);
+    expect(hist.textContent).toContain("Вода — 7 шт");
     expect(hist.textContent).toContain("ПМ-1");
     expect(hist.textContent).toMatch(/Отменено/);
     expect(screen.getByTestId("transfer-pending").textContent).toContain("Вода");

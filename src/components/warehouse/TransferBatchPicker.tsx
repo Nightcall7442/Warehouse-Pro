@@ -25,6 +25,15 @@ export function TransferBatchPicker({ productId, warehouseId, picks, onChange }:
   const q = trpc.warehouseReports.productBatches.useQuery({ productId, warehouseId });
 
   if (q.isLoading) return <div className="text-xs" style={{ color: COLORS.textTertiary }}>{t("Загружаем партии…", "Partiyalar yuklanmoqda…")}</div>;
+  // Отказ — не «товара нет»: иначе сбой сети читался как пустой склад-отправитель.
+  if (q.isError) {
+    return (
+      <div className="text-xs flex items-center gap-2" role="alert" data-testid={`transfer-picker-error-${productId}`} style={{ color: "var(--color-danger-text)" }}>
+        {t("Не удалось загрузить партии", "Partiyalarni yuklab bo'lmadi")}
+        <button type="button" className="neo-btn neo-btn-xs tap" onClick={() => q.refetch()}>{t("Повторить", "Qayta urinish")}</button>
+      </div>
+    );
+  }
   const batches = (q.data?.batches ?? []) as Array<{ batchId: number; batchNumber: string | null; expiresAt: unknown; quantity: number; daysLeft: number | null }>;
   const untracked = Number(q.data?.untracked ?? 0);
   if (batches.length === 0 && untracked <= 0) {

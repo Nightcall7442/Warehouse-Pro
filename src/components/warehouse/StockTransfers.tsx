@@ -15,7 +15,7 @@ import { format } from "@/lib/business-time";
 import { AlertTriangle, ArrowRight, Check, ListChecks, Plus, Trash2, Truck, Undo2, X } from "lucide-react";
 import { errorText } from "@/lib/error-text";
 import { TransferBatchPicker } from "./TransferBatchPicker";
-import { UNBATCHED, dayText } from "./transfer-text";
+import { UNBATCHED, dayText, qtyByProduct, shortOf } from "./transfer-text";
 import { TransferReceiveDialog, type TransferDocLine } from "./TransferReceiveDialog";
 
 /**
@@ -226,7 +226,8 @@ export function StockTransfers({ warehouses, canTransfer = true }: { warehouses:
   const statusText = (d: Doc) => d.status === "cancelled"
     ? t("Отменено", "Bekor qilingan")
     : d.status === "received_short"
-      ? `${t("Недостача", "Kamomad")} ${formatQty(d.shortageQty)}${d.shortageCost ? ` · ${fmt(d.shortageCost)}` : ""}`
+      // По товарам и в их единицах; у документа без принятых строк — прежнее число.
+      ? `${t("Недостача", "Kamomad")}: ${qtyByProduct(d.lines, lang, shortOf) || formatQty(d.shortageQty)}${d.shortageCost ? ` · ${fmt(d.shortageCost)}` : ""}`
       : t("Принято", "Qabul qilingan");
 
   return (
@@ -409,10 +410,10 @@ export function StockTransfers({ warehouses, canTransfer = true }: { warehouses:
                     <td style={{ ...tdStyle, fontWeight: 700, whiteSpace: "nowrap" }}>{d.number}</td>
                     <td style={{ ...tdStyle, whiteSpace: "nowrap", color: COLORS.textSecondary }}>{when(d.createdAt)}</td>
                     <td style={tdStyle}>{route(d.fromWarehouseId, d.toWarehouseId)}</td>
-                    <td style={{ ...tdStyle, color: COLORS.textSecondary }}>
-                      {[...new Set(d.lines.map(l => l.productName))].join(", ")}
+                    {/* Сколько чего едет — по товарам, в их единицах: сумма штук и килограммов ничего не значит. */}
+                    <td style={{ ...tdStyle, color: COLORS.textSecondary }} data-testid={`transfer-in-transit-items-${d.id}`}>
+                      {qtyByProduct(d.lines, lang)}
                     </td>
-                    <td style={{ ...tdStyle, textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{formatQty(d.quantity)}</td>
                     <td style={{ ...tdStyle, textAlign: "right" }}>
                       {canTransfer && (
                         <div className="flex gap-2 justify-end">
@@ -461,8 +462,9 @@ export function StockTransfers({ warehouses, canTransfer = true }: { warehouses:
       )}
 
       {/* История документов */}
-      {historyQ.isError || legacyQ.isError ? (
-        <SectionNotice kind="error" message={t("Не удалось загрузить перемещения", "Ko'chirishlarni yuklab bo'lmadi")} onRetry={() => { historyQ.refetch(); legacyQ.refetch(); }} />
+      {/* Упал список «в пути» — его раздел просто пропадал, и документы, ждущие приёмки, выглядели принятыми. */}
+      {historyQ.isError || legacyQ.isError || transitQ.isError ? (
+        <SectionNotice kind="error" message={t("Не удалось загрузить перемещения", "Ko'chirishlarni yuklab bo'lmadi")} onRetry={() => { historyQ.refetch(); legacyQ.refetch(); transitQ.refetch(); }} />
       ) : history.length === 0 && legacyDone.length === 0 ? (
         inTransit.length === 0 && <SectionNotice kind="empty" message={t("Перемещений пока не было", "Hali ko'chirishlar bo'lmagan")} />
       ) : (
@@ -473,8 +475,7 @@ export function StockTransfers({ warehouses, canTransfer = true }: { warehouses:
                 <th style={thStyle}>{t("Дата", "Sana")}</th>
                 <th style={thStyle}>{t("Документ", "Hujjat")}</th>
                 <th style={thStyle}>{t("Откуда → куда", "Qayerdan → qayerga")}</th>
-                <th style={thStyle}>{t("Товар", "Mahsulot")}</th>
-                <th style={{ ...thStyle, textAlign: "right" }}>{t("Кол-во", "Miqdor")}</th>
+                <th style={thStyle}>{t("Товар и количество", "Mahsulot va miqdor")}</th>
                 <th style={thStyle}>{t("Итог", "Natija")}</th>
                 <th style={thStyle}>{t("Примечание", "Izoh")}</th>
               </tr></thead>
@@ -484,8 +485,7 @@ export function StockTransfers({ warehouses, canTransfer = true }: { warehouses:
                     <td style={{ ...tdStyle, whiteSpace: "nowrap", color: COLORS.textSecondary }}>{when(d.receivedAt ?? d.cancelledAt ?? d.createdAt)}</td>
                     <td style={{ ...tdStyle, fontWeight: 700, whiteSpace: "nowrap" }}>{d.number}</td>
                     <td style={{ ...tdStyle, whiteSpace: "nowrap" }}>{route(d.fromWarehouseId, d.toWarehouseId)}</td>
-                    <td style={{ ...tdStyle, fontFamily: F.display, fontWeight: 600, color: COLORS.textPrimary }}>{[...new Set(d.lines.map(l => l.productName))].join(", ")}</td>
-                    <td style={{ ...tdStyle, textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{formatQty(d.quantity)}</td>
+                    <td style={{ ...tdStyle, fontFamily: F.display, fontWeight: 600, color: COLORS.textPrimary }}>{qtyByProduct(d.lines, lang)}</td>
                     <td style={{ ...tdStyle, whiteSpace: "nowrap", color: d.status === "received_short" ? "var(--color-warning-text)" : d.status === "cancelled" ? COLORS.textTertiary : COLORS.textSecondary }}>
                       {statusText(d)}
                     </td>
@@ -497,8 +497,7 @@ export function StockTransfers({ warehouses, canTransfer = true }: { warehouses:
                     <td style={{ ...tdStyle, whiteSpace: "nowrap", color: COLORS.textSecondary }}>{when(r.completedAt ?? r.createdAt)}</td>
                     <td style={{ ...tdStyle, color: COLORS.textTertiary }}>—</td>
                     <td style={{ ...tdStyle, whiteSpace: "nowrap" }}>{route(r.fromWarehouseId, r.toWarehouseId)}</td>
-                    <td style={{ ...tdStyle, fontFamily: F.display, fontWeight: 600, color: COLORS.textPrimary }}>{r.productName}</td>
-                    <td style={{ ...tdStyle, textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{formatQty(r.quantity)}</td>
+                    <td style={{ ...tdStyle, fontFamily: F.display, fontWeight: 600, color: COLORS.textPrimary }}>{r.productName} — {formatQty(r.quantity)}</td>
                     <td style={{ ...tdStyle, color: COLORS.textSecondary }}>{t("Принято", "Qabul qilingan")}</td>
                     <td style={{ ...tdStyle, color: COLORS.textSecondary }}>{r.notes ?? "—"}</td>
                   </tr>
