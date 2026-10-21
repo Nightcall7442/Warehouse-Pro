@@ -21,6 +21,7 @@ Disallow: /products
 Disallow: /orders
 Disallow: /warehouse
 Disallow: /arrivals
+Disallow: /purchase-orders
 Disallow: /settings
 Disallow: /billing
 Disallow: /barcode
