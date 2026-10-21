@@ -132,6 +132,10 @@ const ACTION_CONFIG: Record<string, { icon: LucideIcon; gradient: string }> = {
   // Склад
   "stock.adjusted":                  { icon: Package, gradient: WARNING },
   "stock.transfer_completed":        { icon: Boxes, gradient: PRIMARY },
+  // Документ перемещения в два шага: ушло «в пути», принято (недостача — в подробностях), отменено.
+  "stock.transfer_shipped":          { icon: Boxes, gradient: PRIMARY },
+  "stock.transfer_received":         { icon: Boxes, gradient: SUCCESS },
+  "stock.transfer_cancelled":        { icon: Boxes, gradient: WARNING },
   "control.enabled":                 { icon: ShieldCheck, gradient: SUCCESS },
   "control.disabled":                { icon: ShieldCheck, gradient: WARNING },
   "control.shop_confirmed":          { icon: ShieldCheck, gradient: SUCCESS },
