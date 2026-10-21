@@ -33,7 +33,9 @@ const ASSIGN = SERVICE.slice(
 describe("рейс отдают одним действием", () => {
   it("курьер проставляется и листу, и его заказам", () => {
     expect(ASSIGN).toContain("update(loadingLists).set({ courierId })");
-    expect(ASSIGN).toContain('set({ courierId, deliveryStatus: "assigned" })');
+    // Новое назначение стирает место в маршруте и плановый день прежнего
+    // курьера: порядок объезда и перенос — его решения, не нового.
+    expect(ASSIGN).toContain('set({ courierId, deliveryStatus: "assigned", routeSeq: null, plannedDeliveryDate: null })');
   });
 
   it("трогает только открытые заказы", () => {
