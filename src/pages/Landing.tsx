@@ -121,7 +121,8 @@ function CtaSection() {
       />
       <div className="relative max-w-[1240px] mx-auto px-6 py-20 md:py-28 lg:pl-[136px]">
         <p data-reveal="cta" className="text-[12px] uppercase mb-6" style={{ ...MONO, fontWeight: 500, color: LX.brassOnNight, letterSpacing: "0.08em" }}>
-          08 · {tr("Последняя строка реестра", "Reyestrning oxirgi qatori")}
+          {/* Номер — следующий за последней главой (15 · FAQ): это та же лента. */}
+          16 · {tr("Последняя строка реестра", "Reyestrning oxirgi qatori")}
         </p>
         <h2
           data-reveal="cta"

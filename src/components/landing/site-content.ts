@@ -23,6 +23,35 @@ import type { L } from "@/components/pitch/pitch-content";
 /* ── Для кого ─────────────────────────────────────────────────────────────── */
 
 /**
+ * С какого числа агентов предлагаем начать с пилота одной команды, а не
+ * переводить всех сразу. Одно число на «Для кого» и на блок пилота: раньше
+ * первое говорило «пилот — больше пятидесяти», второй — «от 10 агентов».
+ * Порог — решение владельца; пока 10.
+ */
+export const PILOT_MIN_AGENTS = 10;
+
+/**
+ * Чего в программе пока нет, а у конкурентов публично есть, — в планах,
+ * названо прямо. Один список на весь сайт: «Не подойдём» на лендинге
+ * (AUDIENCE_NOT_FIT ссылается на него ключами), «Чего нет» на сравнении и
+ * на /pitch. Раньше «Не подойдём» был написан отдельно и не называл ни
+ * счёт-фактуру через оператора, ни учёт оборудования.
+ */
+export const GAPS = [
+  { key: "marking", uz: "«Asl Belgisi» markirovkasi", ru: "Маркировка «Asl Belgisi»" },
+  { key: "einvoice", uz: "Elektron hisob-faktura operator bilan to'g'ridan-to'g'ri (hozir — 1C orqali: STIR, IKPU va QQS tayyorlab beramiz)", ru: "Электронная счёт-фактура напрямую через оператора (сейчас — через 1С: ИНН, ИКПУ и НДС готовим мы)" },
+  { key: "equipment", uz: "Savdo uskunalari hisobi", ru: "Учёт торгового оборудования" },
+] as const satisfies ReadonlyArray<L & { key: string }>;
+export type GapKey = (typeof GAPS)[number]["key"];
+
+/** Пробелы по ключам — строчными, через «;»: для фразы «пока нет: …». */
+function gapsText(keys: GapKey[], lang: "ru" | "uz"): string {
+  return GAPS.filter(g => keys.includes(g.key))
+    .map(g => g[lang].charAt(0).toLowerCase() + g[lang].slice(1))
+    .join("; ");
+}
+
+/**
  * Кому подойдём: четыре признака дистрибьютора, под которого программа
  * сделана. key — то, что человек сверяет с собой за секунду (число или
  * короткое слово), t — что это, d — почему это про нас.
@@ -32,8 +61,8 @@ export const AUDIENCE_FIT: Array<{ key: L; t: L; d: L }> = [
     key: { ru: `${MIN_FIELD_USERS}–50`, uz: `${MIN_FIELD_USERS}–50` },
     t: { ru: "агентов и курьеров в поле", uz: "dalada agent va kuryerlar" },
     d: {
-      ru: "Агенты берут заказы в магазинах с телефона, курьеры развозят и принимают оплату. Больше пятидесяти — запускаем по командам, начиная с пилота.",
-      uz: "Agentlar do'konlarda telefondan buyurtma oladi, kuryerlar yetkazadi va to'lov oladi. Ellikdan ko'p bo'lsa — jamoalab, sinovdan boshlab ishga tushiramiz.",
+      ru: `Агенты берут заказы в магазинах с телефона, курьеры развозят и принимают оплату. От ${PILOT_MIN_AGENTS} агентов начинаем с пилота одной команды, остальных переводим по командам после него.`,
+      uz: `Agentlar do'konlarda telefondan buyurtma oladi, kuryerlar yetkazadi va to'lov oladi. ${PILOT_MIN_AGENTS} va undan ko'p agent bo'lsa — bitta jamoa bilan sinovdan boshlaymiz, qolganlarni undan keyin jamoalab o'tkazamiz.`,
     },
   },
   {
@@ -65,9 +94,11 @@ export const AUDIENCE_FIT: Array<{ key: L; t: L; d: L }> = [
 /**
  * Кому не подойдём — честно и до покупки. Каждая строка — то, чего в коде
  * нет: адресов ячеек и работы с ТСД, учёта чужого товара за плату, кодов
- * маркировки, кассы с фискальным чеком.
+ * маркировки, кассы с фискальным чеком — и остальных пробелов из GAPS.
+ * gaps — какие пункты GAPS строка называет: проверка сверяет, что ни один
+ * пробел не пропущен.
  */
-export const AUDIENCE_NOT_FIT: Array<{ t: L; d: L }> = [
+export const AUDIENCE_NOT_FIT: Array<{ t: L; d: L; gaps?: GapKey[] }> = [
   {
     t: { ru: "Адресное хранение со сканерами ТСД", uz: "TSD skanerlari bilan manzilli saqlash" },
     d: {
@@ -83,6 +114,7 @@ export const AUDIENCE_NOT_FIT: Array<{ t: L; d: L }> = [
     },
   },
   {
+    gaps: ["marking"],
     t: { ru: "Фармацевтика и маркировка «Asl Belgisi»", uz: "Farmatsevtika va «Asl Belgisi» markirovkasi" },
     d: {
       ru: "Проверки и выбытия кодов маркировки в программе пока нет — это в планах, а не в продукте.",
@@ -94,6 +126,14 @@ export const AUDIENCE_NOT_FIT: Array<{ t: L; d: L }> = [
     d: {
       ru: "Продажа покупателю через кассу, фискальный чек, смены кассира — это кассовая программа. Мы работаем между дистрибьютором и магазином.",
       uz: "Xaridorga kassa orqali sotish, fiskal chek, kassir smenalari — bu kassa dasturi. Biz distribyutor va do'kon o'rtasida ishlaymiz.",
+    },
+  },
+  {
+    gaps: ["einvoice", "equipment"],
+    t: { ru: "Счёт-фактура без 1С и учёт оборудования", uz: "1C'siz hisob-faktura va uskunalar hisobi" },
+    d: {
+      ru: `В программе пока нет: ${gapsText(["einvoice", "equipment"], "ru")}. Это в планах, а не в продукте.`,
+      uz: `Dasturda hozircha yo'q: ${gapsText(["einvoice", "equipment"], "uz")}. Bu rejada, mahsulotda emas.`,
     },
   },
 ];
@@ -239,9 +279,6 @@ export const START_STEPS: Array<{ t: L; time: L; d: L }> = [
     },
   },
 ];
-
-/** С какого числа агентов предлагаем начать с пилота, а не со всех сразу. */
-export const PILOT_MIN_AGENTS = 10;
 
 /**
  * Пилот для крупного дистрибьютора: одна команда, две недели внутри

@@ -33,8 +33,9 @@ export default function AudienceSection() {
           label={tr("Для кого", "Kim uchun")}
           title={tr("Для дистрибьютора, у которого агенты в поле", "Agentlari dalada ishlaydigan distribyutor uchun")}
           lead={tr(
-            "Узнаёте себя в трёх строках из четырёх слева — программа сделана под вас. Справа — то, чего в ней нет: лучше сказать до покупки.",
-            "Chapdagi to'rt qatordan uchtasida o'zingizni tanisangiz — dastur siz uchun qilingan. O'ngda — unda yo'q narsalar: buni sotib olishdan oldin aytgan ma'qul.",
+            // Без «слева/справа»: на телефоне списки стоят один под другим.
+            "Узнаёте себя в трёх строках из четырёх в «Подойдём, если» — программа сделана под вас. В «Не подойдём» — то, чего в ней нет: лучше сказать до покупки.",
+            "«Mos kelamiz, agar» ro'yxatidagi to'rt qatordan uchtasida o'zingizni tanisangiz — dastur siz uchun qilingan. «Mos kelmaymiz» ro'yxatida — unda yo'q narsalar: buni sotib olishdan oldin aytgan ma'qul.",
           )}
         />
 

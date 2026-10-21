@@ -220,12 +220,12 @@ export const IDEAS: Array<{ t: L; d: L }> = [
   },
 ];
 
-/** Чего пока нет, а у конкурентов публично есть, — в планах, названо прямо. */
-export const GAPS: L[] = [
-  { uz: "«Asl Belgisi» markirovkasi", ru: "Маркировка «Asl Belgisi»" },
-  { uz: "Elektron hisob-faktura operator bilan to'g'ridan-to'g'ri (hozir — 1C orqali: STIR, IKPU va QQS tayyorlab beramiz)", ru: "Электронная счёт-фактура напрямую через оператора (сейчас — через 1С: ИНН, ИКПУ и НДС готовим мы)" },
-  { uz: "Savdo uskunalari hisobi", ru: "Учёт торгового оборудования" },
-];
+/**
+ * Чего пока нет, а у конкурентов публично есть, — в планах, названо прямо.
+ * Список один на весь сайт (site-content): его же называет «Не подойдём» на
+ * лендинге, сравнение и эта страница.
+ */
+export { GAPS } from "@/components/landing/site-content";
 
 /* ── Проверяемые числа о разработке ─────────────────────────────────────────
    Пересчитано 09.10.2026: commits — `git rev-list --count origin/main`

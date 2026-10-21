@@ -14,7 +14,10 @@ import type { L } from "@/components/pitch/pitch-content";
  *     одним источником, на двух языках;
  *   · минимум людей в поле — из contracts/pricing, а не цифрой в тексте;
  *   · «кому не подойдём» называет то, чего в программе нет: ТСД, 3PL,
- *     маркировку, кассу;
+ *     маркировку, кассу — и каждый пробел из общего списка GAPS (его же
+ *     показывают сравнение и /pitch), без «слева/справа» — на телефоне
+ *     списки стоят один под другим;
+ *   · порог пилота — одно число на «Для кого» и на блок пилота;
  *   · у каждого обещания есть «как проверить за 14 дней», и стоят обещания
  *     перед тарифами; сроков ответа поддержки и «гарантий» среди них нет —
  *     их не держит код;
@@ -100,7 +103,7 @@ describe("для кого", () => {
     expect(Array.from(document.querySelectorAll("a")).some(a => a.getAttribute("href") === "#audience")).toBe(true);
   });
 
-  it("четыре признака «подойдём» и четыре «не подойдём» — из site-content", () => {
+  it("признаки «подойдём» и «не подойдём» — из site-content", () => {
     draw(<AudienceSection />);
     const fit = screen.getAllByTestId("audience-fit");
     expect(fit).toHaveLength(content.AUDIENCE_FIT.length);
@@ -112,6 +115,35 @@ describe("для кого", () => {
     for (const re of [/ТСД/, /3PL/, /Asl Belgisi/, /касс/i]) {
       expect(notFit.some(t => re.test(t)), `в «не подойдём» нет ${re}`).toBe(true);
     }
+  });
+
+  it("«не подойдём» называет каждый пробел из GAPS — тот же список, что у сравнения и /pitch", async () => {
+    const { GAPS: pitchGaps } = await import("@/components/pitch/pitch-content");
+    expect(pitchGaps, "у сравнения и /pitch — свой список").toBe(content.GAPS);
+    const covered = content.AUDIENCE_NOT_FIT.flatMap(a => a.gaps ?? []);
+    expect([...covered].sort()).toEqual(content.GAPS.map(g => g.key).sort());
+    draw(<AudienceSection />);
+    const text = screen.getByTestId("landing-audience").textContent ?? "";
+    for (const re of [/Asl Belgisi/, /счёт-фактура напрямую через оператора/, /учёт торгового оборудования/]) {
+      expect(text, String(re)).toMatch(re);
+    }
+  });
+
+  it("без «слева/справа»: на телефоне списки стоят один под другим", () => {
+    draw(<AudienceSection />);
+    expect(screen.getByTestId("landing-audience").textContent).not.toMatch(/слева|справа/i);
+    cleanup();
+    localStorage.setItem("lang", "uz");
+    draw(<AudienceSection />);
+    expect(screen.getByTestId("landing-audience").textContent).not.toMatch(/chapdagi|o'ngda/i);
+  });
+
+  it("пилот — одно правило: «Для кого» и блок пилота называют один порог", () => {
+    const fit = content.AUDIENCE_FIT[0].d;
+    expect(fit.ru).toContain(`От ${content.PILOT_MIN_AGENTS} агентов начинаем с пилота`);
+    expect(fit.ru).not.toMatch(/пятидесяти/);
+    expect(fit.uz).toContain(`${content.PILOT_MIN_AGENTS} va undan ko'p agent`);
+    expect(content.PILOT.title.ru).toContain(`от ${content.PILOT_MIN_AGENTS} агентов`);
   });
 
   it("минимум людей в поле — из модуля цен", () => {

@@ -236,6 +236,12 @@ describe("лендинг: главы пронумерованы подряд", (
     for (let i = 1; i < asInt.length; i++) {
       expect(asInt[i] - asInt[i - 1], `между главами ${asInt[i - 1]} и ${asInt[i]} пропуск`).toBe(1);
     }
+    // Финальный призыв — «последняя строка реестра»: следующий номер, а не
+    // «08», оставшийся от старой нумерации после пятнадцатой главы.
+    const cta = Array.from(document.querySelectorAll("[data-reveal=\"cta\"]"))
+      .map(el => /^(\d{2})\s*·/.exec(el.textContent ?? "")?.[1])
+      .filter(Boolean) as string[];
+    expect(cta).toEqual([String(asInt[asInt.length - 1] + 1).padStart(2, "0")]);
   });
 });
 
