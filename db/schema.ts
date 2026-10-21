@@ -305,6 +305,13 @@ export const products = mysqlTable("products", {
   description:  text("description"),
   photoUrl:     mediumtext("photo_url"),
   reorderPoint: decimal("reorder_point", { precision: 10, scale: 2 }).default("0.00").notNull(),
+  /*
+    У кого товар обычно берут. Подставляется в новый заказ поставщику и
+    группирует подсказку «что дозаказать». Пусто — не задан (так у всех
+    товаров до этой колонки). Поставщика не удаляют — его выключают, но
+    если строку всё же сотрут, у товара просто не станет поставщика.
+  */
+  defaultSupplierId: bigint("default_supplier_id", { mode: "number", unsigned: true }).references(() => suppliers.id, { onDelete: "set null" }),
   status:       mysqlEnum("status", ["active", "inactive"]).default("active").notNull(),
   createdAt:    timestamp("created_at").defaultNow().notNull(),
   updatedAt:    timestamp("updated_at").defaultNow().notNull().$onUpdate(() => new Date()),
@@ -951,12 +958,26 @@ export const arrivals = mysqlTable("arrivals", {
   arrivalTime:   time("arrival_time"),
   unloadingTime: time("unloading_time"),
   notes:         text("notes"),
+  /*
+    Приход по заказу поставщику (ADR 0013). Заводит его только приёмка
+    заказа (purchaseOrder.receive): долг по такому приходу появляется при
+    проведении, а не при создании, и блока поставщика у него нет. Пусто —
+    обычный приход, как раньше.
+  */
+  purchaseOrderId: bigint("purchase_order_id", { mode: "number", unsigned: true }).references(() => purchaseOrders.id, { onDelete: "set null" }),
+  /*
+    Склад, на который приход ляжет при проведении. Заказ знает его заранее и
+    записывает сюда; у старых и обычных приходов пусто — проводят на
+    основной склад, как раньше.
+  */
+  warehouseId:   bigint("warehouse_id", { mode: "number", unsigned: true }).references(() => warehouses.id, { onDelete: "restrict" }),
   createdAt:     timestamp("created_at").defaultNow().notNull(),
   updatedAt:     timestamp("updated_at").defaultNow().notNull().$onUpdate(() => new Date()),
 }, (t) => ({
   numPerTenant: uniqueIndex("uq_arrival_number_tenant").on(t.arrivalNumber, t.tenantId),
   tenantIdx:    index("idx_arrivals_tenant").on(t.tenantId),
   tenantStatusIdx: index("idx_arrivals_tenant_status").on(t.tenantId, t.status),
+  purchaseOrderIdx: index("idx_arrivals_purchase_order").on(t.purchaseOrderId),
 }));
 
 export type Arrival       = typeof arrivals.$inferSelect;
@@ -1039,6 +1060,13 @@ export const suppliers = mysqlTable("suppliers", {
   inn:         varchar("inn", { length: 32 }),
   address:     varchar("address", { length: 500 }),
   notes:       text("notes"),
+  /*
+    Отсрочка оплаты у этого поставщика, в днях — зеркало
+    shops.paymentGraceDays. Подставляется в заказ поставщику, и по ней
+    приёмка заказа ставит срок оплаты долга. Пусто — не договаривались:
+    срок не ставится.
+  */
+  paymentTermsDays: int("payment_terms_days"),
   status:      mysqlEnum("status", ["active", "inactive"]).default("active").notNull(),
   createdAt:   timestamp("created_at").defaultNow().notNull(),
   updatedAt:   timestamp("updated_at").defaultNow().notNull().$onUpdate(() => new Date()),
@@ -1126,6 +1154,80 @@ export const supplierPayments = mysqlTable("supplier_payments", {
 
 export type SupplierPayment       = typeof supplierPayments.$inferSelect;
 export type InsertSupplierPayment = typeof supplierPayments.$inferInsert;
+
+// ============================================
+// PURCHASE ORDERS — заказы поставщикам
+// ============================================
+//
+// Заказ — договорённость с поставщиком, а не обязательство: что, сколько и
+// почём мы ждём и на какой склад. Долга он не создаёт (ADR 0013). Долг
+// появляется при проведении прихода по заказу, на принятое количество, —
+// одной транзакцией с остатком.
+//
+// Путь: черновик → на согласовании → согласован (директор) → принимается
+// частями → принят или закрыт с недовозом; до приёмки — отменён. Правка
+// согласованного заказа возвращает его в черновик: согласовывали другое.
+//
+// updatedAt — версия документа, как у прихода: строки заменяются целиком, и
+// без неё второй оператор молча затирал бы правку первого.
+export const purchaseOrders = mysqlTable("purchase_orders", {
+  id:               serial("id").primaryKey(),
+  tenantId:         bigint("tenant_id", { mode: "number", unsigned: true }).notNull().references(() => tenants.id, { onDelete: "restrict" }),
+  number:           varchar("number", { length: 30 }).notNull(),
+  supplierId:       bigint("supplier_id", { mode: "number", unsigned: true }).notNull().references(() => suppliers.id, { onDelete: "restrict" }),
+  warehouseId:      bigint("warehouse_id", { mode: "number", unsigned: true }).notNull().references(() => warehouses.id, { onDelete: "restrict" }),
+  status:           mysqlEnum("status", ["draft", "pending_approval", "approved", "partially_received", "received", "closed", "cancelled"]).default("draft").notNull(),
+  // Валюта сделки — та же пара, что у поставки: долг потом живёт в ней.
+  currency:         mysqlEnum("currency", ["UZS", "USD"]).default("UZS").notNull(),
+  // Сумов за доллар на день сделки. Обязателен у долларового заказа к согласованию.
+  rateToUzs:        decimal("rate_to_uzs", { precision: 12, scale: 4 }),
+  // Пусто — отсрочка поставщика на день приёмки.
+  paymentTermsDays: int("payment_terms_days"),
+  expectedDate:     date("expected_date"),
+  // «reorder» — заведён из подсказки «что дозаказать».
+  source:           mysqlEnum("source", ["manual", "reorder"]).default("manual").notNull(),
+  notes:            text("notes"),
+  // Почему директор вернул заказ в черновик.
+  rejectNote:       varchar("reject_note", { length: 500 }),
+  createdBy:        bigint("created_by", { mode: "number", unsigned: true }).references(() => users.id, { onDelete: "restrict" }),
+  submittedAt:      timestamp("submitted_at"),
+  approvedBy:       bigint("approved_by", { mode: "number", unsigned: true }).references(() => users.id, { onDelete: "restrict" }),
+  approvedAt:       timestamp("approved_at"),
+  closedAt:         timestamp("closed_at"),
+  createdAt:        timestamp("created_at").defaultNow().notNull(),
+  updatedAt:        timestamp("updated_at").defaultNow().notNull().$onUpdate(() => new Date()),
+}, (t) => ({
+  numberUnique:      uniqueIndex("uq_po_number_tenant").on(t.number, t.tenantId),
+  tenantStatusIdx:   index("idx_po_tenant_status").on(t.tenantId, t.status),
+  tenantSupplierIdx: index("idx_po_tenant_supplier").on(t.tenantId, t.supplierId),
+}));
+
+export type PurchaseOrder       = typeof purchaseOrders.$inferSelect;
+export type InsertPurchaseOrder = typeof purchaseOrders.$inferInsert;
+
+/*
+  Строки заказа. Своего tenant_id нет: строка читается и пишется только
+  через заказ, а заказ — с фильтром организации.
+
+  unitPrice — в валюте заказа. receivedQty растёт при проведении приходов по
+  заказу (под замком заказа) и может стать больше заказанного: излишек
+  принимают и показывают, а не отказывают на разгрузке.
+*/
+export const purchaseOrderItems = mysqlTable("purchase_order_items", {
+  id:              serial("id").primaryKey(),
+  purchaseOrderId: bigint("purchase_order_id", { mode: "number", unsigned: true }).notNull().references(() => purchaseOrders.id, { onDelete: "cascade" }),
+  productId:       bigint("product_id", { mode: "number", unsigned: true }).notNull().references(() => products.id, { onDelete: "restrict" }),
+  quantity:        decimal("quantity", { precision: 12, scale: 2 }).notNull(),
+  unitPrice:       decimal("unit_price", { precision: 15, scale: 2 }).default("0.00").notNull(),
+  receivedQty:     decimal("received_qty", { precision: 12, scale: 2 }).default("0.00").notNull(),
+  note:            varchar("note", { length: 255 }),
+}, (t) => ({
+  productUnique: uniqueIndex("uq_po_item_product").on(t.purchaseOrderId, t.productId),
+  productIdx:    index("idx_po_items_product").on(t.productId),
+}));
+
+export type PurchaseOrderItem       = typeof purchaseOrderItems.$inferSelect;
+export type InsertPurchaseOrderItem = typeof purchaseOrderItems.$inferInsert;
 
 // ============================================
 // PAYMENTS
