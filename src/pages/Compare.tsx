@@ -45,7 +45,7 @@ export default function Compare() {
 }
 
 function Hero() {
-  const { tr } = useTr();
+  const { lang, tr } = useTr();
   return (
     <section data-testid="compare-hero" style={{ position: "relative", paddingTop: 40, paddingBottom: 72 }}>
       <div className="p-wrap">
@@ -65,7 +65,7 @@ function Hero() {
           </p>
           <div className="lg:col-span-5 p-cta" style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "flex-start", alignContent: "flex-start" }}>
             <ArrowLink to="/register" solid testId="compare-cta-register">{tr("14 kun bepul sinab ko'rish", "Попробовать 14 дней бесплатно")}</ArrowLink>
-            <ArrowLink to="/demo" testId="compare-cta-demo">{tr("Ro'yxatdan o'tmasdan demo", "Демо без регистрации")}</ArrowLink>
+            <ArrowLink to={`/demo?lang=${lang}`} testId="compare-cta-demo">{tr("Ro'yxatdan o'tmasdan demo", "Демо без регистрации")}</ArrowLink>
           </div>
         </div>
       </div>
@@ -251,7 +251,8 @@ function Steps() {
       </ol>
       <div className="p-cta" style={{ display: "flex", flexWrap: "wrap", gap: 12, marginTop: 40 }}>
         <ArrowLink to="/register" solid>{tr("14 kun bepul sinab ko'rish", "Попробовать 14 дней бесплатно")}</ArrowLink>
-        <ArrowLink to="/demo">{tr("Ro'yxatdan o'tmasdan demo", "Демо без регистрации")}</ArrowLink>
+        {/* Демо — на языке этой страницы: у /demo по умолчанию узбекский. */}
+        <ArrowLink to={`/demo?lang=${lang}`}>{tr("Ro'yxatdan o'tmasdan demo", "Демо без регистрации")}</ArrowLink>
       </div>
     </Chapter>
   );

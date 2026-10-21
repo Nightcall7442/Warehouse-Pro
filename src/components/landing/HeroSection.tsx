@@ -1,7 +1,7 @@
 import { useNavigate } from "react-router";
 import LeadForm from "./LeadForm";
-import { useTranslate } from "@/i18n";
-import { ArrowRight, ArrowDown } from "lucide-react";
+import { useLang, useTranslate } from "@/i18n";
+import { ArrowRight } from "lucide-react";
 import { BtnInk, Stamp } from "./landing-shared";
 import { LX, MONO } from "./landing-tokens";
 
@@ -39,6 +39,15 @@ import { LX, MONO } from "./landing-tokens";
    Не хардкодятся <br> под русскую меру: узбекский на 15–30% длиннее и уронил
    бы высоту первого экрана. Заголовок отдаётся в tr() целиком, каждый
    вариант со своими переносами.
+
+   ── Кому и про что (21.10.2026) ────────────────────────────────────────────
+
+   Был заголовок «Учёт склада и доставки без разрывов между отделами» — так
+   может сказать о себе любая учётная программа, и дистрибьютор не находил в
+   нём себя. Теперь первый экран называет, для кого это (дистрибьюторы с
+   торговыми агентами), и три вещи, ради которых его покупают: агенты, долги
+   магазинов, доставка. Второе действие — не якорь «посмотреть интерфейс», а
+   демо без регистрации на языке этой страницы (/demo?lang=…).
    ═══════════════════════════════════════════════════════════════════════════ */
 
 const TONE = {
@@ -52,6 +61,7 @@ const TONE = {
 export default function HeroSection() {
   const navigate = useNavigate();
   const tr = useTranslate();
+  const { lang } = useLang();
 
   const rows: Array<{ t: string; title: string; note: string; value: string; tone: keyof typeof TONE }> = [
     { t: "07:30", title: tr("Рейс собран", "Reys yig'ildi"), note: tr("18 точек, маршрут в телефоне агента", "18 nuqta, marshrut agent telefonida"), value: "18", tone: "neutral" },
@@ -139,25 +149,33 @@ export default function HeroSection() {
 
           {/* Тело */}
           <div className="lg:pl-10 lg:pr-8">
+            {/* Кому — до заголовка: человек узнаёт себя раньше, чем читает обещание. */}
+            <p
+              data-testid="hero-audience"
+              className="mb-5 text-[12px] md:text-[13px] uppercase"
+              style={{ ...MONO, fontWeight: 500, letterSpacing: "0.08em", color: LX.brassText }}
+            >
+              {tr("Для дистрибьюторов с торговыми агентами", "Savdo agentlari bor distribyutorlar uchun")}
+            </p>
             <h1
               className="font-extrabold"
-              style={{ fontSize: "clamp(2.875rem, 5.8vw, 5.75rem)", letterSpacing: "-0.045em", lineHeight: 0.96, color: LX.ink, maxWidth: "12ch" }}
+              style={{ fontSize: "clamp(2.875rem, 5.8vw, 5.75rem)", letterSpacing: "-0.045em", lineHeight: 0.96, color: LX.ink, maxWidth: "15ch" }}
             >
-              {tr("Учёт склада", "Ombor hisobi")}
+              {tr("Агенты,", "Agentlar,")}
               <br />
-              {tr("и доставки", "va yetkazish")}
+              {tr("долги магазинов", "do'kon qarzlari")}
               <br />
               <span style={{ ...MONO, fontWeight: 400, fontSize: "0.82em", letterSpacing: "-0.055em" }}>
-                {tr("без разрывов", "uzilishlarsiz")}
+                {tr("и доставка", "va yetkazish")}
               </span>
               <br />
-              {tr("между отделами", "bo'limlar orasida")}
+              {tr("в одной программе", "bitta dasturda")}
             </h1>
 
-            <p className="mt-7 lg:mt-8 text-[18px] lg:text-[20px]" style={{ lineHeight: 1.5, maxWidth: 520, color: LX.inkSoft }}>
+            <p className="mt-7 lg:mt-8 text-[18px] lg:text-[20px]" style={{ lineHeight: 1.5, maxWidth: 560, color: LX.inkSoft }}>
               {tr(
-                "Один источник данных для директора, склада, агентов и курьеров — вместо тетрадей, Excel и звонков «где машина?».",
-                "Direktor, ombor, agentlar va kuryerlar uchun yagona manba — daftar, Excel va «mashina qayerda?» qo'ng'iroqlari o'rniga.",
+                "Агенты берут заказы с телефона даже без сети, склад собирает, курьер везёт и отмечает, что магазин принял и оплатил. Долг каждой точки считается сам — без тетрадей, Excel и звонков «где машина?».",
+                "Agentlar tarmoq bo'lmasa ham telefondan buyurtma oladi, ombor yig'adi, kuryer yetkazadi va do'kon nimani qabul qilib to'laganini belgilaydi. Har bir nuqtaning qarzi o'zi hisoblanadi — daftar, Excel va «mashina qayerda?» qo'ng'iroqlarisiz.",
               )}
             </p>
 
@@ -166,14 +184,16 @@ export default function HeroSection() {
                 {tr("Начать бесплатно", "Bepul boshlash")}
                 <ArrowRight size={15} />
               </BtnInk>
-              {/* Не кнопка: ссылка на якорь внутри страницы. Два равновесных прямоугольника — это отсутствие иерархии. */}
+              {/* Не кнопка: текстовая ссылка. Два равновесных прямоугольника — это отсутствие иерархии.
+                  Демо открывается на языке этой страницы: у /demo по умолчанию узбекский. */}
               <a
-                href="#product"
-                className="inline-flex items-center gap-1.5 text-[15px] font-medium underline underline-offset-[6px] decoration-1"
+                href={`/demo?lang=${lang}`}
+                data-testid="hero-demo"
+                className="inline-flex items-center gap-1.5 min-h-[44px] text-[15px] font-medium underline underline-offset-[6px] decoration-1"
                 style={{ color: LX.ink, textDecorationColor: LX.ruleStrong }}
               >
-                {tr("Посмотреть интерфейс", "Interfeysni ko'rish")}
-                <ArrowDown size={14} />
+                {tr("Демо без регистрации", "Ro'yxatdan o'tmasdan demo")}
+                <ArrowRight size={14} />
               </a>
             </div>
 

@@ -134,10 +134,12 @@ export function UrlLang({ lang, onSwitch, children }: { lang: Lang; onSwitch?: (
     return () => { releasePageLang(token); document.documentElement.lang = prev; };
   }, [token, lang]);
   const outerSet = outer.setLang;
+  // Нажатие — всегда выбор и сохраняется, даже того же языка: вход в демо
+  // с /demo?lang=ru зовёт setLang(lang), чтобы приложение открылось
+  // по-русски. Уводит на другую страницу только смена языка.
   const setLang = useCallback((l: Lang) => {
-    if (l === lang) return;
     outerSet(l);
-    onSwitch?.(l);
+    if (l !== lang) onSwitch?.(l);
   }, [lang, outerSet, onSwitch]);
   const translate = useCallback((key: string) => t(lang, key), [lang]);
   const value = useMemo(() => ({ lang, setLang, t: translate, fromUrl: true }), [lang, setLang, translate]);

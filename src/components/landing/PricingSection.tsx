@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from "react";
 import { useNavigate } from "react-router";
-import { useTranslate } from "@/i18n";
+import { useLang, useTranslate } from "@/i18n";
 import { plural } from "@/lib/plural";
 import { Minus, Plus } from "lucide-react";
 import { SectionHead } from "./landing-shared";
@@ -69,6 +69,7 @@ function Row({ k, v, strong = false }: { k: string; v: string; strong?: boolean 
 export default function PricingSection() {
   const navigate = useNavigate();
   const tr = useTranslate();
+  const { lang } = useLang();
   const tgSales = tgLink(tr("Здравствуйте! Интересуют услуги: перенос данных, выделенный сервер.", "Assalomu alaykum! Xizmatlar qiziqtiradi: ma'lumot ko'chirish, ajratilgan server."));
   const [people, setPeople] = useState(CALC_START);
   const set = (n: number) => setPeople(Math.max(1, Math.min(CALC_MAX, Math.round(n) || 1)));
@@ -138,6 +139,15 @@ export default function PricingSection() {
                 <p className="mt-3 text-center text-[12px]" style={{ ...MONO, color: LX.softOnInk }}>
                   {tr("14 дней бесплатно · все функции · карта не нужна", "14 kun bepul · barcha funksiyalar · karta kerak emas")}
                 </p>
+                {/* Кто не готов регистрироваться ради цены — смотрит демо на языке этой страницы. */}
+                <a
+                  href={`/demo?lang=${lang}`}
+                  data-testid="pricing-demo"
+                  className="mt-4 flex items-center justify-center min-h-[44px] text-[15px] font-medium underline underline-offset-[6px] decoration-1"
+                  style={{ color: LX.paperOnInk, textDecorationColor: LX.paperOnInk34 }}
+                >
+                  {tr("Сначала посмотреть демо — без регистрации", "Avval demoni ko'rish — ro'yxatdan o'tmasdan")}
+                </a>
               </div>
             </div>
           }

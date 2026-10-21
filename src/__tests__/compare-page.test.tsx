@@ -138,7 +138,8 @@ describe("цена, переход, дата сверки", () => {
   it("кнопки ведут на регистрацию и демо; дата сверки видна", () => {
     draw();
     expect(screen.getByTestId("compare-cta-register").getAttribute("href")).toBe("/register");
-    expect(screen.getByTestId("compare-cta-demo").getAttribute("href")).toBe("/demo");
+    // Демо — на языке страницы: у /demo по умолчанию узбекский (21.10.2026).
+    expect(screen.getByTestId("compare-cta-demo").getAttribute("href")).toBe("/demo?lang=ru");
     expect(screen.getByTestId("compare-hero").textContent).toContain(CHECKED_AT);
     expect(screen.getAllByTestId("compare-step")).toHaveLength(STEPS.length);
   });

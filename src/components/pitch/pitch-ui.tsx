@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
-import { Link } from "react-router";
+import { Link, useLocation, useNavigate } from "react-router";
 import { ArrowRight, Menu, Moon, Sun, X } from "lucide-react";
 import { LogoMark } from "@/components/brand/Logo";
-import { PreferLang, useLang } from "@/i18n";
+import { PreferLang, UrlLang, useLang, type Lang } from "@/i18n";
+import { langFromSearch } from "@/i18n/page-lang";
 import { useTheme } from "@/hooks/useTheme";
 import { pick, type L } from "./pitch-content";
 import { PITCH_CSS } from "./pitch-tokens";
@@ -33,11 +34,30 @@ import { sitePath } from "@/lib/site-paths";
 export function PitchShell({ title, children, nav, lang = "uz", site = false }: {
   title: L; children: ReactNode; nav?: Array<{ href: string; label: L }>; lang?: "uz" | "ru"; site?: boolean;
 }) {
-  return (
-    <PreferLang lang={lang}>
-      <ShellInner title={title} nav={nav} site={site}>{children}</ShellInner>
-    </PreferLang>
-  );
+  const outer = useLang();
+  const { search, hash } = useLocation();
+  const navigate = useNavigate();
+  const inner = <ShellInner title={title} nav={nav} site={site}>{children}</ShellInner>;
+  /*
+    ?lang=ru|uz в адресе — язык страницы: /demo?lang=ru из русского лендинга
+    открывается по-русски, хотя у демо по умолчанию узбекский, и поверх
+    сохранённого выбора. Заход по ссылке выбор не сохраняет (UrlLang);
+    нажатие на переключатель сохраняет и меняет ?lang в адресе на месте —
+    иначе адрес продолжал бы держать прежний язык.
+
+    Если язык уже задан адресом выше (/uz/compare), ?lang не спорит с ним:
+    две страницы-владельца языка разошлись бы между React и uiLang.
+  */
+  const urlLang = outer.fromUrl ? null : langFromSearch(search);
+  if (urlLang) {
+    const onSwitch = (l: Lang) => {
+      const q = new URLSearchParams(search);
+      q.set("lang", l);
+      navigate({ search: `?${q.toString()}`, hash }, { replace: true });
+    };
+    return <UrlLang lang={urlLang} onSwitch={onSwitch}>{inner}</UrlLang>;
+  }
+  return <PreferLang lang={lang}>{inner}</PreferLang>;
 }
 
 function ShellInner({ title, children, nav, site }: { title: L; children: ReactNode; nav?: Array<{ href: string; label: L }>; site: boolean }) {

@@ -48,6 +48,7 @@ import Landing from "@/pages/Landing";
 import { LangProvider } from "@/i18n";
 
 beforeEach(() => {
+  localStorage.clear();
   vi.stubGlobal("matchMedia", (q: string) => ({
     matches: false, media: q, onchange: null,
     addListener: vi.fn(), removeListener: vi.fn(),
@@ -99,7 +100,18 @@ describe("лендинг: страница собирается", () => {
     expect(hero, "первый экран не помечен data-first-screen — движение спрячет его").toBeTruthy();
     const h1 = hero!.querySelector("h1");
     expect(h1).toBeTruthy();
-    expect(h1!.textContent).toMatch(/Учёт склада/);
+    // Заголовок называет, ради чего покупают: агенты, долги магазинов,
+    // доставка (21.10.2026; был «Учёт склада и доставки без разрывов»).
+    expect(h1!.textContent).toMatch(/Агенты/);
+    expect(h1!.textContent).toMatch(/долги магазинов/);
+    expect(h1!.textContent).toMatch(/доставка/);
+  });
+
+  it("первый экран называет, для кого программа", () => {
+    draw();
+    const hero = document.querySelector("[data-first-screen]") as HTMLElement;
+    expect(within(hero).getByTestId("hero-audience").textContent).toMatch(/дистрибьютор/i);
+    expect(within(hero).getByTestId("hero-audience").textContent).toMatch(/агент/i);
   });
 });
 
@@ -139,9 +151,25 @@ describe("лендинг: первый экран просит один раз",
     expect(hero).toBeTruthy();
     const buttons = within(hero as HTMLElement).getAllByRole("button", { name: /Начать бесплатно/ });
     expect(buttons.length, "в первом экране больше одной кнопки «Начать бесплатно»").toBe(1);
-    // «Посмотреть интерфейс» — якорь, а не второй прямоугольник.
-    const look = within(hero as HTMLElement).getByText(/Посмотреть интерфейс/);
-    expect(look.closest("a"), "«Посмотреть интерфейс» снова стала кнопкой").toBeTruthy();
+    // Второе действие — демо без регистрации: текстовая ссылка, а не второй
+    // прямоугольник, и на языке страницы (у /demo по умолчанию узбекский).
+    const demo = within(hero as HTMLElement).getByTestId("hero-demo");
+    expect(demo.tagName, "«Демо» стала кнопкой").toBe("A");
+    expect(demo.getAttribute("href")).toBe("/demo?lang=ru");
+  });
+
+  it("по-узбекски ссылка на демо несёт ?lang=uz", () => {
+    localStorage.setItem("lang", "uz");
+    draw();
+    expect(screen.getByTestId("hero-demo").getAttribute("href")).toBe("/demo?lang=uz");
+  });
+
+  it("в тарифах — ссылка на демо на языке страницы", () => {
+    draw();
+    const demo = screen.getByTestId("pricing-demo");
+    expect(demo.tagName).toBe("A");
+    expect(demo.getAttribute("href")).toBe("/demo?lang=ru");
+    expect(demo.hasAttribute("target"), "своя страница открылась бы в новой вкладке").toBe(false);
   });
 
   it("поле телефона стоит в первом экране", () => {
