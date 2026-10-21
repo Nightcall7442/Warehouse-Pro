@@ -21,8 +21,9 @@ import { LangProvider } from "@/i18n";
  *   · предпросмотр FEFO: партии со сроком, просрочка, и уценка, которая
  *     пропадёт вместе с партией, ушедшей целиком;
  *   · партии вручную: уходит выбранное, количество строки — их сумма;
- *   · «в пути»: приёмка по строкам (меньше — недостача, предупреждение),
- *     отмена; без права — ни того, ни другого;
+ *   · «в пути»: приёмка по строкам (меньше — недостача, предупреждение по
+ *     товарам с единицами), отмена; без права — ни того, ни другого; без права
+ *     проводить правку (warehouse.apply) — принять только всё;
  *   · история документов с номером, недостачей и отменой; прежние строки
  *     без документа спрашиваются отдельно (legacy);
  *   · настройка — переключатель в «Компании», рядом с просрочкой долга;
@@ -38,6 +39,7 @@ const h = vi.hoisted(() => {
     stockRows: [] as Array<Record<string, unknown>>,
     preview: { items: [], markdowns: [] } as Record<string, unknown>,
     batches: { onHand: 0, inBatches: 0, untracked: 0, batches: [] } as Record<string, unknown>,
+    me: { can: {} } as Record<string, unknown>,
     inTransit: [] as Doc[],
     history: [] as Doc[],
     legacy: [] as Array<Record<string, unknown>>,
@@ -56,6 +58,8 @@ const h = vi.hoisted(() => {
   return {
     state,
     trpc: {
+      // useCan: права оператора приходят вместе с auth.me.
+      auth: { me: { useQuery: q(() => state.me) } },
       settings: {
         get: { useQuery: q(() => state.settings) },
         update: { useMutation: m(state.settingsSave) },
@@ -96,6 +100,7 @@ beforeEach(() => {
   s.preview = { items: [], markdowns: [] };
   s.batches = { onHand: 0, inBatches: 0, untracked: 0, batches: [] };
   s.inTransit = []; s.history = []; s.legacy = [];
+  s.me = { can: {} };
   for (const f of [s.legacyInput, s.createTransfer, s.receiveTransfer, s.cancelTransfer, s.completeTransfer, s.settingsSave, s.invalidate]) f.mockReset();
   vi.stubGlobal("matchMedia", (q: string) => ({
     matches: false, media: q, onchange: null,
@@ -212,7 +217,8 @@ describe("«в пути»", () => {
     const first = screen.getByTestId("receive-31") as HTMLInputElement;
     expect(first.value).toBe("4");
     fireEvent.change(first, { target: { value: "3" } });
-    expect(screen.getByTestId("receive-shortage").textContent).toMatch(/Не доехало 1/);
+    // По товарам и в их единицах: сумма «штук» из килограммов и бутылок ничего не значит.
+    expect(screen.getByTestId("receive-shortage").textContent).toMatch(/Не доехало: Вода — 1 шт/);
     // И сколько это денег — по себестоимости партии (9 000 за единицу).
     expect(screen.getByTestId("receive-shortage").textContent).toMatch(/9\s000/);
     await act(async () => { fireEvent.click(screen.getByTestId("transfer-receive-confirm")); });
@@ -220,6 +226,23 @@ describe("«в пути»", () => {
 
     await act(async () => { fireEvent.click(screen.getByTestId("transfer-cancel-3")); });
     expect(h.state.cancelTransfer).toHaveBeenCalledWith({ docId: 3 });
+  });
+
+  it("без права проводить правку: с недостачей принять нельзя — документ ждёт руководителя; целиком — можно", async () => {
+    h.state.me = { can: { "warehouse.apply": false } };
+    h.state.inTransit = [IN_TRANSIT];
+    wrap(<StockTransfers warehouses={TWO} />);
+    fireEvent.click(screen.getByTestId("transfer-receive-3"));
+    fireEvent.change(screen.getByTestId("receive-31"), { target: { value: "3" } });
+    expect(screen.getByTestId("receive-needs-director").textContent).toMatch(/Недостачу проводит руководитель/);
+    expect(screen.queryByTestId("receive-shortage")).toBeNull();
+    const confirm = screen.getByTestId("transfer-receive-confirm") as HTMLButtonElement;
+    expect(confirm.disabled).toBe(true);
+
+    fireEvent.change(screen.getByTestId("receive-31"), { target: { value: "4" } });
+    expect(screen.queryByTestId("receive-needs-director")).toBeNull();
+    await act(async () => { fireEvent.click(screen.getByTestId("transfer-receive-confirm")); });
+    expect(h.state.receiveTransfer).toHaveBeenCalledWith({ docId: 3, lines: [{ lineId: 31, receivedQuantity: 4 }, { lineId: 32, receivedQuantity: 3 }] });
   });
 
   it("принять больше отправленного — не отправляется", async () => {

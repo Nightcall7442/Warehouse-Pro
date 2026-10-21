@@ -8,6 +8,7 @@ import { formatQty } from "@/lib/format";
 import { unitShort } from "@/lib/units";
 import { errorText } from "@/lib/error-text";
 import { useCurrency } from "@/hooks/useCurrency";
+import { useCan } from "@/hooks/useCan";
 import { COLORS, thStyle, tdStyle } from "@/components/users/types";
 import { dayText } from "./transfer-text";
 
@@ -25,6 +26,10 @@ export type TransferDocLine = {
  * Меньше — вписать, сколько приехало: недоехавшее останется недостачей на
  * документе, и директор получит уведомление. Больше отправленного принять
  * нельзя — лишнее на полке разбирается инвентаризацией.
+ *
+ * Недостача — списание. Оператору, которому директор закрыл «проводить правку
+ * без утверждения», окно так и говорит: принять можно только всё, а с
+ * недостачей документ остаётся в пути до руководителя (сервер откажет так же).
  */
 export function TransferReceiveDialog({ doc, route, onClose, onDone }: {
   doc: { id: number; number: string; lines: TransferDocLine[] };
@@ -35,13 +40,15 @@ export function TransferReceiveDialog({ doc, route, onClose, onDone }: {
   const { lang } = useLang();
   const t = (ru: string, uz: string) => (lang === "uz" ? uz : ru);
   const { fmt } = useCurrency();
+  const can = useCan();
+  const mayWriteOff = can("warehouse.apply");
   const [got, setGot] = useState<Record<number, string>>(() => Object.fromEntries(doc.lines.map(l => [l.id, String(l.quantity)])));
 
   const receive = trpc.warehouseMulti.receiveTransfer.useMutation({
     onSuccess: (r) => {
       if (r.shortageQty > 0) {
-        notify.info(t(`${r.number} принято. Не доехало ${formatQty(r.shortageQty)} — недостача записана, директор уведомлён`,
-                      `${r.number} qabul qilindi. ${formatQty(r.shortageQty)} yetib kelmadi — kamomad yozildi, direktorga xabar berildi`));
+        notify.info(t(`${r.number} принято. Недостача записана${r.shortageCost > 0 ? ` (${fmt(r.shortageCost)} по себестоимости)` : ""}, директор уведомлён`,
+                      `${r.number} qabul qilindi. Kamomad yozildi${r.shortageCost > 0 ? ` (tannarx bo'yicha ${fmt(r.shortageCost)})` : ""}, direktorga xabar berildi`));
       } else {
         notify.success(t(`${r.number} принято`, `${r.number} qabul qilindi`));
       }
@@ -54,6 +61,9 @@ export function TransferReceiveDialog({ doc, route, onClose, onDone }: {
   const lostOf = (l: TransferDocLine) => Math.max(0, l.quantity - (Number(got[l.id]) || 0));
   const shortage = doc.lines.reduce((sum, l) => sum + lostOf(l), 0);
   const shortageCost = doc.lines.reduce((sum, l) => sum + lostOf(l) * Number(l.unitCost ?? 0), 0);
+  // Что не доехало — по товарам, со своей единицей: «15» из 10 кг и 5 шт ничего не значит.
+  const lostText = doc.lines.filter(l => lostOf(l) > 0).map(l => `${l.productName} — ${formatQty(lostOf(l))} ${unitShort(l.unit, lang)}`).join("; ");
+  const blocked = shortage > 0 && !mayWriteOff;
   const dirty = doc.lines.some(l => got[l.id] !== String(l.quantity));
 
   const submit = () => {
@@ -77,7 +87,7 @@ export function TransferReceiveDialog({ doc, route, onClose, onDone }: {
       footer={(
         <div className="flex gap-2 justify-end flex-wrap">
           <button className="neo-btn tap" onClick={onClose}>{t("Отмена", "Bekor")}</button>
-          <button className="neo-btn-primary tap" onClick={submit} disabled={receive.isPending} data-testid="transfer-receive-confirm">
+          <button className="neo-btn-primary tap" onClick={submit} disabled={receive.isPending || blocked} data-testid="transfer-receive-confirm">
             {t("Принять", "Qabul qilish")}
           </button>
         </div>
@@ -114,11 +124,18 @@ export function TransferReceiveDialog({ doc, route, onClose, onDone }: {
           </tbody>
         </table>
       </div>
-      {shortage > 0 && (
+      {shortage > 0 && !blocked && (
         <p className="text-sm mt-3 rounded-xl px-3 py-2" data-testid="receive-shortage"
           style={{ color: "var(--color-warning-text)", background: "var(--color-warning-subtle)" }}>
-          {t(`Не доехало ${formatQty(shortage)}${shortageCost > 0 ? ` на ${fmt(shortageCost)} по себестоимости` : ""} — останется недостачей на документе, директор получит уведомление.`,
-             `${formatQty(shortage)} yetib kelmadi${shortageCost > 0 ? `, tannarx bo'yicha ${fmt(shortageCost)}` : ""} — hujjatda kamomad bo'lib qoladi, direktor xabar oladi.`)}
+          {t(`Не доехало: ${lostText}${shortageCost > 0 ? ` — на ${fmt(shortageCost)} по себестоимости` : ""}. Останется недостачей на документе, директор получит уведомление.`,
+             `Yetib kelmadi: ${lostText}${shortageCost > 0 ? ` — tannarx bo'yicha ${fmt(shortageCost)}` : ""}. Hujjatda kamomad bo'lib qoladi, direktor xabar oladi.`)}
+        </p>
+      )}
+      {blocked && (
+        <p className="text-sm mt-3 rounded-xl px-3 py-2" data-testid="receive-needs-director"
+          style={{ color: "var(--color-danger-text)", background: "var(--color-danger-subtle)" }}>
+          {t(`Не доехало: ${lostText}. Недостачу проводит руководитель: принять можно, только если приехало всё. Оставьте документ в пути и сообщите руководителю — он примет его по факту.`,
+             `Yetib kelmadi: ${lostText}. Kamomadni rahbar o'tkazadi: faqat hammasi yetib kelgan bo'lsa qabul qilish mumkin. Hujjatni yo'lda qoldiring va rahbarga xabar bering — u haqiqatda qabul qiladi.`)}
         </p>
       )}
     </AppModal>

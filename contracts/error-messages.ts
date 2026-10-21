@@ -419,6 +419,7 @@ export const SERVER_ERROR_TEXT: Record<string, ErrorText> = {
   "Перемещение {0} уже принято или отменено — обновите список": { uz: "{0} ko'chirish allaqachon qabul qilingan yoki bekor qilingan — ro'yxatni yangilang" },
   "В документе нет такой строки — обновите список": { uz: "Hujjatda bunday qator yo'q — ro'yxatni yangilang" },
   "«{0}»: принято {1}, а отправлено {2}. Больше отправленного принять нельзя — лишнее оформите инвентаризацией": { uz: "«{0}»: qabul qilingan {1}, jo'natilgan esa {2}. Jo'natilgandan ko'pini qabul qilib bo'lmaydi — ortiqchasini inventarizatsiya bilan rasmiylashtiring" },
+  "Недостачу при приёмке проводит руководитель: {0} можно принять, только если приехало всё. Оставьте документ в пути и сообщите руководителю": { uz: "Qabuldagi kamomadni rahbar o'tkazadi: {0} ni faqat hammasi yetib kelgan bo'lsa qabul qilish mumkin. Hujjatni yo'lda qoldiring va rahbarga xabar bering" },
 
   // ── Погрузочные листы ─────────────────────────────────────────────────────
   "Погрузочный лист не найден": { uz: "Yuklash varaqasi topilmadi" },

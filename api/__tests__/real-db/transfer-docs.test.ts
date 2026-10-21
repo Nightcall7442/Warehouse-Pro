@@ -17,7 +17,8 @@
  *     в остатках получателя, в оценке склада и в средней себестоимости
  *     прихода; приёмка по строкам не больше отправленного, недоехавшее —
  *     недостачей на документе, в журнале, у директора и в оценке; отмена
- *     возвращает те же партии;
+ *     возвращает те же партии; оператор без права проводить правку
+ *     (warehouse.apply) принимает только всё — недостачу проводит директор;
  *   · чужая организация: документ «не найден», чужая партия не выбирается;
  *   · гонки: два документа на одну партию, встречные A→B и B→A, две приёмки
  *     одного документа.
@@ -29,12 +30,14 @@
  * один шаг»; в receiveTransfer убери проверку «не больше отправленного» —
  * падает «больше отправленного»; убери замок документа (lockDoc … for update)
  * — падает «две приёмки»; в arrival.ts убери «в пути» из среднего — падает
- * «средняя себестоимость».
+ * «средняя себестоимость»; в receiveTransfer убери отказ `if (!mayWriteOff` —
+ * падает «оператор без права».
  */
 import { describe, it, expect, beforeAll, beforeEach, afterAll, vi } from "vitest";
 import { sql, eq } from "drizzle-orm";
 import * as schema from "@db/schema";
 import { receiveStock } from "../../services/stock-ledger";
+import { forgetCapabilities } from "../../lib/role-permissions";
 import { ctxFor, hasRealDb, connectRealDb, closeRealDb, truncateAll, seed, type ServiceDb, type Seeded } from "./harness";
 
 let current: ServiceDb;
@@ -264,6 +267,40 @@ describe.skipIf(!hasRealDb)("документ перемещения на нас
     expect((await c.receiveTransfer({ docId: one.id })).status).toBe("received");
     expect(Number((await rowsOf<{ n: number }>(sql`SELECT COUNT(*) AS n FROM notifications`))[0].n)).toBe(0);
     await expectInvariant();
+  });
+
+  it("оператор без права проводить правку: с недостачей не принять — даже «в пути», выбранном в документе; директор принимает по факту", async () => {
+    // Настройка организации выключена: «в пути» выбрано в самом документе.
+    // Без отказа «отправил 10 — принял 0» списало бы 10 мимо утверждения.
+    const [u] = await (db as any).insert(schema.users).values({ tenantId: s.tenantId, name: "Оператор", email: "op@test.local", passwordHash: "x", role: "operator" });
+    const opId = Number(u.insertId);
+    forgetCapabilities(s.tenantId, "operator");
+    const access = (await import("../../access-router")).accessRouter.createCaller(ctxFor(db, s.tenantId, ceoId, "ceo"));
+    await access.setOperatorAccess({ capabilities: { "warehouse.apply": false } });
+    const op = (await import("../../warehouse-multi-router")).warehouseMultiRouter.createCaller(ctxFor(db, s.tenantId, opId, "operator"));
+
+    await receive(12, { batchNumber: "A", expiresAt: LATER });
+    const r = await op.createTransfer({ fromWarehouseId: s.warehouseId, toWarehouseId: second, items: [{ productId: s.productId, quantity: 10 }], mode: "transit" });
+    const [doc] = await op.transferDocs({ status: "in_transit" });
+    const lineId = doc.lines[0].id;
+
+    await expect(op.receiveTransfer({ docId: r.id, lines: [{ lineId, receivedQuantity: 0 }] }))
+      .rejects.toMatchObject({ code: "FORBIDDEN", message: expect.stringMatching(/Недостачу при приёмке проводит руководитель: ПМ-1/) });
+    expect((await stockAt(second)).current).toBe(0);
+    expect((await op.transferDocs({ status: "in_transit" })).map(d => d.number), "документ ждёт руководителя в пути").toEqual(["ПМ-1"]);
+    expect(Number((await rowsOf<{ n: number }>(sql`SELECT COUNT(*) AS n FROM notifications`))[0].n)).toBe(0);
+
+    // Директор принимает по факту — недостача записывается, как раньше.
+    const got = await (await router()).receiveTransfer({ docId: r.id, lines: [{ lineId, receivedQuantity: 7 }] });
+    expect(got).toMatchObject({ status: "received_short", shortageQty: 3 });
+    expect((await stockAt(second)).current).toBe(7);
+
+    // Всё приехало — оператор принимает сам и без права.
+    const full = await op.createTransfer({ fromWarehouseId: s.warehouseId, toWarehouseId: second, items: [{ productId: s.productId, quantity: 2 }], mode: "transit" });
+    expect((await op.receiveTransfer({ docId: full.id })).status).toBe("received");
+    expect((await stockAt(second)).current).toBe(9);
+    await expectInvariant();
+    forgetCapabilities(s.tenantId, "operator");
   });
 
   it("отмена «в пути» возвращает товар теми же партиями и той же ценой", async () => {

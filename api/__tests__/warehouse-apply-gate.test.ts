@@ -10,7 +10,9 @@
  * «инвентаризация», «возврат поставщику», «обмен с 1С». Приход от
  * поставщика, перемещение, заказ и возврат магазина сюда не входят: у них
  * есть встречный документ, и закрываются они своими правами
- * (suppliers.manage, warehouse.adjust, orders.edit).
+ * (suppliers.manage, warehouse.adjust, orders.edit). Кроме недостачи при
+ * приёмке перемещения: недоехавшее уходит из учёта без встречного документа,
+ * это списание — и оно закрыто тем же правом (проверка ниже).
  *
  * ── Что проверяется ─────────────────────────────────────────────────────────
  *
@@ -23,7 +25,8 @@
  * базе: real-db/stock-count-approval.test.ts.
  *
  * Нарочная поломка: убери needsStockApproval из import-router.ts — тест
- * назовёт файл; добавь `setStock(` в новый файл — тест потребует решения.
+ * назовёт файл; добавь `setStock(` в новый файл — тест потребует решения;
+ * убери `if (!mayWriteOff` из receiveTransfer — красный тест про недостачу.
  */
 import { describe, it, expect } from "vitest";
 import { readFileSync, readdirSync, statSync } from "node:fs";
@@ -115,6 +118,19 @@ describe("правка остатка: утверждение или запис�
     // Цикл проведения зовут только эти двое.
     const callers = sources.filter(s => s.src.includes("applyCountLines(") && s.rel !== "services/stock-count.ts").map(s => s.rel);
     expect(callers).toEqual(["stock-count-router.ts"]);
+  });
+
+  it("недостача при приёмке перемещения — списание: без права её проводит только директор", () => {
+    // Иначе «в пути» и «приехало 0» списывали бы мимо утверждения — даже там,
+    // где организация в два шага не работает: режим выбирают в документе.
+    const src = sources.find(s => s.rel === "services/stock-transfer.ts")!.src;
+    const at = src.indexOf("export async function receiveTransfer(");
+    const body = src.slice(at, src.indexOf("\nexport async function", at + 1));
+    expect(body).toContain("needsStockApproval(db, tenantId, actor.role)");
+    const refuse = body.indexOf("if (!mayWriteOff");
+    expect(refuse, "отказа без права нет").toBeGreaterThan(-1);
+    // Отказ — до первого движения на склад-получатель, а не после.
+    expect(refuse).toBeLessThan(body.indexOf("receiveStock("));
   });
 
   it("«Завести строки остатков» (backfillStock) не меняет количеств — поэтому не закрыт", () => {

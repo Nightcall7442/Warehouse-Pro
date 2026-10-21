@@ -57,8 +57,8 @@ const LABELS: Record<OperatorCapability, { ru: string; uz: string; hintRu: strin
   },
   "warehouse.apply": {
     ru: "Проводить правку остатков без утверждения", uz: "Qoldiq tuzatishini tasdiqsiz o'tkazish",
-    hintRu: "Выключено — инвентаризация, ручная правка и остатки из файла уходят вам на утверждение.",
-    hintUz: "O'chirilgan bo'lsa — inventarizatsiya, qo'lda tuzatish va fayldagi qoldiqlar sizga tasdiqlash uchun keladi.",
+    hintRu: "Выключено — инвентаризация, ручная правка и остатки из файла уходят вам на утверждение, а перемещение с недостачей принимаете вы.",
+    hintUz: "O'chirilgan bo'lsa — inventarizatsiya, qo'lda tuzatish va fayldagi qoldiqlar sizga tasdiqlash uchun keladi, kamomadli ko'chirishni esa siz qabul qilasiz.",
   },
   "suppliers.manage": {
     ru: "Вести поставщиков", uz: "Yetkazib beruvchilar",

@@ -12,6 +12,7 @@ import { badRequest } from "../lib/errors";
 import { invalidateReports } from "../lib/report-cache";
 import { isDuplicateEntry } from "../lib/db-errors";
 import { assertProductsBelongToTenant } from "../lib/tenant-refs";
+import { needsStockApproval } from "../lib/role-permissions";
 import { logger } from "../lib/logger";
 
 type Db = ReturnType<typeof import("../queries/connection").getDb>;
@@ -302,10 +303,18 @@ async function docLines(tx: Tx, tenantId: number, docId: number) {
  * партии, иначе карточки), уходит в журнал строгой записью и директору в
  * уведомления. Движения при этом честные: со склада-отправителя ушло
  * отправленное, на получатель пришло принятое.
+ *
+ * Недостача — то же списание, что ручная правка: товар уходит из учёта без
+ * встречного документа. Поэтому оператор, которому директор закрыл
+ * «проводить правку без утверждения» (warehouse.apply), её не проводит:
+ * иначе «в пути» и «приехало 0» списывали бы мимо утверждения. Он принимает
+ * документ, только если приехало всё; с недостачей его принимает директор
+ * (или оператор с правом) — товар до тех пор виден «в пути».
  */
 export async function receiveTransfer(db: Db, tenantId: number, actor: Actor, input: {
   docId: number; lines?: Array<{ lineId: number; receivedQuantity: number }>;
 }): Promise<{ number: string; status: "received" | "received_short"; shortageQty: number; shortageCost: number }> {
+  const mayWriteOff = !(await needsStockApproval(db, tenantId, actor.role));
   const result = await db.transaction(async (tx) => {
     const doc = await lockDoc(tx, tenantId, input.docId);
     const lines = await docLines(tx, tenantId, doc.id);
@@ -320,16 +329,28 @@ export async function receiveTransfer(db: Db, tenantId: number, actor: Actor, in
       asked.set(l.lineId, l.receivedQuantity);
     }
 
-    await lockStock(tx, tenantId, doc.toWarehouseId, [...new Set(lines.map(l => l.productId))].sort((a, b) => a - b));
-
-    let shortageQty = 0, shortageCost = 0, received = 0;
-    const short: string[] = [];
-    for (const line of lines) {
+    // Сначала проверка всех строк — до первого движения.
+    const plan = lines.map(line => {
       const shipped = Number(line.quantity);
       const got = round2(asked.get(line.id) ?? shipped);
       if (!(got >= 0) || got > shipped + 1e-9) {
         throw new TRPCError({ code: "BAD_REQUEST", message: `«${line.name}»: принято ${got}, а отправлено ${shipped}. Больше отправленного принять нельзя — лишнее оформите инвентаризацией` });
       }
+      return { line, shipped, got };
+    });
+    if (!mayWriteOff && plan.some(p => p.got < p.shipped - 1e-9)) {
+      throw new TRPCError({
+        code: "FORBIDDEN",
+        message: `Недостачу при приёмке проводит руководитель: ${doc.number} можно принять, только если приехало всё. Оставьте документ в пути и сообщите руководителю`,
+      });
+    }
+
+    await lockStock(tx, tenantId, doc.toWarehouseId, [...new Set(lines.map(l => l.productId))].sort((a, b) => a - b));
+
+    let shortageQty = 0, shortageCost = 0, received = 0;
+    // Недоехавшее — по товарам: «15 ед.» из 10 кг сахара и 5 бутылок воды ничего не значит.
+    const shortBy = new Map<string, number>();
+    for (const { line, shipped, got } of plan) {
       if (got > 0) {
         await receiveStock(tx, {
           tenantId, warehouseId: doc.toWarehouseId, productId: line.productId, quantity: got,
@@ -344,7 +365,7 @@ export async function receiveTransfer(db: Db, tenantId: number, actor: Actor, in
       if (lost > 0) {
         shortageQty += lost;
         shortageCost += lost * Number(line.batchCost ?? line.costPrice ?? 0);
-        short.push(`${line.name}: ${lost}`);
+        shortBy.set(line.name, round2((shortBy.get(line.name) ?? 0) + lost));
       }
     }
     shortageQty = round2(shortageQty);
@@ -364,6 +385,7 @@ export async function receiveTransfer(db: Db, tenantId: number, actor: Actor, in
       },
     }, { strict: true });
 
+    const short = [...shortBy].map(([name, qty]) => `${name}: ${qty}`);
     return { number: doc.number, status, shortageQty, shortageCost, short, fromName, toName: names.get(doc.toWarehouseId) ?? "" };
   });
   await invalidateReports(tenantId, "stock.transfer");
@@ -380,8 +402,8 @@ export async function receiveTransfer(db: Db, tenantId: number, actor: Actor, in
           tenantId, userIds: ceo.map(u => u.id), type: "stock",
           title: { ru: `Недостача при перемещении ${result.number}`, uz: `${result.number} ko'chirishda kamomad` },
           message: {
-            ru: `«${result.fromName}» → «${result.toName}»: не доехало ${result.shortageQty} ед. на ${sum} по себестоимости. ${result.short.join("; ")}`.slice(0, 500),
-            uz: `«${result.fromName}» → «${result.toName}»: ${result.shortageQty} birlik yetib kelmadi, tannarx bo'yicha ${sum}. ${result.short.join("; ")}`.slice(0, 500),
+            ru: `«${result.fromName}» → «${result.toName}»: не доехало на ${sum} по себестоимости — ${result.short.join("; ")}`.slice(0, 500),
+            uz: `«${result.fromName}» → «${result.toName}»: tannarx bo'yicha ${sum} lik tovar yetib kelmadi — ${result.short.join("; ")}`.slice(0, 500),
           },
           link: "/warehouse?tab=transfers",
         });
