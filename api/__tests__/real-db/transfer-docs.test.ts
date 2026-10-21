@@ -291,9 +291,10 @@ describe.skipIf(!hasRealDb)("документ перемещения на нас
     await receive(3, { batchNumber: "A", expiresAt: LATER });
     const r = await send([{ productId: s.productId, quantity: 2 }]);
     const c = await router();
-    for (const id of [s.warehouseId, second]) {
-      await expect(c.update({ id, status: "inactive" })).rejects.toThrow(/перемещений в пути 1 — примите или отмените их/);
-    }
+    await expect(c.update({ id: second, status: "inactive" })).rejects.toThrow(/перемещений в пути 1 — примите или отмените их/);
+    // Основной склад не отключают вовсе (ADR 0012) — и говорят это сразу, а
+    // не после того, как директор доведёт перемещения.
+    await expect(c.update({ id: s.warehouseId, status: "inactive" })).rejects.toThrow(/Основной склад не отключают/);
     const [w] = await rowsOf<{ st: string }>(sql`SELECT status AS st FROM warehouses WHERE id = ${second}`);
     expect(w.st).toBe("active");
     await c.receiveTransfer({ docId: r.id });
