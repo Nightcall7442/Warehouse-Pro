@@ -238,7 +238,12 @@ export const warehouseMultiRouter = createRouter({
       */
       // Use parameterized Drizzle sql templates to prevent SQL injection
       // И по коду: поиск товаров в инвентаризации и перемещениях обещает «название или код».
-      const searchCondition = search ? sql`AND (p.name LIKE ${"%" + search + "%"} OR p.code LIKE ${"%" + search + "%"})` : sql``;
+      // И по штрих-коду, основному и дополнительному (product_barcodes), целиком —
+      // как поиск каталога (product-router, productMatches): сканер-клавиатура
+      // в поле «Добавить товар» перемещения и пересчёта вводит штрих-код.
+      const code = search.trim();
+      const searchCondition = search ? sql`AND (p.name LIKE ${"%" + search + "%"} OR p.code LIKE ${"%" + search + "%"}
+        OR p.barcode = ${code} OR p.id IN (SELECT pb.product_id FROM product_barcodes pb WHERE pb.tenant_id = ${tenantId} AND pb.barcode = ${code}))` : sql``;
       const warehouseCondition = input?.warehouseId ? sql`AND ws.warehouse_id = ${input.warehouseId}` : sql``;
 
       const dataQuery = sql`

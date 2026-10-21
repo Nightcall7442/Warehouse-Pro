@@ -459,6 +459,21 @@ describe.skipIf(!hasRealDb)("документ перемещения на нас
     expect((await ids("P-")).sort((a, b) => a - b)).toEqual([s.productId, s.secondProductId].sort((a, b) => a - b));
   });
 
+  it("поиск остатков — и по штрих-коду, основному и дополнительному, целиком; чужой штрих-код не находит", async () => {
+    await (db as any).update(schema.products).set({ barcode: "4870001112223" }).where(eq(schema.products.id, s.productId));
+    await (db as any).insert(schema.productBarcodes).values({ tenantId: s.tenantId, productId: s.secondProductId, barcode: "4870009998887" });
+    // Тот же дополнительный штрих-код у другой организации — не наш товар.
+    const [foreign] = await (db as any).insert(schema.products).values({ tenantId: s.otherTenantId, code: "X-1", name: "Чужой", unitPrice: "1.00", costPrice: "1.00" });
+    await (db as any).insert(schema.productBarcodes).values({ tenantId: s.otherTenantId, productId: Number(foreign.insertId), barcode: "4870005554443" });
+    const c = await router();
+    const ids = async (search: string) =>
+      ((await c.getStock({ warehouseId: s.warehouseId, search, pageSize: 100 })).data as Array<{ productId: number }>).map(x => Number(x.productId));
+    expect(await ids("4870001112223")).toEqual([s.productId]);
+    expect(await ids(" 4870009998887 "), "скан второй этикетки").toEqual([s.secondProductId]);
+    expect(await ids("1112223"), "кусок штрих-кода — не находка").toEqual([]);
+    expect(await ids("4870005554443"), "штрих-код чужой организации").toEqual([]);
+  });
+
   it("средняя себестоимость прихода считает и товар «в пути»", async () => {
     await twoStep();
     await (db as any).update(schema.settings).set({ costMethod: "average" }).where(eq(schema.settings.tenantId, s.tenantId));

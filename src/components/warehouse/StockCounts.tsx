@@ -163,7 +163,7 @@ export function StockCounts({ warehouses }: { warehouses: Warehouse[] }) {
         {scope === "items" && (
           <div className="space-y-2">
             <input className="neo-input" style={{ maxWidth: 360 }} value={search} onChange={e => setSearch(e.target.value)} data-testid="stock-count-item-search"
-              placeholder={t("Найти товар: название или код (от 2 букв)", "Tovarni topish: nomi yoki kodi (2 harfdan)")} />
+              placeholder={t("Найти товар: название, код или штрих-код (от 2 знаков)", "Tovarni topish: nomi, kodi yoki shtrix-kodi (2 belgidan)")} />
             {/* Ищем / ничего — словами: пустое место под полем читалось как «поиск не работает». */}
             {search.trim().length >= 2 && productsQ.isFetching && found.length === 0 && (
               <p className="text-xs" style={{ color: COLORS.textTertiary, margin: 0 }} data-testid="stock-count-search-loading">{t("Ищем…", "Qidirilmoqda…")}</p>

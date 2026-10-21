@@ -89,7 +89,8 @@ export function StockTransfers({ warehouses, canTransfer = true }: { warehouses:
   const transitQ = trpc.warehouseMulti.transferDocs.useQuery({ status: "in_transit", limit: 100 });
   const historyQ = trpc.warehouseMulti.transferDocs.useQuery({ status: "all", limit: 50 });
 
-  // Товар ищется по названию на складе-отправителе — рядом сразу свободный
+  // Товар ищется по названию, коду или штрих-коду (сканер-клавиатура вводит
+  // его в это же поле) на складе-отправителе — рядом сразу свободный
   // остаток именно там, откуда он поедет.
   const productsQ = trpc.warehouseMulti.getStock.useQuery(
     { warehouseId: Number(from) || undefined, search, pageSize: 20 },
@@ -358,7 +359,7 @@ export function StockTransfers({ warehouses, canTransfer = true }: { warehouses:
               </div>
             )}
             <input className="neo-input w-full" value={search} onChange={e => setSearch(e.target.value)} data-testid="transfer-search"
-              placeholder={t("Добавить товар — начните вводить название…", "Mahsulot qo'shish — nomini yozishni boshlang…")} />
+              placeholder={t("Добавить товар — название, код или штрих-код…", "Mahsulot qo'shish — nomi, kodi yoki shtrix-kodi…")} />
             {search.trim().length >= 2 && (
               <div className="mt-2 rounded-xl overflow-hidden" style={{ border: `1px solid ${COLORS.border}` }}>
                 {productsQ.isLoading ? (
