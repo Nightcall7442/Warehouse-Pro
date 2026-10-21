@@ -4,6 +4,7 @@ import { trpc } from "@/providers/trpc";
 import { useTranslate } from "@/i18n";
 import { LX, MONO } from "./landing-tokens";
 import { errorText } from "@/lib/error-text";
+import { readAttribution } from "@/lib/attribution";
 
 /* ═══════════════════════════════════════════════════════════════════════════
    Заявка: «перезвоните мне».
@@ -99,6 +100,9 @@ export default function LeadForm({ compact = false, onInk = false, stack = false
       company: company.trim() || undefined,
       comment: comment.trim() || undefined,
       source,
+      // Метки рекламы, по которой человек пришёл на сайт (lib/attribution):
+      // форма отвечает «откуда на странице», метки — «с какой рекламы».
+      attribution: (() => { const a = readAttribution(); return Object.keys(a).length ? a : undefined; })(),
     });
   };
 

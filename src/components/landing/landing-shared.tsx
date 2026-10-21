@@ -1,5 +1,6 @@
 import { useEffect, useState, useId, type ReactNode, type CSSProperties } from "react";
 import { cn, LX, MONO, useInView, linkProps } from "./landing-tokens";
+import { useSiteLinkClick } from "./use-site-link";
 
 /* ═══════════════════════════════════════════════════════════════════════════
    СКЛАДСКАЯ КНИГА — дизайн-система лендинга
@@ -230,6 +231,8 @@ export function BtnInk({
   /** false — кнопка стоит на чернильной зоне и инвертируется в бумагу. */
   onPaper?: boolean;
 }) {
+  // Своя страница по ссылке — переходом роутера, без перезагрузки (use-site-link).
+  const siteClick = useSiteLinkClick();
   const style: CSSProperties = onPaper
     ? { background: LX.ink, color: LX.paperOnInk }
     : { background: LX.paper, color: LX.ink };
@@ -241,7 +244,7 @@ export function BtnInk({
   );
   if (href)
     return (
-      <a href={href} {...linkProps(href)} className={cls} style={style}>
+      <a href={href} {...linkProps(href)} onClick={siteClick} className={cls} style={style}>
         {children}
       </a>
     );
@@ -265,6 +268,7 @@ export function BtnGhost({
   className?: string;
   onPaper?: boolean;
 }) {
+  const siteClick = useSiteLinkClick();
   const style: CSSProperties = onPaper
     ? { border: `1px solid ${LX.ruleStrong}`, color: LX.ink, background: "transparent" }
     : { border: `1px solid ${LX.ruleOnInk}`, color: LX.paperOnInk, background: "transparent" };
@@ -276,7 +280,7 @@ export function BtnGhost({
   );
   if (href)
     return (
-      <a href={href} {...linkProps(href)} className={cls} style={style}>
+      <a href={href} {...linkProps(href)} onClick={siteClick} className={cls} style={style}>
         {children}
       </a>
     );

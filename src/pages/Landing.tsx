@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useLocation } from "react-router";
 import { LogoMark } from "@/components/brand/Logo";
 import LeadForm from "@/components/landing/LeadForm";
-import { useNavigate } from "react-router";
 import { useTranslate } from "@/i18n";
 import { ArrowRight, Send } from "lucide-react";
 
@@ -11,6 +11,8 @@ import LandingHeader from "@/components/landing/LandingHeader";
 import TallyField from "@/components/landing/TallyField";
 import AudienceSection from "@/components/landing/AudienceSection";
 import { startLandingMotion } from "@/lib/landing-motion";
+import { captureAttribution, withAttribution } from "@/lib/attribution";
+import { useSiteLinkClick } from "@/components/landing/use-site-link";
 import HeroSection from "@/components/landing/HeroSection";
 import { CTA_PHOTO } from "@/components/landing/PhotoStrip";
 import OrdersSection from "@/components/landing/OrdersSection";
@@ -147,7 +149,6 @@ function FaqSection() {
 
 /* ── Чернильная зона №2: финальный CTA ───────────────────────────────────── */
 function CtaSection() {
-  const navigate = useNavigate();
   const tr = useTranslate();
   const tg = tgLink(tr("Здравствуйте! Хочу подключить Warehouse Pro.", "Assalomu alaykum! Warehouse Pro'ni ulamoqchiman."));
   return (
@@ -175,7 +176,7 @@ function CtaSection() {
           {tr("Бесплатно, без привязки карты. Настройка — 10 минут.", "Bepul, karta bog'lamasdan. Sozlash — 10 daqiqa.")}
         </p>
         <div data-reveal="cta" className="mt-9 flex flex-wrap items-center gap-3">
-          <BtnInk onPaper={false} onClick={() => navigate("/register")}>
+          <BtnInk onPaper={false} href={withAttribution("/register")}>
             {tr("Начать бесплатно", "Bepul boshlash")}
             <ArrowRight size={15} />
           </BtnInk>
@@ -277,8 +278,8 @@ function Footer() {
    Директор почти наверняка смотрит с телефона, а до финальной CTA десяток
    экранов. Панель появляется после первого экрана и не перекрывает hero. */
 function MobileCtaBar() {
-  const navigate = useNavigate();
   const tr = useTranslate();
+  const siteClick = useSiteLinkClick();
   const [shown, setShown] = useState(false);
   useEffect(() => {
     const h = () => setShown(window.scrollY > 640);
@@ -299,14 +300,15 @@ function MobileCtaBar() {
       }}
     >
       <div className="px-4 py-3 flex gap-2.5">
-        <button
-          type="button"
-          onClick={() => navigate("/register")}
-          className="flex-1 h-11 rounded-[9px] text-[14px] font-semibold cursor-pointer"
+        <a
+          href={withAttribution("/register")}
+          onClick={siteClick}
+          data-testid="mobile-cta-register"
+          className="flex-1 h-11 inline-flex items-center justify-center rounded-[9px] text-[14px] font-semibold cursor-pointer"
           style={{ background: LX.paper, color: LX.ink }}
         >
           {tr("Начать бесплатно", "Bepul boshlash")}
-        </button>
+        </a>
         {tg && (
           <a
             href={tg}
@@ -326,6 +328,10 @@ function MobileCtaBar() {
 
 export default function Landing() {
   const root = useRef<HTMLDivElement>(null);
+  // Метки рекламы из адреса (/?utm_source=ig) — до отрисовки детей: ссылки
+  // «Начать» берут их в свой адрес уже в первом кадре (lib/attribution).
+  const { search } = useLocation();
+  useState(() => captureAttribution(search));
 
   // Движение включается один раз на всю страницу: сценарий сам находит, что
   // оживлять, по атрибутам в разметке. Уборка обязательна — наблюдатели

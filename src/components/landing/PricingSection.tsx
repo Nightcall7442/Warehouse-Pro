@@ -1,12 +1,13 @@
 import { useState, type ReactNode } from "react";
-import { useNavigate } from "react-router";
 import { useLang, useTranslate } from "@/i18n";
 import { plural } from "@/lib/plural";
 import { Minus, Plus } from "lucide-react";
 import { SectionHead } from "./landing-shared";
 import { Split } from "./landing-frames";
 import { useAnime } from "./landing-anime";
-import { LX, MONO, tgLink } from "./landing-tokens";
+import { LX, MONO, tgLink, linkProps } from "./landing-tokens";
+import { useSiteLinkClick } from "./use-site-link";
+import { withAttribution } from "@/lib/attribution";
 import { FEATURES, PRODUCT_FEATURES, SERVICE_FEATURES } from "@contracts/constants";
 import {
   ANNUAL_DISCOUNT, FIELD_PRICE_UZS, GRANDFATHER_UNTIL, MIN_FIELD_USERS,
@@ -47,12 +48,14 @@ const EXAMPLES: Array<{ agents: number; couriers: number }> = [
 ];
 
 function Btn({ kind, onClick, href, children, testId }: { kind: "brass" | "paper"; onClick?: () => void; href?: string; children: ReactNode; testId?: string }) {
+  const siteClick = useSiteLinkClick();
   const style = kind === "brass"
     ? { background: LX.brassOnNight, color: LX.night, border: `1px solid ${LX.brassOnNight}` }
     : { background: "transparent", color: LX.paperOnInk, border: `1px solid ${LX.paperOnInk34}` };
   const cls = "lx-anim inline-flex items-center justify-center w-full h-12 rounded-lg text-[14px] font-semibold cursor-pointer transition-opacity duration-200 hover:opacity-90";
   return href
-    ? <a href={href} target="_blank" rel="noopener" className={cls} style={style} data-testid={testId}>{children}</a>
+    // Чужой сайт (Telegram) — в новой вкладке; своя страница — в этой и без перезагрузки.
+    ? <a href={href} {...linkProps(href)} onClick={siteClick} className={cls} style={style} data-testid={testId}>{children}</a>
     : <button type="button" onClick={onClick} className={cls} style={style} data-testid={testId}>{children}</button>;
 }
 
@@ -67,7 +70,6 @@ function Row({ k, v, strong = false }: { k: string; v: string; strong?: boolean 
 }
 
 export default function PricingSection() {
-  const navigate = useNavigate();
   const tr = useTranslate();
   const { lang } = useLang();
   const tgSales = tgLink(tr("Здравствуйте! Интересуют услуги: перенос данных, выделенный сервер.", "Assalomu alaykum! Xizmatlar qiziqtiradi: ma'lumot ko'chirish, ajratilgan server."));
@@ -135,7 +137,7 @@ export default function PricingSection() {
               </div>
 
               <div className="mt-8">
-                <Btn kind="brass" onClick={() => navigate("/register")} testId="pricing-start">{tr("Начать бесплатно", "Bepul boshlash")}</Btn>
+                <Btn kind="brass" href={withAttribution("/register")} testId="pricing-start">{tr("Начать бесплатно", "Bepul boshlash")}</Btn>
                 <p className="mt-3 text-center text-[12px]" style={{ ...MONO, color: LX.softOnInk }}>
                   {tr("14 дней бесплатно · все функции · карта не нужна", "14 kun bepul · barcha funksiyalar · karta kerak emas")}
                 </p>

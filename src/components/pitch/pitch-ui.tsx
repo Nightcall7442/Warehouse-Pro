@@ -10,6 +10,7 @@ import { pick, type L } from "./pitch-content";
 import { PITCH_CSS } from "./pitch-tokens";
 import { useDisclosure } from "@/components/landing/use-disclosure";
 import { sitePath } from "@/lib/site-paths";
+import { captureAttribution, withAttribution } from "@/lib/attribution";
 
 /* ═══════════════════════════════════════════════════════════════════════════
    Оболочка страниц конкурса (/pitch, /demo).
@@ -37,6 +38,9 @@ export function PitchShell({ title, children, nav, lang = "uz", site = false }: 
   const outer = useLang();
   const { search, hash } = useLocation();
   const navigate = useNavigate();
+  // Метки рекламы из адреса (/compare?utm_source=tg) — до отрисовки шапки:
+  // её «Начать» берёт их в свой адрес (lib/attribution).
+  useState(() => captureAttribution(search));
   const inner = <ShellInner title={title} nav={nav} site={site}>{children}</ShellInner>;
   /*
     ?lang=ru|uz в адресе — язык страницы: /demo?lang=ru из русского лендинга
@@ -128,7 +132,7 @@ function PitchHeader({ nav, site }: { nav?: Array<{ href: string; label: L }>; s
           {site && (
             <div className="hidden lg:flex" style={{ alignItems: "center", gap: 8, marginRight: 4 }}>
               <Link to="/login" className="p-nav p-focus" style={{ padding: "10px 8px", fontSize: 14, fontWeight: 600, color: "var(--soft)", textDecoration: "none" }}>{tr("Kirish", "Войти")}</Link>
-              <Link to="/register" className="p-btn p-btn-solid p-focus" data-testid="pitch-header-register" style={{ minHeight: 40, padding: "0 16px", fontSize: 14 }}>{tr("Boshlash", "Начать")}</Link>
+              <Link to={withAttribution("/register")} className="p-btn p-btn-solid p-focus" data-testid="pitch-header-register" style={{ minHeight: 40, padding: "0 16px", fontSize: 14 }}>{tr("Boshlash", "Начать")}</Link>
             </div>
           )}
           <LangSwitch />
@@ -166,7 +170,7 @@ function PitchHeader({ nav, site }: { nav?: Array<{ href: string; label: L }>; s
             {site && (
               <div style={{ display: "flex", gap: 10, marginTop: 12 }}>
                 <Link to="/login" className="p-btn p-btn-line p-focus" style={{ flex: 1 }}>{tr("Kirish", "Войти")}</Link>
-                <Link to="/register" className="p-btn p-btn-solid p-focus" style={{ flex: 1 }} data-testid="pitch-menu-register">{tr("Boshlash", "Начать")}</Link>
+                <Link to={withAttribution("/register")} className="p-btn p-btn-solid p-focus" style={{ flex: 1 }} data-testid="pitch-menu-register">{tr("Boshlash", "Начать")}</Link>
               </div>
             )}
           </div>

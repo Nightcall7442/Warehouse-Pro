@@ -6,22 +6,26 @@ import { Eye, EyeOff, Loader2, CheckCircle2, MailCheck } from "lucide-react";
 import { useLang, useTranslate } from "@/i18n";
 import {
   UZ_PHONE_PREFIX, PHONE_ERROR, SIGNUP_ANSWERS, SIGNUP_ANSWER_LABEL, maskUzPhoneNational, normalizeUzPhone,
-  cleanSignupTag, type SignupAnswer,
+  type SignupAnswer,
 } from "@contracts/signup";
 import { errorText } from "@/lib/error-text";
+import { attributionFromSearch, readAttribution, type Attribution } from "@/lib/attribution";
 
 /**
- * Метки из адреса страницы: /register?utm_source=ig_sept&ref=bekzod.
+ * Метки из адреса страницы: /register?utm_source=ig_sept&utm_campaign=okt&ref=bekzod.
  *
  * Читаются один раз при открытии — человек может успеть перейти по вкладкам,
- * а источник всё равно тот, по которому он пришёл. Чистятся здесь же тем же
- * правилом, что у сервера (cleanSignupTag): у сервера потолок длины, и сырая
- * длинная метка из рекламной ссылки иначе дошла бы до него как есть.
+ * а источник всё равно тот, по которому он пришёл. Чистятся тем же правилом,
+ * что у сервера (cleanSignupTag): у сервера потолок длины, и сырая длинная
+ * метка из рекламной ссылки иначе дошла бы до него как есть.
+ *
+ * Адрес без меток — берутся запомненные на входе сайта (lib/attribution):
+ * человек пришёл на лендинг по рекламе, а на регистрацию — из закладки или
+ * набрав адрес руками в той же вкладке.
  */
-function tagsFromAddress(): { utmSource?: string; ref?: string } {
+function tagsFromAddress(): Attribution {
   try {
-    const q = new URLSearchParams(window.location.search);
-    return { utmSource: cleanSignupTag(q.get("utm_source")) ?? undefined, ref: cleanSignupTag(q.get("ref")) ?? undefined };
+    return attributionFromSearch(window.location.search) ?? readAttribution();
   } catch {
     return {};
   }
@@ -105,7 +109,7 @@ export default function Register() {
       email: form.email,
       password: form.password,
       phone: normalized,
-      source: source.answer || source.utmSource || source.ref ? source : undefined,
+      source: source.answer || source.utmSource || source.utmMedium || source.utmCampaign || source.ref ? source : undefined,
     });
   };
 

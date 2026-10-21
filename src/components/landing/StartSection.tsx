@@ -3,6 +3,7 @@ import { useTranslate } from "@/i18n";
 import { LX, MONO } from "./landing-tokens";
 import { SectionHead, BtnInk } from "./landing-shared";
 import LeadForm from "./LeadForm";
+import { withAttribution } from "@/lib/attribution";
 import { START_STEPS, PILOT } from "./site-content";
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -49,7 +50,7 @@ export default function StartSection() {
         </ol>
 
         <div className="mt-10">
-          <BtnInk href="/register">
+          <BtnInk href={withAttribution("/register")}>
             {tr("Начать бесплатно", "Bepul boshlash")}
             <ArrowRight size={15} />
           </BtnInk>

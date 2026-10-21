@@ -1,5 +1,5 @@
-import { useNavigate } from "react-router";
 import LeadForm from "./LeadForm";
+import { withAttribution } from "@/lib/attribution";
 import { useLang, useTranslate } from "@/i18n";
 import { ArrowRight } from "lucide-react";
 import { BtnInk, Stamp } from "./landing-shared";
@@ -59,7 +59,6 @@ const TONE = {
 } as const;
 
 export default function HeroSection() {
-  const navigate = useNavigate();
   const tr = useTranslate();
   const { lang } = useLang();
 
@@ -180,7 +179,8 @@ export default function HeroSection() {
             </p>
 
             <div className="mt-8 lg:mt-10 flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-7">
-              <BtnInk onClick={() => navigate("/register")} className="h-[52px] px-7 text-[15px] w-full sm:w-auto justify-center">
+              {/* Ссылка, а не кнопка: с адресом уходят метки рекламы (lib/attribution). */}
+              <BtnInk href={withAttribution("/register")} className="h-[52px] px-7 text-[15px] w-full sm:w-auto justify-center">
                 {tr("Начать бесплатно", "Bepul boshlash")}
                 <ArrowRight size={15} />
               </BtnInk>

@@ -1,10 +1,11 @@
-import { useNavigate } from "react-router";
 import { LogoMark } from "@/components/brand/Logo";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslate, useLang } from "@/i18n";
 import { Menu, X, Send, Phone } from "lucide-react";
 import { cn, LX, MONO, CONTACT, tgLink } from "./landing-tokens";
 import { useDisclosure } from "./use-disclosure";
+import { useSiteLinkClick } from "./use-site-link";
+import { withAttribution } from "@/lib/attribution";
 
 /** Переключатель языка: посетитель-узбек не должен искать его в приложении. */
 function LangSwitch({ className }: { className?: string }) {
@@ -39,8 +40,11 @@ function LangSwitch({ className }: { className?: string }) {
 }
 
 export default function LandingHeader() {
-  const navigate = useNavigate();
   const tr = useTranslate();
+  // «Войти» и «Начать» — ссылки: у них есть адрес, и «Начать» несёт метки
+  // рекламы (lib/attribution). Обычное нажатие — переход без перезагрузки.
+  const siteClick = useSiteLinkClick();
+  const registerHref = withAttribution("/register");
   const [scrolled, setScrolled] = useState(false);
   // Esc, касание мимо, переход — закрывают; aria-expanded/controls — на кнопке.
   const menu = useDisclosure("lx-menu");
@@ -124,22 +128,23 @@ export default function LandingHeader() {
               <Send size={15} />
             </a>
           )}
-          <button
-            type="button"
-            onClick={() => navigate("/login")}
+          <a
+            href="/login"
+            onClick={siteClick}
             className="text-[13.5px] px-3.5 py-2 rounded-md font-medium cursor-pointer hover:bg-[#ece9e2] transition-colors"
             style={{ color: LX.ink }}
           >
             {tr("Войти", "Kirish")}
-          </button>
-          <button
-            type="button"
-            onClick={() => navigate("/register")}
-            className="h-10 px-5 rounded-[9px] text-[13.5px] font-semibold cursor-pointer transition-all duration-200 hover:-translate-y-px"
+          </a>
+          <a
+            href={registerHref}
+            onClick={siteClick}
+            data-testid="header-register"
+            className="inline-flex items-center h-10 px-5 rounded-[9px] text-[13.5px] font-semibold cursor-pointer transition-all duration-200 hover:-translate-y-px"
             style={{ background: LX.ink, color: LX.paperOnInk }}
           >
             {tr("Начать", "Boshlash")}
-          </button>
+          </a>
         </div>
 
         <div className="lg:hidden flex items-center gap-2.5">
@@ -180,22 +185,23 @@ export default function LandingHeader() {
             </a>
           ))}
           <div className="pt-3 flex gap-2.5">
-            <button
-              type="button"
-              onClick={() => navigate("/login")}
-              className="flex-1 h-[44px] rounded-[9px] text-[14px] font-medium cursor-pointer"
+            <a
+              href="/login"
+              onClick={siteClick}
+              className="flex-1 h-[44px] inline-flex items-center justify-center rounded-[9px] text-[14px] font-medium cursor-pointer"
               style={{ border: `1px solid ${LX.ruleStrong}`, color: LX.ink }}
             >
               {tr("Войти", "Kirish")}
-            </button>
-            <button
-              type="button"
-              onClick={() => navigate("/register")}
-              className="flex-1 h-[44px] rounded-[9px] text-[14px] font-semibold cursor-pointer"
+            </a>
+            <a
+              href={registerHref}
+              onClick={siteClick}
+              data-testid="menu-register"
+              className="flex-1 h-[44px] inline-flex items-center justify-center rounded-[9px] text-[14px] font-semibold cursor-pointer"
               style={{ background: LX.ink, color: LX.paperOnInk }}
             >
               {tr("Начать", "Boshlash")}
-            </button>
+            </a>
           </div>
         </div>
       </div>

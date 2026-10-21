@@ -55,6 +55,9 @@ beforeEach(() => {
   fetchMock.mockClear();
   assign.mockClear();
   localStorage.clear();
+  // Метки рекламы живут на вкладку (lib/attribution): тест с ?utm_source в
+  // адресе не должен приклеить их к ссылкам следующего.
+  sessionStorage.clear();
   vi.stubGlobal("fetch", fetchMock);
   vi.stubGlobal("matchMedia", (q: string) => ({
     matches: false, media: q, onchange: null,

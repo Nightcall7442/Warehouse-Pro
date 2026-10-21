@@ -49,6 +49,7 @@ import { LangProvider } from "@/i18n";
 
 beforeEach(() => {
   localStorage.clear();
+  sessionStorage.clear();
   vi.stubGlobal("matchMedia", (q: string) => ({
     matches: false, media: q, onchange: null,
     addListener: vi.fn(), removeListener: vi.fn(),
@@ -149,8 +150,12 @@ describe("лендинг: первый экран просит один раз",
     draw();
     const hero = document.querySelector("section");
     expect(hero).toBeTruthy();
-    const buttons = within(hero as HTMLElement).getAllByRole("button", { name: /Начать бесплатно/ });
+    // «Начать бесплатно» — ссылка с адресом (/register и метки рекламы,
+    // lib/attribution), а не кнопка navigate(): так её можно открыть в новой
+    // вкладке и метки доходят до регистрации (21.10.2026).
+    const buttons = within(hero as HTMLElement).getAllByRole("link", { name: /Начать бесплатно/ });
     expect(buttons.length, "в первом экране больше одной кнопки «Начать бесплатно»").toBe(1);
+    expect(buttons[0].getAttribute("href")).toBe("/register");
     // Второе действие — демо без регистрации: текстовая ссылка, а не второй
     // прямоугольник, и на языке страницы (у /demo по умолчанию узбекский).
     const demo = within(hero as HTMLElement).getByTestId("hero-demo");
