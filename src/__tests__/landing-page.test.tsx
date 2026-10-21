@@ -82,10 +82,15 @@ describe("лендинг: страница собирается", () => {
     }
   });
 
-  it("заголовок первого экрана на месте и разбираем по словам", () => {
+  it("заголовок первого экрана на месте и не прячется сценарием", () => {
     draw();
-    const h1 = document.querySelector("[data-hero-title]");
-    expect(h1, "заголовок не помечен data-hero-title — движение его не найдёт").toBeTruthy();
+    // Первый экран помечен data-first-screen: движение внутри него ничего не
+    // прячет (lib/landing-motion). Прежняя пометка data-hero-title звала
+    // разбор заголовка по словам — от него отказались сознательно.
+    const hero = document.querySelector("[data-first-screen]");
+    expect(hero, "первый экран не помечен data-first-screen — движение спрячет его").toBeTruthy();
+    const h1 = hero!.querySelector("h1");
+    expect(h1).toBeTruthy();
     expect(h1!.textContent).toMatch(/Учёт склада/);
   });
 });

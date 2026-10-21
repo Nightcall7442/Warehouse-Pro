@@ -1,6 +1,6 @@
 import { useNavigate } from "react-router";
 import LeadForm from "./LeadForm";
-import { useTranslate, useLang } from "@/i18n";
+import { useTranslate } from "@/i18n";
 import { ArrowRight, ArrowDown } from "lucide-react";
 import { BtnInk, Stamp } from "./landing-shared";
 import { LX, MONO } from "./landing-tokens";
@@ -52,7 +52,6 @@ const TONE = {
 export default function HeroSection() {
   const navigate = useNavigate();
   const tr = useTranslate();
-  const { lang } = useLang();
 
   const rows: Array<{ t: string; title: string; note: string; value: string; tone: keyof typeof TONE }> = [
     { t: "07:30", title: tr("Рейс собран", "Reys yig'ildi"), note: tr("18 точек, маршрут в телефоне агента", "18 nuqta, marshrut agent telefonida"), value: "18", tone: "neutral" },
@@ -66,7 +65,6 @@ export default function HeroSection() {
   const panel = (
     <div className="relative">
       <div
-        data-hero-step="3"
         className="rounded-xl overflow-hidden"
         style={{ background: LX.paperRaised, border: `1px solid ${LX.rule}` }}
       >
@@ -115,13 +113,13 @@ export default function HeroSection() {
   );
 
   return (
-    <section className="relative flex flex-col pt-[calc(6rem+env(safe-area-inset-top,0px))] md:pt-[calc(8rem+env(safe-area-inset-top,0px))] pb-14 md:pb-10" style={{ minHeight: "calc(100vh / var(--lx-zoom, 1))" }}>
+    <section data-first-screen="" className="relative flex flex-col pt-[calc(6rem+env(safe-area-inset-top,0px))] md:pt-[calc(8rem+env(safe-area-inset-top,0px))] pb-14 md:pb-10" style={{ minHeight: "calc(100vh / var(--lx-zoom, 1))" }}>
       <div className="max-w-[1240px] w-full mx-auto px-6 flex-1 flex flex-col">
         <div className="grid gap-x-0 lg:grid-cols-[96px_1fr_400px] flex-1">
 
           {/* Поле листа */}
           <aside
-            data-hero-step="0"
+           
             className="lg:pr-6 mb-6 lg:mb-0 flex lg:flex-col gap-x-4 text-[11px] uppercase whitespace-nowrap"
             style={{ ...MONO, fontWeight: 500, letterSpacing: "0.08em", lineHeight: 1.9 }}
           >
@@ -141,27 +139,7 @@ export default function HeroSection() {
 
           {/* Тело */}
           <div className="lg:pl-10 lg:pr-8">
-            {/*
-              key по языку — не украшение.
-
-              Заголовок разбирается на слова библиотекой движения
-              (lib/landing-motion, splitText), и она ПЕРЕПИСЫВАЕТ разметку:
-              текстовые узлы заменяются на span-ы со своими стилями. После
-              этого содержимым владеет не React.
-
-              При переключении РУ/UZ React обновлял то, что помнил, а
-              половина узлов была уже подменена — и заголовок оставался
-              наполовину русским: «Учёт склада / и доставки / uzilishlarsiz
-              / между отделами». Ровно это владелец и прислал снимком.
-
-              key заставляет React выбросить старый узел целиком и собрать
-              новый — с правильным текстом и без чужих span-ов. Появление
-              по словам при этом не повторяется, и это правильно: человек
-              переключил язык, а не открыл страницу заново.
-            */}
             <h1
-              key={lang}
-              data-hero-title=""
               className="font-extrabold"
               style={{ fontSize: "clamp(2.875rem, 5.8vw, 5.75rem)", letterSpacing: "-0.045em", lineHeight: 0.96, color: LX.ink, maxWidth: "12ch" }}
             >
@@ -176,14 +154,14 @@ export default function HeroSection() {
               {tr("между отделами", "bo'limlar orasida")}
             </h1>
 
-            <p data-hero-step="1" className="mt-7 lg:mt-8 text-[18px] lg:text-[20px]" style={{ lineHeight: 1.5, maxWidth: 520, color: LX.inkSoft }}>
+            <p className="mt-7 lg:mt-8 text-[18px] lg:text-[20px]" style={{ lineHeight: 1.5, maxWidth: 520, color: LX.inkSoft }}>
               {tr(
                 "Один источник данных для директора, склада, агентов и курьеров — вместо тетрадей, Excel и звонков «где машина?».",
                 "Direktor, ombor, agentlar va kuryerlar uchun yagona manba — daftar, Excel va «mashina qayerda?» qo'ng'iroqlari o'rniga.",
               )}
             </p>
 
-            <div data-hero-step="2" className="mt-8 lg:mt-10 flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-7">
+            <div className="mt-8 lg:mt-10 flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-7">
               <BtnInk onClick={() => navigate("/register")} className="h-[52px] px-7 text-[15px] w-full sm:w-auto justify-center">
                 {tr("Начать бесплатно", "Bepul boshlash")}
                 <ArrowRight size={15} />

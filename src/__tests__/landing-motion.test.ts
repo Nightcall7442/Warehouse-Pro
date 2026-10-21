@@ -152,22 +152,31 @@ describe("движение: уборка", () => {
   });
 });
 
+/*
+  Первый экран виден с первого кадра (21.10.2026). Прежний тест требовал
+  обратного — чтобы заголовок был спрятан и выплыл по словам. Из-за этого
+  на медленной связи первые секунды человек смотрел на пустой лист: сервер
+  присылал заголовок, сценарий его стирал и проявлял за 900 мс. Тест
+  перевёрнут сознательно: прятать первый экран больше нельзя.
+*/
 describe("движение: первый экран", () => {
-  it("заголовок готовится к выходу, разобран он на слова или нет", () => {
-    const r = root(`<h1 data-hero-title="">Учёт склада и доставки</h1><p data-hero-step="0">лид</p>`);
+  it("заголовок, лид и строки панели первого экрана не прячутся; ниже сгиба — по-прежнему", () => {
+    const r = root(`
+      <section data-first-screen="">
+        <h1>Учёт склада и доставки</h1>
+        <p>лид</p>
+        <ol><li data-reveal="day">07:30</li><li data-reveal="day">09:15</li></ol>
+        <div data-reveal="hero-foot">подвал бланка</div>
+      </section>
+      <p data-reveal="a" id="below">ниже сгиба</p>
+    `);
     startLandingMotion(r);
     const h1 = r.querySelector("h1") as HTMLElement;
-
-    // Разбор на слова — украшение, а не обещание: в некоторых средах splitText
-    // не срабатывает, и в коде на этот случай стоит запасной путь «выйти
-    // целиком». Проверяется именно обещание: заголовок так или иначе спрятан
-    // и, значит, будет показан сценарием.
-    const words = Array.from(h1.querySelectorAll<HTMLElement>("span"));
-    const hidden = words.length > 0
-      ? words.every(w => w.style.opacity === "0")
-      : h1.style.opacity === "0";
-    expect(hidden, "заголовок не готов к выходу — движение его пропустит").toBe(true);
-
-    expect((r.querySelector("p") as HTMLElement).style.opacity, "шаг первого экрана не спрятан").toBe("0");
+    expect(h1.style.opacity, "заголовок первого экрана спрятан").toBe("");
+    expect(h1.querySelectorAll("span").length, "заголовок снова разбирается на слова").toBe(0);
+    for (const el of Array.from(r.querySelectorAll<HTMLElement>("[data-first-screen] [data-reveal]"))) {
+      expect(el.style.opacity, `«${el.textContent}» на первом экране спрятан`).toBe("");
+    }
+    expect((r.querySelector("#below") as HTMLElement).style.opacity, "ниже сгиба появление пропало").toBe("0");
   });
 });
