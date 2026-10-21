@@ -8,14 +8,16 @@
  *  2. Ссылки нет у ждущего подтверждения, отменённого, возвращённого,
  *     удалённого и доставленного больше трёх дней назад.
  *  3. Приостановленная организация — 404, как будто ссылки и не было.
- *  4. На странице курьер — только по имени; координат нет ни магазина, ни
+ *  4. Курьер на странице не назван вовсе: имя хранится «Фамилия Имя», и
+ *     первым словом уходила фамилия. Координат нет ни магазина, ни
  *     курьера, хотя минуты по ним посчитаны; текст экранируется.
  *  5. Язык: ?lang=uz, иначе заголовок браузера, иначе русский.
  *  6. Доставленному — ссылка на чек (/r/), где магазин подтверждает
  *     получение; сорванному — без обещания «поставщик свяжется».
  *
  * Нарочная поломка: в sig() замени "track:" на "receipt:" — падает 1; убери
- * проверку tenantStatus — падает 3; верни в страницу courier?.name — падает 4.
+ * проверку tenantStatus — падает 3; верни в страницу имя курьера из users —
+ * падает 4.
  */
 import { describe, it, expect, vi } from "vitest";
 
@@ -24,7 +26,7 @@ vi.mock("../lib/env", async (orig) => {
   return { ...real, env: { ...real.env, appSecret: "test-secret-for-tracking", appUrl: "https://app.example.test" } };
 });
 
-import { trackToken, parseTrackToken, trackHidden, trackingPage, trackLang, firstName, trackingUrl } from "../services/tracking";
+import { trackToken, parseTrackToken, trackHidden, trackingPage, trackLang, trackingUrl } from "../services/tracking";
 import { receiptToken, parseReceiptToken } from "../services/receipt";
 
 /** База-очередь: каждый select отдаёт следующий заготовленный ответ, в порядке вызовов. */
@@ -89,18 +91,16 @@ describe("когда ссылки нет", () => {
 });
 
 describe("что на странице", () => {
-  it("4. курьер — только по имени, координат нет, минуты есть; текст экранирован", async () => {
+  it("4. курьер не назван, координат нет, минуты есть; текст экранирован", async () => {
     const db = queueDb([
       [{ ...baseOrder, number: "<b>ORD-077</b>" }],
       [{ company: "Склад & <Ко>", phone: "+998 90 123-45-67" }],
-      [{ name: "Азиз Каримов" }],
       [{ n: 2 }],
       [{ lat: "41.29950000", lng: "69.24010000" }],
     ]);
     const r = await trackingPage(db, trackToken(77), "ru", NOW);
     expect(r.status).toBe(200);
-    expect(r.html).toContain("Курьер Азиз едет к вам");
-    expect(r.html).not.toContain("Каримов");
+    expect(r.html).toContain("Курьер едет к вам");
     expect(r.html).toContain("Перед вами адресов: 2");
     expect(r.html).toMatch(/Примерно через \d+ мин/);
     for (const c of ["41.311", "69.279", "41.2995", "69.2401"]) expect(r.html).not.toContain(c);
@@ -111,12 +111,12 @@ describe("что на странице", () => {
   });
 
   it("4. без свежей точки курьера минут не обещаем; доставленный — время доставки", async () => {
-    const noPing = await trackingPage(queueDb([[baseOrder], [{ company: "Склад" }], [{ name: "Азиз" }], [{ n: 0 }], []]), trackToken(77), "ru", NOW);
+    const noPing = await trackingPage(queueDb([[baseOrder], [{ company: "Склад" }], [{ n: 0 }], []]), trackToken(77), "ru", NOW);
     expect(noPing.html).not.toMatch(/Примерно через/);
 
     const done = await trackingPage(queueDb([
       [{ ...baseOrder, status: "delivered", deliveryStatus: "delivered", deliveredAt: new Date(NOW - 3_600_000) }],
-      [{ company: "Склад" }], [{ name: "Азиз" }],
+      [{ company: "Склад" }],
     ]), trackToken(77), "uz", NOW);
     expect(done.html).toContain("Yetkazildi 21.10");
     expect(done.html).not.toContain('http-equiv="refresh"');
@@ -140,17 +140,15 @@ describe("что на странице", () => {
   });
 
   it("4. перенесённый на будущий день — «запланирована на», без минут", async () => {
-    const r = await trackingPage(queueDb([[{ ...baseOrder, deliveryStatus: "assigned", plannedDeliveryDate: "2026-10-23" }], [{ company: "Склад" }], [{ name: "Азиз" }]]), trackToken(77), "ru", NOW);
+    const r = await trackingPage(queueDb([[{ ...baseOrder, deliveryStatus: "assigned", plannedDeliveryDate: "2026-10-23" }], [{ company: "Склад" }]]), trackToken(77), "ru", NOW);
     expect(r.html).toContain("Доставка запланирована на 23.10");
     expect(r.html).not.toMatch(/Перед вами|Примерно/);
   });
 
-  it("5. язык: ?lang=, затем заголовок браузера, иначе русский; имя — первое слово", () => {
+  it("5. язык: ?lang=, затем заголовок браузера, иначе русский", () => {
     expect(trackLang("uz", "ru-RU")).toBe("uz");
     expect(trackLang(undefined, "uz-UZ,uz;q=0.9")).toBe("uz");
     expect(trackLang(undefined, "en-US")).toBe("ru");
     expect(trackLang("de", undefined)).toBe("ru");
-    expect(firstName("  Азиз   Каримов ")).toBe("Азиз");
-    expect(firstName("")).toBeNull();
   });
 });

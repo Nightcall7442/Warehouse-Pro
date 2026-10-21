@@ -22,7 +22,7 @@ import { both, type ArticleText } from "../types";
      в офис (снят с курьера, резерв остаётся); «Отчёты» → «Недоставленные»;
    • «Ссылка для магазина» (api/services/tracking.ts): шаги заказа, «перед
      вами адресов» и «примерно через» — только при свежей точке курьера; ни
-     координат, ни фамилии, ни сумм; после доставки — ссылка на чек; через
+     координат, ни имени курьера, ни сумм; после доставки — ссылка на чек; через
      TRACK_VISIBLE_DAYS дня ссылка гаснет;
    • расчёт в офисе (api/services/order-close*), «Контроль»
      (api/services/control.ts) и чек с QR (api/services/receipt.ts).
@@ -216,8 +216,8 @@ export const DELIVERY_ARTICLE: ArticleText = {
           note: {
             title: both("Чего на странице нет", "Sahifada nima yo'q"),
             text: both(
-              "Карты и пути курьера, его фамилии и телефона, товаров и сумм. Ссылку может открыть любой, кому её переслали, поэтому там только имя курьера и шаги заказа.",
-              "Kuryerning xaritasi va yo'li, familiyasi va telefoni, tovarlar va summalar. Havolani u yuborilgan har kim ochishi mumkin, shuning uchun u yerda faqat kuryerning ismi va buyurtma bosqichlari bor.",
+              "Карты и пути курьера, его имени и телефона, товаров и сумм. Ссылку может открыть любой, кому её переслали, поэтому там только шаги заказа.",
+              "Kuryerning xaritasi va yo'li, ismi va telefoni, tovarlar va summalar. Havolani u yuborilgan har kim ochishi mumkin, shuning uchun u yerda faqat buyurtma bosqichlari bor.",
             ),
           },
         },

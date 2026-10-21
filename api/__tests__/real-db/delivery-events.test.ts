@@ -337,15 +337,16 @@ describe.skipIf(!hasRealDb)("журнал попыток доставки и п�
     ]);
   });
 
-  it("страница для магазина: в пути — имя курьера без координат; приостановленная организация — 404", async () => {
+  it("страница для магазина: в пути — без имени курьера и координат; приостановленная организация — 404", async () => {
     const id = await assigned();
     await (await courierApi()).markOutForDelivery({ orderId: id });
-    await q(sql`UPDATE users SET name = 'Азиз Каримов' WHERE id = ${s.courierId}`);
+    // Имя хранится «Фамилия Имя»: первым словом на страницу ушла бы фамилия.
+    await q(sql`UPDATE users SET name = 'Тўраев Дилшод' WHERE id = ${s.courierId}`);
     const { trackingPage, trackToken } = await import("../../services/tracking");
     const page = await trackingPage(db as never, trackToken(id), "ru");
     expect(page.status).toBe(200);
-    expect(page.html).toContain("Курьер Азиз едет к вам");
-    expect(page.html).not.toContain("Каримов");
+    expect(page.html).toContain("Курьер едет к вам");
+    expect(page.html).not.toMatch(/Тўраев|Дилшод/);
 
     const orders = (await import("../../order-router")).orderRouter.createCaller(ctxFor(db, s.tenantId, s.agentId, "agent"));
     const link = await orders.trackingLink({ id });

@@ -1,6 +1,6 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { and, desc, eq, gte, isNotNull, lt, ne, sql } from "drizzle-orm";
-import { agentLocations, deliveryEvents, orders, settings, shops, tenants, users } from "@db/schema";
+import { agentLocations, deliveryEvents, orders, settings, shops, tenants } from "@db/schema";
 import { businessDay, businessToday } from "@contracts/business-time";
 import { haversineKm } from "@contracts/geo";
 import { coordsOf } from "@contracts/route-order";
@@ -24,7 +24,9 @@ import type { Db } from "./order-shared";
   ── Что на странице НЕТ ─────────────────────────────────────────────────────
 
   Страница публичная — открыть её может любой, кому переслали ссылку. Поэтому:
-   • курьер — только по имени, без фамилии и телефона;
+   • курьер не назван вовсе: ни фамилии, ни телефона, ни имени. Имя
+     сотрудника хранится одной строкой, обычно «Фамилия Имя», и угадать в
+     ней имя нельзя — первым словом на страницу уходила фамилия;
    • координат нет ни в каком виде: ни курьера, ни магазина. Минуты
      считаются на сервере, наружу уходит только число;
    • сумм, товаров и долга нет — это не чек (чек — /r/…, своя подпись).
@@ -80,12 +82,6 @@ export function trackHidden(o: { status: string; deletedAt: Date | null; deliver
 
 const esc = (v: unknown) => String(v ?? "").replace(/[&<>"']/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]!));
 
-/** Имя без фамилии: «Азиз Каримов» → «Азиз». */
-export function firstName(name: string | null | undefined): string | null {
-  const first = name?.trim().split(/\s+/)[0];
-  return first || null;
-}
-
 const T = {
   title: { ru: "Заказ", uz: "Buyurtma" },
   steps: {
@@ -93,8 +89,8 @@ const T = {
     uz: ["Qabul qilindi", "Kuryerda", "Yo'lda", "Yetkazildi"],
   },
   delivered: { ru: "Доставлен", uz: "Yetkazildi" },
-  onWay: { ru: (n: string | null) => n ? `Курьер ${n} едет к вам` : "Курьер едет к вам", uz: (n: string | null) => n ? `Kuryer ${n} sizga yo'lda` : "Kuryer sizga yo'lda" },
-  today: { ru: (n: string | null) => n ? `Заказ у курьера ${n}, доставка сегодня` : "Заказ у курьера, доставка сегодня", uz: (n: string | null) => n ? `Buyurtma kuryer ${n}da, bugun yetkaziladi` : "Buyurtma kuryerda, bugun yetkaziladi" },
+  onWay: { ru: "Курьер едет к вам", uz: "Kuryer sizga yo'lda" },
+  today: { ru: "Заказ у курьера, доставка сегодня", uz: "Buyurtma kuryerda, bugun yetkaziladi" },
   planned: { ru: (d: string) => `Доставка запланирована на ${d}`, uz: (d: string) => `Yetkazish ${d} ga rejalashtirilgan` },
   /*
     Срыв — без обещаний. Здесь стояло «поставщик свяжется с вами», и так —
@@ -171,10 +167,6 @@ export async function trackingPage(db: Db, token: string, lang: Lang, now: numbe
 
   const [cfg] = await db.select({ company: settings.companyName, phone: settings.companyPhone })
     .from(settings).where(eq(settings.tenantId, o.tenantId)).limit(1);
-  const [courier] = o.courierId
-    ? await db.select({ name: users.name }).from(users).where(and(eq(users.id, o.courierId), eq(users.tenantId, o.tenantId))).limit(1)
-    : [];
-  const name = firstName(courier?.name);
   const today = businessToday(now);
 
   let step = 0;
@@ -190,7 +182,7 @@ export async function trackingPage(db: Db, token: string, lang: Lang, now: numbe
       line = T.planned[lang](fmtDay(planned));
     } else {
       step = o.deliveryStatus === "out_for_delivery" ? 2 : 1;
-      line = step === 2 ? T.onWay[lang](name) : T.today[lang](name);
+      line = step === 2 ? T.onWay[lang] : T.today[lang];
       const eta = await etaOf(db, o, today, now);
       if (eta.ahead > 0) extra.push(T.ahead[lang](eta.ahead));
       if (eta.minutes != null) extra.push(T.eta[lang](eta.minutes));
