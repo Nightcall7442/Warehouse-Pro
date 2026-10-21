@@ -274,7 +274,8 @@ export default function PricingSection() {
             )}
           </p>
           <p className="py-1">
-            {tr("Оплата: Payme, Click или по счёту для юрлиц — с договором и закрывающими документами.", "To'lov: Payme, Click yoki yuridik shaxslar uchun hisob orqali — shartnoma va yopuvchi hujjatlar bilan.")}
+            {/* Как есть: онлайн-оплаты нет, оплата — по заявке из раздела оплаты (billing.requestUpgrade). */}
+            {tr("Оплата — по заявке: нажимаете «Подключить» в разделе оплаты, мы связываемся и включаем тариф после оплаты. Онлайн-оплаты на сайте пока нет.", "To'lov — ariza bo'yicha: to'lov bo'limida «Ulash»ni bosasiz, biz bog'lanamiz va to'lovdan keyin tarifni yoqamiz. Saytda onlayn to'lov hozircha yo'q.")}
           </p>
         </div>
       </div>

@@ -38,10 +38,10 @@ export default function SetupSection() {
     { t: tr("Магазины и территории", "Do'konlar va hududlar"), d: tr("Координаты, районы, закреплённый агент; автораспределение точек", "Koordinatalar, tumanlar, biriktirilgan agent; nuqtalarni avtomatik taqsimlash") },
     { t: tr("Прайс-листы", "Narx ro'yxatlari"), d: tr("Своя цена сети и своя ларьку; агент видит правильную в телефоне", "Tarmoqqa o'z narxi, do'konchaga o'z narxi; agent telefonda to'g'risini ko'radi") },
     { t: tr("Telegram", "Telegram"), d: tr("Группа компании, сотрудники по ID, правила уведомлений, ответы бота", "Kompaniya guruhi, xodimlar ID bo'yicha, bildirishnoma qoidalari, bot javoblari") },
-    { t: tr("1С по OData", "1C OData orqali"), d: tr("Номенклатура и заказы в обе стороны, экран состояния обмена", "Nomenklatura va buyurtmalar ikki tomonlama, almashinuv holati ekrani") },
+    { t: tr("1С по OData", "1C OData orqali"), d: tr("Товары и цены — из 1С, доставленные заказы и оплаты — в 1С; экран состояния обмена", "Tovarlar va narxlar — 1C'dan, yetkazilgan buyurtmalar va to'lovlar — 1C'ga; almashinuv holati ekrani") },
     { t: tr("Ключи API", "API kalitlari"), d: tr("Чужой программе — только чтение, журнал выгрузок", "Boshqa dasturga — faqat o'qish, eksport jurnali") },
     { t: tr("Брендинг", "Brending"), d: tr("Логотип и цвета вашей компании — у сотрудников и на входе", "Kompaniyangiz logotipi va ranglari — xodimlarda va kirishda") },
-    { t: tr("Экспорт документов", "Hujjatlar eksporti"), d: tr("Отчёты в Excel и CSV, печатные формы, журнал действий", "Hisobotlar Excel va CSV da, chop shakllari, amallar jurnali") },
+    { t: tr("Экспорт документов", "Hujjatlar eksporti"), d: tr("Отчёты — в Excel, печатные формы, журнал действий — в CSV", "Hisobotlar — Excel'da, chop shakllari, amallar jurnali — CSV'da") },
     { t: tr("Поддержка в системе", "Tizim ichida yordam"), d: tr("Чат с нами прямо из программы", "Biz bilan chat to'g'ridan-to'g'ri dasturdan") },
   ];
 

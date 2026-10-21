@@ -274,3 +274,63 @@ export const PILOT: { title: L; lead: L; criteria: Array<{ t: L; d: L }> } = {
     },
   ],
 };
+
+/* ── Вопросы до покупки ───────────────────────────────────────────────────── */
+
+/**
+ * FAQ — реальные возражения, а не декоративные вопросы. Жил внутри
+ * Landing.tsx; здесь — чтобы его могли показать и другие страницы сайта и
+ * чтобы ответы сверялись с остальными словами одного файла.
+ *
+ * Ответы держатся кода: обмен с 1С — как в services/onec-sync (из 1С —
+ * товары, единицы и цены; в 1С — доставленные заказы и, если включено,
+ * оплаты; остатки — только если 1С присылает их сама, webhooks/onec);
+ * журнал — ключевые денежные и складские правки (audit-covers-money-paths),
+ * а не «все действия»; копия базы — каждую ночь (cron/scheduler, backup).
+ */
+export const FAQ_ITEMS: Array<{ q: L; a: L }> = [
+  {
+    q: { ru: "Работает ли обмен с 1С:Предприятие?", uz: "1C:Predpriyatiye bilan almashinuv ishlaydimi?" },
+    a: {
+      ru: "Да, по расписанию через OData: из 1С приходят товары, единицы и цены, в 1С уходят доставленные заказы — реализацией по довезённому — и, если включить, оплаты. Остатки приходят, если 1С сама присылает их нам. При подключении помогаем настроить обмен.",
+      uz: "Ha, jadval bo'yicha OData orqali: 1C'dan tovarlar, birliklar va narxlar keladi, 1C'ga yetkazilgan buyurtmalar — yetkazilgani bo'yicha realizatsiya — va, yoqilsa, to'lovlar ketadi. Qoldiqlar 1C ning o'zi bizga yuborsa keladi. Ulanishda almashinuvni sozlashga yordam beramiz.",
+    },
+  },
+  {
+    q: { ru: "Агенты не дружат с программами — справятся?", uz: "Agentlar dastur bilan chiqisha olmaydi — uddalay oladimi?" },
+    a: {
+      // Без обещания переноса данных всем: это услуга по запросу
+      // (SERVICE_FEATURES), и FAQ противоречил бы прайсу двумя экранами выше.
+      ru: "У агента три экрана: план визитов, заказ, долги точки. На освоение уходит один день. Обучение команды и разбор первых заказов входят в подключение.",
+      uz: "Agentda uchta ekran bor: tashriflar rejasi, buyurtma, nuqta qarzlari. O'rganishga bir kun ketadi. Jamoani o'qitish va birinchi buyurtmalarni birga ko'rib chiqish ulanishga kiradi.",
+    },
+  },
+  {
+    q: { ru: "Что будет в точках, где нет интернета?", uz: "Internet yo'q nuqtalarda nima bo'ladi?" },
+    a: {
+      ru: "Мобильное приложение работает офлайн: заказы, визиты и фото сохраняются на телефоне и уходят на сервер, как только появляется сеть.",
+      uz: "Mobil ilova oflayn ishlaydi: buyurtmalar, tashriflar va suratlar telefonda saqlanadi va tarmoq paydo bo'lishi bilan serverga jo'naydi.",
+    },
+  },
+  {
+    q: { ru: "Сколько времени занимает запуск?", uz: "Ishga tushirish qancha vaqt oladi?" },
+    a: {
+      ru: "Регистрация — 5 минут, склад и команда — ещё 10. Товары и магазины из Excel по нашему шаблону — сами, в тот же день. Перенос остатков и справочников из 1С или ваших файлов — услуга по запросу, занимает несколько дней.",
+      uz: "Ro'yxatdan o'tish — 5 daqiqa, ombor va jamoa — yana 10. Tovarlar va do'konlar Excel'dan bizning shablon bo'yicha — o'zingiz, o'sha kuni. Qoldiq va ma'lumotnomalarni 1C yoki fayllaringizdan ko'chirish — so'rov bo'yicha xizmat, bir necha kun oladi.",
+    },
+  },
+  {
+    q: { ru: "Что случится после 14 бесплатных дней?", uz: "14 kunlik bepul sinovdan keyin nima bo'ladi?" },
+    a: {
+      ru: "Ничего не спишется — карта не привязана. Оставляете заявку и платите только за полевых сотрудников; все данные, введённые за пробный период, сохраняются. Не оплатили — вход закроется, данные останутся.",
+      uz: "Hech narsa yechilmaydi — karta bog'lanmagan. Ariza qoldirasiz va faqat dala xodimlari uchun to'laysiz; sinov davrida kiritilgan barcha ma'lumotlar saqlanadi. To'lamasangiz — kirish yopiladi, ma'lumotlar qoladi.",
+    },
+  },
+  {
+    q: { ru: "Насколько защищены мои данные?", uz: "Ma'lumotlarim qanchalik himoyalangan?" },
+    a: {
+      ru: "Каждая компания изолирована от других, доступ — по ролям, правки цен, оплат, кредитных лимитов и остатков пишутся в журнал, копия базы делается каждую ночь.",
+      uz: "Har bir kompaniya boshqalardan izolyatsiyalangan, kirish rollar bo'yicha, narx, to'lov, kredit limiti va qoldiq o'zgarishlari jurnalga yoziladi, bazaning nusxasi har kecha olinadi.",
+    },
+  },
+];

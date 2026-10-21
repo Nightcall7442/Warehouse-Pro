@@ -110,7 +110,7 @@ function LedgerSection() {
     { title: tr("Долги магазинов", "Do'konlar qarzlari"), desc: tr("Баланс каждой точки: заказы, оплаты, возвраты — и список должников на утро.", "Har bir nuqta balansi: buyurtmalar, to'lovlar, qaytarishlar — va ertalabki qarzdorlar ro'yxati."), where: tr("Магазины → Долги", "Do'konlar → Qarzlar"), insert: "debt" },
     { title: tr("Аналитика и прибыль", "Tahlil va foyda"), desc: tr("Выручка, маржа, эффективность агентов и KPI — по доставленному, а не по обещанному.", "Tushum, marja, agentlar samaradorligi va KPI — va'da emas, yetkazilgan bo'yicha."), where: tr("Отчёты → Прибыль", "Hisobotlar → Foyda") },
     { title: tr("Обмен с 1С:Предприятие", "1C:Predpriyatiye bilan almashinuv"), desc: tr("Товары, заказы, контрагенты — двусторонняя синхронизация, без двойного ввода.", "Tovarlar, buyurtmalar, kontragentlar — ikki tomonlama sinxronlash, ikki marta kiritmasdan."), where: tr("Настройки → Обмен с 1С", "Sozlamalar → 1C almashinuvi") },
-    { title: tr("Мобильное приложение", "Mobil ilova"), desc: tr("iOS и Android, офлайн-режим, камера, GPS. Агенту хватает одного дня, чтобы освоить.", "iOS va Android, oflayn rejim, kamera, GPS. Agentga o'rganish uchun bir kun yetadi."), where: tr("Приложение агента", "Agent ilovasi") },
+    { title: tr("Мобильное приложение", "Mobil ilova"), desc: tr("Приложение для Android; на iPhone — веб-версия, пока приложение проходит проверку App Store. Офлайн-режим, камера, GPS. Агенту хватает одного дня, чтобы освоить.", "Android uchun ilova; iPhone'da — veb-versiya, ilova App Store tekshiruvidan o'tguncha. Oflayn rejim, kamera, GPS. Agentga o'rganish uchun bir kun yetadi."), where: tr("Приложение агента", "Agent ilovasi") },
   ];
 
   const cols = "grid grid-cols-[44px_1fr] md:grid-cols-[56px_260px_1fr_200px]";
@@ -221,7 +221,7 @@ function LedgerSection() {
 
         {/* Роли — одной строкой вместо секции из шести плиток. */}
         <p id="roles" className="mt-6 text-[15px] scroll-mt-24" style={{ color: LX.inkSoft }}>
-          {tr("Шесть ролей — директор, оператор, склад, агент, курьер, супервайзер — у каждой свой набор экранов. ", "Oltita rol — direktor, operator, ombor, agent, kuryer, supervayzer — har birining o'z ekranlari bor. ")}
+          {tr("Шесть ролей — директор, оператор, супервайзер, агент, мерчендайзер, курьер — у каждой свой набор экранов. ", "Oltita rol — direktor, operator, supervayzer, agent, merchandayzer, kuryer — har birining o'z ekranlari bor. ")}
           <a href="#product" className="font-medium underline underline-offset-4" style={{ color: LX.ink, textDecorationColor: LX.ruleStrong }}>
             {tr("Посмотреть интерфейс", "Interfeysni ko'rish")}
           </a>

@@ -29,6 +29,7 @@ import FeaturesSection from "@/components/landing/FeaturesSection";
 import PromisesSection from "@/components/landing/PromisesSection";
 import PricingSection from "@/components/landing/PricingSection";
 import StartSection from "@/components/landing/StartSection";
+import { FAQ_ITEMS } from "@/components/landing/site-content";
 
 /* ═══════════════════════════════════════════════════════════════════════════
    ЛЕНДИНГ «СКЛАДСКАЯ КНИГА»
@@ -81,55 +82,8 @@ function FactsStrip() {
 /* ── 08 / FAQ — реальные возражения, а не декоративные вопросы ───────────── */
 function FaqSection() {
   const tr = useTranslate();
-  const items = useMemo(
-    () => [
-      {
-        q: tr("Работает ли обмен с 1С:Предприятие?", "1C:Predpriyatiye bilan almashinuv ishlaydimi?"),
-        a: tr(
-          "Да, двусторонний: товары, заказы, остатки и контрагенты синхронизируются автоматически. При подключении помогаем настроить обмен бесплатно.",
-          "Ha, ikki tomonlama: tovarlar, buyurtmalar, qoldiqlar va kontragentlar avtomatik sinxronlanadi. Ulanishda almashinuvni bepul sozlab beramiz.",
-        ),
-      },
-      {
-        q: tr("Агенты не дружат с программами — справятся?", "Agentlar dastur bilan chiqisha olmaydi — uddalay oladimi?"),
-        a: tr(
-          // Без обещания переноса данных всем: это услуга по запросу
-          // (SERVICE_FEATURES), и FAQ противоречил бы прайсу двумя экранами ниже.
-          "У агента три экрана: план визитов, заказ, долги точки. На освоение уходит один день. Обучение команды и разбор первых заказов входят в подключение.",
-          "Agentda uchta ekran bor: tashriflar rejasi, buyurtma, nuqta qarzlari. O'rganishga bir kun ketadi. Jamoani o'qitish va birinchi buyurtmalarni birga ko'rib chiqish ulanishga kiradi.",
-        ),
-      },
-      {
-        q: tr("Что будет в точках, где нет интернета?", "Internet yo'q nuqtalarda nima bo'ladi?"),
-        a: tr(
-          "Мобильное приложение работает офлайн: заказы, визиты и фото сохраняются на телефоне и уходят на сервер, как только появляется сеть.",
-          "Mobil ilova oflayn ishlaydi: buyurtmalar, tashriflar va suratlar telefonda saqlanadi va tarmoq paydo bo'lishi bilan serverga jo'naydi.",
-        ),
-      },
-      {
-        q: tr("Сколько времени занимает запуск?", "Ishga tushirish qancha vaqt oladi?"),
-        a: tr(
-          "Регистрация и базовая настройка — 10 минут: компания, склад, товары, команда. Перенос остатков и справочников из Excel или 1С — услуга по запросу, занимает несколько дней.",
-          "Ro'yxatdan o'tish va asosiy sozlash — 10 daqiqa: kompaniya, ombor, tovarlar, jamoa. Qoldiq va ma'lumotnomalarni Excel yoki 1C dan ko'chirish — so'rov bo'yicha xizmat, bir necha kun oladi.",
-        ),
-      },
-      {
-        q: tr("Что случится после 14 бесплатных дней?", "14 kunlik bepul sinovdan keyin nima bo'ladi?"),
-        a: tr(
-          "Ничего не спишется — карта не привязана. Оставляете заявку и платите только за полевых сотрудников; все данные, введённые за триал, сохраняются.",
-          "Hech narsa yechilmaydi — karta bog'lanmagan. So'rov qoldirasiz va faqat dala xodimlari uchun to'laysiz; sinov davrida kiritilgan barcha ma'lumotlar saqlanadi.",
-        ),
-      },
-      {
-        q: tr("Насколько защищены мои данные?", "Ma'lumotlarim qanchalik himoyalangan?"),
-        a: tr(
-          "Каждая компания изолирована от других, доступ — по ролям, все действия пишутся в журнал, резервные копии делаются ежедневно.",
-          "Har bir kompaniya boshqalardan izolyatsiyalangan, kirish rollar bo'yicha, barcha amallar jurnalga yoziladi, zaxira nusxalar har kuni olinadi.",
-        ),
-      },
-    ],
-    [tr],
-  );
+  // Вопросы и ответы — в site-content (одним источником слов сайта).
+  const items = useMemo(() => FAQ_ITEMS.map(x => ({ q: tr(x.q.ru, x.q.uz), a: tr(x.a.ru, x.a.uz) })), [tr]);
   return (
     <section className="py-16 md:py-24" style={{ borderTop: `1px solid ${LX.rule}` }}>
       <div className="max-w-[1240px] mx-auto px-6 lg:pl-[136px]">

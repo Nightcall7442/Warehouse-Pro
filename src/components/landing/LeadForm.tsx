@@ -72,8 +72,8 @@ export default function LeadForm({ compact = false, onInk = false, stack = false
             {tr("Заявка принята", "Ariza qabul qilindi")}
           </p>
           <p className="text-[15px] mt-1" style={{ color: soft }}>
-            {tr("Перезвоним в рабочее время. Обычно в течение дня.",
-                "Ish vaqtida qo'ng'iroq qilamiz. Odatda kun davomida.")}
+            {/* Без срока: время ответа не держит код, обещать его нечем. */}
+            {tr("Перезвоним в рабочее время.", "Ish vaqtida qo'ng'iroq qilamiz.")}
           </p>
         </div>
       </div>

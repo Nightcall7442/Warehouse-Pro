@@ -110,7 +110,7 @@ export default function TrackingSection() {
           />
           <ul className="mt-8 space-y-4">
             {[
-              tr("Живая карта и след маршрута за день, неделю, месяц", "Jonli xarita va kun, hafta, oy bo'yicha yo'nalish izi"),
+              tr("Живая карта и след маршрута за день", "Jonli xarita va kunlik yo'nalish izi"),
               tr("Автопробег в километрах — с телефона агента, не со слов", "Avtomatik yurish masofasi kilometrda — agent telefonidan, so'zdan emas"),
               tr("Заряд телефона каждого: разряжен — значит, точки перестанут приходить", "Har birining telefon quvvati: quvvat tugasa — nuqtalar kelmay qoladi"),
               tr("Визиты: был в точке, проехал мимо или ушёл без заказа — видно всё", "Tashriflar: nuqtada bo'ldi, o'tib ketdi yoki buyurtmasiz ketdi — hammasi ko'rinadi"),
