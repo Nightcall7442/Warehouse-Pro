@@ -19,7 +19,9 @@ import { ctxFor, hasRealDb, connectRealDb, closeRealDb, truncateAll, seed, stock
  * проведения — упадут «частичная приёмка» (нет долга, заказ не «принят
  * частично») и «два прихода разом»; в services/purchase-order.ts заведи
  * приход через createArrival вместо insertArrivalTx — «приёмка разом»
- * заведёт два прихода на один остаток.
+ * заведёт два прихода на один остаток; убери assertPriced из
+ * approvePurchaseOrder — «заказ без цены» согласуется; убери сравнение
+ * версии (assertSeenVersion) — директор согласует непрочитанную правку.
  */
 
 const DAY = "2026-10-01";
@@ -50,7 +52,8 @@ describe.skipIf(!hasRealDb)("заказ поставщику: согласова
   const director = () => po("ceo", ceoId);
   const arr = async () => (await import("../../arrival-router")).arrivalRouter.createCaller(ctxFor(db, s.tenantId, s.agentId));
 
-  const rows = async <T,>(q: ReturnType<typeof sql>): Promise<T[]> => ((await (db as any).execute(q)) as [T[]])[0];
+  const runSql = (q: ReturnType<typeof sql>) => (db as any).execute(q);
+  const rows = async <T,>(q: ReturnType<typeof sql>): Promise<T[]> => ((await runSql(q)) as [T[]])[0];
   const stockAt = async (productId: number, warehouseId: number) =>
     Number((await rows<{ c: string }>(sql`SELECT current_stock AS c FROM warehouse_stock WHERE product_id = ${productId} AND warehouse_id = ${warehouseId}`))[0]?.c ?? 0);
   const order = async (id: number) => (await rows<{ status: string }>(sql`SELECT status FROM purchase_orders WHERE id = ${id}`))[0];
@@ -339,6 +342,67 @@ describe.skipIf(!hasRealDb)("заказ поставщику: согласова
     // Заказ без отсрочки у поставщика без отсрочки — срока нет.
     const { id: bare } = await c.create({ supplierId: sid, currency: "UZS", items: [{ productId: s.productId, quantity: "1", unitPrice: "50" }] });
     expect((await c.getById({ id: bare })).paymentTermsDays).toBeNull();
+  });
+
+  it("заказ без цены не отправить и не согласовать — ни в сумах, ни в долларах", async () => {
+    const c = await po();
+    // Черновик с нулём сохраняется: «цену ещё не знают» (так его заводит «Дозаказ»).
+    const uzs = await c.create({ supplierId, currency: "UZS", items: [
+      { productId: s.productId, quantity: "10", unitPrice: "80" },
+      { productId: s.secondProductId, quantity: "5", unitPrice: "0" },
+    ] });
+    await expect(c.submit({ id: uzs.id })).rejects.toThrow(/без цены: «Второй товар»/);
+    await expect((await director()).approve({ id: uzs.id })).rejects.toThrow(/без цены: «Второй товар»/);
+    expect((await order(uzs.id)).status).toBe("draft");
+
+    const usd = await c.create({ supplierId, currency: "USD", rateToUzs: "12700", items: [{ productId: s.productId, quantity: "4", unitPrice: "0" }] });
+    await expect((await director()).approve({ id: usd.id })).rejects.toThrow(/без цены: «Товар»/);
+    expect((await order(usd.id)).status).toBe("draft");
+
+    // Цену вписали — согласуется.
+    const { updatedAt } = await c.getById({ id: uzs.id });
+    await c.update({ id: uzs.id, supplierId, currency: "UZS", updatedAt, items: [
+      { productId: s.productId, quantity: "10", unitPrice: "80" },
+      { productId: s.secondProductId, quantity: "5", unitPrice: "200" },
+    ] });
+    await (await director()).approve({ id: uzs.id });
+    expect((await order(uzs.id)).status).toBe("approved");
+    expect(await countOf("audit_log", "action = 'purchase_order.approved'")).toBe(1);
+  });
+
+  it("приход по заказу со стёртой себестоимостью не проводится: долг без цены не родился бы", async () => {
+    const { id } = await approvedOrder({ items: [{ productId: s.productId, quantity: "10", unitPrice: "80" }] });
+    const { arrivalId } = await (await po()).receive({ id, arrivalDate: DAY });
+    await (await arr()).setItems({ id: arrivalId, items: [{ productId: s.productId, quantity: "10", expectedQuantity: "10", costPrice: "0.00" }] });
+    await expect((await arr()).update({ id: arrivalId, status: "completed" })).rejects.toThrow(/«Товар» себестоимость ноль/);
+    // Ничего не легло: ни остатка, ни долга, ни «принято».
+    expect(await stockAt(s.productId, s.warehouseId)).toBe(10);
+    expect(await countOf("supplies")).toBe(0);
+    expect(await received(id, s.productId)).toBe(0);
+
+    await (await arr()).setItems({ id: arrivalId, items: [{ productId: s.productId, quantity: "10", expectedQuantity: "10", costPrice: "80.00" }] });
+    await (await arr()).update({ id: arrivalId, status: "completed" });
+    expect(Number((await supplyOf(arrivalId)).amount)).toBe(800);
+  });
+
+  it("директор согласует и возвращает ту версию, что видел: поправили после — отказ", async () => {
+    const c = await po();
+    const { id } = await c.create({ supplierId, currency: "UZS", items: [{ productId: s.productId, quantity: "10", unitPrice: "80" }] });
+    await c.submit({ id });
+    // Директор открыл заказ на согласовании: 10 × 80.
+    const seen = (await (await director()).getById({ id })).updatedAt;
+    // Оператор тем временем поправил: 500 × 9000 — заказ снова черновик.
+    await c.update({ id, supplierId, currency: "UZS", updatedAt: (await c.getById({ id })).updatedAt, items: [{ productId: s.productId, quantity: "500", unitPrice: "9000" }] });
+
+    await expect((await director()).approve({ id, updatedAt: seen })).rejects.toMatchObject({ code: "CONFLICT" });
+    await expect((await director()).reject({ id, note: "дорого", updatedAt: seen })).rejects.toMatchObject({ code: "CONFLICT" });
+    expect((await order(id)).status).toBe("draft");
+    expect(await countOf("audit_log", `action = 'purchase_order.approved' AND target_id = ${id}`)).toBe(0);
+
+    // Перечитал — согласует то, что теперь видит.
+    const fresh = (await (await director()).getById({ id })).updatedAt;
+    await (await director()).approve({ id, updatedAt: fresh });
+    expect((await order(id)).status).toBe("approved");
   });
 
   it("приход по заказу в списке и в документе: поставщик и номер заказа, пока поставки нет", async () => {

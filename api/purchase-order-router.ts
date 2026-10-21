@@ -272,14 +272,23 @@ export const purchaseOrderRouter = createRouter({
     .input(z.object({ id: z.number().int().positive() }))
     .mutation(({ input, ctx }) => submitPurchaseOrder(ctx.db, ctx.tenant.id, actorOf(ctx), input.id)),
 
-  // Согласие — директора: заказ — это деньги, которые организация обещает заплатить.
+  /*
+    Согласие — директора: заказ — это деньги, которые организация обещает
+    заплатить. updatedAt — версия, которую директор видел на экране:
+    поменяли после — отказ, а не согласие на непрочитанное. Необязательна
+    только для открытой раньше вкладки.
+  */
   approve: adminQuery
-    .input(z.object({ id: z.number().int().positive() }))
-    .mutation(({ input, ctx }) => approvePurchaseOrder(ctx.db, ctx.tenant.id, actorOf(ctx), input.id)),
+    .input(z.object({ id: z.number().int().positive(), updatedAt: z.date().optional() }))
+    .mutation(({ input, ctx }) => approvePurchaseOrder(ctx.db, ctx.tenant.id, actorOf(ctx), input.id, input.updatedAt)),
 
   reject: adminQuery
-    .input(z.object({ id: z.number().int().positive(), note: z.string().trim().min(1, "Напишите, что поправить в заказе").max(500) }))
-    .mutation(({ input, ctx }) => rejectPurchaseOrder(ctx.db, ctx.tenant.id, actorOf(ctx), input.id, input.note)),
+    .input(z.object({
+      id: z.number().int().positive(),
+      note: z.string().trim().min(1, "Напишите, что поправить в заказе").max(500),
+      updatedAt: z.date().optional(),
+    }))
+    .mutation(({ input, ctx }) => rejectPurchaseOrder(ctx.db, ctx.tenant.id, actorOf(ctx), input.id, input.note, input.updatedAt)),
 
   /** Ничего не принято — отмена; принято частично — закрыть остаток. */
   cancel: operatorQuery.use(can("suppliers.manage"))

@@ -90,6 +90,50 @@ function assertTransition(po: { number: string; status: PoStatus }, to: PoStatus
   }
 }
 
+/**
+ * Директор согласовывает ту версию, которую видел. Экран присылает её
+ * (updatedAt из getById); заказ поменяли после — отказ: иначе «Согласовать»
+ * со старого экрана согласовывало бы чужую правку, которую директор не
+ * читал (оператор поправил количества — заказ снова черновик, а черновик
+ * директор согласует сразу). Без версии (старая вкладка) — как раньше.
+ */
+function assertSeenVersion(po: { number: string; updatedAt: Date }, seenUpdatedAt?: Date): void {
+  if (seenUpdatedAt && po.updatedAt.getTime() !== seenUpdatedAt.getTime()) {
+    throw new TRPCError({ code: "CONFLICT", message: `Заказ ${po.number} изменили, пока вы его смотрели — обновите экран и проверьте заказ` });
+  }
+}
+
+/** «А», «Б» и ещё 3 — отказ называет товары, но не простынёй. */
+function namesList(names: string[]): string {
+  const head = names.slice(0, 5).map(n => `«${n}»`).join(", ");
+  return names.length > 5 ? `${head} и ещё ${names.length - 5}` : head;
+}
+
+/**
+ * Строки без цены на согласование не идут.
+ *
+ * Ноль в цене — «цену ещё не знают» (черновик из «Дозаказа» ставит его,
+ * когда прежних заказов и себестоимости нет). Черновик с нулём сохранить
+ * можно, отправить и согласовать — нет: по цене заказа приёмка считает долг
+ * (ADR 0013), и согласованный заказ с нулём принимался без долга, а у
+ * долларового заказа ноль ещё и затирал себестоимость прихода.
+ */
+function assertPriced(po: { number: string }, lines: Array<{ unitPrice: string | number; name: string }>): void {
+  const unpriced = lines.filter(l => !(Number(l.unitPrice) > 0)).map(l => l.name);
+  if (unpriced.length > 0) {
+    throw new TRPCError({ code: "BAD_REQUEST", message: `В заказе ${po.number} без цены: ${namesList(unpriced)} — впишите цену, по ней при приёмке считается долг поставщику` });
+  }
+}
+
+/** Строки заказа с названием товара — для проверок перед отправкой и согласованием. */
+async function linesWithNames(tx: Tx, tenantId: number, purchaseOrderId: number) {
+  return tx.select({ productId: purchaseOrderItems.productId, unitPrice: purchaseOrderItems.unitPrice, name: products.name })
+    .from(purchaseOrderItems)
+    .innerJoin(products, and(eq(products.id, purchaseOrderItems.productId), eq(products.tenantId, tenantId)))
+    .where(eq(purchaseOrderItems.purchaseOrderId, purchaseOrderId))
+    .orderBy(purchaseOrderItems.id);
+}
+
 /** Приходы по заказу, которые ещё не проведены, — первый по номеру. */
 async function openArrival(tx: Tx, tenantId: number, purchaseOrderId: number): Promise<string | null> {
   const [row] = await tx.select({ n: arrivals.arrivalNumber }).from(arrivals)
@@ -327,8 +371,10 @@ export async function submitPurchaseOrder(db: Db, tenantId: number, actor: Purch
   const po = await db.transaction(async (tx) => {
     const po = await lockOrder(tx, tenantId, id);
     assertTransition(po, "pending_approval");
-    const [lines] = await tx.select({ n: sql<number>`COUNT(*)` }).from(purchaseOrderItems).where(eq(purchaseOrderItems.purchaseOrderId, po.id));
-    if (!(Number(lines?.n ?? 0) > 0)) throw new TRPCError({ code: "BAD_REQUEST", message: `В заказе ${po.number} нет ни одной строки` });
+    const lines = await linesWithNames(tx, tenantId, po.id);
+    if (lines.length === 0) throw new TRPCError({ code: "BAD_REQUEST", message: `В заказе ${po.number} нет ни одной строки` });
+    // Директору — заказ с ценами: без них ему нечего согласовывать.
+    assertPriced(po, lines);
     await tx.update(purchaseOrders).set({ status: "pending_approval", submittedAt: new Date(), rejectNote: null, updatedAt: nextVersion(po.updatedAt) })
       .where(own(po.id, tenantId));
     await recordAudit(tx as unknown as Db, {
@@ -351,21 +397,21 @@ export async function submitPurchaseOrder(db: Db, tenantId: number, actor: Purch
 
 /**
  * Согласовать — директор (adminQuery), в том числе сразу из черновика.
+ * Ту версию, что он видел (seenUpdatedAt), и только с ценами в каждой строке.
  *
  * Долларовый заказ без курса не согласуется: по курсу заказа считается долг
  * при приёмке и себестоимость прихода. Себестоимость строки прихода —
  * decimal(10,2), и цена в долларах по курсу обязана в неё поместиться:
  * лучше узнать это сейчас, чем на разгрузке.
  */
-export async function approvePurchaseOrder(db: Db, tenantId: number, actor: PurchaseOrderActor, id: number) {
+export async function approvePurchaseOrder(db: Db, tenantId: number, actor: PurchaseOrderActor, id: number, seenUpdatedAt?: Date) {
   const po = await db.transaction(async (tx) => {
     const po = await lockOrder(tx, tenantId, id);
+    assertSeenVersion(po, seenUpdatedAt);
     assertTransition(po, "approved");
-    const lines = await tx.select({ productId: purchaseOrderItems.productId, unitPrice: purchaseOrderItems.unitPrice, name: products.name })
-      .from(purchaseOrderItems)
-      .innerJoin(products, and(eq(products.id, purchaseOrderItems.productId), eq(products.tenantId, tenantId)))
-      .where(eq(purchaseOrderItems.purchaseOrderId, po.id));
+    const lines = await linesWithNames(tx, tenantId, po.id);
     if (lines.length === 0) throw new TRPCError({ code: "BAD_REQUEST", message: `В заказе ${po.number} нет ни одной строки` });
+    assertPriced(po, lines);
     const [supplier] = await tx.select({ name: suppliers.name, status: suppliers.status }).from(suppliers)
       .where(and(eq(suppliers.id, po.supplierId), eq(suppliers.tenantId, tenantId))).limit(1);
     if (supplier && supplier.status !== "active") {
@@ -407,9 +453,11 @@ export async function approvePurchaseOrder(db: Db, tenantId: number, actor: Purc
  * согласованный: согласие, данное по ошибке, снимается тем же действием,
  * пока по заказу не завели приход.
  */
-export async function rejectPurchaseOrder(db: Db, tenantId: number, actor: PurchaseOrderActor, id: number, note: string) {
+export async function rejectPurchaseOrder(db: Db, tenantId: number, actor: PurchaseOrderActor, id: number, note: string, seenUpdatedAt?: Date) {
   const po = await db.transaction(async (tx) => {
     const po = await lockOrder(tx, tenantId, id);
+    // Замечание — к той версии, которую директор читал, а не к чужой правке.
+    assertSeenVersion(po, seenUpdatedAt);
     assertTransition(po, "draft");
     const arrival = await openArrival(tx, tenantId, po.id);
     if (arrival) {

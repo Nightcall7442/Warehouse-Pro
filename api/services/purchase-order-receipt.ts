@@ -217,6 +217,11 @@ export interface ReceiptActor { id: number; name: string; ip?: string }
  *  - заказ в другой валюте: Σ принято × цена заказа, по курсу заказа.
  * Излишек входит в долг: он на полке. Срок оплаты — день прихода плюс
  * отсрочка заказа, а без неё — поставщика.
+ *
+ * Строка с ценой ноль не проводится: долг на неё не родился бы, а заказ
+ * после приёмки уже не править — долг потом не добавить. Согласование
+ * заказа без цены не пропускает (services/purchase-order.ts); здесь —
+ * себестоимость, стёртая в строке прихода, и последний рубеж.
  */
 export async function applyReceiptTx(
   tx: Tx, tenantId: number, arrival: ReceiptArrival,
@@ -238,6 +243,21 @@ export async function applyReceiptTx(
   if (foreign.length > 0) {
     const list = await namesOf(tx, tenantId, foreign);
     throw new TRPCError({ code: "BAD_REQUEST", message: `В заказе ${po.number} нет товара ${list} — по заказу принимают только заказанное, остальное оформите отдельным приходом` });
+  }
+
+  const currency = await tenantCurrency(tx, tenantId);
+  const sameCurrency = inTenantCurrency(po.currency, currency);
+  const unpriced = [...new Set(counted
+    .filter(i => !(Number(sameCurrency ? i.costPrice ?? 0 : byProduct.get(i.productId)!.unitPrice) > 0))
+    .map(i => i.productId))];
+  if (unpriced.length > 0) {
+    const list = await namesOf(tx, tenantId, unpriced);
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: sameCurrency
+        ? `Приход по заказу ${po.number}: у ${list} себестоимость ноль — впишите цену по накладной, по ней заводится долг поставщику; бесплатный товар оформите отдельным приходом`
+        : `Приход по заказу ${po.number}: в заказе нет цены у ${list} — без неё долг поставщику не посчитать`,
+    });
   }
 
   const added = new Map<number, number>();
@@ -262,8 +282,7 @@ export async function applyReceiptTx(
     .where(and(eq(purchaseOrders.id, po.id), eq(purchaseOrders.tenantId, tenantId)));
 
   // ── Долг ───────────────────────────────────────────────────────────────────
-  const currency = await tenantCurrency(tx, tenantId);
-  const amount = receiptDebt(counted, byProduct, inTenantCurrency(po.currency, currency));
+  const amount = receiptDebt(counted, byProduct, sameCurrency);
   const [supplier] = await tx.select({ terms: suppliers.paymentTermsDays }).from(suppliers)
     .where(and(eq(suppliers.id, po.supplierId), eq(suppliers.tenantId, tenantId))).limit(1);
   const due = dueDateAfter(arrival.arrivalDay, po.paymentTermsDays ?? supplier?.terms ?? null);

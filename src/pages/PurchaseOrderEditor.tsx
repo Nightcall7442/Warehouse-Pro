@@ -162,6 +162,12 @@ function OrderScreen({ order, stale, onDirty, onDiscard }: {
 
   const onError = (e: unknown) => notify.error(errorText(e));
   const refresh = () => { void utils.purchaseOrder.getById.invalidate(); void utils.purchaseOrder.list.invalidate(); };
+  // Директор согласовывал версию, которую уже поменяли: сервер отказал —
+  // экран перечитывает заказ, чтобы было видно, что именно поменяли.
+  const onDecisionError = (e: unknown) => {
+    notify.error(errorText(e));
+    if ((e as { data?: { code?: string } }).data?.code === "CONFLICT") refresh();
+  };
   const saved = () => { setDirtyState(false); onDirty(false); };
   const create = trpc.purchaseOrder.create.useMutation({
     onSuccess: r => {
@@ -174,8 +180,8 @@ function OrderScreen({ order, stale, onDirty, onDiscard }: {
   });
   const update = trpc.purchaseOrder.update.useMutation({ onSuccess: () => { notify.success(t("Заказ сохранён", "Buyurtma saqlandi")); saved(); refresh(); }, onError });
   const submit = trpc.purchaseOrder.submit.useMutation({ onSuccess: () => { notify.success(t("Заказ отправлен директору", "Buyurtma direktorga yuborildi")); refresh(); }, onError });
-  const approve = trpc.purchaseOrder.approve.useMutation({ onSuccess: () => { notify.success(t("Заказ согласован", "Buyurtma kelishildi")); refresh(); }, onError });
-  const reject = trpc.purchaseOrder.reject.useMutation({ onSuccess: () => { notify.success(t("Заказ возвращён на доработку", "Buyurtma qayta ishlashga qaytarildi")); setRejecting(false); refresh(); }, onError });
+  const approve = trpc.purchaseOrder.approve.useMutation({ onSuccess: () => { notify.success(t("Заказ согласован", "Buyurtma kelishildi")); refresh(); }, onError: onDecisionError });
+  const reject = trpc.purchaseOrder.reject.useMutation({ onSuccess: () => { notify.success(t("Заказ возвращён на доработку", "Buyurtma qayta ishlashga qaytarildi")); setRejecting(false); refresh(); }, onError: onDecisionError });
   const cancel = trpc.purchaseOrder.cancel.useMutation({ onSuccess: () => { notify.success(t("Готово", "Tayyor")); refresh(); }, onError });
   const receive = trpc.purchaseOrder.receive.useMutation({
     onSuccess: r => { notify.success(t(`Заведён приход ${r.arrivalNumber}`, `${r.arrivalNumber} kirimi yaratildi`)); refresh(); navigate(`/arrivals/${r.arrivalId}`); },
@@ -184,6 +190,13 @@ function OrderScreen({ order, stale, onDirty, onDiscard }: {
   const busy = create.isPending || update.isPending || submit.isPending || approve.isPending || reject.isPending || cancel.isPending || receive.isPending;
 
   const total = lines.reduce((s, l) => s + Number(l.quantity || 0) * Number(l.unitPrice || 0), 0);
+  /*
+    Строки без цены. Черновик с ними сохраняется («цену ещё не знают» — так
+    его заводит «Дозаказ»), а отправить и согласовать нельзя: по цене заказа
+    приёмка считает долг поставщику, и сервер такой заказ не пропустит.
+  */
+  const unpriced = lines.filter(l => !(Number(l.unitPrice) > 0)).map(l => l.name);
+  const savedUnpriced = (order?.items ?? []).some(i => !(Number(i.unitPrice) > 0));
   const linesOk = lines.length > 0 && lines.every(l => Number(l.quantity) > 0);
   const canSave = editable && !busy && !stale && head.supplierId !== "" && linesOk && (!order || dirty);
 
@@ -315,6 +328,15 @@ function OrderScreen({ order, stale, onDirty, onDiscard }: {
           <button className="neo-btn" data-testid="po-stale-reload" onClick={onDiscard} style={{ display: "flex", alignItems: "center", gap: "6px" }}>
             <RefreshCw size={14} /> {t("Показать новую версию", "Yangi versiyani ko'rsatish")}
           </button>
+        </div>
+      )}
+
+      {unpriced.length > 0 && (editable || status === "draft" || status === "pending_approval") && (
+        <div data-testid="po-unpriced" style={{ ...note, borderLeft: "4px solid var(--color-warning)" }}>
+          <span style={{ flex: 1 }}>
+            {t(`Без цены: ${unpriced.map(n => `«${n}»`).join(", ")}. Черновик сохранится, но отправить директору и согласовать заказ можно только с ценами — по ним при приёмке считается долг поставщику.`,
+               `Narxsiz: ${unpriced.map(n => `«${n}»`).join(", ")}. Qoralama saqlanadi, lekin buyurtmani direktorga yuborish va kelishish faqat narxlar bilan mumkin — qabul qilishda yetkazib beruvchi qarzi shu narxlar bo'yicha hisoblanadi.`)}
+          </span>
         </div>
       )}
 
@@ -526,12 +548,12 @@ function OrderScreen({ order, stale, onDirty, onDiscard }: {
           </span>
         )}
         {ready && canManage && !isCeo && status === "draft" && (
-          <button className="neo-btn" data-testid="po-submit" disabled={busy} onClick={() => submit.mutate({ id: order.id })} style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+          <button className="neo-btn" data-testid="po-submit" disabled={busy || savedUnpriced} onClick={() => submit.mutate({ id: order.id })} style={{ display: "flex", alignItems: "center", gap: "6px", opacity: savedUnpriced ? 0.5 : 1 }}>
             <Send size={14} /> {t("Отправить на согласование", "Kelishuvga yuborish")}
           </button>
         )}
         {ready && isCeo && (status === "draft" || status === "pending_approval") && (
-          <button className="neo-btn-primary" data-testid="po-approve" disabled={busy} onClick={() => approve.mutate({ id: order.id })} style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+          <button className="neo-btn-primary" data-testid="po-approve" disabled={busy || savedUnpriced} onClick={() => approve.mutate({ id: order.id, updatedAt: order.updatedAt })} style={{ display: "flex", alignItems: "center", gap: "6px", opacity: savedUnpriced ? 0.5 : 1 }}>
             <CheckCircle2 size={14} /> {t("Согласовать", "Kelishish")}
           </button>
         )}
@@ -574,7 +596,7 @@ function OrderScreen({ order, stale, onDirty, onDiscard }: {
           footer={
             <>
               <button className="neo-btn-primary flex-1 h-11 text-sm" data-testid="po-reject-send" disabled={!rejectNote.trim() || reject.isPending}
-                onClick={() => reject.mutate({ id: order.id, note: rejectNote.trim() })}>
+                onClick={() => reject.mutate({ id: order.id, note: rejectNote.trim(), updatedAt: order.updatedAt })}>
                 {t("Вернуть", "Qaytarish")}
               </button>
               <button className="neo-btn flex-1 h-11 text-sm" onClick={() => setRejecting(false)}>{t("Отмена", "Bekor qilish")}</button>

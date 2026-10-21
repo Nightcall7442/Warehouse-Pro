@@ -24,7 +24,7 @@ const calls = vi.hoisted(() => ({
   reject: vi.fn(), cancel: vi.fn(), print: vi.fn(), excel: vi.fn(),
 }));
 const state = vi.hoisted(() => ({
-  role: "operator", status: "approved" as string, updatedAt: "2026-10-20T10:00:00Z",
+  role: "operator", status: "approved" as string, updatedAt: "2026-10-20T10:00:00Z", price: 80,
   arrivals: [{ id: 40, arrivalNumber: "ARR-40", status: "completed", arrivalDate: "2026-10-21" }] as Array<Record<string, unknown>>,
 }));
 
@@ -44,7 +44,7 @@ const trpcStub = vi.hoisted(() => {
     createdBy: 1, submittedAt: new Date("2026-10-20T11:00:00Z"), approvedBy: null, approvedAt: null, closedAt: null,
     createdAt: new Date("2026-10-20T10:00:00Z"), updatedAt: new Date(state.updatedAt),
     createdByName: "Оператор", approvedByName: null, expectedPaymentDate: "2026-11-04",
-    items: [{ id: 1, productId: 3, quantity: 10, unitPrice: 80, receivedQty: 4, note: null, productName: "Мука", productCode: "M-1",
+    items: [{ id: 1, productId: 3, quantity: 10, unitPrice: state.price, receivedQty: 4, note: null, productName: "Мука", productCode: "M-1",
       barcode: null, unit: "pcs", packSize: null, packLabel: null, remaining: 6, over: 0, inTransit: 0 }],
     arrivals: state.arrivals,
     total: 800,
@@ -105,6 +105,7 @@ function renderAt(path: string) {
 beforeEach(() => {
   for (const f of Object.values(calls)) f.mockClear();
   state.updatedAt = "2026-10-20T10:00:00Z";
+  state.price = 80;
   state.arrivals = [{ id: 40, arrivalNumber: "ARR-40", status: "completed", arrivalDate: "2026-10-21" }];
 });
 
@@ -135,12 +136,30 @@ describe("заказ поставщику на экране", () => {
     state.role = "ceo"; state.status = "pending_approval";
     renderAt("/purchase-orders/9");
     act(() => { fireEvent.click(screen.getByTestId("po-approve")); });
-    expect(calls.approve).toHaveBeenCalledWith({ id: 9 });
+    // С версией, которую директор видит: поменяли после — сервер откажет, а не согласует непрочитанное.
+    expect(calls.approve).toHaveBeenCalledWith({ id: 9, updatedAt: new Date("2026-10-20T10:00:00Z") });
 
     act(() => { fireEvent.click(screen.getByTestId("po-reject")); });
     fireEvent.change(screen.getByTestId("po-reject-text"), { target: { value: "Цена выше договорной" } });
     act(() => { fireEvent.click(screen.getByTestId("po-reject-send")); });
-    expect(calls.reject).toHaveBeenCalledWith({ id: 9, note: "Цена выше договорной" });
+    expect(calls.reject).toHaveBeenCalledWith({ id: 9, note: "Цена выше договорной", updatedAt: new Date("2026-10-20T10:00:00Z") });
+  });
+
+  it("строка без цены: черновик видно и сохранить можно, а отправить и согласовать — нет", () => {
+    state.price = 0; state.status = "draft";
+    state.role = "operator";
+    renderAt("/purchase-orders/9");
+    expect(screen.getByTestId("po-unpriced").textContent).toContain("«Мука»");
+    expect((screen.getByTestId("po-submit") as HTMLButtonElement).disabled).toBe(true);
+    cleanup();
+
+    state.role = "ceo";
+    renderAt("/purchase-orders/9");
+    expect((screen.getByTestId("po-approve") as HTMLButtonElement).disabled).toBe(true);
+    // Цену вписали — предупреждение уходит, сохранить можно.
+    fireEvent.change(screen.getByLabelText("Цена"), { target: { value: "80" } });
+    expect(screen.queryByTestId("po-unpriced")).toBeNull();
+    expect((screen.getByTestId("po-save") as HTMLButtonElement).disabled).toBe(false);
   });
 
   it("новый заказ: поставщик, товары с ценой прошлой закупки — и открывается заведённый", () => {
@@ -208,7 +227,7 @@ describe("заказ поставщику на экране", () => {
     renderAt("/purchase-orders/9");
     expect(screen.queryByTestId("po-submit")).toBeNull();
     act(() => { fireEvent.click(screen.getByTestId("po-approve")); });
-    expect(calls.approve).toHaveBeenCalledWith({ id: 9 });
+    expect(calls.approve).toHaveBeenCalledWith({ id: 9, updatedAt: new Date("2026-10-20T10:00:00Z") });
   });
 
   it("оператор видит, что заказ ждёт директора, и кнопок директора у него нет", () => {
