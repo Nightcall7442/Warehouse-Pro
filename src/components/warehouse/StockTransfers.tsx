@@ -54,7 +54,7 @@ type Doc = {
 };
 type Planned = { batchId: number; batchNumber: string | null; expiresAt: string | null; quantity: number; batchQuantity: number; usesUp: boolean };
 type PreviewItem = { productId: number; available: number; expired: number; movable: number; untracked: number; planned: Planned[] };
-type Markdown = { batchId: number; productId: number; price: number; endsOn: string; batchQuantity: number };
+type Markdown = { batchId: number; productId: number; price: number; endsOn: string; batchQuantity: number; batchNumber?: string | null };
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 const pickedOf = (l: Line) => round2(Object.values(l.picks).reduce((sum, v) => sum + (Number(v) || 0), 0));
@@ -203,7 +203,8 @@ export function StockTransfers({ warehouses, canTransfer = true }: { warehouses:
     if (l.manual) {
       for (const [k, v] of Object.entries(l.picks)) {
         const m = k === UNBATCHED ? undefined : markdownOf.get(Number(k));
-        if (m && Number(v) + 1e-9 >= m.batchQuantity) gone.push({ batch: k, price: m.price });
+        // k — номер строки партии в базе; человеку — номер партии, как в списке выбора.
+        if (m && Number(v) + 1e-9 >= m.batchQuantity) gone.push({ batch: m.batchNumber ?? t("без номера", "raqamsiz"), price: m.price });
       }
     } else {
       for (const b of p?.planned ?? []) {

@@ -192,6 +192,21 @@ describe("партии вручную", () => {
       { productId: 1, quantity: 4, picks: [{ batchId: 7, quantity: 3 }, { batchId: null, quantity: 1 }] },
     ]);
   });
+
+  it("уценённая партия, выбранная целиком, названа своим номером, а не номером строки в базе", () => {
+    h.state.batches = {
+      onHand: 4, inBatches: 4, untracked: 0,
+      batches: [{ batchId: 5, warehouseId: 1, batchNumber: "B-1", expiresAt: "2026-12-01", quantity: 4, daysLeft: 40 }],
+    };
+    h.state.preview = { items: [], markdowns: [{ batchId: 5, productId: 1, price: 9000, endsOn: "2026-12-01", batchQuantity: 4, batchNumber: "B-1" }] };
+    wrap(<StockTransfers warehouses={TWO} />);
+    addWater();
+    fireEvent.click(screen.getByTestId("transfer-manual-1"));
+    fireEvent.change(screen.getByTestId("pick-1-5"), { target: { value: "4" } });
+    const warn = screen.getByTestId("transfer-markdown-warning");
+    expect(warn.textContent).toContain("B-1");
+    expect(warn.textContent).not.toMatch(/\b5\b/);
+  });
 });
 
 const IN_TRANSIT: Doc = {

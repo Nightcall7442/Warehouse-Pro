@@ -633,13 +633,14 @@ export async function previewTransfer(db: Db, tenantId: number, input: { fromWar
   const plan = await planBatchRows(db, tenantId, input.fromWarehouseId, new Map(input.items.map(i => [i.productId, i.quantity])));
 
   const marked = await db.execute(sql`
-    SELECT m.batch_id AS batchId, m.product_id AS productId, m.price, DATE_FORMAT(m.ends_on, '%Y-%m-%d') AS endsOn, b.quantity AS batchQuantity
+    SELECT m.batch_id AS batchId, m.product_id AS productId, m.price, DATE_FORMAT(m.ends_on, '%Y-%m-%d') AS endsOn, b.quantity AS batchQuantity,
+      b.batch_number AS batchNumber
     FROM ${markdowns} m
     INNER JOIN stock_batches b ON b.id = m.batch_id AND b.tenant_id = m.tenant_id
     WHERE m.tenant_id = ${tenantId} AND b.warehouse_id = ${input.fromWarehouseId}
       AND m.product_id IN (${sql.join(ids.map(id => sql`${id}`), sql`, `)})
   `);
-  const [markRows] = marked as unknown as [Array<{ batchId: number; productId: number; price: string; endsOn: string; batchQuantity: string }>];
+  const [markRows] = marked as unknown as [Array<{ batchId: number; productId: number; price: string; endsOn: string; batchQuantity: string; batchNumber: string | null }>];
 
   return {
     items: input.items.map(i => {
@@ -663,6 +664,8 @@ export async function previewTransfer(db: Db, tenantId: number, input: { fromWar
     }),
     markdowns: (markRows ?? []).map(m => ({
       batchId: Number(m.batchId), productId: Number(m.productId), price: Number(m.price), endsOn: m.endsOn, batchQuantity: Number(m.batchQuantity),
+      // Номер партии — для предупреждения при ручном выборе: там известен только batchId.
+      batchNumber: m.batchNumber ?? null,
     })),
   };
 }

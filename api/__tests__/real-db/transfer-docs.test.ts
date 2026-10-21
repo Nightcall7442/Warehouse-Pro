@@ -447,7 +447,7 @@ describe.skipIf(!hasRealDb)("документ перемещения на нас
         { batchId: expect.any(Number), batchNumber: "A", expiresAt: LATER, quantity: 2, batchQuantity: 4, usesUp: false },
       ],
     }]);
-    expect(p.markdowns).toEqual([{ batchId: b, productId: s.productId, price: 50, endsOn: SOON, batchQuantity: 3 }]);
+    expect(p.markdowns).toEqual([{ batchId: b, productId: s.productId, price: 50, endsOn: SOON, batchQuantity: 3, batchNumber: "B" }]);
   });
 
   it("средняя себестоимость прихода считает и товар «в пути»", async () => {
