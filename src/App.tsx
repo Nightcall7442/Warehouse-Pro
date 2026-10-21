@@ -260,6 +260,8 @@ export default function App() {
           <Route path="/warehouse"      element={<RoleGuard roles={["ceo","operator"]}><Warehouse /></RoleGuard>} />
           <Route path="/arrivals"       element={<RoleGuard roles={["ceo","operator"]}><Arrivals /></RoleGuard>} />
           <Route path="/arrivals/:id"   element={<RoleGuard roles={["ceo","operator"]}><ArrivalEditor /></RoleGuard>} />
+          {/* Список заказов поставщикам — вкладка «Приходов»; адрес — для палитры и закладок. */}
+          <Route path="/purchase-orders" element={<RoleGuard roles={["ceo","operator"]}><Navigate to="/arrivals?tab=orders" replace /></RoleGuard>} />
           <Route path="/purchase-orders/:id" element={<RoleGuard roles={["ceo","operator"]}><PurchaseOrderEditor /></RoleGuard>} />
           <Route path="/price-lists/:id" element={<RoleGuard roles={["ceo","operator"]}><PriceListEditor /></RoleGuard>} />
           {/* Настройки открыты всем: внутри каждый видит только свои разделы

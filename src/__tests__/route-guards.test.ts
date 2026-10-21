@@ -120,7 +120,9 @@ describe("роль не заходит туда, где ей ответят от
     // purchaseOrder.* — operatorQuery и adminQuery; полевым и супервайзеру ответят отказом.
     // Маршрут один — /purchase-orders/:id (и «new» в нём же); проверяется сам шаблон.
     expect(ROUTES.some(r => r.path === "/purchase-orders/:id"), "маршрута заказа нет").toBe(true);
-    for (const path of ["/purchase-orders/:id"]) {
+    // Список — адрес /purchase-orders, ведёт на вкладку «Приходов»; закрыт так же.
+    expect(ROUTES.some(r => r.path === "/purchase-orders"), "адреса списка заказов нет").toBe(true);
+    for (const path of ["/purchase-orders", "/purchase-orders/:id", "/purchase-orders/new"]) {
       expect(canOpen(path, "ceo")).toBe(true);
       expect(canOpen(path, "operator")).toBe(true);
       for (const role of ["supervisor", "agent", "merchandiser", "courier"]) {

@@ -78,6 +78,7 @@ export function CommandPalette() {
     { id: "products", label: "Товары", labelUz: "Mahsulotlar", icon: <Package size={16} />, path: "/products", category: "nav", roles: FIELD_ROLES },
     { id: "shops", label: "Магазины", labelUz: "Do'konlar", icon: <Store size={16} />, path: "/shops", category: "nav", roles: ["ceo", "operator", "supervisor"] },
     { id: "warehouse", label: "Склад", labelUz: "Ombor", icon: <Package size={16} />, path: "/warehouse", category: "nav", roles: ["ceo", "operator"] },
+    { id: "purchase-orders", label: "Заказы поставщикам", labelUz: "Yetkazib beruvchiga buyurtmalar", icon: <Truck size={16} />, path: "/purchase-orders", category: "nav", roles: ["ceo", "operator"] },
     { id: "deliveries", label: "Доставки", labelUz: "Yetkazishlar", icon: <Truck size={16} />, path: "/deliveries", category: "nav", roles: ["ceo", "operator", "courier"] },
     { id: "reports", label: "Отчёты", labelUz: "Hisobotlar", icon: <FileText size={16} />, path: "/reports", category: "nav", roles: ["ceo", "operator", "supervisor", "merchandiser"] },
     { id: "users", label: "Пользователи", labelUz: "Foydalanuvchilar", icon: <Users size={16} />, path: "/users", category: "nav", roles: ["ceo"] },
