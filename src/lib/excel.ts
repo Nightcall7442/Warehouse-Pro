@@ -483,6 +483,9 @@ export function formatProductsForExport(products: Record<string, unknown>[]) {
   return products.map(p => ({
     "Код":         String(p.code ?? ""),
     "Штрихкод":    String(p.barcode ?? ""),
+    // Дополнительные штрих-коды — те, по которым сканер находит тот же товар.
+    // Импорт этот столбец не читает (их правят в карточке), он для сверки.
+    "Доп. штрихкоды": Array.isArray(p.barcodes) ? (p.barcodes as unknown[]).map(String).join(", ") : "",
     "Название":    String(p.name ?? ""),
     "Категория":   String(p.category ?? ""),
     "Ед.":         unitShort(p.unit as string | null | undefined),

@@ -500,6 +500,24 @@ describe("product: поставщик по умолчанию", () => {
     const asAgent = await productRouter.createCaller({ ...makeCtx(1, 1, "agent"), db: mockDb }).getById({ id: 1 });
     expect(asAgent?.defaultSupplierId).toBeUndefined();
   });
+
+  it("карточка отдаёт имя поставщика и что он выключен — агенту ничего", async () => {
+    /*
+      Список поставщиков в правке — только действующие: выключенного там нет,
+      и без имени из карточки поле показывало бы пустоту.
+    */
+    (productsTable[0] as unknown as { defaultSupplierId: number }).defaultSupplierId = 6;
+    const { productRouter } = await import("../product-router");
+    const asOperator = await productRouter.createCaller({ ...makeCtx(1, 1), db: mockDb }).getById({ id: 1 });
+    expect(asOperator?.defaultSupplier).toEqual({ id: 6, name: "Старый завод", active: false });
+    const asAgent = await productRouter.createCaller({ ...makeCtx(1, 1, "agent"), db: mockDb }).getById({ id: 1 });
+    expect(asAgent?.defaultSupplier).toBeNull();
+
+    // Ссылка на чужого поставщика имени не раскрывает.
+    (productsTable[0] as unknown as { defaultSupplierId: number }).defaultSupplierId = 7;
+    const foreign = await productRouter.createCaller({ ...makeCtx(1, 1), db: mockDb }).getById({ id: 1 });
+    expect(foreign?.defaultSupplier).toBeNull();
+  });
 });
 
 describe("product: максимум запаса", () => {

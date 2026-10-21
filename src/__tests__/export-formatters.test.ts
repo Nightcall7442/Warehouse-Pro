@@ -239,6 +239,15 @@ describe("товары и агенты в отчёте", () => {
     expect(row["Мин. остаток"]).toBe(10);
   });
 
+  it("дополнительные штрих-коды — через запятую, без них — пусто", () => {
+    const [withExtras, without] = formatProductsForExport([
+      { barcode: "4870000000017", barcodes: ["4870000000024", "4870000000031"] },
+      { barcode: "4870000000048" },
+    ]);
+    expect(withExtras["Доп. штрихкоды"]).toBe("4870000000024, 4870000000031");
+    expect(without["Доп. штрихкоды"]).toBe("");
+  });
+
   it("товар без цен даёт нули, а не пустые ячейки", () => {
     const [row] = formatProductsForExport([{ code: "К-1", name: "Без цены" }]);
     expect(row["Цена"]).toBe(0);

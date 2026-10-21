@@ -393,7 +393,13 @@ export const productRouter = createRouter({
         eq(warehouseStock.warehouseId, warehouseId ?? 0),
       );
 
-      const [stockResult, movements, extras] = await Promise.all([
+      // Same rule as list(): the product card shows cost, an agent's app must
+      // not. Applied here, once the full object is assembled — returning early
+      // at the point the row is read would have left the screen with no stock
+      // and no movement history.
+      const canSeeCost = ctx.user.role === "ceo" || ctx.user.role === "operator";
+
+      const [stockResult, movements, extras, defaultSupplierRow] = await Promise.all([
         db.select({
           id: warehouseStock.id, currentStock: warehouseStock.currentStock,
           reserved: warehouseStock.reserved, available: warehouseStock.available,
@@ -410,19 +416,28 @@ export const productRouter = createRouter({
           .orderBy(desc(stockMovements.createdAt))
           .limit(20),
         extraBarcodesOf(db, tenantId, [product.id]),
+        /*
+          Имя и состояние поставщика по умолчанию — карточке. Список поставщиков
+          в правке отдаёт только действующих: выключенный поставщик по умолчанию
+          в нём не находился, и поле показывало пустоту, будто поставщика нет,
+          а в просмотре его не было вовсе. Свой организации — фильтр по tenant.
+        */
+        canSeeCost && product.defaultSupplierId != null
+          ? db.select({ id: suppliers.id, name: suppliers.name, status: suppliers.status }).from(suppliers)
+              .where(and(eq(suppliers.id, product.defaultSupplierId), eq(suppliers.tenantId, tenantId)))
+              .limit(1)
+              .then(rows => rows[0] ?? null)
+          : Promise.resolve(null),
       ]);
-
-      // Same rule as list(): the product card shows cost, an agent's app must
-      // not. Applied here, once the full object is assembled — returning early
-      // at the point the row is read would have left the screen with no stock
-      // and no movement history.
-      const canSeeCost = ctx.user.role === "ceo" || ctx.user.role === "operator";
 
       return {
         ...product,
         costPrice: canSeeCost ? product.costPrice : undefined,
         // У кого закупаем — то же, что себестоимость: агенту это знать незачем.
         defaultSupplierId: canSeeCost ? product.defaultSupplierId : undefined,
+        defaultSupplier: defaultSupplierRow
+          ? { id: defaultSupplierRow.id, name: defaultSupplierRow.name, active: defaultSupplierRow.status === "active" }
+          : null,
         barcodes: extras.get(product.id) ?? [],
         stock: stockResult[0] ?? null,
         movements,
