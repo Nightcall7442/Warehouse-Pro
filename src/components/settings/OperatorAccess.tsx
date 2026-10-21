@@ -55,6 +55,11 @@ const LABELS: Record<OperatorCapability, { ru: string; uz: string; hintRu: strin
     hintRu: "Ручная корректировка количества на складе и перемещения между складами.",
     hintUz: "Ombordagi miqdorni qo'lda tuzatish va omborlar orasida ko'chirish.",
   },
+  "warehouse.apply": {
+    ru: "Проводить правку остатков без утверждения", uz: "Qoldiq tuzatishini tasdiqsiz o'tkazish",
+    hintRu: "Выключено — инвентаризация, ручная правка и остатки из файла уходят вам на утверждение.",
+    hintUz: "O'chirilgan bo'lsa — inventarizatsiya, qo'lda tuzatish va fayldagi qoldiqlar sizga tasdiqlash uchun keladi.",
+  },
   "suppliers.manage": {
     ru: "Вести поставщиков", uz: "Yetkazib beruvchilar",
     hintRu: "Заводить поставщиков и проводить оплаты им.",

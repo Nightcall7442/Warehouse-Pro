@@ -92,11 +92,13 @@ export function ExpiringBatches({ onOpenTransfers }: {
     onError: (e) => notify.error(errorText(e)),
   });
   const adjust = trpc.warehouse.adjustStock.useMutation({
-    onSuccess: () => {
+    onSuccess: (r) => {
       setWriteOff(null);
       utils.warehouseReports.expiring.invalidate();
       utils.warehouseReports.expiringSummary.invalidate();
-      notify.success(t("Списано", "Hisobdan chiqarildi"));
+      // Оператору без права проводить: списание ждёт директора, партия пока на месте.
+      if (r.pendingApproval) notify.info(t(`Списание отправлено руководителю на утверждение (${r.number})`, `Hisobdan chiqarish rahbarga tasdiqlash uchun yuborildi (${r.number})`));
+      else notify.success(t("Списано", "Hisobdan chiqarildi"));
     },
     onError: (e) => notify.error(errorText(e)),
   });
@@ -298,6 +300,7 @@ export function ExpiringBatches({ onOpenTransfers }: {
           onSave={d => adjust.mutate(d as Parameters<typeof adjust.mutate>[0])}
           onClose={() => setWriteOff(null)}
           isPending={adjust.isPending}
+          needsApproval={!can("warehouse.apply")}
         />
       )}
     </div>

@@ -170,6 +170,8 @@ export default function Warehouse() {
   */
   const can = useCan();
   const canAdjust = can("warehouse.adjust");
+  // Без права проводить правка не исчезает, а уходит директору заявкой.
+  const needsApproval = !can("warehouse.apply");
   const canDeleteProduct = can("products.manage");
 
   const handleAdjust = useCallback((item: { id: number; name: string; stock: number; unit: string; unitWeight: number }) => {
@@ -211,10 +213,15 @@ export default function Warehouse() {
   }, [confirm, deleteMutation, t]);
 
   const adjustMutation = trpc.warehouse.adjustStock.useMutation({
-    onSuccess: () => {
+    onSuccess: (r) => {
       utils.warehouseMulti.getStock.invalidate();
       setAdjusting(null);
-      notify.success(t("Сток обновлён", "Stok yangilandi"));
+      if (r.pendingApproval) {
+        utils.stockCount.list.invalidate();
+        notify.info(t(`Правка отправлена руководителю на утверждение (${r.number})`, `Tuzatish rahbarga tasdiqlash uchun yuborildi (${r.number})`));
+      } else {
+        notify.success(t("Сток обновлён", "Stok yangilandi"));
+      }
     },
     onError: (e) => notify.error(errorText(e)),
   });
@@ -372,6 +379,7 @@ export default function Warehouse() {
             onSave={d => adjustMutation.mutate(d as Parameters<typeof adjustMutation.mutate>[0])}
             onClose={() => setAdjusting(null)}
             isPending={adjustMutation.isPending}
+            needsApproval={needsApproval}
           />
         )}
       </div>

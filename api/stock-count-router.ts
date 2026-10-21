@@ -1,9 +1,9 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { and, desc, eq, sql } from "drizzle-orm";
-import { createRouter, operatorQuery, can } from "./middleware";
+import { createRouter, operatorQuery, adminQuery, can } from "./middleware";
 import { products, stockCountItems, stockCounts, warehouseStock, warehouses, users } from "@db/schema";
-import { recordStockMovement, setStock, StockBelowReserveError } from "./services/stock-ledger";
+import { applyCountLines, approveCount, nextCountNumber, rejectCount, submitCount } from "./services/stock-count";
 import { recordAudit } from "./services/audit-log";
 import { cache } from "./lib/cache";
 import { invalidateReports } from "./lib/report-cache";
@@ -19,9 +19,19 @@ type Db = ReturnType<typeof import("./queries/connection").getDb>;
   с посчитанным числом (сканер прибавляет единицу), применение одним
   действием через дверь остатка — и в журнале движений «инвентаризация» по
   каждой разнице. Применённый документ не правится: он и есть акт.
+
+  Оператор без права warehouse.apply не применяет, а отправляет
+  директору (submitCount); утверждение и отказ — у директора. Как и почему
+  утверждается разница, а не число, — в services/stock-count.ts.
 */
 
 const money2 = (n: number) => n.toFixed(2);
+
+/** Править можно только черновик; отправленный ждёт директора, применённый закрыт. */
+function assertDraft(status: string) {
+  if (status === "submitted") throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Документ на утверждении у руководителя — править его нельзя" });
+  if (status !== "draft") throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Документ уже применён или отменён" });
+}
 
 async function loadCount(db: Db, tenantId: number, id: number) {
   const [count] = await db.select().from(stockCounts)
@@ -39,6 +49,9 @@ export const stockCountRouter = createRouter({
         id: stockCounts.id, number: stockCounts.number, status: stockCounts.status,
         warehouseId: stockCounts.warehouseId, warehouseName: warehouses.name,
         createdAt: stockCounts.createdAt, appliedAt: stockCounts.appliedAt, notes: stockCounts.notes,
+        scope: stockCounts.scope, scopeCategory: stockCounts.scopeCategory,
+        origin: stockCounts.origin, adjustType: stockCounts.adjustType,
+        submittedAt: stockCounts.submittedAt, reviewNote: stockCounts.reviewNote,
         createdByName: users.name,
         lines: sql<number>`(SELECT COUNT(*) FROM stock_count_items i WHERE i.count_id = ${stockCounts.id})`.mapWith(Number),
         counted: sql<number>`(SELECT COUNT(*) FROM stock_count_items i WHERE i.count_id = ${stockCounts.id} AND i.counted IS NOT NULL)`.mapWith(Number),
@@ -64,9 +77,7 @@ export const stockCountRouter = createRouter({
         .where(and(eq(warehouses.id, input.warehouseId), eq(warehouses.tenantId, ctx.tenant.id))).limit(1);
       if (!wh) throw new TRPCError({ code: "NOT_FOUND", message: "Склад не найден" });
 
-      const [{ n }] = await db.select({ n: sql<number>`COUNT(*)`.mapWith(Number) }).from(stockCounts)
-        .where(eq(stockCounts.tenantId, ctx.tenant.id));
-      const number = `ИНВ-${n + 1}`;
+      const number = await nextCountNumber(db, ctx.tenant.id);
 
       const id = await db.transaction(async (tx) => {
         const [r] = await tx.insert(stockCounts).values({
@@ -91,12 +102,18 @@ export const stockCountRouter = createRouter({
     .query(async ({ input, ctx }) => {
       const db = ctx.db;
       const count = await loadCount(db, ctx.tenant.id, input.id);
+      // current — учёт сейчас: директору при утверждении видно, во что
+      // превратится остаток (сейчас + разница), а не только что было при отправке.
       const items = await db.select({
         id: stockCountItems.id, productId: stockCountItems.productId, expected: stockCountItems.expected,
-        counted: stockCountItems.counted, note: stockCountItems.note,
+        counted: stockCountItems.counted, note: stockCountItems.note, bookAtSubmit: stockCountItems.bookAtSubmit,
+        current: warehouseStock.currentStock,
         productName: products.name, productCode: products.code, barcode: products.barcode, unit: products.unit, costPrice: products.costPrice,
       }).from(stockCountItems)
-        .innerJoin(products, eq(stockCountItems.productId, products.id))
+        .innerJoin(products, and(eq(stockCountItems.productId, products.id), eq(products.tenantId, ctx.tenant.id)))
+        .leftJoin(warehouseStock, and(
+          eq(warehouseStock.productId, stockCountItems.productId), eq(warehouseStock.tenantId, ctx.tenant.id), eq(warehouseStock.warehouseId, count.warehouseId),
+        ))
         .where(eq(stockCountItems.countId, count.id))
         .orderBy(products.name);
       return { ...count, items };
@@ -112,27 +129,36 @@ export const stockCountRouter = createRouter({
       note: z.string().max(255).optional(),
     }))
     .mutation(async ({ input, ctx }) => {
-      const db = ctx.db;
-      const count = await loadCount(db, ctx.tenant.id, input.id);
-      if (count.status !== "draft") throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Документ уже применён или отменён" });
+      /*
+        Под замком документа: отправка на утверждение снимает учёт с
+        посчитанных строк, и строка, посчитанная в ту же секунду, осталась бы
+        без него — утверждать её было бы не от чего. Заодно два скана подряд
+        (+1, +1) не теряют единицу на чтении «было».
+      */
+      return ctx.db.transaction(async (tx) => {
+        const [count] = await tx.select().from(stockCounts)
+          .where(and(eq(stockCounts.id, input.id), eq(stockCounts.tenantId, ctx.tenant.id))).for("update").limit(1);
+        if (!count) throw new TRPCError({ code: "NOT_FOUND", message: "Инвентаризация не найдена" });
+        assertDraft(count.status);
 
-      const [item] = await db.select({ id: stockCountItems.id, counted: stockCountItems.counted }).from(stockCountItems)
-        .where(and(eq(stockCountItems.countId, count.id), eq(stockCountItems.productId, input.productId))).limit(1);
-      let itemId = item?.id;
-      if (!itemId) {
-        // Товар, которого в учёте на этом складе не было: ожидалось ноль.
-        const [p] = await db.select({ id: products.id }).from(products)
-          .where(and(eq(products.id, input.productId), eq(products.tenantId, ctx.tenant.id))).limit(1);
-        if (!p) throw new TRPCError({ code: "NOT_FOUND", message: "Товар не найден в вашей организации" });
-        const [r] = await db.insert(stockCountItems).values({ countId: count.id, productId: p.id, expected: "0.00" });
-        itemId = Number(r.insertId);
-      }
-      const base = item?.counted != null ? Number(item.counted) : 0;
-      const next = input.delta != null ? Math.max(0, base + input.delta) : input.counted ?? null;
-      await db.update(stockCountItems)
-        .set({ counted: next == null ? null : money2(next), ...(input.note !== undefined ? { note: input.note } : {}) })
-        .where(eq(stockCountItems.id, itemId));
-      return { counted: next };
+        const [item] = await tx.select({ id: stockCountItems.id, counted: stockCountItems.counted }).from(stockCountItems)
+          .where(and(eq(stockCountItems.countId, count.id), eq(stockCountItems.productId, input.productId))).limit(1);
+        let itemId = item?.id;
+        if (!itemId) {
+          // Товар, которого в учёте на этом складе не было: ожидалось ноль.
+          const [p] = await tx.select({ id: products.id }).from(products)
+            .where(and(eq(products.id, input.productId), eq(products.tenantId, ctx.tenant.id))).limit(1);
+          if (!p) throw new TRPCError({ code: "NOT_FOUND", message: "Товар не найден в вашей организации" });
+          const [r] = await tx.insert(stockCountItems).values({ countId: count.id, productId: p.id, expected: "0.00" });
+          itemId = Number(r.insertId);
+        }
+        const base = item?.counted != null ? Number(item.counted) : 0;
+        const next = input.delta != null ? Math.max(0, base + input.delta) : input.counted ?? null;
+        await tx.update(stockCountItems)
+          .set({ counted: next == null ? null : money2(next), ...(input.note !== undefined ? { note: input.note } : {}) })
+          .where(eq(stockCountItems.id, itemId));
+        return { counted: next };
+      });
     }),
 
   /**
@@ -140,10 +166,13 @@ export const stockCountRouter = createRouter({
    * подрезает партии), разница — в журнал движений. Непосчитанные строки не
    * трогаются: «не считали» — не «ноль». Ожидалось сверяется с ТЕКУЩИМ
    * остатком, а не со снимком: за время счёта могли продать, и движение
-   * пишется от того, что в учёте сейчас.
+   * пишется от того, что в учёте сейчас. Цикл общий с утверждением
+   * (services/stock-count.ts → applyCountLines).
+   *
+   * Оператору без права warehouse.apply закрыто: он отправляет на утверждение.
    */
   // «apply» — служебное слово у tRPC (router({}) его не принимает), поэтому applyCount.
-  applyCount: operatorQuery.use(can("warehouse.adjust"))
+  applyCount: operatorQuery.use(can("warehouse.adjust")).use(can("warehouse.apply"))
     .input(z.object({ id: z.number().int().positive() }))
     .mutation(async ({ input, ctx }) => {
       const db = ctx.db;
@@ -151,53 +180,43 @@ export const stockCountRouter = createRouter({
         const [count] = await tx.select().from(stockCounts)
           .where(and(eq(stockCounts.id, input.id), eq(stockCounts.tenantId, ctx.tenant.id))).for("update").limit(1);
         if (!count) throw new TRPCError({ code: "NOT_FOUND", message: "Инвентаризация не найдена" });
-        if (count.status !== "draft") throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Документ уже применён или отменён" });
+        assertDraft(count.status);
 
-        const items = await tx.select({ productId: stockCountItems.productId, counted: stockCountItems.counted })
+        const items = await tx.select({ productId: stockCountItems.productId, counted: stockCountItems.counted, note: stockCountItems.note })
           .from(stockCountItems).where(eq(stockCountItems.countId, count.id));
         const toApply = items.filter(i => i.counted != null);
         if (toApply.length === 0) throw new TRPCError({ code: "BAD_REQUEST", message: "Ни одна строка не посчитана — применять нечего" });
 
-        let surplus = 0, shortage = 0, changed = 0;
-        for (const it of toApply) {
-          const counted = Number(it.counted);
-          const [row] = await tx.select({ current: warehouseStock.currentStock }).from(warehouseStock)
-            .where(and(eq(warehouseStock.tenantId, ctx.tenant.id), eq(warehouseStock.warehouseId, count.warehouseId), eq(warehouseStock.productId, it.productId)))
-            .for("update").limit(1);
-          const current = Number(row?.current ?? 0);
-          const diff = counted - current;
-          if (Math.abs(diff) < 0.005) continue;
-          try {
-            await setStock(tx, { tenantId: ctx.tenant.id, warehouseId: count.warehouseId, productId: it.productId, quantity: counted });
-          } catch (e) {
-            // На полке насчитали меньше, чем отложено под заказы. Дверь
-            // отказывает числом — здесь называем товар: без имени отказ
-            // читается как придирка к цифре. Акт не применяется целиком.
-            if (!(e instanceof StockBelowReserveError)) throw e;
-            const [p] = await tx.select({ name: products.name }).from(products).where(eq(products.id, it.productId)).limit(1);
-            throw new TRPCError({
-              code: "PRECONDITION_FAILED",
-              message: `«${p?.name ?? `товар #${it.productId}`}»: на полке ${money2(counted)}, а под заказы отложено ${money2(e.reserved)}. Сначала проведите или отмените заказы, занявшие резерв, — потом примените акт.`,
-            });
-          }
-          await recordStockMovement(tx, {
-            tenantId: ctx.tenant.id, warehouseId: count.warehouseId, productId: it.productId,
-            type: diff > 0 ? "in" : "out", quantity: Math.abs(diff), reason: "inventory", referenceId: count.id,
-            notes: `${count.number}: по учёту ${money2(current)}, на полке ${money2(counted)}`,
-          });
-          if (diff > 0) surplus += diff; else shortage += -diff;
-          changed++;
-        }
+        const applied = await applyCountLines(tx, ctx.tenant.id, count, toApply.map(i => ({ productId: i.productId, counted: Number(i.counted), note: i.note })), "absolute");
         await tx.update(stockCounts).set({ status: "applied", appliedBy: ctx.user.id, appliedAt: new Date() })
           .where(and(eq(stockCounts.id, count.id), eq(stockCounts.status, "draft")));
-        return { number: count.number, applied: toApply.length, changed, surplus, shortage };
+        return applied;
       });
       // Остатки живут в кэше списков товаров — после акта они другие.
       cache.invalidatePrefix(`products:${ctx.tenant.id}`);
       await invalidateReports(ctx.tenant.id, "stock_count.apply");
-      await recordAudit(db, { tenantId: ctx.tenant.id, actorId: ctx.user.id, actorName: ctx.user.name, action: "stock_count.apply", targetType: "stock_count", targetId: input.id, meta: result });
+      await recordAudit(db, { tenantId: ctx.tenant.id, actorId: ctx.user.id, actorName: ctx.user.name, action: "stock_count.apply", targetType: "stock_count", targetId: input.id, meta: { ...result } });
       return result;
     }),
+
+  /**
+   * На утверждение директору: посчитанные строки запоминают учёт этой минуты,
+   * документ закрывается для правки, директору — уведомление. Остаток не
+   * меняется до «Утвердить».
+   */
+  submitCount: operatorQuery.use(can("warehouse.adjust"))
+    .input(z.object({ id: z.number().int().positive() }))
+    .mutation(async ({ input, ctx }) => submitCount(ctx.db, ctx.tenant.id, { id: ctx.user.id, name: ctx.user.name }, input.id)),
+
+  /** Утвердить — только директор: разница «посчитано − учёт при отправке» поверх текущего остатка. */
+  approveCount: adminQuery
+    .input(z.object({ id: z.number().int().positive() }))
+    .mutation(async ({ input, ctx }) => approveCount(ctx.db, ctx.tenant.id, { id: ctx.user.id, name: ctx.user.name }, input.id)),
+
+  /** Вернуть на доработку — только директор и только со словами: «не так» без причины ничему не учит. */
+  rejectCount: adminQuery
+    .input(z.object({ id: z.number().int().positive(), note: z.string().trim().min(1, "Напишите, что исправить").max(500) }))
+    .mutation(async ({ input, ctx }) => rejectCount(ctx.db, ctx.tenant.id, { id: ctx.user.id, name: ctx.user.name }, input.id, input.note)),
 
   cancel: operatorQuery.use(can("warehouse.adjust"))
     .input(z.object({ id: z.number().int().positive() }))

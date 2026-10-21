@@ -23,6 +23,9 @@ const KEY_LABEL: Record<string, Label> = {
   expected: { ru: "Ожидалось", uz: "Kutilgan" }, discrepancy: { ru: "Расхождение", uz: "Farq" },
   bankRef: { ru: "Операция банка", uz: "Bank operatsiyasi" }, recordedBy: { ru: "Записал", uz: "Yozgan" },
   shortage: { ru: "Недостача", uz: "Kamomad" }, paid: { ru: "Оплачено", uz: "To'langan" },
+  surplus: { ru: "Излишек", uz: "Ortiqcha" },
+  // инвентаризация и правка на утверждении (services/stock-count.ts)
+  origin: { ru: "Откуда", uz: "Manba" },
   // недоехавшее при перемещении «в пути» (services/stock-transfer.ts)
   shortageQty: { ru: "Не доехало", uz: "Yetib kelmadi" }, shortageCost: { ru: "Недостача по себестоимости", uz: "Tannarx bo'yicha kamomad" },
   // «Принять по заявленному» — вечерняя сдача курьера пачкой (services/order-close-batch.ts).
@@ -121,6 +124,9 @@ export const AUDIT_ACTION_LABEL: Record<string, Label> = {
   "stock_count.create": { ru: "Начата инвентаризация", uz: "Inventarizatsiya boshlandi" },
   "stock_count.apply": { ru: "Инвентаризация проведена", uz: "Inventarizatsiya o'tkazildi" },
   "stock_count.cancel": { ru: "Инвентаризация отменена", uz: "Inventarizatsiya bekor qilindi" },
+  "stock_count.submit": { ru: "Остатки отправлены на утверждение", uz: "Qoldiqlar tasdiqlashga yuborildi" },
+  "stock_count.approve": { ru: "Директор утвердил остатки", uz: "Direktor qoldiqlarni tasdiqladi" },
+  "stock_count.reject": { ru: "Директор вернул остатки на доработку", uz: "Direktor qoldiqlarni qayta ishlashga qaytardi" },
   "arrival.completed": { ru: "Приход оприходован", uz: "Kirim qabul qilindi" },
   "product.cost_averaged": { ru: "Себестоимость усреднена по приходу", uz: "Tannarx kirim bo'yicha o'rtacha hisoblandi" },
   "supplier.return_goods": { ru: "Возврат поставщику", uz: "Yetkazib beruvchiga qaytarish" },
@@ -175,6 +181,10 @@ const DISPOSITION: Record<string, Label> = {
 const FORMAT: Record<string, Label> = {
   aggregated: { ru: "сводный", uz: "jamlangan" }, byRoute: { ru: "по маршрутам", uz: "marshrut bo'yicha" },
 };
+/** Откуда документ инвентаризации (services/stock-count.ts). */
+const COUNT_ORIGIN: Record<string, Label> = {
+  count: { ru: "пересчёт", uz: "qayta sanash" }, adjust: { ru: "ручная правка", uz: "qo'lda tuzatish" }, import: { ru: "остатки из файла", uz: "fayldagi qoldiqlar" },
+};
 
 function money(v: unknown): string {
   const n = Number(v);
@@ -209,6 +219,7 @@ function word(key: string, v: unknown, lang: Lang): string {
   if (key === "actorRole" || key === "role" || key === "ROLE") return labelled(ROLE_LABEL, v, lang);
   if (key === "disposition") return labelled(DISPOSITION, v, lang);
   if (key === "format") return labelled(FORMAT, v, lang);
+  if (key === "origin") return labelled(COUNT_ORIGIN, v, lang);
   if (key === "type") return movementKind(String(v), lang);
   if (key === "items" || key === "lines" || key === "shortages" || key === "orders") return Array.isArray(v) ? String(v.length) : String(v);
   if (key === "failed" || key === "updated") return Array.isArray(v) ? String(v.length) : String(v);

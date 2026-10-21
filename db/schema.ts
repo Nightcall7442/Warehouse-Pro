@@ -945,14 +945,36 @@ export const stockCounts = mysqlTable("stock_counts", {
   tenantId:    bigint("tenant_id", { mode: "number", unsigned: true }).notNull().references(() => tenants.id, { onDelete: "restrict" }),
   warehouseId: bigint("warehouse_id", { mode: "number", unsigned: true }).notNull().references(() => warehouses.id, { onDelete: "restrict" }),
   number:      varchar("number", { length: 30 }).notNull(),
-  status:      mysqlEnum("status", ["draft", "applied", "cancelled"]).default("draft").notNull(),
+  /**
+   * draft → applied напрямую (директор и оператор с правом warehouse.apply);
+   * draft → submitted → applied через утверждение директора; отказ директора
+   * возвращает submitted в draft с его словами в reviewNote.
+   */
+  status:      mysqlEnum("status", ["draft", "submitted", "applied", "cancelled"]).default("draft").notNull(),
   notes:       text("notes"),
+  /** Что считаем: весь склад («full»), одну категорию («category») или выбранные товары («items»). */
+  scope:         varchar("scope", { length: 20 }).default("full").notNull(),
+  scopeCategory: varchar("scope_category", { length: 100 }),
+  /**
+   * Откуда документ: пересчёт («count»), заявка на ручную правку остатка
+   * («adjust», тип правки — в adjustType) или начальные остатки из файла
+   * («import»). Две последние рождаются сразу на утверждении.
+   */
+  origin:      varchar("origin", { length: 20 }).default("count").notNull(),
+  adjustType:  varchar("adjust_type", { length: 20 }),
   createdBy:   bigint("created_by", { mode: "number", unsigned: true }).notNull().references(() => users.id, { onDelete: "restrict" }),
+  submittedBy: bigint("submitted_by", { mode: "number", unsigned: true }).references(() => users.id, { onDelete: "restrict" }),
+  submittedAt: timestamp("submitted_at"),
+  /** Почему директор вернул документ — последнее слово, видно оператору. */
+  reviewNote:  varchar("review_note", { length: 500 }),
+  reviewedBy:  bigint("reviewed_by", { mode: "number", unsigned: true }).references(() => users.id, { onDelete: "restrict" }),
+  reviewedAt:  timestamp("reviewed_at"),
   appliedBy:   bigint("applied_by", { mode: "number", unsigned: true }).references(() => users.id, { onDelete: "restrict" }),
   appliedAt:   timestamp("applied_at"),
   createdAt:   timestamp("created_at").defaultNow().notNull(),
 }, (t) => ({
   tenantIdx: index("idx_stock_counts_tenant").on(t.tenantId, t.createdAt),
+  statusIdx: index("idx_stock_counts_status").on(t.tenantId, t.status),
 }));
 
 export const stockCountItems = mysqlTable("stock_count_items", {
@@ -963,6 +985,12 @@ export const stockCountItems = mysqlTable("stock_count_items", {
   expected:  decimal("expected", { precision: 12, scale: 2 }).notNull(),
   /** Что насчитали на полке. Пусто — ещё не считали; такая строка при применении пропускается. */
   counted:   decimal("counted", { precision: 12, scale: 2 }),
+  /**
+   * Учётный остаток в момент отправки на утверждение. Директор утверждает
+   * РАЗНИЦУ «посчитано − это число»: продажи между отправкой и утверждением
+   * остаются в остатке, а не стираются задним числом.
+   */
+  bookAtSubmit: decimal("book_at_submit", { precision: 12, scale: 2 }),
   note:      varchar("note", { length: 255 }),
 }, (t) => ({
   countProductUq: uniqueIndex("uq_stock_count_items_count_product").on(t.countId, t.productId),

@@ -4,6 +4,7 @@ import { recordAudit } from "./audit-log";
 import { recordStockMovement, receiveStock, applyStockEffect, setStock } from "./stock-ledger";
 import { TRPCError } from "@trpc/server";
 import { invalidateReports } from "../lib/report-cache";
+import { requestAdjust } from "./stock-count";
 
 type DrizzleInstance = ReturnType<typeof import("../queries/connection").getDb>;
 
@@ -46,7 +47,13 @@ export const StockService = {
     notes?: string,
     actor?: { id: number; name: string; ip?: string },
     warehouseId?: number,
-  ) {
+    /**
+     * «request» — оператор без права warehouse.apply: остаток не меняется,
+     * правка уходит директору заявкой (документ ИНВ-N на утверждении).
+     * Проверки товара, склада и количества — те же, что у прямой правки.
+     */
+    mode: "apply" | "request" = "apply",
+  ): Promise<{ success: true; pendingApproval: boolean; countId?: number; number?: string }> {
     if (!Number.isFinite(quantity) || quantity <= 0) {
       throw new Error("Количество должно быть положительным числом");
     }
@@ -84,6 +91,12 @@ export const StockService = {
     }
 
     const whId = warehouseId ?? await getDefaultWarehouseId(db, tenantId);
+
+    if (mode === "request") {
+      if (!actor) throw new Error("stock adjust request needs an actor");
+      const req = await requestAdjust(db, tenantId, { id: actor.id, name: actor.name }, { warehouseId: whId, productId, type, quantity, notes });
+      return { success: true, pendingApproval: true, countId: req.id, number: req.number };
+    }
 
     let updatedAvailable: string | undefined;
     let productName: string | undefined;
@@ -206,6 +219,6 @@ export const StockService = {
       ip: actor?.ip,
     });
 
-    return { success: true };
+    return { success: true, pendingApproval: false };
   },
 };

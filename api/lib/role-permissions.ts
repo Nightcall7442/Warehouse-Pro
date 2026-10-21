@@ -97,3 +97,16 @@ export async function capabilitiesOf(
   if (!(CONFIGURABLE_ROLES as readonly string[]).includes(role)) return allCapabilities();
   return capabilityMap(db, tenantId, role as ConfigurableRole);
 }
+
+/**
+ * Проводит ли этот человек правку остатка сам — или отправляет её директору.
+ *
+ * Не отказ, как у can(): оператор без warehouse.apply правку делает, но она
+ * становится заявкой (services/stock-count.ts). Поэтому спрашивается внутри
+ * ручки, а не стражем перед ней. Сбой чтения настройки — «можно», как и у
+ * capabilityMap: остановить склад из-за сбоя хуже, чем провести правку.
+ */
+export async function needsStockApproval(db: Db, tenantId: number, role: string): Promise<boolean> {
+  const map = await capabilitiesOf(db, tenantId, role);
+  return map["warehouse.apply"] === false;
+}

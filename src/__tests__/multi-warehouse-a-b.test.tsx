@@ -68,6 +68,9 @@ const stub = vi.hoisted(() => {
 });
 vi.mock("@/providers/trpc", () => ({ trpc: stub.trpc }));
 vi.mock("@/components/ConfirmDialog", () => ({ useConfirm: () => ({ confirm: async () => true, dialog: null }) }));
+// Инвентаризация спрашивает роль (директор утверждает) и право проводить без утверждения.
+vi.mock("@/hooks/useAuth", () => ({ useAuth: () => ({ user: { id: 1, role: "ceo" } }) }));
+vi.mock("@/hooks/useCan", () => ({ useCan: () => () => true }));
 
 const { StockTransfers } = await import("@/components/warehouse/StockTransfers");
 const { WarehouseCompare } = await import("@/components/warehouse/WarehouseCompare");

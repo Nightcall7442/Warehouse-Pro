@@ -57,12 +57,15 @@ const NUMBERED: Record<string, { ru: string; uz: string }> = {
   // Документ перемещения «ПМ-12»: ушло с этого склада / пришло на него (или вернулось при отмене).
   transfer_doc_out: { ru: "Перемещение со склада", uz: "Ombordan ko'chirish" },
   transfer_doc_in:  { ru: "Перемещение на склад",  uz: "Omborga ko'chirish" },
+  // Правка и начальные остатки из файла, проведённые утверждением директора,
+  // ссылаются на свой документ «ИНВ-12». Прямая правка номера не имеет — и
+  // называется без него, как раньше.
+  manual_adjustment: { ru: "Ручная правка",     uz: "Qo'lda tuzatish" },
+  import:            { ru: "Загрузка из файла", uz: "Fayldan yuklash" },
 };
 
 /** События без своего документа: номера у них нет и быть не может. */
 const UNNUMBERED: Record<string, { ru: string; uz: string }> = {
-  manual_adjustment: { ru: "Ручная правка",     uz: "Qo'lda tuzatish" },
-  import:            { ru: "Загрузка из файла", uz: "Fayldan yuklash" },
   onec_sync:         { ru: "Обмен с 1С",        uz: "1C bilan almashinuv" },
 };
 

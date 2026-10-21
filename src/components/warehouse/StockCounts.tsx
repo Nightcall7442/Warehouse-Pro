@@ -1,15 +1,18 @@
 import { useMemo, useState } from "react";
 import { trpc } from "@/providers/trpc";
 import { useLang } from "@/i18n";
+import { useAuth } from "@/hooks/useAuth";
+import { useCan } from "@/hooks/useCan";
 import { useConfirm } from "@/components/ConfirmDialog";
 import { PremiumSelect } from "@/components/PremiumSelect";
 import { BarcodeScanner } from "@/components/BarcodeScanner";
+import { AppModal, modalFieldLabel } from "@/components/ui/AppModal";
 import { notify } from "@/lib/toast";
 import { formatQty } from "@/lib/format";
 import { useCurrency } from "@/hooks/useCurrency";
 import { F, COLORS, thStyle, tdStyle } from "@/components/users/types";
 import { format } from "@/lib/business-time";
-import { ClipboardList, Plus, ScanLine, Check, X } from "lucide-react";
+import { ClipboardList, Plus, ScanLine, Check, X, Send, Undo2 } from "lucide-react";
 import { errorText } from "@/lib/error-text";
 
 /**
@@ -21,14 +24,55 @@ import { errorText } from "@/lib/error-text";
  * или клавиатура-сканер: код + Enter → +1); внизу итог излишков и недостач в
  * штуках и деньгах по себестоимости; «Применить» проводит всё разом через
  * дверь остатка. Непосчитанные строки не трогаются: «не считали» — не «ноль».
+ *
+ * Оператор, которому директор закрыл «проводить без утверждения» (warehouse.apply),
+ * вместо «Применить» видит «На утверждение»; директор — «Утвердить» и
+ * «Вернуть» с объяснением. Сюда же приходят заявки на ручную правку и
+ * начальные остатки из файла: это такие же документы на утверждении.
  */
 
 type Warehouse = { id: number; name: string; isDefault?: boolean | null };
+type Translate = (ru: string, uz: string) => string;
+
+/** Статус документа: подпись, цвет текста, фон метки. */
+function statusLook(t: Translate): Record<string, [string, string, string]> {
+  return {
+    draft: [t("черновик", "qoralama"), "var(--color-warning-text)", "color-mix(in srgb, var(--color-warning) 12%, transparent)"],
+    submitted: [t("на утверждении", "tasdiqlashda"), "var(--color-info-text)", "var(--color-info-subtle)"],
+    applied: [t("применена", "qo'llandi"), "var(--color-success-text)", "color-mix(in srgb, var(--color-success) 12%, transparent)"],
+    cancelled: [t("отменена", "bekor qilindi"), "var(--color-text-tertiary)", "var(--color-surface-light)"],
+  };
+}
+
+/**
+ * Учёт, от которого считается разница. У отправленного на утверждение — учёт
+ * при отправке: именно разницу от него директор проводит поверх текущего
+ * остатка. У черновика — снимок при создании (при отказе учёт отправки
+ * стирается, и строка снова считается от снимка).
+ */
+function baseOf(it: { expected: string; bookAtSubmit: string | null }): number {
+  return Number(it.bookAtSubmit ?? it.expected);
+}
+
+/** Что это за документ: пересчёт склада, категории, выбранных товаров, заявка на правку, остатки из файла. */
+function kindOf(t: Translate, c: { origin?: string | null; adjustType?: string | null; scope?: string | null; scopeCategory?: string | null }): string {
+  if (c.origin === "adjust") {
+    return c.adjustType === "in" ? t("правка: приход", "tuzatish: kirim")
+      : c.adjustType === "out" ? t("правка: списание", "tuzatish: chiqim")
+      : t("правка: установить остаток", "tuzatish: qoldiqni o'rnatish");
+  }
+  if (c.origin === "import") return t("остатки из файла", "fayldagi qoldiqlar");
+  if (c.scope === "category") return `${t("категория", "turkum")} «${c.scopeCategory ?? ""}»`;
+  if (c.scope === "items") return t("выбранные товары", "tanlangan tovarlar");
+  return t("весь склад", "butun ombor");
+}
 
 export function StockCounts({ warehouses }: { warehouses: Warehouse[] }) {
   const { lang } = useLang();
   const t = (ru: string, uz: string) => (lang === "uz" ? uz : ru);
   const utils = trpc.useUtils();
+  const { user } = useAuth();
+  const isDirector = user?.role === "ceo";
   const [openId, setOpenId] = useState<number | null>(null);
   const [warehouseId, setWarehouseId] = useState<string>(String(warehouses.find(w => w.isDefault)?.id ?? warehouses[0]?.id ?? ""));
 
@@ -40,14 +84,24 @@ export function StockCounts({ warehouses }: { warehouses: Warehouse[] }) {
 
   if (openId != null) return <StockCountSheet id={openId} onBack={() => { setOpenId(null); utils.stockCount.list.invalidate(); }} />;
 
-  const STATUS: Record<string, [string, string, string]> = {
-    draft: [t("черновик", "qoralama"), "var(--color-warning-text)", "color-mix(in srgb, var(--color-warning) 12%, transparent)"],
-    applied: [t("применена", "qo'llandi"), "var(--color-success-text)", "color-mix(in srgb, var(--color-success) 12%, transparent)"],
-    cancelled: [t("отменена", "bekor qilindi"), "var(--color-text-tertiary)", "var(--color-surface-light)"],
-  };
+  const STATUS = statusLook(t);
+  const rows = listQ.data ?? [];
+  const waiting = rows.filter(c => c.status === "submitted").length;
 
   return (
     <div className="space-y-4">
+      {waiting > 0 && (
+        <div className="neo-card p-4 flex items-center gap-3" data-testid="stock-count-waiting"
+          style={{ background: "var(--color-info-subtle)", color: "var(--color-info-text)" }}>
+          <Send size={16} />
+          <span className="text-sm font-semibold">
+            {isDirector
+              ? t(`Ждут вашего утверждения: ${waiting}`, `Tasdiqlashingizni kutmoqda: ${waiting}`)
+              : t(`На утверждении у руководителя: ${waiting}`, `Rahbar tasdiqlashida: ${waiting}`)}
+          </span>
+        </div>
+      )}
+
       <div className="neo-card p-5 flex flex-wrap items-end gap-3">
         {/* Выбор склада — только когда есть из чего выбирать. */}
         {warehouses.length > 1 && (
@@ -70,17 +124,23 @@ export function StockCounts({ warehouses }: { warehouses: Warehouse[] }) {
         <div style={{ overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0 }}>
             <thead><tr>
-              {[t("НОМЕР", "RAQAM"), t("СКЛАД", "OMBOR"), t("СОЗДАНА", "YARATILDI"), t("СТРОК", "QATORLAR"), t("ПОСЧИТАНО", "HISOBLANDI"), t("СТАТУС", "HOLAT"), ""].map((h, i) => (
-                <th key={i} style={{ ...thStyle, textAlign: i === 0 || i === 1 ? "left" : "right" }}>{h}</th>
+              {[t("НОМЕР", "RAQAM"), t("СКЛАД", "OMBOR"), t("ЧТО", "NIMA"), t("СОЗДАНА", "YARATILDI"), t("СТРОК", "QATORLAR"), t("ПОСЧИТАНО", "HISOBLANDI"), t("СТАТУС", "HOLAT"), ""].map((h, i) => (
+                <th key={i} style={{ ...thStyle, textAlign: i <= 2 ? "left" : "right" }}>{h}</th>
               ))}
             </tr></thead>
             <tbody>
-              {(listQ.data ?? []).map(c => {
+              {rows.map(c => {
                 const [label, color, bg] = STATUS[c.status] ?? STATUS.draft;
                 return (
                   <tr key={c.id} className="row-hover" data-testid={`stock-count-${c.id}`}>
                     <td style={tdStyle}><span style={{ fontWeight: 700, fontFamily: F.display }}>{c.number}</span></td>
                     <td style={tdStyle}>{c.warehouseName ?? "—"}</td>
+                    <td style={{ ...tdStyle, color: COLORS.textSecondary, fontSize: 12 }}>
+                      {kindOf(t, c)}
+                      {c.status === "draft" && c.reviewNote && (
+                        <span style={{ display: "block", color: "var(--color-danger-text)" }}>{t("Возвращено", "Qaytarildi")}: {c.reviewNote}</span>
+                      )}
+                    </td>
                     <td style={{ ...tdStyle, textAlign: "right", color: COLORS.textSecondary }}>{format(new Date(c.createdAt), "dd.MM.yyyy HH:mm")}</td>
                     <td style={{ ...tdStyle, textAlign: "right" }}>{c.lines}</td>
                     <td style={{ ...tdStyle, textAlign: "right" }}>{c.counted}</td>
@@ -88,13 +148,15 @@ export function StockCounts({ warehouses }: { warehouses: Warehouse[] }) {
                       <span style={{ padding: "3px 10px", borderRadius: 999, fontSize: 11, fontWeight: 600, color, background: bg }}>{label}</span>
                     </td>
                     <td style={{ ...tdStyle, textAlign: "right" }}>
-                      <button className="neo-btn neo-btn-xs tap" onClick={() => setOpenId(c.id)}>{c.status === "draft" ? t("Продолжить", "Davom etish") : t("Открыть", "Ochish")}</button>
+                      <button className="neo-btn neo-btn-xs tap" onClick={() => setOpenId(c.id)}>
+                        {c.status === "draft" ? t("Продолжить", "Davom etish") : c.status === "submitted" && isDirector ? t("Рассмотреть", "Ko'rib chiqish") : t("Открыть", "Ochish")}
+                      </button>
                     </td>
                   </tr>
                 );
               })}
               {listQ.data?.length === 0 && (
-                <tr><td colSpan={7} style={{ ...tdStyle, textAlign: "center", padding: "40px", color: COLORS.textTertiary }}>
+                <tr><td colSpan={8} style={{ ...tdStyle, textAlign: "center", padding: "40px", color: COLORS.textTertiary }}>
                   <ClipboardList size={28} style={{ margin: "0 auto 8px", display: "block" }} />
                   {t("Инвентаризаций ещё не было", "Inventarizatsiya hali bo'lmagan")}
                 </td></tr>
@@ -113,6 +175,13 @@ function StockCountSheet({ id, onBack }: { id: number; onBack: () => void }) {
   const { fmt } = useCurrency();
   const { confirm, dialog } = useConfirm();
   const utils = trpc.useUtils();
+  const { user } = useAuth();
+  const isDirector = user?.role === "ceo";
+  const can = useCan();
+  // Без права проводить оператор не применяет, а отправляет директору.
+  const canApply = can("warehouse.apply");
+  const [rejecting, setRejecting] = useState(false);
+  const [rejectNote, setRejectNote] = useState("");
   const q = trpc.stockCount.get.useQuery({ id });
   const [search, setSearch] = useState("");
   const [wedge, setWedge] = useState("");
@@ -136,16 +205,40 @@ function StockCountSheet({ id, onBack }: { id: number; onBack: () => void }) {
     onSuccess: () => { notify.info(t("Инвентаризация отменена", "Inventarizatsiya bekor qilindi")); onBack(); },
     onError: (e) => notify.error(errorText(e)),
   });
+  const submit = trpc.stockCount.submitCount.useMutation({
+    onSuccess: (r) => {
+      utils.stockCount.get.invalidate({ id }); utils.stockCount.list.invalidate();
+      notify.success(t(`${r.number} отправлена руководителю на утверждение`, `${r.number} rahbarga tasdiqlash uchun yuborildi`));
+    },
+    onError: (e) => notify.error(errorText(e)),
+  });
+  const approve = trpc.stockCount.approveCount.useMutation({
+    onSuccess: (r) => {
+      utils.stockCount.get.invalidate({ id }); utils.stockCount.list.invalidate(); utils.warehouseMulti.getStock.invalidate();
+      notify.success(t(`${r.number} утверждена: изменено ${r.changed} из ${r.applied}, излишек ${formatQty(r.surplus)}, недостача ${formatQty(r.shortage)}`,
+        `${r.number} tasdiqlandi: ${r.applied} dan ${r.changed} o'zgardi`));
+    },
+    onError: (e) => notify.error(errorText(e)),
+  });
+  const reject = trpc.stockCount.rejectCount.useMutation({
+    onSuccess: (r) => {
+      setRejecting(false); setRejectNote("");
+      utils.stockCount.get.invalidate({ id }); utils.stockCount.list.invalidate();
+      notify.info(t(`${r.number} возвращена на доработку`, `${r.number} qayta ishlashga qaytarildi`));
+    },
+    onError: (e) => notify.error(errorText(e)),
+  });
 
   const items = useMemo(() => q.data?.items ?? [], [q.data]);
   const draft = q.data?.status === "draft";
+  const submitted = q.data?.status === "submitted";
 
   const summary = useMemo(() => {
     let surplusQty = 0, shortageQty = 0, surplusMoney = 0, shortageMoney = 0, counted = 0;
     for (const it of items) {
       if (it.counted == null) continue;
       counted++;
-      const diff = Number(it.counted) - Number(it.expected);
+      const diff = Number(it.counted) - baseOf(it);
       const cost = Number(it.costPrice ?? 0);
       if (diff > 0) { surplusQty += diff; surplusMoney += diff * cost; }
       else if (diff < 0) { shortageQty += -diff; shortageMoney += -diff * cost; }
@@ -164,7 +257,7 @@ function StockCountSheet({ id, onBack }: { id: number; onBack: () => void }) {
 
   const visible = items.filter(it => {
     if (search) { const s = search.toLowerCase(); if (!it.productName.toLowerCase().includes(s) && !(it.productCode ?? "").toLowerCase().includes(s)) return false; }
-    if (onlyDiff) { if (it.counted == null) return false; if (Math.abs(Number(it.counted) - Number(it.expected)) < 0.005) return false; }
+    if (onlyDiff) { if (it.counted == null) return false; if (Math.abs(Number(it.counted) - baseOf(it)) < 0.005) return false; }
     return true;
   });
 
@@ -181,6 +274,31 @@ function StockCountSheet({ id, onBack }: { id: number; onBack: () => void }) {
     if (ok) apply.mutate({ id });
   };
 
+  const onSubmit = async () => {
+    const ok = await confirm({
+      title: t("Отправить на утверждение?", "Tasdiqlashga yuborilsinmi?"),
+      message: t(
+        `${q.data?.number}: посчитано ${summary.counted} из ${summary.total} строк. Руководитель увидит излишек ${formatQty(summary.surplusQty)} и недостачу ${formatQty(summary.shortageQty)}. До его решения остатки не изменятся, а документ нельзя будет править.`,
+        `${q.data?.number}: ${summary.total} qatordan ${summary.counted} hisoblandi. Rahbar qaroriga qadar qoldiqlar o'zgarmaydi, hujjatni tahrirlab bo'lmaydi.`,
+      ),
+      confirmText: t("Отправить", "Yuborish"),
+    });
+    if (ok) submit.mutate({ id });
+  };
+
+  const onApprove = async () => {
+    const ok = await confirm({
+      title: t("Утвердить и провести?", "Tasdiqlab o'tkazilsinmi?"),
+      message: t(
+        `${q.data?.number}: излишек ${formatQty(summary.surplusQty)} (${fmt(summary.surplusMoney.toFixed(0))}), недостача ${formatQty(summary.shortageQty)} (${fmt(summary.shortageMoney.toFixed(0))}). К текущему остатку прибавится разница «посчитано − учёт при отправке»: проданное после отправки останется проданным. Отменить нельзя.`,
+        `${q.data?.number}: ortiqcha ${formatQty(summary.surplusQty)}, kamomad ${formatQty(summary.shortageQty)}. Joriy qoldiqqa «sanalgan − yuborilgandagi hisob» farqi qo'shiladi. Bekor qilib bo'lmaydi.`,
+      ),
+      confirmText: t("Утвердить", "Tasdiqlash"),
+      danger: summary.shortageQty > 0,
+    });
+    if (ok) approve.mutate({ id });
+  };
+
   if (q.isLoading || !q.data) return <div className="neo-card p-8 text-center" style={{ color: COLORS.textTertiary }}>…</div>;
 
   return (
@@ -191,10 +309,27 @@ function StockCountSheet({ id, onBack }: { id: number; onBack: () => void }) {
       <div className="neo-card p-5 flex flex-wrap items-center gap-3">
         <button className="neo-btn neo-btn-xs tap" onClick={onBack}>← {t("Назад", "Orqaga")}</button>
         <div>
-          <p style={{ margin: 0, fontFamily: F.display, fontWeight: 700, fontSize: 16 }}>{q.data.number} · {q.data.status === "draft" ? t("черновик", "qoralama") : q.data.status === "applied" ? t("применена", "qo'llandi") : t("отменена", "bekor qilindi")}</p>
-          <p style={{ margin: 0, fontSize: 12, color: COLORS.textTertiary }}>{format(new Date(q.data.createdAt), "dd.MM.yyyy HH:mm")}{q.data.appliedAt ? ` · ${t("применена", "qo'llandi")} ${format(new Date(q.data.appliedAt), "dd.MM.yyyy HH:mm")}` : ""}</p>
+          <p style={{ margin: 0, fontFamily: F.display, fontWeight: 700, fontSize: 16 }}>{q.data.number} · {(statusLook(t)[q.data.status] ?? statusLook(t).draft)[0]}</p>
+          <p style={{ margin: 0, fontSize: 12, color: COLORS.textTertiary }}>
+            {kindOf(t, q.data)} · {format(new Date(q.data.createdAt), "dd.MM.yyyy HH:mm")}
+            {q.data.submittedAt && submitted ? ` · ${t("отправлена", "yuborildi")} ${format(new Date(q.data.submittedAt), "dd.MM.yyyy HH:mm")}` : ""}
+            {q.data.appliedAt ? ` · ${t("применена", "qo'llandi")} ${format(new Date(q.data.appliedAt), "dd.MM.yyyy HH:mm")}` : ""}
+          </p>
         </div>
         <div className="flex-1" />
+        {submitted && !isDirector && (
+          <span className="text-xs" style={{ color: "var(--color-info-text)" }}>{t("Ждёт решения руководителя", "Rahbar qarorini kutmoqda")}</span>
+        )}
+        {submitted && isDirector && (
+          <>
+            <button className="neo-btn tap flex items-center gap-1" disabled={reject.isPending} onClick={() => setRejecting(true)} data-testid="stock-count-reject">
+              <Undo2 size={14} /> {t("Вернуть", "Qaytarish")}
+            </button>
+            <button className="neo-btn-primary tap flex items-center gap-1" disabled={approve.isPending} onClick={onApprove} data-testid="stock-count-approve">
+              <Check size={14} /> {t("Утвердить", "Tasdiqlash")}
+            </button>
+          </>
+        )}
         {draft && (
           <>
             <input className="neo-input" style={{ width: 170, padding: "6px 8px", fontSize: 12 }} placeholder={t("Штрих-код + Enter", "Shtrix-kod + Enter")}
@@ -205,10 +340,41 @@ function StockCountSheet({ id, onBack }: { id: number; onBack: () => void }) {
             <button className="neo-btn tap flex items-center gap-1 text-danger" disabled={cancel.isPending} onClick={async () => {
               if (await confirm({ title: t("Отменить инвентаризацию?", "Bekor qilinsinmi?"), message: t("Посчитанное пропадёт, остатки не изменятся.", "Hisoblanganlar yo'qoladi, qoldiqlar o'zgarmaydi."), confirmText: t("Отменить", "Bekor qilish"), danger: true })) cancel.mutate({ id });
             }}><X size={14} /> {t("Отменить", "Bekor qilish")}</button>
-            <button className="neo-btn-primary tap flex items-center gap-1" disabled={apply.isPending || summary.counted === 0} onClick={onApply} data-testid="stock-count-apply"><Check size={14} /> {t("Применить", "Qo'llash")}</button>
+            {canApply ? (
+              <button className="neo-btn-primary tap flex items-center gap-1" disabled={apply.isPending || summary.counted === 0} onClick={onApply} data-testid="stock-count-apply"><Check size={14} /> {t("Применить", "Qo'llash")}</button>
+            ) : (
+              <button className="neo-btn-primary tap flex items-center gap-1" disabled={submit.isPending || summary.counted === 0} onClick={onSubmit} data-testid="stock-count-submit"><Send size={14} /> {t("На утверждение", "Tasdiqlashga")}</button>
+            )}
           </>
         )}
       </div>
+
+      {draft && q.data.reviewNote && (
+        <div className="neo-card p-4 text-sm" data-testid="stock-count-review-note" style={{ background: "var(--color-danger-subtle)", color: "var(--color-danger-text)" }}>
+          <b>{t("Руководитель вернул документ", "Rahbar hujjatni qaytardi")}:</b> {q.data.reviewNote}
+        </div>
+      )}
+
+      {rejecting && (
+        <AppModal open onClose={() => setRejecting(false)} dirty={rejectNote.trim() !== ""} maxWidth={480}
+          title={t("Вернуть на доработку", "Qayta ishlashga qaytarish")} subtitle={q.data.number}
+          footer={<>
+            <button type="button" className="neo-btn flex-1" onClick={() => setRejecting(false)}>{t("Отмена", "Bekor")}</button>
+            <button type="button" className="neo-btn-primary flex-1" data-testid="stock-count-reject-send"
+              disabled={!rejectNote.trim() || reject.isPending} onClick={() => reject.mutate({ id, note: rejectNote.trim() })}>
+              {t("Вернуть", "Qaytarish")}
+            </button>
+          </>}>
+          <div>
+            <label className={modalFieldLabel}>{t("Что исправить", "Nimani tuzatish kerak")}</label>
+            <textarea className="neo-input w-full" rows={3} maxLength={500} value={rejectNote} onChange={e => setRejectNote(e.target.value)} data-testid="stock-count-reject-note"
+              placeholder={t("Например: пересчитайте воду на второй полке", "Masalan: ikkinchi tokchadagi suvni qayta sanang")} />
+          </div>
+          <p className="text-xs" style={{ color: COLORS.textTertiary, margin: 0 }}>
+            {t("Остатки не изменятся; документ снова станет черновиком у того, кто считал.", "Qoldiqlar o'zgarmaydi; hujjat sanagan odamda yana qoralama bo'ladi.")}
+          </p>
+        </AppModal>
+      )}
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
@@ -236,18 +402,19 @@ function StockCountSheet({ id, onBack }: { id: number; onBack: () => void }) {
         <div style={{ overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0 }}>
             <thead><tr>
-              {[t("ТОВАР", "MAHSULOT"), t("КОД", "KOD"), t("ПО УЧЁТУ", "HISOBDA"), t("ПОСЧИТАНО", "HISOBLANDI"), t("РАЗНИЦА", "FARQ")].map((h, i) => (
+              {[t("ТОВАР", "MAHSULOT"), t("КОД", "KOD"), submitted ? t("ПРИ ОТПРАВКЕ", "YUBORILGANDA") : t("ПО УЧЁТУ", "HISOBDA"), t("ПОСЧИТАНО", "HISOBLANDI"), t("РАЗНИЦА", "FARQ"),
+                ...(submitted ? [t("СЕЙЧАС → СТАНЕТ", "HOZIR → BO'LADI")] : [])].map((h, i) => (
                 <th key={i} style={{ ...thStyle, textAlign: i < 2 ? "left" : "right" }}>{h}</th>
               ))}
             </tr></thead>
             <tbody>
               {visible.map(it => {
-                const diff = it.counted == null ? null : Number(it.counted) - Number(it.expected);
+                const diff = it.counted == null ? null : Number(it.counted) - baseOf(it);
                 return (
                   <tr key={it.id} className="row-hover" data-testid={`count-row-${it.productId}`}>
-                    <td style={tdStyle}>{it.productName}</td>
+                    <td style={tdStyle}>{it.productName}{it.note && q.data?.origin === "adjust" ? <span style={{ display: "block", fontSize: 11, color: COLORS.textTertiary }}>{it.note}</span> : null}</td>
                     <td style={{ ...tdStyle, color: COLORS.textTertiary, fontSize: 12 }}>{it.productCode}</td>
-                    <td style={{ ...tdStyle, textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{formatQty(it.expected)}</td>
+                    <td style={{ ...tdStyle, textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{formatQty(baseOf(it))}</td>
                     <td style={{ ...tdStyle, textAlign: "right" }}>
                       {draft ? (
                         <CountedInput value={it.counted} onCommit={v => setCounted.mutate({ id, productId: it.productId, counted: v })} />
@@ -256,6 +423,11 @@ function StockCountSheet({ id, onBack }: { id: number; onBack: () => void }) {
                     <td style={{ ...tdStyle, textAlign: "right", fontWeight: 700, fontVariantNumeric: "tabular-nums", color: diff == null ? COLORS.textTertiary : diff > 0 ? "var(--color-success-text)" : diff < 0 ? "var(--color-danger-text)" : COLORS.textSecondary }}>
                       {diff == null ? "—" : diff > 0 ? `+${formatQty(diff)}` : formatQty(diff)}
                     </td>
+                    {submitted && (
+                      <td style={{ ...tdStyle, textAlign: "right", fontVariantNumeric: "tabular-nums", color: COLORS.textSecondary }} data-testid={`count-will-${it.productId}`}>
+                        {diff == null ? "—" : `${formatQty(Number(it.current ?? 0))} → ${formatQty(Number(it.current ?? 0) + diff)}`}
+                      </td>
+                    )}
                   </tr>
                 );
               })}

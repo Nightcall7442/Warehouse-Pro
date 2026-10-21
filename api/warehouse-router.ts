@@ -126,11 +126,16 @@ export const warehouseRouter = createRouter({
     }))
     .mutation(async ({ input, ctx }) => {
       const { getClientIp } = await import("./lib/rate-limit");
+      const { needsStockApproval } = await import("./lib/role-permissions");
+      // Оператор без права проводить (warehouse.apply) правку не теряет: она
+      // уходит директору заявкой. Ответ говорит об этом pendingApproval —
+      // старый экран его не читает и просто покажет «готово».
+      const mode = await needsStockApproval(ctx.db, ctx.tenant.id, ctx.user.role) ? "request" : "apply";
       return StockService.adjust(ctx.db, ctx.tenant.id, input.productId, Number(input.quantity), input.type, input.notes, {
         id: ctx.user.id,
         name: ctx.user.name,
         ip: getClientIp(ctx.req) ?? undefined,
-      }, input.warehouseId);
+      }, input.warehouseId, mode);
     }),
 
   // ── Stock Valuation ─────────────────────────────────────────────────────────
