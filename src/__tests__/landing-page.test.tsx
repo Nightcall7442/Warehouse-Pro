@@ -77,8 +77,16 @@ const draw = () =>
 describe("лендинг: страница собирается", () => {
   it("рисуются все главы по порядку", () => {
     draw();
-    for (const id of ["loss", "product", "features", "map", "orders", "warehouse", "money", "setup", "mobile", "manual", "pricing", "faq"]) {
+    const ids = ["audience", "loss", "product", "features", "map", "orders", "warehouse", "money", "setup", "mobile", "manual", "pricing", "faq"];
+    for (const id of ids) {
       expect(document.getElementById(id), `главы #${id} нет на странице`).toBeTruthy();
+    }
+    // По порядку — буквально: «Для кого» стоит сразу за первым экраном,
+    // раньше потерь и функций (21.10.2026).
+    const at = ids.map(id => document.getElementById(id)!);
+    for (let i = 1; i < at.length; i++) {
+      const before = at[i - 1].compareDocumentPosition(at[i]) & Node.DOCUMENT_POSITION_FOLLOWING;
+      expect(before, `#${ids[i]} стоит раньше #${ids[i - 1]}`).toBeTruthy();
     }
   });
 

@@ -9,6 +9,7 @@ import { LandingStyles, Accordion, SectionHead, BtnInk, BtnGhost } from "@/compo
 import { LX, MONO, tgLink, CONTACT } from "@/components/landing/landing-tokens";
 import LandingHeader from "@/components/landing/LandingHeader";
 import TallyField from "@/components/landing/TallyField";
+import AudienceSection from "@/components/landing/AudienceSection";
 import { startLandingMotion } from "@/lib/landing-motion";
 import HeroSection from "@/components/landing/HeroSection";
 import { CTA_PHOTO } from "@/components/landing/PhotoStrip";
@@ -29,7 +30,7 @@ import PricingSection from "@/components/landing/PricingSection";
    ЛЕНДИНГ «СКЛАДСКАЯ КНИГА»
 
    Композиция страницы и правила дизайн-системы — в landing-shared.tsx.
-   Порядок: шапка → hero → архивные фото → окно продукта (чернила №1) →
+   Порядок: шапка → hero → для кого → архивные фото → окно продукта (чернила №1) →
    полоса фактов → день с продуктом → реестр возможностей → GPS → роли →
    отзывы → тарифы → FAQ → CTA (чернила №2) → футер. Якоря сохранены.
    ═══════════════════════════════════════════════════════════════════════════ */
@@ -346,6 +347,8 @@ export default function Landing() {
       */}
       <HeroSection />
       <TallyField />
+      {/* Сразу за первым экраном — для кого программа и кому не подойдёт: человек узнаёт себя раньше, чем начнёт читать про функции. */}
+      <AudienceSection />
       <LossSection />
       {/* Плёнка без номера: склад на рассвете кадр за кадром по прокрутке — внутри той же ночной полосы. */}
       <FilmScroll />
