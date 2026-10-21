@@ -288,9 +288,10 @@ describe("мёртвый сток и дозаказ", () => {
     // Колонки добавлены вместе с поставщиком и «в пути» в warehouse.reorderSuggestions.
     const [row] = formatReorderForExport([{
       productName: "Мука", supplierName: "Завод", currentStock: "10.000", available: "6.000",
-      reorderPoint: "20.00", target: 50, inbound: 24, suggestedQty: 20, suggestedCost: 1500,
+      reorderPoint: "20.00", target: 50, inbound: 14, unapproved: 10, suggestedQty: 20, suggestedCost: 1500,
     }]);
-    expect(row).toMatchObject({ "Поставщик": "Завод", "Остаток": 10, "Свободно": 6, "Максимум": 50, "В пути": 24, "Заказать": 20 });
+    // «В пути» — согласованное; черновики — своей колонкой: не едут, но вычтены.
+    expect(row).toMatchObject({ "Поставщик": "Завод", "Остаток": 10, "Свободно": 6, "Максимум": 50, "В пути": 14, "Не согласовано": 10, "Заказать": 20 });
     const [bare] = formatReorderForExport([{ productName: "Без поставщика", currentStock: "3" }]);
     expect(bare["Поставщик"]).toBe("");
     expect(bare["Свободно"]).toBe(3);

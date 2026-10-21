@@ -108,19 +108,25 @@ export async function lowStockRows(db: Db, tenantId: number, limit = 100): Promi
   Склад — выбранный, иначе основной (с него продают, ADR 0008). Какие
   товары — то же одно правило lowStockCondition(). Сколько:
 
-      цель     = максимум запаса товара, а если не задан — 2 × точка;
-      в пути   = неполученный остаток открытых заказов поставщикам на этот
-                 склад (черновик, на согласовании, согласован, принят
-                 частично) + приходы без заказа, ещё не проведённые, на этот
-                 склад;
-      заказать = цель − свободно − в пути, не меньше нуля, вверх до целой
-                 упаковки (если тара задана), иначе до целой единицы у
-                 штучных и до сотых у весовых.
+      цель           = максимум запаса товара, а если не задан — 2 × точка;
+      в пути         = неполученный остаток согласованных заказов поставщикам
+                       на этот склад (согласован, принят частично) + приходы
+                       без заказа, ещё не проведённые, на этот склад;
+      не согласовано = количество в черновиках и заказах на согласовании на
+                       этот склад — с номерами заказов;
+      заказать       = цель − свободно − в пути − не согласовано, не меньше
+                       нуля, вверх до целой упаковки (если тара задана),
+                       иначе до целой единицы у штучных и до сотых у весовых.
 
   Приход по заказу в «в пути» отдельно не считается: он уже сидит в остатке
   заказа и уменьшит его при проведении — иначе тот же товар считался бы
-  дважды. Черновики считаются нарочно: созданные отсюда же заказы тут же
-  перестают предлагаться снова.
+  дважды.
+
+  Черновик и заказ на согласовании — ещё не «в пути»: товар никто не везёт,
+  и так его и не называем. Но и предлагать его снова нельзя: созданные
+  отсюда же черновики тут же предлагались бы второй раз, и их заказывали бы
+  дважды. Поэтому вычитаются отдельным числом и с номерами заказов: брошенный
+  черновик видно, его отменяют — и товар снова предлагается (ADR 0014).
 
   Поставщик строки — поставщик товара по умолчанию, если он действует;
   иначе тот, кто привёз товар последним (по проведённым приходам с
@@ -130,8 +136,10 @@ export async function lowStockRows(db: Db, tenantId: number, limit = 100): Promi
 /** Штучные единицы: дозаказ — целым числом. Вес, объём и длина — до сотых. */
 const COUNTABLE_UNITS = new Set(["pcs", "box", "pack", "block"]);
 
-/** Заказ поставщику ещё ждёт товар — его остаток «в пути». */
-export const OPEN_PO_STATUSES = ["draft", "pending_approval", "approved", "partially_received"] as const;
+/** Заказ согласован и ещё ждёт товар — его остаток «в пути». */
+const INBOUND_PO_STATUSES = ["approved", "partially_received"] as const;
+/** Заказ ещё не согласован — его количество «не согласовано»: не едет, но и второй раз не предлагается. */
+const UNAPPROVED_PO_STATUSES = ["draft", "pending_approval"] as const;
 
 export interface ReorderQuantityInput {
   point: number;
@@ -175,7 +183,12 @@ export type ReorderPlanRow = {
   /** По свободному остатку; 999 — продаж не было. */
   daysUntilStockout: number;
   target: number;
+  /** В пути: согласованные заказы и приходы без заказа. */
   inbound: number;
+  /** В черновиках и на согласовании — вычтено из «заказать», но не «в пути». */
+  unapproved: number;
+  /** Какие заказы держат «не согласовано»: их открывают и отменяют брошенные. */
+  unapprovedOrders: Array<{ id: number; number: string; status: string; qty: number }>;
   suggestedQty: number;
   suggestedCost: number;
   supplierId: number | null;
@@ -233,19 +246,23 @@ export async function reorderPlan(db: Db, tenantId: number, warehouseId?: number
 
   const ids = rows.map(r => Number(r.productId));
   const [poOpen, looseArrivals, lastDelivered] = await Promise.all([
-    // Неполученный остаток открытых заказов поставщикам на этот склад.
+    // Неполученный остаток открытых заказов поставщикам на этот склад — по
+    // заказу: у несогласованных нужны номера, у согласованных — только сумма.
     db.select({
       productId: purchaseOrderItems.productId,
-      qty: sql<string>`SUM(GREATEST(${purchaseOrderItems.quantity} - ${purchaseOrderItems.receivedQty}, 0))`,
+      orderId: purchaseOrders.id,
+      number: purchaseOrders.number,
+      status: purchaseOrders.status,
+      qty: sql<string>`GREATEST(${purchaseOrderItems.quantity} - ${purchaseOrderItems.receivedQty}, 0)`,
     }).from(purchaseOrderItems)
       .innerJoin(purchaseOrders, eq(purchaseOrders.id, purchaseOrderItems.purchaseOrderId))
       .where(and(
         eq(purchaseOrders.tenantId, tenantId),
         eq(purchaseOrders.warehouseId, whId),
-        inArray(purchaseOrders.status, [...OPEN_PO_STATUSES]),
+        inArray(purchaseOrders.status, [...INBOUND_PO_STATUSES, ...UNAPPROVED_PO_STATUSES]),
         inArray(purchaseOrderItems.productId, ids),
       ))
-      .groupBy(purchaseOrderItems.productId),
+      .orderBy(purchaseOrders.id),
     // Приходы без заказа, ещё не проведённые: без склада — лягут на основной.
     db.select({
       productId: arrivalItems.productId,
@@ -276,9 +293,19 @@ export async function reorderPlan(db: Db, tenantId: number, warehouseId?: number
   ]);
 
   const inbound = new Map<number, number>();
-  for (const r of [...poOpen, ...looseArrivals]) {
-    inbound.set(Number(r.productId), (inbound.get(Number(r.productId)) ?? 0) + Number(r.qty ?? 0));
+  const unapproved = new Map<number, ReorderPlanRow["unapprovedOrders"]>();
+  const add = (productId: number, qty: number) => inbound.set(productId, (inbound.get(productId) ?? 0) + qty);
+  for (const r of poOpen) {
+    const productId = Number(r.productId);
+    const qty = Number(r.qty ?? 0);
+    if (!(qty > 0)) continue;
+    if ((UNAPPROVED_PO_STATUSES as readonly string[]).includes(r.status)) {
+      unapproved.set(productId, [...(unapproved.get(productId) ?? []), { id: Number(r.orderId), number: r.number, status: r.status, qty }]);
+    } else {
+      add(productId, qty);
+    }
   }
+  for (const r of looseArrivals) add(Number(r.productId), Number(r.qty ?? 0));
   const last = new Map(lastDelivered[0].map(r => [Number(r.productId), { id: Number(r.supplierId), name: String(r.name) }]));
 
   const defaultIds = [...new Set(rows.map(r => r.defaultSupplierId).filter((v): v is number => v != null))];
@@ -292,10 +319,12 @@ export async function reorderPlan(db: Db, tenantId: number, warehouseId?: number
     const available = Number(r.available ?? 0);
     const avgDaily = Number(r.avgDailySales ?? 0);
     const inb = Math.round((inbound.get(productId) ?? 0) * 100) / 100;
+    const held = unapproved.get(productId) ?? [];
+    const notApproved = Math.round(held.reduce((n, o) => n + o.qty, 0) * 100) / 100;
     const { target, suggested } = reorderQuantity({
       point: Number(r.reorderPoint ?? 0),
       max: r.reorderMax == null ? null : Number(r.reorderMax),
-      available, inbound: inb,
+      available, inbound: inb + notApproved,
       packSize: r.packSize == null ? null : Number(r.packSize),
       unit: r.unit,
     });
@@ -317,6 +346,8 @@ export async function reorderPlan(db: Db, tenantId: number, warehouseId?: number
       daysUntilStockout: avgDaily > 0 ? Math.max(0, Math.round(available / avgDaily)) : 999,
       target,
       inbound: inb,
+      unapproved: notApproved,
+      unapprovedOrders: held,
       suggestedQty: suggested,
       suggestedCost: Math.round(suggested * Number(r.costPrice ?? 0)),
       supplierId: own !== undefined ? Number(r.defaultSupplierId) : prev?.id ?? null,

@@ -15,7 +15,8 @@ import { ctxFor, hasRealDb, connectRealDb, closeRealDb, truncateAll, seed, count
  * Нарочная поломка: в services/reorder.ts считай «в пути» и приходы по
  * заказу (убери isNull(arrivals.purchaseOrderId)) — «в пути» насчитает
  * принятый заказ дважды; убери eq(purchaseOrders.warehouseId, whId) —
- * чужой склад уменьшит заказ основного.
+ * чужой склад уменьшит заказ основного; перестань вычитать «не
+ * согласовано» — черновик из «Дозаказа» предложится второй раз.
  */
 
 const DAY = "2026-10-01";
@@ -87,7 +88,7 @@ describe.skipIf(!hasRealDb)("дозаказ: склад, свободный ос
     expect(await rowOf(s.productId)).toBeUndefined();
   });
 
-  it("в пути: остаток открытых заказов на этот склад и приходы без заказа — каждый раз один раз", async () => {
+  it("в пути — согласованное и приходы без заказа; черновики — отдельно, с номером; каждое один раз", async () => {
     await runSql(sql`UPDATE products SET reorder_max = 50 WHERE id = ${s.productId}`);
     const c = await po();
     const line = (quantity: string) => [{ productId: s.productId, quantity, unitPrice: "80" }];
@@ -119,11 +120,14 @@ describe.skipIf(!hasRealDb)("дозаказ: склад, свободный ос
     const done = await a.create({ arrivalDate: DAY, items: [{ productId: s.productId, quantity: "0", expectedQuantity: "9" }] });
     await runSql(sql`UPDATE arrivals SET status = 'completed' WHERE id = ${done.id}`);
 
-    // 10 + 8 + 2 + 4 = 24; цель 50, свободно 6 — заказать 20.
-    expect(await rowOf(s.productId)).toMatchObject({ inbound: 24, target: 50, suggestedQty: 20 });
-    // На втором складе — свой «в пути»: заказ 7 и приход 6.
+    // В пути 8 + 2 + 4 = 14; черновик 10 — не едет, но вычитается и назван номером.
+    // Цель 50, свободно 6 — заказать 50 − 6 − 14 − 10 = 20.
+    const row = await rowOf(s.productId);
+    expect(row).toMatchObject({ inbound: 14, unapproved: 10, target: 50, suggestedQty: 20 });
+    expect(row!.unapprovedOrders).toEqual([{ id: expect.any(Number), number: "PO-1", status: "draft", qty: 10 }]);
+    // На втором складе — своё: приход 6 в пути, черновик 7 не согласован.
     await (db as any).insert(schema.warehouseStock).values({ tenantId: s.tenantId, productId: s.productId, warehouseId: secondWh, currentStock: "0.000", reserved: "0.000", available: "0.000" });
-    expect(await rowOf(s.productId, secondWh)).toMatchObject({ inbound: 13, suggestedQty: 37 });
+    expect(await rowOf(s.productId, secondWh)).toMatchObject({ inbound: 6, unapproved: 7, suggestedQty: 37 });
   });
 
   it("поставщик: из карточки, если действует; иначе кто привёз последним; иначе никто", async () => {
@@ -192,8 +196,13 @@ describe.skipIf(!hasRealDb)("дозаказ: склад, свободный ос
     const audit = await rows<{ meta: unknown }>(sql`SELECT meta FROM audit_log WHERE action = 'purchase_order.created' AND target_id = ${res.orders[0].id}`);
     expect(JSON.stringify(audit[0].meta)).toContain("fromReorder");
 
-    // Заказанное сразу «в пути»: второй раз то же не предлагается.
-    expect(await rowOf(s.productId)).toMatchObject({ suggestedQty: 0 });
+    // Заказанное сразу вычитается — «не согласовано», с номером черновика: второй раз то же не предлагается.
+    const after = await rowOf(s.productId);
+    expect(after).toMatchObject({ inbound: 0, unapproved: 35, suggestedQty: 0 });
+    expect(after!.unapprovedOrders.map(o => o.number)).toContain(res.orders[0].number);
+    // Брошенный черновик отменили — товар снова предлагается.
+    await c.cancel({ id: res.orders[0].id });
+    expect(await rowOf(s.productId)).toMatchObject({ unapproved: 1, suggestedQty: 33 });
   });
 
   it("одна транзакция: отказ по одному поставщику — ни одного черновика", async () => {

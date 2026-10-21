@@ -6,6 +6,8 @@ import type { AppRouter } from "../../../api/router";
 import { trpc } from "@/providers/trpc";
 import { useCan } from "@/hooks/useCan";
 import { useCurrency } from "@/hooks/useCurrency";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { labelled, PURCHASE_ORDER_STATUS_LABEL } from "@/lib/entity-labels";
 import { notify } from "@/lib/toast";
 import { errorText } from "@/lib/error-text";
 import { formatQty } from "@/lib/format";
@@ -31,12 +33,20 @@ const CARD: React.CSSProperties = { background: COLORS.surface, borderRadius: "2
  * поставщика выбирают здесь же; не выбран — её строки в заказ не идут.
  *
  * Заказы создаются черновиками (purchaseOrder.createFromSuggestions): их
- * согласует директор, как любой заказ. Пока черновик открыт, его товар
- * считается «в пути», и второй раз он здесь не предлагается.
+ * согласует директор, как любой заказ. «В пути» — только согласованное и
+ * приходы без заказа; черновики и заказы на согласовании — своим столбцом
+ * «Не согласовано», с номерами: товар не едет, но второй раз его здесь не
+ * предлагают, а брошенный черновик видно и его можно открыть и отменить
+ * (ADR 0014).
+ *
+ * На телефоне — карточки, как на остальных вкладках склада: десять столбцов
+ * с полями ввода в узкой ленте прокручивались вбок, и «Заказать» уходило за
+ * край. Без права вести поставщиков — ни отметок, ни полей, только цифры.
  */
 export function ReorderPlan({ rows, warehouseId, lang }: { rows: ReorderRow[]; warehouseId?: number; lang: "ru" | "uz" }) {
   const t = (ru: string, uz: string) => (lang === "uz" ? uz : ru);
   const navigate = useNavigate();
+  const isMobile = useIsMobile();
   const can = useCan();
   const canOrder = can("suppliers.manage");
   const { fmt } = useCurrency();
@@ -82,10 +92,55 @@ export function ReorderPlan({ rows, warehouseId, lang }: { rows: ReorderRow[]; w
   });
 
   const num: React.CSSProperties = { textAlign: "right", fontFamily: F.display, fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" };
+  const unapprovedHint = t(
+    "Черновики и заказы на согласовании: товар ещё не едет, но вычтен из «Заказать», чтобы не заказать дважды. Брошенный черновик отмените — товар снова предложится.",
+    "Qoralamalar va kelishuvdagi buyurtmalar: mahsulot hali yo'lda emas, lekin ikki marta buyurtma qilmaslik uchun «Buyurtma»dan ayirilgan. Tashlab qo'yilgan qoralamani bekor qiling — mahsulot yana taklif qilinadi.",
+  );
   const head = [
-    "", t("ТОВАР", "MAHSULOT"), t("СВОБОДНО", "BO'SH"), t("ПОРОГ", "CHEGARA"), t("МАКС.", "MAKS."),
-    t("В ПУТИ", "YO'LDA"), t("ПРОДАЖИ/ДЕНЬ", "SOTISH/KUN"), t("ДНЕЙ", "KUN"), t("ЗАКАЗАТЬ", "BUYURTMA"), t("СТОИМОСТЬ", "NARX"),
+    ...(canOrder ? [""] : []), t("ТОВАР", "MAHSULOT"), t("СВОБОДНО", "BO'SH"), t("ПОРОГ", "CHEGARA"), t("МАКС.", "MAKS."),
+    t("В ПУТИ", "YO'LDA"), t("НЕ СОГЛАСОВАНО", "KELISHILMAGAN"), t("ПРОДАЖИ/ДЕНЬ", "SOTISH/KUN"), t("ДНЕЙ", "KUN"), t("ЗАКАЗАТЬ", "BUYURTMA"), t("СТОИМОСТЬ", "NARX"),
   ];
+  const firstNumeric = canOrder ? 2 : 1;
+
+  /* Ячейки, общие для таблицы и карточки. */
+  const pick = (r: ReorderRow) => (
+    <input type="checkbox" checked={pickedOf(r)} aria-label={t(`Заказать: ${r.productName}`, `Buyurtma: ${r.productName}`)}
+      data-testid={`reorder-pick-${r.productId}`}
+      onChange={e => setPickEdits(p => ({ ...p, [r.productId]: e.target.checked }))} />
+  );
+  const qty = (r: ReorderRow, u: string) => (
+    <>
+      {canOrder ? (
+        <DecimalInput aria-label={t(`Количество: ${r.productName}`, `Miqdor: ${r.productName}`)} data-testid={`reorder-qty-${r.productId}`}
+          className="neo-input font-data" style={{ width: "96px", textAlign: "right" }}
+          value={qtyOf(r)} onValueChange={v => setQtyEdits(q => ({ ...q, [r.productId]: v }))} />
+      ) : (
+        <span style={{ fontWeight: 700, color: COLORS.primaryText }}>{r.suggestedQty > 0 ? `+${formatQty(r.suggestedQty)}` : "—"}</span>
+      )}
+      <span style={{ marginLeft: "4px", color: COLORS.textTertiary }}>{u}</span>
+    </>
+  );
+  const inboundCell = (r: ReorderRow) => (
+    <span data-testid={`reorder-inbound-${r.productId}`} style={{ color: r.inbound > 0 ? COLORS.primaryText : COLORS.textTertiary }}>
+      {r.inbound > 0 ? formatQty(r.inbound) : "—"}
+    </span>
+  );
+  /** «Не согласовано»: сколько и в каких заказах — номером-ссылкой на заказ. */
+  const unapprovedCell = (r: ReorderRow) => {
+    const held = r.unapprovedOrders ?? [];
+    return (
+      <span data-testid={`reorder-unapproved-${r.productId}`} title={unapprovedHint}>
+        <span style={{ color: (r.unapproved ?? 0) > 0 ? COLORS.warningText : COLORS.textTertiary }}>{(r.unapproved ?? 0) > 0 ? formatQty(r.unapproved) : "—"}</span>
+        {held.map(o => (
+          <button key={o.id} type="button" data-testid={`reorder-po-${r.productId}-${o.id}`} onClick={() => navigate(`/purchase-orders/${o.id}`)}
+            title={labelled(PURCHASE_ORDER_STATUS_LABEL, o.status, lang)}
+            style={{ display: "block", marginLeft: "auto", border: "none", background: "none", padding: 0, cursor: "pointer", font: "inherit", fontSize: "11px", color: COLORS.primaryText, textDecoration: "underline" }}>
+            {o.number}
+          </button>
+        ))}
+      </span>
+    );
+  };
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
@@ -119,10 +174,41 @@ export function ReorderPlan({ rows, warehouseId, lang }: { rows: ReorderRow[]; w
                 {g.rows.length} {t("товаров", "mahsulot")} · {fmt(groupCost.toFixed(0))}
               </span>
             </div>
+            {isMobile ? (
+              <div style={{ display: "flex", flexDirection: "column" }}>
+                {g.rows.map(r => {
+                  const daysLeft = Number(r.daysUntilStockout ?? 999);
+                  const tone = daysLeft <= 3 ? COLORS.dangerText : daysLeft <= 7 ? COLORS.warningText : COLORS.textSecondary;
+                  const u = unitLabel(r.unit ?? undefined, lang);
+                  return (
+                    <div key={r.productId} data-testid={`reorder-row-${r.productId}`}
+                      style={{ display: "flex", flexDirection: "column", gap: "8px", padding: "12px 16px", borderBottom: `1px solid ${COLORS.border}`, background: daysLeft <= 3 ? colorMix(COLORS.danger, 4) : undefined }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                        {canOrder && pick(r)}
+                        <span style={{ flex: 1, minWidth: 0, fontWeight: 600, color: COLORS.textPrimary, overflowWrap: "anywhere" }}>{r.productName}</span>
+                        <span style={{ fontSize: "12px", fontWeight: 600, color: tone, whiteSpace: "nowrap" }}>
+                          {daysLeft >= 999 ? "—" : t(`${daysLeft} дн.`, `${daysLeft} kun`)}
+                        </span>
+                      </div>
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: "4px 14px", fontSize: "12px", color: COLORS.textTertiary }}>
+                        <span>{t("Свободно", "Bo'sh")} <b style={{ color: tone }}>{formatQty(r.available)}</b> / {formatQty(r.target)} {u}</span>
+                        <span>{t("В пути", "Yo'lda")} {inboundCell(r)}</span>
+                        {(r.unapproved ?? 0) > 0 && <span style={{ display: "inline-flex", gap: "4px" }}>{t("Не согласовано", "Kelishilmagan")} {unapprovedCell(r)}</span>}
+                        {r.supplierSource === "last" && <span>{t("поставщик — по последнему приходу", "yetkazib beruvchi — oxirgi kirim bo'yicha")}</span>}
+                      </div>
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "10px", ...num }}>
+                        <span style={{ display: "inline-flex", alignItems: "center" }}>{qty(r, u)}</span>
+                        <span style={{ fontWeight: 700 }}>{fmt(costOf(r).toFixed(0))}</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
             <div style={{ overflowX: "auto" }}>
               <table className="data-table">
                 <thead>
-                  <tr>{head.map((h, i) => <th key={i} style={i >= 2 ? { textAlign: "right" } : undefined}>{h}</th>)}</tr>
+                  <tr>{head.map((h, i) => <th key={i} style={i >= firstNumeric ? { textAlign: "right" } : undefined}>{h}</th>)}</tr>
                 </thead>
                 <tbody>
                   {g.rows.map(r => {
@@ -130,14 +216,9 @@ export function ReorderPlan({ rows, warehouseId, lang }: { rows: ReorderRow[]; w
                     const urgent = daysLeft <= 3;
                     const tone = urgent ? COLORS.dangerText : daysLeft <= 7 ? COLORS.warningText : COLORS.textSecondary;
                     const u = unitLabel(r.unit ?? undefined, lang);
-                    const picked = pickedOf(r);
                     return (
                       <tr key={r.productId} data-testid={`reorder-row-${r.productId}`} style={urgent ? { background: colorMix(COLORS.danger, 4) } : undefined}>
-                        <td style={{ width: "36px" }}>
-                          <input type="checkbox" checked={picked} aria-label={t(`Заказать: ${r.productName}`, `Buyurtma: ${r.productName}`)}
-                            data-testid={`reorder-pick-${r.productId}`}
-                            onChange={e => setPickEdits(p => ({ ...p, [r.productId]: e.target.checked }))} />
-                        </td>
+                        {canOrder && <td style={{ width: "36px" }}>{pick(r)}</td>}
                         <td>
                           <div className="flex items-center gap-2">
                             {urgent && <AlertTriangle size={13} color={COLORS.dangerText} />}
@@ -152,21 +233,11 @@ export function ReorderPlan({ rows, warehouseId, lang }: { rows: ReorderRow[]; w
                         <td style={{ ...num, color: COLORS.textTertiary }} title={r.reorderMax == null ? t("Максимум не задан — 2 × порог", "Maksimum berilmagan — 2 × chegara") : undefined}>
                           {formatQty(r.target)}{r.reorderMax == null && <span style={{ fontSize: "10px" }}> (2×)</span>}
                         </td>
-                        <td style={{ ...num, color: r.inbound > 0 ? COLORS.primaryText : COLORS.textTertiary }} data-testid={`reorder-inbound-${r.productId}`}>
-                          {r.inbound > 0 ? formatQty(r.inbound) : "—"}
-                        </td>
+                        <td style={num}>{inboundCell(r)}</td>
+                        <td style={num}>{unapprovedCell(r)}</td>
                         <td style={{ ...num, color: COLORS.textSecondary }}>{r.avgDailySales}</td>
                         <td style={{ ...num, color: tone }}>{daysLeft >= 999 ? "—" : daysLeft}</td>
-                        <td style={num}>
-                          {canOrder ? (
-                            <DecimalInput aria-label={t(`Количество: ${r.productName}`, `Miqdor: ${r.productName}`)} data-testid={`reorder-qty-${r.productId}`}
-                              className="neo-input font-data" style={{ width: "96px", textAlign: "right" }}
-                              value={qtyOf(r)} onValueChange={v => setQtyEdits(q => ({ ...q, [r.productId]: v }))} />
-                          ) : (
-                            <span style={{ fontWeight: 700, color: COLORS.primaryText }}>{r.suggestedQty > 0 ? `+${formatQty(r.suggestedQty)}` : "—"}</span>
-                          )}
-                          <span style={{ marginLeft: "4px", color: COLORS.textTertiary }}>{u}</span>
-                        </td>
+                        <td style={num}>{qty(r, u)}</td>
                         <td style={{ ...num, fontWeight: 700 }}>{fmt(costOf(r).toFixed(0))}</td>
                       </tr>
                     );
@@ -174,6 +245,7 @@ export function ReorderPlan({ rows, warehouseId, lang }: { rows: ReorderRow[]; w
                 </tbody>
               </table>
             </div>
+            )}
           </div>
         );
       })}

@@ -556,6 +556,8 @@ export function formatReorderForExport(items: Record<string, unknown>[]) {
     "Порог":         Number(s.reorderPoint ?? 0),
     "Максимум":      Number(s.target ?? 0),
     "В пути":        Number(s.inbound ?? 0),
+    // Черновики и заказы на согласовании: не едут, но вычтены из «Заказать».
+    "Не согласовано": Number(s.unapproved ?? 0),
     "Продажи/день":  Number(s.avgDailySales ?? 0),
     "Дней до конца": Number(s.daysUntilStockout ?? 0),
     "Заказать":      Number(s.suggestedQty ?? 0),

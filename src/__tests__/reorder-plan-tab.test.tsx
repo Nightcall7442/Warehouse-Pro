@@ -7,7 +7,9 @@
  *   · отмечено то, что нужно заказать; уже едущее (заказать 0) — нет;
  *   · количество правится, уходит до сотых;
  *   · один заказ — открывается он, несколько — список заказов поставщикам;
- *   · без права вести поставщиков — ни кнопки, ни полей.
+ *   · без права вести поставщиков — ни кнопки, ни полей, ни отметок;
+ *   · черновики — не «в пути», а «не согласовано», с номером заказа-ссылкой;
+ *   · на телефоне — карточки, «Заказать» не уезжает за край.
  *
  * Нарочная поломка: в ReorderPlan отметь по умолчанию все строки
  * (pickedOf → true) — тест «уже едущее не отмечено» упадёт.
@@ -21,6 +23,7 @@ Element.prototype.scrollIntoView = () => {};
 
 const state = vi.hoisted(() => ({
   canManage: true,
+  mobile: false,
   created: [] as unknown[],
   result: { orders: [{ id: 31, number: "PO-31", supplierId: 5, supplierName: "Завод", lines: 2 }, { id: 32, number: "PO-32", supplierId: 6, supplierName: "Мельница", lines: 1 }] },
   invalidated: [] as string[],
@@ -28,6 +31,7 @@ const state = vi.hoisted(() => ({
 
 vi.mock("@/hooks/useCan", () => ({ useCan: () => (perm: string) => (perm === "suppliers.manage" ? state.canManage : true) }));
 vi.mock("@/hooks/useCurrency", () => ({ useCurrency: () => ({ fmt: (v: unknown) => `${v} сум` }) }));
+vi.mock("@/hooks/use-mobile", () => ({ useIsMobile: () => state.mobile }));
 vi.mock("@/lib/toast", () => ({ notify: { success: vi.fn(), error: vi.fn() } }));
 vi.mock("@/providers/trpc", () => ({
   trpc: {
@@ -54,7 +58,7 @@ const row = (productId: number, over: Partial<Row>): Row => ({
   productId, productName: `Товар ${productId}`, productCode: `P-${productId}`, unit: "pcs", packSize: null,
   currentStock: "6.000", available: "6.000", reorderPoint: "20.00", reorderMax: null,
   unitPrice: "100.00", costPrice: "75.00", avgDailySales: "1.0", daysUntilStockout: 6,
-  target: 40, inbound: 0, suggestedQty: 34, suggestedCost: 2550,
+  target: 40, inbound: 0, unapproved: 0, unapprovedOrders: [], suggestedQty: 34, suggestedCost: 2550,
   supplierId: 5, supplierName: "Завод", supplierSource: "default", warehouseId: 1,
   ...over,
 } as Row);
@@ -83,6 +87,7 @@ function open(rows = ROWS) {
 beforeEach(() => {
   cleanup();
   state.canManage = true;
+  state.mobile = false;
   state.created = [];
   state.invalidated = [];
   state.result = { orders: [{ id: 31, number: "PO-31", supplierId: 5, supplierName: "Завод", lines: 2 }, { id: 32, number: "PO-32", supplierId: 6, supplierName: "Мельница", lines: 1 }] };
@@ -105,6 +110,23 @@ describe("группы по поставщику", () => {
 });
 
 describe("вкладка «Дозаказ»", () => {
+  it("черновик — не «в пути»: своё число и номер заказа, который можно открыть", () => {
+    open([row(5, { inbound: 4, unapproved: 30, unapprovedOrders: [{ id: 12, number: "PO-12", status: "draft", qty: 30 }], suggestedQty: 0 })]);
+    expect(screen.getByTestId("reorder-inbound-5").textContent).toBe("4");
+    expect(screen.getByTestId("reorder-unapproved-5").textContent).toContain("30");
+    act(() => { fireEvent.click(screen.getByTestId("reorder-po-5-12")); });
+    expect(screen.getByTestId("where").textContent).toBe("/purchase-orders/12");
+  });
+
+  it("на телефоне — карточки: количество правится, отметки и черновики на месте", () => {
+    state.mobile = true;
+    open([row(1, {}), row(5, { unapproved: 30, unapprovedOrders: [{ id: 12, number: "PO-12", status: "draft", qty: 30 }], suggestedQty: 0 })]);
+    expect(screen.queryByRole("table")).toBeNull();
+    expect((screen.getByTestId("reorder-qty-1") as HTMLInputElement).value).toBe("34");
+    expect((screen.getByTestId("reorder-pick-1") as HTMLInputElement).checked).toBe(true);
+    expect(screen.getByTestId("reorder-row-5").textContent).toContain("PO-12");
+  });
+
   it("уже едущее не отмечено и показывает «в пути»; нужное — отмечено", () => {
     open();
     expect((screen.getByTestId("reorder-pick-1") as HTMLInputElement).checked).toBe(true);
@@ -153,6 +175,8 @@ describe("вкладка «Дозаказ»", () => {
     open();
     expect(screen.queryByTestId("reorder-create-orders")).toBeNull();
     expect(screen.queryByTestId("reorder-qty-1")).toBeNull();
+    // Отмечать нечего: в заказ без права это всё равно не уйдёт.
+    expect(screen.queryByTestId("reorder-pick-1")).toBeNull();
     expect(screen.getByTestId("reorder-row-1").textContent).toContain("+34");
   });
 });
