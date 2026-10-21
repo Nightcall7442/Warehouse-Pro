@@ -533,6 +533,20 @@
       "when": 1792577858363,
       "tag": "0075_sales_warehouses",
       "breakpoints": true
+    },
+    {
+      "idx": 76,
+      "version": "5",
+      "when": 1792588204820,
+      "tag": "0076_stock_count_number_dedupe",
+      "breakpoints": true
+    },
+    {
+      "idx": 77,
+      "version": "5",
+      "when": 1792588238700,
+      "tag": "0077_stock_count_number_unique",
+      "breakpoints": true
     }
   ]
 }

@@ -317,6 +317,23 @@ describe.skipIf(!hasRealDb)("инвентаризация на утвержде�
     expect((await op.get({ id: req.countId! })).status).toBe("draft");
   });
 
+  it("заявки в одну секунду получают разные номера ИНВ; один номер дважды база не примет", async () => {
+    // Номер — число документов + 1; без уникального индекса две заявки в
+    // одну секунду назывались одним «ИНВ-N», и история движений путала их.
+    await denyApply();
+    const wh = await warehouse(operatorId, "operator");
+    const made = await Promise.all([1, 2, 3, 4].map(() =>
+      wh.adjustStock({ productId: s.productId, warehouseId: s.warehouseId, quantity: "1", type: "in" })));
+    const numbers = made.map(r => r.number);
+    expect(new Set(numbers).size, numbers.join(", ")).toBe(4);
+    expect(await countOf("stock_counts")).toBe(4);
+    await expect(db.insert(schema.stockCounts).values({ tenantId: s.tenantId, warehouseId: s.warehouseId, number: numbers[0]!, createdBy: operatorId }))
+      .rejects.toThrow();
+    // Черновик пересчёта — из той же серии, следующим номером.
+    const draft = await (await asCeo()).create({ warehouseId: s.warehouseId });
+    expect(draft.number).toBe("ИНВ-5");
+  });
+
   it("право по умолчанию: правка оператора проводится сразу, как до утверждения", async () => {
     const wh = await warehouse(operatorId, "operator");
     const r = await wh.adjustStock({ productId: s.productId, warehouseId: s.warehouseId, quantity: "3", type: "in" });

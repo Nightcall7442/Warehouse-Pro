@@ -3,10 +3,11 @@ import { TRPCError } from "@trpc/server";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { createRouter, operatorQuery, adminQuery, can } from "./middleware";
 import { products, stockCountItems, stockCounts, warehouseStock, warehouses, users } from "@db/schema";
-import { applyCountLines, approveCount, nextCountNumber, rejectCount, submitCount } from "./services/stock-count";
+import { applyCountLines, approveCount, insertCount, rejectCount, submitCount } from "./services/stock-count";
 import { recordAudit } from "./services/audit-log";
 import { assertProductsBelongToTenant } from "./lib/tenant-refs";
 import { cache } from "./lib/cache";
+import { retryOnDeadlock } from "./lib/db-errors";
 import { invalidateReports } from "./lib/report-cache";
 
 type Db = ReturnType<typeof import("./queries/connection").getDb>;
@@ -94,15 +95,14 @@ export const stockCountRouter = createRouter({
       const picked = input.productIds ? [...new Set(input.productIds)] : null;
       if (picked) await assertProductsBelongToTenant(db, tenantId, picked);
 
-      const number = await nextCountNumber(db, tenantId);
       const scope = picked ? "items" : input.category ? "category" : "full";
 
-      const id = await db.transaction(async (tx) => {
-        const [r] = await tx.insert(stockCounts).values({
-          tenantId, warehouseId: wh.id, number, notes: input.notes ?? null, createdBy: ctx.user.id,
+      const { id, number } = await retryOnDeadlock(() => db.transaction(async (tx) => {
+        const doc = await insertCount(tx, tenantId, {
+          warehouseId: wh.id, notes: input.notes ?? null, createdBy: ctx.user.id,
           scope, scopeCategory: input.category ?? null,
         });
-        const countId = Number(r.insertId);
+        const countId = doc.id;
         const rows = picked
           ? await tx.select({ productId: products.id, current: warehouseStock.currentStock })
             .from(products)
@@ -121,8 +121,8 @@ export const stockCountRouter = createRouter({
         if (rows.length > 0) {
           await tx.insert(stockCountItems).values(rows.map(r => ({ countId, productId: r.productId, expected: String(r.current ?? "0.00") })));
         }
-        return countId;
-      });
+        return doc;
+      }));
       await recordAudit(db, { tenantId, actorId: ctx.user.id, actorName: ctx.user.name, action: "stock_count.create", targetType: "stock_count", targetId: id, meta: { number, warehouseId: wh.id, scope, category: input.category, lines: picked?.length } });
       return { id, number };
     }),

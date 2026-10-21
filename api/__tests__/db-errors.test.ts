@@ -97,3 +97,30 @@ describe("какой именно индекс нарушен", () => {
     expect(isDuplicateOf(nameless, "uq_orders_idempotency")).toBe(false);
   });
 });
+
+import { isDeadlock, retryOnDeadlock } from "../lib/db-errors";
+
+describe("взаимная блокировка", () => {
+  const deadlock = () => Object.assign(new Error("Failed query: insert into `stock_counts` …"), {
+    cause: Object.assign(new Error("Deadlock found when trying to get lock; try restarting transaction"), { code: "ER_LOCK_DEADLOCK", errno: 1213 }),
+  });
+
+  it("узнаётся и в обёртке drizzle; дубликат — не она", () => {
+    expect(isDeadlock(deadlock())).toBe(true);
+    expect(isDeadlock(wrapped("stock_counts.uq_stock_counts_number"))).toBe(false);
+  });
+
+  it("сделка повторяется целиком, пока база не пропустит; иной отказ — сразу наружу", async () => {
+    let calls = 0;
+    expect(await retryOnDeadlock(async () => { calls++; if (calls < 3) throw deadlock(); return "ИНВ-6"; })).toBe("ИНВ-6");
+    expect(calls).toBe(3);
+
+    let other = 0;
+    await expect(retryOnDeadlock(async () => { other++; throw new Error("Недостаточно свободного товара"); })).rejects.toThrow(/Недостаточно/);
+    expect(other).toBe(1);
+
+    let always = 0;
+    await expect(retryOnDeadlock(async () => { always++; throw deadlock(); }, 2)).rejects.toThrow(/Failed query/);
+    expect(always).toBe(2);
+  });
+});

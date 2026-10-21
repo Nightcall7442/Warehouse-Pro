@@ -9,6 +9,7 @@ import { recordAudit } from "./audit-log";
 import { cache } from "../lib/cache";
 import { invalidateReports } from "../lib/report-cache";
 import { logger } from "../lib/logger";
+import { isDuplicateEntry, retryOnDeadlock } from "../lib/db-errors";
 
 type Db = ReturnType<typeof import("../queries/connection").getDb>;
 type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
@@ -55,15 +56,48 @@ const round2 = (n: number) => Math.round(n * 100) / 100;
 /** «1 250 000» — деньги в тексте уведомления, как в перемещении. */
 const spaced = (n: number) => String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, " ");
 
+const PREFIX = "ИНВ-";
+
 /**
  * Номер следующего документа: ИНВ-N по организации. Одна серия на пересчёт,
  * заявку на правку и остатки из файла — это один и тот же акт о том, сколько
  * товара на самом деле, и в журнале движений он называется одним номером.
+ *
+ * Как у перемещения: большее из числа документов и максимума выданных
+ * номеров — номера не едут назад. Совпадение двух документов в одну секунду
+ * ловит уникальный индекс (tenant_id, number), а insertCount берёт следующий.
  */
-export async function nextCountNumber(db: Db | Tx, tenantId: number): Promise<string> {
-  const [{ n }] = await db.select({ n: sql<number>`COUNT(*)`.mapWith(Number) }).from(stockCounts)
-    .where(eq(stockCounts.tenantId, tenantId));
-  return `ИНВ-${n + 1}`;
+async function nextCountNumber(db: Db | Tx, tenantId: number): Promise<number> {
+  const [row] = await db.select({
+    total: sql<number>`COUNT(*)`,
+    maxNumbered: sql<number>`COALESCE(MAX(CAST(SUBSTRING(${stockCounts.number}, 5) AS UNSIGNED)), 0)`,
+  }).from(stockCounts).where(eq(stockCounts.tenantId, tenantId));
+  return Math.max(Number(row?.total ?? 0), Number(row?.maxNumbered ?? 0)) + 1;
+}
+
+/**
+ * Завести документ со следующим номером. Заявки оператора без права
+ * проводить правку рождаются пачками (каждая правка и каждый файл — документ),
+ * и два в одну секунду считали один номер: «Ручная правка №ИНВ-5» в истории
+ * называла бы два разных документа. Второй берёт следующий номер.
+ *
+ * Трое в одну секунду могут поймать друг друга на замке промежутка после
+ * дубликата — база откатит сделку целиком. Поэтому сделку, в которой
+ * заводится документ, зовут через retryOnDeadlock: она только пишет в базу.
+ */
+export async function insertCount(
+  tx: Tx, tenantId: number, values: Omit<typeof stockCounts.$inferInsert, "tenantId" | "number">,
+): Promise<{ id: number; number: string }> {
+  let n = await nextCountNumber(tx, tenantId);
+  for (let attempt = 0; ; attempt++) {
+    try {
+      const [r] = await tx.insert(stockCounts).values({ ...values, tenantId, number: `${PREFIX}${n}` });
+      return { id: Number(r.insertId), number: `${PREFIX}${n}` };
+    } catch (err) {
+      if (!isDuplicateEntry(err) || attempt >= 4) throw err;
+      n += 1;
+    }
+  }
 }
 
 /** Строка, которую проводят: что посчитано и какой учёт был при отправке. */
@@ -447,14 +481,13 @@ async function createSubmitted(
   head: { warehouseId: number; origin: CountOrigin; adjustType?: AdjustType | null; notes: string | null },
   lines: Array<{ productId: number; note?: string | null; counted: (row: { current: number; available: number; reserved: number }) => number }>,
 ) {
-  const number = await nextCountNumber(db, tenantId);
-  const id = await db.transaction(async (tx) => {
-    const [r] = await tx.insert(stockCounts).values({
-      tenantId, warehouseId: head.warehouseId, number, notes: head.notes, createdBy: actor.id,
+  const { id, number } = await retryOnDeadlock(() => db.transaction(async (tx) => {
+    const doc = await insertCount(tx, tenantId, {
+      warehouseId: head.warehouseId, notes: head.notes, createdBy: actor.id,
       status: "submitted", scope: "items", origin: head.origin, adjustType: head.adjustType ?? null,
       submittedBy: actor.id, submittedAt: new Date(),
     });
-    const countId = Number(r.insertId);
+    const countId = doc.id;
     const ordered = [...lines].sort((a, b) => a.productId - b.productId);
     const rows = ordered.length === 0 ? [] : await tx.select({
       productId: warehouseStock.productId, current: warehouseStock.currentStock, available: warehouseStock.available, reserved: warehouseStock.reserved,
@@ -469,8 +502,8 @@ async function createSubmitted(
       return { countId, productId: l.productId, expected: money2(row.current), counted: money2(counted), bookAtSubmit: money2(row.current), note: l.note ?? null };
     });
     if (values.length > 0) await tx.insert(stockCountItems).values(values);
-    return countId;
-  });
+    return doc;
+  }));
   const s = await submittedSummary(db, tenantId, id);
   await recordAudit(db, {
     tenantId, actorId: actor.id, actorName: actor.name, action: "stock_count.submit", targetType: "stock_count", targetId: id,

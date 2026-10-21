@@ -993,6 +993,9 @@ export const stockCounts = mysqlTable("stock_counts", {
 }, (t) => ({
   tenantIdx: index("idx_stock_counts_tenant").on(t.tenantId, t.createdAt),
   statusIdx: index("idx_stock_counts_status").on(t.tenantId, t.status),
+  // «ИНВ-N» один на организацию: заявки на правку рождаются пачками, и два
+  // документа в одну секунду получали один номер (см. nextCountNumber).
+  numberUq: uniqueIndex("uq_stock_counts_number").on(t.tenantId, t.number),
 }));
 
 export const stockCountItems = mysqlTable("stock_count_items", {
