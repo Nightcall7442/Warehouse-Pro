@@ -21,6 +21,7 @@
    ═══════════════════════════════════════════════════════════════════════════ */
 import { FIELD_PRICE_UZS, MIN_FIELD_USERS, formatSum } from "@contracts/pricing";
 import type { L } from "@/components/pitch/pitch-content";
+import { START_STEPS } from "@/components/landing/site-content";
 
 /** Когда сверены сведения о других системах. */
 export const CHECKED_AT = "10.10.2026";
@@ -243,10 +244,9 @@ export const PLAYERS: Array<{ name: string; what: L; facts: L[]; sources: Source
   },
 ];
 
-/** Как перейти — по шагам. */
-export const STEPS: Array<{ t: L; d: L }> = [
-  { t: { ru: "Регистрация", uz: "Ro'yxatdan o'tish" }, d: { ru: "Без звонка и без карты — 14 дней бесплатно.", uz: "Qo'ng'iroqsiz va kartasiz — 14 kun bepul." } },
-  { t: { ru: "Данные", uz: "Ma'lumotlar" }, d: { ru: "Товары и магазины — из Excel; с 1С настроим обмен.", uz: "Tovarlar va do'konlar — Excel'dan; 1C bilan almashinuvni sozlaymiz." } },
-  { t: { ru: "Пилот", uz: "Sinov" }, d: { ru: "Две недели с двумя-тремя агентами на ваших магазинах.", uz: "Ikki-uch agent bilan o'z do'konlaringizda ikki hafta." } },
-  { t: { ru: "Решение", uz: "Qaror" }, d: { ru: "Платите только за людей в поле — офис бесплатно.", uz: "Faqat daladagi xodimlar uchun to'laysiz — ofis bepul." } },
-];
+/**
+ * Как перейти — по шагам. Те же шаги, что «Как начать» на лендинге: один
+ * список в site-content, чтобы две страницы не обещали разное (здесь стояли
+ * свои четыре шага с «пилотом на двух-трёх агентах»).
+ */
+export const STEPS = START_STEPS;

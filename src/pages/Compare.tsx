@@ -239,10 +239,11 @@ function Steps() {
   const { lang, tr } = useTr();
   return (
     <Chapter id="otish" num="05" kicker={tr("O'tish", "Переход")} title={tr("Qanday o'tish mumkin", "Как перейти")} band testId="compare-steps">
-      <ol className="grid sm:grid-cols-2 lg:grid-cols-4" style={{ listStyle: "none", margin: 0, padding: 0, gap: 20 }}>
+      <ol className="grid sm:grid-cols-2 lg:grid-cols-5" style={{ listStyle: "none", margin: 0, padding: 0, gap: 20 }}>
         {STEPS.map((s, i) => (
           <li key={s.t.ru} data-testid="compare-step" style={{ borderTop: "2px solid var(--accent)", paddingTop: 16 }}>
-            <Mono>{String(i + 1).padStart(2, "0")}</Mono>
+            {/* Номер и время шага — те же, что в «Как начать» на лендинге (site-content). */}
+            <Mono>{String(i + 1).padStart(2, "0")} · <span data-testid="compare-step-time">{pick(lang, s.time)}</span></Mono>
             <div style={{ fontWeight: 800, fontSize: 18, marginTop: 8 }}>{pick(lang, s.t)}</div>
             <p style={{ margin: "6px 0 0", color: "var(--soft)", fontSize: 15, lineHeight: 1.55 }}>{pick(lang, s.d)}</p>
           </li>

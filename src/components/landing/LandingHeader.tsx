@@ -57,8 +57,8 @@ export default function LandingHeader() {
     () => [
       { label: tr("Для кого", "Kim uchun"), href: "#audience" },
       { label: tr("Продукт", "Mahsulot"), href: "#features" },
-      { label: tr("Как работает", "Qanday ishlaydi"), href: "#how" },
       { label: tr("Цены", "Narxlar"), href: "#pricing" },
+      { label: tr("Как начать", "Qanday boshlash"), href: "#start" },
     ],
     [tr],
   );

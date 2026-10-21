@@ -26,6 +26,7 @@ import LossSection from "@/components/landing/LossSection";
 import FeaturesSection from "@/components/landing/FeaturesSection";
 import PromisesSection from "@/components/landing/PromisesSection";
 import PricingSection from "@/components/landing/PricingSection";
+import StartSection from "@/components/landing/StartSection";
 
 /* ═══════════════════════════════════════════════════════════════════════════
    ЛЕНДИНГ «СКЛАДСКАЯ КНИГА»
@@ -33,7 +34,8 @@ import PricingSection from "@/components/landing/PricingSection";
    Композиция страницы и правила дизайн-системы — в landing-shared.tsx.
    Порядок: шапка → hero → для кого → архивные фото → окно продукта (чернила №1) →
    полоса фактов → день с продуктом → реестр возможностей → GPS → роли →
-   отзывы → обещания → тарифы → FAQ → CTA (чернила №2) → футер. Якоря сохранены.
+   отзывы → обещания → тарифы → как начать → FAQ → CTA (чернила №2) → футер.
+   Якоря сохранены.
    ═══════════════════════════════════════════════════════════════════════════ */
 
 /* ── 01 / Полоса фактов ────────────────────────────────────────────────────
@@ -132,7 +134,7 @@ function FaqSection() {
         <div className="max-w-[880px]">
         <SectionHead
           id="faq"
-          index="14"
+          index="15"
           label="FAQ"
           title={tr("Вопросы, которые задают до покупки", "Sotib olishdan oldin beriladigan savollar")}
         />
@@ -372,6 +374,8 @@ export default function Landing() {
       {/* Перед ценой — что программа делает всегда и как это проверить за пробные дни. */}
       <PromisesSection />
       <PricingSection />
+      {/* За ценой — что будет, если нажать: шаги со временем и пилот для крупных. */}
+      <StartSection />
       <FaqSection />
       <CtaSection />
       <Footer />

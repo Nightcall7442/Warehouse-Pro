@@ -17,7 +17,7 @@
    Ни выдуманных клиентов, ни отзывов, ни сроков ответа поддержки. Цена и
    минимум людей — из contracts/pricing, а не числом в тексте.
    ═══════════════════════════════════════════════════════════════════════════ */
-import { MIN_FIELD_USERS } from "@contracts/pricing";
+import { FIELD_PRICE_UZS, MIN_FIELD_USERS, formatSum } from "@contracts/pricing";
 import type { L } from "@/components/pitch/pitch-content";
 
 /* ── Для кого ─────────────────────────────────────────────────────────────── */
@@ -181,3 +181,96 @@ export const PROMISES: Array<{ key: string; t: L; d: L; check: L }> = [
     },
   },
 ];
+
+/* ── Как начать ───────────────────────────────────────────────────────────── */
+
+const PRICE = formatSum(FIELD_PRICE_UZS);
+
+/**
+ * От регистрации до решения — по шагам и со временем на каждый.
+ *
+ * Время — то, что занимает сам шаг в программе, а не обещание срока:
+ * регистрация — одна форма; «склад и команда» — мастер первого входа из трёх
+ * шагов (Onboarding: склад, первый товар, приглашения); товары и магазины —
+ * загрузка Excel по шаблону (import-router), перенос из 1С — услуга по
+ * запросу (SERVICE_FEATURES), поэтому «несколько дней», а не часы.
+ *
+ * Тот же список показывает сравнение (/compare, глава «Как перейти»).
+ */
+export const START_STEPS: Array<{ t: L; time: L; d: L }> = [
+  {
+    t: { ru: "Регистрация", uz: "Ro'yxatdan o'tish" },
+    time: { ru: "5 минут", uz: "5 daqiqa" },
+    d: {
+      ru: "Компания, имя, почта, телефон и пароль. Без карты и без звонка; вход откроется по ссылке из письма.",
+      uz: "Kompaniya, ism, pochta, telefon va parol. Kartasiz va qo'ng'iroqsiz; kirish xatdagi havola orqali ochiladi.",
+    },
+  },
+  {
+    t: { ru: "Склад и команда", uz: "Ombor va jamoa" },
+    time: { ru: "10 минут", uz: "10 daqiqa" },
+    d: {
+      ru: "Мастер первого входа: склад, первый товар и приглашения агентам и курьерам.",
+      uz: "Birinchi kirish ustasi: ombor, birinchi tovar va agent hamda kuryerlarga taklifnomalar.",
+    },
+  },
+  {
+    t: { ru: "Товары и магазины", uz: "Tovarlar va do'konlar" },
+    time: { ru: "в тот же день", uz: "o'sha kuni" },
+    d: {
+      ru: "Из Excel по нашему шаблону — сами, вместе с начальными остатками. Перенос из 1С или ваших файлов сделаем мы — это несколько дней.",
+      uz: "Excel'dan bizning shablon bo'yicha — o'zingiz, boshlang'ich qoldiqlar bilan. 1C yoki fayllaringizdan ko'chirishni biz qilamiz — bu bir necha kun.",
+    },
+  },
+  {
+    t: { ru: "Первые рейсы", uz: "Birinchi reyslar" },
+    time: { ru: "1–2 недели", uz: "1–2 hafta" },
+    d: {
+      ru: "Агенты берут заказы с телефона, склад собирает, курьеры везут и отмечают оплату. Вечером видно, что доставлено, что оплачено и кто должен.",
+      uz: "Agentlar telefondan buyurtma oladi, ombor yig'adi, kuryerlar yetkazadi va to'lovni belgilaydi. Kechqurun nima yetkazilgani, nima to'langani va kim qarzdorligi ko'rinadi.",
+    },
+  },
+  {
+    t: { ru: "Решение", uz: "Qaror" },
+    time: { ru: "к 14-му дню", uz: "14-kungacha" },
+    d: {
+      ru: `Остаётесь — ${PRICE} сум в месяц за каждого человека в поле, офис бесплатно. Нет — ничего не спишется: вход закроется, данные останутся.`,
+      uz: `Qolsangiz — daladagi har bir kishi uchun oyiga ${PRICE} so'm, ofis bepul. Yo'q bo'lsa — hech narsa yechilmaydi: kirish yopiladi, ma'lumotlar qoladi.`,
+    },
+  },
+];
+
+/** С какого числа агентов предлагаем начать с пилота, а не со всех сразу. */
+export const PILOT_MIN_AGENTS = 10;
+
+/**
+ * Пилот для крупного дистрибьютора: одна команда, две недели внутри
+ * бесплатного периода, и три мерила — из самой программы, а не из
+ * впечатлений: план визитов против сделанных (дневные планы, KPI), долги
+ * в срок (условия оплаты, просрочка), наличные (недостачи при расчёте и
+ * деньги на руках — «Контроль»).
+ */
+export const PILOT: { title: L; lead: L; criteria: Array<{ t: L; d: L }> } = {
+  title: {
+    ru: `Пилот — для дистрибьюторов от ${PILOT_MIN_AGENTS} агентов`,
+    uz: `Sinov — ${PILOT_MIN_AGENTS} va undan ko'p agentli distribyutorlar uchun`,
+  },
+  lead: {
+    ru: "Всех сразу не переводим. Одна команда — супервайзер и его агенты — две недели работает в программе внутри бесплатного периода, остальные пока по-старому. В конце смотрим три цифры из самой программы:",
+    uz: "Hammani birdaniga o'tkazmaymiz. Bitta jamoa — supervayzer va uning agentlari — bepul davr ichida ikki hafta dasturda ishlaydi, qolganlar hozircha eskicha. Oxirida dasturning o'zidan uchta raqamni ko'ramiz:",
+  },
+  criteria: [
+    {
+      t: { ru: "Визиты", uz: "Tashriflar" },
+      d: { ru: "сколько точек из плана агенты действительно посетили", uz: "agentlar rejadagi nuqtalardan qanchasiga haqiqatan borgani" },
+    },
+    {
+      t: { ru: "Долги", uz: "Qarzlar" },
+      d: { ru: "сколько магазинов заплатили в срок", uz: "qancha do'kon o'z vaqtida to'lagani" },
+    },
+    {
+      t: { ru: "Наличные", uz: "Naqd pul" },
+      d: { ru: "недостачи при расчёте заказов и деньги, которые дольше суток на руках", uz: "buyurtmalar hisob-kitobidagi kamomadlar va bir kundan ortiq qo'lda turgan pul" },
+    },
+  ],
+};

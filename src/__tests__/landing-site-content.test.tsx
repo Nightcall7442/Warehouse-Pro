@@ -1,14 +1,14 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, within, cleanup } from "@testing-library/react";
+import { render, screen, within, cleanup, fireEvent } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
 import type { ReactElement } from "react";
-import { MIN_FIELD_USERS } from "@contracts/pricing";
+import { FIELD_PRICE_UZS, MIN_FIELD_USERS, formatSum } from "@contracts/pricing";
 import type { L } from "@/components/pitch/pitch-content";
 
 /**
  * Разделы лендинга, которые отвечают «про меня ли это» и «можно ли верить»:
- * для кого, кому не подойдём, обещания с проверкой (дальше — как начать).
+ * для кого, кому не подойдём, обещания с проверкой, как начать.
  *
  *   · «Для кого» стоит на странице и говорит словами из site-content —
  *     одним источником, на двух языках;
@@ -17,12 +17,16 @@ import type { L } from "@/components/pitch/pitch-content";
  *     маркировку, кассу;
  *   · у каждого обещания есть «как проверить за 14 дней», и стоят обещания
  *     перед тарифами; сроков ответа поддержки и «гарантий» среди них нет —
- *     их не держит код.
+ *     их не держит код;
+ *   · «Как начать» — шаги со временем на каждый, одним списком с /compare;
+ *     пилот для дистрибьюторов от 10 агентов с тремя мерилами и заявкой,
+ *     помеченной «pilot».
  *
  * Нарочная поломка: убрать <AudienceSection /> из Landing — падает «стоит на
  * странице»; написать в AUDIENCE_FIT «3–50» буквами — «минимум из модуля
  * цен» (при смене MIN_FIELD_USERS текст разошёлся бы с тарифом); убрать у
- * обещания check — «у каждого обещания есть проверка».
+ * обещания check — «у каждого обещания есть проверка»; вернуть сравнению
+ * свой список шагов — «сравнение показывает те же шаги».
  */
 vi.setConfig({ testTimeout: 30_000 });
 
@@ -36,6 +40,8 @@ vi.mock("@/providers/trpc", () => ({
 const { default: Landing } = await import("@/pages/Landing");
 const { default: AudienceSection } = await import("@/components/landing/AudienceSection");
 const { default: PromisesSection } = await import("@/components/landing/PromisesSection");
+const { default: StartSection } = await import("@/components/landing/StartSection");
+const { default: Compare } = await import("@/pages/Compare");
 const { LangProvider } = await import("@/i18n");
 const content = await import("@/components/landing/site-content");
 
@@ -148,5 +154,59 @@ describe("обещания, которые можно проверить", () =>
     draw(<PromisesSection />);
     const text = screen.getByTestId("landing-promises").textContent ?? "";
     expect(text).not.toMatch(/гарант|SLA|99[.,]\d|в течение (часа|\d+ минут)|ответим за/i);
+  });
+});
+
+describe("как начать", () => {
+  it("стоит сразу за тарифами, до FAQ; в шапке есть ссылка", () => {
+    draw(<Landing />);
+    const start = document.getElementById("start");
+    expect(start, "раздела «Как начать» нет").toBeTruthy();
+    const pricing = document.getElementById("pricing")!;
+    const faq = document.getElementById("faq")!;
+    expect(pricing.compareDocumentPosition(start!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(start!.compareDocumentPosition(faq) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(Array.from(document.querySelectorAll("a")).some(a => a.getAttribute("href") === "#start")).toBe(true);
+  });
+
+  it("у каждого шага — время, по порядку из site-content", () => {
+    draw(<StartSection />);
+    const steps = screen.getAllByTestId("start-step");
+    expect(steps).toHaveLength(content.START_STEPS.length);
+    expect(screen.getAllByTestId("start-step-time").map(n => n.textContent)).toEqual(content.START_STEPS.map(s => s.time.ru));
+    for (const s of content.START_STEPS) expect(s.time.ru.trim(), s.t.ru).not.toBe("");
+  });
+
+  it("сравнение показывает те же шаги с тем же временем", () => {
+    draw(<Compare />);
+    expect(screen.getAllByTestId("compare-step")).toHaveLength(content.START_STEPS.length);
+    expect(screen.getAllByTestId("compare-step-time").map(n => n.textContent)).toEqual(content.START_STEPS.map(s => s.time.ru));
+  });
+
+  it("пилот: от 10 агентов, одна команда на две недели внутри пробного, три мерила", () => {
+    draw(<StartSection />);
+    const pilot = screen.getByTestId("start-pilot");
+    expect(content.PILOT_MIN_AGENTS).toBe(10);
+    expect(pilot.textContent).toContain("от 10 агентов");
+    expect(pilot.textContent).toMatch(/две недели/);
+    expect(pilot.textContent).toMatch(/бесплатного периода/);
+    const criteria = within(pilot).getAllByTestId("pilot-criterion").map(n => n.textContent ?? "");
+    expect(criteria).toHaveLength(3);
+    for (const re of [/Визиты/, /Долги/, /Наличные/]) expect(criteria.some(c => re.test(c)), String(re)).toBe(true);
+  });
+
+  it("заявка на пилот уходит с источником «pilot»", () => {
+    leadMutate.mockClear();
+    draw(<StartSection />);
+    const pilot = screen.getByTestId("start-pilot");
+    fireEvent.change(within(pilot).getByTestId("lead-name"), { target: { value: "Иван" } });
+    fireEvent.change(within(pilot).getByTestId("lead-phone"), { target: { value: "+998 90 123 45 67" } });
+    fireEvent.submit(within(pilot).getByTestId("lead-name").closest("form")!);
+    expect(leadMutate).toHaveBeenCalledWith(expect.objectContaining({ source: "pilot" }));
+  });
+
+  it("цена в шаге «Решение» — из модуля цен", () => {
+    const last = content.START_STEPS[content.START_STEPS.length - 1];
+    expect(last.d.ru).toContain(formatSum(FIELD_PRICE_UZS));
   });
 });
