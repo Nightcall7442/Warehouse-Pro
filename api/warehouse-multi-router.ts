@@ -1,8 +1,8 @@
 import { z } from "zod";
 import { createRouter, adminQuery, authedQuery, operatorQuery, can } from "./middleware";
 import { getDb } from "./queries/connection";
-import { warehouses, warehouseStock, stockTransfers, stockTransferDocs, products, orders, users } from "@db/schema";
-import { eq, and, or, sql, asc, desc, isNull, inArray, gt } from "drizzle-orm";
+import { warehouses, warehouseStock, stockTransfers, stockTransferDocs, products, orders, users, purchaseOrders, arrivals } from "@db/schema";
+import { eq, and, or, sql, asc, desc, isNull, inArray, gt, ne } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { OPEN_ORDER_STATUSES } from "./lib/order-status";
 import { recordAudit, auditActor } from "./services/audit-log";
@@ -126,6 +126,29 @@ export const warehouseMultiRouter = createRouter({
           const n = Number(row?.n ?? 0);
           if (n > 0) {
             throw new TRPCError({ code: "BAD_REQUEST", message: `Нельзя отключить склад: перемещений в пути ${n} — примите или отмените их` });
+          }
+          /*
+            Заказы поставщикам и приходы на этот склад. Заказ на отключённый
+            склад не создать и не поправить (purchase-order.ts, checkInput), а
+            приёмка уже открытого положила бы товар на склад, которого нет ни
+            в одном списке, и «Дозаказ» этого склада больше никто не увидит.
+            Сначала принять или отменить заказы, провести или удалить приходы.
+          */
+          const openOrders = await tx.select({ number: purchaseOrders.number }).from(purchaseOrders)
+            .where(and(
+              eq(purchaseOrders.tenantId, tenantId), eq(purchaseOrders.warehouseId, id),
+              inArray(purchaseOrders.status, ["draft", "pending_approval", "approved", "partially_received"]),
+            ))
+            .orderBy(asc(purchaseOrders.id)).limit(6);
+          if (openOrders.length > 0) {
+            const numbers = openOrders.slice(0, 5).map(o => o.number).join(", ") + (openOrders.length > 5 ? "…" : "");
+            throw new TRPCError({ code: "BAD_REQUEST", message: `Нельзя отключить склад: на него открыты заказы поставщикам ${numbers} — примите или отмените их` });
+          }
+          const [pendingArrivals] = await tx.select({ n: sql<number>`count(*)` }).from(arrivals)
+            .where(and(eq(arrivals.tenantId, tenantId), eq(arrivals.warehouseId, id), ne(arrivals.status, "completed")));
+          const a = Number(pendingArrivals?.n ?? 0);
+          if (a > 0) {
+            throw new TRPCError({ code: "BAD_REQUEST", message: `Нельзя отключить склад: непроведённых приходов на него ${a} — проведите или удалите их` });
           }
         }
         await tx.update(warehouses)

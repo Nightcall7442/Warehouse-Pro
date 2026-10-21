@@ -433,6 +433,8 @@ export const SERVER_ERROR_TEXT: Record<string, ErrorText> = {
   "«{0}»: в выбранной партии {1}, а выбрано {2} — обновите список партий": { uz: "«{0}»: tanlangan partiyada {1}, tanlangani esa {2} — partiyalar ro'yxatini yangilang" },
   "Перемещение не найдено": { uz: "Ko'chirish topilmadi" },
   "Нельзя отключить склад: перемещений в пути {0} — примите или отмените их": { uz: "Omborni o'chirib bo'lmaydi: yo'ldagi ko'chirishlar {0} — ularni qabul qiling yoki bekor qiling" },
+  "Нельзя отключить склад: на него открыты заказы поставщикам {0} — примите или отмените их": { uz: "Omborni o'chirib bo'lmaydi: unga yetkazib beruvchilarga ochiq buyurtmalar bor {0} — ularni qabul qiling yoki bekor qiling" },
+  "Нельзя отключить склад: непроведённых приходов на него {0} — проведите или удалите их": { uz: "Omborni o'chirib bo'lmaydi: unga o'tkazilmagan kirimlar {0} — ularni o'tkazing yoki o'chiring" },
   // Продажи с нескольких складов (ADR 0012).
   "Склад заказа выбирает офис. Агенту склад назначают в карточке сотрудника": { uz: "Buyurtma omborini ofis tanlaydi. Agentga ombor xodim kartochkasida biriktiriladi" },
   "С этого склада не продают: он отключён или не отмечен точкой продаж": { uz: "Bu ombordan sotilmaydi: u o'chirilgan yoki savdo nuqtasi deb belgilanmagan" },

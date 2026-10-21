@@ -348,6 +348,33 @@ describe.skipIf(!hasRealDb)("документ перемещения на нас
     expect(after.st).toBe("inactive");
   });
 
+  it("склад, на который открыт заказ поставщику или не проведён приход, не отключить", async () => {
+    const [sup] = await (db as any).insert(schema.suppliers).values({ tenantId: s.tenantId, name: "Завод" });
+    const po = (await import("../../purchase-order-router")).purchaseOrderRouter.createCaller(ctxFor(db, s.tenantId, ceoId, "ceo"));
+    const { id: poId } = await po.create({ supplierId: Number(sup.insertId), currency: "UZS", warehouseId: second, items: [{ productId: s.productId, quantity: "5", unitPrice: "80" }] });
+    const c = await router();
+    // Черновик — тоже: согласуют его уже на отключённый склад.
+    await expect(c.update({ id: second, status: "inactive" })).rejects.toThrow(/открыты заказы поставщикам PO-1 — примите или отмените их/);
+    await po.approve({ id: poId });
+    await expect(c.update({ id: second, status: "inactive" })).rejects.toThrow(/PO-1/);
+    // Отметку «точка продаж» и имя менять можно — отказ только отключению.
+    await c.update({ id: second, name: "Второй склад (старый)" });
+    await po.cancel({ id: poId });
+
+    // Приход на этот склад, ещё не проведённый.
+    const ar = (await import("../../arrival-router")).arrivalRouter.createCaller(ctxFor(db, s.tenantId, ceoId, "ceo"));
+    const { id: arrId } = await ar.create({ arrivalDate: today(), items: [{ productId: s.productId, quantity: "0", expectedQuantity: "3" }] });
+    await (db as any).update(schema.arrivals).set({ warehouseId: second }).where(eq(schema.arrivals.id, arrId));
+    await expect(c.update({ id: second, status: "inactive" })).rejects.toThrow(/непроведённых приходов на него 1 — проведите или удалите их/);
+    const [w] = await rowsOf<{ st: string }>(sql`SELECT status AS st FROM warehouses WHERE id = ${second}`);
+    expect(w.st).toBe("active");
+
+    await ar.delete({ id: arrId });
+    await c.update({ id: second, status: "inactive" });
+    const [after] = await rowsOf<{ st: string }>(sql`SELECT status AS st FROM warehouses WHERE id = ${second}`);
+    expect(after.st).toBe("inactive");
+  });
+
   it("чужая организация: документ «не найден», в списке пусто, чужую партию не выбрать", async () => {
     await twoStep();
     await receive(3, { batchNumber: "A", expiresAt: LATER });
