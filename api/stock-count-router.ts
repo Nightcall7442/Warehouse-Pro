@@ -7,6 +7,7 @@ import { recordStockMovement, setStock, StockBelowReserveError } from "./service
 import { recordAudit } from "./services/audit-log";
 import { cache } from "./lib/cache";
 import { invalidateReports } from "./lib/report-cache";
+import { extraBarcodesOf } from "./services/product-barcodes";
 
 type Db = ReturnType<typeof import("./queries/connection").getDb>;
 
@@ -99,7 +100,10 @@ export const stockCountRouter = createRouter({
         .innerJoin(products, eq(stockCountItems.productId, products.id))
         .where(eq(stockCountItems.countId, count.id))
         .orderBy(products.name);
-      return { ...count, items };
+      // Сканер инвентаризации ищет строку и по дополнительным штрих-кодам:
+      // на полке стоит та этикетка, что пришла, а не та, что в карточке.
+      const extras = await extraBarcodesOf(db, ctx.tenant.id, items.map(i => Number(i.productId)));
+      return { ...count, items: items.map(i => ({ ...i, barcodes: extras.get(Number(i.productId)) ?? [] })) };
     }),
 
   /** Посчитанное по одному товару; сканер зовёт с delta: +1. */

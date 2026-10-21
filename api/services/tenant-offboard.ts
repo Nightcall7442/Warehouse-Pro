@@ -69,6 +69,8 @@ export const OFFBOARD_ORDER: readonly OffboardStep[] = [
   "payments",
   { table: "price_list_assignments", via: { column: "price_list_id", parent: "price_lists" } },
   { table: "price_list_items", via: { column: "price_list_id", parent: "price_lists" } },
+  // Дополнительные штрих-коды держат товар — уходят раньше товаров.
+  "product_barcodes",
   { table: "return_items", via: { column: "return_id", parent: "returns" } },
   "role_permissions",
   "salary_payouts",

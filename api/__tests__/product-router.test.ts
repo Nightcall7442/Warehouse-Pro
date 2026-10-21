@@ -5,6 +5,9 @@ vi.mock("drizzle-orm", () => ({
   and: (...conds: unknown[]) => ({ __kind: "and", conds }),
   // Поиск — по названию ИЛИ коду ИЛИ штрих-коду.
   or:  (...conds: unknown[]) => ({ __kind: "or", conds }),
+  ne:  (col: unknown, val: unknown) => ({ __kind: "ne", col, val }),
+  // Дополнительные штрих-коды читаются списком товаров страницы.
+  inArray: (col: unknown, values: unknown[]) => ({ __kind: "inArray", col, values }),
   desc: (col: unknown) => ({ __kind: "desc", col }),
   like: (col: unknown, val: unknown) => ({ __kind: "like", col, val }),
   sql: (strings: TemplateStringsArray, ...values: unknown[]) => ({ __kind: "sql", strings, values }),
@@ -43,7 +46,7 @@ vi.mock("../lib/sanitize", () => ({
   sanitizeSearch: (s: string) => s.replace(/['";\\]/g, "").replace(/--/g, "").trim(),
 }));
 
-import { products, warehouseStock, orderItems, stockMovements, warehouses } from "@db/schema";
+import { products, warehouseStock, orderItems, stockMovements, warehouses, productBarcodes } from "@db/schema";
 import { makeConditionEvaluator } from "./helpers/fake-conditions";
 
 interface FakeProduct { id: number; tenantId: number; code: string; barcode: string; name: string; category: string; costPrice: string; unitPrice: string; unit: string; unitWeight: string; description: string | null; photoUrl: string | null; reorderPoint: string; status: string; createdAt: Date; }
@@ -51,12 +54,14 @@ interface FakeStock { id: number; productId: number; tenantId: number; warehouse
 interface FakeOrderItem { id: number; orderId: number; productId: number; quantity: string; unitPrice: string; subtotal: string; createdAt: Date; }
 interface FakeStockMovement { id: number; tenantId: number; productId: number; type: string; quantity: string; notes: string | null; createdAt: Date; }
 interface FakeWarehouse { id: number; tenantId: number; name: string; address: string; city: string; isDefault: boolean; status: string; createdAt: Date; }
+interface FakeBarcode { id: number; tenantId: number; productId: number; barcode: string; }
 
 let productsTable: FakeProduct[] = [];
 let stockTable: FakeStock[] = [];
 let orderItemsTable: FakeOrderItem[] = [];
 let movementsTable: FakeStockMovement[] = [];
 let warehousesTable: FakeWarehouse[] = [];
+let barcodesTable: FakeBarcode[] = [];
 let nextProductId = 10;
 let nextStockId = 10;
 
@@ -74,6 +79,12 @@ function resetTables() {
   warehousesTable = [
     { id: 1, tenantId: 1, name: "Main Warehouse", address: "Test", city: "Test", isDefault: true, status: "active", createdAt: new Date() },
   ];
+  // Второй штрих-код у Widget A — этикетка другого поставщика; у соседней
+  // организации тот же код ведёт к её товару.
+  barcodesTable = [
+    { id: 1, tenantId: 1, productId: 1, barcode: "EXTRA-A" },
+    { id: 2, tenantId: 2, productId: 99, barcode: "EXTRA-B" },
+  ];
   nextProductId = 10;
   nextStockId = 10;
 }
@@ -84,6 +95,7 @@ function tableOf(ref: unknown): string {
   if (ref === orderItems) return "orderItems";
   if (ref === stockMovements) return "stockMovements";
   if (ref === warehouses) return "warehouses";
+  if (ref === productBarcodes) return "productBarcodes";
   return "other";
 }
 
@@ -93,6 +105,7 @@ function rowsFor(table: string): Record<string, unknown>[] {
   if (table === "orderItems") return orderItemsTable as unknown as Record<string, unknown>[];
   if (table === "stockMovements") return movementsTable as unknown as Record<string, unknown>[];
   if (table === "warehouses") return warehousesTable as unknown as Record<string, unknown>[];
+  if (table === "productBarcodes") return barcodesTable as unknown as Record<string, unknown>[];
   return [];
 }
 
@@ -102,6 +115,7 @@ for (const [field, col] of Object.entries(warehouseStock)) columnToFieldName.set
 for (const [field, col] of Object.entries(orderItems)) columnToFieldName.set(col, field);
 for (const [field, col] of Object.entries(stockMovements)) columnToFieldName.set(col, field);
 for (const [field, col] of Object.entries(warehouses)) columnToFieldName.set(col, field);
+for (const [field, col] of Object.entries(productBarcodes)) columnToFieldName.set(col, field);
 
 /**
  * Разбор условий отдан общему строгому разборщику.
@@ -119,9 +133,20 @@ for (const [field, col] of Object.entries(warehouses)) columnToFieldName.set(col
 const evalCond = makeConditionEvaluator({
   fieldOf: col => columnToFieldName.get(col) ?? (col as { name?: string } | null)?.name,
   treatMissingColumnAsMatch: true,
-  // Сырой sql`` этот стенд не воспроизводит; условие считается выполненным.
-  // Решение записано здесь, а не спрятано в умолчании разборщика.
-  rawSql: () => true,
+  /*
+    Один сырой sql`` стенд разбирает: «у товара есть дополнительный
+    штрих-код» (services/product-barcodes.ts, hasExtraBarcode). Его
+    подстановки — колонка товара, организация, код. Посчитай стенд его
+    выполненным, как остальные, — поиск находил бы ВСЕ товары, и проверка
+    «часть чужого штрих-кода — не находка» ниже потеряла бы смысл.
+    Прочий сырой sql`` не воспроизводится и считается выполненным.
+  */
+  rawSql: (cond, row) => {
+    const text = ((cond.strings as string[] | undefined) ?? []).join("?");
+    if (!text.includes("product_barcodes")) return true;
+    const [, tenantId, code] = cond.values as unknown[];
+    return barcodesTable.some(b => b.productId === row.id && b.tenantId === tenantId && b.barcode.toLowerCase() === String(code).toLowerCase());
+  },
 });
 
 function chainable(rows: Record<string, unknown>[]) {
@@ -340,6 +365,23 @@ describe("product.list", () => {
     // часть чужого штрих-кода — не находка
     expect(((await caller.list({ search: "C00" })) as any).data).toHaveLength(0);
   });
+
+  it("находит по дополнительному штрих-коду и отдаёт их списком; чужой организации — не находка", async () => {
+    // Скан второй этикетки того же товара отвечал «ничего»: искали только
+    // основной штрих-код.
+    const { productRouter } = await import("../product-router");
+    const caller = productRouter.createCaller({ ...makeCtx(1, 10), db: mockDb });
+    const hit = (await caller.list({ search: "extra-a" })) as any;
+    expect(hit.data.map((p: any) => p.id)).toEqual([1]);
+    expect(hit.data[0].barcodes).toEqual(["EXTRA-A"]);
+    // Код соседней организации ведёт к её товару, а не к нашему.
+    expect(((await caller.list({ search: "EXTRA-B" })) as any).data).toHaveLength(0);
+    // Часть дополнительного кода — тоже не находка.
+    expect(((await caller.list({ search: "EXTRA" })) as any).data).toHaveLength(0);
+    // У товара без дополнительных — пустой список, а не отсутствие поля.
+    const all = (await caller.list()) as any;
+    expect(all.data.find((p: any) => p.id === 2).barcodes).toEqual([]);
+  });
 });
 
 describe("product.getById", () => {
@@ -355,6 +397,7 @@ describe("product.getById", () => {
     expect((result!.stock as any).currentStock).toBe("100.00");
     expect(result!.movements).toHaveLength(1);
     expect(result!.movements[0].type).toBe("in");
+    expect(result!.barcodes).toEqual(["EXTRA-A"]);
   });
 
   it("returns null for non-existent", async () => {

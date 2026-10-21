@@ -86,6 +86,9 @@ const TABLES = [
   // остаток при этом сходится.
   "stock_batches", "markdowns",
   "stock_movements", "products", "shops", "warehouses", "users", "tenants",
+  // Дополнительные штрих-коды: уникальны в организации, и оставленный чужим
+  // набором код отказал бы следующему как «занятый».
+  "product_barcodes",
   // Расчёты с контрагентами: платежи, поставки, сами контрагенты, приходы.
   "supplier_payments", "supplies", "suppliers", "arrival_items", "arrivals",
   // Возвраты и правки заказа. Их тут не было, и первый же набор, который их

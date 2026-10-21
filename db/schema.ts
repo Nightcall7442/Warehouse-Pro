@@ -319,6 +319,33 @@ export const products = mysqlTable("products", {
 export type Product       = typeof products.$inferSelect;
 export type InsertProduct = typeof products.$inferInsert;
 
+/*
+  Дополнительные штрих-коды товара.
+
+  Один и тот же товар приходит с разными кодами: другой поставщик, новая
+  партия этикеток, блок и пачка. Основной штрих-код остаётся в
+  products.barcode — его печатают этикетки, отдают обмен с 1С и публичный
+  API; здесь — остальные, по которым товар тоже должен находиться сканером.
+
+  Уникальность — в пределах организации: один код не может вести к двум
+  товарам, иначе скан кладёт в заказ случайный из них. Пересечение с
+  основным штрих-кодом другого товара проверяет сервис
+  (api/services/product-barcodes.ts): основной штрих-код исторически не
+  уникален, и индексом его не связать.
+*/
+export const productBarcodes = mysqlTable("product_barcodes", {
+  id:        serial("id").primaryKey(),
+  tenantId:  bigint("tenant_id", { mode: "number", unsigned: true }).notNull().references(() => tenants.id, { onDelete: "restrict" }),
+  productId: bigint("product_id", { mode: "number", unsigned: true }).notNull().references(() => products.id, { onDelete: "cascade" }),
+  barcode:   varchar("barcode", { length: 100 }).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (t) => ({
+  barcodePerTenant: uniqueIndex("uq_product_barcode_tenant").on(t.tenantId, t.barcode),
+  productIdx:       index("idx_product_barcodes_product").on(t.productId),
+}));
+
+export type ProductBarcode = typeof productBarcodes.$inferSelect;
+
 // ============================================
 // PRICE LISTS — прайс-листы
 // ============================================

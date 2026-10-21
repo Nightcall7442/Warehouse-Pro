@@ -22,6 +22,18 @@ import { defaultReorderPoint } from "./services/reorder";
 import { resolveCatalog } from "./services/price-resolver";
 import { activeMarkdowns, capAtMarkdown, type ActiveMarkdown } from "./services/markdown";
 import { invalidateReports } from "./lib/report-cache";
+import {
+  MAX_EXTRA_BARCODES, assertBarcodesFree, cleanExtraBarcodes, extraBarcodesOf, hasExtraBarcode,
+  replaceExtraBarcodes, withBarcodes,
+} from "./services/product-barcodes";
+
+/**
+ * Дополнительные штрих-коды карточки: список целиком, как его видит форма.
+ * Пустые строки допустимы — форма оставляет пустое поле под новый код, —
+ * их отбрасывает cleanExtraBarcodes.
+ */
+const extraBarcodesInput = z.array(z.string().trim().max(100, "Штрих-код — не длиннее 100 знаков"))
+  .max(MAX_EXTRA_BARCODES, `Не больше ${MAX_EXTRA_BARCODES} дополнительных штрих-кодов`);
 
 /** Уценка для экрана: цена и последний день — партия и служебное не нужны. */
 const markdownView = (m: ActiveMarkdown | null): { price: string; endsOn: string } | null =>
@@ -85,11 +97,13 @@ async function getDefaultWarehouseId(db: ReturnType<typeof getDb>, tenantId: num
  * Искалось только по названию: страница «Штрих-коды» после скана искала
  * «4870001234567» в названии и отвечала «Товар не найден», хотя штрих-код в
  * карточке стоял. Код и штрих-код сравниваются целиком: скан — точное
- * совпадение, а «12» в середине чужого штрих-кода — не находка.
+ * совпадение, а «12» в середине чужого штрих-кода — не находка. Дополнительные
+ * штрих-коды (product_barcodes) — так же целиком: скан второй этикетки того же
+ * товара должен находить его, а не «ничего».
  */
-function productMatches(raw: string) {
+function productMatches(raw: string, tenantId: number) {
   const q = sanitizeSearch(raw);
-  return or(like(products.name, `%${q}%`), eq(products.code, q), eq(products.barcode, q))!;
+  return or(like(products.name, `%${q}%`), eq(products.code, q), eq(products.barcode, q), hasExtraBarcode(tenantId, q))!;
 }
 
 export const productRouter = createRouter({
@@ -109,7 +123,7 @@ export const productRouter = createRouter({
       const warehouseId = await getDefaultWarehouseId(db, tenantId);
 
       const conditions = [eq(products.tenantId, tenantId), eq(products.status, "active")];
-      if (input?.search)   conditions.push(productMatches(input.search));
+      if (input?.search)   conditions.push(productMatches(input.search, tenantId));
       if (input?.category) conditions.push(eq(products.category, input?.category));
       const where = and(...conditions);
 
@@ -170,16 +184,19 @@ export const productRouter = createRouter({
       // markdown — уценка по сроку (services/markdown.ts): агент видит «продать
       // первым» и цену, по которой уйдёт заказ. Без магазина цена — карточка,
       // срезанная потолком уценки: заказ любому магазину не дороже её.
+      // barcodes — дополнительные штрих-коды: копия каталога на телефоне и
+      // сканер окна заказа находят товар и по ним, без похода на сервер.
+      const extras = await extraBarcodesOf(db, tenantId, data.map(r => Number(r.id)));
       if (!input?.shopId) {
         const marks = await activeMarkdowns(db, tenantId, data.map(r => Number(r.id)));
-        return data.map(r => {
+        return withBarcodes(data, extras).map(r => {
           const mark = marks.get(Number(r.id)) ?? null;
           return { ...r, basePrice: r.unitPrice, unitPrice: capAtMarkdown(String(r.unitPrice), mark ?? undefined).price, priceListId: null as number | null, tiers: null as PriceTier[] | null, markdown: markdownView(mark) };
         });
       }
       const priced = await resolveCatalog(db, tenantId, { shopId: input.shopId, priceListId: input.priceListId ?? null },
         new Map(data.map(r => [Number(r.id), String(r.unitPrice)])));
-      return data.map(r => { const p = priced.get(Number(r.id)); return { ...r, basePrice: r.unitPrice, unitPrice: p?.price ?? r.unitPrice, priceListId: p?.priceListId ?? null, tiers: p?.tiers ?? null, markdown: markdownView(p?.markdown ?? null) }; });
+      return withBarcodes(data, extras).map(r => { const p = priced.get(Number(r.id)); return { ...r, basePrice: r.unitPrice, unitPrice: p?.price ?? r.unitPrice, priceListId: p?.priceListId ?? null, tiers: p?.tiers ?? null, markdown: markdownView(p?.markdown ?? null) }; });
       });
     }),
 
@@ -219,7 +236,7 @@ export const productRouter = createRouter({
       return withTenantDataCache(tenantId, cacheKey, CacheTTL.products, async () => {
       const conditions = [eq(products.tenantId, tenantId)];
       if (!input?.includeAll) conditions.push(eq(products.status, "active"));
-      if (input?.search)   conditions.push(productMatches(input.search));
+      if (input?.search)   conditions.push(productMatches(input.search, tenantId));
       if (input?.category) conditions.push(eq(products.category, input?.category));
       const where = and(...conditions);
 
@@ -284,7 +301,8 @@ export const productRouter = createRouter({
         ? await resolveCatalog(db, tenantId, { shopId: input.shopId, priceListId: input.priceListId ?? null },
             new Map(data.map(r => [Number(r.id), String(r.unitPrice)])))
         : null;
-      const visible = data.map(row => {
+      const extras = await extraBarcodesOf(db, tenantId, data.map(r => Number(r.id)));
+      const visible = withBarcodes(data, extras).map(row => {
         const r = priced?.get(Number(row.id));
         return {
           ...row,
@@ -331,7 +349,7 @@ export const productRouter = createRouter({
         eq(warehouseStock.warehouseId, warehouseId ?? 0),
       );
 
-      const [stockResult, movements] = await Promise.all([
+      const [stockResult, movements, extras] = await Promise.all([
         db.select({
           id: warehouseStock.id, currentStock: warehouseStock.currentStock,
           reserved: warehouseStock.reserved, available: warehouseStock.available,
@@ -347,6 +365,7 @@ export const productRouter = createRouter({
           .where(and(eq(stockMovements.productId, product.id), eq(stockMovements.tenantId, tenantId)))
           .orderBy(desc(stockMovements.createdAt))
           .limit(20),
+        extraBarcodesOf(db, tenantId, [product.id]),
       ]);
 
       // Same rule as list(): the product card shows cost, an agent's app must
@@ -358,6 +377,7 @@ export const productRouter = createRouter({
       return {
         ...product,
         costPrice: canSeeCost ? product.costPrice : undefined,
+        barcodes: extras.get(product.id) ?? [],
         stock: stockResult[0] ?? null,
         movements,
       };
@@ -384,6 +404,8 @@ export const productRouter = createRouter({
       photoUrl:     z.string().max(2_800_000, "Файл слишком большой (макс. 2 МБ)")
         .refine(isSafePhotoValue, PHOTO_VALUE_ERROR).optional(),
       reorderPoint: decimalOrDefault("10.00").optional(),
+      // Дополнительные штрих-коды; основной — barcode выше.
+      extraBarcodes: extraBarcodesInput.optional(),
     }))
     .mutation(async ({ input, ctx }) => {
       const db       = getDb();
@@ -409,8 +431,9 @@ export const productRouter = createRouter({
         });
       }
 
+      const { extraBarcodes, ...fields } = input;
       const sanitized = {
-        ...input,
+        ...fields,
         code: sanitizeString(input.code),
         name: sanitizeString(input.name),
         category: input.category ? sanitizeString(input.category) : undefined,
@@ -434,8 +457,14 @@ export const productRouter = createRouter({
       sanitized.category = existingSpelling(sanitized.category, knownCategories) ?? undefined;
 
       const productId = await db.transaction(async (tx) => {
+        // Один код — один товар: и основной, и дополнительные не должны
+        // уже стоять у другого товара (services/product-barcodes.ts).
+        const extras = cleanExtraBarcodes(sanitized.barcode, extraBarcodes ?? []);
+        await assertBarcodesFree(tx, tenantId, null, { main: sanitized.barcode, extras });
+
         const [result] = await tx.insert(products).values({ tenantId, ...sanitized, status: "active" });
         const id = Number(result.insertId);
+        await replaceExtraBarcodes(tx, tenantId, id, extras);
 
         // Get or create default warehouse
         let [defaultWarehouse] = await tx.select({ id: warehouses.id })
@@ -478,6 +507,14 @@ export const productRouter = createRouter({
     .input(z.object({
       id:           z.number(),
       code:         z.string().min(1).optional(),
+      /*
+        Основной штрих-код. Правки его не было вовсе — поле молча отбрасывалось
+        схемой, и сменить код этикетки можно было только удалив товар. Пусто —
+        штрих-кода нет. Необязательное: старые клиенты его не шлют.
+      */
+      barcode:      z.string().trim().max(100, "Штрих-код — не длиннее 100 знаков").nullable().optional(),
+      // Дополнительные штрих-коды — весь список; не прислан — не трогаем.
+      extraBarcodes: extraBarcodesInput.optional(),
       name:         z.string().min(1).optional(),
       category:     z.string().optional(),
       costPrice:    decimalOrDefault("0.00").refine(v => v === undefined || Number(v) >= 0, "Цена не может быть отрицательной").optional(),
@@ -497,8 +534,10 @@ export const productRouter = createRouter({
       status:       z.enum(["active", "inactive"]).optional(),
     }))
     .mutation(async ({ input, ctx }) => {
-      const { id, ...data } = input;
+      const { id, extraBarcodes, ...data } = input;
       const sanitized: Record<string, unknown> = { ...data };
+      if (data.barcode !== undefined) sanitized.barcode = data.barcode || null;
+      const touchesBarcodes = data.barcode !== undefined || extraBarcodes !== undefined;
       if (typeof data.code === "string") sanitized.code = sanitizeString(data.code);
       if (typeof data.name === "string") sanitized.name = sanitizeString(data.name);
       if (typeof data.category === "string") {
@@ -511,15 +550,29 @@ export const productRouter = createRouter({
       if (typeof data.description === "string") sanitized.description = sanitizeString(data.description);
 
       // Skip update if no fields to set
-      if (Object.keys(sanitized).length === 0) return { success: true };
+      if (Object.keys(sanitized).length === 0 && !touchesBarcodes) return { success: true };
 
       // Цена, себестоимость, точка заказа и статус — то, о чём спорят; след
       // пишется в той же транзакции, что и правка: без следа нет правки.
       const TRACED = ["unitPrice", "costPrice", "reorderPoint", "status"];
       await getDb().transaction(async (tx) => {
-        const [before] = await tx.select({ unitPrice: products.unitPrice, costPrice: products.costPrice, reorderPoint: products.reorderPoint, status: products.status, code: products.code })
+        const [before] = await tx.select({ unitPrice: products.unitPrice, costPrice: products.costPrice, reorderPoint: products.reorderPoint, status: products.status, code: products.code, barcode: products.barcode })
           .from(products).where(and(eq(products.id, id), eq(products.tenantId, ctx.tenant.id))).for("update").limit(1);
         if (!before) throw new Error("Товар не найден");
+        if (touchesBarcodes) {
+          /*
+            Проверяется то, что останется после правки: новый основной против
+            чужих дополнительных, дополнительные — против чужих основных и
+            дополнительных. Дополнительные переписываются и тогда, когда
+            сменили только основной: код, ставший основным, из списка
+            дополнительных уходит — дважды у одного товара он не нужен.
+          */
+          const main = data.barcode !== undefined ? (data.barcode || null) : before.barcode;
+          const extras = cleanExtraBarcodes(main, extraBarcodes ?? (await extraBarcodesOf(tx, ctx.tenant.id, [id])).get(id) ?? []);
+          await assertBarcodesFree(tx, ctx.tenant.id, id, { main, extras });
+          await replaceExtraBarcodes(tx, ctx.tenant.id, id, extras);
+        }
+        if (Object.keys(sanitized).length === 0) return;
         // Тот же разбор, что и при создании: сменить код товара на уже занятый
         // так же обычно, как завести его дважды.
         await tx.update(products).set(sanitized)

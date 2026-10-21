@@ -207,6 +207,11 @@ export const SERVER_ERROR_TEXT: Record<string, ErrorText> = {
   "Не найдены товары вашей организации: {0}": { uz: "Tashkilotingiz mahsulotlari topilmadi: {0}" },
   "Товар с кодом «{0}» уже заведён. Откройте его карточку или укажите другой код.": { uz: "«{0}» kodli mahsulot allaqachon bor. Uning kartochkasini oching yoki boshqa kod kiriting." },
   "Товар с таким кодом уже заведён. Укажите другой код.": { uz: "Bunday kodli mahsulot allaqachon bor. Boshqa kod kiriting." },
+  // Дополнительные штрих-коды (services/product-barcodes.ts): один код — один товар.
+  "Штрих-код «{0}» уже стоит у товара «{1}». Уберите его там или укажите другой.": { uz: "«{0}» shtrix-kodi «{1}» mahsulotida allaqachon bor. Uni u yerdan olib tashlang yoki boshqasini kiriting." },
+  "Этот штрих-код только что поставили другому товару. Обновите карточку и проверьте коды.": { uz: "Bu shtrix-kod hozirgina boshqa mahsulotga qo'yildi. Kartochkani yangilang va kodlarni tekshiring." },
+  "Штрих-код — не длиннее 100 знаков": { uz: "Shtrix-kod 100 belgidan uzun bo'lmasin" },
+  "Не больше {0} дополнительных штрих-кодов": { uz: "Qo'shimcha shtrix-kodlar {0} tadan oshmasin" },
   "Неверный формат изображения": { uz: "Rasm formati noto'g'ri" },
   "Ошибка загрузки фото: {0}": { uz: "Fotoni yuklashda xatolik: {0}" },
   "Название категории не может быть пустым": { uz: "Kategoriya nomi bo'sh bo'lishi mumkin emas" },
