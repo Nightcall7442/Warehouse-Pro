@@ -506,6 +506,28 @@ describe("courier.markDelivered", () => {
     // Stock deduction is mocked via execute; verify order status changed
     expect(ordersTable.find((o) => o.id === 1)!.status).toBe("delivered");
   });
+
+  /*
+    Где нажато «Доставлено» — на строке журнала. Без этого точки отметок на
+    доске развоза и «Где отмечено» в карточке не появлялись никогда: ни одна
+    отметка вручения координат не несла.
+  */
+  it("точка отметки ложится на строку вручения; половина точки — не ложится", async () => {
+    const { courierRouter } = await import("../courier-router");
+    const caller = courierRouter.createCaller(makeCtx(1, 100, "courier"));
+    await caller.markDelivered({ orderId: 1, lat: "41.311", lng: "69.279" });
+    expect(eventsTable[0]).toMatchObject({ kind: "delivered", orderId: 1, lat: "41.311", lng: "69.279" });
+
+    await caller.completeDelivery({ orderId: 3, result: "paid", paymentMethod: "cash", lat: "41.2" });
+    expect(eventsTable[1]).toMatchObject({ kind: "delivered", orderId: 3, lat: null, lng: null });
+  });
+
+  it("completeDelivery с точкой — точка на строке вручения", async () => {
+    const { courierRouter } = await import("../courier-router");
+    const caller = courierRouter.createCaller(makeCtx(1, 100, "courier"));
+    await caller.completeDelivery({ orderId: 3, result: "paid", paymentMethod: "cash", lat: "41.2", lng: "69.1" });
+    expect(eventsTable[0]).toMatchObject({ kind: "delivered", orderId: 3, lat: "41.2", lng: "69.1" });
+  });
 });
 
 describe("courier.markFailed", () => {
@@ -1138,6 +1160,17 @@ describe("courier.saveProof", () => {
     for (const n of [1, 2, 3]) await caller.saveProof({ orderId: 1, photo: `${PHOTO}${n}` });
     expect(eventsTable[0].photos).toHaveLength(3);
     await expect(caller.saveProof({ orderId: 1, photo: `${PHOTO}4` })).rejects.toThrow(/не больше 3/);
+  });
+
+  it("точка с подтверждения ложится, только если у отметки своей нет", async () => {
+    delivered();
+    const { courierRouter } = await import("../courier-router");
+    const caller = courierRouter.createCaller(makeCtx(1, 100, "courier"));
+    await caller.saveProof({ orderId: 1, photo: PHOTO, lat: "41.3", lng: "69.2" });
+    expect(eventsTable[0]).toMatchObject({ lat: "41.3", lng: "69.2" });
+    // Второе доказательство с другой точкой — точку отметки не переписывает.
+    await caller.saveProof({ orderId: 1, signature: SIG, lat: "40.0", lng: "68.0" });
+    expect(eventsTable[0]).toMatchObject({ lat: "41.3", lng: "69.2", signature: SIG });
   });
 
   it("доставлен до появления журнала — строка вручения пишется со временем доставки", async () => {

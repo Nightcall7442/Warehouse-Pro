@@ -17,7 +17,7 @@ import { affectedRows } from "../lib/db-rows";
 import { isDuplicateEntry } from "../lib/db-errors";
 import { badRequest } from "../lib/errors";
 import type { DeliveryFailReason } from "@contracts/delivery-fail-reason";
-import { assertFailReason, eventByKey, failReasonOf, reasonWords, recordDeliveryEvent } from "./delivery-events";
+import { assertFailReason, eventByKey, failReasonOf, placeOf, reasonWords, recordDeliveryEvent } from "./delivery-events";
 
 /*
   Доставка глазами курьера: довёз, довёз с расчётом, не довёз.
@@ -51,8 +51,16 @@ async function alreadyDeliveredByMe(
   return done ?? null;
 }
 
+/*
+  Где курьер нажал — точка телефона в момент отметки, строкой, как у точек
+  GPS. Необязательна: старые сборки её не шлют, GPS бывает выключен. Без неё
+  доска развоза ставит отметку на магазин (services/dispatch-board.ts), а
+  карточка заказа не показывает «Где отмечено».
+*/
+export interface MarkPlace { lat?: string; lng?: string }
+
 /** recordedAt — когда это было на телефоне (отметка ждала связи); см. lib/event-time. */
-export interface MarkDeliveredInput { orderId: number; cashAmount?: string; recordedAt?: string }
+export interface MarkDeliveredInput extends MarkPlace { orderId: number; cashAmount?: string; recordedAt?: string }
 export interface MarkFailedInput {
   orderId: number;
   /** Свободный текст — так шлёт мобилка старой версии; узнаётся кодом (failReasonOf). */
@@ -65,7 +73,7 @@ export interface MarkFailedInput {
   /** id записи очереди телефона: повтор после обрыва связи не пишет вторую попытку. */
   idempotencyKey?: string;
 }
-export interface CompleteDeliveryInput {
+export interface CompleteDeliveryInput extends MarkPlace {
   orderId: number;
   recordedAt?: string;
   result: "paid" | "partial_paid" | "returned" | "partial_returned";
@@ -146,7 +154,10 @@ export async function markDelivered(db: Db, tenantId: number, courierId: number,
     }
     // Попытка — в журнал, с курьером: к ней же потом цепляется фото и
     // подпись вручения (courier.saveProof).
-    await recordDeliveryEvent(tx, { tenantId, orderId: order.id, courierId, kind: "delivered", recordedAt: deliveredAt });
+    await recordDeliveryEvent(tx, {
+      tenantId, orderId: order.id, courierId, kind: "delivered", recordedAt: deliveredAt,
+      ...placeOf(input),
+    });
 
     const items = await tx.select().from(orderItems).where(eq(orderItems.orderId, input.orderId));
     // Склад заказа — тот, где лежит его резерв.
@@ -611,7 +622,10 @@ export async function completeDelivery(db: Db, tenantId: number, courierId: numb
       deliveryNotes: input.notes ? sanitizeString(input.notes) : null,
     }).where(and(eq(orders.id, input.orderId), eq(orders.tenantId, tenantId)));
     // Курьер у двери побывал — и при полном возврате тоже: попытка в журнал.
-    await recordDeliveryEvent(tx, { tenantId, orderId: order.id, courierId, kind: "delivered", recordedAt: deliveredAt });
+    await recordDeliveryEvent(tx, {
+      tenantId, orderId: order.id, courierId, kind: "delivered", recordedAt: deliveredAt,
+      ...placeOf(input),
+    });
 
     // ── Record payment ──
     if (paidAmount > 0) {
@@ -795,7 +809,7 @@ export async function markFailed(db: Db, tenantId: number, courierId: number, in
       await recordDeliveryEvent(tx, {
         tenantId, orderId: order.id, courierId, kind: "failed",
         reasonCode: reason.code, note: reason.note,
-        lat: input.lat ?? null, lng: input.lng ?? null,
+        ...placeOf(input),
         recordedAt: eventTime(input.recordedAt),
         idempotencyKey: input.idempotencyKey ?? null,
       });

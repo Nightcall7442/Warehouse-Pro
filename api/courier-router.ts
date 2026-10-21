@@ -1,14 +1,13 @@
 import { inBackground } from "./lib/graceful-shutdown";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { createRouter, courierQuery, operatorQuery, managementQuery, can } from "./middleware";
+import { createRouter, courierQuery, courierOnlyQuery, operatorQuery, managementQuery, can } from "./middleware";
 import { getDb } from "./queries/connection";
 import { markDelivered, completeDelivery, markFailed } from "./services/courier-delivery";
 import { orders, shops, users, orderItems, products } from "@db/schema";
 import { OPEN_ORDER_STATUSES } from "./lib/order-status";
 import { eq, and, sql, desc, asc } from "drizzle-orm";
 import { businessToday } from "@contracts/business-time";
-import { ErrorMessages } from "@contracts/constants";
 import { sseBus } from "./lib/sse";
 import { logger } from "./lib/logger";
 import { NotificationService } from "./services/NotificationService";
@@ -236,6 +235,9 @@ export const courierRouter = createRouter({
       orderId: z.number().int().positive(),
       cashAmount: z.string().regex(/^\d+(\.\d{1,2})?$/, "Неверный формат суммы").optional(),
       recordedAt: recordedAtInput,
+      // Где нажато «Доставлено» — на доску развоза и в карточку заказа.
+      lat: latInput,
+      lng: lngInput,
     }))
     .mutation(({ input, ctx }) => markDelivered(getDb(), ctx.tenant.id, ctx.user.id, input)),
 
@@ -244,6 +246,8 @@ export const courierRouter = createRouter({
     .input(z.object({
       orderId: z.number().int().positive(),
       recordedAt: recordedAtInput,
+      lat: latInput,
+      lng: lngInput,
       result: z.enum(["paid", "partial_paid", "returned", "partial_returned"]),
       // Формат тот же, что у cashAmount в markDelivered выше. Раньше поле было
       // просто z.string(): курьер набирал «50,000» (запятая — привычный
@@ -346,17 +350,16 @@ export const courierRouter = createRouter({
     Только курьер: подтверждение — слово того, кто стоял у прилавка, а не
     офиса, дописанное потом.
   */
-  saveProof: courierQuery
+  saveProof: courierOnlyQuery
     .input(z.object({
       orderId: z.number().int().positive(),
       photo: z.string().max(PROOF_PHOTO_MAX_CHARS, "Фото слишком большое — снимите ещё раз").refine(isSafePhotoValue, PHOTO_VALUE_ERROR).optional(),
       signature: signatureInput.optional(),
       recipientName: z.string().max(120).optional(),
+      lat: latInput,
+      lng: lngInput,
     }))
-    .mutation(({ input, ctx }) => {
-      if (ctx.user.role !== "courier") throw new TRPCError({ code: "FORBIDDEN", message: ErrorMessages.insufficientRole });
-      return saveProof(getDb(), ctx.tenant.id, ctx.user.id, input);
-    }),
+    .mutation(({ input, ctx }) => saveProof(getDb(), ctx.tenant.id, ctx.user.id, input)),
 
   // ── Доска развоза (офис) ───────────────────────────────────────────────────
 

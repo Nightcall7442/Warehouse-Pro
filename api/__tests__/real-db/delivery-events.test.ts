@@ -240,6 +240,19 @@ describe.skipIf(!hasRealDb)("журнал попыток доставки и п�
     await expect(op.suggestRoute({ courierId: s.agentId })).rejects.toThrow(/Курьер не найден/);
   });
 
+  it("точка «Доставлено» и «Не довёз» — на строке журнала", async () => {
+    const a = await assigned();
+    const b = await assigned();
+    const courier = await courierApi();
+    await courier.markDelivered({ orderId: a, lat: "41.31100000", lng: "69.27900000" });
+    await courier.markFailed({ orderId: b, reasonCode: "shop_closed", lat: "41.32000000", lng: "69.28000000" });
+    const rows = await q(sql`SELECT order_id AS o, kind, lat, lng FROM delivery_events WHERE order_id IN (${a}, ${b}) ORDER BY id`);
+    expect(rows.map(r => [Number(r.o), r.kind, Number(r.lat), Number(r.lng)])).toEqual([
+      [a, "delivered", 41.311, 69.279],
+      [b, "failed", 41.32, 69.28],
+    ]);
+  });
+
   it("страница для магазина: в пути — имя курьера без координат; приостановленная организация — 404", async () => {
     const id = await assigned();
     await (await courierApi()).markOutForDelivery({ orderId: id });

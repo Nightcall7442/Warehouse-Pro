@@ -511,6 +511,13 @@ export const locationQuery = authedQuery
 export const supervisorQuery = authedQuery.use(requireRole(["ceo", "supervisor"])).use(mutationRateLimit("supervisor", 120));
 export const merchQuery      = authedQuery.use(requireRole(["ceo", "supervisor", "merchandiser"]));
 export const courierQuery    = authedQuery.use(requireRole(["ceo", "operator", "courier"])).use(mutationRateLimit("courier", 200));
+/*
+  Только сам курьер — для того, что может сказать лишь стоявший у прилавка
+  (подтверждение вручения). Директор и оператор работают через courierQuery
+  и могли бы дописать «доказательство» задним числом. Счётчик частоты —
+  курьерский: это те же отметки из той же очереди телефона.
+*/
+export const courierOnlyQuery = authedQuery.use(requireRole(["courier"])).use(mutationRateLimit("courier", 200));
 export const reportsQuery    = authedQuery.use(requireRole(["ceo", "operator", "supervisor", "merchandiser"]));
 export const auditQuery      = authedQuery.use(requireRole(["ceo", "superadmin"]));
 

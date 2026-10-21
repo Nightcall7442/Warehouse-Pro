@@ -5,6 +5,7 @@ import { sanitizeString } from "../lib/sanitize";
 import { storageKeyOf } from "../lib/s3";
 import { logger } from "../lib/logger";
 import type { Db } from "./order-shared";
+import { placeOf } from "./delivery-events";
 import {
   PROOF_MAX_PHOTOS, PROOF_WINDOW_DAYS, PROOF_PHOTO_MAX_CHARS,
   SIGNATURE_MAX_STROKES, SIGNATURE_MAX_POINTS, SIGNATURE_SCALE, signatureProblem, type Signature,
@@ -61,6 +62,13 @@ export interface SaveProofInput {
   photo?: string;
   signature?: Signature;
   recipientName?: string;
+  /**
+   * Где снято — точка телефона. Ложится на строку вручения, только если у
+   * неё своей точки нет (старая сборка отметила «Доставлено» без неё): точку
+   * самой отметки подтверждение не переписывает.
+   */
+  lat?: string;
+  lng?: string;
 }
 
 export async function saveProof(db: Db, tenantId: number, courierId: number, input: SaveProofInput, now: number = Date.now()) {
@@ -74,6 +82,7 @@ export async function saveProof(db: Db, tenantId: number, courierId: number, inp
   if (input.signature && signatureProblem(input.signature)) {
     throw badRequest("Подпись не читается — распишитесь ещё раз");
   }
+  const place = placeOf(input);
 
   return db.transaction(async (tx) => {
     // Замок на заказ: два снимка из очереди разом не потеряют друг друга.
@@ -92,6 +101,7 @@ export async function saveProof(db: Db, tenantId: number, courierId: number, inp
 
     const [ev] = await tx.select({
       id: deliveryEvents.id, photos: deliveryEvents.photos, signature: deliveryEvents.signature, recipientName: deliveryEvents.recipientName,
+      lat: deliveryEvents.lat,
     }).from(deliveryEvents)
       .where(and(
         eq(deliveryEvents.tenantId, tenantId), eq(deliveryEvents.orderId, o.id),
@@ -108,13 +118,14 @@ export async function saveProof(db: Db, tenantId: number, courierId: number, inp
         photos: input.photo ? [input.photo] : null,
         signature: input.signature ?? null,
         recipientName: recipientName || null,
+        ...place,
       });
       logger.info("delivery proof saved", { orderId: o.id, courierId, created: true });
       return { success: true, photoCount: input.photo ? 1 : 0, hasSignature: !!input.signature, recipientName: recipientName || null };
     }
 
     const photos = Array.isArray(ev.photos) ? [...ev.photos] : [];
-    const patch: Partial<{ photos: string[]; signature: Signature; recipientName: string }> = {};
+    const patch: Partial<{ photos: string[]; signature: Signature; recipientName: string; lat: string; lng: string }> = {};
     if (input.photo && !photos.includes(input.photo)) {
       if (photos.length >= PROOF_MAX_PHOTOS) throw badRequest(`Фото подтверждения — не больше ${PROOF_MAX_PHOTOS}`);
       photos.push(input.photo);
@@ -122,6 +133,12 @@ export async function saveProof(db: Db, tenantId: number, courierId: number, inp
     }
     if (input.signature && !ev.signature) patch.signature = input.signature;
     if (recipientName && !ev.recipientName) patch.recipientName = recipientName;
+    // Точка — только вместе с новым доказательством: повтор из очереди
+    // (ничего нового) остаётся повтором и строку не трогает.
+    if (place.lat && place.lng && ev.lat == null && Object.keys(patch).length > 0) {
+      patch.lat = place.lat;
+      patch.lng = place.lng;
+    }
 
     const result = {
       success: true,

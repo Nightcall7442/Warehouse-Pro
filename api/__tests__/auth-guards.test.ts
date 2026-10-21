@@ -111,6 +111,10 @@ describe("role access matrix", () => {
     ["agent",        "locationQuery",     true ],
     ["merchandiser", "locationQuery",     true ],
     ["courier",      "fieldSalesQuery",   false],
+    // courierOnlyQuery: подтверждение вручения — слово самого курьера.
+    ["courier",      "courierOnlyQuery",  true ],
+    ["operator",     "courierOnlyQuery",  false],
+    ["ceo",          "courierOnlyQuery",  false],
   ])("%s can access %s: %s", async (role, queryType, allowed) => {
     const mod = await import("../middleware");
     const guard = (mod as Record<string, unknown>)[queryType] as typeof mod.authedQuery;

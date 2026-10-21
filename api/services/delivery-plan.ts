@@ -12,7 +12,7 @@ import { sseBus } from "../lib/sse";
 import { NotificationService } from "./NotificationService";
 import { sendPushToUser } from "./push-service";
 import { recordAudit, type AuditRecord } from "./audit-log";
-import { assertFailReason, assertPlanDay, ddmm, eventByKey, failReasonOf, reasonWords, recordDeliveryEvent } from "./delivery-events";
+import { assertFailReason, assertPlanDay, ddmm, eventByKey, failReasonOf, placeOf, reasonWords, recordDeliveryEvent } from "./delivery-events";
 import type { Db } from "./order-shared";
 
 /*
@@ -103,7 +103,7 @@ export async function rescheduleByCourier(db: Db, tenantId: number, courierId: n
       await recordDeliveryEvent(tx, {
         tenantId, orderId: o.id, courierId, kind: "rescheduled",
         reasonCode: reason.code, note: reason.note, rescheduledTo: input.date,
-        lat: input.lat ?? null, lng: input.lng ?? null,
+        ...placeOf(input),
         recordedAt: at,
         idempotencyKey: input.idempotencyKey ?? null,
       });

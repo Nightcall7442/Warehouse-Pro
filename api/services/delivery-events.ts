@@ -26,6 +26,14 @@ export async function eventByKey(db: Pick<Db, "select">, tenantId: number, key: 
   return row ?? null;
 }
 
+/**
+ * Точка отметки — обе координаты или ни одной: половина точки на карту не
+ * ложится, а «Где отмечено» по ней вело бы в океан.
+ */
+export function placeOf(input: { lat?: string | null; lng?: string | null }): { lat: string | null; lng: string | null } {
+  return input.lat && input.lng ? { lat: input.lat, lng: input.lng } : { lat: null, lng: null };
+}
+
 export async function recordDeliveryEvent(tx: Pick<Db, "insert">, row: InsertDeliveryEvent): Promise<void> {
   await tx.insert(deliveryEvents).values(row);
 }
