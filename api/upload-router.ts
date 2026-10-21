@@ -24,7 +24,7 @@ export const uploadRouter = createRouter({
   file: authedQuery
     .input(z.object({
       dataUrl: z.string().refine(isSafePhotoValue, PHOTO_VALUE_ERROR).max(5_000_000, "Макс. 4 МБ"),
-      folder: z.enum(["products", "shops", "avatars", "visits"]).default("products"),
+      folder: z.enum(["products", "shops", "avatars", "visits", "deliveries"]).default("products"),
     }))
     .mutation(async ({ input, ctx }) => {
       if (!isS3Configured()) {

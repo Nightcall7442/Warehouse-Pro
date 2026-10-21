@@ -13,6 +13,7 @@ import {
   time,
   int,
   tinyint,
+  smallint,
   json,
   uniqueIndex,
   unique,
@@ -472,6 +473,27 @@ export const orders = mysqlTable("orders", {
   // (второй круг закрытия не удерживает ту же недостачу дважды).
   shortageAt:       timestamp("shortage_at"),
   priority:    mysqlEnum("priority", ["low", "normal", "high"]).default("normal").notNull(),
+  /*
+    На какой день доставка ЗАПЛАНИРОВАНА — день по Ташкенту.
+
+    Не путать с promisedDeliveryAt выше: то — обещание агента магазину, по
+    нему меряют срывы. Это — рабочий план развоза: заказ перенесли «на
+    послезавтра» (магазин попросил, курьер не успел), и до того дня он не
+    висит у курьера в сегодняшнем списке.
+
+    Пусто — «как обычно»: заказ виден курьеру сразу. Стирается, когда
+    курьера меняют или снимают: новый план — новому курьеру.
+  */
+  plannedDeliveryDate: date("planned_delivery_date", { mode: "string" }),
+  /*
+    Порядок заказа в маршруте курьера: 1, 2, 3… Ставит диспетчер (или
+    «Предложить порядок» по ближайшему соседу). Пусто — порядок не задан, и
+    такие заказы идут в конце списка по дате оформления.
+
+    Стирается при любой смене курьера или статуса доставки: место в чужом
+    маршруте новому курьеру ничего не говорит.
+  */
+  routeSeq:    smallint("route_seq"),
   deletedAt:   timestamp("deleted_at"),
   createdAt:   timestamp("created_at").defaultNow().notNull(),
   /*
@@ -2195,6 +2217,68 @@ export const orderAdjustments = mysqlTable("order_adjustments", {
 
 export type OrderAdjustment       = typeof orderAdjustments.$inferSelect;
 export type InsertOrderAdjustment = typeof orderAdjustments.$inferInsert;
+
+// ============================================
+// DELIVERY EVENTS — журнал попыток доставки
+// ============================================
+/*
+  Что происходило с доставкой заказа: довёз, не довёз (почему), перенёс (на
+  какой день) — по строке на попытку.
+
+  ── Зачем отдельная таблица ─────────────────────────────────────────────────
+
+  На заказе лежит только ПОСЛЕДНЕЕ состояние, и «не довёз» его стирал: заказ
+  уходил обратно в «новый» без курьера, причина жила только в уведомлении.
+  Поэтому «Сорвано» у курьера в KPI было нулём всегда — сорванный заказ к нему
+  больше не относился, — а директор не мог спросить «почему не довезли»
+  иначе как звонком.
+
+  Строка пишется в той же транзакции, что и смена статуса заказа, и помнит
+  курьера, даже когда заказ с него снят.
+
+  ── Доказательство вручения ─────────────────────────────────────────────────
+
+  У строки «довёз» могут быть фото, подпись и имя принявшего. Подпись — не
+  картинка, а штрихи числами 0..1000: SVG как картинку мы не принимаем
+  (lib/photo-value), растрировать на сервере нечем, а экран рисует ломаную из
+  чисел сам. Фото — как у отчётов мерчандайзера: списком, наружу — только их
+  число и ссылки на /api/photos/delivery/<id>/<n>.
+
+  reason_code повторяет contracts/delivery-fail-reason.ts буквально: схему
+  читает drizzle-kit своим загрузчиком. Совпадение держит тест.
+*/
+export const deliveryEvents = mysqlTable("delivery_events", {
+  id:             serial("id").primaryKey(),
+  tenantId:       bigint("tenant_id", { mode: "number", unsigned: true }).notNull().references(() => tenants.id, { onDelete: "restrict" }),
+  orderId:        bigint("order_id", { mode: "number", unsigned: true }).notNull().references(() => orders.id, { onDelete: "cascade" }),
+  // Кто ездил. Пусто — человек удалён; попытка в истории заказа остаётся.
+  courierId:      bigint("courier_id", { mode: "number", unsigned: true }).references(() => users.id, { onDelete: "set null" }),
+  kind:           mysqlEnum("kind", ["delivered", "failed", "rescheduled"]).notNull(),
+  reasonCode:     mysqlEnum("reason_code", ["shop_closed", "no_owner", "no_money", "refused", "wrong_goods", "damaged", "address_not_found", "no_answer", "asked_reschedule", "no_time", "vehicle_issue", "short_stock", "other"]),
+  note:           varchar("note", { length: 300 }),
+  // На какой день перенесли — только у kind = 'rescheduled'.
+  rescheduledTo:  date("rescheduled_to", { mode: "string" }),
+  photos:         json("photos").$type<string[]>(),
+  signature:      json("signature").$type<{ w: number; h: number; strokes: number[][] }>(),
+  recipientName:  varchar("recipient_name", { length: 120 }),
+  lat:            decimal("lat", { precision: 10, scale: 8 }),
+  lng:            decimal("lng", { precision: 11, scale: 8 }),
+  // Когда это было на телефоне (lib/event-time); без него — время записи.
+  recordedAt:     timestamp("recorded_at").defaultNow().notNull(),
+  // Ключ записи из очереди телефона: повтор после обрыва связи не пишет вторую строку.
+  idempotencyKey: varchar("idempotency_key", { length: 64 }),
+  createdAt:      timestamp("created_at").defaultNow().notNull(),
+}, (t) => ({
+  idempotencyUq:   uniqueIndex("uq_delivery_events_idem").on(t.tenantId, t.idempotencyKey),
+  orderIdx:        index("idx_de_order").on(t.orderId),
+  // Отчёт «Недоставленные» за период.
+  tenantKindIdx:   index("idx_de_tenant_kind_recorded").on(t.tenantId, t.kind, t.recordedAt),
+  // «Сорвано» в KPI курьера за период.
+  courierIdx:      index("idx_de_courier_recorded").on(t.tenantId, t.courierId, t.recordedAt),
+}));
+
+export type DeliveryEvent       = typeof deliveryEvents.$inferSelect;
+export type InsertDeliveryEvent = typeof deliveryEvents.$inferInsert;
 
 // ============================================
 // LEADS — заявки с лендинга
