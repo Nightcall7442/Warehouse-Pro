@@ -225,7 +225,7 @@ export default function HeroSection() {
           <div>
             <LeadForm compact source="hero" />
             <p className="mt-3 text-[15px] font-medium" style={{ color: LX.inkSoft }}>
-              {tr("Двусторонний обмен с 1С", "1C bilan ikki tomonlama almashinuv")}
+              {tr("Товары из 1С, заказы — в 1С", "Tovarlar 1C'dan, buyurtmalar — 1C'ga")}
               <span style={{ color: LX.inkFaint }}> · </span>
               {tr("Приложение работает без интернета", "Ilova internetsiz ishlaydi")}
               <span style={{ color: LX.inkFaint }}> · </span>

@@ -2,7 +2,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, cleanup } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 
 /**
  * Сайт обещает только то, что делает код (проход честности, 21.10.2026).
@@ -24,6 +24,19 @@ import { readFileSync } from "node:fs";
  *     «все действия пишутся в журнал» — пишутся ключевые денежные и
  *     складские правки;
  *   · README: демо-агент agent-tashkent — в засеве agent-urgench.
+ *
+ * Второй проход (ревью, 21.10.2026) — то же на остальных страницах:
+ *
+ *   · /pitch (в поиске, со своим canonical): «Приложение для iOS и
+ *     Android», «iOS, Android и веб», «Веб, PWA, iOS и Android» — а на той
+ *     же странице сказано, что iOS-приложение на проверке App Store;
+ *   · лендинг: «Товары, заказы, контрагенты — двусторонняя синхронизация»,
+ *     «Двусторонний обмен с 1С» (и в списке тарифа), «1С в обе стороны» —
+ *     товары и цены только приходят из 1С, заказы и оплаты только уходят в
+ *     неё, контрагенты сопоставляются с магазинами.
+ *
+ * Сравнение, конкурс и статьи проверяются по исходному тексту: их страницы
+ * тянут сеть и демо, а обещание живёт в строке, где бы её ни показали.
  *
  * Нарочная поломка: вернуть любую из строк выше — падает соответствующая
  * проверка.
@@ -71,6 +84,7 @@ describe("лендинг не обещает того, чего нет в код
     expect(text).not.toMatch(/оператор, склад, агент/);
     expect(text).not.toMatch(/все действия пишутся/);
     expect(text).not.toMatch(/остатки и контрагенты синхронизируются/);
+    expect(text).not.toMatch(/двусторонн|в обе стороны/i);
     // А что есть — сказано как есть.
     expect(text).toMatch(/Онлайн-оплаты на сайте пока нет/);
     expect(text).toMatch(/мерчендайзер/);
@@ -84,7 +98,33 @@ describe("лендинг не обещает того, чего нет в код
     expect(text).not.toMatch(/hafta, oy/);
     expect(text).not.toMatch(/iOS va Android/);
     expect(text).not.toMatch(/barcha amallar jurnalga/);
+    expect(text).not.toMatch(/ikki tomonlama/i);
     expect(text).toMatch(/onlayn to'lov hozircha yo'q/);
+  });
+});
+
+describe("конкурс, сравнение и статьи не обещают того, чего нет в коде", () => {
+  /** Исходный текст страниц, которые видит покупатель или жюри. */
+  const sources = () => {
+    const files = [
+      ...readdirSync("src/components/pitch").map(f => `src/components/pitch/${f}`),
+      ...readdirSync("src/site/articles/texts").map(f => `src/site/articles/texts/${f}`),
+      "src/pages/Pitch.tsx", "src/pages/PitchDemo.tsx", "src/pages/Compare.tsx",
+    ].filter(f => /\.tsx?$/.test(f));
+    // Комментарии — не обещание: правило «не писать iOS и Android» само их называет.
+    return files.map(f => [f, readFileSync(f, "utf8").replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "")] as const);
+  };
+
+  it("iOS-приложение не названо готовым: оно на проверке App Store", () => {
+    for (const [f, text] of sources()) {
+      expect(text, f).not.toMatch(/iOS (и|va) Android|iOS, Android|PWA, iOS/);
+    }
+  });
+
+  it("обмен с 1С не назван двусторонней синхронизацией всего", () => {
+    for (const [f, text] of sources()) {
+      expect(text, f).not.toMatch(/двусторонн|в обе стороны|ikki tomonlama/i);
+    }
   });
 });
 

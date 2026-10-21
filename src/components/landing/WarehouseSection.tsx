@@ -40,7 +40,7 @@ export default function WarehouseSection() {
     { t: tr("Возвраты", "Qaytarishlar"), d: tr("Отдельный документ после доставки — со статусами и сводкой", "Yetkazishdan keyin alohida hujjat — holatlar va xulosa bilan") },
     { t: tr("Контрагенты", "Kontragentlar"), d: tr("Поставки, платежи поставщику, сверка взаиморасчётов", "Yetkazib beruvchi ta'minoti, to'lovlari, o'zaro hisob solishtiruvi") },
     { t: tr("Отчёты склада", "Ombor hisobotlari"), d: tr("По категориям, движения, топ по стоимости, оборачиваемость", "Kategoriya bo'yicha, harakatlar, qiymat bo'yicha top, aylanma") },
-    { t: tr("1С в обе стороны", "1C ikki tomonlama"), d: tr("Номенклатура и заказы по OData — без двойного ввода", "Nomenklatura va buyurtmalar OData orqali — ikki marta kiritishsiz") },
+    { t: tr("Обмен с 1С", "1C bilan almashinuv"), d: tr("Номенклатура и цены — из 1С, заказы и оплаты — в 1С, по OData, без двойного ввода", "Nomenklatura va narxlar — 1C'dan, buyurtmalar va to'lovlar — 1C'ga, OData orqali, ikki marta kiritishsiz") },
   ];
 
   const root = useAnime<HTMLDivElement>(({ animate }, el) => {
