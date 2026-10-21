@@ -280,7 +280,13 @@ async function notifySubmitter(db: Db, tenantId: number, userId: number | null, 
   if (!userId) return;
   try {
     const { NotificationService } = await import("./NotificationService");
-    await NotificationService.create(db, { tenantId, userId, type: "stock", title: text.title, message: text.message, link: "/warehouse?tab=counts" });
+    // Пара { ru, uz } — прямо в вызове: notifications-speak-both-languages
+    // проверяет язык по тексту вызова, а не по типу аргумента.
+    await NotificationService.create(db, {
+      tenantId, userId, type: "stock", link: "/warehouse?tab=counts",
+      title: { ru: text.title.ru, uz: text.title.uz },
+      message: { ru: text.message.ru, uz: text.message.uz },
+    });
   } catch (e) {
     logger.warn("stock count review notification failed", { tenantId, error: String(e) });
   }
