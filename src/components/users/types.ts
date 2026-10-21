@@ -63,6 +63,8 @@ export interface User {
   role: string;
   status: string;
   lastSignInAt?: Date | null;
+  /** Склад продаж (ADR 0012); пусто — основной. */
+  warehouseId?: number | null;
 }
 
 export type Lang = "ru" | "uz";

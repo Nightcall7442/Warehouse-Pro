@@ -2,6 +2,21 @@ import { format } from "@/lib/business-time";
 import { KeyRound, Power, MapPin, ShieldCheck } from "lucide-react";
 import { tdStyle, COLORS, F, type User, type Lang } from "./types";
 import { RoleBadge } from "./RoleBadge";
+import { PremiumSelect } from "@/components/PremiumSelect";
+
+/**
+ * Склад продаж сотрудника (ADR 0012): с какого склада идут его заказы и
+ * каталог. Пусто — основной, как было всегда. В списке — только точки
+ * продаж: основной и так значит «пусто», а склад хранения сервер отвергнет.
+ */
+export interface SalesWarehouseChoice {
+  options: { id: number; name: string }[];
+  onChange: (userId: number, warehouseId: number | null) => void;
+  disabled?: boolean;
+}
+
+/** Кто продаёт — тем склад и назначают (те же роли, что у каталога и заказа). */
+const SELLING_ROLES = ["ceo", "operator", "agent", "supervisor", "merchandiser"];
 
 interface UserRowProps {
   user: User;
@@ -11,9 +26,10 @@ interface UserRowProps {
   onReactivate: (id: number) => void;
   onWorkZone?: (id: number, name: string) => void;
   onTransferCredentials?: (id: number, name: string, email: string) => void;
+  salesWarehouse?: SalesWarehouseChoice;
 }
 
-export function UserRow({ user, lang, onResetPassword, onDeactivate, onReactivate, onWorkZone, onTransferCredentials }: UserRowProps) {
+export function UserRow({ user, lang, onResetPassword, onDeactivate, onReactivate, onWorkZone, onTransferCredentials, salesWarehouse }: UserRowProps) {
   const t = (ru: string, uz: string) => (lang === "uz" ? uz : ru);
 
   return (
@@ -55,6 +71,26 @@ export function UserRow({ user, lang, onResetPassword, onDeactivate, onReactivat
             : t("Неактивен", "Faol emas")}
         </span>
       </td>
+      {/* Склад продаж (ADR 0012) */}
+      {salesWarehouse && (
+        <td style={tdStyle} data-testid={`user-warehouse-${user.id}`}>
+          {SELLING_ROLES.includes(user.role) ? (
+            <PremiumSelect
+              value={String(user.warehouseId ?? 0)}
+              onChange={v => salesWarehouse.onChange(user.id, Number(v) > 0 ? Number(v) : null)}
+              disabled={salesWarehouse.disabled}
+              width="180px"
+              aria-label={t(`Склад продаж: ${user.name}`, `Savdo ombori: ${user.name}`)}
+              options={[
+                { value: "0", label: t("Основной", "Asosiy") },
+                ...salesWarehouse.options.map(w => ({ value: String(w.id), label: w.name })),
+              ]}
+            />
+          ) : (
+            <span style={{ color: COLORS.textSecondary }}>—</span>
+          )}
+        </td>
+      )}
       {/* Last sign-in */}
       <td style={{ ...tdStyle, fontSize: "13px", color: COLORS.textSecondary }}>
         {user.lastSignInAt
