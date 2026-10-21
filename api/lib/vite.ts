@@ -7,7 +7,11 @@ import { pageMetaFor, wantsAppShell, withPageMeta } from "./public-pages";
 
 type App = Hono<{ Bindings: HttpBindings }>;
 
-const ONE_YEAR = 60 * 60 * 24 * 365;
+const ONE_DAY = 60 * 60 * 24;
+const ONE_WEEK = ONE_DAY * 7;
+const ONE_YEAR = ONE_DAY * 365;
+/** Статика без хэша в имени, которая меняется редко, — на неделю (см. onFound). */
+const WEEKLY = ["/landing/", "/og/", "/fonts/"];
 
 /**
  * Отдаётся ли оболочка приложения.
@@ -27,16 +31,35 @@ function servesAppShell(filePath: string, reqPath: string): boolean {
 export function serveStaticFiles(app: App, opts: { root?: string } = {}) {
   const distPath = opts.root ? path.resolve(opts.root) : path.resolve(import.meta.dirname, "../dist/public");
 
+  /*
+    Заголовок кэша — ПОСЛЕ раздачи, а не в onFound.
+
+    @hono/node-server (с 1.19) зовёт onFound, когда ответ уже собран, и
+    c.header() там не попадает ни в один ответ. Так и было: правила ниже
+    стояли, а в бою ни у пакетов с хэшем не было «immutable», ни у оболочки
+    «no-cache» — браузер кэшировал оболочку на глазок, и выкладка доезжала
+    до человека не сразу. Проверялся только текст правил (static-cache).
+    Теперь onFound лишь решает, а ставит заголовок обёртка, когда ответ
+    раздачи уже в руках.
+  */
+  const decided = new WeakMap<Request, string>();
+  app.use("*", async (c, next) => {
+    await next();
+    const value = decided.get(c.req.raw);
+    if (value) c.header("Cache-Control", value);
+  });
+
   app.use("*", serveStatic({
     root: opts.root ?? "./dist/public",
     onFound: (filePath, c) => {
+      const cache = (value: string) => decided.set(c.req.raw, value);
       // Matched against the request path, not the on-disk path, which is
       // separator-dependent. Everything under /assets/ carries a content hash in
       // its name, so it can be cached forever; without this header the browser
       // revalidates every bundle on every navigation.
       const reqPath = c.req.path;
       if (reqPath.startsWith("/assets/")) {
-        c.header("Cache-Control", `public, max-age=${ONE_YEAR}, immutable`);
+        cache(`public, max-age=${ONE_YEAR}, immutable`);
       } else if (servesAppShell(filePath, reqPath) || reqPath.endsWith("sw.js")) {
         /*
           Оболочку кэшировать нельзя.
@@ -55,9 +78,19 @@ export function serveStaticFiles(app: App, opts: { root?: string } = {}) {
           Проверяется отданный ФАЙЛ, а не путь запроса: путь внутри раздачи
           уже не «/», и условие по нему молча не срабатывало.
         */
-        c.header("Cache-Control", "no-cache");
+        cache("no-cache");
+      } else if (WEEKLY.some(prefix => reqPath.startsWith(prefix))) {
+        /*
+          Кадры и снимки лендинга, картинки карточек ссылок, шрифты — имена
+          без хэша, но меняются они редко, а весят много (плёнка — сотни
+          кадров). Сутки кэша заставляли постоянного гостя перекачивать их
+          каждый день. Неделя — и ещё сутки браузер может показывать прежнюю
+          копию, пока проверяет новую. Кто меняет такой файл — меняет и имя
+          (новая папка плёнки, новое имя шрифта), иначе неделю увидят старый.
+        */
+        cache(`public, max-age=${ONE_WEEK}, stale-while-revalidate=${ONE_DAY}`);
       } else {
-        c.header("Cache-Control", "public, max-age=86400");
+        cache("public, max-age=86400");
       }
     },
   }));
