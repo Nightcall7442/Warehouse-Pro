@@ -57,10 +57,17 @@ export async function defaultWarehouseId(db: Db | Tx, tenantId: number): Promise
   return wh ? Number(wh.id) : null;
 }
 
-/** Склад организации, с которого можно продавать; null — чужой, отключён или только для хранения. */
-export async function findSellableWarehouse(db: Db | Tx, tenantId: number, id: number): Promise<{ id: number; name: string } | null> {
-  const [wh] = await db.select({ id: warehouses.id, name: warehouses.name }).from(warehouses)
+/**
+ * Склад организации, с которого можно продавать; null — чужой, отключён или только для хранения.
+ *
+ * locked — внутри сделки, под разделяемым замком строки склада: закрепление
+ * сотрудника (user.update) ждёт, пока склад отключают или снимают отметку
+ * «точка продаж» (warehouseMulti.update), и видит уже новое состояние.
+ */
+export async function findSellableWarehouse(db: Db | Tx, tenantId: number, id: number, locked = false): Promise<{ id: number; name: string } | null> {
+  const query = db.select({ id: warehouses.id, name: warehouses.name }).from(warehouses)
     .where(and(eq(warehouses.id, id), sellableWarehouse(tenantId))).limit(1);
+  const [wh] = locked ? await query.for("share") : await query;
   return wh ? { id: Number(wh.id), name: wh.name } : null;
 }
 

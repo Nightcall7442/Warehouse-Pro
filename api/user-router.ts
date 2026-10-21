@@ -259,19 +259,6 @@ export const userRouter = createRouter({
       const db = getDb();
       const { id, ...data } = input;
 
-      /*
-        Склад — только свой и только тот, с которого продают: действующий,
-        основной или отмеченный точкой продаж. Чужой номер склада записался
-        бы как есть и увёл бы резерв заказов агента на склад другой
-        организации; склад хранения — молча не подействовал бы.
-      */
-      let warehouseName: string | null = null;
-      if (data.warehouseId != null) {
-        const wh = await findSellableWarehouse(db, ctx.tenant.id, data.warehouseId);
-        if (!wh) throw new TRPCError({ code: "BAD_REQUEST", message: "С этого склада не продают: он отключён или не отмечен точкой продаж" });
-        warehouseName = wh.name;
-      }
-
       // #FIX4: Prevent removing last active CEO
       if ((data.role && data.role !== "ceo") || data.status === "inactive") {
         const [target] = await db.select({ role: users.role, status: users.status })
@@ -292,8 +279,28 @@ export const userRouter = createRouter({
         .leftJoin(warehouses, and(eq(warehouses.id, users.warehouseId), eq(warehouses.tenantId, ctx.tenant.id)))
         .where(and(eq(users.id, id), eq(users.tenantId, ctx.tenant.id))).limit(1);
 
-      await db.update(users).set(data)
-        .where(and(eq(users.id, id), eq(users.tenantId, ctx.tenant.id)));
+      /*
+        Склад — только свой и только тот, с которого продают: действующий,
+        основной или отмеченный точкой продаж. Чужой номер склада записался
+        бы как есть и увёл бы резерв заказов агента на склад другой
+        организации; склад хранения — молча не подействовал бы.
+
+        Проверка и запись — одной сделкой, склад под разделяемым замком:
+        иначе между «склад продаёт» и записью его успевали отключить
+        (warehouseMulti.update проверяет закреплённых под своим замком), и
+        агент оказывался закреплён за отключённым складом — то есть молча
+        продавал с основного.
+      */
+      let warehouseName: string | null = null;
+      await db.transaction(async (tx) => {
+        if (data.warehouseId != null) {
+          const wh = await findSellableWarehouse(tx, ctx.tenant.id, data.warehouseId, true);
+          if (!wh) throw new TRPCError({ code: "BAD_REQUEST", message: "С этого склада не продают: он отключён или не отмечен точкой продаж" });
+          warehouseName = wh.name;
+        }
+        await tx.update(users).set(data)
+          .where(and(eq(users.id, id), eq(users.tenantId, ctx.tenant.id)));
+      });
       invalidateAuthUser(id);
 
       // Audit: user updated (role/status change, склад продаж)

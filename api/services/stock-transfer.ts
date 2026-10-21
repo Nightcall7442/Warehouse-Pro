@@ -66,11 +66,12 @@ export interface TransferInput {
 
    ── Порядок замков ──────────────────────────────────────────────────────────
 
-   Документ → строки остатка (склад, товар — по возрастанию) → партии. Заказы
-   берут заказ → остаток → магазин; с ними это не пересекается. Строки остатка
-   обоих складов при мгновенном перемещении берутся ОДНИМ порядком: иначе
-   встречные документы A→B и B→A одного товара ждали бы друг друга. Строки
-   склада-получателя для этого заводятся заранее (ensureStockRows).
+   Склады (разделяемый замок) → документ → строки остатка (склад, товар — по
+   возрастанию) → партии. Заказы берут заказ → остаток → магазин; с ними это
+   не пересекается. Строки остатка обоих складов при мгновенном перемещении
+   берутся ОДНИМ порядком: иначе встречные документы A→B и B→A одного товара
+   ждали бы друг друга. Строки склада-получателя для этого заводятся заранее
+   (ensureStockRows).
    ═══════════════════════════════════════════════════════════════════════════ */
 
 /** Режим по умолчанию — из настроек организации. */
@@ -125,10 +126,19 @@ function refusal(e: unknown, name: string): unknown {
   return e;
 }
 
-/** Оба склада — свои и действующие. Чужой склад-получатель раньше не проверялся вовсе. */
-async function ownWarehouses(db: Db | Tx, tenantId: number, ids: number[]): Promise<Map<number, string>> {
-  const rows = await db.select({ id: warehouses.id, name: warehouses.name, status: warehouses.status }).from(warehouses)
-    .where(and(eq(warehouses.tenantId, tenantId), inArray(warehouses.id, ids)));
+/**
+ * Оба склада — свои и действующие. Чужой склад-получатель раньше не проверялся вовсе.
+ *
+ * locked — внутри сделки перемещения, под разделяемым замком и по
+ * возрастанию номера: отключение склада (warehouseMulti.update) берёт строку
+ * склада исключительным замком и ждёт эту сделку — и видит документ «в пути»,
+ * а не отключает склад, на который он вот-вот поедет.
+ */
+async function ownWarehouses(db: Db | Tx, tenantId: number, ids: number[], locked = false): Promise<Map<number, string>> {
+  const query = db.select({ id: warehouses.id, name: warehouses.name, status: warehouses.status }).from(warehouses)
+    .where(and(eq(warehouses.tenantId, tenantId), inArray(warehouses.id, ids)))
+    .orderBy(asc(warehouses.id));
+  const rows = locked ? await query.for("share") : await query;
   const byId = new Map(rows.map(w => [w.id, w]));
   for (const id of ids) {
     const w = byId.get(id);
@@ -190,6 +200,8 @@ export async function transferStock(db: Db, tenantId: number, actor: Actor, inpu
   await ensureStockRows(db, { tenantId, warehouseId: input.toWarehouseId, productIds });
 
   const done = await db.transaction(async (tx) => {
+    // Склады ещё раз — под замком: проверка выше шла без него (см. ownWarehouses).
+    await ownWarehouses(tx, tenantId, [input.fromWarehouseId, input.toWarehouseId], true);
     let n = await nextTransferNumber(tx, tenantId);
     let docId = 0;
     for (let attempt = 0; ; attempt++) {

@@ -2,7 +2,7 @@ import { z } from "zod";
 import { createRouter, adminQuery, authedQuery, operatorQuery, can } from "./middleware";
 import { getDb } from "./queries/connection";
 import { warehouses, warehouseStock, stockTransfers, stockTransferDocs, products, orders, users } from "@db/schema";
-import { eq, and, or, sql, desc, isNull, inArray, gt } from "drizzle-orm";
+import { eq, and, or, sql, asc, desc, isNull, inArray, gt } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { OPEN_ORDER_STATUSES } from "./lib/order-status";
 import { recordAudit, auditActor } from "./services/audit-log";
@@ -67,61 +67,72 @@ export const warehouseMultiRouter = createRouter({
       const db = getDb();
       const tenantId = ctx.tenant.id;
       const { id, ...data } = input;
-      const [before] = await db.select({ name: warehouses.name, status: warehouses.status, isDefault: warehouses.isDefault, isSalesPoint: warehouses.isSalesPoint })
-        .from(warehouses).where(and(eq(warehouses.id, id), eq(warehouses.tenantId, tenantId))).limit(1);
-      if (!before) throw new TRPCError({ code: "NOT_FOUND", message: "Склад не найден" });
+      /*
+        Проверки и запись — одной сделкой под замком строки склада. Без него
+        между «никто не закреплён, в пути пусто» и «отключить» успевали
+        закрепить агента (user.update) или отправить на склад перемещение
+        «в пути» (transferStock) — и получалось ровно то, от чего проверки:
+        агент молча переезжал на основной склад, документ висел на
+        отключённом. Те двое читают склад под разделяемым замком и ждут.
+      */
+      const before = await db.transaction(async (tx) => {
+        const [row] = await tx.select({ name: warehouses.name, status: warehouses.status, isDefault: warehouses.isDefault, isSalesPoint: warehouses.isSalesPoint })
+          .from(warehouses).where(and(eq(warehouses.id, id), eq(warehouses.tenantId, tenantId))).for("update").limit(1);
+        if (!row) throw new TRPCError({ code: "NOT_FOUND", message: "Склад не найден" });
 
-      /*
-        Склад перестаёт продавать — отключением или снятием отметки «точка
-        продаж». Пока за ним закреплены сотрудники, их каталог и заказы молча
-        переехали бы на основной склад: агент увидел бы чужой остаток, не
-        понимая почему. Пока на нём лежит резерв открытых заказов — их
-        отгрузка шла бы с отключённого склада. Сначала переназначить людей и
-        довезти заказы, потом выключать.
-      */
-      const stopsSelling = (data.status === "inactive" && before.status !== "inactive")
-        || (data.isSalesPoint === false && before.isSalesPoint && !before.isDefault);
-      if (stopsSelling) {
-        const [assigned] = await db.select({ n: sql<number>`count(*)` }).from(users)
-          .where(and(eq(users.tenantId, tenantId), eq(users.warehouseId, id), eq(users.status, "active")));
-        const n = Number(assigned?.n ?? 0);
-        if (n > 0) {
-          throw new TRPCError({ code: "BAD_REQUEST", message: `С этого склада продают ${n} сотр. — сначала назначьте им другой склад в «Сотрудниках»` });
+        /*
+          Склад перестаёт продавать — отключением или снятием отметки «точка
+          продаж». Пока за ним закреплены сотрудники, их каталог и заказы молча
+          переехали бы на основной склад: агент увидел бы чужой остаток, не
+          понимая почему. Пока на нём лежит резерв открытых заказов — их
+          отгрузка шла бы с отключённого склада. Сначала переназначить людей и
+          довезти заказы, потом выключать.
+        */
+        const stopsSelling = (data.status === "inactive" && row.status !== "inactive")
+          || (data.isSalesPoint === false && row.isSalesPoint && !row.isDefault);
+        if (stopsSelling) {
+          const [assigned] = await tx.select({ n: sql<number>`count(*)` }).from(users)
+            .where(and(eq(users.tenantId, tenantId), eq(users.warehouseId, id), eq(users.status, "active")));
+          const n = Number(assigned?.n ?? 0);
+          if (n > 0) {
+            throw new TRPCError({ code: "BAD_REQUEST", message: `С этого склада продают ${n} сотр. — сначала назначьте им другой склад в «Пользователях»` });
+          }
         }
-      }
-      if (data.status === "inactive" && before.status !== "inactive") {
-        // Основной склад — источник продаж и приходов по умолчанию; без него
-        // заказ не оформить вовсе. Сначала назначить основным другой.
-        if (before.isDefault) {
-          throw new TRPCError({ code: "BAD_REQUEST", message: "Основной склад не отключают — сначала сделайте основным другой" });
+        if (data.status === "inactive" && row.status !== "inactive") {
+          // Основной склад — источник продаж и приходов по умолчанию; без него
+          // заказ не оформить вовсе. Сначала назначить основным другой.
+          if (row.isDefault) {
+            throw new TRPCError({ code: "BAD_REQUEST", message: "Основной склад не отключают — сначала сделайте основным другой" });
+          }
+          const [held] = await tx.select({ n: sql<number>`count(*)` }).from(warehouseStock)
+            .where(and(eq(warehouseStock.tenantId, tenantId), eq(warehouseStock.warehouseId, id), gt(warehouseStock.reserved, "0")));
+          const h = Number(held?.n ?? 0);
+          if (h > 0) {
+            throw new TRPCError({ code: "BAD_REQUEST", message: `Нельзя отключить склад: позиций под резервом открытых заказов ${h} — довезите или отмените заказы` });
+          }
         }
-        const [held] = await db.select({ n: sql<number>`count(*)` }).from(warehouseStock)
-          .where(and(eq(warehouseStock.tenantId, tenantId), eq(warehouseStock.warehouseId, id), gt(warehouseStock.reserved, "0")));
-        const h = Number(held?.n ?? 0);
-        if (h > 0) {
-          throw new TRPCError({ code: "BAD_REQUEST", message: `Нельзя отключить склад: позиций под резервом открытых заказов ${h} — довезите или отмените заказы` });
+        /*
+          Отключённый склад не принимает и не отдаёт перемещений
+          (services/stock-transfer.ts). Отключи его, пока к нему или от него
+          что-то едет, — документ повиснет: принять его будет некуда, а товар
+          уже ушёл с другого склада.
+        */
+        if (data.status === "inactive") {
+          const [row] = await tx.select({ n: sql<number>`count(*)` }).from(stockTransferDocs)
+            .where(and(
+              eq(stockTransferDocs.tenantId, ctx.tenant.id), eq(stockTransferDocs.status, "in_transit"),
+              or(eq(stockTransferDocs.fromWarehouseId, id), eq(stockTransferDocs.toWarehouseId, id)),
+            ));
+          const n = Number(row?.n ?? 0);
+          if (n > 0) {
+            throw new TRPCError({ code: "BAD_REQUEST", message: `Нельзя отключить склад: перемещений в пути ${n} — примите или отмените их` });
+          }
         }
-      }
-      /*
-        Отключённый склад не принимает и не отдаёт перемещений
-        (services/stock-transfer.ts). Отключи его, пока к нему или от него
-        что-то едет, — документ повиснет: принять его будет некуда, а товар
-        уже ушёл с другого склада.
-      */
-      if (data.status === "inactive") {
-        const [row] = await db.select({ n: sql<number>`count(*)` }).from(stockTransferDocs)
-          .where(and(
-            eq(stockTransferDocs.tenantId, ctx.tenant.id), eq(stockTransferDocs.status, "in_transit"),
-            or(eq(stockTransferDocs.fromWarehouseId, id), eq(stockTransferDocs.toWarehouseId, id)),
-          ));
-        const n = Number(row?.n ?? 0);
-        if (n > 0) {
-          throw new TRPCError({ code: "BAD_REQUEST", message: `Нельзя отключить склад: перемещений в пути ${n} — примите или отмените их` });
-        }
-      }
-      await db.update(warehouses)
-        .set(data)
-        .where(and(eq(warehouses.id, id), eq(warehouses.tenantId, ctx.tenant.id)));
+        await tx.update(warehouses)
+          .set(data)
+          .where(and(eq(warehouses.id, id), eq(warehouses.tenantId, ctx.tenant.id)));
+        return row;
+      });
       // След — когда склад начинает или перестаёт продавать: с этим спорят о
       // том, откуда ушёл товар.
       const changes: Record<string, { from: unknown; to: unknown }> = {};
@@ -143,13 +154,39 @@ export const warehouseMultiRouter = createRouter({
       const db = getDb();
 
       await db.transaction(async (tx) => {
-        // Lock target row inside transaction to prevent race condition
-        const [target] = await tx.select({ id: warehouses.id })
+        /*
+          Все склады организации — под замком и по возрастанию номера: ниже
+          их переписывают разом, а перемещение и закрепление сотрудника
+          читают склады под разделяемым замком в том же порядке — встречные
+          сделки не ждут друг друга по кругу.
+        */
+        const all = await tx.select({ id: warehouses.id, name: warehouses.name, isDefault: warehouses.isDefault, isSalesPoint: warehouses.isSalesPoint })
           .from(warehouses)
-          .where(and(eq(warehouses.id, input.id), eq(warehouses.tenantId, ctx.tenant.id)))
-          .for("update")
-          .limit(1);
+          .where(eq(warehouses.tenantId, ctx.tenant.id))
+          .orderBy(asc(warehouses.id))
+          .for("update");
+        const target = all.find(w => w.id === input.id);
         if (!target) throw new TRPCError({ code: "NOT_FOUND", message: "Склад не найден" });
+
+        /*
+          С основного продают все, кому склад не назначен, — и те, кому его
+          назначили (users.warehouse_id = основной). Перестав быть основным,
+          он продаёт, только если отмечен точкой продаж; иначе каталог и
+          новые заказы этих сотрудников молча переехали бы на новый основной.
+          Тот же отказ, что у снятия отметки (update выше).
+        */
+        const old = all.find(w => w.isDefault);
+        if (old && old.id !== target.id && !old.isSalesPoint) {
+          const [assigned] = await tx.select({ n: sql<number>`count(*)` }).from(users)
+            .where(and(eq(users.tenantId, ctx.tenant.id), eq(users.warehouseId, old.id), eq(users.status, "active")));
+          const n = Number(assigned?.n ?? 0);
+          if (n > 0) {
+            throw new TRPCError({
+              code: "PRECONDITION_FAILED",
+              message: `С основного склада «${old.name}» продают ${n} сотр. — отметьте его точкой продаж или назначьте им другой склад в «Пользователях»`,
+            });
+          }
+        }
 
         /*
           Пока есть открытые заказы (те, что держат резерв — holdsStock) или

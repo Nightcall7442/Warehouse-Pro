@@ -20,7 +20,10 @@
  *   9. сотруднику назначают только склад продаж своей организации;
  *  10. склад, с которого продают, не отключают молча;
  *  11. публичный API фильтрует и отдаёт склад заказа;
- *  12. тревога «заканчивается» — по складам продаж, склад хранения молчит.
+ *  12. тревога «заканчивается» — по складам продаж, склад хранения молчит;
+ *  13. гонки: отключение склада и перемещение на него / закрепление за ним
+ *      сотрудника не проскакивают друг мимо друга;
+ *  14. основной не меняют, пока со старого основного продают сотрудники.
  *
  * Нарочные поломки:
  *   · в order-create передай resolveOrderWarehouse без agentId — падает 1;
@@ -30,7 +33,11 @@
  *   · убери `:wh${warehouseId ?? 0}` из ключа listAll — падает 5;
  *   · в loading-list убери проверку byWarehouse.size — падает 7;
  *   · в returns-router верни основной склад — падает 8;
- *   · в runLowStockAlerts верни соединение только с основным — падает 12.
+ *   · в runLowStockAlerts верни соединение только с основным — падает 12;
+ *   · в transferStock убери ownWarehouses(tx, …, true), в user.update — locked
+ *     у findSellableWarehouse, в warehouseMulti.update — сделку с FOR UPDATE —
+ *     падает 13;
+ *   · в setDefault убери проверку старого основного — падает 14.
  */
 import { describe, it, expect, beforeAll, beforeEach, afterAll, vi } from "vitest";
 import { createHash } from "node:crypto";
@@ -353,5 +360,83 @@ describe.skipIf(!hasRealDb)("продажи с нескольких складо
     expect(note!.title).toBe("Заканчивается: Товар («Филиал»)");
     // Повторный проход молчит: пересечение уже отмечено.
     expect(await runLowStockAlerts(db as never)).toMatchObject({ alerted: 0 });
+  });
+
+  /*
+    Соседний запрос, застывший посреди сделки: взял строку склада (lock) и
+    что-то записал, но не зафиксировал, пока его не отпустят. Пауза перед
+    отпуском — чтобы проверяемый запрос успел дойти до своей проверки: без
+    замка он прочёл бы старое состояние и записал своё поверх.
+  */
+  const hold = async (lock: (tx: Parameters<Parameters<ServiceDb["transaction"]>[0]>[0]) => Promise<void>) => {
+    let release!: () => void;
+    let locked!: () => void;
+    const gate = new Promise<void>(r => { release = r; });
+    const ready = new Promise<void>(r => { locked = r; });
+    const done = db.transaction(async (tx) => { await lock(tx); locked(); await gate; });
+    await ready;
+    return async () => { await new Promise(r => setTimeout(r, 300)); release(); await done; };
+  };
+  const whRow = (tx: Parameters<Parameters<ServiceDb["transaction"]>[0]>[0], id: number, mode: "update" | "share") =>
+    tx.select({ id: schema.warehouses.id }).from(schema.warehouses).where(eq(schema.warehouses.id, id)).for(mode);
+
+  it("13. гонки: пока склад отключают, на него не уезжает перемещение и за ним не закрепляют; пока закрепляют — не отключают", async () => {
+    // Перемещение «в пути» на склад, который в эту же секунду отключают.
+    let commit = await hold(async (tx) => {
+      await whRow(tx, w3, "update");
+      await tx.update(schema.warehouses).set({ status: "inactive" } as never).where(eq(schema.warehouses.id, w3));
+    });
+    const sent = (await stores()).createTransfer({ fromWarehouseId: s.warehouseId, toWarehouseId: w3, items: [{ productId: s.productId, quantity: 1 }], mode: "transit" });
+    await commit();
+    await expect(sent).rejects.toMatchObject({ code: "BAD_REQUEST", message: expect.stringContaining("отключён") });
+    expect(await countOf("stock_transfer_docs")).toBe(0);
+    expect((await stockAt(s.warehouseId)).current).toBe(10);
+    await db.update(schema.warehouses).set({ status: "active" } as never).where(eq(schema.warehouses.id, w3));
+
+    // Агента закрепляют за филиалом, а филиал в это время отключают.
+    await db.update(schema.users).set({ warehouseId: null } as never).where(eq(schema.users.id, branchAgent));
+    commit = await hold(async (tx) => {
+      await whRow(tx, w2, "share");
+      await tx.update(schema.users).set({ warehouseId: w2 } as never).where(eq(schema.users.id, branchAgent));
+    });
+    const off = (await stores()).update({ id: w2, status: "inactive" });
+    await commit();
+    await expect(off).rejects.toMatchObject({ code: "BAD_REQUEST", message: expect.stringContaining("продают 1 сотр.") });
+    const status = async (id: number) => (await db.select({ s: schema.warehouses.status }).from(schema.warehouses).where(eq(schema.warehouses.id, id)))[0]!.s;
+    expect(await status(w2)).toBe("active");
+
+    // И наоборот: филиал отключают, а агента в это время закрепляют за ним.
+    await db.update(schema.users).set({ warehouseId: null } as never).where(eq(schema.users.id, branchAgent));
+    commit = await hold(async (tx) => {
+      await whRow(tx, w2, "update");
+      await tx.update(schema.warehouses).set({ status: "inactive" } as never).where(eq(schema.warehouses.id, w2));
+    });
+    const assign = (await people()).update({ id: s.agentId, warehouseId: w2 });
+    await commit();
+    await expect(assign).rejects.toMatchObject({ code: "BAD_REQUEST", message: expect.stringContaining("С этого склада не продают") });
+    expect((await db.select({ w: schema.users.warehouseId }).from(schema.users).where(eq(schema.users.id, s.agentId)))[0]!.w).toBeNull();
+  });
+
+  it("14. основной меняют, только если со старого основного никто не продаёт — или он остаётся точкой продаж", async () => {
+    const w = await stores();
+    await db.update(schema.users).set({ warehouseId: s.warehouseId } as never).where(eq(schema.users.id, s.agentId));
+    await expect(w.setDefault({ id: w2 })).rejects.toMatchObject({
+      code: "PRECONDITION_FAILED", message: expect.stringContaining("продают 1 сотр."),
+    });
+    const isDefault = async (id: number) => (await db.select({ d: schema.warehouses.isDefault }).from(schema.warehouses).where(eq(schema.warehouses.id, id)))[0]!.d;
+    expect(await isDefault(s.warehouseId)).toBe(true);
+
+    // Старый основной отмечен точкой продаж — с него продают и дальше: можно.
+    await w.update({ id: s.warehouseId, isSalesPoint: true });
+    await w.setDefault({ id: w2 });
+    expect(await isDefault(w2)).toBe(true);
+    expect(await isDefault(s.warehouseId)).toBe(false);
+    // Основной продаёт и без отметки; снял её — назад уже не переключить,
+    // пока за ним агент филиала. Отключённый сотрудник не в счёт.
+    await w.update({ id: w2, isSalesPoint: false });
+    await expect(w.setDefault({ id: s.warehouseId })).rejects.toMatchObject({ message: expect.stringContaining("«Филиал» продают 1 сотр.") });
+    await db.update(schema.users).set({ status: "inactive" } as never).where(eq(schema.users.id, branchAgent));
+    await w.setDefault({ id: s.warehouseId });
+    expect(await isDefault(s.warehouseId)).toBe(true);
   });
 });

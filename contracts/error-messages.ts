@@ -411,7 +411,8 @@ export const SERVER_ERROR_TEXT: Record<string, ErrorText> = {
   // Продажи с нескольких складов (ADR 0012).
   "Склад заказа выбирает офис. Агенту склад назначают в карточке сотрудника": { uz: "Buyurtma omborini ofis tanlaydi. Agentga ombor xodim kartochkasida biriktiriladi" },
   "С этого склада не продают: он отключён или не отмечен точкой продаж": { uz: "Bu ombordan sotilmaydi: u o'chirilgan yoki savdo nuqtasi deb belgilanmagan" },
-  "С этого склада продают {0} сотр. — сначала назначьте им другой склад в «Сотрудниках»": { uz: "Bu ombordan {0} xodim sotadi — avval ularga «Xodimlar» bo'limida boshqa ombor biriktiring" },
+  "С этого склада продают {0} сотр. — сначала назначьте им другой склад в «Пользователях»": { uz: "Bu ombordan {0} xodim sotadi — avval ularga «Foydalanuvchilar» bo'limida boshqa ombor biriktiring" },
+  "С основного склада «{0}» продают {1} сотр. — отметьте его точкой продаж или назначьте им другой склад в «Пользователях»": { uz: "«{0}» asosiy omboridan {1} xodim sotadi — uni savdo nuqtasi deb belgilang yoki ularga «Foydalanuvchilar» bo'limida boshqa ombor biriktiring" },
   "Основной склад не отключают — сначала сделайте основным другой": { uz: "Asosiy ombor o'chirilmaydi — avval boshqasini asosiy qiling" },
   "Нельзя отключить склад: позиций под резервом открытых заказов {0} — довезите или отмените заказы": { uz: "Omborni o'chirib bo'lmaydi: ochiq buyurtmalar zahirasidagi pozitsiyalar {0} — buyurtmalarni yetkazing yoki bekor qiling" },
   "Заказы с разных складов — один лист собирают с одного склада: {0}. Сделайте отдельный лист на каждый склад.": { uz: "Buyurtmalar turli omborlardan — bitta varaqa bitta ombordan yig'iladi: {0}. Har bir ombor uchun alohida varaqa tuzing." },
