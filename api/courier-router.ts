@@ -363,8 +363,14 @@ export const courierRouter = createRouter({
 
   // ── Доска развоза (офис) ───────────────────────────────────────────────────
 
-  /** Курьеры на сегодня: где, сколько везут, сколько довезли — и их остановки по порядку. */
-  board: managementQuery.query(({ ctx }) => dispatchBoard(getDb(), ctx.tenant.id)),
+  /**
+   * Курьеры на день (без даты — сегодня): где, сколько везут, сколько
+   * довезли — и их остановки по порядку. Другой день — до двух недель
+   * вперёд: заказы, перенесённые на него (services/dispatch-board.ts).
+   */
+  board: managementQuery
+    .input(z.object({ date: dayInput.optional() }).optional())
+    .query(({ ctx, input }) => dispatchBoard(getDb(), ctx.tenant.id, input?.date)),
 
   /** След курьера за день. Номер не курьера — отказ: след агента здесь не отдаётся. */
   dayTrack: managementQuery
@@ -375,11 +381,11 @@ export const courierRouter = createRouter({
       return track;
     }),
 
-  /** «Предложить порядок»: ближайший сосед от последней точки курьера. Не сохраняет. */
+  /** «Предложить порядок»: ближайший сосед от свежей точки курьера. Не сохраняет. */
   suggestRoute: managementQuery
-    .input(z.object({ courierId: z.number().int().positive() }))
+    .input(z.object({ courierId: z.number().int().positive(), date: dayInput.optional() }))
     .query(async ({ input, ctx }) => {
-      const route = await suggestCourierRoute(getDb(), ctx.tenant.id, input.courierId);
+      const route = await suggestCourierRoute(getDb(), ctx.tenant.id, input.courierId, input.date);
       if (!route) throw new TRPCError({ code: "NOT_FOUND", message: "Курьер не найден в вашей организации" });
       return route;
     }),
@@ -388,6 +394,8 @@ export const courierRouter = createRouter({
   setRouteOrder: operatorQuery.use(can("orders.edit"))
     .input(z.object({
       courierId: z.number().int().positive(),
+      /** День плана; без даты — сегодня (как у доски). */
+      date: dayInput.optional(),
       orderIds: z.array(z.number().int().positive()).min(1, "Выберите хотя бы один заказ").max(200),
     }))
     .mutation(({ input, ctx }) => setRouteOrder(getDb(), auditActor(ctx), input)),

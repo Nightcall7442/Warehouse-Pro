@@ -240,6 +240,70 @@ describe.skipIf(!hasRealDb)("журнал попыток доставки и п�
     await expect(op.suggestRoute({ courierId: s.agentId })).rejects.toThrow(/Курьер не найден/);
   });
 
+  it("«Предложить порядок»: вчерашняя точка не старт, ждущий офиса — в конце; день плана — свой порядок", async () => {
+    const east = (km: number) => (69.2 + km / (111.32 * Math.cos((41.3 * Math.PI) / 180))).toFixed(8);
+    const shopAt = async (km: number) => {
+      const [r] = await (db as any).execute(sql`INSERT INTO shops (tenant_id, name, gps_lat, gps_lng) VALUES (${s.tenantId}, ${"Магазин " + km}, '41.30000000', ${east(km)})`) as unknown as [{ insertId: number }];
+      return Number(r.insertId);
+    };
+    const op = await operatorApi();
+    const ids: number[] = [];
+    for (const km of [1, 3, 2]) {
+      const id = await newOrder("1", await shopAt(km));
+      await op.assignCourier({ orderId: id, courierId: s.courierId });
+      ids.push(id);
+    }
+    // Вечерняя точка, три часа назад, далеко на востоке — стартом не годится.
+    await q(sql`INSERT INTO agent_locations (tenant_id, agent_id, lat, lng, recorded_at, created_at)
+      VALUES (${s.tenantId}, ${s.courierId}, '41.30000000', ${east(10)}, NOW() - INTERVAL 3 HOUR, NOW() - INTERVAL 3 HOUR)`);
+    const stale = await op.suggestRoute({ courierId: s.courierId });
+    expect(stale).toMatchObject({ fromCourier: false, startAt: null });
+
+    // Свежая точка у склада — старт от неё; заказ, ждущий офиса, — последним.
+    await q(sql`INSERT INTO agent_locations (tenant_id, agent_id, lat, lng, recorded_at) VALUES (${s.tenantId}, ${s.courierId}, '41.30000000', '69.20000000', NOW())`);
+    await q(sql`UPDATE orders SET status = 'pending' WHERE id = ${ids[0]}`);
+    const r = await op.suggestRoute({ courierId: s.courierId });
+    expect(r.fromCourier).toBe(true);
+    expect(r.orderIds).toEqual([ids[2], ids[1], ids[0]]);
+    expect(r.held).toBe(1);
+    expect((await op.board()).couriers[0]).toMatchObject({ open: 3, held: 1 });
+
+    // Порядок на сегодня, потом — на послезавтра: заказ, перенесённый туда,
+    // в сегодняшней доске не виден, а сохранение его дня не стирает сегодняшний.
+    await op.setRouteOrder({ courierId: s.courierId, orderIds: [ids[2], ids[1], ids[0]] });
+    const later = businessDaysAgo(-2);
+    await (await courierApi()).reschedule({ orderId: ids[1], date: later });
+    expect((await op.board()).stops.map(x => x.orderId)).not.toContain(ids[1]);
+    const ahead = await op.board({ date: later });
+    expect(ahead.day).toBe(later);
+    expect(ahead.stops.map(x => x.orderId)).toEqual([ids[1]]);
+    await op.setRouteOrder({ courierId: s.courierId, date: later, orderIds: [ids[1]] });
+    const seq = Object.fromEntries((await q(sql`SELECT id, route_seq AS r FROM orders WHERE id IN (${ids[0]}, ${ids[1]}, ${ids[2]})`)).map(x => [Number(x.id), x.r]));
+    expect(seq).toEqual({ [ids[2]]: 1, [ids[0]]: 3, [ids[1]]: 1 });
+    // Сегодняшний заказ в порядок другого дня не берётся.
+    await expect(op.setRouteOrder({ courierId: s.courierId, date: later, orderIds: [ids[2]] })).rejects.toThrow(/обновите доску/);
+    // Вчера и дальше двух недель — отказ.
+    await expect(op.board({ date: businessDaysAgo(1) })).rejects.toThrow(/с сегодняшнего/);
+    await expect(op.board({ date: businessDaysAgo(-15) })).rejects.toThrow(/не дальше чем на 14/);
+  });
+
+  it("след за день — по времени съёмки; отметка без своей точки несёт точку магазина", async () => {
+    const [sh] = await (db as any).execute(sql`INSERT INTO shops (tenant_id, name, gps_lat, gps_lng) VALUES (${s.tenantId}, 'Магазин у дороги', '41.31000000', '69.25000000')`) as unknown as [{ insertId: number }];
+    const id = await newOrder("1", Number(sh.insertId));
+    await (await operatorApi()).assignCourier({ orderId: id, courierId: s.courierId });
+    await (await courierApi()).markDelivered({ orderId: id });
+    // Две точки из буфера телефона пришли одной пачкой: записаны в обратном
+    // порядке, сняты — в прямом.
+    await q(sql`INSERT INTO agent_locations (tenant_id, agent_id, lat, lng, recorded_at) VALUES (${s.tenantId}, ${s.courierId}, '41.30200000', '69.20200000', NOW() - INTERVAL 10 MINUTE)`);
+    await q(sql`INSERT INTO agent_locations (tenant_id, agent_id, lat, lng, recorded_at) VALUES (${s.tenantId}, ${s.courierId}, '41.30100000', '69.20100000', NOW() - INTERVAL 20 MINUTE)`);
+    const track = await (await operatorApi()).dayTrack({ courierId: s.courierId, day: businessToday() });
+    expect(track.points.map(p => p.lat)).toEqual([41.301, 41.302]);
+    expect(track.events).toHaveLength(1);
+    expect(track.events[0]).toMatchObject({ kind: "delivered", lat: null, lng: null });
+    expect(Number(track.events[0].shopLat)).toBeCloseTo(41.31, 5);
+    expect(Number(track.events[0].shopLng)).toBeCloseTo(69.25, 5);
+  });
+
   it("точка «Доставлено» и «Не довёз» — на строке журнала", async () => {
     const a = await assigned();
     const b = await assigned();

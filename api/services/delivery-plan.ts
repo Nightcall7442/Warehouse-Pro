@@ -13,6 +13,7 @@ import { NotificationService } from "./NotificationService";
 import { sendPushToUser } from "./push-service";
 import { recordAudit, type AuditRecord } from "./audit-log";
 import { assertFailReason, assertPlanDay, ddmm, eventByKey, failReasonOf, placeOf, reasonWords, recordDeliveryEvent } from "./delivery-events";
+import { boardDay, onPlanDay } from "./dispatch-board";
 import type { Db } from "./order-shared";
 
 /*
@@ -246,6 +247,8 @@ function notifyRescheduled(
 
 export interface RouteOrderInput {
   courierId: number;
+  /** День плана «ГГГГ-ММ-ДД»; пусто — сегодня (services/dispatch-board.ts: onPlanDay). */
+  date?: string;
   /** Заказы курьера в порядке объезда; первый — первая остановка. */
   orderIds: number[];
 }
@@ -253,17 +256,20 @@ export interface RouteOrderInput {
 /**
  * Диспетчер задаёт порядок объезда курьера.
  *
- * Принимаются только открытые заказы ЭТОГО курьера, что сейчас в развозе:
- * чужой номер в списке — либо доска устарела (заказ уже переназначили), либо
- * подмена; в обоих случаях порядок не пишется вовсе, а не «частично».
- * Заказы курьера, которых в списке нет, теряют место — иначе у двух заказов
- * оказался бы один и тот же номер остановки.
+ * Принимаются только открытые заказы ЭТОГО курьера на ЭТОТ день плана:
+ * чужой номер в списке — либо доска устарела (заказ уже переназначили или
+ * перенесли), либо подмена; в обоих случаях порядок не пишется вовсе, а не
+ * «частично». Заказы курьера на этот день, которых в списке нет, теряют
+ * место — иначе у двух заказов оказался бы один и тот же номер остановки.
+ * Заказы других дней не трогаются: порядок на пятницу, собранный в среду,
+ * не стирается сохранением среды.
  */
 export async function setRouteOrder(db: Db, actor: Pick<AuditRecord, "tenantId" | "actorId" | "actorName" | "ip">, input: RouteOrderInput) {
   const tenantId = actor.tenantId;
   if (new Set(input.orderIds).size !== input.orderIds.length) {
     throw badRequest("В порядке один и тот же заказ встречается дважды");
   }
+  const day = boardDay(input.date);
 
   const [courier] = await db.select({ id: users.id, name: users.name }).from(users)
     .where(and(eq(users.id, input.courierId), eq(users.tenantId, tenantId), eq(users.role, "courier")))
@@ -275,6 +281,7 @@ export async function setRouteOrder(db: Db, actor: Pick<AuditRecord, "tenantId" 
       .where(and(
         eq(orders.tenantId, tenantId), eq(orders.courierId, courier.id), isNull(orders.deletedAt),
         inArray(orders.status, OPEN_ORDER_STATUSES), inArray(orders.deliveryStatus, [...ACTIVE_DELIVERY]),
+        onPlanDay(day),
       ))
       .for("update");
     const own = new Set(mine.map(r => r.id));
@@ -297,7 +304,7 @@ export async function setRouteOrder(db: Db, actor: Pick<AuditRecord, "tenantId" 
       action: "courier.route_set",
       targetType: "user",
       targetId: courier.id,
-      meta: { userName: courier.name, orderIds: input.orderIds },
+      meta: { userName: courier.name, orderIds: input.orderIds, plannedDate: day },
     }, { strict: true });
   });
 
