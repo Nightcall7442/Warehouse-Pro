@@ -26,10 +26,18 @@ import type { Db } from "./order-shared";
 
 /** Потолок строк журнала за отчёт: больше — период слишком длинный, и ответ это скажет. */
 const ROW_CAP = 20_000;
-/** Сколько последних попыток отдавать списком. */
+/** Сколько последних попыток отдавать списком на экран. */
 const RECENT = 200;
 
-export interface FailedDeliveriesFilter { from: string; to: string; courierId?: number }
+export interface FailedDeliveriesFilter {
+  from: string; to: string; courierId?: number;
+  /**
+   * Все попытки периода, а не последние RECENT: для выгрузки в Excel. Файл
+   * назван «за период», и обрезанный на двухсотой строке он молча расходился
+   * с итогами по причинам и курьерам вверху того же отчёта.
+   */
+  allRows?: boolean;
+}
 
 type Reason = DeliveryFailReason | null;
 
@@ -163,7 +171,7 @@ export async function failedDeliveriesReport(db: Db, tenantId: number, f: Failed
       unspecified: failed.filter(r => r.reason == null).length,
     },
     byReason, byCourier, byShop,
-    recent: rows.slice(0, RECENT),
+    recent: f.allRows ? rows : rows.slice(0, RECENT),
     truncated,
   };
 }

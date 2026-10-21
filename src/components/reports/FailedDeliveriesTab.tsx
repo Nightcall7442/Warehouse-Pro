@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { subDays } from "date-fns";
 import { Link } from "react-router";
 import { bizNow, bizToday, format } from "@/lib/business-time";
@@ -6,6 +7,8 @@ import { trpc } from "@/providers/trpc";
 import { useLang } from "@/i18n";
 import { DateRangePicker } from "@/components/DateRangePicker";
 import { exportToExcel } from "@/lib/excel";
+import { notify } from "@/lib/toast";
+import { errorText } from "@/lib/error-text";
 import { CardTable } from "@/components/CardTable";
 import { QueryErrorFallback } from "@/components/QueryErrorFallback";
 import { F, COLORS, thStyle, tdStyle } from "@/components/users/types";
@@ -64,6 +67,8 @@ export function FailedDeliveriesTab() {
   const [courierId, setCourierId] = useUrlState("courier", undefined, urlNumber);
 
   const q = trpc.reports.failedDeliveries.useQuery({ dateFrom: from, dateTo: to, courierId });
+  const utils = trpc.useUtils();
+  const [exporting, setExporting] = useState(false);
   const preset = (days: number) => { setFrom(ymd(subDays(bizNow(), days))); setTo(bizToday()); };
   const presetOn = (days: number) => to === today && from === ymd(subDays(bizNow(), days));
   const reason = (r: DeliveryFailReason | null, note?: string | null) => deliveryFailText(r, note, lang);
@@ -71,17 +76,35 @@ export function FailedDeliveriesTab() {
   const r = q.data;
   const courierName = courierId ? r?.byCourier.find(c => c.courierId === courierId)?.courierName ?? `#${courierId}` : null;
 
-  // Выгрузка — по-русски, как вся печать и Excel.
-  const exportXlsx = () => {
+  /*
+    Выгрузка — по-русски, как вся печать и Excel, и за ВЕСЬ период.
+
+    На экране — последние 200 попыток; выгрузка брала их же, и файл с
+    заголовком «за период» у занятой организации молча обрывался на двухсотой
+    строке, расходясь с итогами по причинам и курьерам наверху отчёта. Теперь
+    файл — отдельным запросом со всеми попытками периода.
+  */
+  const exportXlsx = async () => {
     if (!r) return;
-    void exportToExcel(r.recent.map(e => ({
+    setExporting(true);
+    let all: typeof r;
+    try {
+      all = await utils.reports.failedDeliveries.fetch({ dateFrom: from, dateTo: to, courierId, allRows: true });
+    } catch (e) {
+      notify.error(errorText(e));
+      return;
+    } finally {
+      setExporting(false);
+    }
+    const title = `Недоставленные ${dmy(from)} — ${dmy(to)}${all.truncated ? ` (первые ${all.recent.length})` : ""}`;
+    void exportToExcel(all.recent.map(e => ({
       "Дата": e.at,
       "Заказ": e.orderNumber,
       "Магазин": e.shopName,
       "Курьер": e.courierName ?? "",
       "Что": e.kind === "failed" ? "Не доставлен" : `Перенесён${e.rescheduledTo ? ` на ${dmy(e.rescheduledTo)}` : ""}`,
       "Причина": deliveryFailText(e.reason, e.note, "ru"),
-    })), `failed-deliveries-${from}_${to}`, "Недоставленные", `Недоставленные ${dmy(from)} — ${dmy(to)}`);
+    })), `failed-deliveries-${from}_${to}`, "Недоставленные", title);
   };
 
   return (
@@ -111,7 +134,7 @@ export function FailedDeliveriesTab() {
               {t(`Курьер: ${courierName}`, `Kuryer: ${courierName}`)} <X size={14} aria-label={t("Все курьеры", "Barcha kuryerlar")} />
             </button>
           )}
-          <button type="button" onClick={exportXlsx} disabled={!r || r.recent.length === 0} className="neo-btn tap disabled:opacity-40" style={{ minHeight: 44, padding: "0 16px", gap: 7, marginLeft: "auto" }}>
+          <button type="button" onClick={() => void exportXlsx()} disabled={!r || r.recent.length === 0 || exporting} className="neo-btn tap disabled:opacity-40" style={{ minHeight: 44, padding: "0 16px", gap: 7, marginLeft: "auto" }}>
             <FileDown size={15} aria-hidden />Excel
           </button>
         </div>

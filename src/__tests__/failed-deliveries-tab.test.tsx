@@ -11,15 +11,17 @@
  *     срыв и перенос — разными словами.
  *  4. Выгрузка — по-русски при узбекском экране: печать и Excel не
  *     переводятся.
+ *  5. Выгрузка — за весь период, отдельным запросом (allRows): на экране
+ *     последние 200, а файл «за период» не должен на них обрываться.
  *
  * Нарочная поломка: в FailedDeliveriesTab замени "Причина" в выгрузке на
  * t("Причина", "Sabab") — падает 4.
  */
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { render, screen, cleanup, fireEvent } from "@testing-library/react";
+import { render, screen, cleanup, fireEvent, waitFor } from "@testing-library/react";
 import { MemoryRouter, useLocation } from "react-router";
 
-const h = vi.hoisted(() => ({ inputs: [] as Array<Record<string, unknown>>, lang: "ru", exported: [] as unknown[][] }));
+const h = vi.hoisted(() => ({ inputs: [] as Array<Record<string, unknown>>, fetched: [] as Array<Record<string, unknown>>, lang: "ru", exported: [] as unknown[][], all: null as unknown }));
 
 const REPORT = {
   totals: { failed: 3, rescheduled: 1, orders: 3, delivered: 17, failShare: 0.15, unspecified: 1 },
@@ -39,8 +41,10 @@ vi.mock("@/lib/excel", () => ({ exportToExcel: vi.fn((...args: unknown[]) => { h
 vi.mock("@/providers/trpc", () => ({
   trpc: {
     reports: { failedDeliveries: { useQuery: (input: Record<string, unknown>) => { h.inputs.push(input); return { data: REPORT, isError: false, refetch: () => {} }; } } },
+    useUtils: () => ({ reports: { failedDeliveries: { fetch: async (input: Record<string, unknown>) => { h.fetched.push(input); return h.all ?? REPORT; } } } }),
   },
 }));
+vi.mock("@/lib/toast", () => ({ notify: { error: vi.fn(), success: vi.fn() } }));
 
 const { FailedDeliveriesTab } = await import("@/components/reports/FailedDeliveriesTab");
 
@@ -48,7 +52,7 @@ function Probe() { return <output data-testid="location">{useLocation().search}<
 const search = () => new URLSearchParams(screen.getByTestId("location").textContent ?? "");
 const open = (url: string) => render(<MemoryRouter initialEntries={[url]}><FailedDeliveriesTab /><Probe /></MemoryRouter>);
 
-afterEach(() => { cleanup(); h.inputs = []; h.exported = []; h.lang = "ru"; });
+afterEach(() => { cleanup(); h.inputs = []; h.fetched = []; h.exported = []; h.lang = "ru"; h.all = null; });
 
 describe("отчёт «Недоставленные»", () => {
   it("1. фильтры из ссылки уходят в запрос", () => {
@@ -79,15 +83,28 @@ describe("отчёт «Недоставленные»", () => {
     expect(screen.getByTestId("failed-deliveries-totals").textContent).toContain("15% попыток");
   });
 
-  it("4. выгрузка — по-русски и при узбекском экране", () => {
+  it("4. выгрузка — по-русски и при узбекском экране", async () => {
     h.lang = "uz";
     open("/reports?tab=failed&from=2026-10-01&to=2026-10-20");
     expect(screen.getByTestId("failed-deliveries-recent").textContent).toContain("Yetkazilmadi");
     fireEvent.click(screen.getByText("Excel"));
+    await waitFor(() => expect(h.exported).toHaveLength(1));
     const [rows, , sheet] = h.exported[0] as [Array<Record<string, string>>, string, string];
     expect(sheet).toBe("Недоставленные");
     expect(Object.keys(rows[0])).toEqual(["Дата", "Заказ", "Магазин", "Курьер", "Что", "Причина"]);
     expect(rows[1]["Причина"]).toBe("Магазин закрыт: до 14:00");
     expect(rows[0]["Что"]).toBe("Перенесён на 23.10.2026");
+  });
+
+  it("5. выгрузка — все попытки периода, а не 200 с экрана", async () => {
+    const many = Array.from({ length: 250 }, (_, i) => ({ ...REPORT.recent[1], id: 100 + i, orderNumber: `ORD-${100 + i}` }));
+    h.all = { ...REPORT, recent: many };
+    open("/reports?tab=failed&from=2026-10-01&to=2026-10-20&courier=7");
+    fireEvent.click(screen.getByText("Excel"));
+    await waitFor(() => expect(h.exported).toHaveLength(1));
+    expect(h.fetched).toEqual([{ dateFrom: "2026-10-01", dateTo: "2026-10-20", courierId: 7, allRows: true }]);
+    const [rows, , , title] = h.exported[0] as [unknown[], string, string, string];
+    expect(rows).toHaveLength(250);
+    expect(title).toBe("Недоставленные 01.10.2026 — 20.10.2026");
   });
 });

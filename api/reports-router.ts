@@ -332,13 +332,15 @@ export const reportsRouter = createRouter({
       dateFrom: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
       dateTo: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
       courierId: z.number().int().positive().optional(),
+      /** Для выгрузки: все попытки периода (до потолка отчёта), а не последние 200. */
+      allRows: z.boolean().optional(),
     }))
     .query(async ({ input, ctx }) => {
       const days = (Date.parse(input.dateTo) - Date.parse(input.dateFrom)) / 86_400_000;
       if (!(days >= 0) || days > 366) {
         throw new TRPCError({ code: "BAD_REQUEST", message: "Период — от одного дня до года." });
       }
-      return failedDeliveriesReport(getDb(), ctx.tenant.id, { from: input.dateFrom, to: input.dateTo, courierId: input.courierId });
+      return failedDeliveriesReport(getDb(), ctx.tenant.id, { from: input.dateFrom, to: input.dateTo, courierId: input.courierId, allRows: input.allRows });
     }),
 
   getVisitsLog: reportsQuery
