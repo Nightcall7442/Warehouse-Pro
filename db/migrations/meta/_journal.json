@@ -526,6 +526,13 @@
       "when": 1792573686930,
       "tag": "0074_stock_count_approval",
       "breakpoints": true
+    },
+    {
+      "idx": 75,
+      "version": "5",
+      "when": 1792577858363,
+      "tag": "0075_sales_warehouses",
+      "breakpoints": true
     }
   ]
 }

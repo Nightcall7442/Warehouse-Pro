@@ -162,7 +162,8 @@ export async function updateItems(
       // Новая строка без цены от оператора берёт цену магазина (прайс-лист),
       // иначе карточки — а не ноль, как было.
       const newLines = data.items.filter(i => i.itemId === undefined).map(i => ({ productId: i.productId as number, quantity: i.quantity }));
-      const resolved = await resolvePrices(tx, tenantId, { shopId: order.shopId, priceListId: order.priceListId }, newLines, fallback);
+      // Уценка — склада заказа (ADR 0012): строка ляжет в резерв именно там.
+      const resolved = await resolvePrices(tx, tenantId, { shopId: order.shopId, priceListId: order.priceListId }, newLines, fallback, whId);
       for (const p of found) {
         const r = resolved.get(Number(p.id));
         productPrices.set(Number(p.id), { costPrice: p.costPrice, unitPrice: r?.price ?? p.unitPrice, priceListId: r?.priceListId ?? null });

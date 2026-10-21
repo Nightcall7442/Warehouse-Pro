@@ -33,7 +33,10 @@ export interface ExpiryRow {
   unit: string | null;
   warehouseId: number;
   warehouseName: string | null;
-  /** Партия на основном складе — только оттуда продают. */
+  /**
+   * С этого склада продают: основной или точка продаж (ADR 0012). Имя поля —
+   * с тех пор, когда продавали только с основного; экраны его уже читают.
+   */
   onDefault: boolean;
   batchNumber: string | null;
   /** Годен до, «ГГГГ-ММ-ДД». */
@@ -127,6 +130,8 @@ export async function expiryPlan(
     warehouseId:   stockBatches.warehouseId,
     warehouseName: warehouses.name,
     isDefault:     warehouses.isDefault,
+    // С этого склада продают (ADR 0012): основной или действующая точка продаж.
+    sellable:      sql<number>`(${warehouses.isDefault} = 1 OR (${warehouses.isSalesPoint} = 1 AND ${warehouses.status} = 'active'))`,
     batchNumber:   stockBatches.batchNumber,
     expiresAt:     sql<string>`DATE_FORMAT(${stockBatches.expiresAt}, '%Y-%m-%d')`,
     quantity:      stockBatches.quantity,
@@ -170,8 +175,8 @@ export async function expiryPlan(
     batches.map(b => ({
       batchId: Number(b.batchId),
       productId: Number(b.productId),
-      // Склад без строки (чужой или удалённый) основным не считается.
-      onDefault: Boolean(b.isDefault),
+      // Склад без строки (чужой или удалённый) продающим не считается.
+      onDefault: Number(b.sellable) === 1,
       expiresAt: String(b.expiresAt),
       quantity: Number(b.quantity),
     })),
@@ -198,7 +203,7 @@ export async function expiryPlan(
       unit: b.unit,
       warehouseId: Number(b.warehouseId),
       warehouseName: b.warehouseName,
-      onDefault: Boolean(b.isDefault),
+      onDefault: Number(b.sellable) === 1,
       batchNumber: b.batchNumber,
       expiresAt: String(b.expiresAt),
       daysLeft: f.daysLeft,

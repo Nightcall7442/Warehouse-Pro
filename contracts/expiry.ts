@@ -28,7 +28,8 @@
  *
  *  Вердикт партии — одно из пяти, и у каждого своё действие:
  *    expired   — срок вышел: списать (деньги уже потеряны);
- *    elsewhere — лежит не на основном складе: оттуда не продают, переместить;
+ *    elsewhere — лежит на складе, с которого не продают (не основной и не
+ *                точка продаж, ADR 0012): переместить;
  *    no_sales  — за окно ни одной продажи: сама не уйдёт;
  *    short     — продаётся, но не успеет: часть останется;
  *    sells     — успеет при нынешнем темпе, делать ничего не нужно.
@@ -82,7 +83,7 @@ export function salesPace(sold: number, returned: number, windowDays: number = E
 export interface BatchFacts {
   batchId: number;
   productId: number;
-  /** Партия на основном складе — только оттуда продают. */
+  /** Партия на складе, с которого продают: основной или точка продаж (ADR 0012). */
   onDefault: boolean;
   /** Годен до, «ГГГГ-ММ-ДД». */
   expiresAt: string;
@@ -104,7 +105,11 @@ export interface BatchForecast {
 const round2 = (n: number): number => Math.round(n * 100) / 100;
 
 /**
- * Прогноз по партиям: FEFO внутри товара на основном складе.
+ * Прогноз по партиям: FEFO внутри товара на складах, с которых продают.
+ *
+ * Темп — общий по организации: продажи по складам раздельно не считаются,
+ * и у организации с точками продаж партии разных складов делят один темп.
+ * Это приближение (ADR 0012); у организации без точек продаж — как было.
  *
  * Порядок партий с одинаковым сроком — как пришли во входе: вызывающий
  * отдаёт их в порядке списания (срок, дата прихода, id), сортировка здесь
@@ -287,8 +292,8 @@ export function expiryReasonText(r: ReasonFacts, lang: string, qty: (n: number) 
         : `Срок вышел ${-r.daysLeft} дн. назад — в отгрузку не уйдёт, остаётся списать`;
     case "elsewhere":
       return uz
-        ? `«${r.warehouseName ?? "—"}» da turibdi, sotuv faqat asosiy ombordan — ko'chirish kerak`
-        : `Лежит в «${r.warehouseName ?? "—"}», а продают только с основного склада — переместить`;
+        ? `«${r.warehouseName ?? "—"}» da turibdi, bu ombordan sotilmaydi — ko'chirish kerak`
+        : `Лежит в «${r.warehouseName ?? "—"}», а с этого склада не продают — переместить`;
     case "no_sales":
       return uz
         ? `${window} kunda birorta sotuv yo'q — o'zi ketmaydi`

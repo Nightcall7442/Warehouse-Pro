@@ -5,8 +5,8 @@ import { s3Client, publicUrl } from "./lib/s3";
 import { isSafePhotoValue, PHOTO_VALUE_ERROR } from "./lib/photo-value";
 import { createRouter, operatorQuery, fieldSalesQuery, can } from "./middleware";
 import { getDb } from "./queries/connection";
-import { products, warehouseStock, stockMovements, warehouses } from "@db/schema";
-import { eq, like, and, or, sql, desc } from "drizzle-orm";
+import { products, warehouseStock, stockMovements, warehouses, orders } from "@db/schema";
+import { eq, like, and, or, sql, desc, isNull } from "drizzle-orm";
 import { movementReferenceNumber } from "./lib/movement-reference";
 import { sanitizeString, sanitizeSearch } from "./lib/sanitize";
 import { decimalOrDefault } from "./lib/zod-decimal";
@@ -22,6 +22,8 @@ import { defaultReorderPoint } from "./services/reorder";
 import { resolveCatalog } from "./services/price-resolver";
 import { activeMarkdowns, capAtMarkdown, type ActiveMarkdown } from "./services/markdown";
 import { invalidateReports } from "./lib/report-cache";
+import { salesWarehouseFor, defaultWarehouseId, mayChooseWarehouse } from "./services/sales-warehouse";
+import { viewerScope, orderAccessError } from "./services/order-shared";
 
 /** Уценка для экрана: цена и последний день — партия и служебное не нужны. */
 const markdownView = (m: ActiveMarkdown | null): { price: string; endsOn: string } | null =>
@@ -60,23 +62,61 @@ function rethrowAsBusyCode(e: unknown, code: string | undefined): never {
 }
 
 /*
-  Склад по умолчанию — единственный источник остатков для продаж.
+  Склад каталога — тот же, с которого спишется заказ (ADR 0012, поверх 0008).
 
-  Решение владельца, зафиксировано осознанно: продают всегда с основного
-  склада, остальные нужны для хранения и перемещений. Заказ это правило
-  соблюдает жёстко — resolveOrderWarehouse (api/services/order.ts) отвергает
-  даже явную попытку указать другой склад. Каталог обязан показывать остаток
-  ТОГО ЖЕ склада, иначе агент увидит одно число, а сервер решит по другому.
+  Агент видит остаток склада, с которого продаёт: своего склада продаж из
+  карточки сотрудника, иначе основного. Офис может выбрать склад явно
+  (warehouseId) — тот же выбор он передаст в order.create. Правка заказа
+  (orderId) показывает остаток склада ЭТОГО заказа: его резерв лежит там, и
+  новая строка встанет туда же (order-items, orderWarehouseId).
 
-  Сумму по всем складам показывать нельзя ровно поэтому: агент увидел бы 100,
-  а заказ отклонился, потому что на основном ноль.
+  Правило одно на каталог и заказ — salesWarehouseFor (services/
+  sales-warehouse.ts). Иначе агент увидел бы одно число, а сервер решил бы по
+  другому. Сумму по всем складам показывать нельзя ровно поэтому: агент
+  увидел бы 100, а заказ отклонился, потому что на его складе ноль.
+
+  Склад решается ДО ключа кэша и входит в него: иначе первый агент филиала
+  заполнил бы кэш своим остатком, и основной склад читал бы его числа.
 */
+const catalogWarehouseInput = {
+  /** Склад, выбранный офисом (ceo, operator) — как в order.create. */
+  warehouseId: z.number().int().positive().optional(),
+  /** Правка заказа: остаток склада, на котором лежит его резерв. */
+  orderId:     z.number().int().positive().optional(),
+  /** Чей будет заказ — его склад продаж; только тем, кто вправе назначать агента (order.create). */
+  agentId:     z.number().int().positive().optional(),
+};
+
+type CatalogCtx = { tenant: { id: number }; user: { id: number; role: string } };
+
+async function catalogWarehouseId(
+  db: ReturnType<typeof getDb>, ctx: CatalogCtx,
+  input: { warehouseId?: number; orderId?: number; agentId?: number } | undefined,
+): Promise<number | null> {
+  const tenantId = ctx.tenant.id;
+  if (input?.orderId) {
+    const [o] = await db.select({ warehouseId: orders.warehouseId }).from(orders)
+      .where(and(
+        eq(orders.id, input.orderId), eq(orders.tenantId, tenantId), isNull(orders.deletedAt),
+        ...viewerScope({ userId: ctx.user.id, userRole: ctx.user.role }),
+      ))
+      .limit(1);
+    if (!o) throw await orderAccessError(db as never, tenantId, input.orderId, "Открыть");
+    // Заказ до колонки склада резервировал на основном (orderWarehouseId).
+    return o.warehouseId ?? defaultWarehouseId(db, tenantId);
+  }
+  // Назначать чужого агента может тот же круг, что в order.create.
+  const canAssign = ["ceo", "operator", "supervisor"].includes(ctx.user.role);
+  return salesWarehouseFor(db, tenantId, {
+    requested: input?.warehouseId,
+    agentId: canAssign && input?.agentId ? input.agentId : ctx.user.id,
+    mayChoose: mayChooseWarehouse(ctx.user.role),
+  });
+}
+
+/** Склад каталога для удаления товара — основной; здесь правило продажи ни при чём. */
 async function getDefaultWarehouseId(db: ReturnType<typeof getDb>, tenantId: number): Promise<number | null> {
-  const [wh] = await db.select({ id: warehouses.id })
-    .from(warehouses)
-    .where(and(eq(warehouses.tenantId, tenantId), eq(warehouses.isDefault, true)))
-    .limit(1);
-  return wh?.id ?? null;
+  return defaultWarehouseId(db, tenantId);
 }
 
 /**
@@ -99,14 +139,15 @@ export const productRouter = createRouter({
       search: z.string().optional(), category: z.string().optional(),
       // Цены магазина / выбранного прайс-листа — как в list.
       shopId: z.number().int().positive().optional(), priceListId: z.number().int().positive().nullable().optional(),
+      ...catalogWarehouseInput,
     }).optional())
     .query(async ({ input, ctx }) => {
       const db       = getDb();
       const tenantId = ctx.tenant.id;
+      const warehouseId = await catalogWarehouseId(db, ctx, input);
 
-      const cacheKey = `products:${tenantId}:listAll:${input?.search ?? ""}:${input?.category ?? ""}` + (input?.shopId ? `:shop${input.shopId}:pl${input.priceListId ?? 0}` : "");
+      const cacheKey = `products:${tenantId}:listAll:${input?.search ?? ""}:${input?.category ?? ""}` + (input?.shopId ? `:shop${input.shopId}:pl${input.priceListId ?? 0}` : "") + `:wh${warehouseId ?? 0}`;
       return withTenantDataCache(tenantId, cacheKey, CacheTTL.products, async () => {
-      const warehouseId = await getDefaultWarehouseId(db, tenantId);
 
       const conditions = [eq(products.tenantId, tenantId), eq(products.status, "active")];
       if (input?.search)   conditions.push(productMatches(input.search));
@@ -114,7 +155,7 @@ export const productRouter = createRouter({
       const where = and(...conditions);
 
       /*
-        Без склада по умолчанию остатков не показываем вовсе.
+        Без склада продажи остатков не показываем вовсе.
 
         Запасная ветка соединяла строки склада по одному только товару, без
         оглядки на склад. У арендатора с двумя складами это давало ДВЕ строки
@@ -171,14 +212,15 @@ export const productRouter = createRouter({
       // первым» и цену, по которой уйдёт заказ. Без магазина цена — карточка,
       // срезанная потолком уценки: заказ любому магазину не дороже её.
       if (!input?.shopId) {
-        const marks = await activeMarkdowns(db, tenantId, data.map(r => Number(r.id)));
+        // Уценка — только партий склада каталога (ADR 0012).
+        const marks = await activeMarkdowns(db, tenantId, data.map(r => Number(r.id)), undefined, warehouseId);
         return data.map(r => {
           const mark = marks.get(Number(r.id)) ?? null;
           return { ...r, basePrice: r.unitPrice, unitPrice: capAtMarkdown(String(r.unitPrice), mark ?? undefined).price, priceListId: null as number | null, tiers: null as PriceTier[] | null, markdown: markdownView(mark) };
         });
       }
       const priced = await resolveCatalog(db, tenantId, { shopId: input.shopId, priceListId: input.priceListId ?? null },
-        new Map(data.map(r => [Number(r.id), String(r.unitPrice)])));
+        new Map(data.map(r => [Number(r.id), String(r.unitPrice)])), warehouseId);
       return data.map(r => { const p = priced.get(Number(r.id)); return { ...r, basePrice: r.unitPrice, unitPrice: p?.price ?? r.unitPrice, priceListId: p?.priceListId ?? null, tiers: p?.tiers ?? null, markdown: markdownView(p?.markdown ?? null) }; });
       });
     }),
@@ -197,6 +239,7 @@ export const productRouter = createRouter({
       */
       shopId:      z.number().int().positive().optional(),
       priceListId: z.number().int().positive().nullable().optional(),
+      ...catalogWarehouseInput,
     }).optional())
     .query(async ({ input, ctx }) => {
       const db       = getDb();
@@ -205,7 +248,7 @@ export const productRouter = createRouter({
       const pageSize = input?.pageSize ?? 25;
       const offset   = (page - 1) * pageSize;
 
-      const warehouseId = await getDefaultWarehouseId(db, tenantId);
+      const warehouseId = await catalogWarehouseId(db, ctx, input);
 
       // Whether the caller may see cost has to be part of the cache key.
       // Without it the first operator to load the page would fill the cache
@@ -215,7 +258,8 @@ export const productRouter = createRouter({
       const cacheKey = CacheKeys.productList(tenantId, page, pageSize, input?.search, input?.category)
         + (input?.includeAll ? ":all" : "")
         + (canSeeCost ? ":cost" : ":nocost")
-        + (input?.shopId ? `:shop${input.shopId}:pl${input.priceListId ?? 0}` : "");
+        + (input?.shopId ? `:shop${input.shopId}:pl${input.priceListId ?? 0}` : "")
+        + `:wh${warehouseId ?? 0}`;
       return withTenantDataCache(tenantId, cacheKey, CacheTTL.products, async () => {
       const conditions = [eq(products.tenantId, tenantId)];
       if (!input?.includeAll) conditions.push(eq(products.status, "active"));
@@ -224,7 +268,7 @@ export const productRouter = createRouter({
       const where = and(...conditions);
 
       /*
-        Без склада по умолчанию остатков не показываем вовсе.
+        Без склада продажи остатков не показываем вовсе.
 
         Запасная ветка соединяла строки склада по одному только товару, без
         оглядки на склад. У арендатора с двумя складами это давало ДВЕ строки
@@ -282,7 +326,7 @@ export const productRouter = createRouter({
       // field simply absent for those who may not have it.
       const priced = input?.shopId
         ? await resolveCatalog(db, tenantId, { shopId: input.shopId, priceListId: input.priceListId ?? null },
-            new Map(data.map(r => [Number(r.id), String(r.unitPrice)])))
+            new Map(data.map(r => [Number(r.id), String(r.unitPrice)])), warehouseId)
         : null;
       const visible = data.map(row => {
         const r = priced?.get(Number(row.id));
@@ -301,11 +345,11 @@ export const productRouter = createRouter({
     }),
 
   getById: fieldSalesQuery
-    .input(z.object({ id: z.number() }))
+    .input(z.object({ id: z.number(), ...catalogWarehouseInput }))
     .query(async ({ input, ctx }) => {
       const db       = getDb();
       const tenantId = ctx.tenant.id;
-      const warehouseId = await getDefaultWarehouseId(db, tenantId);
+      const warehouseId = await catalogWarehouseId(db, ctx, input);
 
       const [product] = await db.select({
         id: products.id, code: products.code, barcode: products.barcode, name: products.name,
@@ -323,7 +367,7 @@ export const productRouter = createRouter({
       if (!product) return null;
 
       // Тот же склад, что и в каталоге, и тот же, с которого спишется заказ.
-      // Без склада по умолчанию остатка не показываем: заказ всё равно не
+      // Без склада продажи остатка не показываем: заказ всё равно не
       // оформить, а число с чужого склада только запутает.
       const stockWhere = and(
         eq(warehouseStock.productId, product.id),
@@ -712,7 +756,9 @@ export const productRouter = createRouter({
   findByBarcode: fieldSalesQuery
     .input(z.object({ barcode: z.string() }))
     .query(async ({ input, ctx }) => {
-      return ProductService.searchByBarcode(getDb(), ctx.tenant.id, input.barcode);
+      const db = getDb();
+      // Остаток — склада, с которого продаёт сканирующий (как в каталоге).
+      return ProductService.searchByBarcode(db, ctx.tenant.id, input.barcode, await catalogWarehouseId(db, ctx, undefined));
     }),
 
   categories: fieldSalesQuery.query(async ({ ctx }) => {

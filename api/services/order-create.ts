@@ -13,7 +13,7 @@ import { isDuplicateEntry } from "../lib/db-errors";
 import type { Db } from "./order-shared";
 import { mergeDuplicateItems, resolveOrderWarehouse, nextOrderNumber, isIdempotencyDuplicate } from "./order-shared";
 
-export async function create(db: Db, tenantId: number, agentId: number, input: { shopId: number; warehouseId?: number; items: Array<{ productId: number; quantity: string }>; notes?: string; discount?: string; idempotencyKey?: string; paymentMethod?: "cash" | "card" | "transfer" | "debt"; promisedDeliveryAt?: Date | null; /** Причина, по которой заказ ждёт офиса: создаётся в pending. */ holdReason?: string | null; /** Прайс-лист заказа; пусто — списки магазина. */ priceListId?: number | null; /** Просроченный долг магазина ставит заказ в «ожидает» (полевые роли; офис решает сам). */ checkOverdueDebt?: boolean }) {
+export async function create(db: Db, tenantId: number, agentId: number, input: { shopId: number; /** Склад, выбранный явно; примут только у офиса (mayChooseWarehouse). */ warehouseId?: number; /** Вправе ли оформляющий выбрать склад сам — ceo/operator (ADR 0012). */ mayChooseWarehouse?: boolean; items: Array<{ productId: number; quantity: string }>; notes?: string; discount?: string; idempotencyKey?: string; paymentMethod?: "cash" | "card" | "transfer" | "debt"; promisedDeliveryAt?: Date | null; /** Причина, по которой заказ ждёт офиса: создаётся в pending. */ holdReason?: string | null; /** Прайс-лист заказа; пусто — списки магазина. */ priceListId?: number | null; /** Просроченный долг магазина ставит заказ в «ожидает» (полевые роли; офис решает сам). */ checkOverdueDebt?: boolean }) {
   // discount is a percentage (0-100) entered by the user — converted to a
   // money amount below and stored as such (orders.discount stays a money
   // column so revenue/P&L reports that SUM it keep meaning "money discounted").
@@ -91,9 +91,18 @@ export async function create(db: Db, tenantId: number, agentId: number, input: {
       if (!pl) throw new Error("Прайс-лист не найден");
     }
 
+    // Reserve from one explicit warehouse. Without this filter a product with
+    // stock rows in several warehouses yielded an arbitrary row for the
+    // availability check and a different one for the reservation.
+    // Склад — до цен: уценка действует только на партии ЭТОГО склада
+    // (ADR 0012), свежий товар филиала не дешевеет из-за партии основного.
+    const reserveWarehouseId = await resolveOrderWarehouse(tx, tenantId, {
+      requested: input.warehouseId, agentId, mayChoose: input.mayChooseWarehouse ?? false,
+    });
+
     // Цена магазина поверх цены карточки: прайс-листы, привязанные к
     // магазину, до этого не участвовали в заказе ни на одном пути.
-    const resolved = await resolvePrices(tx, tenantId, { shopId: input.shopId, priceListId: input.priceListId ?? null }, items, priceMap);
+    const resolved = await resolvePrices(tx, tenantId, { shopId: input.shopId, priceListId: input.priceListId ?? null }, items, priceMap, reserveWarehouseId);
     for (const [productId, r] of resolved) priceMap.set(productId, r.price);
 
     // Calculate subtotal from server-side prices
@@ -105,10 +114,6 @@ export async function create(db: Db, tenantId: number, agentId: number, input: {
     const discount = subtotal * (discountPercent / 100);
     const total = subtotal - discount;
 
-    // Reserve from one explicit warehouse. Without this filter a product with
-    // stock rows in several warehouses yielded an arbitrary row for the
-    // availability check and a different one for the reservation.
-    const reserveWarehouseId = await resolveOrderWarehouse(tx, tenantId, input.warehouseId);
 
     // SELECT stock rows with row-level locking to prevent race conditions
     const stockRows = await tx.select().from(warehouseStock)

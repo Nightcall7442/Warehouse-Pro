@@ -24,6 +24,14 @@
  * (FEFO отгружает её первой, опустевшая строка удаляется дверью остатка) —
  * цена сама возвращается к обычной. Отдельного «снять по окончании» нет и
  * не нужно.
+ *
+ * ── Склад ───────────────────────────────────────────────────────────────────
+ *
+ * Партия лежит на одном складе, и уценка — про неё. Пока продавали только с
+ * основного (ADR 0008), это было одно и то же. С точками продаж (ADR 0012)
+ * заказ филиала с уценкой партии основного склада продал бы свежий товар
+ * дешевле — поэтому продажа передаёт склад заказа, и уценка действует только
+ * на нём. Без склада (экран «Сроки») — все склады, как было.
  */
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { markdowns, stockBatches } from "@db/schema";
@@ -43,9 +51,11 @@ export interface ActiveMarkdown {
 /**
  * Действующие уценки организации — по товарам. productIds — только эти
  * товары (пустой список — пусто, без похода в базу); null — все.
+ * warehouseId — только уценки партий этого склада (продажа: склад заказа);
+ * null — любого склада (экран «Сроки»).
  */
 export async function activeMarkdowns(
-  db: Db | Tx, tenantId: number, productIds: number[] | null, today: string = dayKey(new Date()),
+  db: Db | Tx, tenantId: number, productIds: number[] | null, today: string = dayKey(new Date()), warehouseId: number | null = null,
 ): Promise<Map<number, ActiveMarkdown>> {
   const out = new Map<number, ActiveMarkdown>();
   if (productIds && productIds.length === 0) return out;
@@ -61,6 +71,7 @@ export async function activeMarkdowns(
       eq(stockBatches.id, markdowns.batchId),
       eq(stockBatches.tenantId, tenantId),
       sql`${stockBatches.quantity} > 0`,
+      ...(warehouseId != null ? [eq(stockBatches.warehouseId, warehouseId)] : []),
     ))
     .where(and(
       eq(markdowns.tenantId, tenantId),

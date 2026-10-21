@@ -144,6 +144,18 @@ export const users = mysqlTable("users", {
     сводки в телефоне читать по-узбекски. Пусто — ещё не спрашивали.
   */
   telegramLang:     varchar("telegram_lang", { length: 2 }),
+  /*
+    Склад, с которого продаёт этот человек (ADR 0012). Пусто — склад по
+    умолчанию, как было всегда. Учитывается, только пока склад действует и
+    отмечен «точкой продаж» (warehouses.is_sales_point) или он и есть
+    основной; иначе заказ и каталог молча возвращаются к основному.
+
+    Без внешнего ключа нарочно: при уходе организации users стираются
+    последними (services/tenant-offboard.ts), а ключ на warehouses заставил
+    бы удалять склады после людей. Принадлежность складу организации
+    проверяет user.update.
+  */
+  warehouseId:      bigint("warehouse_id", { mode: "number", unsigned: true }),
 }, (t) => ({
   // email уникален внутри тенанта, но может повторяться в разных тенантах
   emailPerTenant: uniqueIndex("uq_user_email_tenant").on(t.email, t.tenantId),
@@ -641,6 +653,12 @@ export const warehouses = mysqlTable("warehouses", {
   address:     varchar("address", { length: 500 }),
   city:        varchar("city", { length: 100 }),
   isDefault:   boolean("is_default").default(false).notNull(),
+  /*
+    Точка продаж (ADR 0012): с этого склада, кроме основного, можно продавать
+    — директор закрепляет за ним агентов (users.warehouse_id). По умолчанию
+    нет: склад для хранения и перемещений, как решено в ADR 0008.
+  */
+  isSalesPoint: boolean("is_sales_point").default(false).notNull(),
   status:      varchar("status", { length: 20 }).default("active").notNull(),
   createdAt:   timestamp("created_at").defaultNow().notNull(),
   updatedAt:   timestamp("updated_at").defaultNow().notNull().$onUpdate(() => new Date()),

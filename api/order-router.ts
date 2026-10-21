@@ -7,6 +7,7 @@ import { OrderCloseService } from "./services/order-close";
 import { planClaimed, acceptClaimed } from "./services/order-close-batch";
 import { NonCashService } from "./services/noncash";
 import { repeatDraft } from "./services/order-repeat";
+import { mayChooseWarehouse } from "./services/sales-warehouse";
 
 /** Кто делает правку — для журнала действий службы заказа. */
 const actorOf = (ctx: { user: { id: number; role: string; name: string } }) => ({ id: ctx.user.id, role: ctx.user.role, name: ctx.user.name });
@@ -448,6 +449,12 @@ export const orderRouter = createRouter({
           ...input,
           promisedDeliveryAt: input.promisedDeliveryAt ? new Date(input.promisedDeliveryAt) : null,
           holdReason,
+          /*
+            Склад выбирает только офис (ADR 0012). Полевому — склад из его
+            карточки, а присланный склад служба отвергнет: выбор у прилавка
+            значил бы продажу чужого остатка.
+          */
+          mayChooseWarehouse: mayChooseWarehouse(ctx.user.role),
           /*
             Просроченный долг магазина (настройка организации) держит заказ
             полевого сотрудника до решения офиса. Сам офис — тот, кто решает:
