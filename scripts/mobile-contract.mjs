@@ -224,8 +224,38 @@ if (emitJson) {
   console.log(`contracts/mobile-procedures.json: ${json.length} вызовов`);
 }
 
+/*
+  Побайтные копии контрактов в мобилке. Телефон не импортирует contracts/
+  веба, поэтому держит копию: свой комментарий-шапка (почему копия), а ниже
+  него — файл веба буква в букву. Разошлись — сервер и экран читают разные
+  списки (курьер выберет причину, которой ручка не знает). Нет копии в
+  мобилке — предупреждение, а не ошибка: веб уходит в main раньше мобилки,
+  и CI веба проверяет мобилку из её main.
+
+  Здесь — только контракты доставки; прочие копии (no-order-reason,
+  shop-light, price-tiers) сверяются тем же правилом, когда их треки
+  подключат себя к списку.
+*/
+const COPIES = [
+  ["contracts/delivery-fail-reason.ts", "src/lib/delivery-fail-reason.ts"],
+  ["contracts/delivery-proof.ts", "src/lib/delivery-proof.ts"],
+];
+let copyErrors = 0;
+for (const [webRel, mobRel] of COPIES) {
+  const mobPath = resolve(mobile, mobRel);
+  if (!existsSync(mobPath)) { console.warn(`::warning::в мобилке нет ${mobRel} — копии ${webRel}`); continue; }
+  const webText = readFileSync(resolve(WEB, webRel), "utf8");
+  const mobText = readFileSync(mobPath, "utf8");
+  const end = mobText.startsWith("/*") ? mobText.indexOf("*/\n") : -1;
+  if (end < 0 || mobText.slice(end + 3) !== webText) {
+    console.error(`::error::${mobRel} в мобилке — не копия ${webRel}: ниже шапки-комментария должен стоять файл веба побайтно`);
+    copyErrors++;
+  }
+}
+if (copyErrors) process.exit(1);
+
 console.log(`проверок: ${n} вызовов из ${apiPath}; не проверено: ${unchecked.length}`);
-const tsc = resolve(WEB, "node_modules", "typescript", "bin", "tsc");
+const tsc =resolve(WEB, "node_modules", "typescript", "bin", "tsc");
 const r = spawnSync(process.execPath, [tsc, "-p", tsconfigPath, "--pretty", "false"], { stdio: "pipe", encoding: "utf8" });
 const out = (r.stdout || "") + (r.stderr || "");
 if (r.status !== 0) {

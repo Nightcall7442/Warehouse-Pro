@@ -11,11 +11,17 @@
  *  4. Ломаная для карточки заказа собирается только из чисел: штрих с
  *     чем-то, кроме чисел, выпадает целиком, а не попадает в разметку.
  *  5. Сервер и экран читают одни пределы: сервис реэкспортирует контракт.
+ *  6. Отпечаток файла — тот же, что помнит тест мобилки: у телефона побайтная
+ *     копия (src/lib/delivery-proof.ts). Поменял контракт — перенеси его в
+ *     мобилку и обнови отпечаток в обоих тестах.
  *
  * Нарочная поломка: в normalizeSignature убери Math.round в clamp — падает
  * 1; убери проверку every(Number.isFinite) в signaturePolylines — падает 4.
  */
 import { describe, it, expect } from "vitest";
+import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import {
   normalizeSignature, signatureProblem, signaturePolylines,
   SIGNATURE_MAX_POINTS, SIGNATURE_SCALE, SIGNATURE_STROKE_MAX_POINTS,
@@ -72,5 +78,15 @@ describe("сервер читает те же пределы", () => {
     expect(service.SIGNATURE_SCALE).toBe(SIGNATURE_SCALE);
     expect(service.SIGNATURE_MAX_POINTS).toBe(SIGNATURE_MAX_POINTS);
     expect(service.signatureProblem).toBe(signatureProblem);
+  });
+});
+
+describe("копия в мобилке", () => {
+  it("6. отпечаток файла совпадает с тем, что помнит копия в мобилке", () => {
+    const text = readFileSync(resolve(__dirname, "../../contracts/delivery-proof.ts"), "utf8");
+    const sha = createHash("sha256").update(text).digest("hex");
+    expect(sha, "contracts/delivery-proof.ts изменился: перенеси его в мобилку (src/lib/delivery-proof.ts) и обнови отпечаток здесь и в её тесте").toBe(
+      "726343a6ab3614caf2bd7c1e22e2c586274fcfcc235f95cb87b0540820120b51",
+    );
   });
 });
