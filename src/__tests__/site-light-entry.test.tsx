@@ -2,6 +2,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, cleanup, act } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
+import { SITE_PAGES } from "@contracts/site-pages";
+import type { SitePages } from "@/site/SiteApp";
 
 /**
  * Лёгкий вход сайта: кто его получает и что в нём работает.
@@ -164,7 +166,7 @@ describe("маршруты сайта", () => {
     render(
       <MemoryRouter initialEntries={[at]}>
         <LangProvider>
-          <SiteApp pages={{ home: () => <Page name="home" />, compare: () => <Page name="compare" />, privacy: () => <Page name="privacy" /> }} />
+          <SiteApp pages={Object.fromEntries(SITE_PAGES.map(p => [p.key, () => <Page name={p.key} />])) as unknown as SitePages} />
         </LangProvider>
       </MemoryRouter>,
     );

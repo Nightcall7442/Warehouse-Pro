@@ -8,6 +8,9 @@
   другую (xhtml:link hreflang), как в <head> самой страницы: Google
   связывает пару, только когда она взаимна.
 
+  Статьи (/shop-debts и /uz/shop-debts…) — такие же пары: адрес один на
+  оба языка, узбекский — под /uz.
+
   /pitch и /demo — страницы конкурса Pitch Day 3.0 (по-узбекски, без входа).
   /login и /register убраны: это экраны приложения, закрытые от поиска
   (noindex в оболочке), — в карте им не место.
@@ -54,6 +57,96 @@
     <lastmod>2026-09-29</lastmod>
     <changefreq>yearly</changefreq>
     <priority>0.3</priority>
+  </url>
+  <url>
+    <loc>https://www.warehouse-pro.uz/sales-agents</loc>
+    <xhtml:link rel="alternate" hreflang="ru" href="https://www.warehouse-pro.uz/sales-agents" />
+    <xhtml:link rel="alternate" hreflang="uz" href="https://www.warehouse-pro.uz/uz/sales-agents" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://www.warehouse-pro.uz/sales-agents" />
+    <lastmod>2026-10-21</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://www.warehouse-pro.uz/uz/sales-agents</loc>
+    <xhtml:link rel="alternate" hreflang="ru" href="https://www.warehouse-pro.uz/sales-agents" />
+    <xhtml:link rel="alternate" hreflang="uz" href="https://www.warehouse-pro.uz/uz/sales-agents" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://www.warehouse-pro.uz/sales-agents" />
+    <lastmod>2026-10-21</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://www.warehouse-pro.uz/shop-debts</loc>
+    <xhtml:link rel="alternate" hreflang="ru" href="https://www.warehouse-pro.uz/shop-debts" />
+    <xhtml:link rel="alternate" hreflang="uz" href="https://www.warehouse-pro.uz/uz/shop-debts" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://www.warehouse-pro.uz/shop-debts" />
+    <lastmod>2026-10-21</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://www.warehouse-pro.uz/uz/shop-debts</loc>
+    <xhtml:link rel="alternate" hreflang="ru" href="https://www.warehouse-pro.uz/shop-debts" />
+    <xhtml:link rel="alternate" hreflang="uz" href="https://www.warehouse-pro.uz/uz/shop-debts" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://www.warehouse-pro.uz/shop-debts" />
+    <lastmod>2026-10-21</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://www.warehouse-pro.uz/reconciliation-act</loc>
+    <xhtml:link rel="alternate" hreflang="ru" href="https://www.warehouse-pro.uz/reconciliation-act" />
+    <xhtml:link rel="alternate" hreflang="uz" href="https://www.warehouse-pro.uz/uz/reconciliation-act" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://www.warehouse-pro.uz/reconciliation-act" />
+    <lastmod>2026-10-21</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://www.warehouse-pro.uz/uz/reconciliation-act</loc>
+    <xhtml:link rel="alternate" hreflang="ru" href="https://www.warehouse-pro.uz/reconciliation-act" />
+    <xhtml:link rel="alternate" hreflang="uz" href="https://www.warehouse-pro.uz/uz/reconciliation-act" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://www.warehouse-pro.uz/reconciliation-act" />
+    <lastmod>2026-10-21</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://www.warehouse-pro.uz/delivery-cash</loc>
+    <xhtml:link rel="alternate" hreflang="ru" href="https://www.warehouse-pro.uz/delivery-cash" />
+    <xhtml:link rel="alternate" hreflang="uz" href="https://www.warehouse-pro.uz/uz/delivery-cash" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://www.warehouse-pro.uz/delivery-cash" />
+    <lastmod>2026-10-21</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://www.warehouse-pro.uz/uz/delivery-cash</loc>
+    <xhtml:link rel="alternate" hreflang="ru" href="https://www.warehouse-pro.uz/delivery-cash" />
+    <xhtml:link rel="alternate" hreflang="uz" href="https://www.warehouse-pro.uz/uz/delivery-cash" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://www.warehouse-pro.uz/delivery-cash" />
+    <lastmod>2026-10-21</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://www.warehouse-pro.uz/distributor-warehouse</loc>
+    <xhtml:link rel="alternate" hreflang="ru" href="https://www.warehouse-pro.uz/distributor-warehouse" />
+    <xhtml:link rel="alternate" hreflang="uz" href="https://www.warehouse-pro.uz/uz/distributor-warehouse" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://www.warehouse-pro.uz/distributor-warehouse" />
+    <lastmod>2026-10-21</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://www.warehouse-pro.uz/uz/distributor-warehouse</loc>
+    <xhtml:link rel="alternate" hreflang="ru" href="https://www.warehouse-pro.uz/distributor-warehouse" />
+    <xhtml:link rel="alternate" hreflang="uz" href="https://www.warehouse-pro.uz/uz/distributor-warehouse" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://www.warehouse-pro.uz/distributor-warehouse" />
+    <lastmod>2026-10-21</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
   </url>
   <url>
     <loc>https://www.warehouse-pro.uz/pitch</loc>

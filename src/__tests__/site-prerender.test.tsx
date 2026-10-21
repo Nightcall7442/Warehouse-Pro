@@ -27,8 +27,9 @@ import { SITE_PAGES, absoluteUrl, ogImagePath, pageLangs, siteRoute } from "@con
  *    (у русской политики — ни одного), карточка 1200×630 своя на страницу и
  *    язык, twitter summary_large_image, метка wp-site.
  * 5. schema.org одним графом: Organization (Ургенч, почта), WebSite,
- *    SoftwareApplication с ценой из contracts/pricing; FAQPage — только на
- *    главной и слово в слово тот FAQ, что виден на странице.
+ *    SoftwareApplication с ценой из contracts/pricing; FAQPage на главной —
+ *    слово в слово тот FAQ, что виден на странице, у сравнения и политики
+ *    его нет (FAQPage статей — site-articles.test).
  * 6. 404 — оба языка, noindex.
  *
  * Нарочная поломка: убрать проверку document в useTheme — падает весь файл
@@ -52,7 +53,12 @@ describe("готовые страницы рисуются в Node", () => {
     const pages = renderSite();
     expect(pages.map(p => p.path).sort()).toEqual(SITE_PAGES.flatMap(p => pageLangs(p).map(l => p.paths[l]!)).sort());
     for (const p of pages) expect(p.html.length, p.path).toBeGreaterThan(5000);
-    expect(pages.map(p => p.file).sort()).toEqual(["compare.html", "index.html", "privacy.html", "uz.html", "uz/compare.html"]);
+    expect(pages.map(p => p.file).sort()).toEqual([
+      "compare.html", "delivery-cash.html", "distributor-warehouse.html", "index.html", "privacy.html",
+      "reconciliation-act.html", "sales-agents.html", "shop-debts.html", "uz.html", "uz/compare.html",
+      "uz/delivery-cash.html", "uz/distributor-warehouse.html", "uz/reconciliation-act.html",
+      "uz/sales-agents.html", "uz/shop-debts.html",
+    ]);
   });
 
   it("/ — русский текст первого экрана, /uz — узбекский", () => {
@@ -145,7 +151,7 @@ describe("<head> страницы на её языке", () => {
     }
   });
 
-  it("FAQPage — только на главной и слово в слово тот FAQ, что виден на странице", () => {
+  it("FAQPage на главной — слово в слово тот FAQ, что виден на странице; у сравнения и политики — нет", () => {
     for (const [path, lang] of [["/", "ru"], ["/uz", "uz"]] as const) {
       const { head, html } = renderPage(path);
       const faq = node(head, "FAQPage")!;

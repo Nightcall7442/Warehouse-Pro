@@ -48,6 +48,8 @@ beforeAll(() => {
     "compare.html": page("ru", "Сравнение"),
     "uz/compare.html": page("uz", "Taqqoslash"),
     "privacy.html": page("ru", "Политика"),
+    "shop-debts.html": page("ru", "Учёт долгов магазинов"),
+    "uz/shop-debts.html": page("uz", "Do'kon qarzlari hisobi"),
     "404.html": '<!doctype html><html lang="ru"><head><meta name="robots" content="noindex" /></head><body>Такой страницы нет · Bunday sahifa yo\'q</body></html>',
   };
   for (const [file, body] of Object.entries(files)) {
@@ -69,6 +71,8 @@ describe("готовые страницы — гостю", () => {
     ["/compare", "ru", "Сравнение"],
     ["/uz/compare", "uz", "Taqqoslash"],
     ["/privacy", "ru", "Политика"],
+    ["/shop-debts", "ru", "Учёт долгов магазинов"],
+    ["/uz/shop-debts", "uz", "Do'kon qarzlari hisobi"],
   ])("%s → готовая страница (%s), без кэша, со своим языком", async (p, lang, text) => {
     // Робот превью шлёт «*/*» — страница сайта всё равно отдаётся.
     for (const accept of ["text/html", "*/*", ""]) {
@@ -152,6 +156,10 @@ describe("один адрес у страницы: 301", () => {
     ["/privacy/", "/privacy"],
     ["/pitch/", "/pitch"],
     ["/demo/?lang=ru", "/demo?lang=ru"],
+    ["/shop-debts/", "/shop-debts"],
+    ["/uz/shop-debts/", "/uz/shop-debts"],
+    ["/ru/shop-debts", "/shop-debts"],
+    ["/sales-agents/?utm_source=tg", "/sales-agents?utm_source=tg"],
   ])("%s → %s", async (from, to) => {
     const res = await app.request(from);
     expect(res.status).toBe(301);
@@ -177,7 +185,7 @@ describe("один адрес у страницы: 301", () => {
 });
 
 describe("404 с настоящим кодом", () => {
-  it.each(["/nonexistent", "/uz/xyz", "/compare/old", "/privacy/x", "/landing/nope", "/api-docs"])("%s → страница 404 на двух языках", async p => {
+  it.each(["/nonexistent", "/uz/xyz", "/compare/old", "/privacy/x", "/landing/nope", "/api-docs", "/shop-debts/x", "/uz/shop-debts/x", "/shop-debtsx"])("%s → страница 404 на двух языках", async p => {
     const res = await app.request(p, { headers: html });
     expect(res.status).toBe(404);
     expect(res.headers.get("content-type")).toMatch(/^text\/html/);
@@ -275,6 +283,28 @@ describe.skipIf(!built)("настоящая сборка: dist/public и dist/pr
     const privacy = await real.request("/privacy");
     expect(privacy.status).toBe(200);
     expect(await privacy.text()).not.toMatch(/noindex/);
+  });
+
+  it("статьи — готовые страницы со своим текстом, языком и разметкой", async () => {
+    for (const s of SITE_PAGES.filter(x => x.kind === "article")) {
+      for (const l of pageLangs(s)) {
+        const p = s.paths[l]!;
+        const res = await real.request(p);
+        expect(res.status, p).toBe(200);
+        expect(res.headers.get("content-language"), p).toBe(l);
+        const body = await res.text();
+        expect(body, p).toMatch(new RegExp(`<html lang="${l}"`));
+        expect(body, p).toContain(`<link rel="canonical" href="https://www.warehouse-pro.uz${p}" />`);
+        expect(body, p).toContain(`<meta name="wp-site" content="${s.key}" />`);
+        expect(body, p).toContain('"@type":"Article"');
+        expect(body, p).toMatch(/<article[^>]*>[\s\S]{3000,}<\/article>/);
+      }
+    }
+    const ru = await (await real.request("/shop-debts")).text();
+    expect(ru).toContain("Учёт долгов магазинов");
+    const uz = await (await real.request("/uz/shop-debts")).text();
+    expect(uz).toContain("Do&#x27;kon qarzlari hisobi");
+    expect((await real.request("/shop-debts/x", { headers: html })).status).toBe(404);
   });
 
   it("ETag и 304", async () => {

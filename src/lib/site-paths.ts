@@ -28,6 +28,11 @@ export function sitePath(lang: SiteLang, path: string): string {
   return (pathname === "/" ? UZ_PREFIX : UZ_PREFIX + pathname) + tail;
 }
 
+/** Язык страницы сайта по адресу: /uz и всё под ним — узбекский, остальное — русский. */
+export function langOfPath(pathname: string): SiteLang {
+  return stripUzPrefix(pathname) === pathname ? "ru" : "uz";
+}
+
 /** "/uz/compare" → "/compare", "/uz" → "/"; без приставки — как есть. */
 export function stripUzPrefix(path: string): string {
   if (path === UZ_PREFIX) return "/";

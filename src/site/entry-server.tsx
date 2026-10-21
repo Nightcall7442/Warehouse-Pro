@@ -6,6 +6,11 @@ import { StaticRouter } from "react-router";
 import Landing from "@/pages/Landing";
 import Compare from "@/pages/Compare";
 import Privacy from "@/pages/Privacy";
+import AgentsArticle from "@/site/articles/AgentsArticle";
+import DebtsArticle from "@/site/articles/DebtsArticle";
+import ReconciliationArticle from "@/site/articles/ReconciliationArticle";
+import DeliveryArticle from "@/site/articles/DeliveryArticle";
+import WarehouseArticle from "@/site/articles/WarehouseArticle";
 import { claimPageLang, releasePageLang } from "@/i18n/page-lang";
 import {
   NOT_FOUND_FILE, SITE_PAGES, pageLangs, prerenderFile, siteRoute,
@@ -40,13 +45,17 @@ import { notFoundHead, siteHead } from "./site-head";
 
    ── Язык ───────────────────────────────────────────────────────────────────
 
-   Узбекская страница обёрнута в UzSite (язык из адреса), но его эффект,
-   который сообщает язык помощникам вне React (tt, uiText), в Node не
-   выполняется. Поэтому язык адреса ставится вокруг отрисовки здесь же — и
+   Узбекская страница обёрнута в UzSite, статья — в свой UrlLang
+   (ArticleLayout): язык из адреса. Но эффект, который сообщает язык
+   помощникам вне React (tt, uiText), в Node не выполняется. Поэтому язык адреса ставится вокруг отрисовки здесь же — и
    снимается сразу после.
    ═══════════════════════════════════════════════════════════════════════════ */
 
-const PAGES: SitePages = { home: Landing, compare: Compare, privacy: Privacy };
+const PAGES: SitePages = {
+  home: Landing, compare: Compare, privacy: Privacy,
+  agents: AgentsArticle, debts: DebtsArticle, reconciliation: ReconciliationArticle,
+  delivery: DeliveryArticle, warehouse: WarehouseArticle,
+};
 
 export interface PrerenderedPage {
   /** Адрес страницы: "/", "/uz/compare". */

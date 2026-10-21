@@ -14,25 +14,43 @@
    ── Правило слов ───────────────────────────────────────────────────────────
 
    То же, что у сайта (site-content.ts): только то, что делает код. Цена — из
-   contracts/pricing, вопросы FAQ — из FAQ_ITEMS, ровно теми словами, что на
-   странице: разметка FAQPage, расходящаяся с видимым текстом, — нарушение
-   правил поиска, и проверка (site-pages-plumbing) это стережёт.
+   contracts/pricing, вопросы FAQ — из FAQ_ITEMS (главная) и из текста
+   статьи (src/site/articles), ровно теми словами, что на странице: разметка
+   FAQPage, расходящаяся с видимым текстом, — нарушение правил поиска, и
+   проверки (site-prerender, site-articles) это стерегут.
+
+   У статьи сверх того — Article (заголовок, даты, картинка, кто издал) и
+   BreadcrumbList (Главная › статья, как в хлебных крошках на странице), а
+   og:type — article.
 
    Файл собирается вместе с сайтом для Node (src/site/entry-server.tsx) и
    работает только при сборке — в браузер не попадает.
    ═══════════════════════════════════════════════════════════════════════════ */
 import { FIELD_PRICE_UZS, MIN_FIELD_USERS } from "@contracts/pricing";
 import {
-  OG_HEIGHT, OG_WIDTH, SITE_ORIGIN, absoluteUrl, alternatesOf, ogImagePath, pageLangs,
-  type SiteLang, type SitePage, type SitePageKey,
+  ARTICLE_KEYS, OG_HEIGHT, OG_WIDTH, SITE_ORIGIN, absoluteUrl, alternatesOf, ogImagePath, pageLangs,
+  type ArticleKey, type SiteLang, type SitePage, type SitePageKey,
 } from "@contracts/site-pages";
 import { CONTACT } from "@/components/landing/landing-tokens";
 import { FAQ_ITEMS } from "@/components/landing/site-content";
+import { sitePath } from "@/lib/site-paths";
+import { ARTICLES } from "./articles/registry";
+import { ARTICLE_TEXTS } from "./articles/texts";
 
 type L = Record<SiteLang, string>;
 
+type PageMeta = { title: L; description: L; imageAlt: L };
+
+/** Статьи — из их списка (src/site/articles/registry): подпись картинки — заголовок карточки. */
+const ARTICLE_META = Object.fromEntries(ARTICLE_KEYS.map(k => [k, {
+  title: ARTICLES[k].title,
+  description: ARTICLES[k].description,
+  imageAlt: ARTICLES[k].card.title,
+}])) as Record<ArticleKey, PageMeta>;
+
 /** Заголовок, описание и подпись картинки — для каждой страницы на каждом языке. */
-export const PAGE_META: Record<SitePageKey, { title: L; description: L; imageAlt: L }> = {
+export const PAGE_META: Record<SitePageKey, PageMeta> = {
+  ...ARTICLE_META,
   home: {
     title: {
       ru: "Warehouse Pro — агенты, долги магазинов и доставка в одной программе",
@@ -97,10 +115,23 @@ const ORG_ID = `${SITE_ORIGIN}/#organization`;
 const SITE_ID = `${SITE_ORIGIN}/#website`;
 const APP_ID = `${SITE_ORIGIN}/#software`;
 
+/** Вопросы и ответы — в разметку FAQPage тем же текстом, что на странице. */
+const faqPage = (url: string, lang: SiteLang, items: ReadonlyArray<{ q: L; a: L }>) => ({
+  "@type": "FAQPage",
+  "@id": `${url}#faq`,
+  inLanguage: lang,
+  mainEntity: items.map(x => ({
+    "@type": "Question",
+    name: x.q[lang],
+    acceptedAnswer: { "@type": "Answer", text: x.a[lang] },
+  })),
+});
+
 /**
  * Разметка schema.org одним графом: кто (Organization), где (WebSite), что
  * продаётся и почём (SoftwareApplication с ценой из contracts/pricing), сама
- * страница (WebPage) и — на главной — FAQPage словами FAQ_ITEMS.
+ * страница (WebPage), на главной — FAQPage словами FAQ_ITEMS, у статьи —
+ * Article, BreadcrumbList и FAQPage словами её FAQ.
  *
  * Только проверяемые факты: ни оценок, ни отзывов, ни числа клиентов.
  */
@@ -167,19 +198,39 @@ export function structuredData(page: SitePage, lang: SiteLang): object {
       inLanguage: lang,
       isPartOf: { "@id": SITE_ID },
       about: { "@id": APP_ID },
+      ...(page.kind === "article" ? { breadcrumb: { "@id": `${url}#breadcrumb` } } : {}),
     },
   ];
-  if (page.key === "home") {
-    graph.push({
-      "@type": "FAQPage",
-      "@id": `${url}#faq`,
-      inLanguage: lang,
-      mainEntity: FAQ_ITEMS.map(x => ({
-        "@type": "Question",
-        name: x.q[lang],
-        acceptedAnswer: { "@type": "Answer", text: x.a[lang] },
-      })),
-    });
+  if (page.key === "home") graph.push(faqPage(url, lang, FAQ_ITEMS));
+  if (page.kind === "article") {
+    const key = page.key as ArticleKey;
+    const text = ARTICLE_TEXTS[key];
+    const homeUrl = absoluteUrl(sitePath(lang, "/"));
+    graph.push(
+      {
+        "@type": "Article",
+        "@id": `${url}#article`,
+        headline: text.h1[lang],
+        description: meta.description[lang],
+        inLanguage: lang,
+        image: absoluteUrl(ogImagePath(page.key, lang)),
+        datePublished: ARTICLES[key].published,
+        dateModified: page.lastmod,
+        author: { "@id": ORG_ID },
+        publisher: { "@id": ORG_ID },
+        mainEntityOfPage: { "@id": `${url}#webpage` },
+        about: { "@id": APP_ID },
+      },
+      {
+        "@type": "BreadcrumbList",
+        "@id": `${url}#breadcrumb`,
+        itemListElement: [
+          { "@type": "ListItem", position: 1, name: uz ? "Bosh sahifa" : "Главная", item: homeUrl },
+          { "@type": "ListItem", position: 2, name: ARTICLES[key].nav[lang], item: url },
+        ],
+      },
+      faqPage(url, lang, text.faq),
+    );
   }
   return { "@context": "https://schema.org", "@graph": graph };
 }
@@ -201,7 +252,7 @@ export function siteHead(page: SitePage, lang: SiteLang): string {
     `<meta name="description" content="${esc(description)}" />`,
     `<link rel="canonical" href="${esc(url)}" />`,
     ...alternatesOf(page).map(a => `<link rel="alternate" hreflang="${a.hreflang}" href="${esc(a.href)}" />`),
-    `<meta property="og:type" content="website" />`,
+    `<meta property="og:type" content="${page.kind === "article" ? "article" : "website"}" />`,
     `<meta property="og:site_name" content="Warehouse Pro" />`,
     `<meta property="og:locale" content="${OG_LOCALE[lang]}" />`,
     ...other.map(l => `<meta property="og:locale:alternate" content="${OG_LOCALE[l]}" />`),
@@ -213,6 +264,10 @@ export function siteHead(page: SitePage, lang: SiteLang): string {
     `<meta property="og:image:width" content="${OG_WIDTH}" />`,
     `<meta property="og:image:height" content="${OG_HEIGHT}" />`,
     `<meta property="og:image:alt" content="${esc(meta.imageAlt[lang])}" />`,
+    ...(page.kind === "article" ? [
+      `<meta property="article:published_time" content="${ARTICLES[page.key as ArticleKey].published}" />`,
+      `<meta property="article:modified_time" content="${page.lastmod}" />`,
+    ] : []),
     `<meta name="twitter:card" content="summary_large_image" />`,
     `<meta name="twitter:title" content="${esc(title)}" />`,
     `<meta name="twitter:description" content="${esc(description)}" />`,

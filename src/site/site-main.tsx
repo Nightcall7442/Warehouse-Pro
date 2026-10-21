@@ -8,7 +8,8 @@ import { siteRoute, type SitePageKey } from "@contracts/site-pages";
 import SiteApp, { type SitePages } from "./SiteApp";
 
 /*
-  Лёгкий вход сайта: гость на /, /compare, /privacy, /uz, /uz/compare.
+  Лёгкий вход сайта: гость на /, /compare, /privacy, /uz, /uz/compare и на
+  статьях (/shop-debts, /uz/shop-debts…).
 
   Здесь нет tRPC с react-query, useAuth (запроса auth.me), WarehouseProvider
   (запроса warehouseMulti.list), подсказок установки и обновления PWA и
@@ -28,6 +29,11 @@ const LOADERS: Record<SitePageKey, () => Promise<{ default: ComponentType }>> = 
   home: () => import("@/pages/Landing"),
   compare: () => import("@/pages/Compare"),
   privacy: () => import("@/pages/Privacy"),
+  agents: () => import("@/site/articles/AgentsArticle"),
+  debts: () => import("@/site/articles/DebtsArticle"),
+  reconciliation: () => import("@/site/articles/ReconciliationArticle"),
+  delivery: () => import("@/site/articles/DeliveryArticle"),
+  warehouse: () => import("@/site/articles/WarehouseArticle"),
 };
 
 async function start() {

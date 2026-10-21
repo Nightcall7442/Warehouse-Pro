@@ -55,6 +55,11 @@ const PAGE_SOURCES = {
   home: "src/pages/Landing.tsx",
   compare: "src/pages/Compare.tsx",
   privacy: "src/pages/Privacy.tsx",
+  agents: "src/site/articles/AgentsArticle.tsx",
+  debts: "src/site/articles/DebtsArticle.tsx",
+  reconciliation: "src/site/articles/ReconciliationArticle.tsx",
+  delivery: "src/site/articles/DeliveryArticle.tsx",
+  warehouse: "src/site/articles/WarehouseArticle.tsx",
 };
 const SITE_MAIN = "src/site/site-main.tsx";
 const ENTRY = "index.html";

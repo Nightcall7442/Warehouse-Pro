@@ -21,7 +21,7 @@ import type { ReactElement } from "react";
  *
  * ── Что стережётся ──────────────────────────────────────────────────────────
  *
- *   · исходники сайта (лендинг, сравнение, страницы конкурса): ни одного
+ *   · исходники сайта (лендинг, сравнение, статьи, страницы конкурса): ни одного
  *     размера меньше 12px — классом text-[Npx], стилем fontSize: N или CSS
  *     font-size: Npx. Исключение одно — кольцо и подпись печати (Stamp):
  *     это рисунок aria-hidden, его не читают;
@@ -43,6 +43,8 @@ const SITE_FILES = [
   ...filesIn("src/components/landing"),
   ...filesIn("src/components/pitch"),
   ...filesIn("src/components/compare"),
+  // Статьи сайта: раскладка и тексты.
+  ...filesIn("src/site/articles"),
   "src/pages/Landing.tsx",
   "src/pages/Compare.tsx",
   "src/pages/Pitch.tsx",

@@ -28,6 +28,17 @@ const Pitch                = lazyWithRecovery(() => import("./pages/Pitch"));
 const PitchDemo            = lazyWithRecovery(() => import("./pages/PitchDemo"));
 /* Сравнение с Sales Doctor и Smartup — публичная страница сайта. */
 const Compare              = lazyWithRecovery(() => import("./pages/Compare"));
+/*
+  Статьи сайта. Гостю их отдаёт сервер готовым HTML и лёгкий вход
+  (site/site-main); здесь они для того, кто уже входил в этом браузере: он
+  получает приложение, и статья должна открыться в нём, а не «не найдено».
+  Язык статья берёт из адреса сама (ArticleLayout) — UzSite ей не нужен.
+*/
+const AgentsArticle        = lazyWithRecovery(() => import("./site/articles/AgentsArticle"));
+const DebtsArticle         = lazyWithRecovery(() => import("./site/articles/DebtsArticle"));
+const ReconciliationArticle = lazyWithRecovery(() => import("./site/articles/ReconciliationArticle"));
+const DeliveryArticle      = lazyWithRecovery(() => import("./site/articles/DeliveryArticle"));
+const WarehouseArticle     = lazyWithRecovery(() => import("./site/articles/WarehouseArticle"));
 import ForgotPassword       from "./pages/ForgotPassword";
 import ResetPassword        from "./pages/ResetPassword";
 import VerifyEmail          from "./pages/VerifyEmail";
@@ -228,6 +239,17 @@ export default function App() {
             сервер, и закэшированная старая оболочка не должна их подменять. */}
         <Route path="/uz"                 element={<UzSite path="/"><Landing /></UzSite>} />
         <Route path="/uz/compare"         element={<UzSite path="/compare"><Compare /></UzSite>} />
+        {/* Статьи: адрес — тот же, что в contracts/site-pages (ARTICLE_SLUGS), на обоих языках. */}
+        <Route path="/sales-agents"       element={<AgentsArticle />} />
+        <Route path="/uz/sales-agents"    element={<AgentsArticle />} />
+        <Route path="/shop-debts"         element={<DebtsArticle />} />
+        <Route path="/uz/shop-debts"      element={<DebtsArticle />} />
+        <Route path="/reconciliation-act" element={<ReconciliationArticle />} />
+        <Route path="/uz/reconciliation-act" element={<ReconciliationArticle />} />
+        <Route path="/delivery-cash"      element={<DeliveryArticle />} />
+        <Route path="/uz/delivery-cash"   element={<DeliveryArticle />} />
+        <Route path="/distributor-warehouse" element={<WarehouseArticle />} />
+        <Route path="/uz/distributor-warehouse" element={<WarehouseArticle />} />
         <Route path="/uz/*"               element={<Navigate to="/uz" replace />} />
         <Route path="/"                   element={<RootGate />} />
 

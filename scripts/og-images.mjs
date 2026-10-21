@@ -19,6 +19,10 @@
 
      node scripts/og-images.mjs
      CHROMIUM_PATH=/opt/pw-browsers/chromium node scripts/og-images.mjs
+     node scripts/og-images.mjs debts agents     ← только эти страницы
+
+   Имена страниц после команды — чтобы новая статья не пересохраняла
+   картинки остальных: JPEG от запуска к запуску не байт в байт тот же.
 
    Второй вид — когда Chromium Playwright другой версии, чем пакет: путь к
    любому Chromium подходит, снимок экрана от версии не зависит.
@@ -31,8 +35,10 @@ import os from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { chromium } from "playwright";
-// Node 24 читает .ts сам (типы просто отбрасываются); модуль без импортов.
+// Node 24 читает .ts сам (типы просто отбрасываются); оба модуля импортируют
+// только типы — Node их отбрасывает, и разрешать «@contracts/…» не нужно.
 import { OG_HEIGHT, OG_WIDTH, SITE_PAGES, ogImagePath, pageLangs } from "../contracts/site-pages.ts";
+import { ARTICLES } from "../src/site/articles/registry.ts";
 
 const ROOT = path.resolve(import.meta.dirname, "..");
 const FONTS = path.join(ROOT, "public", "fonts");
@@ -58,7 +64,15 @@ const CARDS = {
   privacy: {
     ru: { kicker: "Документ", title: "Политика конфиденциальности", line: "Что собирается, кто это видит, сколько хранится и как удалить" },
   },
+  // Статьи — из их списка (src/site/articles/registry): текст карточки там же, где заголовок.
+  ...Object.fromEntries(Object.values(ARTICLES).map(a => [a.key, Object.fromEntries(["ru", "uz"].map(l => [l, {
+    kicker: a.card.kicker[l], title: a.card.title[l], line: a.card.line[l],
+  }]))])),
 };
+
+/** Какие страницы рисовать: имена из командной строки, без них — все. */
+const ONLY = new Set(process.argv.slice(2));
+for (const key of ONLY) if (!SITE_PAGES.some(p => p.key === key)) throw new Error(`og-images: нет страницы ${key}`);
 
 /** Поле ячеек внизу карточки: та же занятость столбцов, что у TallyField. */
 function tally() {
@@ -110,6 +124,7 @@ try {
   const page = await browser.newPage({ viewport: { width: OG_WIDTH, height: OG_HEIGHT }, deviceScaleFactor: 1 });
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "og-"));
   for (const sitePage of SITE_PAGES) {
+    if (ONLY.size && !ONLY.has(sitePage.key)) continue;
     for (const lang of pageLangs(sitePage)) {
       const text = CARDS[sitePage.key]?.[lang];
       if (!text) throw new Error(`og-images: нет текста карточки для ${sitePage.key}/${lang}`);

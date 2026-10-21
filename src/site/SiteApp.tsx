@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, type ComponentType } from "react";
 import { Routes, Route, useLocation } from "react-router";
 import UzSite from "@/components/landing/UzSite";
+import { ScrollToTop } from "@/components/ScrollToTop";
 import { SITE_PAGES, pageLangs, type SitePageKey } from "@contracts/site-pages";
 import { leaveSite } from "./leave-site";
 
@@ -10,8 +11,13 @@ export type SitePages = Record<SitePageKey, ComponentType>;
  * Маршруты сайта для гостя — те же страницы, что в App.tsx, без приложения.
  *
  * Список адресов — из contracts/site-pages: по нему же сборка рисует
- * готовый HTML, а сервер его отдаёт. Узбекские адреса обёрнуты в UzSite —
- * язык из адреса, как в App.tsx.
+ * готовый HTML, а сервер его отдаёт. Узбекские адреса страниц обёрнуты в
+ * UzSite — язык из адреса, как в App.tsx; статья берёт язык из адреса сама
+ * (ArticleLayout) и в обёртке не нуждается.
+ *
+ * Переход по ссылке сайта (подвал → статья, статья → соседняя) — без
+ * перезагрузки, поэтому новая страница открывается с начала (ScrollToTop):
+ * иначе статья открывалась бы на той высоте, где читатель нажал ссылку.
  *
  * Страницы передаются снаружи: при сборке — обычным импортом (entry-server,
  * готовый HTML без заглушек загрузки), в браузере — загруженная заранее
@@ -26,20 +32,24 @@ export default function SiteApp({ pages }: { pages: SitePages }) {
   */
   useEffect(() => { document.getElementById("root")?.setAttribute("data-live", ""); }, []);
   return (
-    <Routes>
-      {SITE_PAGES.flatMap(page => pageLangs(page).map(lang => {
-        const Page = pages[page.key];
-        const path = page.paths[lang]!;
-        return (
-          <Route
-            key={path}
-            path={path}
-            element={lang === "uz" ? <UzSite path={page.paths.ru}><Page /></UzSite> : <Page />}
-          />
-        );
-      }))}
-      <Route path="*" element={<LeaveSite />} />
-    </Routes>
+    <>
+      <ScrollToTop />
+      <Routes>
+        {SITE_PAGES.flatMap(page => pageLangs(page).map(lang => {
+          const Page = pages[page.key];
+          const path = page.paths[lang]!;
+          const wrap = lang === "uz" && page.kind === "page";
+          return (
+            <Route
+              key={path}
+              path={path}
+              element={wrap ? <UzSite path={page.paths.ru}><Page /></UzSite> : <Page />}
+            />
+          );
+        }))}
+        <Route path="*" element={<LeaveSite />} />
+      </Routes>
+    </>
   );
 }
 
