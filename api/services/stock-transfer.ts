@@ -1,12 +1,44 @@
 import { and, eq, inArray } from "drizzle-orm";
+import { TRPCError } from "@trpc/server";
 import { warehouses, warehouseStock, stockTransfers, products } from "@db/schema";
-import { applyStockEffect, receiveStock } from "./stock-ledger";
+import { applyStockEffect, expiredByProduct, receiveStock } from "./stock-ledger";
 import { recordAudit } from "./audit-log";
 import { badRequest } from "../lib/errors";
 import { invalidateReports } from "../lib/report-cache";
 
 type Db = ReturnType<typeof import("../queries/connection").getDb>;
+type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
 type Actor = { id: number; name?: string; role: string };
+
+/**
+ * Хватает ли на складе-отправителе ГОДНОГО товара.
+ *
+ * available считает и просроченные партии, а списание по FEFO (transfer_out)
+ * их не берёт. Проверка по одному available пропускала перемещение десяти
+ * единиц со склада, где все десять — в сгоревшей партии: current_stock падал
+ * до нуля, а партия оставалась с десятью, и партий становилось больше, чем
+ * лежит на полке. Годное — available минус просрочка, как у оформления заказа.
+ *
+ * Строка источника к этому моменту уже под замком у вызывающего.
+ */
+export async function assertMovable(
+  tx: Tx, tenantId: number, warehouseId: number, productId: number, quantity: number, available: number,
+): Promise<void> {
+  const expired = await expiredByProduct(tx, tenantId, warehouseId, [productId]);
+  const rotten = expired.get(productId) ?? 0;
+  const movable = available - rotten;
+  if (movable >= quantity) return;
+  const [p] = await tx.select({ name: products.name }).from(products)
+    .where(and(eq(products.id, productId), eq(products.tenantId, tenantId))).limit(1);
+  const name = p?.name ?? "";
+  if (rotten > 0) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: `«${name}»: на складе-отправителе свободно ${available}, из них ${rotten} просрочено — переместить можно ${Math.max(0, movable)}, а в документе ${quantity}`,
+    });
+  }
+  throw badRequest(`Недостаточно товара на складе отправителе: ${name}`);
+}
 
 export interface TransferInput {
   fromWarehouseId: number;
@@ -52,12 +84,7 @@ export async function transferStock(db: Db, tenantId: number, actor: Actor, inpu
       const [sourceStock] = await tx.select().from(warehouseStock)
         .where(and(eq(warehouseStock.tenantId, tenantId), eq(warehouseStock.warehouseId, input.fromWarehouseId), eq(warehouseStock.productId, it.productId)))
         .for("update").limit(1);
-      if (!sourceStock || Number(sourceStock.available) < it.quantity) {
-        const [p] = await tx.select({ name: products.name }).from(products)
-          .where(and(eq(products.id, it.productId), eq(products.tenantId, tenantId))).limit(1);
-        const name = p?.name ?? "";
-        throw badRequest(`Недостаточно товара на складе отправителе: ${name}`);
-      }
+      await assertMovable(tx, tenantId, input.fromWarehouseId, it.productId, it.quantity, Number(sourceStock?.available ?? 0));
 
       const [result] = await tx.insert(stockTransfers).values({
         tenantId, fromWarehouseId: input.fromWarehouseId, toWarehouseId: input.toWarehouseId,

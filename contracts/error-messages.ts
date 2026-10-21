@@ -386,6 +386,7 @@ export const SERVER_ERROR_TEXT: Record<string, ErrorText> = {
   "Сменить склад по умолчанию нельзя: открытых заказов {0}, позиций с резервом {1}. Довезите или отмените открытые заказы и повторите.": { uz: "Asosiy omborni almashtirib bo'lmaydi: ochiq buyurtmalar {0}, zahiradagi pozitsiyalar {1}. Ochiq buyurtmalarni yetkazing yoki bekor qiling va qayta urinib ko'ring." },
   "Перемещение не найдено или уже выполнено": { uz: "Ko'chirish topilmadi yoki allaqachon bajarilgan" },
   "Недостаточно товара на складе отправителе": { uz: "Jo'natuvchi omborda mahsulot yetarli emas" },
+  "«{0}»: на складе-отправителе свободно {1}, из них {2} просрочено — переместить можно {3}, а в документе {4}": { uz: "«{0}»: jo'natuvchi omborda bo'sh {1}, shundan {2} muddati o'tgan — ko'chirish mumkin {3}, hujjatda esa {4}" },
   "Перемещение уже было выполнено": { uz: "Ko'chirish allaqachon bajarilgan" },
 
   // ── Погрузочные листы ─────────────────────────────────────────────────────

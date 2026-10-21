@@ -6,7 +6,7 @@ import { eq, and, sql, desc, isNull, inArray, gt } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { OPEN_ORDER_STATUSES } from "./lib/order-status";
 import { applyStockEffect, receiveStock } from "./services/stock-ledger";
-import { transferStock } from "./services/stock-transfer";
+import { transferStock, assertMovable } from "./services/stock-transfer";
 import { recordAudit, auditActor } from "./services/audit-log";
 import { invalidateReports } from "./lib/report-cache";
 
@@ -239,6 +239,8 @@ export const warehouseMultiRouter = createRouter({
         if (!lockedStock || Number(lockedStock.available) < Number(transfer.quantity)) {
           throw new TRPCError({ code: "BAD_REQUEST", message: "Недостаточно товара на складе отправителе" });
         }
+        // Годного — available минус просрочка: FEFO просроченное не возьмёт.
+        await assertMovable(tx, ctx.tenant.id, transfer.fromWarehouseId, transfer.productId, Number(transfer.quantity), Number(lockedStock.available));
 
         /*
           Одно физическое перемещение — две записи через дверь: ушло с одного
