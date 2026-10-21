@@ -118,7 +118,8 @@ export function SequenceCanvas({
 
   return (
     <div className={`overflow-hidden ${className}`} style={style}>
-      <img src={frames[0]} alt={alt} decoding="async" className="absolute inset-0 w-full h-full" style={{ objectFit: fit, objectPosition: anchor === "top" ? "top" : "center" }} />
+      {/* lazy: плёнка лежит экранами ниже первого — постеру незачем ехать с первой отрисовкой. */}
+      <img src={frames[0]} alt={alt} loading="lazy" decoding="async" className="absolute inset-0 w-full h-full" style={{ objectFit: fit, objectPosition: anchor === "top" ? "top" : "center" }} />
       <canvas ref={canvasRef} aria-hidden="true" className="absolute inset-0 w-full h-full" />
     </div>
   );

@@ -2560,6 +2560,12 @@ export const leads = mysqlTable("leads", {
   comment:   text("comment"),
   // Откуда пришёл: раздел лендинга, с которого отправили форму.
   source:    varchar("source", { length: 64 }),
+  // Метки рекламной ссылки, по которой человек пришёл на сайт:
+  // «utm_source=ig; utm_medium=cpc; utm_campaign=okt; ref=bekzod» — тем же
+  // видом, что tenants.signup_source (contracts/signup, composeSignupSource),
+  // и тем же потолком в 200 знаков. Без меток — null. source отвечает «с
+  // какой формы», utm — «с какой рекламы»; вместе видно, что работает.
+  utm:       varchar("utm", { length: 200 }),
   // Ушло ли уведомление. false означает «заявка есть, но её не увидели» —
   // по этому полю их можно найти и разобрать вручную.
   notified:  boolean("notified").default(false).notNull(),

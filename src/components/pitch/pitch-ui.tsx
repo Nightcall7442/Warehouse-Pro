@@ -1,12 +1,17 @@
 import { useEffect, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
-import { Link } from "react-router";
-import { ArrowRight, Moon, Sun } from "lucide-react";
+import { Link, useLocation } from "react-router";
+import { ArrowRight, Menu, Moon, Sun, X } from "lucide-react";
 import { LogoMark } from "@/components/brand/Logo";
-import { PreferLang, useLang } from "@/i18n";
+import { useLang } from "@/i18n";
+import QueryLang from "@/components/QueryLang";
 import { useTheme } from "@/hooks/useTheme";
+import { usePrerender } from "@/site/prerender";
 import { pick, type L } from "./pitch-content";
 import { PITCH_CSS } from "./pitch-tokens";
+import { useDisclosure } from "@/components/landing/use-disclosure";
+import { appPath, sitePath } from "@/lib/site-paths";
+import { captureAttribution, withAttribution } from "@/lib/attribution";
 
 /* ═══════════════════════════════════════════════════════════════════════════
    Оболочка страниц конкурса (/pitch, /demo).
@@ -31,16 +36,30 @@ import { PITCH_CSS } from "./pitch-tokens";
 export function PitchShell({ title, children, nav, lang = "uz", site = false }: {
   title: L; children: ReactNode; nav?: Array<{ href: string; label: L }>; lang?: "uz" | "ru"; site?: boolean;
 }) {
+  const { search } = useLocation();
+  // Метки рекламы из адреса (/compare?utm_source=tg) — до отрисовки шапки:
+  // её «Начать» берёт их в свой адрес (lib/attribution).
+  useState(() => captureAttribution(search));
+  /*
+    ?lang=ru|uz в адресе — язык страницы: /demo?lang=ru из русского лендинга
+    открывается по-русски, хотя у демо по умолчанию узбекский, и поверх
+    сохранённого выбора (QueryLang). Язык адреса страницы сайта (/compare,
+    /uz/compare) сильнее и ?lang, и умолчания.
+  */
   return (
-    <PreferLang lang={lang}>
+    <QueryLang prefer={lang}>
       <ShellInner title={title} nav={nav} site={site}>{children}</ShellInner>
-    </PreferLang>
+    </QueryLang>
   );
 }
 
 function ShellInner({ title, children, nav, site }: { title: L; children: ReactNode; nav?: Array<{ href: string; label: L }>; site: boolean }) {
   const { lang } = useLang();
   const { theme } = useTheme();
+  // Готовый HTML (сборка сайта) не знает темы человека: тон «auto» берёт её
+  // из системы (prefers-color-scheme, PITCH_CSS) — та же, что потом выберет
+  // useTheme без сохранённой. Иначе тёмная страница мигала бы светлой.
+  const tone = usePrerender() ? "auto" : theme;
   useEffect(() => {
     const prevTitle = document.title;
     const prevLang = document.documentElement.lang;
@@ -49,7 +68,7 @@ function ShellInner({ title, children, nav, site }: { title: L; children: ReactN
     return () => { document.title = prevTitle; document.documentElement.lang = prevLang; };
   }, [lang, title]);
   return (
-    <div className="pitch" data-tone={theme} data-testid="pitch-root" lang={lang}>
+    <div className="pitch" data-tone={tone} data-testid="pitch-root" lang={lang}>
       <style>{PITCH_CSS}</style>
       <div aria-hidden="true" style={{ position: "absolute", inset: "0 0 auto 0", height: 900, background: "var(--glow)", pointerEvents: "none" }} />
       <PitchHeader nav={nav} site={site} />
@@ -61,40 +80,95 @@ function ShellInner({ title, children, nav, site }: { title: L; children: ReactN
 
 function PitchHeader({ nav, site }: { nav?: Array<{ href: string; label: L }>; site: boolean }) {
   const { lang } = useLang();
+  const tr = (uz: string, ru: string) => (lang === "uz" ? uz : ru);
   const [scrolled, setScrolled] = useState(false);
+  /*
+    Меню на телефоне. Раньше разделы были `hidden lg:flex` — на телефоне
+    шапка сравнения не давала ни разделов, ни «Войти», ни «Начать»: человек,
+    дочитавший сравнение, искал регистрацию прокруткой вниз. Тот же крючок,
+    что у лендинга: Esc, касание мимо, переход — закрывают.
+  */
+  const menu = useDisclosure("p-menu");
+  const withMenu = Boolean(nav?.length) || site;
+  // Знак ведёт на главную того же языка: с /uz/compare — на /uz.
+  const home = site ? sitePath(lang, "/") : "/pitch";
   useEffect(() => {
     const h = () => setScrolled(window.scrollY > 12);
     h();
     window.addEventListener("scroll", h, { passive: true });
     return () => window.removeEventListener("scroll", h);
   }, []);
+  const solid = scrolled || menu.open;
   return (
     <header
       style={{
         position: "sticky", top: 0, zIndex: 40,
         paddingTop: "env(safe-area-inset-top, 0px)",
-        background: scrolled ? "color-mix(in srgb, var(--bg) 86%, transparent)" : "transparent",
-        backdropFilter: scrolled ? "saturate(140%) blur(14px)" : undefined,
-        WebkitBackdropFilter: scrolled ? "saturate(140%) blur(14px)" : undefined,
-        borderBottom: `1px solid ${scrolled ? "var(--rule)" : "transparent"}`,
+        background: solid ? "color-mix(in srgb, var(--bg) 94%, transparent)" : "transparent",
+        backdropFilter: solid ? "saturate(140%) blur(14px)" : undefined,
+        WebkitBackdropFilter: solid ? "saturate(140%) blur(14px)" : undefined,
+        borderBottom: `1px solid ${solid ? "var(--rule)" : "transparent"}`,
         transition: "background .2s ease, border-color .2s ease",
       }}
     >
       <div className="p-wrap" style={{ display: "flex", alignItems: "center", gap: 16, height: 64 }}>
-        <Link to={site ? "/" : "/pitch"} className="p-focus" style={{ display: "flex", alignItems: "center", gap: 10, textDecoration: "none", minHeight: 44 }} aria-label={site ? "Warehouse Pro" : "Warehouse Pro — pitch"}>
+        <Link to={home} className="p-focus" style={{ display: "flex", alignItems: "center", gap: 10, textDecoration: "none", minHeight: 44 }} aria-label={site ? "Warehouse Pro" : "Warehouse Pro — pitch"}>
           <LogoMark size={28} decorative />
           <span style={{ fontWeight: 800, fontSize: 16, letterSpacing: "-0.02em" }}>Warehouse Pro</span>
         </Link>
         {nav && (
-          <nav className="p-nav hidden lg:flex" style={{ gap: 22, marginLeft: 24 }} aria-label={lang === "uz" ? "Bo'limlar" : "Разделы"}>
+          <nav className="p-nav hidden lg:flex" style={{ gap: 22, marginLeft: 24 }} aria-label={tr("Bo'limlar", "Разделы")}>
             {nav.map(n => <a key={n.href} href={n.href}>{pick(lang, n.label)}</a>)}
           </nav>
         )}
         <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8 }}>
+          {site && (
+            <div className="hidden lg:flex" style={{ alignItems: "center", gap: 8, marginRight: 4 }}>
+              <Link to={appPath(lang, "/login")} className="p-nav p-focus" style={{ padding: "10px 8px", fontSize: 14, fontWeight: 600, color: "var(--soft)", textDecoration: "none" }}>{tr("Kirish", "Войти")}</Link>
+              <Link to={withAttribution(appPath(lang, "/register"))} className="p-btn p-btn-solid p-focus" data-testid="pitch-header-register" style={{ minHeight: 40, padding: "0 16px", fontSize: 14 }}>{tr("Boshlash", "Начать")}</Link>
+            </div>
+          )}
           <LangSwitch />
           <ThemeSwitch />
+          {withMenu && (
+            <button
+              type="button"
+              {...menu.toggleProps}
+              aria-label={menu.open ? tr("Menyuni yopish", "Закрыть меню") : tr("Menyuni ochish", "Открыть меню")}
+              data-testid="pitch-menu-toggle"
+              className="p-focus lg:hidden"
+              style={{ width: 44, height: 44, display: "grid", placeItems: "center", border: "1px solid var(--rule-strong)", borderRadius: 10, background: "transparent", color: "var(--text)", cursor: "pointer" }}
+            >
+              {menu.open ? <X size={18} /> : <Menu size={18} />}
+            </button>
+          )}
         </div>
       </div>
+      {withMenu && (
+        <div
+          {...menu.panelProps}
+          data-testid="pitch-menu"
+          className="lg:hidden"
+          hidden={!menu.open}
+          style={{ borderTop: "1px solid var(--rule)", background: "var(--bg)" }}
+        >
+          <div className="p-wrap" style={{ paddingTop: 8, paddingBottom: 20 }}>
+            {nav && (
+              <nav className="p-nav" aria-label={tr("Bo'limlar", "Разделы")} style={{ display: "grid" }}>
+                {nav.map(n => (
+                  <a key={n.href} href={n.href} onClick={() => menu.close()} style={{ fontSize: 16, padding: "12px 2px", minHeight: 44 }}>{pick(lang, n.label)}</a>
+                ))}
+              </nav>
+            )}
+            {site && (
+              <div style={{ display: "flex", gap: 10, marginTop: 12 }}>
+                <Link to={appPath(lang, "/login")} className="p-btn p-btn-line p-focus" style={{ flex: 1 }}>{tr("Kirish", "Войти")}</Link>
+                <Link to={withAttribution(appPath(lang, "/register"))} className="p-btn p-btn-solid p-focus" style={{ flex: 1 }} data-testid="pitch-menu-register">{tr("Boshlash", "Начать")}</Link>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </header>
   );
 }
@@ -112,7 +186,7 @@ export function LangSwitch() {
           data-testid={`pitch-lang-${l}`}
           className="p-mono p-focus"
           style={{
-            minWidth: 44, height: 40, padding: "0 10px", fontSize: 11.5, letterSpacing: "0.08em", textTransform: "uppercase",
+            minWidth: 44, height: 40, padding: "0 10px", fontSize: 12, letterSpacing: "0.08em", textTransform: "uppercase",
             background: lang === l ? "var(--btn-bg)" : "transparent", color: lang === l ? "var(--btn-fg)" : "var(--soft)",
             cursor: "pointer", border: 0,
           }}
@@ -146,16 +220,22 @@ function ThemeSwitch() {
 function PitchFooter({ site }: { site: boolean }) {
   const { lang } = useLang();
   const tr = (uz: string, ru: string) => (lang === "uz" ? uz : ru);
+  /*
+    Ссылки на сайт — на языке, который человек видит. У сравнения он и есть
+    язык адреса (/uz/compare — узбекский), у конкурса — выбранный на месте:
+    /pitch по-узбекски вёл «Sayt» и «Taqqoslash» на русские / и /compare.
+  */
+  const siteLang = lang;
   return (
     <footer style={{ borderTop: "1px solid var(--rule)", position: "relative" }}>
       <div className="p-wrap" style={{ display: "flex", flexWrap: "wrap", gap: "12px 28px", alignItems: "center", paddingTop: 32, paddingBottom: "calc(32px + env(safe-area-inset-bottom, 0px))" }}>
-        <span className="p-mono" style={{ fontSize: 11.5, color: "var(--faint)", letterSpacing: "0.04em" }}>{site ? "Warehouse Pro" : "Warehouse Pro · Pitch Day 3.0"}</span>
+        <span className="p-mono" style={{ fontSize: 12, color: "var(--faint)", letterSpacing: "0.04em" }}>{site ? "Warehouse Pro" : "Warehouse Pro · Pitch Day 3.0"}</span>
         <div style={{ display: "flex", flexWrap: "wrap", gap: "4px 22px", marginLeft: "auto" }} className="p-nav">
           {site
-            ? <Link to="/compare">{tr("Taqqoslash", "Сравнение")}</Link>
+            ? <Link to={sitePath(siteLang, "/compare")}>{tr("Taqqoslash", "Сравнение")}</Link>
             : <Link to="/pitch">{tr("Loyiha", "Проект")}</Link>}
-          <Link to="/demo">Demo</Link>
-          <a href="/">{tr("Sayt", "Сайт")}</a>
+          <Link to={`/demo?lang=${lang}`}>Demo</Link>
+          <a href={sitePath(siteLang, "/")}>{tr("Sayt", "Сайт")}</a>
           <a href="/privacy">{tr("Maxfiylik", "Конфиденциальность")}</a>
         </div>
       </div>
@@ -188,7 +268,7 @@ export function Chapter({ id, num, kicker, title, lead, children, band = false, 
 }
 
 export function Mono({ children, style }: { children: ReactNode; style?: CSSProperties }) {
-  return <span className="p-mono" style={{ fontSize: 11.5, letterSpacing: "0.06em", color: "var(--faint)", ...style }}>{children}</span>;
+  return <span className="p-mono" style={{ fontSize: 12, letterSpacing: "0.06em", color: "var(--faint)", ...style }}>{children}</span>;
 }
 
 export function ArrowLink({ to, children, solid = false, testId }: { to: string; children: ReactNode; solid?: boolean; testId?: string }) {

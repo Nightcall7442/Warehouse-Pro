@@ -188,7 +188,8 @@ export const PARITY: L[] = [
   { uz: "P&L, ABC, foyda tahlili, savdo xaritasi", ru: "P&L, ABC, разбор прибыли, карта продаж" },
   { uz: "1C (OData), ochiq API, Excel, Telegram xabarnomalari", ru: "1С (OData), открытый API, Excel, уведомления в Telegram" },
   { uz: "Rollar, huquqlar va harakatlar jurnali", ru: "Роли, права и журнал действий" },
-  { uz: "iOS, Android va veb; o'zbek va rus tillari", ru: "iOS, Android и веб; узбекский и русский" },
+  // iOS-приложение ещё на проверке App Store (см. STAGES ниже) — не обещаем его как готовое.
+  { uz: "Android, veb va PWA (iOS — App Store tekshiruvida); o'zbek va rus tillari", ru: "Android, веб и PWA (iOS — на проверке App Store); узбекский и русский" },
 ];
 
 /** Свои находки — то, что в продукте придумано, а не повторено. */
@@ -219,12 +220,12 @@ export const IDEAS: Array<{ t: L; d: L }> = [
   },
 ];
 
-/** Чего пока нет, а у конкурентов публично есть, — в планах, названо прямо. */
-export const GAPS: L[] = [
-  { uz: "«Asl Belgisi» markirovkasi", ru: "Маркировка «Asl Belgisi»" },
-  { uz: "Elektron hisob-faktura operator bilan to'g'ridan-to'g'ri (hozir — 1C orqali: STIR, IKPU va QQS tayyorlab beramiz)", ru: "Электронная счёт-фактура напрямую через оператора (сейчас — через 1С: ИНН, ИКПУ и НДС готовим мы)" },
-  { uz: "Savdo uskunalari hisobi", ru: "Учёт торгового оборудования" },
-];
+/**
+ * Чего пока нет, а у конкурентов публично есть, — в планах, названо прямо.
+ * Список один на весь сайт (site-content): его же называет «Не подойдём» на
+ * лендинге, сравнение и эта страница.
+ */
+export { GAPS } from "@/components/landing/site-content";
 
 /* ── Проверяемые числа о разработке ─────────────────────────────────────────
    Пересчитано 09.10.2026: commits — `git rev-list --count origin/main`
@@ -456,8 +457,8 @@ export const WHY_US: Array<{ t: L; d: L }> = [
   {
     t: { uz: "Oflayn va ikki tilda", ru: "Офлайн и на двух языках" },
     d: {
-      uz: "Agent ilovasi internet yo'q joyda ishlaydi; interfeys o'zbek va rus tillarida. Veb, PWA, iOS va Android.",
-      ru: "Приложение агента работает без интернета; интерфейс на узбекском и русском. Веб, PWA, iOS и Android.",
+      uz: "Agent ilovasi internet yo'q joyda ishlaydi; interfeys o'zbek va rus tillarida. Veb, PWA va Android; iOS — App Store tekshiruvida.",
+      ru: "Приложение агента работает без интернета; интерфейс на узбекском и русском. Веб, PWA и Android; iOS — на проверке App Store.",
     },
   },
   {

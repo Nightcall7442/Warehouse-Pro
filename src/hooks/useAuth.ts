@@ -6,42 +6,15 @@ import { useNavigate } from "react-router";
 import { LOGIN_PATH } from "@/const";
 import { setSentryUser } from "@/sentry";
 import { clearOfflineCopies, setSessionOwner } from "@/lib/offline-copy";
+import { setSessionHint } from "@/lib/session-hint";
 
 declare global {
   interface Window { __LOGGING_OUT?: boolean }
 }
 
-/**
- * Признак «в этом браузере кто-то входил».
- *
- * Сессия живёт в httpOnly-куке, поэтому до ответа `auth.me` фронтенд не знает
- * даже, стоит ли ждать пользователя. Корню сайта это важно: посетитель
- * warehouse-pro.uz должен увидеть лендинг сразу, а не спиннер на весь
- * round-trip до API, — и при этом залогиненный не должен ловить вспышку
- * лендинга перед своим разделом.
- *
- * Флаг ничего не удостоверяет и ничего не открывает: он только подсказывает,
- * что рисовать в первые 200 мс. Любая настоящая проверка по-прежнему на
- * сервере.
- */
-const SESSION_HINT = "wp.hadSession";
-
-export function hadSession(): boolean {
-  try {
-    return localStorage.getItem(SESSION_HINT) === "1";
-  } catch {
-    return false;
-  }
-}
-
-function setSessionHint(v: boolean) {
-  try {
-    if (v) localStorage.setItem(SESSION_HINT, "1");
-    else localStorage.removeItem(SESSION_HINT);
-  } catch {
-    /* приватный режим — подсказки просто не будет */
-  }
-}
+// Признак «в этом браузере кто-то входил» — в lib/session-hint: его читает и
+// входной файл, которому useAuth с tRPC и react-query не по весу.
+export { hadSession } from "@/lib/session-hint";
 
 type UseAuthOptions = {
   redirectOnUnauthenticated?: boolean;

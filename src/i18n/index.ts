@@ -1,7 +1,8 @@
 import { ru } from "./ru";
 import { uz } from "./uz";
-import { createContext, useContext, useState, useCallback, useEffect, useMemo } from "react";
+import { createContext, useContext, useState, useCallback, useEffect, useLayoutEffect, useMemo } from "react";
 import type { ReactNode } from "react";
+import { claimPageLang, releasePageLang, pageLangOverride } from "./page-lang";
 
 export type Lang = "ru" | "uz";
 
@@ -33,6 +34,8 @@ interface LangCtx {
   t:       (key: string) => string;
   /** Язык закреплён оболочкой (FixedLang) — выбирать его негде и незачем. */
   fixed?:  boolean;
+  /** Язык задан адресом страницы (UrlLang): сильнее сохранённого и умолчаний страницы. */
+  fromUrl?: boolean;
 }
 
 import React from "react";
@@ -49,6 +52,8 @@ const LangContext = createContext<LangCtx>({
  */
 export function currentLang(): Lang {
   if (fixedLang) return fixedLang;
+  const fromUrl = pageLangOverride();
+  if (fromUrl) return fromUrl;
   try { const s = localStorage.getItem("lang"); return s === "uz" ? "uz" : "ru"; } catch { return "ru"; }
 }
 
@@ -94,11 +99,50 @@ export function hasChosenLang(): boolean {
 export function PreferLang({ lang: fallback, children }: { lang: Lang; children: ReactNode }) {
   const outer = useContext(LangContext);
   const [chosen, setChosen] = useState(hasChosenLang);
-  const lang = chosen ? outer.lang : fallback;
+  // Язык из адреса (/uz/compare) сильнее умолчания страницы: оно — для тех,
+  // кто пришёл без языка в ссылке.
+  const lang = outer.fromUrl || chosen ? outer.lang : fallback;
   const outerSet = outer.setLang;
   const setLang = useCallback((l: Lang) => { outerSet(l); setChosen(true); }, [outerSet]);
   const translate = useCallback((key: string) => t(lang, key), [lang]);
-  const value = useMemo(() => ({ lang, setLang, t: translate }), [lang, setLang, translate]);
+  const value = useMemo(() => ({ lang, setLang, t: translate, fromUrl: outer.fromUrl }), [lang, setLang, translate, outer.fromUrl]);
+  return React.createElement(LangContext.Provider, { value }, children);
+}
+
+/**
+ * Язык из адреса страницы: /uz, /uz/compare, /demo?lang=ru.
+ *
+ * Сильнее сохранённого выбора и умолчания страницы (PreferLang), но заход по
+ * ссылке выбором не считается: «lang» в хранилище не пишется. Пишется только
+ * явное нажатие на переключатель — и тогда onSwitch уводит на ту же страницу
+ * на другом языке (/uz ↔ /), иначе адрес продолжал бы держать прежний язык и
+ * кнопка казалась бы сломанной.
+ *
+ * Тот же язык отдают tt/currentLang и uiLang (заголовок x-lang, errorText) —
+ * через ./page-lang; и он же ставится в <html lang>, пока страница открыта.
+ */
+export function UrlLang({ lang, onSwitch, children }: { lang: Lang; onSwitch?: (l: Lang) => void; children: ReactNode }) {
+  const outer = useContext(LangContext);
+  const [token] = useState(() => ({}));
+  // До эффектов детей: запрос, ушедший из эффекта дочернего компонента в
+  // первый же кадр, должен нести язык адреса, а эффекты детей идут раньше
+  // эффектов родителя. Раскладочные эффекты идут раньше любых обычных.
+  useLayoutEffect(() => {
+    claimPageLang(token, lang);
+    const prev = document.documentElement.lang;
+    document.documentElement.lang = lang;
+    return () => { releasePageLang(token); document.documentElement.lang = prev; };
+  }, [token, lang]);
+  const outerSet = outer.setLang;
+  // Нажатие — всегда выбор и сохраняется, даже того же языка: вход в демо
+  // с /demo?lang=ru зовёт setLang(lang), чтобы приложение открылось
+  // по-русски. Уводит на другую страницу только смена языка.
+  const setLang = useCallback((l: Lang) => {
+    outerSet(l);
+    if (l !== lang) onSwitch?.(l);
+  }, [lang, outerSet, onSwitch]);
+  const translate = useCallback((key: string) => t(lang, key), [lang]);
+  const value = useMemo(() => ({ lang, setLang, t: translate, fromUrl: true }), [lang, setLang, translate]);
   return React.createElement(LangContext.Provider, { value }, children);
 }
 

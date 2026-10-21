@@ -1,9 +1,12 @@
-import { useNavigate } from "react-router";
 import { LogoMark } from "@/components/brand/Logo";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslate, useLang } from "@/i18n";
 import { Menu, X, Send, Phone } from "lucide-react";
 import { cn, LX, MONO, CONTACT, tgLink } from "./landing-tokens";
+import { useDisclosure } from "./use-disclosure";
+import { useSiteLinkClick } from "./use-site-link";
+import { withAttribution } from "@/lib/attribution";
+import { appPath } from "@/lib/site-paths";
 
 /** Переключатель языка: посетитель-узбек не должен искать его в приложении. */
 function LangSwitch({ className }: { className?: string }) {
@@ -22,7 +25,7 @@ function LangSwitch({ className }: { className?: string }) {
           // На касании цель должна быть не меньше 44 точек: 32×28 попадали мимо
           // пальца, а язык — первое, что переключает узбекоязычный посетитель.
           // В точках, а не h-11: при базовом шрифте 14px h-11 — это 38.5.
-          className="px-3.5 h-[44px] min-w-[44px] lg:px-2.5 lg:h-8 lg:min-w-0 text-[11px] uppercase cursor-pointer transition-colors"
+          className="px-3.5 h-[44px] min-w-[44px] lg:px-2.5 lg:h-8 lg:min-w-0 text-[12px] uppercase cursor-pointer transition-colors"
           style={{
             ...MONO,
             letterSpacing: "0.08em",
@@ -38,10 +41,18 @@ function LangSwitch({ className }: { className?: string }) {
 }
 
 export default function LandingHeader() {
-  const navigate = useNavigate();
   const tr = useTranslate();
+  const { lang } = useLang();
+  // «Войти» и «Начать» — ссылки: у них есть адрес, и «Начать» несёт метки
+  // рекламы (lib/attribution). Обычное нажатие — переход без перезагрузки.
+  // С /uz обе несут ?lang=uz — форма открывается на языке страницы.
+  const siteClick = useSiteLinkClick();
+  const registerHref = withAttribution(appPath(lang, "/register"));
+  const loginHref = appPath(lang, "/login");
   const [scrolled, setScrolled] = useState(false);
-  const [open, setOpen] = useState(false);
+  // Esc, касание мимо, переход — закрывают; aria-expanded/controls — на кнопке.
+  const menu = useDisclosure("lx-menu");
+  const open = menu.open;
 
   useEffect(() => {
     const h = () => setScrolled(window.scrollY > 16);
@@ -52,10 +63,10 @@ export default function LandingHeader() {
 
   const navLinks = useMemo(
     () => [
+      { label: tr("Для кого", "Kim uchun"), href: "#audience" },
       { label: tr("Продукт", "Mahsulot"), href: "#features" },
-      { label: tr("Как работает", "Qanday ishlaydi"), href: "#how" },
-      { label: tr("Роли", "Rollar"), href: "#roles" },
       { label: tr("Цены", "Narxlar"), href: "#pricing" },
+      { label: tr("Как начать", "Qanday boshlash"), href: "#start" },
     ],
     [tr],
   );
@@ -121,32 +132,33 @@ export default function LandingHeader() {
               <Send size={15} />
             </a>
           )}
-          <button
-            type="button"
-            onClick={() => navigate("/login")}
+          <a
+            href={loginHref}
+            onClick={siteClick}
             className="text-[13.5px] px-3.5 py-2 rounded-md font-medium cursor-pointer hover:bg-[#ece9e2] transition-colors"
             style={{ color: LX.ink }}
           >
             {tr("Войти", "Kirish")}
-          </button>
-          <button
-            type="button"
-            onClick={() => navigate("/register")}
-            className="h-10 px-5 rounded-[9px] text-[13.5px] font-semibold cursor-pointer transition-all duration-200 hover:-translate-y-px"
+          </a>
+          <a
+            href={registerHref}
+            onClick={siteClick}
+            data-testid="header-register"
+            className="inline-flex items-center h-10 px-5 rounded-[9px] text-[13.5px] font-semibold cursor-pointer transition-all duration-200 hover:-translate-y-px"
             style={{ background: LX.ink, color: LX.paperOnInk }}
           >
             {tr("Начать", "Boshlash")}
-          </button>
+          </a>
         </div>
 
         <div className="lg:hidden flex items-center gap-2.5">
         <LangSwitch />
         <button
           type="button"
+          {...menu.toggleProps}
           aria-label={open ? tr("Закрыть меню", "Menyuni yopish") : tr("Открыть меню", "Menyuni ochish")}
           className="lg:hidden w-[44px] h-[44px] rounded-md flex items-center justify-center cursor-pointer"
           style={{ border: `1px solid ${LX.ruleStrong}`, color: LX.ink }}
-          onClick={() => setOpen(!open)}
         >
           {open ? <X size={18} /> : <Menu size={18} />}
         </button>
@@ -160,7 +172,7 @@ export default function LandingHeader() {
         «Начать» неожиданно уводил на регистрацию.
       */}
       <div
-        inert={!open}
+        {...menu.panelProps}
         className={cn("lg:hidden overflow-hidden transition-all duration-300 lx-anim", open ? "max-h-[420px]" : "max-h-0")}
         style={{ background: "rgba(244,242,237,0.97)", borderBottom: open ? `1px solid ${LX.rule}` : "none" }}
       >
@@ -169,7 +181,7 @@ export default function LandingHeader() {
             <a
               key={item.href}
               href={item.href}
-              onClick={() => setOpen(false)}
+              onClick={() => menu.close()}
               className="block px-3 py-2.5 text-[14px] rounded-md"
               style={{ color: LX.inkSoft }}
             >
@@ -177,22 +189,23 @@ export default function LandingHeader() {
             </a>
           ))}
           <div className="pt-3 flex gap-2.5">
-            <button
-              type="button"
-              onClick={() => navigate("/login")}
-              className="flex-1 h-[44px] rounded-[9px] text-[14px] font-medium cursor-pointer"
+            <a
+              href={loginHref}
+              onClick={siteClick}
+              className="flex-1 h-[44px] inline-flex items-center justify-center rounded-[9px] text-[14px] font-medium cursor-pointer"
               style={{ border: `1px solid ${LX.ruleStrong}`, color: LX.ink }}
             >
               {tr("Войти", "Kirish")}
-            </button>
-            <button
-              type="button"
-              onClick={() => navigate("/register")}
-              className="flex-1 h-[44px] rounded-[9px] text-[14px] font-semibold cursor-pointer"
+            </a>
+            <a
+              href={registerHref}
+              onClick={siteClick}
+              data-testid="menu-register"
+              className="flex-1 h-[44px] inline-flex items-center justify-center rounded-[9px] text-[14px] font-semibold cursor-pointer"
               style={{ background: LX.ink, color: LX.paperOnInk }}
             >
               {tr("Начать", "Boshlash")}
-            </button>
+            </a>
           </div>
         </div>
       </div>

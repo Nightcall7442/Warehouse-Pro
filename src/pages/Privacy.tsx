@@ -30,6 +30,12 @@ import { CONTACT } from "@/components/landing/landing-tokens";
  *
  * Русский: это документ, а не экран. Бумага в этом продукте остаётся русской
  * (печать, выгрузки, мониторинг), и политика — из того же ряда.
+ *
+ * ── Шрифт ───────────────────────────────────────────────────────────────────
+ *
+ * Страница теперь — страница сайта (готовый HTML, в поиске), и её открывают с
+ * телефона из приложения (LocationDisclosure): текст — 16px, как абзацы
+ * сайта, а не 14,5 (landing-min-font).
  */
 export default function Privacy() {
   const updated = "29 сентября 2026";
@@ -38,7 +44,7 @@ export default function Privacy() {
     <div style={{ minHeight: "100vh", background: "var(--color-bg)" }}>
       <div style={{ maxWidth: "760px", margin: "0 auto", padding: "48px 20px 80px" }}>
         <Link
-          to="/landing"
+          to="/"
           style={{
             display: "inline-flex", alignItems: "center", gap: "8px",
             fontSize: "13px", color: "var(--color-text-secondary)", textDecoration: "none",
@@ -99,7 +105,7 @@ export default function Privacy() {
               используем. Вместе с ним сохраняется ответ «откуда вы о нас узнали», если вы его
               дали, — чтобы понимать, откуда приходят клиенты.
             </P>
-            <p lang="uz" style={{ fontSize: "14.5px", lineHeight: 1.65, color: "var(--color-text-secondary)" }}>
+            <p lang="uz" style={{ fontSize: "16px", lineHeight: 1.65, color: "var(--color-text-secondary)" }}>
               <b>Rahbarning telefon raqami</b> — ulanish bo'yicha bog'lanish uchun: mahsulotlar,
               xodimlar va birinchi buyurtmalarni kiritishda yordam berish, tarif bo'yicha savollarga
               javob berish. Faqat xizmat bo'yicha qo'ng'iroq qilamiz va yozamiz, raqamni hech kimga
@@ -210,7 +216,7 @@ export default function Privacy() {
               Warehouse Pro:{" "}
               <a href={`mailto:${CONTACT.email}`} data-testid="privacy-support-email" style={{ color: "var(--color-primary-text)" }}>{CONTACT.email}</a>.
               Остальные контакты — на{" "}
-              <Link to="/landing" style={{ color: "var(--color-primary-text)" }}>главной странице</Link>.
+              <Link to="/" style={{ color: "var(--color-primary-text)" }}>главной странице</Link>.
             </P>
           </Section>
         </div>
@@ -235,7 +241,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 
 function P({ children }: { children: React.ReactNode }) {
   return (
-    <p style={{ fontSize: "14.5px", lineHeight: 1.65, color: "var(--color-text-secondary)" }}>
+    <p style={{ fontSize: "16px", lineHeight: 1.65, color: "var(--color-text-secondary)" }}>
       {children}
     </p>
   );
@@ -245,7 +251,7 @@ function Ul({ items }: { items: string[] }) {
   return (
     <ul style={{ display: "flex", flexDirection: "column", gap: "8px", paddingLeft: "18px", margin: 0 }}>
       {items.map((t, i) => (
-        <li key={i} style={{ fontSize: "14.5px", lineHeight: 1.6, color: "var(--color-text-secondary)" }}>
+        <li key={i} style={{ fontSize: "16px", lineHeight: 1.6, color: "var(--color-text-secondary)" }}>
           {t}
         </li>
       ))}

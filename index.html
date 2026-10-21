@@ -16,33 +16,43 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Warehouse Pro" />
-    <!-- ── Как страница выглядит в поиске ──────────────────────────────────
-         Заголовок и описание — это то, что человек читает в выдаче и по чему
-         решает, кликать ли. Раньше здесь стояло просто «Warehouse Pro»: по
-         такому заголовку не понять, что это вообще такое, и Google не за что
-         зацепиться, чтобы показать сайт по запросу «программа для склада».
+    <!-- ── Оболочка приложения, а не страница сайта ─────────────────────────
+         Этот файл — оболочка: её получают вошедший (по куке сессии) на «/»,
+         разделы приложения (/orders, /login) и service worker без связи.
+         Страницы сайта (/, /compare, /privacy, /uz, /uz/compare) гость
+         получает готовыми из dist/prerender: сборка (scripts/prerender.mjs)
+         заменяет блок между метками seo своим заголовком, описанием,
+         canonical, hreflang, карточкой ссылки и разметкой schema.org на
+         каждую страницу и язык (src/site/site-head.ts).
 
-         Ссылка canonical названа явно и с www — тем адресом, который сейчас
-         действительно отдаёт приложение. Без неё Google сам выбирает
-         «главный» адрес из встреченных вариантов и может выбрать не тот. -->
-    <title>Warehouse Pro — склад, заказы и торговые агенты в одной системе</title>
-    <meta name="description" content="Учёт склада, заказы, торговые агенты и долги магазинов в одной программе. Работает офлайн на телефоне агента, запуск за 10 минут, 14 дней бесплатно. Ташкент, Узбекистан." />
-    <link rel="canonical" href="https://www.warehouse-pro.uz/" />
+         Поэтому оболочка закрыта от поиска (noindex) и без canonical: её
+         адреса — экраны приложения, а не страницы сайта. Раньше у неё был
+         canonical на «/» — и каждый экран приложения сообщал поиску, что он
+         и есть главная. Для /pitch и /demo сервер заменяет noindex на
+         canonical своей страницы (api/lib/public-pages.ts).
 
-    <!-- Карточка при отправке ссылки в Telegram, WhatsApp, Facebook. Без неё
-         в переписке появляется голый адрес — по нему никто не переходит. -->
+         Карточка ссылки ниже — на случай, когда ссылку на экран приложения
+         (/register, /login) присылают в Telegram: без неё в переписке был бы
+         голый адрес. -->
+    <!--seo-->
+    <title>Warehouse Pro — агенты, долги магазинов и доставка в одной программе</title>
+    <meta name="description" content="Программа для дистрибьюторов с торговыми агентами: заказы с телефона даже без сети, склад, доставка и долг каждого магазина. 14 дней бесплатно, без карты. Ургенч, Хорезм." />
+    <meta name="robots" content="noindex" />
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="Warehouse Pro" />
     <meta property="og:locale" content="ru_RU" />
     <meta property="og:locale:alternate" content="uz_UZ" />
     <meta property="og:url" content="https://www.warehouse-pro.uz/" />
-    <meta property="og:title" content="Warehouse Pro — склад, заказы и торговые агенты в одной системе" />
-    <meta property="og:description" content="Учёт склада, заказы, торговые агенты и долги магазинов в одной программе. Работает офлайн, запуск за 10 минут, 14 дней бесплатно." />
-    <meta property="og:image" content="https://www.warehouse-pro.uz/icon-512.png" />
-    <meta name="twitter:card" content="summary" />
-    <meta name="twitter:title" content="Warehouse Pro — склад, заказы и торговые агенты" />
-    <meta name="twitter:description" content="Учёт склада, заказы и торговые агенты в одной программе. 14 дней бесплатно." />
-    <meta name="twitter:image" content="https://www.warehouse-pro.uz/icon-512.png" />
+    <meta property="og:title" content="Warehouse Pro — агенты, долги магазинов и доставка в одной программе" />
+    <meta property="og:description" content="Заказы с телефона агента даже без сети, склад, доставка и долг каждого магазина. 14 дней бесплатно, без карты." />
+    <meta property="og:image" content="https://www.warehouse-pro.uz/og/home-ru.jpg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Warehouse Pro — агенты, долги магазинов и доставка" />
+    <meta name="twitter:description" content="Заказы с телефона агента даже без сети, склад и долг каждого магазина. 14 дней бесплатно." />
+    <meta name="twitter:image" content="https://www.warehouse-pro.uz/og/home-ru.jpg" />
+    <!--/seo-->
     <!-- Значок в выдаче поиска.
          /favicon.ico отдавал 404: тег rel="icon" был, а прямого запроса по
          корневому адресу — а его делают и поисковики, и браузеры — никто не
@@ -63,74 +73,32 @@
          that had drifted from vite.config.ts. Two manifest links is undefined
          behaviour per spec — the browser picks one, and this one (being first
          in the head) is what iOS Safari was reading for "Add to Home Screen." -->
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <!-- Manrope и JetBrains Mono: у обоих есть кириллица. DM Sans её не имел, и
          каждое русское слово набиралось системным шрифтом — Segoe UI рядом с
          геометрической латиницей. Решение владельца от 07.09.2026 для мобилки,
-         теперь и веб. -->
-    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
-    <!-- Что это за сайт, словами, которые понимает поиск.
-         Разметка schema.org сама по себе позиции не поднимает — она отвечает
-         на вопрос «что это такое»: программа, деловая, для Узбекистана, на
-         русском и узбекском. Без неё Google выводит это из текста наугад.
-         Только проверяемые факты: ни цен, ни оценок, ни отзывов. -->
-    <script type="application/ld+json">
-      {
-        "@context": "https://schema.org",
-        "@type": "SoftwareApplication",
-        "name": "Warehouse Pro",
-        "url": "https://www.warehouse-pro.uz/",
-        "applicationCategory": "BusinessApplication",
-        "operatingSystem": "Web, Android",
-        "inLanguage": [
-          "ru",
-          "uz"
-        ],
-        "description": "Система учёта склада, заказов и доставки для дистрибьюторов Узбекистана: остатки, заказы магазинов, маршруты и визиты торговых агентов, долги и оплаты.",
-        "publisher": {
-          "@type": "Organization",
-          "name": "Warehouse Pro",
-          "url": "https://www.warehouse-pro.uz/",
-          "logo": "https://www.warehouse-pro.uz/icon-512.png",
-          "areaServed": {
-            "@type": "Country",
-            "name": "Узбекистан"
-          },
-          "address": {
-            "@type": "PostalAddress",
-            "addressLocality": "Ташкент",
-            "addressCountry": "UZ"
-          }
-        }
-      }
-    </script>
+         теперь и веб. Файлы — свои (public/fonts, @font-face в src/index.css),
+         не с Google Fonts. Кириллический Manrope нужен первому же заголовку —
+         браузер узнал бы о нём только из CSS, поэтому он предзагружается.
+         crossorigin обязателен и для своего домена: шрифты грузятся в режиме
+         CORS, без него предзагрузка не совпадёт с запросом и уйдёт впустую. -->
+    <link rel="preload" href="/fonts/manrope-cyrillic-wght-normal.woff2" as="font" type="font/woff2" crossorigin />
   </head>
   <body>
     <!-- ── Что видно до того, как загрузится приложение ────────────────────
-         Приложение рисуется скриптом, и до его загрузки в разметке не было
-         ничего, кроме пустого div. Робот Google такую страницу выполняет, но
-         не сразу и не всегда: в Search Console она так и стояла —
-         «просканирована, но пока не проиндексирована».
-
-         Здесь лежит короткая версия первого экрана. Робот видит её сразу,
-         человек на медленной связи — вместо белого поля. Как только скрипт
-         загрузится, React заменит это содержимое настоящим лендингом:
+         Короткий текст вместо белого поля — для медленной связи. Страницы
+         сайта сборка заменяет здесь настоящей разметкой (scripts/
+         prerender.mjs); в оболочке приложения он виден, пока едет скрипт.
          createRoot очищает контейнер при первой отрисовке. -->
-    <!-- Метки root-fallback: для /pitch и /demo сервер меняет заглушку на свою
-         (api/lib/public-pages.ts). -->
+    <!-- Метки root-fallback: их содержимое меняют сборка (страницы сайта) и
+         сервер (/pitch и /demo, api/lib/public-pages.ts). -->
     <div id="root"><!--root-fallback-->
       <div style="max-width:640px;margin:0 auto;padding:64px 24px;font-family:'Manrope',system-ui,sans-serif;color:#1a1a1a">
         <h1 style="font-size:32px;line-height:1.15;letter-spacing:-0.03em;margin:0 0 16px">
-          Warehouse Pro — склад, заказы и торговые агенты в одной системе
+          Warehouse Pro — агенты, долги магазинов и доставка в одной программе
         </h1>
-        <p style="font-size:16px;line-height:1.6;margin:0 0 12px;color:#4a4a4a">
-          Программа складского учёта для оптовой торговли: остатки на складе, заказы магазинов,
-          маршруты и визиты торговых агентов, долги и оплаты. Мобильное приложение агента
-          работает офлайн и отправляет данные, когда появляется связь.
-        </p>
         <p style="font-size:16px;line-height:1.6;margin:0 0 24px;color:#4a4a4a">
-          Настройка — 10 минут, первые 14 дней бесплатно и без привязки карты.
+          Заказы с телефона агента даже без сети, склад, доставка и долг каждого магазина.
+          Первые 14 дней бесплатно и без привязки карты.
         </p>
         <p style="font-size:16px;margin:0">
           <a href="/register" style="color:#1a1a1a">Начать бесплатно</a> ·

@@ -18,8 +18,8 @@ export function MobileScreens() {
       kicker={tr("Yechim · mobil ilova", "Решение · мобильное приложение")}
       title={tr("Agent, kuryer va supervayzer — telefonda", "Агент, курьер и супервайзер — в телефоне")}
       lead={tr(
-        "iOS va Android uchun ilova: buyurtma, tashrif, qarz va xarita. Internet yo'qolsa ham ishlaydi — ma'lumot telefonda saqlanadi va aloqa tiklanganda o'zi jo'natiladi.",
-        "Приложение для iOS и Android: заказ, визит, долг и карта. Работает и без интернета — данные сохраняются на телефоне и уходят сами, когда связь вернётся.",
+        "Android uchun ilova (iOS — App Store tekshiruvida): buyurtma, tashrif, qarz va xarita. Internet yo'qolsa ham ishlaydi — ma'lumot telefonda saqlanadi va aloqa tiklanganda o'zi jo'natiladi.",
+        "Приложение для Android (iOS — на проверке App Store): заказ, визит, долг и карта. Работает и без интернета — данные сохраняются на телефоне и уходят сами, когда связь вернётся.",
       )}
       band
     >
@@ -42,7 +42,7 @@ export function MobileScreens() {
           </figure>
         ))}
       </div>
-      <Mono style={{ display: "block", marginTop: 20, fontSize: 11, color: "var(--faint)", letterSpacing: "0.06em" }}>
+      <Mono style={{ display: "block", marginTop: 20, fontSize: 12, color: "var(--faint)", letterSpacing: "0.06em" }}>
         {tr("ILOVANING HAQIQIY EKRANLARI, NAMUNAVIY MA'LUMOTLAR BILAN", "НАСТОЯЩИЕ ЭКРАНЫ ПРИЛОЖЕНИЯ, НА ДЕМО-ДАННЫХ")}
       </Mono>
     </Chapter>

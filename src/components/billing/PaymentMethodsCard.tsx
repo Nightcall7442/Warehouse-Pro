@@ -17,11 +17,17 @@ export function PaymentMethodsCard({ t }: PaymentMethodsCardProps) {
         </div>
         <div>
           <p style={{ fontSize: "14px", fontWeight: 700, color: "var(--color-text-primary)", marginBottom: "4px" }}>
-            {t("Способы оплаты", "To'lov usullari")}
+            {t("Как оплатить", "Qanday to'lash")}
           </p>
+          {/*
+            Здесь стояло «Click, Payme, Uzum Pay» и «оператор свяжется в течение
+            30 минут». Ни одной из этих оплат в программе нет, а срок ответа не
+            держит ничто. Как есть: «Подключить» шлёт заявку
+            (billing.requestUpgrade), тариф включают после оплаты.
+          */}
           <p style={{ fontSize: "13px", lineHeight: 1.55, color: "var(--color-text-secondary)" }}>
-            {t("Оплата через Click, Payme, Uzum Pay. Оператор свяжется с вами в течение 30 минут после запроса.",
-              "Click, Payme, Uzum Pay orqali to'lash mumkin. Operator 30 daqiqa ichida bog'lanadi.")}
+            {t("Онлайн-оплаты в программе пока нет. Нажмите «Подключить» — заявка придёт нам, мы свяжемся и включим тариф после оплаты.",
+              "Dasturda onlayn to'lov hozircha yo'q. «Ulash»ni bosing — ariza bizga keladi, biz bog'lanamiz va to'lovdan keyin tarifni yoqamiz.")}
           </p>
         </div>
       </div>

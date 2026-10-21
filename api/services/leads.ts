@@ -3,6 +3,7 @@ import { leads } from "@db/schema";
 import { sendTelegram } from "../lib/telegram";
 import { env } from "../lib/env";
 import { logger } from "../lib/logger";
+import { describeSignupSource, SIGNUP_SOURCE_MAX } from "@contracts/signup";
 
 type Db = ReturnType<typeof import("../queries/connection").getDb>;
 
@@ -35,6 +36,12 @@ export interface LeadInput {
   comment?: string | null;
   /** Откуда пришла: «сайт», «подписка: сверх тарифа». Свободная строка. */
   source?: string | null;
+  /**
+   * Метки рекламной ссылки одной строкой — уже собранной composeSignupSource
+   * («utm_source=ig; utm_campaign=okt»). Только у заявок с сайта; заявка из
+   * подписки их не несёт.
+   */
+  utm?: string | null;
 }
 
 function escapeHtml(s: string): string {
@@ -70,6 +77,7 @@ export async function recordLead(
     phone,
     comment: comment || null,
     source:  input.source?.slice(0, 64) || null,
+    utm:     input.utm?.slice(0, SIGNUP_SOURCE_MAX) || null,
   });
   const id = Number(inserted.insertId);
 
@@ -82,6 +90,8 @@ export async function recordLead(
       `Телефон: ${escapeHtml(input.phone)}`,
       input.comment ? `Комментарий: ${escapeHtml(input.comment)}` : null,
       input.source ? `Откуда: ${escapeHtml(input.source)}` : null,
+      // Метки словами — как источник регистрации у владельца в консоли.
+      input.utm ? `Метки: ${escapeHtml(describeSignupSource(input.utm) ?? input.utm)}` : null,
     ].filter(Boolean);
     notified = await sendTelegram(env.telegramAdminChatId, lines.join("\n"));
   }

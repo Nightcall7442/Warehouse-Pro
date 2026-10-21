@@ -61,7 +61,7 @@ export default function MoneySection() {
     { t: tr("По способам оплаты", "To'lov usullari bo'yicha"), d: tr("Наличные, карта, перевод, в долг", "Naqd, karta, o'tkazma, qarzga") },
     { t: tr("Продажи по магазинам и товарам", "Do'kon va mahsulot bo'yicha savdo"), d: tr("Топ товаров, агент × товар — на чём зарабатывает каждый", "Top mahsulotlar, agent × mahsulot — har kim nimadan topadi") },
     { t: tr("Эффективность агентов", "Agentlar samaradorligi"), d: tr("Заказы, средний чек, визиты без заказа", "Buyurtmalar, o'rtacha chek, buyurtmasiz tashriflar") },
-    { t: tr("Экспорт в Excel и CSV", "Excel va CSV ga eksport"), d: tr("Любой отчёт — одной кнопкой", "Istalgan hisobot — bir tugma bilan") },
+    { t: tr("Экспорт в Excel", "Excel'ga eksport"), d: tr("Отчёты — одной кнопкой", "Hisobotlar — bir tugma bilan") },
     { t: tr("Печатные формы", "Chop shakllari"), d: tr("Накладные, погрузочный лист, выписка магазину", "Yuk xatlari, yuklash varaqasi, do'konga ko'chirma") },
   ];
   const payCaps = [
@@ -72,7 +72,7 @@ export default function MoneySection() {
   ];
 
   const label = (text: string) => (
-    <div className="text-[11px] uppercase mb-4" style={{ ...MONO, color: LX.brassText, letterSpacing: "0.08em" }}>{text}</div>
+    <div className="text-[12px] uppercase mb-4" style={{ ...MONO, color: LX.brassText, letterSpacing: "0.08em" }}>{text}</div>
   );
 
   return (
@@ -112,7 +112,7 @@ export default function MoneySection() {
                   </div>
                 ))}
               </div>
-              <div className="mt-6 text-[11px] uppercase" style={{ ...MONO, color: LX.inkFaint, letterSpacing: "0.08em" }}>{tr("Кому звонить первым", "Kimga birinchi qo'ng'iroq qilish")}</div>
+              <div className="mt-6 text-[12px] uppercase" style={{ ...MONO, color: LX.inkFaint, letterSpacing: "0.08em" }}>{tr("Кому звонить первым", "Kimga birinchi qo'ng'iroq qilish")}</div>
               <ul className="mt-2">
                 {callFirst.map(c => (
                   <li key={c.s} data-call className="flex items-center justify-between gap-3 text-[13.5px] py-2.5" style={{ borderBottom: `1px solid ${LX.rule}` }}>
@@ -155,7 +155,7 @@ export default function MoneySection() {
                   <dd className="text-[22px] font-bold" style={{ ...MONO, color: LX.ink, letterSpacing: "-0.01em" }}><span data-total>{fmt(total)}</span> <span className="text-[12px] font-normal" style={{ color: LX.inkFaint }}>{tr("сум", "so'm")}</span></dd>
                 </div>
               </dl>
-              <p className="mt-5 text-[13.5px] leading-relaxed" style={{ color: LX.inkSoft }}>{tr("Выдали — сотрудник подтверждает получение с телефона. Остаток виден обоим.", "Berdingiz — xodim olganini telefondan tasdiqlaydi. Qoldiq ikkalasiga ko'rinadi.")}</p>
+              <p className="mt-5 text-[15px] leading-relaxed" style={{ color: LX.inkSoft }}>{tr("Выдали — сотрудник подтверждает получение с телефона. Остаток виден обоим.", "Berdingiz — xodim olganini telefondan tasdiqlaydi. Qoldiq ikkalasiga ko'rinadi.")}</p>
               <DemoTag>{tr("демо-данные", "demo-ma'lumotlar")}</DemoTag>
             </Sheet>
           }

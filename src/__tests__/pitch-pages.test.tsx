@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, within, cleanup, fireEvent, waitFor } from "@testing-library/react";
-import { MemoryRouter } from "react-router";
+import { MemoryRouter, useLocation } from "react-router";
 import type { ReactElement } from "react";
 import { readFileSync } from "node:fs";
 
@@ -55,6 +55,9 @@ beforeEach(() => {
   fetchMock.mockClear();
   assign.mockClear();
   localStorage.clear();
+  // Метки рекламы живут на вкладку (lib/attribution): тест с ?utm_source в
+  // адресе не должен приклеить их к ссылкам следующего.
+  sessionStorage.clear();
   vi.stubGlobal("fetch", fetchMock);
   vi.stubGlobal("matchMedia", (q: string) => ({
     matches: false, media: q, onchange: null,
@@ -268,7 +271,8 @@ describe("/pitch: разделы конкурса", () => {
     // Следующий шаг — со сроками.
     for (const st of NEXT_STEPS.filter(x => x.when)) expect(t).toContain(`${st.what.uz} — ${st.when!.uz}`);
     expect(screen.getByTestId("pitch-closing-demo").getAttribute("href")).toBe("/demo");
-    expect(screen.getByTestId("pitch-closing-trial").getAttribute("href")).toBe("/register");
+    // Страница по-узбекски — и регистрация откроется по-узбекски (?lang=uz).
+    expect(screen.getByTestId("pitch-closing-trial").getAttribute("href")).toBe("/register?lang=uz");
     if (CONTACT.email) expect(screen.getByTestId("pitch-closing-email").getAttribute("href")).toBe(`mailto:${CONTACT.email}`);
   });
 
@@ -370,6 +374,61 @@ describe("язык", () => {
   });
 });
 
+/*
+  /demo?lang=ru — ссылка «Демо без регистрации» с русского лендинга и
+  сравнения. У демо по умолчанию узбекский (жюри), и покупатель, пришедший с
+  русской страницы, попадал на узбекскую. Язык из адреса сильнее умолчания и
+  сохранённого выбора, но сам выбором не считается.
+*/
+describe("/demo?lang= — язык из адреса", () => {
+  let where = "";
+  function Where() { const l = useLocation(); where = l.pathname + l.search; return null; }
+  const at = (url: string) => render(
+    <MemoryRouter initialEntries={[url]}><LangProvider><PitchDemo /><Where /></LangProvider></MemoryRouter>,
+  );
+
+  it("?lang=ru — страница по-русски, хранилище не тронуто", async () => {
+    at("/demo?lang=ru");
+    expect(screen.getByTestId("pitch-lang-ru").getAttribute("aria-pressed")).toBe("true");
+    expect(document.documentElement.lang).toBe("ru");
+    expect((await screen.findByTestId("pitch-demo-login-ceo")).textContent).toContain("Войти как директор");
+    expect(localStorage.getItem("lang")).toBeNull();
+  });
+
+  it("?lang=ru сильнее сохранённого uz; без ?lang — снова сохранённый", () => {
+    localStorage.setItem("lang", "uz");
+    at("/demo?lang=ru");
+    expect(screen.getByTestId("pitch-lang-ru").getAttribute("aria-pressed")).toBe("true");
+    expect(localStorage.getItem("lang")).toBe("uz");
+    cleanup();
+    at("/demo");
+    expect(screen.getByTestId("pitch-lang-uz").getAttribute("aria-pressed")).toBe("true");
+  });
+
+  it("мусор в ?lang — как без него: узбекский по умолчанию", () => {
+    at("/demo?lang=en");
+    expect(screen.getByTestId("pitch-lang-uz").getAttribute("aria-pressed")).toBe("true");
+  });
+
+  it("переключатель на /demo?lang=ru: выбор сохраняется, ?lang в адресе меняется на месте", () => {
+    at("/demo?lang=ru&utm_source=tg");
+    fireEvent.click(screen.getByTestId("pitch-lang-uz"));
+    expect(localStorage.getItem("lang")).toBe("uz");
+    expect(where).toBe("/demo?lang=uz&utm_source=tg");
+    expect(screen.getByTestId("pitch-lang-uz").getAttribute("aria-pressed")).toBe("true");
+  });
+
+  it("вход в демо с /demo?lang=ru уводит в приложение по-русски", async () => {
+    status.roles = ["ceo"];
+    at("/demo?lang=ru");
+    const ceo = await screen.findByTestId("pitch-demo-login-ceo");
+    await waitFor(() => expect(ceo.hasAttribute("disabled")).toBe(false));
+    fireEvent.click(ceo);
+    await waitFor(() => expect(assign).toHaveBeenCalledWith("/"));
+    expect(localStorage.getItem("lang")).toBe("ru");
+  });
+});
+
 describe("/demo", () => {
   it("6.1–6.3 на месте", async () => {
     draw(<PitchDemo />);
@@ -458,7 +517,7 @@ describe("/demo", () => {
     status = { enabled: false, roles: [], apiKey: null };
     draw(<PitchDemo />);
     const box = await screen.findByTestId("pitch-demo-unavailable");
-    expect(within(box).getByRole("link").getAttribute("href")).toBe("/register");
+    expect(within(box).getByRole("link").getAttribute("href")).toBe("/register?lang=uz");
     expect(screen.queryByTestId("pitch-demo-login-ceo")).toBeNull();
   });
 });

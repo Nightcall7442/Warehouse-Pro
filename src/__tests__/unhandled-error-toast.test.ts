@@ -50,7 +50,7 @@ describe("о чём сообщать человеку", () => {
 
   it("в тост уходит наша фраза, а не текст ошибки", () => {
     // Проверяем сам вызов: сюда легко вернуть подстановку ${msg}.
-    const main = fs.readFileSync(path.resolve(process.cwd(), "src/main.tsx"), "utf8");
+    const main = fs.readFileSync(path.resolve(process.cwd(), "src/app-main.tsx"), "utf8");
     const call = main.slice(main.indexOf("function report("), main.indexOf("window.onerror"));
     // Фраза может приехать обёрнутой в uiText — это по-прежнему постоянный
     // текст, просто на двух языках. Важно другое: она в кавычках, а не в

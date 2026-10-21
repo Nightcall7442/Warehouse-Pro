@@ -17,6 +17,16 @@ import { login } from "./harness";
 test.use({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
 
 /** На сколько страница шире экрана; горизонтальной прокрутки на телефоне быть не должно. */
+/*
+  Страница сайта приходит готовым HTML (scripts/prerender.mjs), а кнопки в нём
+  оживают, когда скрипт нарисует страницу поверх. Нажатие раньше этого
+  пропало бы — ждём метку data-live (src/site/SiteApp.tsx).
+*/
+async function openSite(page: Page, path: string) {
+  await page.goto(path);
+  await page.locator("#root[data-live]").waitFor({ state: "attached" });
+}
+
 function sidewaysOverflow(page: Page) {
   return page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
 }
@@ -60,7 +70,7 @@ test.describe("телефон", () => {
     // айфонах». Строку состояния iPhone здесь не воспроизвести (у Chromium
     // нет safe-area), её стережёт landing-header-tappable; здесь — размер и
     // то, что по центру кнопки лежит сама кнопка, а не чужой слой.
-    await page.goto("/");
+    await openSite(page, "/");
     const uz = page.locator("nav button:visible", { hasText: /^uz$/i });
     const menu = page.locator("nav button:visible[aria-label]");
     for (const b of [uz, menu]) {
@@ -73,7 +83,24 @@ test.describe("телефон", () => {
     await uz.tap();
     await expect(uz).toHaveAttribute("aria-pressed", "true");
     await menu.tap();
-    await expect(page.locator("nav button:visible", { hasText: /^(Войти|Kirish)$/ })).toBeVisible();
+    await expect(page.locator("nav button:visible, nav a:visible", { hasText: /^(Войти|Kirish)$/ })).toBeVisible();
+    await expect(menu).toHaveAttribute("aria-expanded", "true");
+    // Esc закрывает меню и возвращает фокус на кнопку (use-disclosure).
+    await page.keyboard.press("Escape");
+    await expect(menu).toHaveAttribute("aria-expanded", "false");
+  });
+
+  test("сравнение на телефоне: меню с разделами, «Войти» и «Начать»", async ({ page }) => {
+    // Раньше разделы шапки были hidden lg:flex — на телефоне не было ни меню,
+    // ни входа, ни регистрации.
+    await openSite(page, "/compare");
+    const toggle = page.getByTestId("pitch-menu-toggle");
+    const box = (await toggle.boundingBox())!;
+    expect(box.height, "цель касания ниже 44 точек").toBeGreaterThanOrEqual(44);
+    await toggle.tap();
+    await expect(page.getByTestId("pitch-menu-register")).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(toggle).toHaveAttribute("aria-expanded", "false");
   });
 
   test("заказы: сумма в карточке одной строкой и на экране", async ({ page }) => {

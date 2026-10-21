@@ -174,10 +174,10 @@ export default function MobileShowcase() {
                       onClick={() => pick(i)}
                       className="w-full text-left flex items-start gap-4 py-3.5 cursor-pointer min-h-[52px]"
                     >
-                      <span className="text-[11px] pt-1.5 shrink-0" style={{ ...MONO, color: on ? LX.brassText : LX.inkFaint, width: 22 }}>{String(i + 1).padStart(2, "0")}</span>
+                      <span className="text-[12px] pt-1.5 shrink-0" style={{ ...MONO, color: on ? LX.brassText : LX.inkFaint, width: 22 }}>{String(i + 1).padStart(2, "0")}</span>
                       <span className="min-w-0 flex-1">
                         <span className="block text-[15.5px] font-semibold" style={{ color: on ? LX.ink : LX.inkSoft }}>{x.label}</span>
-                        {on && <span className="block mt-1.5 text-[14px] leading-relaxed" style={{ color: LX.inkSoft }}>{x.text}</span>}
+                        {on && <span className="block mt-1.5 text-[15px] leading-relaxed" style={{ color: LX.inkSoft }}>{x.text}</span>}
                       </span>
                       {on && <Check size={15} strokeWidth={3} className="mt-1.5 shrink-0" style={{ color: LX.brassText }} />}
                     </button>
@@ -185,7 +185,7 @@ export default function MobileShowcase() {
                 );
               })}
             </ol>
-            <p className="mt-4 text-[11px]" style={{ ...MONO, color: LX.inkFaint }}>{tr("Экраны — из приложения, демо-данные · Ургенч, Хорезм", "Ekranlar — ilovadan, demo-ma'lumotlar · Urganch, Xorazm")}</p>
+            <p className="mt-4 text-[12px]" style={{ ...MONO, color: LX.inkFaint }}>{tr("Экраны — из приложения, демо-данные · Ургенч, Хорезм", "Ekranlar — ilovadan, demo-ma'lumotlar · Urganch, Xorazm")}</p>
           </div>
         </div>
       </div>

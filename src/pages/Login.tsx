@@ -4,11 +4,13 @@ import { safeNextPath } from "@/lib/safe-next";
 import { useAuth } from "@/hooks/useAuth";
 import { Eye, EyeOff, Loader2, Mail, Lock, AlertCircle, Building2 } from "lucide-react";
 import { useLang, useTranslate } from "@/i18n";
+import { useKeepUrlLang } from "@/i18n/keep-url-lang";
 import { trpc } from "@/providers/trpc";
 import { ROLE_ROUTES } from "@/const";
 import { AuthShell, AuthError } from "@/components/auth/AuthShell";
 import { errorText, humanError } from "@/lib/error-text";
 import { uiLang } from "@/lib/ui-text";
+import { appPath } from "@/lib/site-paths";
 
 type Organization = { tenantId: number; name: string };
 
@@ -41,8 +43,10 @@ const NO_KEYBOARD_REWRITES = { autoCapitalize: "none", autoCorrect: "off", spell
  * восстановить пароль, зарегистрироваться.
  */
 export default function Login() {
-  const { t } = useLang();
+  const { t, lang, fromUrl } = useLang();
   const tr = useTranslate();
+  // Пришёл с /uz (?lang=uz): вход по-узбекски, и приложение после него — тоже.
+  const keepUrlLang = useKeepUrlLang();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -110,6 +114,7 @@ export default function Login() {
         resend.reset();
       }
       if (!res.ok) throw humanError(data.error || t("auth.login.error"));
+      keepUrlLang();
       window.location.replace("/");
     } catch (err) {
       setError(errorText(err, t("auth.login.error")));
@@ -133,7 +138,7 @@ export default function Login() {
       footer={
         <>
           {t("auth.login.noAccount")}{" "}
-          <Link to="/register" style={{ fontWeight: 700, color: "var(--color-primary-text)", textDecoration: "none" }}>
+          <Link to={fromUrl ? appPath(lang, "/register") : "/register"} style={{ fontWeight: 700, color: "var(--color-primary-text)", textDecoration: "none" }}>
             {t("auth.login.createAccount")}
           </Link>
         </>

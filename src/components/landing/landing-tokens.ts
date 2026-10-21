@@ -34,7 +34,7 @@ export const LX = {
   faintOnInk: "rgba(240,238,232,0.38)", // только для декоративного, не текста
   ruleOnInk: "rgba(240,238,232,0.14)",
   /* Статусные тона. Проверены на 4.5:1 к обоим бумажным фонам — здесь ими
-     набирается мелкий текст (10.5px в таблице заказов и подписях KPI), а не
+     набирается мелкий текст (12px в таблице заказов и подписях KPI), а не
      только рисуются точки. Прежние #5f7d4e и #b05a44 давали 4.14 и 4.27 на
      основной бумаге, то есть формально не читались; жёлтый #a8763e — 3.52 и
      для текста не годился совсем, поэтому статус «в пути» теперь берёт
@@ -123,6 +123,22 @@ export const tgLink = (text?: string) =>
   CONTACT.telegram
     ? `https://t.me/${CONTACT.telegram}${text ? `?text=${encodeURIComponent(text)}` : ""}`
     : null;
+
+/**
+ * В новой вкладке открывается только чужой сайт (Telegram и т. п.); якорь и
+ * страница этого же сайта — в той же.
+ *
+ * Раньше target="_blank" ставился на любой href, поэтому кнопка героя
+ * «Посмотреть интерфейс» с href="#product" открывала копию лендинга в новой
+ * вкладке вместо того, чтобы прокрутить к окну продукта. Потом исключением
+ * стал якорь — но не свои страницы: «Начать бесплатно» ссылкой на /register
+ * открыла бы регистрацию в новой вкладке, а с noreferrer — ещё и без
+ * sessionStorage, где лежат метки рекламы (lib/attribution).
+ */
+export const isExternalHref = (href: string) => /^https?:\/\//i.test(href) || href.startsWith("//");
+
+export const linkProps = (href: string) =>
+  isExternalHref(href) ? { target: "_blank" as const, rel: "noreferrer" } : {};
 
 export function useInView<T extends HTMLElement>(threshold = 0.3) {
   const ref = useRef<T>(null);

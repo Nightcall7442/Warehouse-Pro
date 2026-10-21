@@ -11,7 +11,10 @@
  * заголовок, описание, canonical, og:* и twitter:*, язык документа и
  * короткий текст в #root, который видит робот до загрузки скрипта.
  *
- * Только эти два адреса: у остальных карточка общая и правильная.
+ * Только эти два адреса. Страницы сайта (/, /compare, /privacy, /uz,
+ * /uz/compare) приходят готовыми со своей карточкой из сборки
+ * (src/site/site-head.ts, api/lib/site-pages.ts) — оболочке их подменять
+ * не нужно.
  */
 export interface PageMeta {
   lang: "uz" | "ru";
@@ -26,7 +29,7 @@ export interface PageMeta {
 const SITE = "https://www.warehouse-pro.uz";
 const OG_IMAGE = `${SITE}/pitch/og.jpg`;
 
-export const PUBLIC_PAGES: Record<"/pitch" | "/demo" | "/compare", PageMeta> = {
+export const PUBLIC_PAGES: Record<"/pitch" | "/demo", PageMeta> = {
   "/pitch": {
     lang: "uz",
     title: "Warehouse Pro — distribyutorlar uchun ombor, buyurtma va agentlar tizimi · Pitch Day 3.0",
@@ -48,22 +51,6 @@ export const PUBLIC_PAGES: Record<"/pitch" | "/demo" | "/compare", PageMeta> = {
       "<h1>Warehouse Pro — demo</h1>" +
       "<p>Demo video, uning tavsifi va ishlaydigan prototipga kirish.</p>" +
       "<p><a href=\"/pitch\">Loyiha haqida</a></p>",
-  },
-  /*
-    Сравнение — для покупателя-дистрибьютора, по-русски, как лендинг. Ссылку
-    на него шлют в Telegram, и карточка должна сказать, что это сравнение,
-    а не общая «склад, заказы и агенты».
-  */
-  "/compare": {
-    lang: "ru",
-    title: "Warehouse Pro, Sales Doctor, Smartup — сравнение систем для дистрибуции",
-    description: "Раздел за разделом: погрузочные листы, редактор заказа, частичная доставка, акт сверки, склад, отчёты. Что работает у нас и что другие говорят публично — со ссылками и датой.",
-    url: `${SITE}/compare`,
-    image: OG_IMAGE,
-    fallbackHtml:
-      "<h1>Выбираете систему для дистрибуции? Сравните по делу</h1>" +
-      "<p>Warehouse Pro, Sales Doctor, Smartup — раздел за разделом, со ссылками на источники.</p>" +
-      "<p><a href=\"/register\">Попробовать 14 дней бесплатно</a></p>",
   },
 };
 
@@ -102,7 +89,13 @@ export function withPageMeta(html: string, m: PageMeta): string {
     s => s.replace(/<html lang="[^"]*"/, `<html lang="${m.lang}"`),
     s => s.replace(/<title>[\s\S]*?<\/title>/, `<title>${esc(m.title)}</title>`),
     attr(/(<meta name="description" content=")[^"]*(")/, m.description),
-    attr(/(<link rel="canonical" href=")[^"]*(")/, m.url),
+    /*
+      Оболочка закрыта от поиска (noindex, index.html): её адреса — экраны
+      приложения. /pitch и /demo — страницы для жюри и поиска: noindex
+      заменяется их canonical. Оболочка без canonical нарочно: прежний
+      canonical на «/» с каждого экрана приложения называл их все главной.
+    */
+    s => s.replace(/<meta name="robots" content="noindex" \/>/, `<link rel="canonical" href="${esc(m.url)}" />`),
     attr(/(<meta property="og:url" content=")[^"]*(")/, m.url),
     attr(/(<meta property="og:title" content=")[^"]*(")/, m.title),
     attr(/(<meta property="og:description" content=")[^"]*(")/, m.description),

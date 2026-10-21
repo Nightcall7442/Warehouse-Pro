@@ -11,7 +11,16 @@ try {
   VitePWA = mod.VitePWA;
 } catch { /* not installed yet */ }
 
-export default defineConfig({
+/*
+  Две сборки из одного файла.
+
+  Обычная (клиент) — приложение и сайт для браузера. Вторая, `vite build
+  --ssr src/site/entry-server.tsx`, — тот же код сайта для Node: из него
+  scripts/prerender.mjs рисует готовые HTML-страницы (/, /compare, /uz…).
+  Service worker и загрузка карт кода в Sentry нужны только первой: у сборки
+  для Node нет ни браузера, ни выкладки.
+*/
+export default defineConfig(({ isSsrBuild }) => ({
   plugins: [
     devServer({
       entry: "api/boot.ts",
@@ -21,7 +30,7 @@ export default defineConfig({
     }),
     react(),
     // Sentry source maps upload — only when SENTRY_AUTH_TOKEN is set
-    !!process.env.SENTRY_AUTH_TOKEN && sentryVitePlugin({
+    !isSsrBuild && !!process.env.SENTRY_AUTH_TOKEN && sentryVitePlugin({
       org: process.env.SENTRY_ORG || "no-name-a7",
       project: process.env.SENTRY_PROJECT || "warehouse-pro",
       authToken: process.env.SENTRY_AUTH_TOKEN,
@@ -36,7 +45,7 @@ export default defineConfig({
         ignore: ["node_modules"],
       },
     }),
-    VitePWA({
+    !isSsrBuild && VitePWA({
       // prompt, не autoUpdate: autoUpdate вместе со skipWaiting перезагружал
       // вкладку оператора при каждой выкладке — см. src/components/UpdatePrompt.tsx.
       registerType:         "prompt",
@@ -99,8 +108,14 @@ export default defineConfig({
           магазина, тоже мимо оболочки: оператор, открывший только что
           скопированную ссылку в браузере с PWA, видел «Страница не
           найдена» вместо страницы, которую получит магазин.
+
+          /uz — узбекский сайт. Его страницы будет отдавать сервер готовым
+          HTML (своя карточка, свой язык); старый service worker подсунул бы
+          закэшированную оболочку прежней версии, где маршрута /uz нет, —
+          и человек с установленной PWA увидел бы «Страница не найдена».
+          Регулярка с якорем: /uzum или /uzbek не задеваются.
         */
-        navigateFallbackDenylist: [/^\/api\//, /^\/manual(\/|$)/, /^\/r\//, /^\/t\//],
+        navigateFallbackDenylist: [/^\/api\//, /^\/manual(\/|$)/, /^\/r\//, /^\/t\//, /^\/uz(\/|$)/],
         globPatterns:             ["**/*.{js,css,html,json,png,svg,ico}"],
         cleanupOutdatedCaches:    true,
         clientsClaim:             true,
@@ -112,6 +127,26 @@ export default defineConfig({
           {
             urlPattern: /^\/api\/trpc\//,
             handler:    "NetworkOnly",
+          },
+          /*
+            Шрифты — свои (public/fonts), и в предкэш они не входят: в
+            globPatterns нет woff2, иначе каждый телефон качал бы все наборы
+            при каждом обновлении. Но офлайн приложение должно говорить своим
+            шрифтом, а не системным: файл, однажды скачанный, берётся из кэша.
+            Имена файлов без хэша, поэтому при смене версии шрифта — новое имя
+            файла (или новое имя кэша здесь).
+
+            Проверка — функцией по пути, а не регуляркой: регулярку workbox
+            сверяет с полным адресом (https://…), и «^/fonts/» не совпала бы
+            никогда.
+          */
+          {
+            urlPattern: ({ url, sameOrigin }) => sameOrigin && url.pathname.startsWith("/fonts/") && url.pathname.endsWith(".woff2"),
+            handler:    "CacheFirst",
+            options: {
+              cacheName:  "wp-fonts-v1",
+              expiration: { maxEntries: 8, maxAgeSeconds: 60 * 60 * 24 * 365 },
+            },
           },
         ],
       },
@@ -139,10 +174,18 @@ export default defineConfig({
     // "hidden" — maps are generated for Sentry upload but not referenced from the
     // bundles, and they are stripped from the runtime image (see Dockerfile).
     sourcemap:   "hidden",
+    // Карта «исходник → кусок»: по ней scripts/prerender.mjs ставит в готовые
+    // страницы предзагрузку куска сайта и самой страницы, а проверка
+    // light-start-entry находит входы приложения и сайта в собранном dist.
+    // Пререндер уносит её из dist/public — раздавать её незачем.
+    manifest:    !isSsrBuild,
+    // Сборке для Node картинки и шрифты из public/ ни к чему: она только
+    // рисует HTML, и dist/ssr удаляется сразу после пререндера.
+    copyPublicDir: !isSsrBuild,
     // NOTE: no manualChunks here on purpose. The previous hand-written grouping
     // pulled react-dom into "vendor-charts" (recharts + lodash + d3), which made
     // that 448 KB chunk a static dependency of the entry — recharts was downloaded
     // on the login screen. Rollup's automatic splitting keeps chart code inside the
     // lazy page chunks that actually import it.
   },
-});
+}));

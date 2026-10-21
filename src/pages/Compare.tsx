@@ -2,6 +2,8 @@ import { useLang } from "@/i18n";
 import { PitchShell, Chapter, Mono, ArrowLink } from "@/components/pitch/pitch-ui";
 import { pick, GAPS, type L } from "@/components/pitch/pitch-content";
 import { AREAS, QUESTIONS, PLAYERS, STEPS, SOURCES, CHECKED_AT, type Area, type SourceKey } from "@/components/compare/compare-content";
+import { withAttribution } from "@/lib/attribution";
+import { appPath } from "@/lib/site-paths";
 
 /* ═══════════════════════════════════════════════════════════════════════════
    /compare — «Выбираете систему для дистрибуции? Сравните по делу».
@@ -45,7 +47,7 @@ export default function Compare() {
 }
 
 function Hero() {
-  const { tr } = useTr();
+  const { lang, tr } = useTr();
   return (
     <section data-testid="compare-hero" style={{ position: "relative", paddingTop: 40, paddingBottom: 72 }}>
       <div className="p-wrap">
@@ -64,8 +66,8 @@ function Hero() {
             )}
           </p>
           <div className="lg:col-span-5 p-cta" style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "flex-start", alignContent: "flex-start" }}>
-            <ArrowLink to="/register" solid testId="compare-cta-register">{tr("14 kun bepul sinab ko'rish", "Попробовать 14 дней бесплатно")}</ArrowLink>
-            <ArrowLink to="/demo" testId="compare-cta-demo">{tr("Ro'yxatdan o'tmasdan demo", "Демо без регистрации")}</ArrowLink>
+            <ArrowLink to={withAttribution(appPath(lang, "/register"))} solid testId="compare-cta-register">{tr("14 kun bepul sinab ko'rish", "Попробовать 14 дней бесплатно")}</ArrowLink>
+            <ArrowLink to={`/demo?lang=${lang}`} testId="compare-cta-demo">{tr("Ro'yxatdan o'tmasdan demo", "Демо без регистрации")}</ArrowLink>
           </div>
         </div>
       </div>
@@ -82,14 +84,14 @@ function ClaimCell({ claim, name }: { claim: Area["salesDoctor"]; name: string }
     <div data-testid="compare-claim" data-claimed={claim ? "yes" : "no"}>
       <Mono style={{ display: "block", marginBottom: 4 }}><span className="lg:hidden">{name}</span></Mono>
       {claim ? (
-        <p style={{ margin: 0, color: "var(--soft)", fontSize: 14.5, lineHeight: 1.55 }}>
+        <p style={{ margin: 0, color: "var(--soft)", fontSize: 15, lineHeight: 1.55 }}>
           {pick(lang, claim.text)}{" "}
-          <a href={`#manba-${claim.source}`} className="p-mono p-focus" style={{ fontSize: 11, color: "var(--faint)", whiteSpace: "nowrap" }}>
+          <a href={`#manba-${claim.source}`} className="p-mono p-focus" style={{ fontSize: 12, color: "var(--faint)", whiteSpace: "nowrap" }}>
             [{SOURCES[claim.source].label.split(",")[0]}]
           </a>
         </p>
       ) : (
-        <p style={{ margin: 0, color: "var(--faint)", fontSize: 14.5, lineHeight: 1.55 }}>{tr("Kompaniyadan aniqlang", "Уточняйте у компании")}</p>
+        <p style={{ margin: 0, color: "var(--faint)", fontSize: 15, lineHeight: 1.55 }}>{tr("Kompaniyadan aniqlang", "Уточняйте у компании")}</p>
       )}
     </div>
   );
@@ -167,7 +169,7 @@ function SourceLink({ k }: { k: SourceKey }) {
   const { lang, tr } = useTr();
   const s = SOURCES[k];
   return (
-    <a id={`manba-${k}`} href={s.href} target="_blank" rel="noreferrer noopener" data-testid="compare-source" className="p-mono p-focus" style={{ fontSize: 11.5, color: "var(--faint)", letterSpacing: "0.04em", scrollMarginTop: 96 }}>
+    <a id={`manba-${k}`} href={s.href} target="_blank" rel="noreferrer noopener" data-testid="compare-source" className="p-mono p-focus" style={{ fontSize: 12, color: "var(--faint)", letterSpacing: "0.04em", scrollMarginTop: 96 }}>
       {tr("Manba", "Источник")}: {s.label}{s.note ? ` · ${pick(lang, s.note)}` : ""}
     </a>
   );
@@ -192,8 +194,8 @@ function Players() {
         {PLAYERS.map(p => (
           <article key={p.name} data-testid="compare-player" style={{ border: "1px solid var(--rule-strong)", borderRadius: 16, padding: 22, display: "flex", flexDirection: "column", gap: 12 }}>
             <h3 style={{ margin: 0, fontSize: 19, fontWeight: 800, letterSpacing: "-0.01em" }}>{p.name}</h3>
-            <p style={{ margin: 0, color: "var(--soft)", lineHeight: 1.55 }}>{pick(lang, p.what)}</p>
-            <ul style={{ margin: 0, paddingLeft: 18, color: "var(--soft)", lineHeight: 1.55, display: "grid", gap: 6 }}>
+            <p style={{ margin: 0, color: "var(--soft)", fontSize: 16, lineHeight: 1.55 }}>{pick(lang, p.what)}</p>
+            <ul style={{ margin: 0, paddingLeft: 18, color: "var(--soft)", fontSize: 15, lineHeight: 1.55, display: "grid", gap: 6 }}>
               {p.facts.map(f => <li key={f.ru}>{pick(lang, f)}</li>)}
             </ul>
             {p.sources.length > 0 && (
@@ -239,18 +241,20 @@ function Steps() {
   const { lang, tr } = useTr();
   return (
     <Chapter id="otish" num="05" kicker={tr("O'tish", "Переход")} title={tr("Qanday o'tish mumkin", "Как перейти")} band testId="compare-steps">
-      <ol className="grid sm:grid-cols-2 lg:grid-cols-4" style={{ listStyle: "none", margin: 0, padding: 0, gap: 20 }}>
+      <ol className="grid sm:grid-cols-2 lg:grid-cols-5" style={{ listStyle: "none", margin: 0, padding: 0, gap: 20 }}>
         {STEPS.map((s, i) => (
           <li key={s.t.ru} data-testid="compare-step" style={{ borderTop: "2px solid var(--accent)", paddingTop: 16 }}>
-            <Mono>{String(i + 1).padStart(2, "0")}</Mono>
+            {/* Номер и время шага — те же, что в «Как начать» на лендинге (site-content). */}
+            <Mono>{String(i + 1).padStart(2, "0")} · <span data-testid="compare-step-time">{pick(lang, s.time)}</span></Mono>
             <div style={{ fontWeight: 800, fontSize: 18, marginTop: 8 }}>{pick(lang, s.t)}</div>
-            <p style={{ margin: "6px 0 0", color: "var(--soft)", lineHeight: 1.55 }}>{pick(lang, s.d)}</p>
+            <p style={{ margin: "6px 0 0", color: "var(--soft)", fontSize: 15, lineHeight: 1.55 }}>{pick(lang, s.d)}</p>
           </li>
         ))}
       </ol>
       <div className="p-cta" style={{ display: "flex", flexWrap: "wrap", gap: 12, marginTop: 40 }}>
-        <ArrowLink to="/register" solid>{tr("14 kun bepul sinab ko'rish", "Попробовать 14 дней бесплатно")}</ArrowLink>
-        <ArrowLink to="/demo">{tr("Ro'yxatdan o'tmasdan demo", "Демо без регистрации")}</ArrowLink>
+        <ArrowLink to={withAttribution(appPath(lang, "/register"))} solid>{tr("14 kun bepul sinab ko'rish", "Попробовать 14 дней бесплатно")}</ArrowLink>
+        {/* Демо — на языке этой страницы: у /demo по умолчанию узбекский. */}
+        <ArrowLink to={`/demo?lang=${lang}`}>{tr("Ro'yxatdan o'tmasdan demo", "Демо без регистрации")}</ArrowLink>
       </div>
     </Chapter>
   );

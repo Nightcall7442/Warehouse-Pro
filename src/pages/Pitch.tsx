@@ -98,7 +98,7 @@ function HeroProof() {
       {items.map(it => (
         <span key={it.label} style={{ display: "block", padding: "16px 18px", background: "var(--bg)" }}>
           <span style={{ display: "block", fontSize: "clamp(22px, 2.6vw, 30px)", fontWeight: 800, letterSpacing: "-0.035em", lineHeight: 1.1, fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>{it.v}</span>
-          <span className="p-mono" style={{ display: "block", marginTop: 6, fontSize: 10.5, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--faint)" }}>{it.label}</span>
+          <span className="p-mono" style={{ display: "block", marginTop: 6, fontSize: 12, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--faint)" }}>{it.label}</span>
         </span>
       ))}
     </a>
@@ -144,7 +144,7 @@ function Hero() {
             <Phone shot="orderStep2" width={268} alt={tr("Agent buyurtmasi telefonda", "Заказ агента в телефоне")} style={{ width: "100%" }} />
           </div>
         </div>
-        <p className="p-mono" style={{ fontSize: 11, color: "var(--faint)", letterSpacing: "0.06em", marginTop: 56 }}>
+        <p className="p-mono" style={{ fontSize: 12, color: "var(--faint)", letterSpacing: "0.06em", marginTop: 56 }}>
           {tr("KADRLAR — HAQIQIY DASTURDAN, NAMUNAVIY MA'LUMOTLAR BILAN", "КАДРЫ — ИЗ НАСТОЯЩЕЙ ПРОГРАММЫ, НА ДЕМО-ДАННЫХ")}
         </p>
       </div>
@@ -179,11 +179,11 @@ function ProblemSolution() {
               <span style={{ fontWeight: 800, fontSize: 18, letterSpacing: "-0.02em" }}>{pick(lang, p.topic)}</span>
             </div>
             <p style={{ margin: 0, fontSize: 15, lineHeight: 1.6, color: "var(--soft)" }}>
-              <span className="block md:hidden p-mono" style={{ fontSize: 10.5, letterSpacing: "0.1em", color: "var(--faint)", marginBottom: 4 }}>{tr("MUAMMO", "ПРОБЛЕМА")}</span>
+              <span className="block md:hidden p-mono" style={{ fontSize: 12, letterSpacing: "0.1em", color: "var(--faint)", marginBottom: 4 }}>{tr("MUAMMO", "ПРОБЛЕМА")}</span>
               {pick(lang, p.problem)}
             </p>
             <p style={{ margin: 0, fontSize: 15.5, lineHeight: 1.6, fontWeight: 600, paddingLeft: 16, borderLeft: "2px solid var(--accent)" }}>
-              <span className="block md:hidden p-mono" style={{ fontSize: 10.5, letterSpacing: "0.1em", color: "var(--accent-text)", marginBottom: 4, fontWeight: 400 }}>{tr("YECHIM", "РЕШЕНИЕ")}</span>
+              <span className="block md:hidden p-mono" style={{ fontSize: 12, letterSpacing: "0.1em", color: "var(--accent-text)", marginBottom: 4, fontWeight: 400 }}>{tr("YECHIM", "РЕШЕНИЕ")}</span>
               {pick(lang, p.solution)}
             </p>
           </li>
@@ -308,11 +308,11 @@ function Traction() {
               {c.v}
               {c.suffix && <span style={{ fontSize: "0.42em", fontWeight: 700, letterSpacing: "0", marginLeft: 6, color: "var(--soft)" }}>{c.suffix}</span>}
             </div>
-            <div className="p-mono" style={{ fontSize: 11, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--faint)", marginTop: 12 }}>{c.label}</div>
+            <div className="p-mono" style={{ fontSize: 12, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--faint)", marginTop: 12 }}>{c.label}</div>
           </div>
         ))}
       </div>
-      <p className="p-mono" style={{ margin: "16px 0 0", fontSize: 11.5, lineHeight: 1.7, color: "var(--faint)", letterSpacing: "0.04em" }}>
+      <p className="p-mono" style={{ margin: "16px 0 0", fontSize: 12, lineHeight: 1.7, color: "var(--faint)", letterSpacing: "0.04em" }}>
         {tr(
           `${TRACTION.asOf} HOLATIGA · MIJOZLAR NOMISIZ · BUYURTMALAR — SO'NGGI 30 KUN · HOZIRGI MIJOZLAR ESKI TARIFLARDA, YANGI NARX — QUYIDA`,
           `НА ${TRACTION.asOf} · БЕЗ ИМЁН КЛИЕНТОВ · ЗАКАЗЫ — ЗА ПОСЛЕДНИЕ 30 ДНЕЙ · НЫНЕШНИЕ КЛИЕНТЫ НА ПРЕЖНИХ ТАРИФАХ, НОВАЯ ЦЕНА — НИЖЕ`,
@@ -331,7 +331,7 @@ function Chips({ items }: { items: string[] }) {
 function TeamRow({ term, children }: { term: string; children: ReactNode }) {
   return (
     <div className="p-row grid sm:grid-cols-[200px_minmax(0,1fr)]" style={{ gap: "4px 24px", padding: "16px 0" }}>
-      <dt className="p-mono" style={{ fontSize: 11, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--faint)", paddingTop: 3 }}>{term}</dt>
+      <dt className="p-mono" style={{ fontSize: 12, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--faint)", paddingTop: 3 }}>{term}</dt>
       <dd style={{ margin: 0, fontSize: 15, lineHeight: 1.6 }}>{children}</dd>
     </div>
   );
@@ -371,7 +371,7 @@ function WhyUs() {
         {numbers.map(n => (
           <div key={n.label} style={{ padding: "28px 20px 26px", background: "var(--bg)" }}>
             <div style={{ fontSize: "clamp(40px, 6vw, 76px)", fontWeight: 800, letterSpacing: "-0.045em", lineHeight: 1, color: n.accent ? "var(--accent)" : "var(--text)", fontVariantNumeric: "tabular-nums" }}>{fmt(n.v)}</div>
-            <div className="p-mono" style={{ fontSize: 11, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--faint)", marginTop: 12 }}>{n.label}</div>
+            <div className="p-mono" style={{ fontSize: 12, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--faint)", marginTop: 12 }}>{n.label}</div>
           </div>
         ))}
       </div>
@@ -425,10 +425,10 @@ function Roadmap() {
                 boxShadow: here ? "0 0 0 6px var(--accent-soft)" : undefined,
               }} />
               <div className="lg:mt-6">
-                <div className="p-mono" style={{ fontSize: 11, color: "var(--faint)", letterSpacing: "0.08em" }}>{String(i + 1).padStart(2, "0")}</div>
+                <div className="p-mono" style={{ fontSize: 12, color: "var(--faint)", letterSpacing: "0.08em" }}>{String(i + 1).padStart(2, "0")}</div>
                 <div style={{ fontSize: 22, fontWeight: 800, letterSpacing: "-0.025em", marginTop: 6, color: here ? "var(--accent)" : "var(--text)" }}>{pick(lang, s.name)}</div>
                 {here && (
-                  <div data-testid="pitch-roadmap-here" className="p-mono" style={{ display: "inline-block", marginTop: 8, fontSize: 10.5, letterSpacing: "0.1em", textTransform: "uppercase", padding: "4px 8px", borderRadius: 6, background: "var(--accent)", color: "var(--on-accent)", fontWeight: 600 }}>
+                  <div data-testid="pitch-roadmap-here" className="p-mono" style={{ display: "inline-block", marginTop: 8, fontSize: 12, letterSpacing: "0.1em", textTransform: "uppercase", padding: "4px 8px", borderRadius: 6, background: "var(--accent)", color: "var(--on-accent)", fontWeight: 600 }}>
                     {tr("Biz shu yerdamiz", "Мы здесь")}
                   </div>
                 )}
@@ -446,7 +446,7 @@ function Roadmap() {
               <span aria-hidden="true" style={{ color: "var(--accent)" }}>→</span>
               <span style={{ flex: 1 }}>{pick(lang, s.what)}</span>
               {s.when && (
-                <span className="p-mono" style={{ fontSize: 11.5, letterSpacing: "0.06em", color: "var(--accent-text)", whiteSpace: "nowrap" }}>{pick(lang, s.when)}</span>
+                <span className="p-mono" style={{ fontSize: 12, letterSpacing: "0.06em", color: "var(--accent-text)", whiteSpace: "nowrap" }}>{pick(lang, s.when)}</span>
               )}
             </li>
           ))}
@@ -484,7 +484,7 @@ function Implementation() {
             <span style={{ fontWeight: 800, fontSize: 17, letterSpacing: "-0.02em" }}>{pick(lang, s.name)}</span>
             <span className="col-start-2 md:col-start-auto" style={{ fontSize: 15, lineHeight: 1.6, color: "var(--soft)" }}>{pick(lang, s.d)}</span>
             <span className="col-start-2 md:col-start-auto p-mono" data-state={s.state} style={{
-              fontSize: 10.5, letterSpacing: "0.1em", textTransform: "uppercase", justifySelf: "start",
+              fontSize: 12, letterSpacing: "0.1em", textTransform: "uppercase", justifySelf: "start",
               padding: "4px 8px", borderRadius: 6,
               color: s.state === "done" ? "var(--teal)" : s.state === "now" ? "var(--accent-text)" : "var(--faint)",
               border: `1px solid ${s.state === "done" ? "var(--teal)" : s.state === "now" ? "var(--accent)" : "var(--rule-strong)"}`,

@@ -162,9 +162,13 @@ export const tenantRouter = createRouter({
         может, и «ref слишком длинное» стоило бы нам регистрации.
       */
       source: z.object({
-        answer:    z.enum(SIGNUP_ANSWERS).optional().catch(undefined),
-        utmSource: z.string().max(200).optional().catch(undefined),
-        ref:       z.string().max(200).optional().catch(undefined),
+        answer:      z.enum(SIGNUP_ANSWERS).optional().catch(undefined),
+        utmSource:   z.string().max(200).optional().catch(undefined),
+        // Канал и кампания рекламы — так же необязательны и так же не
+        // стоят регистрации: длинная метка отбрасывается.
+        utmMedium:   z.string().max(200).optional().catch(undefined),
+        utmCampaign: z.string().max(200).optional().catch(undefined),
+        ref:         z.string().max(200).optional().catch(undefined),
       }).optional(),
     }))
     .mutation(async ({ input, ctx }) => {

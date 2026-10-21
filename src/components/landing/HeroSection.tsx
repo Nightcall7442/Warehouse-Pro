@@ -1,7 +1,8 @@
-import { useNavigate } from "react-router";
 import LeadForm from "./LeadForm";
-import { useTranslate, useLang } from "@/i18n";
-import { ArrowRight, ArrowDown } from "lucide-react";
+import { withAttribution } from "@/lib/attribution";
+import { appPath } from "@/lib/site-paths";
+import { useLang, useTranslate } from "@/i18n";
+import { ArrowRight } from "lucide-react";
 import { BtnInk, Stamp } from "./landing-shared";
 import { LX, MONO } from "./landing-tokens";
 
@@ -39,6 +40,15 @@ import { LX, MONO } from "./landing-tokens";
    Не хардкодятся <br> под русскую меру: узбекский на 15–30% длиннее и уронил
    бы высоту первого экрана. Заголовок отдаётся в tr() целиком, каждый
    вариант со своими переносами.
+
+   ── Кому и про что (21.10.2026) ────────────────────────────────────────────
+
+   Был заголовок «Учёт склада и доставки без разрывов между отделами» — так
+   может сказать о себе любая учётная программа, и дистрибьютор не находил в
+   нём себя. Теперь первый экран называет, для кого это (дистрибьюторы с
+   торговыми агентами), и три вещи, ради которых его покупают: агенты, долги
+   магазинов, доставка. Второе действие — не якорь «посмотреть интерфейс», а
+   демо без регистрации на языке этой страницы (/demo?lang=…).
    ═══════════════════════════════════════════════════════════════════════════ */
 
 const TONE = {
@@ -50,7 +60,6 @@ const TONE = {
 } as const;
 
 export default function HeroSection() {
-  const navigate = useNavigate();
   const tr = useTranslate();
   const { lang } = useLang();
 
@@ -66,12 +75,11 @@ export default function HeroSection() {
   const panel = (
     <div className="relative">
       <div
-        data-hero-step="3"
         className="rounded-xl overflow-hidden"
         style={{ background: LX.paperRaised, border: `1px solid ${LX.rule}` }}
       >
         <div
-          className="flex items-center justify-between pl-5 pr-24 h-[52px] text-[11px] uppercase"
+          className="flex items-center justify-between pl-5 pr-24 h-[52px] text-[12px] uppercase"
           style={{ ...MONO, fontWeight: 500, letterSpacing: "0.08em", borderBottom: `1px solid ${LX.rule}` }}
         >
           <span style={{ color: LX.brassText }}>{tr("Склад · сегодня", "Ombor · bugun")}</span>
@@ -95,7 +103,7 @@ export default function HeroSection() {
           ))}
         </ol>
         <div
-          className="px-5 h-[44px] flex items-center text-[11px] uppercase"
+          className="px-5 h-[44px] flex items-center text-[12px] uppercase"
           style={{ ...MONO, fontWeight: 500, letterSpacing: "0.08em", color: LX.inkFaint }}
         >
           {tr("строки появляются по факту, а не по плану", "qatorlar reja bo'yicha emas, fakt bo'yicha paydo bo'ladi")}
@@ -115,14 +123,14 @@ export default function HeroSection() {
   );
 
   return (
-    <section className="relative flex flex-col pt-[calc(6rem+env(safe-area-inset-top,0px))] md:pt-[calc(8rem+env(safe-area-inset-top,0px))] pb-14 md:pb-10" style={{ minHeight: "calc(100vh / var(--lx-zoom, 1))" }}>
+    <section data-first-screen="" className="relative flex flex-col pt-[calc(6rem+env(safe-area-inset-top,0px))] md:pt-[calc(8rem+env(safe-area-inset-top,0px))] pb-14 md:pb-10" style={{ minHeight: "calc(100vh / var(--lx-zoom, 1))" }}>
       <div className="max-w-[1240px] w-full mx-auto px-6 flex-1 flex flex-col">
         <div className="grid gap-x-0 lg:grid-cols-[96px_1fr_400px] flex-1">
 
           {/* Поле листа */}
           <aside
-            data-hero-step="0"
-            className="lg:pr-6 mb-6 lg:mb-0 flex lg:flex-col gap-x-4 text-[11px] uppercase whitespace-nowrap"
+           
+            className="lg:pr-6 mb-6 lg:mb-0 flex lg:flex-col gap-x-4 text-[12px] uppercase whitespace-nowrap"
             style={{ ...MONO, fontWeight: 500, letterSpacing: "0.08em", lineHeight: 1.9 }}
           >
             <span className="block" style={{ color: LX.brassText }}>{tr("Лист 01", "Varaq 01")}</span>
@@ -141,61 +149,52 @@ export default function HeroSection() {
 
           {/* Тело */}
           <div className="lg:pl-10 lg:pr-8">
-            {/*
-              key по языку — не украшение.
-
-              Заголовок разбирается на слова библиотекой движения
-              (lib/landing-motion, splitText), и она ПЕРЕПИСЫВАЕТ разметку:
-              текстовые узлы заменяются на span-ы со своими стилями. После
-              этого содержимым владеет не React.
-
-              При переключении РУ/UZ React обновлял то, что помнил, а
-              половина узлов была уже подменена — и заголовок оставался
-              наполовину русским: «Учёт склада / и доставки / uzilishlarsiz
-              / между отделами». Ровно это владелец и прислал снимком.
-
-              key заставляет React выбросить старый узел целиком и собрать
-              новый — с правильным текстом и без чужих span-ов. Появление
-              по словам при этом не повторяется, и это правильно: человек
-              переключил язык, а не открыл страницу заново.
-            */}
-            <h1
-              key={lang}
-              data-hero-title=""
-              className="font-extrabold"
-              style={{ fontSize: "clamp(2.875rem, 5.8vw, 5.75rem)", letterSpacing: "-0.045em", lineHeight: 0.96, color: LX.ink, maxWidth: "12ch" }}
+            {/* Кому — до заголовка: человек узнаёт себя раньше, чем читает обещание. */}
+            <p
+              data-testid="hero-audience"
+              className="mb-5 text-[12px] md:text-[13px] uppercase"
+              style={{ ...MONO, fontWeight: 500, letterSpacing: "0.08em", color: LX.brassText }}
             >
-              {tr("Учёт склада", "Ombor hisobi")}
+              {tr("Для дистрибьюторов с торговыми агентами", "Savdo agentlari bor distribyutorlar uchun")}
+            </p>
+            <h1
+              className="font-extrabold"
+              style={{ fontSize: "clamp(2.875rem, 5.8vw, 5.75rem)", letterSpacing: "-0.045em", lineHeight: 0.96, color: LX.ink, maxWidth: "15ch" }}
+            >
+              {tr("Агенты,", "Agentlar,")}
               <br />
-              {tr("и доставки", "va yetkazish")}
+              {tr("долги магазинов", "do'kon qarzlari")}
               <br />
               <span style={{ ...MONO, fontWeight: 400, fontSize: "0.82em", letterSpacing: "-0.055em" }}>
-                {tr("без разрывов", "uzilishlarsiz")}
+                {tr("и доставка", "va yetkazish")}
               </span>
               <br />
-              {tr("между отделами", "bo'limlar orasida")}
+              {tr("в одной программе", "bitta dasturda")}
             </h1>
 
-            <p data-hero-step="1" className="mt-7 lg:mt-8 text-[18px] lg:text-[20px]" style={{ lineHeight: 1.5, maxWidth: 520, color: LX.inkSoft }}>
+            <p className="mt-7 lg:mt-8 text-[18px] lg:text-[20px]" style={{ lineHeight: 1.5, maxWidth: 560, color: LX.inkSoft }}>
               {tr(
-                "Один источник данных для директора, склада, агентов и курьеров — вместо тетрадей, Excel и звонков «где машина?».",
-                "Direktor, ombor, agentlar va kuryerlar uchun yagona manba — daftar, Excel va «mashina qayerda?» qo'ng'iroqlari o'rniga.",
+                "Агенты берут заказы с телефона даже без сети, склад собирает, курьер везёт и отмечает, что магазин принял и оплатил. Долг каждой точки считается сам — без тетрадей, Excel и звонков «где машина?».",
+                "Agentlar tarmoq bo'lmasa ham telefondan buyurtma oladi, ombor yig'adi, kuryer yetkazadi va do'kon nimani qabul qilib to'laganini belgilaydi. Har bir nuqtaning qarzi o'zi hisoblanadi — daftar, Excel va «mashina qayerda?» qo'ng'iroqlarisiz.",
               )}
             </p>
 
-            <div data-hero-step="2" className="mt-8 lg:mt-10 flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-7">
-              <BtnInk onClick={() => navigate("/register")} className="h-[52px] px-7 text-[15px] w-full sm:w-auto justify-center">
+            <div className="mt-8 lg:mt-10 flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-7">
+              {/* Ссылка, а не кнопка: с адресом уходят метки рекламы (lib/attribution). */}
+              <BtnInk href={withAttribution(appPath(lang, "/register"))} className="h-[52px] px-7 text-[15px] w-full sm:w-auto justify-center">
                 {tr("Начать бесплатно", "Bepul boshlash")}
                 <ArrowRight size={15} />
               </BtnInk>
-              {/* Не кнопка: ссылка на якорь внутри страницы. Два равновесных прямоугольника — это отсутствие иерархии. */}
+              {/* Не кнопка: текстовая ссылка. Два равновесных прямоугольника — это отсутствие иерархии.
+                  Демо открывается на языке этой страницы: у /demo по умолчанию узбекский. */}
               <a
-                href="#product"
-                className="inline-flex items-center gap-1.5 text-[15px] font-medium underline underline-offset-[6px] decoration-1"
+                href={`/demo?lang=${lang}`}
+                data-testid="hero-demo"
+                className="inline-flex items-center gap-1.5 min-h-[44px] text-[15px] font-medium underline underline-offset-[6px] decoration-1"
                 style={{ color: LX.ink, textDecorationColor: LX.ruleStrong }}
               >
-                {tr("Посмотреть интерфейс", "Interfeysni ko'rish")}
-                <ArrowDown size={14} />
+                {tr("Демо без регистрации", "Ro'yxatdan o'tmasdan demo")}
+                <ArrowRight size={14} />
               </a>
             </div>
 
@@ -219,14 +218,14 @@ export default function HeroSection() {
             <p className="text-[15px] font-semibold" style={{ color: LX.ink }}>
               {tr("Не хотите разбираться сами?", "O'zingiz tushunishni xohlamaysizmi?")}
             </p>
-            <p className="text-[13px] mt-1" style={{ color: LX.inkSoft }}>
+            <p className="text-[15px] mt-1" style={{ color: LX.inkSoft }}>
               {tr("Оставьте номер — перезвоним и покажем на ваших данных.", "Raqam qoldiring — qo'ng'iroq qilib, o'z ma'lumotlaringizda ko'rsatamiz.")}
             </p>
           </div>
           <div>
             <LeadForm compact source="hero" />
-            <p className="mt-3 text-[13px] font-medium" style={{ color: LX.inkSoft }}>
-              {tr("Двусторонний обмен с 1С", "1C bilan ikki tomonlama almashinuv")}
+            <p className="mt-3 text-[15px] font-medium" style={{ color: LX.inkSoft }}>
+              {tr("Товары из 1С, заказы — в 1С", "Tovarlar 1C'dan, buyurtmalar — 1C'ga")}
               <span style={{ color: LX.inkFaint }}> · </span>
               {tr("Приложение работает без интернета", "Ilova internetsiz ishlaydi")}
               <span style={{ color: LX.inkFaint }}> · </span>

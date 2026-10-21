@@ -1,12 +1,14 @@
 import { useState, type ReactNode } from "react";
-import { useNavigate } from "react-router";
-import { useTranslate } from "@/i18n";
+import { useLang, useTranslate } from "@/i18n";
 import { plural } from "@/lib/plural";
 import { Minus, Plus } from "lucide-react";
 import { SectionHead } from "./landing-shared";
 import { Split } from "./landing-frames";
 import { useAnime } from "./landing-anime";
-import { LX, MONO, tgLink } from "./landing-tokens";
+import { LX, MONO, tgLink, linkProps } from "./landing-tokens";
+import { useSiteLinkClick } from "./use-site-link";
+import { withAttribution } from "@/lib/attribution";
+import { appPath } from "@/lib/site-paths";
 import { FEATURES, PRODUCT_FEATURES, SERVICE_FEATURES } from "@contracts/constants";
 import {
   ANNUAL_DISCOUNT, FIELD_PRICE_UZS, GRANDFATHER_UNTIL, MIN_FIELD_USERS,
@@ -14,7 +16,7 @@ import {
 } from "@contracts/pricing";
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   12 / Тарифы — цена за полевого сотрудника.
+   13 / Тарифы — цена за полевого сотрудника.
 
    ── Что было ────────────────────────────────────────────────────────────────
 
@@ -47,12 +49,14 @@ const EXAMPLES: Array<{ agents: number; couriers: number }> = [
 ];
 
 function Btn({ kind, onClick, href, children, testId }: { kind: "brass" | "paper"; onClick?: () => void; href?: string; children: ReactNode; testId?: string }) {
+  const siteClick = useSiteLinkClick();
   const style = kind === "brass"
     ? { background: LX.brassOnNight, color: LX.night, border: `1px solid ${LX.brassOnNight}` }
     : { background: "transparent", color: LX.paperOnInk, border: `1px solid ${LX.paperOnInk34}` };
   const cls = "lx-anim inline-flex items-center justify-center w-full h-12 rounded-lg text-[14px] font-semibold cursor-pointer transition-opacity duration-200 hover:opacity-90";
   return href
-    ? <a href={href} target="_blank" rel="noopener" className={cls} style={style} data-testid={testId}>{children}</a>
+    // Чужой сайт (Telegram) — в новой вкладке; своя страница — в этой и без перезагрузки.
+    ? <a href={href} {...linkProps(href)} onClick={siteClick} className={cls} style={style} data-testid={testId}>{children}</a>
     : <button type="button" onClick={onClick} className={cls} style={style} data-testid={testId}>{children}</button>;
 }
 
@@ -67,8 +71,8 @@ function Row({ k, v, strong = false }: { k: string; v: string; strong?: boolean 
 }
 
 export default function PricingSection() {
-  const navigate = useNavigate();
   const tr = useTranslate();
+  const { lang } = useLang();
   const tgSales = tgLink(tr("Здравствуйте! Интересуют услуги: перенос данных, выделенный сервер.", "Assalomu alaykum! Xizmatlar qiziqtiradi: ma'lumot ko'chirish, ajratilgan server."));
   const [people, setPeople] = useState(CALC_START);
   const set = (n: number) => setPeople(Math.max(1, Math.min(CALC_MAX, Math.round(n) || 1)));
@@ -96,7 +100,7 @@ export default function PricingSection() {
         <SectionHead
           id="pricing"
           tone="dark"
-          index="12"
+          index="13"
           label={tr("Тарифы", "Tariflar")}
           title={tr("Платите за тех, кто в поле", "Faqat dalada ishlaydiganlar uchun to'lang")}
           lead={tr(
@@ -109,7 +113,7 @@ export default function PricingSection() {
           className="mt-14"
           left={
             <div data-reveal-col style={{ borderTop: `2px solid ${LX.brassOnNight}` }} className="pt-8">
-              <div className="text-[11px] uppercase" style={{ ...MONO, color: LX.brassOnNight, letterSpacing: "0.1em" }}>
+              <div className="text-[12px] uppercase" style={{ ...MONO, color: LX.brassOnNight, letterSpacing: "0.1em" }}>
                 {tr("Стандарт · за полевого сотрудника", "Standart · har bir dala xodimi uchun")}
               </div>
               <div className="mt-6 flex items-baseline gap-3 flex-wrap">
@@ -134,16 +138,25 @@ export default function PricingSection() {
               </div>
 
               <div className="mt-8">
-                <Btn kind="brass" onClick={() => navigate("/register")} testId="pricing-start">{tr("Начать бесплатно", "Bepul boshlash")}</Btn>
-                <p className="mt-3 text-center text-[11px]" style={{ ...MONO, color: LX.softOnInk }}>
+                <Btn kind="brass" href={withAttribution(appPath(lang, "/register"))} testId="pricing-start">{tr("Начать бесплатно", "Bepul boshlash")}</Btn>
+                <p className="mt-3 text-center text-[12px]" style={{ ...MONO, color: LX.softOnInk }}>
                   {tr("14 дней бесплатно · все функции · карта не нужна", "14 kun bepul · barcha funksiyalar · karta kerak emas")}
                 </p>
+                {/* Кто не готов регистрироваться ради цены — смотрит демо на языке этой страницы. */}
+                <a
+                  href={`/demo?lang=${lang}`}
+                  data-testid="pricing-demo"
+                  className="mt-4 flex items-center justify-center min-h-[44px] text-[15px] font-medium underline underline-offset-[6px] decoration-1"
+                  style={{ color: LX.paperOnInk, textDecorationColor: LX.paperOnInk34 }}
+                >
+                  {tr("Сначала посмотреть демо — без регистрации", "Avval demoni ko'rish — ro'yxatdan o'tmasdan")}
+                </a>
               </div>
             </div>
           }
           right={
             <div data-reveal-col className="pt-8" style={{ borderTop: `1px solid ${LX.ruleOnInk}` }}>
-              <div className="text-[11px] uppercase" style={{ ...MONO, color: LX.softOnInk, letterSpacing: "0.1em" }}>
+              <div className="text-[12px] uppercase" style={{ ...MONO, color: LX.softOnInk, letterSpacing: "0.1em" }}>
                 {tr("Посчитайте свою команду", "Jamoangizni hisoblang")}
               </div>
 
@@ -177,7 +190,7 @@ export default function PricingSection() {
 
               <div className="mt-4 grid sm:grid-cols-2" style={{ borderTop: `1px solid ${LX.ruleOnInk}`, borderBottom: `1px solid ${LX.ruleOnInk}` }}>
                 <div className="py-5 sm:pr-6">
-                  <div className="text-[11px] uppercase" style={{ ...MONO, color: LX.softOnInk, letterSpacing: "0.08em" }}>{tr("В месяц", "Oyiga")}</div>
+                  <div className="text-[12px] uppercase" style={{ ...MONO, color: LX.softOnInk, letterSpacing: "0.08em" }}>{tr("В месяц", "Oyiga")}</div>
                   <div className="mt-2 text-[28px] font-bold leading-none whitespace-nowrap" style={{ color: LX.paperOnInk, letterSpacing: "-0.02em", fontVariantNumeric: "tabular-nums" }}>
                     <span data-testid="pricing-calc-month">{formatSum(month)}</span>
                     <span className="text-[12px] font-normal ml-2" style={{ ...MONO, color: LX.softOnInk }}>{tr("сум", "so'm")}</span>
@@ -187,7 +200,7 @@ export default function PricingSection() {
                   )}
                 </div>
                 <div className="py-5 sm:pl-6 border-t sm:border-t-0 sm:border-l" style={{ borderColor: LX.ruleOnInk }}>
-                  <div className="text-[11px] uppercase" style={{ ...MONO, color: LX.brassOnNight, letterSpacing: "0.08em" }}>{tr(`За год · ${discount}`, `Bir yilga · ${discount}`)}</div>
+                  <div className="text-[12px] uppercase" style={{ ...MONO, color: LX.brassOnNight, letterSpacing: "0.08em" }}>{tr(`За год · ${discount}`, `Bir yilga · ${discount}`)}</div>
                   <div className="mt-2 text-[28px] font-bold leading-none whitespace-nowrap" style={{ color: LX.brassOnNight, letterSpacing: "-0.02em", fontVariantNumeric: "tabular-nums" }}>
                     <span data-testid="pricing-calc-year">{formatSum(year)}</span>
                     <span className="text-[12px] font-normal ml-2" style={{ ...MONO, color: LX.softOnInk }}>{tr("сум", "so'm")}</span>
@@ -199,7 +212,7 @@ export default function PricingSection() {
               </div>
 
               {/* Примеры — нажать, чтобы подставить в счётчик. */}
-              <div className="mt-8 text-[11px] uppercase" style={{ ...MONO, color: LX.softOnInk, letterSpacing: "0.1em" }}>
+              <div className="mt-8 text-[12px] uppercase" style={{ ...MONO, color: LX.softOnInk, letterSpacing: "0.1em" }}>
                 {tr("Например", "Masalan")}
               </div>
               <ul className="mt-2">
@@ -218,7 +231,7 @@ export default function PricingSection() {
                           <span className="ml-2 text-[12px]" style={{ ...MONO, color: LX.softOnInk }}>= {n}</span>
                         </span>
                         <span className="text-[15px] font-semibold whitespace-nowrap" style={{ fontVariantNumeric: "tabular-nums" }}>
-                          {formatSum(monthlyPrice(n))} <span className="text-[11px] font-normal" style={{ ...MONO, color: LX.softOnInk }}>{tr("сум/мес", "so'm/oy")}</span>
+                          {formatSum(monthlyPrice(n))} <span className="text-[12px] font-normal" style={{ ...MONO, color: LX.softOnInk }}>{tr("сум/мес", "so'm/oy")}</span>
                         </span>
                       </button>
                     </li>
@@ -232,7 +245,7 @@ export default function PricingSection() {
         {/* Что входит — всё; услуги — отдельно и по запросу. */}
         <div className="mt-16 grid md:grid-cols-12 gap-x-16 gap-y-8" style={{ borderTop: `1px solid ${LX.ruleOnInk}` }}>
           <div className="md:col-span-7 pt-7">
-            <div className="text-[11px] uppercase mb-4" style={{ ...MONO, color: LX.brassOnNight, letterSpacing: "0.1em" }}>{tr("Включено всё", "Hammasi kiritilgan")}</div>
+            <div className="text-[12px] uppercase mb-4" style={{ ...MONO, color: LX.brassOnNight, letterSpacing: "0.1em" }}>{tr("Включено всё", "Hammasi kiritilgan")}</div>
             <ul className="grid sm:grid-cols-2 gap-x-8">
               {features.map(f => (
                 <li key={f} className="py-2.5 text-[13.5px] leading-snug" style={{ color: LX.paperOnInk, borderBottom: `1px solid ${LX.ruleOnInk}` }}>{f}</li>
@@ -240,11 +253,11 @@ export default function PricingSection() {
             </ul>
           </div>
           <div className="md:col-span-5 pt-7">
-            <div className="text-[11px] uppercase mb-4" style={{ ...MONO, color: LX.softOnInk, letterSpacing: "0.1em" }}>{tr("Услуги — по запросу", "Xizmatlar — so'rov bo'yicha")}</div>
+            <div className="text-[12px] uppercase mb-4" style={{ ...MONO, color: LX.softOnInk, letterSpacing: "0.1em" }}>{tr("Услуги — по запросу", "Xizmatlar — so'rov bo'yicha")}</div>
             <ul>
               {services.map(s => (
                 <li key={s} className="py-2.5 text-[13.5px] leading-snug flex justify-between gap-4" style={{ color: LX.softOnInk, borderBottom: `1px solid ${LX.ruleOnInk}` }}>
-                  {s}<span style={{ ...MONO, fontSize: 11 }}>{tr("по запросу", "so'rov bo'yicha")}</span>
+                  {s}<span style={{ ...MONO, fontSize: 12 }}>{tr("по запросу", "so'rov bo'yicha")}</span>
                 </li>
               ))}
             </ul>
@@ -254,7 +267,7 @@ export default function PricingSection() {
           </div>
         </div>
 
-        <div className="mt-10 grid md:grid-cols-2 gap-x-10 gap-y-3 text-[13px]" style={{ color: LX.softOnInk }}>
+        <div className="mt-10 grid md:grid-cols-2 gap-x-10 gap-y-3 text-[15px]" style={{ color: LX.softOnInk }}>
           <p className="py-1">
             {tr(
               `Уже платите по Basic, Pro или Exclusive? Ваша цена и условия сохраняются до ${formatDay(GRANDFATHER_UNTIL)}, затем — цена за полевого сотрудника.`,
@@ -262,7 +275,8 @@ export default function PricingSection() {
             )}
           </p>
           <p className="py-1">
-            {tr("Оплата: Payme, Click или по счёту для юрлиц — с договором и закрывающими документами.", "To'lov: Payme, Click yoki yuridik shaxslar uchun hisob orqali — shartnoma va yopuvchi hujjatlar bilan.")}
+            {/* Как есть: онлайн-оплаты нет, оплата — по заявке из раздела оплаты (billing.requestUpgrade). */}
+            {tr("Оплата — по заявке: нажимаете «Подключить» в разделе оплаты, мы связываемся и включаем тариф после оплаты. Онлайн-оплаты на сайте пока нет.", "To'lov — ariza bo'yicha: to'lov bo'limida «Ulash»ni bosasiz, biz bog'lanamiz va to'lovdan keyin tarifni yoqamiz. Saytda onlayn to'lov hozircha yo'q.")}
           </p>
         </div>
       </div>

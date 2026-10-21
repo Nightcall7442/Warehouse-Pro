@@ -1,15 +1,18 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useLocation } from "react-router";
 import { LogoMark } from "@/components/brand/Logo";
 import LeadForm from "@/components/landing/LeadForm";
-import { useNavigate } from "react-router";
-import { useTranslate } from "@/i18n";
+import { useLang, useTranslate } from "@/i18n";
 import { ArrowRight, Send } from "lucide-react";
 
 import { LandingStyles, Accordion, SectionHead, BtnInk, BtnGhost } from "@/components/landing/landing-shared";
 import { LX, MONO, tgLink, CONTACT } from "@/components/landing/landing-tokens";
 import LandingHeader from "@/components/landing/LandingHeader";
 import TallyField from "@/components/landing/TallyField";
+import AudienceSection from "@/components/landing/AudienceSection";
 import { startLandingMotion } from "@/lib/landing-motion";
+import { captureAttribution, withAttribution } from "@/lib/attribution";
+import { useSiteLinkClick } from "@/components/landing/use-site-link";
 import HeroSection from "@/components/landing/HeroSection";
 import { CTA_PHOTO } from "@/components/landing/PhotoStrip";
 import OrdersSection from "@/components/landing/OrdersSection";
@@ -23,15 +26,22 @@ import ManualSection from "@/components/landing/ManualSection";
 import ProductWindow from "@/components/landing/ProductWindow";
 import LossSection from "@/components/landing/LossSection";
 import FeaturesSection from "@/components/landing/FeaturesSection";
+import PromisesSection from "@/components/landing/PromisesSection";
 import PricingSection from "@/components/landing/PricingSection";
+import StartSection from "@/components/landing/StartSection";
+import { FAQ_ITEMS } from "@/components/landing/site-content";
+import { ARTICLES } from "@/site/articles/registry";
+import { ARTICLE_KEYS, sitePage } from "@contracts/site-pages";
+import { appPath, sitePath } from "@/lib/site-paths";
 
 /* ═══════════════════════════════════════════════════════════════════════════
    ЛЕНДИНГ «СКЛАДСКАЯ КНИГА»
 
    Композиция страницы и правила дизайн-системы — в landing-shared.tsx.
-   Порядок: шапка → hero → архивные фото → окно продукта (чернила №1) →
+   Порядок: шапка → hero → для кого → архивные фото → окно продукта (чернила №1) →
    полоса фактов → день с продуктом → реестр возможностей → GPS → роли →
-   отзывы → тарифы → FAQ → CTA (чернила №2) → футер. Якоря сохранены.
+   отзывы → обещания → тарифы → как начать → FAQ → CTA (чернила №2) → футер.
+   Якоря сохранены.
    ═══════════════════════════════════════════════════════════════════════════ */
 
 /* ── 01 / Полоса фактов ────────────────────────────────────────────────────
@@ -61,7 +71,7 @@ function FactsStrip() {
               <div className="text-[32px] md:text-[40px] leading-none" style={{ ...MONO, letterSpacing: "-0.02em", color: LX.ink }}>
                 <span data-count={f.value}>{f.value.toLocaleString("ru-RU")}</span>{f.suffix ?? ""}
               </div>
-              <p className="mt-3 text-[13px] leading-snug max-w-[220px] font-medium" style={{ color: LX.inkSoft }}>
+              <p className="mt-3 text-[15px] leading-snug max-w-[220px] font-medium" style={{ color: LX.inkSoft }}>
                 {f.label}
               </p>
             </div>
@@ -75,62 +85,15 @@ function FactsStrip() {
 /* ── 08 / FAQ — реальные возражения, а не декоративные вопросы ───────────── */
 function FaqSection() {
   const tr = useTranslate();
-  const items = useMemo(
-    () => [
-      {
-        q: tr("Работает ли обмен с 1С:Предприятие?", "1C:Predpriyatiye bilan almashinuv ishlaydimi?"),
-        a: tr(
-          "Да, двусторонний: товары, заказы, остатки и контрагенты синхронизируются автоматически. При подключении помогаем настроить обмен бесплатно.",
-          "Ha, ikki tomonlama: tovarlar, buyurtmalar, qoldiqlar va kontragentlar avtomatik sinxronlanadi. Ulanishda almashinuvni bepul sozlab beramiz.",
-        ),
-      },
-      {
-        q: tr("Агенты не дружат с программами — справятся?", "Agentlar dastur bilan chiqisha olmaydi — uddalay oladimi?"),
-        a: tr(
-          // Без обещания переноса данных всем: это услуга по запросу
-          // (SERVICE_FEATURES), и FAQ противоречил бы прайсу двумя экранами ниже.
-          "У агента три экрана: план визитов, заказ, долги точки. На освоение уходит один день. Обучение команды и разбор первых заказов входят в подключение.",
-          "Agentda uchta ekran bor: tashriflar rejasi, buyurtma, nuqta qarzlari. O'rganishga bir kun ketadi. Jamoani o'qitish va birinchi buyurtmalarni birga ko'rib chiqish ulanishga kiradi.",
-        ),
-      },
-      {
-        q: tr("Что будет в точках, где нет интернета?", "Internet yo'q nuqtalarda nima bo'ladi?"),
-        a: tr(
-          "Мобильное приложение работает офлайн: заказы, визиты и фото сохраняются на телефоне и уходят на сервер, как только появляется сеть.",
-          "Mobil ilova oflayn ishlaydi: buyurtmalar, tashriflar va suratlar telefonda saqlanadi va tarmoq paydo bo'lishi bilan serverga jo'naydi.",
-        ),
-      },
-      {
-        q: tr("Сколько времени занимает запуск?", "Ishga tushirish qancha vaqt oladi?"),
-        a: tr(
-          "Регистрация и базовая настройка — 10 минут: компания, склад, товары, команда. Перенос остатков и справочников из Excel или 1С — услуга по запросу, занимает несколько дней.",
-          "Ro'yxatdan o'tish va asosiy sozlash — 10 daqiqa: kompaniya, ombor, tovarlar, jamoa. Qoldiq va ma'lumotnomalarni Excel yoki 1C dan ko'chirish — so'rov bo'yicha xizmat, bir necha kun oladi.",
-        ),
-      },
-      {
-        q: tr("Что случится после 14 бесплатных дней?", "14 kunlik bepul sinovdan keyin nima bo'ladi?"),
-        a: tr(
-          "Ничего не спишется — карта не привязана. Оставляете заявку и платите только за полевых сотрудников; все данные, введённые за триал, сохраняются.",
-          "Hech narsa yechilmaydi — karta bog'lanmagan. So'rov qoldirasiz va faqat dala xodimlari uchun to'laysiz; sinov davrida kiritilgan barcha ma'lumotlar saqlanadi.",
-        ),
-      },
-      {
-        q: tr("Насколько защищены мои данные?", "Ma'lumotlarim qanchalik himoyalangan?"),
-        a: tr(
-          "Каждая компания изолирована от других, доступ — по ролям, все действия пишутся в журнал, резервные копии делаются ежедневно.",
-          "Har bir kompaniya boshqalardan izolyatsiyalangan, kirish rollar bo'yicha, barcha amallar jurnalga yoziladi, zaxira nusxalar har kuni olinadi.",
-        ),
-      },
-    ],
-    [tr],
-  );
+  // Вопросы и ответы — в site-content (одним источником слов сайта).
+  const items = useMemo(() => FAQ_ITEMS.map(x => ({ q: tr(x.q.ru, x.q.uz), a: tr(x.a.ru, x.a.uz) })), [tr]);
   return (
     <section className="py-16 md:py-24" style={{ borderTop: `1px solid ${LX.rule}` }}>
       <div className="max-w-[1240px] mx-auto px-6 lg:pl-[136px]">
         <div className="max-w-[880px]">
         <SectionHead
           id="faq"
-          index="13"
+          index="15"
           label="FAQ"
           title={tr("Вопросы, которые задают до покупки", "Sotib olishdan oldin beriladigan savollar")}
         />
@@ -143,8 +106,8 @@ function FaqSection() {
 
 /* ── Чернильная зона №2: финальный CTA ───────────────────────────────────── */
 function CtaSection() {
-  const navigate = useNavigate();
   const tr = useTranslate();
+  const { lang } = useLang();
   const tg = tgLink(tr("Здравствуйте! Хочу подключить Warehouse Pro.", "Assalomu alaykum! Warehouse Pro'ni ulamoqchiman."));
   return (
     <section className="lx-ink relative overflow-hidden" style={{ background: LX.night, borderTop: `1px solid ${LX.brassOnNight}` }}>
@@ -157,8 +120,9 @@ function CtaSection() {
         style={{ opacity: 0.16, filter: "grayscale(0.6) sepia(0.3)" }}
       />
       <div className="relative max-w-[1240px] mx-auto px-6 py-20 md:py-28 lg:pl-[136px]">
-        <p data-reveal="cta" className="text-[11px] uppercase mb-6" style={{ ...MONO, fontWeight: 500, color: LX.brassOnNight, letterSpacing: "0.08em" }}>
-          08 · {tr("Последняя строка реестра", "Reyestrning oxirgi qatori")}
+        <p data-reveal="cta" className="text-[12px] uppercase mb-6" style={{ ...MONO, fontWeight: 500, color: LX.brassOnNight, letterSpacing: "0.08em" }}>
+          {/* Номер — следующий за последней главой (15 · FAQ): это та же лента. */}
+          16 · {tr("Последняя строка реестра", "Reyestrning oxirgi qatori")}
         </p>
         <h2
           data-reveal="cta"
@@ -171,7 +135,7 @@ function CtaSection() {
           {tr("Бесплатно, без привязки карты. Настройка — 10 минут.", "Bepul, karta bog'lamasdan. Sozlash — 10 daqiqa.")}
         </p>
         <div data-reveal="cta" className="mt-9 flex flex-wrap items-center gap-3">
-          <BtnInk onPaper={false} onClick={() => navigate("/register")}>
+          <BtnInk onPaper={false} href={withAttribution(appPath(lang, "/register"))}>
             {tr("Начать бесплатно", "Bepul boshlash")}
             <ArrowRight size={15} />
           </BtnInk>
@@ -189,7 +153,7 @@ function CtaSection() {
           className="mt-12 max-w-lg text-left rounded-lg p-6 md:p-8"
           style={{ background: LX.ink, border: `1px solid ${LX.ruleOnInk}` }}
         >
-          <p className="text-[13px] mb-3" style={{ color: LX.softOnInk }}>
+          <p className="text-[15px] mb-3" style={{ color: LX.softOnInk }}>
             {tr("Или оставьте номер — перезвоним и разберём ваш случай.",
                 "Yoki raqamingizni qoldiring — qo'ng'iroq qilib, holatingizni ko'rib chiqamiz.")}
           </p>
@@ -203,19 +167,23 @@ function CtaSection() {
 /* ── Футер ────────────────────────────────────────────────────────────────── */
 function Footer() {
   const tr = useTranslate();
+  const { lang } = useLang();
+  const siteClick = useSiteLinkClick();
   const cols = [
     { label: tr("Продукт", "Mahsulot"), href: "#features" },
     { label: tr("Как работает", "Qanday ishlaydi"), href: "#how" },
     { label: tr("Роли", "Rollar"), href: "#roles" },
     { label: tr("Цены", "Narxlar"), href: "#pricing" },
-    // Сравнение с Sales Doctor и Smartup — отдельная страница сайта.
-    { label: tr("Сравнение", "Taqqoslash"), href: "/compare" },
+    // Сравнение с Sales Doctor и Smartup — отдельная страница сайта, на
+    // языке этой: с /uz — /uz/compare (был /compare — по-русски и с
+    // перезагрузкой, а на /uz/compare не вела ни одна ссылка).
+    { label: tr("Сравнение", "Taqqoslash"), href: sitePath(lang, "/compare") },
   ];
   return (
     <footer className="py-12" style={{ borderTop: `1px solid ${LX.rule}` }}>
       <div className="max-w-[1240px] mx-auto px-6">
         {/* Последний лист реестра: та же метка, что открывала первый экран. */}
-        <div className="mb-8 flex flex-wrap gap-x-6 text-[11px] uppercase" style={{ ...MONO, fontWeight: 500, letterSpacing: "0.08em", lineHeight: 1.9 }}>
+        <div className="mb-8 flex flex-wrap gap-x-6 text-[12px] uppercase" style={{ ...MONO, fontWeight: 500, letterSpacing: "0.08em", lineHeight: 1.9 }}>
           <span style={{ color: LX.brassText }}>{tr("Лист 01 из 01", "Varaq 01 / 01")}</span>
           <span style={{ color: LX.inkFaint }}>{tr("Реестр WP-2026", "Reyestr WP-2026")}</span>
           <span style={{ color: LX.inkFaint }}>{tr("Сходится вечером", "Kechqurun to'g'ri keladi")}</span>
@@ -226,7 +194,7 @@ function Footer() {
               <LogoMark size={28} decorative />
               <span className="font-bold text-[14px]" style={{ color: LX.ink }}>Warehouse Pro</span>
             </div>
-            <p className="text-[13px] leading-relaxed" style={{ color: LX.inkSoft }}>
+            <p className="text-[15px] leading-relaxed" style={{ color: LX.inkSoft }}>
               {tr(
                 "Система учёта склада, заказов и доставки для дистрибьюторов Узбекистана.",
                 "O'zbekiston distribyutorlari uchun ombor, buyurtma va yetkazish hisobi tizimi.",
@@ -235,14 +203,35 @@ function Footer() {
           </div>
           <nav className="flex flex-wrap gap-x-8 gap-y-3">
             {cols.map(c => (
-              <a key={c.href} href={c.href} className="text-[13.5px] hover:underline underline-offset-4" style={{ color: LX.inkSoft }}>
+              <a key={c.href} href={c.href} onClick={siteClick} className="text-[13.5px] hover:underline underline-offset-4" style={{ color: LX.inkSoft }}>
                 {c.label}
               </a>
             ))}
           </nav>
         </div>
+        {/*
+          Статьи — по одной на задачу, которую дистрибьютор ищет словами
+          («учёт долгов магазинов», «акт сверки»). Ссылка — на статью на языке
+          этой страницы; переход — без перезагрузки.
+        */}
+        <nav aria-label={tr("Статьи", "Maqolalar")} className="mt-8 flex flex-col md:flex-row md:items-baseline gap-x-8 gap-y-3" data-testid="footer-articles">
+          <span className="text-[12px] uppercase" style={{ ...MONO, letterSpacing: "0.08em", color: LX.brassText }}>{tr("Статьи", "Maqolalar")}</span>
+          <div className="flex flex-wrap gap-x-6 gap-y-3">
+            {ARTICLE_KEYS.map(k => (
+              <a
+                key={k}
+                href={sitePath(lang, sitePage(k).paths.ru)}
+                onClick={siteClick}
+                className="text-[13.5px] hover:underline underline-offset-4"
+                style={{ color: LX.inkSoft }}
+              >
+                {ARTICLES[k].nav[lang]}
+              </a>
+            ))}
+          </div>
+        </nav>
         <div
-          className="mt-10 pt-6 flex flex-col md:flex-row justify-between gap-3 text-[11.5px]"
+          className="mt-10 pt-6 flex flex-col md:flex-row justify-between gap-3 text-[12px]"
           style={{ ...MONO, color: LX.inkFaint, borderTop: `1px solid ${LX.rule}` }}
         >
           <span>© 2026 Warehouse Pro · {tr("Все права защищены", "Barcha huquqlar himoyalangan")}</span>
@@ -273,8 +262,9 @@ function Footer() {
    Директор почти наверняка смотрит с телефона, а до финальной CTA десяток
    экранов. Панель появляется после первого экрана и не перекрывает hero. */
 function MobileCtaBar() {
-  const navigate = useNavigate();
   const tr = useTranslate();
+  const { lang } = useLang();
+  const siteClick = useSiteLinkClick();
   const [shown, setShown] = useState(false);
   useEffect(() => {
     const h = () => setShown(window.scrollY > 640);
@@ -295,14 +285,15 @@ function MobileCtaBar() {
       }}
     >
       <div className="px-4 py-3 flex gap-2.5">
-        <button
-          type="button"
-          onClick={() => navigate("/register")}
-          className="flex-1 h-11 rounded-[9px] text-[14px] font-semibold cursor-pointer"
+        <a
+          href={withAttribution(appPath(lang, "/register"))}
+          onClick={siteClick}
+          data-testid="mobile-cta-register"
+          className="flex-1 h-11 inline-flex items-center justify-center rounded-[9px] text-[14px] font-semibold cursor-pointer"
           style={{ background: LX.paper, color: LX.ink }}
         >
           {tr("Начать бесплатно", "Bepul boshlash")}
-        </button>
+        </a>
         {tg && (
           <a
             href={tg}
@@ -322,6 +313,10 @@ function MobileCtaBar() {
 
 export default function Landing() {
   const root = useRef<HTMLDivElement>(null);
+  // Метки рекламы из адреса (/?utm_source=ig) — до отрисовки детей: ссылки
+  // «Начать» берут их в свой адрес уже в первом кадре (lib/attribution).
+  const { search } = useLocation();
+  useState(() => captureAttribution(search));
 
   // Движение включается один раз на всю страницу: сценарий сам находит, что
   // оживлять, по атрибутам в разметке. Уборка обязательна — наблюдатели
@@ -346,6 +341,8 @@ export default function Landing() {
       */}
       <HeroSection />
       <TallyField />
+      {/* Сразу за первым экраном — для кого программа и кому не подойдёт: человек узнаёт себя раньше, чем начнёт читать про функции. */}
+      <AudienceSection />
       <LossSection />
       {/* Плёнка без номера: склад на рассвете кадр за кадром по прокрутке — внутри той же ночной полосы. */}
       <FilmScroll />
@@ -365,7 +362,11 @@ export default function Landing() {
       <SetupSection />
       <MobileShowcase />
       <ManualSection />
+      {/* Перед ценой — что программа делает всегда и как это проверить за пробные дни. */}
+      <PromisesSection />
       <PricingSection />
+      {/* За ценой — что будет, если нажать: шаги со временем и пилот для крупных. */}
+      <StartSection />
       <FaqSection />
       <CtaSection />
       <Footer />

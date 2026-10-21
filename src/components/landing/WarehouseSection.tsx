@@ -40,7 +40,7 @@ export default function WarehouseSection() {
     { t: tr("Возвраты", "Qaytarishlar"), d: tr("Отдельный документ после доставки — со статусами и сводкой", "Yetkazishdan keyin alohida hujjat — holatlar va xulosa bilan") },
     { t: tr("Контрагенты", "Kontragentlar"), d: tr("Поставки, платежи поставщику, сверка взаиморасчётов", "Yetkazib beruvchi ta'minoti, to'lovlari, o'zaro hisob solishtiruvi") },
     { t: tr("Отчёты склада", "Ombor hisobotlari"), d: tr("По категориям, движения, топ по стоимости, оборачиваемость", "Kategoriya bo'yicha, harakatlar, qiymat bo'yicha top, aylanma") },
-    { t: tr("1С в обе стороны", "1C ikki tomonlama"), d: tr("Номенклатура и заказы по OData — без двойного ввода", "Nomenklatura va buyurtmalar OData orqali — ikki marta kiritishsiz") },
+    { t: tr("Обмен с 1С", "1C bilan almashinuv"), d: tr("Номенклатура и цены — из 1С, заказы и оплаты — в 1С, по OData, без двойного ввода", "Nomenklatura va narxlar — 1C'dan, buyurtmalar va to'lovlar — 1C'ga, OData orqali, ikki marta kiritishsiz") },
   ];
 
   const root = useAnime<HTMLDivElement>(({ animate }, el) => {
@@ -84,7 +84,7 @@ export default function WarehouseSection() {
           frame={<div data-reveal="wh-shot"><Browser shot="warehouse" content aspect={STAGE_ASPECT} alt={tr("Экран склада: остатки, резерв, доступно, движения", "Ombor ekrani: qoldiq, zaxira, bo'sh, harakatlar")} /></div>}
           caption={tr("Экран склада · остатки, резерв, доступно · демо-данные", "Ombor ekrani · qoldiq, zaxira, bo'sh · demo-ma'lumotlar")}
           card={
-            <Sheet title={tr("Вода «Орол» 1,5 л · партии", "«Orol» suvi 1,5 l · partiyalar")} aside={<span className="text-[11px]" style={{ ...MONO, color: LX.inkFaint }}>FEFO</span>}>
+            <Sheet title={tr("Вода «Орол» 1,5 л · партии", "«Orol» suvi 1,5 l · partiyalar")} aside={<span className="text-[12px]" style={{ ...MONO, color: LX.inkFaint }}>FEFO</span>}>
               <div data-reveal="fefo" className="space-y-2 relative">
                 {BATCHES.map(b => (
                   <div key={b.id} data-batch className="flex items-center justify-between gap-3 rounded-lg px-3.5 h-11 text-[13.5px]" style={{ background: LX.paperRaised, border: `1px solid ${LX.rule}` }}>
@@ -94,7 +94,7 @@ export default function WarehouseSection() {
                   </div>
                 ))}
               </div>
-              <p data-fefo-tag className="mt-5 text-[13.5px] leading-relaxed" style={{ color: LX.brassDeep }}>
+              <p data-fefo-tag className="mt-5 text-[15px] leading-relaxed" style={{ color: LX.brassDeep }}>
                 {tr("Партия P-088 уходит первой: до срока 4 дня. Комплектация и погрузочный лист берут её сами.", "P-088 partiyasi birinchi ketadi: muddatgacha 4 kun. Komplektatsiya va yuklash varaqasi uni o'zi oladi.")}
               </p>
               <div className="mt-6 pt-5 grid grid-cols-2 gap-6 text-[13px]" style={{ borderTop: `1px solid ${LX.rule}` }}>
@@ -112,7 +112,7 @@ export default function WarehouseSection() {
         />
 
         <div className="mt-20 md:mt-24">
-          <div className="text-[11px] uppercase mb-4" style={{ ...MONO, color: LX.brassText, letterSpacing: "0.08em" }}>{tr("Что умеет склад", "Ombor nimalarni qila oladi")}</div>
+          <div className="text-[12px] uppercase mb-4" style={{ ...MONO, color: LX.brassText, letterSpacing: "0.08em" }}>{tr("Что умеет склад", "Ombor nimalarni qila oladi")}</div>
           <Ledger items={caps} />
         </div>
       </div>

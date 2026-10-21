@@ -160,7 +160,8 @@ export const FEATURES: Record<FeatureKey, { ru: string; uz: string; enforced: bo
   supportEmail:    { ru: "Поддержка по почте",                      uz: "Pochta orqali yordam",                         enforced: false },
 
   gps:             { ru: "GPS-контроль агентов и курьеров",         uz: "Agentlar va kuryerlar GPS nazorati",           enforced: false },
-  onec:            { ru: "Двусторонний обмен с 1С",                 uz: "1C bilan ikki tomonlama almashinuv",           enforced: false },
+  // Не «двусторонний»: товары и цены только приходят из 1С, заказы и оплаты только уходят в неё.
+  onec:            { ru: "Обмен с 1С: товары из 1С, заказы — в 1С", uz: "1C bilan almashinuv: tovarlar 1C'dan, buyurtmalar — 1C'ga", enforced: false },
   analytics:       { ru: "Полная аналитика: прибыль, KPI, долги",   uz: "To'liq tahlil: foyda, KPI, qarzlar",           enforced: false },
   supportPriority: { ru: "Приоритетная поддержка",                  uz: "Ustuvor yordam",                               enforced: false },
 

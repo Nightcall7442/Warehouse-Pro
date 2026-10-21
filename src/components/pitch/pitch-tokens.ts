@@ -10,6 +10,23 @@
  * 5.0:1, --teal 5.3:1. Светлые --faint, --accent-text и --teal темнее, чем
  * у лендинга: на полосе #ece8df лендинговые давали 4.4–4.6.
  */
+/** Светлый тон — одни и те же переменные для явной темы и для «auto» на светлой системе. */
+const LIGHT_TONE = `
+  --bg: #f4f2ed; --band: #ece8df; --panel: #faf9f5; --raised: #ffffff;
+  --text: #26231e; --soft: #57534a; --faint: #67635a;
+  --rule: rgba(72,66,55,0.16); --rule-strong: rgba(72,66,55,0.32);
+  --accent: #a8763e; --accent-text: #835a2b; --accent-soft: rgba(168,118,62,0.10);
+  --teal: #0d6a62; --teal-soft: rgba(15,118,110,0.08);
+  --btn-bg: #26231e; --btn-fg: #f4f2ed;
+  --code-bg: #26231e;
+  --glow: radial-gradient(1200px 520px at 78% -10%, rgba(168,118,62,0.12), transparent 62%);
+`;
+
+/*
+  Тон «auto» — только у готового HTML сайта (/compare, собранного заранее):
+  тема человека при сборке неизвестна, и до скрипта страница следует системе.
+  Скрипт ставит настоящий тон из useTheme.
+*/
 export const PITCH_CSS = `
 .pitch {
   --bg: #15130f; --band: #1b1915; --panel: #221f1a; --raised: #2a2620;
@@ -27,15 +44,9 @@ export const PITCH_CSS = `
   min-height: 100vh; min-height: 100dvh;
   overflow-x: clip;
 }
-.pitch[data-tone="light"] {
-  --bg: #f4f2ed; --band: #ece8df; --panel: #faf9f5; --raised: #ffffff;
-  --text: #26231e; --soft: #57534a; --faint: #67635a;
-  --rule: rgba(72,66,55,0.16); --rule-strong: rgba(72,66,55,0.32);
-  --accent: #a8763e; --accent-text: #835a2b; --accent-soft: rgba(168,118,62,0.10);
-  --teal: #0d6a62; --teal-soft: rgba(15,118,110,0.08);
-  --btn-bg: #26231e; --btn-fg: #f4f2ed;
-  --code-bg: #26231e;
-  --glow: radial-gradient(1200px 520px at 78% -10%, rgba(168,118,62,0.12), transparent 62%);
+.pitch[data-tone="light"] {${LIGHT_TONE}}
+@media (prefers-color-scheme: light) {
+  .pitch[data-tone="auto"] {${LIGHT_TONE}}
 }
 .pitch ::selection { background: var(--accent); color: var(--btn-fg); }
 .pitch a { color: inherit; }
@@ -46,7 +57,7 @@ export const PITCH_CSS = `
 .pitch .p-h1 { font-size: clamp(38px, 6.4vw, 80px); line-height: 1.0; letter-spacing: -0.045em; font-weight: 800; }
 .pitch .p-h2 { font-size: clamp(30px, 4.6vw, 56px); line-height: 1.04; letter-spacing: -0.035em; font-weight: 800; }
 .pitch .p-lead { font-size: clamp(16px, 1.5vw, 19px); line-height: 1.6; color: var(--soft); }
-.pitch .p-kicker { font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--accent-text); }
+.pitch .p-kicker { font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--accent-text); }
 .pitch .p-chapter { padding-top: 72px; padding-bottom: 72px; border-top: 1px solid var(--rule); }
 @media (min-width: 1024px) { .pitch .p-chapter { padding-top: 120px; padding-bottom: 120px; } }
 .pitch .p-row { border-bottom: 1px solid var(--rule); }

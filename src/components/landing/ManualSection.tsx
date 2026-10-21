@@ -62,12 +62,12 @@ export default function ManualSection() {
           />
           <ul className="mt-8 space-y-3">
             {facts.map(f => (
-              <li key={f.t} data-fact className="flex items-start gap-3 text-[14.5px]" style={{ color: LX.inkSoft }}>
+              <li key={f.t} data-fact className="flex items-start gap-3 text-[15px]" style={{ color: LX.inkSoft }}>
                 <f.I size={15} className="mt-1 shrink-0" style={{ color: LX.brassText }} />{f.t}
               </li>
             ))}
           </ul>
-          <p className="mt-6 text-[13px]" style={{ color: LX.inkSoft }}>
+          <p className="mt-6 text-[15px]" style={{ color: LX.inkSoft }}>
             {tr("Каждая глава заканчивается тем, что сотрудник делает руками — рассказ забывается за сутки, сделанное нет.", "Har bir bob xodim o'z qo'li bilan qiladigan ish bilan tugaydi — aytilgan bir kunda unutiladi, qilingan esa yo'q.")}
           </p>
         </div>
@@ -120,7 +120,7 @@ export default function ManualSection() {
               </button>
             ))}
           </div>
-          <p className="mt-4 text-center text-[11px]" style={{ ...MONO, color: LX.inkFaint }}>
+          <p className="mt-4 text-center text-[12px]" style={{ ...MONO, color: LX.inkFaint }}>
             {tr("Страницы руководства — с настоящих экранов, демо-данные", "Qo'llanma sahifalari — haqiqiy ekranlardan, demo-ma'lumotlar")}
           </p>
         </div>

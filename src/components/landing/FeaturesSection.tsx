@@ -71,14 +71,14 @@ function DaySection() {
                 <span className="text-[26px] font-medium" style={{ ...MONO, color: LX.brassText }}>
                   {s.time}
                 </span>
-                <span className="text-[11px] uppercase" style={{ ...MONO, color: LX.inkFaint, letterSpacing: "0.08em" }}>
+                <span className="text-[12px] uppercase" style={{ ...MONO, color: LX.inkFaint, letterSpacing: "0.08em" }}>
                   {s.who}
                 </span>
               </div>
               <h3 className="text-[17px] font-bold mb-2.5" style={{ color: LX.ink }}>
                 {s.title}
               </h3>
-              <p className="text-[14px] leading-relaxed" style={{ color: LX.inkSoft }}>
+              <p className="text-[15px] leading-relaxed" style={{ color: LX.inkSoft }}>
                 {s.desc}
               </p>
             </div>
@@ -109,8 +109,8 @@ function LedgerSection() {
     { title: tr("GPS-контроль агентов", "Agentlar GPS nazorati"), desc: tr("Живая карта, история маршрутов, отметки визитов в торговых точках.", "Jonli xarita, marshrutlar tarixi, savdo nuqtalaridagi tashrif belgilari."), where: tr("Агенты → GPS", "Agentlar → GPS") },
     { title: tr("Долги магазинов", "Do'konlar qarzlari"), desc: tr("Баланс каждой точки: заказы, оплаты, возвраты — и список должников на утро.", "Har bir nuqta balansi: buyurtmalar, to'lovlar, qaytarishlar — va ertalabki qarzdorlar ro'yxati."), where: tr("Магазины → Долги", "Do'konlar → Qarzlar"), insert: "debt" },
     { title: tr("Аналитика и прибыль", "Tahlil va foyda"), desc: tr("Выручка, маржа, эффективность агентов и KPI — по доставленному, а не по обещанному.", "Tushum, marja, agentlar samaradorligi va KPI — va'da emas, yetkazilgan bo'yicha."), where: tr("Отчёты → Прибыль", "Hisobotlar → Foyda") },
-    { title: tr("Обмен с 1С:Предприятие", "1C:Predpriyatiye bilan almashinuv"), desc: tr("Товары, заказы, контрагенты — двусторонняя синхронизация, без двойного ввода.", "Tovarlar, buyurtmalar, kontragentlar — ikki tomonlama sinxronlash, ikki marta kiritmasdan."), where: tr("Настройки → Обмен с 1С", "Sozlamalar → 1C almashinuvi") },
-    { title: tr("Мобильное приложение", "Mobil ilova"), desc: tr("iOS и Android, офлайн-режим, камера, GPS. Агенту хватает одного дня, чтобы освоить.", "iOS va Android, oflayn rejim, kamera, GPS. Agentga o'rganish uchun bir kun yetadi."), where: tr("Приложение агента", "Agent ilovasi") },
+    { title: tr("Обмен с 1С:Предприятие", "1C:Predpriyatiye bilan almashinuv"), desc: tr("Из 1С — товары, единицы и цены; в 1С — доставленные заказы и оплаты; магазины связываются с контрагентами. Без двойного ввода.", "1C'dan — tovarlar, o'lchov birliklari va narxlar; 1C'ga — yetkazilgan buyurtmalar va to'lovlar; do'konlar kontragentlar bilan bog'lanadi. Ikki marta kiritmasdan."), where: tr("Настройки → Обмен с 1С", "Sozlamalar → 1C almashinuvi") },
+    { title: tr("Мобильное приложение", "Mobil ilova"), desc: tr("Приложение для Android; на iPhone — веб-версия, пока приложение проходит проверку App Store. Офлайн-режим, камера, GPS. Агенту хватает одного дня, чтобы освоить.", "Android uchun ilova; iPhone'da — veb-versiya, ilova App Store tekshiruvidan o'tguncha. Oflayn rejim, kamera, GPS. Agentga o'rganish uchun bir kun yetadi."), where: tr("Приложение агента", "Agent ilovasi") },
   ];
 
   const cols = "grid grid-cols-[44px_1fr] md:grid-cols-[56px_260px_1fr_200px]";
@@ -128,7 +128,7 @@ function LedgerSection() {
 
         {/* Шапка столбцов: одной строкой таблица объявляет себя таблицей. */}
         <div
-          className={`mt-12 ${cols} gap-x-4 md:gap-x-8 py-3 text-[11px] uppercase`}
+          className={`mt-12 ${cols} gap-x-4 md:gap-x-8 py-3 text-[12px] uppercase`}
           style={{ ...registerA, color: LX.brassDeep, borderTop: `1px solid ${LX.ruleStrong}`, borderBottom: `1px solid ${LX.rule}` }}
         >
           {/* В JetBrains Mono нет знака №: браузер подставлял чужой глиф. */}
@@ -146,7 +146,7 @@ function LedgerSection() {
             >
               <span className="text-[13px]" style={{ ...MONO, color: LX.inkSoft }}>{String(i + 1).padStart(2, "0")}</span>
               <h3 className="text-[18px] md:text-[20px] font-bold" style={{ color: LX.ink, letterSpacing: "-0.015em" }}>{r.title}</h3>
-              <p className="col-start-2 md:col-start-3 text-[13px] leading-relaxed max-w-xl mt-1 md:mt-0" style={{ color: LX.inkSoft }}>{r.desc}</p>
+              <p className="col-start-2 md:col-start-3 text-[15px] leading-relaxed max-w-xl mt-1 md:mt-0" style={{ color: LX.inkSoft }}>{r.desc}</p>
               <span className="col-start-2 md:col-start-4 text-[13px] font-medium md:text-right mt-1 md:mt-0" style={{ color: LX.inkSoft }}>{r.where}</span>
             </div>
 
@@ -220,8 +220,8 @@ function LedgerSection() {
         </div>
 
         {/* Роли — одной строкой вместо секции из шести плиток. */}
-        <p id="roles" className="mt-6 text-[13px] scroll-mt-24" style={{ color: LX.inkSoft }}>
-          {tr("Шесть ролей — директор, оператор, склад, агент, курьер, супервайзер — у каждой свой набор экранов. ", "Oltita rol — direktor, operator, ombor, agent, kuryer, supervayzer — har birining o'z ekranlari bor. ")}
+        <p id="roles" className="mt-6 text-[15px] scroll-mt-24" style={{ color: LX.inkSoft }}>
+          {tr("Шесть ролей — директор, оператор, супервайзер, агент, мерчендайзер, курьер — у каждой свой набор экранов. ", "Oltita rol — direktor, operator, supervayzer, agent, merchandayzer, kuryer — har birining o'z ekranlari bor. ")}
           <a href="#product" className="font-medium underline underline-offset-4" style={{ color: LX.ink, textDecorationColor: LX.ruleStrong }}>
             {tr("Посмотреть интерфейс", "Interfeysni ko'rish")}
           </a>

@@ -68,7 +68,7 @@ export function Browser({
             <span key={i} className="w-2 h-2 rounded-full" style={{ background: dark ? LX.faintOnInk : LX.ruleStrong }} />
           ))}
         </span>
-        <span className="text-[10.5px]" style={{ ...MONO, color: dark ? LX.softOnInk : LX.inkFaint, letterSpacing: "0.02em" }}>app.warehouse-pro.uz</span>
+        <span className="text-[12px]" style={{ ...MONO, color: dark ? LX.softOnInk : LX.inkFaint, letterSpacing: "0.02em" }}>app.warehouse-pro.uz</span>
       </div>
       <div className="relative" style={{ aspectRatio: aspect ?? (content ? WEB_CONTENT_ASPECT : WEB_ASPECT), background: dark ? LX.ink : LX.appCanvas }}>
         {shot && (
@@ -109,7 +109,7 @@ export function Sheet({ title, aside, children, className = "", style }: {
     <div className={`p-6 md:p-7 ${className}`} style={{ borderRadius: R.sheet, background: LX.paperRaised, border: `1px solid ${LX.ruleStrong}`, ...style }}>
       {(title || aside) && (
         <div className="flex items-baseline justify-between gap-4 mb-5">
-          {title && <span className="text-[11px] uppercase" style={{ ...MONO, color: LX.brassText, letterSpacing: "0.08em" }}>{title}</span>}
+          {title && <span className="text-[12px] uppercase" style={{ ...MONO, color: LX.brassText, letterSpacing: "0.08em" }}>{title}</span>}
           {aside}
         </div>
       )}
@@ -231,7 +231,7 @@ export function Ledger({ items, start = 1, dark = false, columns = 2, className 
           <span className="text-[12px] pt-1.5" style={{ ...MONO, color: dark ? LX.brassOnNight : LX.brassDeep }}>{String(start + i).padStart(2, "0")}</span>
           <div>
             <div className="text-[17px] font-bold" style={{ color: dark ? LX.paperOnInk : LX.ink, letterSpacing: "-0.015em", lineHeight: 1.25 }}>{it.t}</div>
-            <p className="mt-1.5 text-[14.5px] leading-relaxed max-w-[48ch]" style={{ color: dark ? LX.softOnInk : LX.inkSoft }}>{it.d}</p>
+            <p className="mt-1.5 text-[15px] leading-relaxed max-w-[48ch]" style={{ color: dark ? LX.softOnInk : LX.inkSoft }}>{it.d}</p>
           </div>
         </li>
       ))}
@@ -281,7 +281,7 @@ export function Stage({ frame, card, caption, flip = false, className = "" }: {
         )}
       </div>
       {caption && (
-        <p className="mt-4 text-[11px] uppercase" style={{ ...MONO, color: LX.inkFaint, letterSpacing: "0.08em" }}>{caption}</p>
+        <p className="mt-4 text-[12px] uppercase" style={{ ...MONO, color: LX.inkFaint, letterSpacing: "0.08em" }}>{caption}</p>
       )}
     </div>
   );
@@ -322,12 +322,12 @@ export function Monument({ parts, note, dark = false, className = "" }: {
                 <span data-count={p.value}>{p.value.toLocaleString("ru-RU").replace(/[\u00a0\u202f]/g, " ")}</span>
                 {p.suffix && <span className="ml-2 font-medium" style={{ fontSize: "0.32em", letterSpacing: "0", color: faint }}>{p.suffix}</span>}
               </div>
-              <div className="mt-3 text-[11px] uppercase" style={{ ...MONO, fontWeight: 500, letterSpacing: "0.1em", color: p.brass ? (dark ? LX.brassOnNight : LX.brassText) : faint }}>{p.label}</div>
+              <div className="mt-3 text-[12px] uppercase" style={{ ...MONO, fontWeight: 500, letterSpacing: "0.1em", color: p.brass ? (dark ? LX.brassOnNight : LX.brassText) : faint }}>{p.label}</div>
             </div>
           </div>
         ))}
       </div>
-      {note && <p className="mt-5 text-[11px]" style={{ ...MONO, color: faint, letterSpacing: "0.02em" }}>{note}</p>}
+      {note && <p className="mt-5 text-[12px]" style={{ ...MONO, color: faint, letterSpacing: "0.02em" }}>{note}</p>}
     </div>
   );
 }
@@ -335,7 +335,7 @@ export function Monument({ parts, note, dark = false, className = "" }: {
 /* ── Подпись «демо-данные» ───────────────────────────────────────────────── */
 export function DemoTag({ dark = false, children }: { dark?: boolean; children: ReactNode }) {
   return (
-    <p className="text-[11px] mt-3" style={{ ...MONO, color: dark ? LX.softOnInk : LX.inkFaint }}>
+    <p className="text-[12px] mt-3" style={{ ...MONO, color: dark ? LX.softOnInk : LX.inkFaint }}>
       {children}
     </p>
   );

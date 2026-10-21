@@ -8,7 +8,7 @@ import { MemoryRouter } from "react-router";
  *
  * ── Почему проверяется целиком, а не по кускам ───────────────────────────────
  *
- * У страницы ровно одна внешняя зависимость — trpc.lead.create для формы
+ * У страницы ровно одна внешняя зависимость — lead.create (lib/public-api) для формы
  * заявки. Всё остальное это разметка и вычисления, поэтому её можно собрать
  * в jsdom как есть. Так проверяются не отдельные компоненты, а решения,
  * ради которых страницу переделывали, — и ни одно из них нельзя отменить
@@ -38,16 +38,18 @@ import { MemoryRouter } from "react-router";
 vi.setConfig({ testTimeout: 20_000 });
 
 const leadMutate = vi.fn();
-vi.mock("@/providers/trpc", () => ({
-  trpc: {
-    lead: { create: { useMutation: () => ({ mutate: leadMutate, isPending: false, isSuccess: false, error: null }) } },
-  },
+// Форма заявки ходит на сервер голым клиентом сайта (lib/public-api), без
+// react-query: заявка «уходит» и ждёт ответа, которого в тесте нет.
+vi.mock("@/lib/public-api", () => ({
+  createLead: (input: unknown) => { leadMutate(input); return new Promise(() => {}); },
 }));
 
 import Landing from "@/pages/Landing";
 import { LangProvider } from "@/i18n";
 
 beforeEach(() => {
+  localStorage.clear();
+  sessionStorage.clear();
   vi.stubGlobal("matchMedia", (q: string) => ({
     matches: false, media: q, onchange: null,
     addListener: vi.fn(), removeListener: vi.fn(),
@@ -77,16 +79,40 @@ const draw = () =>
 describe("лендинг: страница собирается", () => {
   it("рисуются все главы по порядку", () => {
     draw();
-    for (const id of ["loss", "product", "features", "map", "orders", "warehouse", "money", "setup", "mobile", "manual", "pricing", "faq"]) {
+    const ids = ["audience", "loss", "product", "features", "map", "orders", "warehouse", "money", "setup", "mobile", "manual", "promises", "pricing", "start", "faq"];
+    for (const id of ids) {
       expect(document.getElementById(id), `главы #${id} нет на странице`).toBeTruthy();
+    }
+    // По порядку — буквально: «Для кого» стоит сразу за первым экраном,
+    // раньше потерь и функций (21.10.2026).
+    const at = ids.map(id => document.getElementById(id)!);
+    for (let i = 1; i < at.length; i++) {
+      const before = at[i - 1].compareDocumentPosition(at[i]) & Node.DOCUMENT_POSITION_FOLLOWING;
+      expect(before, `#${ids[i]} стоит раньше #${ids[i - 1]}`).toBeTruthy();
     }
   });
 
-  it("заголовок первого экрана на месте и разбираем по словам", () => {
+  it("заголовок первого экрана на месте и не прячется сценарием", () => {
     draw();
-    const h1 = document.querySelector("[data-hero-title]");
-    expect(h1, "заголовок не помечен data-hero-title — движение его не найдёт").toBeTruthy();
-    expect(h1!.textContent).toMatch(/Учёт склада/);
+    // Первый экран помечен data-first-screen: движение внутри него ничего не
+    // прячет (lib/landing-motion). Прежняя пометка data-hero-title звала
+    // разбор заголовка по словам — от него отказались сознательно.
+    const hero = document.querySelector("[data-first-screen]");
+    expect(hero, "первый экран не помечен data-first-screen — движение спрячет его").toBeTruthy();
+    const h1 = hero!.querySelector("h1");
+    expect(h1).toBeTruthy();
+    // Заголовок называет, ради чего покупают: агенты, долги магазинов,
+    // доставка (21.10.2026; был «Учёт склада и доставки без разрывов»).
+    expect(h1!.textContent).toMatch(/Агенты/);
+    expect(h1!.textContent).toMatch(/долги магазинов/);
+    expect(h1!.textContent).toMatch(/доставка/);
+  });
+
+  it("первый экран называет, для кого программа", () => {
+    draw();
+    const hero = document.querySelector("[data-first-screen]") as HTMLElement;
+    expect(within(hero).getByTestId("hero-audience").textContent).toMatch(/дистрибьютор/i);
+    expect(within(hero).getByTestId("hero-audience").textContent).toMatch(/агент/i);
   });
 });
 
@@ -124,11 +150,31 @@ describe("лендинг: первый экран просит один раз",
     draw();
     const hero = document.querySelector("section");
     expect(hero).toBeTruthy();
-    const buttons = within(hero as HTMLElement).getAllByRole("button", { name: /Начать бесплатно/ });
+    // «Начать бесплатно» — ссылка с адресом (/register и метки рекламы,
+    // lib/attribution), а не кнопка navigate(): так её можно открыть в новой
+    // вкладке и метки доходят до регистрации (21.10.2026).
+    const buttons = within(hero as HTMLElement).getAllByRole("link", { name: /Начать бесплатно/ });
     expect(buttons.length, "в первом экране больше одной кнопки «Начать бесплатно»").toBe(1);
-    // «Посмотреть интерфейс» — якорь, а не второй прямоугольник.
-    const look = within(hero as HTMLElement).getByText(/Посмотреть интерфейс/);
-    expect(look.closest("a"), "«Посмотреть интерфейс» снова стала кнопкой").toBeTruthy();
+    expect(buttons[0].getAttribute("href")).toBe("/register");
+    // Второе действие — демо без регистрации: текстовая ссылка, а не второй
+    // прямоугольник, и на языке страницы (у /demo по умолчанию узбекский).
+    const demo = within(hero as HTMLElement).getByTestId("hero-demo");
+    expect(demo.tagName, "«Демо» стала кнопкой").toBe("A");
+    expect(demo.getAttribute("href")).toBe("/demo?lang=ru");
+  });
+
+  it("по-узбекски ссылка на демо несёт ?lang=uz", () => {
+    localStorage.setItem("lang", "uz");
+    draw();
+    expect(screen.getByTestId("hero-demo").getAttribute("href")).toBe("/demo?lang=uz");
+  });
+
+  it("в тарифах — ссылка на демо на языке страницы", () => {
+    draw();
+    const demo = screen.getByTestId("pricing-demo");
+    expect(demo.tagName).toBe("A");
+    expect(demo.getAttribute("href")).toBe("/demo?lang=ru");
+    expect(demo.hasAttribute("target"), "своя страница открылась бы в новой вкладке").toBe(false);
   });
 
   it("поле телефона стоит в первом экране", () => {
@@ -190,6 +236,12 @@ describe("лендинг: главы пронумерованы подряд", (
     for (let i = 1; i < asInt.length; i++) {
       expect(asInt[i] - asInt[i - 1], `между главами ${asInt[i - 1]} и ${asInt[i]} пропуск`).toBe(1);
     }
+    // Финальный призыв — «последняя строка реестра»: следующий номер, а не
+    // «08», оставшийся от старой нумерации после пятнадцатой главы.
+    const cta = Array.from(document.querySelectorAll("[data-reveal=\"cta\"]"))
+      .map(el => /^(\d{2})\s*·/.exec(el.textContent ?? "")?.[1])
+      .filter(Boolean) as string[];
+    expect(cta).toEqual([String(asInt[asInt.length - 1] + 1).padStart(2, "0")]);
   });
 });
 

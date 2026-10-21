@@ -14,9 +14,13 @@ import { pageMetaFor, withPageMeta, wantsAppShell, PUBLIC_PAGES } from "../lib/p
  * ── Что проверяется ─────────────────────────────────────────────────────────
  *
  * На НАСТОЯЩЕМ index.html (а не на выдуманном образце): у /pitch и /demo
- * подменены язык документа, заголовок, описание, canonical, og:* и twitter:*,
- * картинка большая; заглушка #root — своя. Ничего от лендинга в карточке не
- * осталось. Прочие адреса не трогаются. Сервер действительно зовёт подмену.
+ * подменены язык документа, заголовок, описание, og:* и twitter:*,
+ * картинка большая; заглушка #root — своя; noindex оболочки заменён
+ * canonical страницы. Ничего от лендинга в карточке не осталось. Прочие
+ * адреса не трогаются. Сервер действительно зовёт подмену.
+ *
+ * /compare здесь больше нет: это страница сайта, она приходит готовой со
+ * своей карточкой из сборки (src/site/site-head.ts, site-prerender.test).
  */
 
 const shell = readFileSync("index.html", "utf8");
@@ -26,12 +30,12 @@ describe("карточка ссылки /pitch и /demo", () => {
     expect(pageMetaFor("/pitch")).toBe(PUBLIC_PAGES["/pitch"]);
     expect(pageMetaFor("/pitch/")).toBe(PUBLIC_PAGES["/pitch"]);
     expect(pageMetaFor("/demo")).toBe(PUBLIC_PAGES["/demo"]);
-    for (const p of ["/", "/landing", "/pitchx", "/demo/x", "/orders"]) expect(pageMetaFor(p), p).toBeNull();
+    for (const p of ["/", "/landing", "/pitchx", "/demo/x", "/orders", "/compare", "/uz/compare"]) expect(pageMetaFor(p), p).toBeNull();
   });
 
   it("в оболочке есть всё, что подменяется — иначе подмена молча ничего не делает", () => {
     for (const marker of [
-      '<html lang="ru"', "<title>", '<meta name="description"', '<link rel="canonical"',
+      '<html lang="ru"', "<title>", '<meta name="description"', '<meta name="robots" content="noindex" />',
       '<meta property="og:url"', '<meta property="og:title"', '<meta property="og:description"', '<meta property="og:image"',
       '<meta property="og:locale"', '<meta name="twitter:card"', '<meta name="twitter:title"', '<meta name="twitter:image"',
       "<!--root-fallback-->", "<!--/root-fallback-->",
@@ -44,6 +48,8 @@ describe("карточка ссылки /pitch и /demo", () => {
     expect(html).toContain('<html lang="uz"');
     expect(html).toContain(`<title>${m.title}</title>`);
     expect(html).toContain(`<link rel="canonical" href="${m.url}"`);
+    // Оболочка закрыта от поиска; страница конкурса — нет.
+    expect(html.replace(/<!--[\s\S]*?-->/g, "")).not.toMatch(/noindex/);
     expect(html).toContain(`<meta property="og:url" content="${m.url}"`);
     expect(html).toContain(`<meta property="og:title" content="${m.title}"`);
     expect(html).toContain(`<meta property="og:image" content="${m.image}"`);
@@ -57,22 +63,17 @@ describe("карточка ссылки /pitch и /demo", () => {
     expect(m.image).toMatch(/^https:\/\/www\.warehouse-pro\.uz\/pitch\/og\.(jpg|png)$/);
   });
 
-  it("/compare: страница сайта по-русски — язык, og:locale и альтернатива перевёрнуты", () => {
-    const m = PUBLIC_PAGES["/compare"];
-    expect(pageMetaFor("/compare/")).toBe(m);
-    const html = withPageMeta(shell, m);
-    expect(html).toContain('<html lang="ru"');
-    expect(html).toContain('<meta property="og:locale" content="ru_RU"');
-    expect(html).toContain('<meta property="og:locale:alternate" content="uz_UZ"');
-    expect(html).toContain(`<title>${m.title.replace(/"/g, "&quot;")}</title>`);
-    expect(html).toContain(`<link rel="canonical" href="https://www.warehouse-pro.uz/compare"`);
-    expect(html).toContain(m.fallbackHtml);
-    expect(m.title).toMatch(/Sales Doctor/);
-    expect(html).not.toContain("склад, заказы и торговые агенты в одной системе");
-    // Робот превью (Accept: */*) получает оболочку с карточкой, а не 404.
-    expect(wantsAppShell("/compare", "GET", "*/*")).toBe(true);
-    // Узбекские страницы конкурса остались узбекскими.
+  it("/compare — страница сайта, а не оболочка с подменой; конкурс остался узбекским", () => {
+    // Карточка /compare теперь в <head> готовой страницы (site-head), здесь её нет.
+    expect(Object.keys(PUBLIC_PAGES).sort()).toEqual(["/demo", "/pitch"]);
+    expect(pageMetaFor("/compare/")).toBeNull();
+    // Робот превью (Accept: */*) на /pitch получает оболочку с карточкой, а не 404.
+    expect(wantsAppShell("/pitch", "GET", "*/*")).toBe(true);
     expect(withPageMeta(shell, PUBLIC_PAGES["/pitch"])).toContain('<meta property="og:locale:alternate" content="ru_RU"');
+  });
+
+  it("оболочка без canonical: экраны приложения не называют себя главной", () => {
+    expect(shell.replace(/<!--[\s\S]*?-->/g, "")).not.toMatch(/rel="canonical"/);
   });
 
   it("картинка карточки лежит в public — ссылка не мёртвая", () => {

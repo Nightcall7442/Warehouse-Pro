@@ -4,7 +4,7 @@ import { QueryClient } from "@tanstack/react-query";
 import superjson from "superjson";
 import type { AppRouter } from "../../api/router";
 import { SUBSCRIPTION_REQUIRED } from "@contracts/constants";
-import { uiLang } from "@/lib/ui-text";
+import { clientFetch } from "@/lib/client-fetch";
 
 export const trpc = createTRPCReact<AppRouter>();
 
@@ -95,18 +95,9 @@ queryClient.getMutationCache().config.onError = (error: Error) => {
   // Toast показывается в конкретных useMutation({ onError }) — глобальный fallback только логирует
 };
 
-// Версия сборки — в каждом запросе: по ней сервер считает, кто на какой
-// сборке (client_requests_total), и Sentry получает ту же строку.
-// Язык интерфейса — тоже: на нём сервер отвечает отказом (x-lang, см.
-// contracts/error-messages.ts). Берётся в момент запроса, а не при загрузке:
-// язык переключают без перезагрузки.
-const CLIENT_VERSION = `web/${import.meta.env.VITE_APP_VERSION || "dev"}`;
-const customFetch = (input: RequestInfo | URL, init?: RequestInit) => {
-  const headers = new Headers(init?.headers);
-  headers.set("x-client-version", CLIENT_VERSION);
-  headers.set("x-lang", uiLang());
-  return globalThis.fetch(input, { ...init, credentials: "include", headers });
-};
+// Версия сборки и язык интерфейса — в каждом запросе (lib/client-fetch):
+// тот же заголовок шлёт и форма заявки на сайте.
+const customFetch = clientFetch;
 
 export const trpcClient = trpc.createClient({
   links: [

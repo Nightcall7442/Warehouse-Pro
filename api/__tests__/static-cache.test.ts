@@ -1,6 +1,9 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
+import { Hono } from "hono";
+import { serveStaticFiles } from "../lib/vite";
 
 /**
  * Оболочка приложения не должна кэшироваться.
@@ -57,5 +60,56 @@ describe("кэширование статики", () => {
     const at = SRC.indexOf("app.notFound");
     expect(at).toBeGreaterThan(0);
     expect(SRC.slice(at, at + 700)).toContain('"no-cache"');
+  });
+});
+
+/*
+  Те же правила — на деле, настоящим serveStaticFiles на временной папке, как
+  в pitch-video-serving. Текст правил выше был верным, а заголовков в ответе
+  не было вовсе: @hono/node-server зовёт onFound, когда ответ уже собран, и
+  c.header() там терялся. Ни «immutable» у пакетов, ни «no-cache» у оболочки
+  в бою не стояло.
+
+  Статика без хэша в имени, которая меняется редко: кадры и снимки лендинга,
+  картинки карточек ссылок, шрифты. Сутки кэша заставляли постоянного гостя
+  перекачивать плёнку каждый день; теперь — неделя и сутки «показывать
+  прежнее, пока проверяешь новое».
+
+  Нарочная поломка: вернуть c.header() в onFound — падает весь блок;
+  убрать "/fonts/" из WEEKLY в vite.ts — падает «неделя».
+*/
+describe("заголовки кэша в ответе", () => {
+  let root = "";
+  let app: Hono;
+  beforeAll(() => {
+    root = fs.mkdtempSync(path.join(os.tmpdir(), "static-cache-"));
+    for (const f of ["index.html", "sw.js", "fonts/manrope-cyrillic-wght-normal.woff2", "landing/film/w960/0001.webp", "og/home-ru.jpg", "icon-192.png", "assets/index-abc123.js"]) {
+      fs.mkdirSync(path.dirname(path.join(root, f)), { recursive: true });
+      fs.writeFileSync(path.join(root, f), "x");
+    }
+    app = new Hono();
+    serveStaticFiles(app as never, { root });
+  });
+  afterAll(() => { fs.rmSync(root, { recursive: true, force: true }); });
+
+  const cache = async (p: string) => (await app.request(p)).headers.get("cache-control");
+
+  it.each(["/fonts/manrope-cyrillic-wght-normal.woff2", "/landing/film/w960/0001.webp", "/og/home-ru.jpg"])("%s — неделя и сутки stale-while-revalidate", async p => {
+    expect(await cache(p)).toBe("public, max-age=604800, stale-while-revalidate=86400");
+  });
+
+  it("шрифт уходит как font/woff2", async () => {
+    expect((await app.request("/fonts/manrope-cyrillic-wght-normal.woff2")).headers.get("content-type")).toBe("font/woff2");
+  });
+
+  it("оболочка «/» и service worker — без кэша", async () => {
+    expect(await cache("/")).toBe("no-cache");
+    expect(await cache("/index.html")).toBe("no-cache");
+    expect(await cache("/sw.js")).toBe("no-cache");
+  });
+
+  it("прочая статика — сутки, пакеты с хэшем — навсегда", async () => {
+    expect(await cache("/icon-192.png")).toBe("public, max-age=86400");
+    expect(await cache("/assets/index-abc123.js")).toBe("public, max-age=31536000, immutable");
   });
 });

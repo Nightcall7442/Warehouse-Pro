@@ -6,6 +6,8 @@ import { useHotkeys } from "@/hooks/useHotkeys";
 import Layout from "@/components/Layout";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import { lazyWithRecovery } from "@/lib/stale-app-recovery";
+import SitePageLang from "@/components/landing/SitePageLang";
+import QueryLang from "@/components/QueryLang";
 import { CommandPalette } from "@/components/CommandPalette";
 import { QuickOrderHost } from "@/components/orders/QuickOrderHost";
 import { NoAccess } from "@/components/NoAccess";
@@ -27,6 +29,17 @@ const Pitch                = lazyWithRecovery(() => import("./pages/Pitch"));
 const PitchDemo            = lazyWithRecovery(() => import("./pages/PitchDemo"));
 /* Сравнение с Sales Doctor и Smartup — публичная страница сайта. */
 const Compare              = lazyWithRecovery(() => import("./pages/Compare"));
+/*
+  Статьи сайта. Гостю их отдаёт сервер готовым HTML и лёгкий вход
+  (site/site-main); здесь они для того, кто уже входил в этом браузере: он
+  получает приложение, и статья должна открыться в нём, а не «не найдено».
+  Язык статья берёт из адреса сама (ArticleLayout) — SitePageLang ей не нужен.
+*/
+const AgentsArticle        = lazyWithRecovery(() => import("./site/articles/AgentsArticle"));
+const DebtsArticle         = lazyWithRecovery(() => import("./site/articles/DebtsArticle"));
+const ReconciliationArticle = lazyWithRecovery(() => import("./site/articles/ReconciliationArticle"));
+const DeliveryArticle      = lazyWithRecovery(() => import("./site/articles/DeliveryArticle"));
+const WarehouseArticle     = lazyWithRecovery(() => import("./site/articles/WarehouseArticle"));
 import ForgotPassword       from "./pages/ForgotPassword";
 import ResetPassword        from "./pages/ResetPassword";
 import VerifyEmail          from "./pages/VerifyEmail";
@@ -151,14 +164,19 @@ function AppLayout() {
  * вывески. Залогиненный пользователь, как и прежде, попадает сразу в свой
  * раздел (Home разводит по ролям).
  */
+/** Главная сайта на «/» — по-русски, как её адрес (SitePageLang). */
+function SiteHome() {
+  return <SitePageLang page="home"><Landing /></SitePageLang>;
+}
+
 function RootGate() {
   const { user, isLoading } = useAuth();
   // Первый визит без следов сессии — лендинг рисуется сразу, не дожидаясь
   // ответа auth.me: иначе посетитель warehouse-pro.uz встречал спиннер на
   // всё время запроса. Тот, кто в этом браузере входил, ждёт ответа, чтобы
   // не поймать вспышку лендинга перед своим разделом.
-  if (isLoading) return hadSession() ? <PageLoader /> : <Landing />;
-  if (!user) return <Landing />;
+  if (isLoading) return hadSession() ? <PageLoader /> : <SiteHome />;
+  if (!user) return <SiteHome />;
   return <Home />;
 }
 
@@ -202,8 +220,10 @@ export default function App() {
       <ScrollToTop />
       <Routes>
         {/* Public */}
-        <Route path="/login"              element={<Login />} />
-        <Route path="/register"           element={<Register />} />
+        {/* ?lang=uz — язык страницы сайта, с которой пришёл человек (QueryLang):
+            с /uz «Kirish» и «Bepul boshlang» открывали русскую форму. */}
+        <Route path="/login"              element={<QueryLang><Login /></QueryLang>} />
+        <Route path="/register"           element={<QueryLang><Register /></QueryLang>} />
         <Route path="/forgot-password"    element={<ForgotPassword />} />
         <Route path="/reset-password"     element={<ResetPassword />} />
         <Route path="/verify-email"       element={<VerifyEmail />} />
@@ -212,7 +232,7 @@ export default function App() {
         {/* Первый запуск организации: заводит склад, товары и приглашает
             людей — всё это ceo и оператор. */}
         <Route path="/onboarding" element={<RoleGuard roles={["ceo","operator"]}><Onboarding /></RoleGuard>} />
-        <Route path="/landing"            element={<Landing />} />
+        <Route path="/landing"            element={<SiteHome />} />
         {/* Публичная и без входа: ссылку на неё требуют оба магазина
             приложений, и открывать её будут люди, которые в систему не
             входят вовсе. */}
@@ -221,7 +241,26 @@ export default function App() {
             AppLayout — ссылку открывают люди, которых в системе нет. */}
         <Route path="/pitch"              element={<Pitch />} />
         <Route path="/demo"               element={<PitchDemo />} />
-        <Route path="/compare"            element={<Compare />} />
+        {/* Сайт на двух языках: язык — из адреса, а не из сохранённого
+            выбора (SitePageLang): / и /compare — по-русски, /uz и
+            /uz/compare — по-узбекски. Service worker на /uz не ходит
+            (navigateFallbackDenylist в vite.config.ts): страницы сайта отдаёт
+            сервер, и закэшированная старая оболочка не должна их подменять. */}
+        <Route path="/compare"            element={<SitePageLang page="compare"><Compare /></SitePageLang>} />
+        <Route path="/uz"                 element={<SitePageLang page="home"><Landing /></SitePageLang>} />
+        <Route path="/uz/compare"         element={<SitePageLang page="compare"><Compare /></SitePageLang>} />
+        {/* Статьи: адрес — тот же, что в contracts/site-pages (ARTICLE_SLUGS), на обоих языках. */}
+        <Route path="/sales-agents"       element={<AgentsArticle />} />
+        <Route path="/uz/sales-agents"    element={<AgentsArticle />} />
+        <Route path="/shop-debts"         element={<DebtsArticle />} />
+        <Route path="/uz/shop-debts"      element={<DebtsArticle />} />
+        <Route path="/reconciliation-act" element={<ReconciliationArticle />} />
+        <Route path="/uz/reconciliation-act" element={<ReconciliationArticle />} />
+        <Route path="/delivery-cash"      element={<DeliveryArticle />} />
+        <Route path="/uz/delivery-cash"   element={<DeliveryArticle />} />
+        <Route path="/distributor-warehouse" element={<WarehouseArticle />} />
+        <Route path="/uz/distributor-warehouse" element={<WarehouseArticle />} />
+        <Route path="/uz/*"               element={<Navigate to="/uz" replace />} />
         <Route path="/"                   element={<RootGate />} />
 
         <Route element={<AppLayout />}>

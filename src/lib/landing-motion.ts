@@ -1,4 +1,4 @@
-import { animate, createTimeline, stagger, splitText, utils } from "animejs";
+import { animate, createTimeline, stagger, utils } from "animejs";
 
 /* ═══════════════════════════════════════════════════════════════════════════
    ДВИЖЕНИЕ ЛЕНДИНГА
@@ -29,10 +29,21 @@ import { animate, createTimeline, stagger, splitText, utils } from "animejs";
    сценарий — текст просто останется на месте видимым. Скрывать элементы
    стилями нельзя: одна ошибка в сборке, и посетитель видит пустой лист.
 
+   ── Первый экран не прячется (21.10.2026) ─────────────────────────────────
+
+   Раньше заголовок первого экрана разбирался на слова, каждое ставилось в
+   opacity 0 и выплывало за 900 мс; так же прятались лид, кнопка, панель дня
+   и подвал бланка. Сервер присылал страницу с заголовком, скрипт его
+   стирал, и только потом он проявлялся: на дешёвом Android с 3G первые
+   секунды человек смотрел на пустой лист — ровно там, где решает, читать ли
+   дальше. Теперь всё внутри [data-first-screen] стоит на месте с первого
+   кадра; движение — только у того, что ниже сгиба. Печать на первом экране
+   по-прежнему оттискивается: она украшение, а не текст.
+
    ── Словарь атрибутов ─────────────────────────────────────────────────────
 
    data-reveal            — подъём и проявление; соседи с общим родителем идут волной
-   data-hero-title/step   — первый экран: заголовок по словам, остальное шагом
+   data-first-screen      — первый экран: внутри него текст не прячется вовсе
    data-count="12345"     — число считается от нуля до значения (разряды через пробел)
    data-rule              — горизонтальная линия прочерчивается слева направо
    data-stamp             — печать оттискивается: крупнее и легче → на место
@@ -73,7 +84,9 @@ function once(
 
 /** Появление разделов по мере прокрутки. Соседи с общим родителем — одной волной. */
 function revealOnScroll(root: HTMLElement): Cleanup {
-  const nodes = Array.from(root.querySelectorAll<HTMLElement>("[data-reveal]"));
+  // Первый экран виден сразу — см. шапку файла.
+  const nodes = Array.from(root.querySelectorAll<HTMLElement>("[data-reveal]"))
+    .filter(n => !n.closest("[data-first-screen]"));
   if (nodes.length === 0) return () => {};
 
   const groups = new Map<Element, HTMLElement[]>();
@@ -173,39 +186,10 @@ function foldMarks(root: HTMLElement): Cleanup {
   return () => { for (const s of stops) s(); };
 }
 
-/** Первый экран: заголовок по словам, остальное ровным шагом. */
-function heroEntrance(root: HTMLElement): Cleanup {
-  const steps = Array.from(root.querySelectorAll<HTMLElement>("[data-hero-step]")).sort(
-    (a, b) => Number(a.dataset.heroStep) - Number(b.dataset.heroStep),
-  );
-  const title = root.querySelector<HTMLElement>("[data-hero-title]");
-  if (steps.length === 0 && !title) return () => {};
-
-  type Split = { words: HTMLElement[]; revert?: () => void };
-  let split: Split | null = null;
-  if (title) {
-    try { split = splitText(title, { words: true, chars: false }) as unknown as Split; }
-    catch { split = null; }
-  }
-  const words = split?.words?.length ? split.words : title ? [title] : [];
-  utils.set([...steps, ...words], { opacity: 0, translateY: 14 });
-  if (words.length > 1) utils.set(words, { translateY: 26 });
-
-  const tl = createTimeline({ defaults: { ease: EASE } });
-  if (words.length) {
-    tl.add(words, { opacity: [0, 1], translateY: [words.length > 1 ? 26 : 14, 0], duration: 900, delay: stagger(46) }, 60);
-  }
-  for (const [i, el] of steps.entries()) {
-    tl.add(el, { opacity: [0, 1], translateY: [14, 0], duration: 700 }, 220 + i * 90);
-  }
-  return () => { tl.revert?.(); split?.revert?.(); };
-}
-
 /** Включить движение на странице. Возвращает уборку — вызывать при размонтировании. */
 export function startLandingMotion(root: HTMLElement | null): Cleanup {
   if (!root || REDUCED()) return () => {};
   const stops = [
-    heroEntrance(root),
     revealOnScroll(root),
     countUp(root),
     drawRules(root),

@@ -1,5 +1,6 @@
 import { useEffect, useState, useId, type ReactNode, type CSSProperties } from "react";
-import { cn, LX, MONO, useInView } from "./landing-tokens";
+import { cn, LX, MONO, useInView, linkProps } from "./landing-tokens";
+import { useSiteLinkClick } from "./use-site-link";
 
 /* ═══════════════════════════════════════════════════════════════════════════
    СКЛАДСКАЯ КНИГА — дизайн-система лендинга
@@ -215,15 +216,6 @@ export function Stamp({
 /* ── Кнопки ────────────────────────────────────────────────────────────────
    Чернильная — единственный сильный элемент; призрачная — контур на
    волосяной линии. Никаких выпуклых теней. */
-/**
- * Внешняя ссылка открывается в новой вкладке, якорь на этой же странице — нет.
- *
- * Раньше target="_blank" ставился на любой href, поэтому кнопка героя
- * «Посмотреть интерфейс» с href="#product" открывала копию лендинга в новой
- * вкладке вместо того, чтобы прокрутить к окну продукта.
- */
-const linkProps = (href: string) =>
-  href.startsWith("#") ? {} : { target: "_blank" as const, rel: "noreferrer" };
 
 export function BtnInk({
   children,
@@ -239,6 +231,8 @@ export function BtnInk({
   /** false — кнопка стоит на чернильной зоне и инвертируется в бумагу. */
   onPaper?: boolean;
 }) {
+  // Своя страница по ссылке — переходом роутера, без перезагрузки (use-site-link).
+  const siteClick = useSiteLinkClick();
   const style: CSSProperties = onPaper
     ? { background: LX.ink, color: LX.paperOnInk }
     : { background: LX.paper, color: LX.ink };
@@ -250,7 +244,7 @@ export function BtnInk({
   );
   if (href)
     return (
-      <a href={href} {...linkProps(href)} className={cls} style={style}>
+      <a href={href} {...linkProps(href)} onClick={siteClick} className={cls} style={style}>
         {children}
       </a>
     );
@@ -274,6 +268,7 @@ export function BtnGhost({
   className?: string;
   onPaper?: boolean;
 }) {
+  const siteClick = useSiteLinkClick();
   const style: CSSProperties = onPaper
     ? { border: `1px solid ${LX.ruleStrong}`, color: LX.ink, background: "transparent" }
     : { border: `1px solid ${LX.ruleOnInk}`, color: LX.paperOnInk, background: "transparent" };
@@ -285,7 +280,7 @@ export function BtnGhost({
   );
   if (href)
     return (
-      <a href={href} {...linkProps(href)} className={cls} style={style}>
+      <a href={href} {...linkProps(href)} onClick={siteClick} className={cls} style={style}>
         {children}
       </a>
     );
@@ -307,7 +302,7 @@ export function BtnGhost({
 
    Теперь два кегля вместо одного: глава на тёмной полосе кричит 56-м, глава на
    бумаге говорит 34-м. Рубрика уходит в левое поле листа регистром A — плотным
-   моно 11px с трекингом 0.08em, а не разрежённым 0.22em: настоящие бланковые
+   моно 12px с трекингом 0.08em, а не разрежённым 0.22em: настоящие бланковые
    подписи набираются плотно, разрядка и была тем журнальным тиком, из-за
    которого все главы звучали одним голосом. */
 export function SectionHead({
@@ -330,7 +325,7 @@ export function SectionHead({
   return (
     <div id={id} data-reveal="head" className="scroll-mt-24">
       <div
-        className="mb-6 text-[11px] uppercase"
+        className="mb-6 text-[12px] uppercase"
         style={{ ...MONO, fontWeight: 500, letterSpacing: "0.08em", lineHeight: 1.9, color: dark ? LX.brassOnNight : LX.brassText }}
       >
         {index} · {label}
@@ -376,7 +371,7 @@ export function Accordion({ items }: { items: { q: string; a: string }[] }) {
             className="w-full flex items-baseline gap-5 py-5 text-left cursor-pointer group"
           >
             <span
-              className="text-[11px] shrink-0 w-6"
+              className="text-[12px] shrink-0 w-6"
               style={{ ...MONO, color: open === i ? LX.brassText : LX.inkFaint }}
             >
               {String(i + 1).padStart(2, "0")}
@@ -410,7 +405,7 @@ export function Accordion({ items }: { items: { q: string; a: string }[] }) {
             style={{ gridTemplateRows: open === i ? "1fr" : "0fr" }}
           >
             <div className="overflow-hidden">
-              <p className="pb-6 pl-11 pr-8 text-[14px] leading-relaxed max-w-2xl" style={{ color: LX.inkSoft }}>
+              <p className="pb-6 pl-11 pr-8 text-[16px] leading-relaxed max-w-2xl" style={{ color: LX.inkSoft }}>
                 {item.a}
               </p>
             </div>

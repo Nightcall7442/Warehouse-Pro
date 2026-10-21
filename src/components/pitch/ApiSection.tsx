@@ -42,7 +42,7 @@ export default function ApiSection({ status }: { status: DemoStatus | null }) {
           <ul data-testid="pitch-api-endpoints" style={{ listStyle: "none", padding: 0, margin: "10px 0 0", borderTop: "1px solid var(--rule-strong)" }}>
             {API_ENDPOINTS.map(e => (
               <li key={e.path} className="p-row" style={{ display: "grid", gridTemplateColumns: "44px minmax(0,1fr)", gap: 12, padding: "13px 0" }}>
-                <span className="p-mono" style={{ fontSize: 11, color: "var(--teal)", paddingTop: 2 }}>GET</span>
+                <span className="p-mono" style={{ fontSize: 12, color: "var(--teal)", paddingTop: 2 }}>GET</span>
                 <span>
                   <code className="p-mono" data-endpoint={e.path} style={{ fontSize: 13.5, fontWeight: 600 }}>{e.path}</code>
                   <span style={{ display: "block", fontSize: 13.5, color: "var(--soft)", marginTop: 3 }}>{pick(lang, e.d)}</span>

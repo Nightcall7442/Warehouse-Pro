@@ -55,7 +55,8 @@ describe("адрес публичный", () => {
 
   it("карта сайта знает адрес, подвал лендинга ведёт на него", () => {
     expect(readFileSync("public/sitemap.xml", "utf8")).toContain("https://www.warehouse-pro.uz/compare</loc>");
-    expect(readFileSync("src/pages/Landing.tsx", "utf8")).toMatch(/href: "\/compare"/);
+    // Адрес — на языке страницы: /compare с «/», /uz/compare с /uz.
+    expect(readFileSync("src/pages/Landing.tsx", "utf8")).toMatch(/href: sitePath\(lang, "\/compare"\)/);
   });
 });
 
@@ -138,7 +139,8 @@ describe("цена, переход, дата сверки", () => {
   it("кнопки ведут на регистрацию и демо; дата сверки видна", () => {
     draw();
     expect(screen.getByTestId("compare-cta-register").getAttribute("href")).toBe("/register");
-    expect(screen.getByTestId("compare-cta-demo").getAttribute("href")).toBe("/demo");
+    // Демо — на языке страницы: у /demo по умолчанию узбекский (21.10.2026).
+    expect(screen.getByTestId("compare-cta-demo").getAttribute("href")).toBe("/demo?lang=ru");
     expect(screen.getByTestId("compare-hero").textContent).toContain(CHECKED_AT);
     expect(screen.getAllByTestId("compare-step")).toHaveLength(STEPS.length);
   });
