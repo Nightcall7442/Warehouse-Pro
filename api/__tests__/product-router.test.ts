@@ -46,7 +46,7 @@ vi.mock("../lib/sanitize", () => ({
   sanitizeSearch: (s: string) => s.replace(/['";\\]/g, "").replace(/--/g, "").trim(),
 }));
 
-import { products, warehouseStock, orderItems, stockMovements, warehouses, productBarcodes } from "@db/schema";
+import { products, warehouseStock, orderItems, stockMovements, warehouses, productBarcodes, suppliers } from "@db/schema";
 import { makeConditionEvaluator } from "./helpers/fake-conditions";
 
 interface FakeProduct { id: number; tenantId: number; code: string; barcode: string; name: string; category: string; costPrice: string; unitPrice: string; unit: string; unitWeight: string; description: string | null; photoUrl: string | null; reorderPoint: string; status: string; createdAt: Date; }
@@ -55,6 +55,7 @@ interface FakeOrderItem { id: number; orderId: number; productId: number; quanti
 interface FakeStockMovement { id: number; tenantId: number; productId: number; type: string; quantity: string; notes: string | null; createdAt: Date; }
 interface FakeWarehouse { id: number; tenantId: number; name: string; address: string; city: string; isDefault: boolean; status: string; createdAt: Date; }
 interface FakeBarcode { id: number; tenantId: number; productId: number; barcode: string; }
+interface FakeSupplier { id: number; tenantId: number; name: string; status: string; }
 
 let productsTable: FakeProduct[] = [];
 let stockTable: FakeStock[] = [];
@@ -62,6 +63,7 @@ let orderItemsTable: FakeOrderItem[] = [];
 let movementsTable: FakeStockMovement[] = [];
 let warehousesTable: FakeWarehouse[] = [];
 let barcodesTable: FakeBarcode[] = [];
+let suppliersTable: FakeSupplier[] = [];
 let nextProductId = 10;
 let nextStockId = 10;
 
@@ -85,6 +87,12 @@ function resetTables() {
     { id: 1, tenantId: 1, productId: 1, barcode: "EXTRA-A" },
     { id: 2, tenantId: 2, productId: 99, barcode: "EXTRA-B" },
   ];
+  // Поставщики: свой действующий, свой выключенный и чужой.
+  suppliersTable = [
+    { id: 5, tenantId: 1, name: "Завод", status: "active" },
+    { id: 6, tenantId: 1, name: "Старый завод", status: "inactive" },
+    { id: 7, tenantId: 2, name: "Чужой завод", status: "active" },
+  ];
   nextProductId = 10;
   nextStockId = 10;
 }
@@ -96,6 +104,7 @@ function tableOf(ref: unknown): string {
   if (ref === stockMovements) return "stockMovements";
   if (ref === warehouses) return "warehouses";
   if (ref === productBarcodes) return "productBarcodes";
+  if (ref === suppliers) return "suppliers";
   return "other";
 }
 
@@ -106,6 +115,7 @@ function rowsFor(table: string): Record<string, unknown>[] {
   if (table === "stockMovements") return movementsTable as unknown as Record<string, unknown>[];
   if (table === "warehouses") return warehousesTable as unknown as Record<string, unknown>[];
   if (table === "productBarcodes") return barcodesTable as unknown as Record<string, unknown>[];
+  if (table === "suppliers") return suppliersTable as unknown as Record<string, unknown>[];
   return [];
 }
 
@@ -116,6 +126,7 @@ for (const [field, col] of Object.entries(orderItems)) columnToFieldName.set(col
 for (const [field, col] of Object.entries(stockMovements)) columnToFieldName.set(col, field);
 for (const [field, col] of Object.entries(warehouses)) columnToFieldName.set(col, field);
 for (const [field, col] of Object.entries(productBarcodes)) columnToFieldName.set(col, field);
+for (const [field, col] of Object.entries(suppliers)) columnToFieldName.set(col, field);
 
 /**
  * Разбор условий отдан общему строгому разборщику.
@@ -451,6 +462,42 @@ describe("product.update", () => {
     const updated = productsTable.find((p) => p.id === 1)!;
     expect(updated.name).toBe("Updated Widget");
     expect(updated.unitPrice).toBe("120.00");
+  });
+});
+
+describe("product: поставщик по умолчанию", () => {
+  /*
+    Его подставит заказ поставщику. Номер приходит с клиента — значит,
+    проверяется организация (чужой — «не найден», а не «нет доступа») и то,
+    что поставщик не выключен: заказывать у него никто не станет.
+  */
+  it("свой действующий — записывается, null — снимается", async () => {
+    const { productRouter } = await import("../product-router");
+    const caller = productRouter.createCaller({ ...makeCtx(1, 1), db: mockDb });
+    await caller.update({ id: 1, defaultSupplierId: 5 });
+    expect((productsTable.find(p => p.id === 1) as unknown as { defaultSupplierId: number }).defaultSupplierId).toBe(5);
+    await caller.update({ id: 1, defaultSupplierId: null });
+    expect((productsTable.find(p => p.id === 1) as unknown as { defaultSupplierId: number | null }).defaultSupplierId).toBeNull();
+  });
+
+  it("чужой — «не найден», выключенный — отказ с именем; товар не тронут", async () => {
+    const { productRouter } = await import("../product-router");
+    const caller = productRouter.createCaller({ ...makeCtx(1, 1), db: mockDb });
+    await expect(caller.update({ id: 1, defaultSupplierId: 7, name: "Новое" })).rejects.toMatchObject({ code: "NOT_FOUND", message: "Поставщик не найден" });
+    await expect(caller.update({ id: 1, defaultSupplierId: 6 })).rejects.toThrow(/«Старый завод» выключен/);
+    expect(productsTable.find(p => p.id === 1)!.name).toBe("Widget A");
+    const before = productsTable.length;
+    await expect(caller.create({ code: "N-1", name: "Новый", unitPrice: "10", defaultSupplierId: 7 })).rejects.toMatchObject({ code: "NOT_FOUND" });
+    expect(productsTable.length).toBe(before);
+  });
+
+  it("карточка отдаёт его оператору, но не агенту — как и себестоимость", async () => {
+    (productsTable[0] as unknown as { defaultSupplierId: number }).defaultSupplierId = 5;
+    const { productRouter } = await import("../product-router");
+    const asOperator = await productRouter.createCaller({ ...makeCtx(1, 1), db: mockDb }).getById({ id: 1 });
+    expect(asOperator?.defaultSupplierId).toBe(5);
+    const asAgent = await productRouter.createCaller({ ...makeCtx(1, 1, "agent"), db: mockDb }).getById({ id: 1 });
+    expect(asAgent?.defaultSupplierId).toBeUndefined();
   });
 });
 

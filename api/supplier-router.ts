@@ -41,6 +41,9 @@ type Db = ReturnType<typeof getDb>;
  */
 
 /** Проверить, что контрагент из запроса принадлежит этой организации. */
+/** Отсрочка оплаты поставщику: целые дни, до года. */
+const paymentTermsInput = z.number().int().min(0).max(365).nullable().optional();
+
 async function assertOwnSupplier(db: Db, tenantId: number, supplierId: number) {
   const [found] = await db.select({ id: suppliers.id })
     .from(suppliers)
@@ -191,6 +194,7 @@ export const supplierRouter = createRouter({
         address:       suppliers.address,
         notes:         suppliers.notes,
         status:        suppliers.status,
+        paymentTermsDays: suppliers.paymentTermsDays,
         debtUzs:       debtIn("UZS"),
         debtUsd:       debtIn("USD"),
         overdueCount,
@@ -233,6 +237,9 @@ export const supplierRouter = createRouter({
       inn:         z.string().max(32).optional(),
       address:     z.string().max(500).optional(),
       notes:       z.string().max(2000).optional(),
+      // Отсрочка оплаты в днях: её берёт заказ поставщику, а от него — срок
+      // долга при приёмке (ADR 0013). Пусто — платим по факту.
+      paymentTermsDays: paymentTermsInput,
     }))
     .mutation(async ({ input, ctx }) => {
       const db = ctx.db;
@@ -245,6 +252,7 @@ export const supplierRouter = createRouter({
           inn:         input.inn,
           address:     input.address ? sanitizeString(input.address) : undefined,
           notes:       input.notes ? sanitizeString(input.notes) : undefined,
+          paymentTermsDays: input.paymentTermsDays ?? null,
         });
         return { id: Number(result.insertId) };
       } catch (e) {
@@ -269,6 +277,8 @@ export const supplierRouter = createRouter({
       address:     z.string().max(500).nullable().optional(),
       notes:       z.string().max(2000).nullable().optional(),
       status:      z.enum(["active", "inactive"]).optional(),
+      // null — снять отсрочку; не прислана — не трогать.
+      paymentTermsDays: paymentTermsInput,
     }))
     .mutation(async ({ input, ctx }) => {
       const db = ctx.db;

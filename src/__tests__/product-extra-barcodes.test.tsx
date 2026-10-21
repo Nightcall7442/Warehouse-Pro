@@ -43,6 +43,8 @@ const trpcStub = vi.hoisted(() => {
     },
     auth: { me: { useQuery: query({ id: 1, name: "Оператор", role: "operator" }) } },
     warehouseReports: { productBatches: { useQuery: query({ onHand: 0, inBatches: 0, untracked: 0, batches: [] }) } },
+    // Правка карточки спрашивает список поставщиков (поставщик по умолчанию).
+    supplier: { list: { useQuery: query([]) } },
     useUtils: () => ({ product: { getById: { invalidate: vi.fn() } } }),
   };
 });

@@ -317,6 +317,30 @@ describe.skipIf(!hasRealDb)("заказ поставщику: согласова
     expect(await stockAt(s.productId, secondWarehouseId)).toBe(0);
   });
 
+  it("отсрочка из карточки контрагента: заказ берёт её при заведении, долг считает срок от неё", async () => {
+    const suppliersApi = (await import("../../supplier-router")).supplierRouter.createCaller(ctxFor(db, s.tenantId, s.agentId));
+    const { id: sid } = await suppliersApi.create({ name: "Мельница", paymentTermsDays: 7 });
+    expect((await suppliersApi.list()).find(r => r.id === sid)?.paymentTermsDays).toBe(7);
+
+    const c = await po();
+    const { id } = await c.create({ supplierId: sid, currency: "UZS", items: [{ productId: s.productId, quantity: "2", unitPrice: "50" }] });
+    expect((await c.getById({ id })).paymentTermsDays).toBe(7);
+    // Правка карточки потом заказ не трогает: договаривались на прежних условиях.
+    await suppliersApi.update({ id: sid, paymentTermsDays: null });
+    expect((await suppliersApi.list()).find(r => r.id === sid)?.paymentTermsDays).toBeNull();
+    expect((await c.getById({ id })).paymentTermsDays).toBe(7);
+
+    await (await director()).approve({ id });
+    const { arrivalId } = await c.receive({ id, arrivalDate: DAY });
+    await (await arr()).setItems({ id: arrivalId, items: [{ productId: s.productId, quantity: "2", expectedQuantity: "2", costPrice: "50.00" }] });
+    await (await arr()).update({ id: arrivalId, status: "completed" });
+    expect((await supplyOf(arrivalId)).due).toBe("2026-10-08");
+
+    // Заказ без отсрочки у поставщика без отсрочки — срока нет.
+    const { id: bare } = await c.create({ supplierId: sid, currency: "UZS", items: [{ productId: s.productId, quantity: "1", unitPrice: "50" }] });
+    expect((await c.getById({ id: bare })).paymentTermsDays).toBeNull();
+  });
+
   it("чужая организация: ни заказа, ни поставщика", async () => {
     const { id } = await approvedOrder();
     const d = db as any;

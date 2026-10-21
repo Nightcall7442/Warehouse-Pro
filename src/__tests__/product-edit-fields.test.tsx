@@ -23,6 +23,7 @@ import { LangProvider } from "@/i18n";
 Element.prototype.scrollIntoView = () => {};
 afterEach(cleanup);
 
+const update = vi.hoisted(() => vi.fn());
 const trpcStub = vi.hoisted(() => {
   const query = (data: unknown) => () => ({ data, isLoading: false, isError: false, refetch: vi.fn() });
   const mutation = () => ({ mutate: vi.fn(), isPending: false });
@@ -35,7 +36,7 @@ const trpcStub = vi.hoisted(() => {
         unitWeight: "8.000", reorderPoint: "10.00", description: "", photoUrl: null,
       }) },
       categories: { useQuery: query(["Кондитерские", "Напитки", "Бакалея"]) },
-      update: { useMutation: mutation },
+      update: { useMutation: () => ({ mutate: update, isPending: false }) },
       delete: { useMutation: mutation },
       uploadPhoto: { useMutation: mutation },
     },
@@ -52,6 +53,8 @@ const trpcStub = vi.hoisted(() => {
     warehouseReports: {
       productBatches: { useQuery: query({ onHand: 0, inBatches: 0, untracked: 0, batches: [] }) },
     },
+    // Поставщик по умолчанию выбирается из своих контрагентов.
+    supplier: { list: { useQuery: query([{ id: 5, name: "Завод" }, { id: 6, name: "Мельница" }]) } },
     useUtils: () => ({ product: { getById: { invalidate: vi.fn() } } }),
   };
 });
@@ -95,6 +98,19 @@ describe("Правка товара", () => {
     // До правки здесь оставалось «бл»: выбор уходил в черновик, а поле
     // читало сохранённое значение.
     expect(unit!.textContent).toContain("кг");
+  });
+
+  it("поставщик по умолчанию — из своих контрагентов, уходит номером", () => {
+    update.mockClear();
+    renderPage();
+    startEditing();
+
+    const supplier = screen.getByRole("combobox", { name: "Поставщик по умолчанию" });
+    expect(supplier.textContent).toContain("нет");
+    click(supplier);
+    click(within(screen.getByRole("listbox")).getByRole("option", { name: "Мельница" }));
+    click(screen.getByRole("button", { name: /Сохранить/ }));
+    expect(update).toHaveBeenCalledWith(expect.objectContaining({ id: 7, defaultSupplierId: 6 }));
   });
 
   it("предлагает уже заведённые категории", () => {

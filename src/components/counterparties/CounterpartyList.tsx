@@ -11,6 +11,8 @@ export interface CounterpartyRow {
   address: string | null;
   notes: string | null;
   status: string;
+  /** Отсрочка оплаты, дней; null — по факту. */
+  paymentTermsDays?: number | null;
   debtUzs: number;
   debtUsd: number;
   overdueCount: number;

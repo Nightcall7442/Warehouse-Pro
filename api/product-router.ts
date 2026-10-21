@@ -5,7 +5,7 @@ import { s3Client, publicUrl } from "./lib/s3";
 import { isSafePhotoValue, PHOTO_VALUE_ERROR } from "./lib/photo-value";
 import { createRouter, operatorQuery, fieldSalesQuery, can } from "./middleware";
 import { getDb } from "./queries/connection";
-import { products, warehouseStock, stockMovements, warehouses } from "@db/schema";
+import { products, warehouseStock, stockMovements, warehouses, suppliers } from "@db/schema";
 import { eq, like, and, or, sql, desc } from "drizzle-orm";
 import { movementReferenceNumber } from "./lib/movement-reference";
 import { sanitizeString, sanitizeSearch } from "./lib/sanitize";
@@ -89,6 +89,26 @@ async function getDefaultWarehouseId(db: ReturnType<typeof getDb>, tenantId: num
     .where(and(eq(warehouses.tenantId, tenantId), eq(warehouses.isDefault, true)))
     .limit(1);
   return wh?.id ?? null;
+}
+
+/** Поставщик по умолчанию: его подставит заказ поставщику из предложения дозаказа. */
+const defaultSupplierInput = z.number().int().positive().nullable().optional();
+
+/**
+ * Поставщик по умолчанию — только свой и действующий. Чужой номер — «не
+ * найден», а не «нет доступа»: иначе ответ подсказал бы, что такой есть у
+ * другой организации. Снятие (null) и «не трогать» (undefined) не проверяются.
+ */
+async function assertDefaultSupplier(db: ReturnType<typeof getDb>, tenantId: number, supplierId: number | null | undefined) {
+  if (supplierId == null) return;
+  const [supplier] = await db.select({ name: suppliers.name, status: suppliers.status })
+    .from(suppliers)
+    .where(and(eq(suppliers.id, supplierId), eq(suppliers.tenantId, tenantId)))
+    .limit(1);
+  if (!supplier) throw new TRPCError({ code: "NOT_FOUND", message: "Поставщик не найден" });
+  if (supplier.status !== "active") {
+    throw new TRPCError({ code: "BAD_REQUEST", message: `Поставщик «${supplier.name}» выключен — включите его или выберите другого` });
+  }
 }
 
 /**
@@ -333,6 +353,7 @@ export const productRouter = createRouter({
         // Через ручку, как в списке: прямая ссылка на бакет открывалась не всегда.
         photoUrl: photoRef("product", products.id, products.photoUrl, products.updatedAt),
         reorderPoint: products.reorderPoint, status: products.status,
+        defaultSupplierId: products.defaultSupplierId,
         createdAt: products.createdAt,
       }).from(products)
         .where(and(eq(products.id, input.id), eq(products.tenantId, tenantId)))
@@ -377,6 +398,8 @@ export const productRouter = createRouter({
       return {
         ...product,
         costPrice: canSeeCost ? product.costPrice : undefined,
+        // У кого закупаем — то же, что себестоимость: агенту это знать незачем.
+        defaultSupplierId: canSeeCost ? product.defaultSupplierId : undefined,
         barcodes: extras.get(product.id) ?? [],
         stock: stockResult[0] ?? null,
         movements,
@@ -406,6 +429,7 @@ export const productRouter = createRouter({
       reorderPoint: decimalOrDefault("10.00").optional(),
       // Дополнительные штрих-коды; основной — barcode выше.
       extraBarcodes: extraBarcodesInput.optional(),
+      defaultSupplierId: defaultSupplierInput,
     }))
     .mutation(async ({ input, ctx }) => {
       const db       = getDb();
@@ -431,6 +455,7 @@ export const productRouter = createRouter({
         });
       }
 
+      await assertDefaultSupplier(db, tenantId, input.defaultSupplierId);
       const { extraBarcodes, ...fields } = input;
       const sanitized = {
         ...fields,
@@ -532,9 +557,12 @@ export const productRouter = createRouter({
         .refine(isSafePhotoValue, PHOTO_VALUE_ERROR).nullable().optional(),
       reorderPoint: decimalOrDefault("10.00").optional(),
       status:       z.enum(["active", "inactive"]).optional(),
+      // null — снять поставщика по умолчанию; не прислан — не трогать.
+      defaultSupplierId: defaultSupplierInput,
     }))
     .mutation(async ({ input, ctx }) => {
       const { id, extraBarcodes, ...data } = input;
+      await assertDefaultSupplier(getDb(), ctx.tenant.id, data.defaultSupplierId);
       const sanitized: Record<string, unknown> = { ...data };
       if (data.barcode !== undefined) sanitized.barcode = data.barcode || null;
       const touchesBarcodes = data.barcode !== undefined || extraBarcodes !== undefined;

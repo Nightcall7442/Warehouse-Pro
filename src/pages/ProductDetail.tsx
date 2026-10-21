@@ -73,6 +73,9 @@ export default function ProductDetail() {
   const { data: product, isLoading, isLoadingError, refetch } = trpc.product.getById.useQuery({ id: Number(id) }, { enabled: !!id });
   // Список уже заведённых категорий — для подсказки в правке.
   const { data: categories } = trpc.product.categories.useQuery();
+  // Поставщики — только в правке: список открыт оператору и директору, а
+  // карточку смотрят и агенты.
+  const { data: supplierOptions } = trpc.supplier.list.useQuery(undefined, { enabled: editing });
 
   /*
     Разрез остатка по партиям.
@@ -228,6 +231,16 @@ export default function ProductDetail() {
                 <input className="neo-input" placeholder={tr("Название упаковки (коробка)","Qadoq nomi (quti)")}
                   value={String(editData.packLabel ?? product.packLabel ?? "")}
                   onChange={e=>setEditData((d: Record<string, unknown>)=>({...d,packLabel:e.target.value}))}/>
+                {/* У кого обычно закупаем: его подставит заказ поставщику. */}
+                <PremiumSelect
+                  aria-label={tr("Поставщик по умолчанию","Standart yetkazib beruvchi")}
+                  value={String(editData.defaultSupplierId !== undefined ? (editData.defaultSupplierId ?? "") : (product.defaultSupplierId ?? ""))}
+                  onChange={v=>setEditData((d: Record<string, unknown>)=>({...d,defaultSupplierId: v === "" ? null : Number(v)}))}
+                  options={[
+                    { value: "", label: tr("Поставщик по умолчанию — нет","Standart yetkazib beruvchi — yo'q") },
+                    ...(supplierOptions ?? []).map(s => ({ value: String(s.id), label: s.name })),
+                  ]}
+                  width="100%" />
                 <ProductTaxFields lang={lang}
                   value={{
                     ikpu: String(editData.ikpu ?? product.ikpu ?? ""),
