@@ -36,17 +36,32 @@ const stub = vi.hoisted(() => {
       warehouseMulti: {
         getStock: { useQuery: q(() => ({ data: state.stockRows, total: state.stockRows.length, page: 1, pageSize: 10000, summary: {} })) },
         listTransfers: { useQuery: q(() => state.transfers) },
+        // Документы и предпросмотр FEFO — здесь пустые; их проверяет transfer-docs-ui.test.tsx.
+        transferDocs: { useQuery: q(() => []) },
+        previewTransfer: { useQuery: q(() => ({ items: [], markdowns: [] })) },
         createTransfer: { useMutation: m(state.createTransfer) },
         completeTransfer: { useMutation: m(state.completeTransfer) },
+        receiveTransfer: { useMutation: m(() => {}) },
+        cancelTransfer: { useMutation: m(() => {}) },
       },
+      // Режим перемещения по умолчанию — из настроек организации (выключено: в один шаг).
+      settings: { get: { useQuery: q(() => ({ transferTwoStep: false })) } },
       // Счётчик раздела «Сроки» на ленте разделов.
-      warehouseReports: { expiringSummary: { useQuery: q(() => ({ riskCount: 0, riskCost: 0, riskSale: 0, expiredCount: 0, expiredCost: 0, expiredSale: 0, sellsCount: 0, markedDown: 0 })) } },
+      warehouseReports: {
+        expiringSummary: { useQuery: q(() => ({ riskCount: 0, riskCost: 0, riskSale: 0, expiredCount: 0, expiredCost: 0, expiredSale: 0, sellsCount: 0, markedDown: 0 })) },
+        productBatches: { useQuery: q(() => ({ onHand: 0, inBatches: 0, untracked: 0, batches: [] })) },
+      },
       stockCount: {
         list: { useQuery: q(() => []) },
         create: { useMutation: m(state.createCount) },
       },
+      // Счёт по категории — список категорий (зовётся всегда, включается выбором).
+      product: { categories: { useQuery: q(() => []) } },
       useUtils: () => ({
-        warehouseMulti: { listTransfers: { invalidate: state.invalidate }, getStock: { invalidate: state.invalidate } },
+        warehouseMulti: {
+          listTransfers: { invalidate: state.invalidate }, getStock: { invalidate: state.invalidate },
+          transferDocs: { invalidate: state.invalidate }, previewTransfer: { invalidate: state.invalidate },
+        },
         warehouse: { valuation: { invalidate: state.invalidate } },
         stockCount: { list: { invalidate: state.invalidate } },
       }),
@@ -55,6 +70,9 @@ const stub = vi.hoisted(() => {
 });
 vi.mock("@/providers/trpc", () => ({ trpc: stub.trpc }));
 vi.mock("@/components/ConfirmDialog", () => ({ useConfirm: () => ({ confirm: async () => true, dialog: null }) }));
+// Инвентаризация спрашивает роль (директор утверждает) и право проводить без утверждения.
+vi.mock("@/hooks/useAuth", () => ({ useAuth: () => ({ user: { id: 1, role: "ceo" } }) }));
+vi.mock("@/hooks/useCan", () => ({ useCan: () => () => true }));
 
 const { StockTransfers } = await import("@/components/warehouse/StockTransfers");
 const { WarehouseCompare } = await import("@/components/warehouse/WarehouseCompare");
@@ -90,7 +108,7 @@ describe("A — один склад: ничего лишнего", () => {
 
   it("страница склада: фишки, «Сравнение» и «Перемещения» — только при multi", () => {
     const page = read("src/pages/Warehouse.tsx");
-    // «Сроки» тоже без фишек: продают только с основного, раздел сам говорит, где лежит партия.
+    // «Сроки» тоже без фишек: раздел сам говорит, где лежит партия и продают ли с того склада (ADR 0012).
     expect(page).toContain("{multi && activeTab !== \"compare\" && activeTab !== \"transfers\" && activeTab !== \"reports\" && activeTab !== \"expiry\" && (");
     expect(page).toContain("...(multi ? [");
     expect(page).toContain('{ key: "compare" as const');
@@ -166,10 +184,11 @@ describe("B — перемещение документом в один шаг",
     fireEvent.change(inputs[1], { target: { value: "5" } });
     await act(async () => { fireEvent.click(screen.getByTestId("transfer-submit")); });
     expect(stub.state.createTransfer).toHaveBeenCalledTimes(1);
+    // Режим уходит явно — тот, что видел человек на галочке (по настройке: в один шаг).
     expect(stub.state.createTransfer.mock.calls[0][0]).toEqual({
       fromWarehouseId: 1, toWarehouseId: 2,
       items: [{ productId: 1, quantity: 10 }, { productId: 2, quantity: 5 }],
-      notes: undefined,
+      notes: undefined, mode: "instant",
     });
     // Никакого второго шага: completeTransfer не зовётся, остаток инвалидирован.
     expect(stub.state.completeTransfer).not.toHaveBeenCalled();

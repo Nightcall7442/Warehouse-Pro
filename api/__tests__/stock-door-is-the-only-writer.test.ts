@@ -69,9 +69,14 @@ describe("остаток меняет только дверь", () => {
     expect(adjust).toContain("receiveStock(tx, {");
     expect(adjust).toContain("shift: { onHand: -1, held: 0 }, reason: \"manual_adjustment\"");
     expect(adjust).toContain("setStock(tx, { tenantId, warehouseId: whId, productId, quantity })");
-    const transfer = by("warehouse-multi-router.ts");
+    // Перемещение — служба документа: со склада через moveOut (партии отдаются),
+    // на склад — receiveStock той же партией. Роутер остаток не трогает вовсе.
+    const transfer = by("services/stock-transfer.ts");
     expect(transfer).toContain('reason: "transfer_out"');
+    expect(transfer).toContain('reason: "transfer_doc_out"');
+    expect(transfer).toContain("moveOut(tx, {");
     expect(transfer).toContain("receiveStock(tx, {");
+    expect(by("warehouse-multi-router.ts")).not.toMatch(/receiveStock|applyStockEffect|moveOut/);
     expect(by("webhooks/onec.ts")).toContain("setStock(tx, { tenantId, warehouseId: defaultWarehouse.id, productId, quantity: parsedQty })");
     expect(by("import-router.ts")).not.toContain("INSERT INTO warehouse_stock");
   });

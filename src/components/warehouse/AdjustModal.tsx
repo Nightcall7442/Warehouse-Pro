@@ -13,12 +13,17 @@ import { AppModal, modalFieldLabel } from "@/components/ui/AppModal";
   Раньше — своя копия с bottom-sheet без прокрутки: на телефоне с открытой
   клавиатурой кнопки уезжали за край, а страница под окном ехала.
 */
-export const AdjustModal = memo(function AdjustModal({ productId, productName, currentStock, unitWeight, warehouseId, onSave, onClose, isPending, initial }: {
+export const AdjustModal = memo(function AdjustModal({ productId, productName, currentStock, unitWeight, warehouseId, onSave, onClose, isPending, initial, needsApproval }: {
   productId: number; productName: string; currentStock: number;
   unitWeight: number; warehouseId?: number;
   onSave: (d: unknown) => void; onClose: () => void; isPending: boolean;
   /** Заполнить заранее: «Сроки» открывают окно списанием просроченной партии. */
   initial?: { type: "in" | "out" | "adjustment"; qty: string; notes: string };
+  /**
+   * Оператору закрыто проводить правку самому (warehouse.apply): окно то же,
+   * но кнопка честно говорит, что остаток изменится после утверждения.
+   */
+  needsApproval?: boolean;
 }) {
   const { lang } = useLang();
   const t = (ru: string, uz: string) => lang === "uz" ? uz : ru;
@@ -48,10 +53,16 @@ export const AdjustModal = memo(function AdjustModal({ productId, productName, c
           disabled={!valid || isPending}
           className="neo-btn-primary flex-1 flex items-center justify-center gap-2 disabled:opacity-40">
           {isPending && <Loader2 size={16} className="animate-spin" />}
-          {t("Применить", "Qo'llash")}
+          {needsApproval ? t("На утверждение", "Tasdiqlashga") : t("Применить", "Qo'llash")}
         </button>
       </>}
     >
+      {needsApproval && (
+        <p className="text-xs px-1" style={{ color: "var(--color-warning-text)", margin: 0 }} data-testid="adjust-needs-approval">
+          {t("Остаток изменится, когда руководитель утвердит правку. Заявка появится во вкладке «Инвентаризация».",
+             "Qoldiq rahbar tuzatishni tasdiqlaganda o'zgaradi. So'rov «Inventarizatsiya» bo'limida paydo bo'ladi.")}
+        </p>
+      )}
       <div className="flex items-center gap-3 px-4 py-3 rounded-xl" style={{ background: "var(--color-surface-light, #f6f4f0)" }}>
         <Scale size={16} style={{ color: "var(--color-text-tertiary, #6b6760)" }} />
         <span className="text-xs font-medium" style={{ color: "var(--color-text-tertiary, #6b6760)" }}>{t("Текущий остаток", "Joriy qoldiq")}</span>

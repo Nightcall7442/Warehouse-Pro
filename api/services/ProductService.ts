@@ -276,8 +276,13 @@ export const ProductService = {
     return cats;
   },
 
-  async searchByBarcode(db: DrizzleInstance, tenantId: number, barcode: string) {
-    const warehouseId = await getDefaultWarehouseId(db, tenantId);
+  /**
+   * Товар по штрих-коду с остатком склада продажи. Склад решает вызывающий
+   * (product-router: склад агента, иначе основной — ADR 0012); не передал —
+   * основной, как было.
+   */
+  async searchByBarcode(db: DrizzleInstance, tenantId: number, barcode: string, salesWarehouseId?: number | null) {
+    const warehouseId = salesWarehouseId !== undefined ? salesWarehouseId : await getDefaultWarehouseId(db, tenantId);
     const stockJoinCond = warehouseId
       ? and(eq(warehouseStock.productId, products.id), eq(warehouseStock.tenantId, tenantId), eq(warehouseStock.warehouseId, warehouseId))
       : and(eq(warehouseStock.productId, products.id), eq(warehouseStock.tenantId, tenantId));

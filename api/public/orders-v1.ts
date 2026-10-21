@@ -54,10 +54,10 @@ async function tenantMeta(tenantId: number) {
     .from(settings).where(eq(settings.tenantId, tenantId)).limit(1);
 
   /*
-    Склада у заказа нет: в этом продукте продают только с основного склада —
-    решение владельца, а не упущение. ТЗ просит warehouse_id, и честный ответ
-    здесь — идентификатор того склада, с которого товар и уходит. Склада нет
-    вовсе — null, а не выдуманный ноль.
+    Склад заказа записан в нём (orders.warehouse_id): с него резервировали и
+    с него отгружают — основной или точка продаж (ADR 0012). Здесь — основной:
+    он отвечает за заказы до этой колонки, которые резервировали на нём.
+    Склада нет вовсе — null, а не выдуманный ноль.
   */
   const [wh] = await db.select({ id: warehouses.id })
     .from(warehouses)
@@ -84,20 +84,22 @@ function baseConditions(opts: {
   updatedSince: string | null;
   includeDeleted: boolean;
   /*
-    Спросили склад, который существует, но не тот, с которого продают.
-
-    Заказы в этом продукте не привязаны к складу: продают только с основного
-    (решение владельца). Значит, по любому другому складу заказов НЕТ — и
-    честный ответ на такой вопрос пустой, а не «все заказы организации».
+    Спросили склад — только заказы этого склада (ADR 0012).
 
     Раньше склад проверялся и не фильтровал: спросив второй склад, получатель
     получал весь оборот компании и складывал его в отчёт по этому складу. Ни
-    одно число при этом не выглядело подозрительным.
+    одно число при этом не выглядело подозрительным. Потом продавали только с
+    основного, и по другому складу ответ был пустым. Теперь заказ помнит
+    склад, и фильтр идёт по нему; заказ без записи (до колонки) — заказ
+    основного склада: резервировал он там.
   */
-  warehouseHasNoOrders: boolean;
+  warehouseId: number | null;
+  defaultWarehouseId: number | null;
 }) {
   const c = [eq(orders.tenantId, opts.tenantId)];
-  if (opts.warehouseHasNoOrders) c.push(sql`1 = 0`);
+  if (opts.warehouseId !== null) {
+    c.push(sql`COALESCE(${orders.warehouseId}, ${opts.defaultWarehouseId ?? 0}) = ${opts.warehouseId}`);
+  }
   if (opts.maxId !== null) c.push(lte(orders.id, opts.maxId));
   if (opts.statuses) c.push(inArray(orders.status, opts.statuses as never));
   if (opts.createdFrom) c.push(sql`${orders.createdAt} >= ${opts.createdFrom}`);
@@ -181,14 +183,14 @@ ordersV1.get("/", async (c) => {
   */
   const meta = await tenantMeta(tenantId);
   const askedWarehouse = q("warehouse_id");
-  let warehouseHasNoOrders = false;
+  let warehouseFilter: number | null = null;
   if (askedWarehouse !== undefined) {
     const asked = Number(askedWarehouse);
     const [own] = await db.select({ id: warehouses.id }).from(warehouses)
       .where(and(eq(warehouses.id, asked), eq(warehouses.tenantId, tenantId))).limit(1);
     if (!own) return fail(404, "Unknown warehouse_id for this company");
-    // Существует, но продают не с него — значит заказов по нему нет.
-    warehouseHasNoOrders = asked !== meta.warehouseId;
+    // Существует — заказы именно его; склад без продаж ответит пусто.
+    warehouseFilter = asked;
   }
 
   // ── Режим и снимок ─────────────────────────────────────────────────────
@@ -228,7 +230,8 @@ ordersV1.get("/", async (c) => {
     // Удалённые нужны только режиму изменений — иначе получатель не узнает,
     // что заказ исчез, и продолжит считать по нему долг.
     includeDeleted: incremental,
-    warehouseHasNoOrders,
+    warehouseId: warehouseFilter,
+    defaultWarehouseId: meta.warehouseId,
   });
 
   // ── Страница ───────────────────────────────────────────────────────────
@@ -245,6 +248,7 @@ ordersV1.get("/", async (c) => {
     promisedDeliveryAt: orders.promisedDeliveryAt,
     deliveredAt: orders.deliveredAt,
     deletedAt: orders.deletedAt,
+    warehouseId: orders.warehouseId,
     shopId: orders.shopId,
     shopName: shops.name,
     territoryId: shops.territoryId,
@@ -281,7 +285,8 @@ ordersV1.get("/", async (c) => {
     order_id: Number(r.id),
     order_number: r.orderNumber,
     company_id: tenantId,
-    warehouse_id: meta.warehouseId,
+    // Склад заказа; у заказа до колонки — основной, где он резервировал.
+    warehouse_id: r.warehouseId != null ? Number(r.warehouseId) : meta.warehouseId,
     created_at: iso(r.createdAt)!,
     updated_at: iso(r.updatedAt)!,
     status: r.status,

@@ -1,7 +1,7 @@
 import { eq, and, sql, isNull, inArray } from "drizzle-orm";
 import { applyStockEffect, releaseStock, reserveStock, shipStock } from "./stock-ledger";
 import { alias } from "drizzle-orm/mysql-core";
-import { orders, orderItems, warehouseStock, users, products, warehouses, payments, debtReminders, orderAdjustments, returns, returnItems } from "@db/schema";
+import { orders, orderItems, warehouseStock, users, products, payments, debtReminders, orderAdjustments, returns, returnItems } from "@db/schema";
 import { recalcShopDebt } from "./shop-debt";
 import { ORDER_STATUS_LABELS, holdsStock, deductsStock } from "../lib/order-status";
 import { FIELD_EDITABLE_ORDER_STATUSES } from "@contracts/constants";
@@ -11,6 +11,7 @@ import { badRequest } from "../lib/errors";
 import { TRPCError } from "@trpc/server";
 import { isDuplicateOf } from "../lib/db-errors";
 import { tiyin } from "./payment";
+import { salesWarehouseFor, defaultWarehouseId, type SalesWarehouseQuery } from "./sales-warehouse";
 
 /*
   Общее для служб заказа: типы, права, доступ, склад-дельта, следы в
@@ -80,13 +81,6 @@ export type Db = ReturnType<typeof import("../queries/connection").getDb>;
 export type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
 
 /**
- * Every stock movement in an order's lifecycle must target the same warehouse.
- * The order row does not record one, so the default warehouse is the single
- * source of truth: reservation on create, release on cancel/delete, deduction on
- * completion. An explicit non-default warehouseId is rejected rather than
- * silently reserved in one warehouse and released from another.
- */
-/**
  * Схлопнуть повторяющиеся товары в одну строку.
  *
  * Клиент вправе прислать один товар дважды — так устроены и корзина, и офлайн-
@@ -116,14 +110,13 @@ export function mergeDuplicateItems<T extends { productId: number; quantity: str
   return [...byProduct.values()];
 }
 
-export async function resolveOrderWarehouse(tx: Tx, tenantId: number, requested?: number): Promise<number> {
-  const [defaultWh] = await tx.select({ id: warehouses.id }).from(warehouses)
-    .where(and(eq(warehouses.tenantId, tenantId), eq(warehouses.isDefault, true))).limit(1);
-  const whId = defaultWh?.id;
+/**
+ * Склад резерва нового заказа: выбранный офисом → склад агента → основной
+ * (ADR 0012, services/sales-warehouse.ts). Без основного склада — отказ.
+ */
+export async function resolveOrderWarehouse(tx: Tx, tenantId: number, q: SalesWarehouseQuery = {}): Promise<number> {
+  const whId = await salesWarehouseFor(tx, tenantId, q);
   if (!whId) throw new Error("Склад по умолчанию не найден");
-  if (requested !== undefined && requested !== whId) {
-    throw new Error("Заказ можно оформить только со склада по умолчанию");
-  }
   return whId;
 }
 
@@ -135,9 +128,16 @@ export async function resolveOrderWarehouse(tx: Tx, tenantId: number, requested?
  * смена склада по умолчанию между оформлением и доставкой снимала резерв с
  * одного склада, а списывала с другого. Пусто только у заказов до этой
  * колонки — им остаётся склад по умолчанию, как и было.
+ *
+ * Именно основной, а не правило продажи (resolveOrderWarehouse): старый
+ * заказ резервировал на основном, и склад агента, назначенный позже, увёл бы
+ * снятие резерва и отгрузку туда, где резерва никогда не было.
  */
 export async function orderWarehouseId(tx: Tx, tenantId: number, order: { warehouseId: number | null }): Promise<number> {
-  return order.warehouseId ?? resolveOrderWarehouse(tx, tenantId);
+  if (order.warehouseId != null) return order.warehouseId;
+  const whId = await defaultWarehouseId(tx, tenantId);
+  if (!whId) throw new Error("Склад по умолчанию не найден");
+  return whId;
 }
 
 /**

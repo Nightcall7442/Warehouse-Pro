@@ -24,6 +24,7 @@ import { ROLES, type Role } from "@contracts/types";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { AppModal, modalFieldLabel } from "@/components/ui/AppModal";
 import { errorText } from "@/lib/error-text";
+import { sellableWarehouses } from "@/lib/sales-warehouse";
 // The filter select carries "" for "all roles"; the list query wants no role at all.
 const isRole = (value: string): value is Role => ROLES.some(r => r === value);
 
@@ -278,6 +279,23 @@ export default function Users() {
     onError: (e) => notify.error(errorText(e)),
   });
 
+  /*
+    Склад продаж сотрудника (ADR 0012). Колонка появляется, когда директор
+    отметил хоть один склад, кроме основного, точкой продаж
+    (Настройки → Склады). Без точек продаж продают только с основного, и
+    выбирать нечего.
+  */
+  const { data: warehouseList } = trpc.warehouseMulti.list.useQuery();
+  const salesPoints = useMemo(
+    () => sellableWarehouses(warehouseList).filter(w => !w.isDefault).map(w => ({ id: w.id, name: w.name })),
+    [warehouseList],
+  );
+  const setWarehouse = trpc.user.update.useMutation({
+    onSuccess: () => { utils.user.list.invalidate(); notify.success(t("Склад продаж назначен", "Savdo ombori biriktirildi")); },
+    onError: (e) => notify.error(errorText(e)),
+  });
+  const anyAssigned = (data?.data ?? []).some(u => u.warehouseId != null);
+
   const deactivate = trpc.user.deactivate.useMutation({
     onSuccess: () => { utils.user.list.invalidate(); notify.success(t("Пользователь деактивирован", "Foydalanuvchi deaktiv qilindi")); },
     onError: (e) => notify.error(errorText(e)),
@@ -448,6 +466,11 @@ export default function Users() {
         onPageChange={setPage}
         onWorkZone={(id, name) => setWorkZoneAgent({ id, name })}
         onTransferCredentials={(id, name, email) => setTransferUser({ id, name, email })}
+        salesWarehouse={salesPoints.length > 0 || anyAssigned ? {
+          options: salesPoints,
+          onChange: (id, warehouseId) => setWarehouse.mutate({ id, warehouseId }),
+          disabled: setWarehouse.isPending,
+        } : undefined}
       />
 
       {/* ── Agent Territories ────────────────────────────────────────────── */}

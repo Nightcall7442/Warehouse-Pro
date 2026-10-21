@@ -35,6 +35,9 @@ const stub = vi.hoisted(() => {
     canAdjust: true,
     multi: false,
     expiry: { riskCount: 0, expiredCount: 0 },
+    valuation: { totalCostValue: "60279800" } as Record<string, unknown>,
+    role: "operator",
+    counts: [] as Array<{ status: string }>,
     exportToExcel: vi.fn(),
     backfill: vi.fn(),
   };
@@ -46,9 +49,11 @@ const stub = vi.hoisted(() => {
       warehouseMulti: {
         getStock: { useQuery: q(() => ({ data: state.rows, total: state.rows.length, page: 1, pageSize: 10000, summary: state.summary })) },
         listTransfers: { useQuery: q(() => []) },
+        // Счётчик «Перемещений»: документы, ждущие приёмки.
+        transferDocs: { useQuery: q(() => []) },
       },
       warehouse: {
-        valuation: { useQuery: q(() => ({ totalCostValue: "60279800" })) },
+        valuation: { useQuery: q(() => state.valuation) },
         reorderSuggestions: { useQuery: q(() => state.reorder) },
         deadStock: { useQuery: q(() => state.dead) },
         adjustStock: { useMutation: m(() => {}) },
@@ -57,6 +62,8 @@ const stub = vi.hoisted(() => {
       // Счётчик раздела «Сроки» на ленте разделов.
       warehouseReports: { expiringSummary: { useQuery: q(() => ({ riskCost: 0, riskSale: 0, expiredCost: 0, expiredSale: 0, sellsCount: 0, markedDown: 0, ...state.expiry })) } },
       product: { delete: { useMutation: m(() => {}) } },
+      // Счётчик «Инвентаризации» у директора — документы на утверждении.
+      stockCount: { list: { useQuery: q(() => state.counts) } },
       useUtils: () => ({ warehouseMulti: { getStock: { invalidate: vi.fn() } } }),
     },
   };
@@ -67,6 +74,7 @@ vi.mock("@/providers/WarehouseContext", () => ({
 }));
 vi.mock("@/hooks/useCan", () => ({ useCan: () => (cap: string) => cap === "warehouse.adjust" ? stub.state.canAdjust : true }));
 vi.mock("@/hooks/use-mobile", () => ({ useIsMobile: () => false }));
+vi.mock("@/hooks/useAuth", () => ({ useAuth: () => ({ user: { id: 1, role: stub.state.role } }) }));
 vi.mock("@/hooks/useCurrency", () => ({ useCurrency: () => ({ fmt: (v: unknown, compact?: boolean) => (compact ? `${(Number(v) / 1e6).toFixed(1)}M` : String(v)) + " сум", symbol: "сум" }) }));
 vi.mock("@/components/ConfirmDialog", () => ({ useConfirm: () => ({ confirm: async () => true, dialog: null }) }));
 vi.mock("@/lib/excel", () => ({
@@ -99,6 +107,9 @@ beforeEach(() => {
   stub.state.canAdjust = true;
   stub.state.multi = false;
   stub.state.expiry = { riskCount: 0, expiredCount: 0 };
+  stub.state.valuation = { totalCostValue: "60279800" };
+  stub.state.role = "operator";
+  stub.state.counts = [];
   stub.state.exportToExcel.mockReset();
   stub.state.backfill.mockReset();
 });
@@ -127,6 +138,12 @@ describe("каркас страницы", () => {
     expect(within(low as HTMLElement).getByText("2")).toBeTruthy();
     expect(screen.getByText("223 кг на складе")).toBeTruthy();
     expect(screen.getByText("по себестоимости · 60279800 сум")).toBeTruthy();
+  });
+
+  it("плитка стоимости называет едущее и недоехавшее за 30 дней — рядом, не внутри остатка", () => {
+    stub.state.valuation = { totalCostValue: "60279800", inTransitCost: 1500000, transitShortageCost: 400000 };
+    mount();
+    expect(screen.getByText("по себестоимости · 60279800 сум · в пути 1.5M сум · не доехало за 30 дн. 0.4M сум")).toBeTruthy();
   });
 
   it("плитка «Ниже порога» ведёт в «Дозаказ», «Без продаж» — в «Мёртвый сток»", () => {
@@ -159,6 +176,16 @@ describe("каркас страницы", () => {
     expect(screen.queryByRole("tab", { name: /Инвентаризация/ })).toBeNull();
   });
 
+  it("«Инвентаризация» у директора считает документы на его утверждении; у оператора счётчика нет", () => {
+    stub.state.counts = [{ status: "submitted" }, { status: "applied" }, { status: "submitted" }, { status: "draft" }];
+    mount();
+    expect(screen.getByRole("tab", { name: /Инвентаризация/ }).textContent).toBe("Инвентаризация");
+    cleanup();
+    stub.state.role = "ceo";
+    mount();
+    expect(screen.getByRole("tab", { name: /Инвентаризация/ }).textContent).toBe("Инвентаризация2");
+  });
+
   it("«Сроки»: счётчик — не успеют до срока плюс просрочено; из адреса ?tab=expiry; фишек складов нет", () => {
     stub.state.expiry = { riskCount: 2, expiredCount: 1 };
     stub.state.multi = true;
@@ -167,7 +194,7 @@ describe("каркас страницы", () => {
     expect(tab.textContent).toBe("Сроки3");
     expect(tab.getAttribute("aria-selected")).toBe("true");
     expect(screen.getByTestId("tab-expiry")).toBeTruthy();
-    expect(screen.queryByTestId("warehouse-chips"), "продают только с основного — выбор склада здесь ни к чему").toBeNull();
+    expect(screen.queryByTestId("warehouse-chips"), "раздел сам называет склад партии — выбор склада здесь ни к чему").toBeNull();
   });
 
   it("при нескольких складах — «Сравнение» и «Перемещения» в ленте, фишки складов над ней", () => {
@@ -222,6 +249,13 @@ describe("раздел «Остатки»", () => {
     fireEvent.click(screen.getByTestId("stock-low-only"));
     const salt = rows().find(r => r.textContent?.includes("Соль"))!;
     expect(salt.cells[7].textContent).toBe("—");
+  });
+
+  it("едущее на склад документом «в пути» — под «Всего» в строке товара; без едущего строки нет", () => {
+    stub.state.rows = [{ ...row(1, "Арбуз", "146", "15"), inTransitIn: "5.000" }, row(2, "Баранина", "8", "10", "Мясо")];
+    mount();
+    expect(screen.getByTestId("stock-in-transit-1").textContent).toBe("в пути +5");
+    expect(screen.queryByTestId("stock-in-transit-2")).toBeNull();
   });
 
   it("категория — из самих строк; выбор оставляет только её", () => {

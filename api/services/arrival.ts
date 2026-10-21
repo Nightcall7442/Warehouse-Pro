@@ -10,6 +10,7 @@ import { isDuplicateOf } from "../lib/db-errors";
 import { dateColumnDay } from "../lib/period";
 import type { Db } from "./order-shared";
 import { recordAudit } from "./audit-log";
+import { inTransitByProduct } from "./stock-transfer";
 
 /*
   Приход товара: создать, провести (оприходовать на склад через дверь
@@ -366,6 +367,10 @@ export async function updateArrival(db: Db, tenantId: number, input: UpdateArriv
             tx.select({ c: products.costPrice }).from(products).where(and(eq(products.id, item.productId), eq(products.tenantId, tenantId))).limit(1),
           ]);
           onHandBefore = Number(stockRow?.s ?? 0); oldCost = Number(prod?.c ?? 0);
+          // Товар «в пути» между складами со склада уже ушёл и ни на какой ещё
+          // не пришёл — но он наш и куплен по старой цене. Без него средняя
+          // считалась бы так, будто его нет вовсе.
+          onHandBefore += (await inTransitByProduct(tx as unknown as Db, tenantId, [item.productId])).get(item.productId) ?? 0;
         }
 
         /*

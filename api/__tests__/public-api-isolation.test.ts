@@ -113,17 +113,21 @@ describe("организация берётся из ключа, и никак �
     expect(ROUTE).toContain("Unknown warehouse_id for this company");
   });
 
-  it("чужой склад не отдаёт чужие заказы — и не отдаёт вообще ничего", () => {
+  it("склад отдаёт только свои заказы — не весь оборот компании", () => {
     /*
-      Заказы в этом продукте не привязаны к складу: продают только с основного.
-      Значит по любому ДРУГОМУ складу заказов нет, и честный ответ пустой.
-
       Раньше склад проверялся и не фильтровал: спросив второй склад, получатель
       получал весь оборот компании и складывал его в отчёт по этому складу. Ни
       одно число при этом не выглядело подозрительным.
+
+      С точками продаж (ADR 0012) заказ помнит склад, и фильтр идёт по нему;
+      заказ без записи — заказ основного склада. Раньше продавали только с
+      основного, и по другому складу ответ был пустым — правило сменилось
+      осознанно, вместе с решением владельца.
     */
-    expect(ROUTE).toContain("warehouseHasNoOrders = asked !== meta.warehouseId");
-    expect(ROUTE).toContain("if (opts.warehouseHasNoOrders)");
+    expect(ROUTE).toContain("c.push(sql`COALESCE(${orders.warehouseId}, ${opts.defaultWarehouseId ?? 0}) = ${opts.warehouseId}`)");
+    expect(ROUTE).toContain("warehouseFilter = asked;");
+    // И строка отдаёт склад заказа, а не основной на всех.
+    expect(ROUTE).toContain("warehouse_id: r.warehouseId != null ? Number(r.warehouseId) : meta.warehouseId,");
   });
 
   it("журнал обращений тоже сужен организацией", () => {

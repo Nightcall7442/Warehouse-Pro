@@ -55,7 +55,8 @@ describe("заказ спрашивает прайс-лист", () => {
     expect(read("db/schema.ts")).toContain('markupPct:   decimal("markup_pct", { precision: 6, scale: 2 }),');
   });
   it("агент и телефон видят цены магазина; карточка заказа знает список; магазин меняет свой список", () => {
-    expect(read("src/components/orders/ProductSelector.tsx")).toContain("trpc.product.listAll.useQuery(shopId ? { shopId } : undefined)");
+    // Магазин — в запросе каталога; склад продажи (ADR 0012) добавляется к нему, не вместо.
+    expect(read("src/components/orders/ProductSelector.tsx")).toContain("shopId || scoped ? { ...(shopId ? { shopId } : {}), ...scoped } : undefined,");
     expect(read("src/pages/NewOrder.tsx")).toContain("shopId={w.shopId || undefined}");
     expect(read("src/pages/OrderDetail.tsx")).toContain("priceListId={order.priceListId ?? null}");
     expect(read("src/pages/OrderDetail.tsx")).toContain("{order.priceListName ??");

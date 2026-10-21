@@ -37,6 +37,10 @@
  * дешевле. Строка, срезанная потолком, идёт без прайс-листа (priceListId null):
  * цену дал не список. В каталоге потолок срезает и ступени — тогда pickTier
  * на экране выбирает ту же строку, что и сервер, и даёт ту же цену.
+ *
+ * Потолок — только уценки склада, с которого продают (warehouseId: склад
+ * заказа или каталога, ADR 0012). Уценка партии одного склада не дешевит
+ * товар другого.
  */
 import { and, eq, inArray, desc } from "drizzle-orm";
 import { priceLists, priceListItems, priceListAssignments } from "@db/schema";
@@ -118,6 +122,8 @@ export async function resolvePrices(
   db: Db | Tx, tenantId: number, scope: number | PriceScope,
   items: Array<{ productId: number; quantity: number | string }>,
   fallback: Map<number, string>,
+  /** Склад продажи: потолок — только его уценки; null — любого склада. Продажа передаёт всегда. */
+  warehouseId: number | null = null,
 ): Promise<Map<number, ResolvedPrice>> {
   const sc: PriceScope = typeof scope === "number" ? { shopId: scope } : scope;
   const out = new Map<number, ResolvedPrice>();
@@ -133,7 +139,7 @@ export async function resolvePrices(
     }
   }
   // Потолок уценки — после списков: он про партию, а не про магазин.
-  const marks = await activeMarkdowns(db, tenantId, ids);
+  const marks = await activeMarkdowns(db, tenantId, ids, undefined, warehouseId);
   for (const it of items) {
     const now = out.get(it.productId)!;
     const capped = capAtMarkdown(now.price, marks.get(it.productId));
@@ -151,11 +157,13 @@ export async function resolvePrices(
  */
 export async function resolveCatalog(
   db: Db | Tx, tenantId: number, scope: PriceScope, fallback: Map<number, string>,
+  /** Склад каталога: потолок — только его уценки; null — любого склада. */
+  warehouseId: number | null = null,
 ): Promise<Map<number, ResolvedPrice & { tiers: PriceTier[] | null; markdown: ActiveMarkdown | null }>> {
   const ids = [...fallback.keys()];
   const out = new Map<number, ResolvedPrice & { tiers: PriceTier[] | null; markdown: ActiveMarkdown | null }>();
   const { lists, byProduct } = await scopeRows(db, tenantId, scope, ids);
-  const marks = await activeMarkdowns(db, tenantId, ids);
+  const marks = await activeMarkdowns(db, tenantId, ids, undefined, warehouseId);
   for (const id of ids) {
     const rows = byProduct.get(id) ?? [];
     const mark = marks.get(id);

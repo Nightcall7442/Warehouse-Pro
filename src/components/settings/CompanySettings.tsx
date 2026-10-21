@@ -50,6 +50,8 @@ type CompanyForm = {
   overdueHoldEnabled: boolean;
   /** Отсрочка оплаты по умолчанию, дней. */
   overdueGraceDays: string;
+  /** Перемещение между складами в два шага: «в пути», пока получатель не примет. */
+  transferTwoStep: boolean;
 };
 
 const EMPTY: CompanyForm = {
@@ -59,6 +61,7 @@ const EMPTY: CompanyForm = {
   defaultReorderPoint: "",
   overdueHoldEnabled: false,
   overdueGraceDays: "14",
+  transferTwoStep: false,
 };
 
 /** Загрузка отвергает файл больше этого; подпись под кнопкой берёт число отсюда же. */
@@ -69,6 +72,9 @@ export function CompanySettings() {
   const t = (ru: string, uz: string) => lang === "uz" ? uz : ru;
   const logoRef = useRef<HTMLInputElement>(null);
   const { data: settings, isLoading, isLoadingError, refetch } = trpc.settings.get.useQuery();
+  // Склады — тот же запрос, что у выбора склада (WarehouseProvider): с одним складом перемещать некуда.
+  const { data: warehouseList } = trpc.warehouseMulti.list.useQuery();
+  const multiWarehouse = (warehouseList?.length ?? 0) > 1;
   const utils = trpc.useUtils();
   const [form, setForm] = useState<CompanyForm | null>(null);
 
@@ -79,6 +85,7 @@ export function CompanySettings() {
       const v = s[key];
       if (v === null || v === undefined) continue;
       if (key === "overdueHoldEnabled") next.overdueHoldEnabled = Boolean(v);
+      else if (key === "transferTwoStep") next.transferTwoStep = Boolean(v);
       else next[key] = String(v);
     }
     setForm(next);
@@ -245,6 +252,25 @@ export function CompanySettings() {
              "Muddat aniq belgilanmagan bo'lsa, yetkazilgan kundan hisoblanadi. Do'kon kartasida o'z muddatini belgilash mumkin.")}
         </p>
       </FieldGroup>
+
+      {/* Перемещение между складами: выключено — в один шаг, как решил владелец
+          (товар сразу на складе-получателе). Включено — товар «в пути», пока
+          получатель не примет его по строкам; недоехавшее остаётся недостачей
+          на документе. Видно только тем, у кого больше одного склада, но
+          хранится одно на организацию. */}
+      {multiWarehouse && <FieldGroup title={t("Перемещение между складами", "Omborlar orasida ko'chirish")}>
+        <label className="flex items-center gap-3 text-sm text-primary cursor-pointer" style={{ minHeight: "44px" }}>
+          <input type="checkbox" className="neo-toggle" data-testid="transfer-two-step"
+            checked={form.transferTwoStep}
+            onChange={e => setForm({ ...form, transferTwoStep: e.target.checked })} />
+          {t("В два шага: товар «в пути», пока склад-получатель не примет его",
+             "Ikki bosqichda: qabul qiluvchi ombor qabul qilmaguncha tovar «yo'lda»")}
+        </label>
+        <p className="text-xs text-tertiary mt-1.5">
+          {t("Принимают по строкам — не больше отправленного; недоехавшее остаётся недостачей на документе, директор получает уведомление. В самом перемещении режим можно сменить.",
+             "Qatorlar bo'yicha qabul qilinadi — jo'natilgandan ko'p emas; yetib kelmagani hujjatda kamomad bo'lib qoladi, direktor xabar oladi. Ko'chirishning o'zida rejimni o'zgartirish mumkin.")}
+        </p>
+      </FieldGroup>}
 
       <SaveBar
         onSave={save}

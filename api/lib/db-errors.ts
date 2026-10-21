@@ -93,3 +93,31 @@ export function isDuplicateEntry(err: unknown): boolean {
 export function isDuplicateOf(err: unknown, indexName: string): boolean {
   return chainOf(err).some(e => (e.sqlMessage ?? e.message ?? "").includes(indexName));
 }
+
+/**
+ * База откатила сделку взаимной блокировкой (ER_LOCK_DEADLOCK).
+ *
+ * Откатана вся сделка, а не одно выражение — продолжать её нельзя, можно
+ * только начать заново. Так бывает у вставки номера по уникальному индексу:
+ * трое считают один «ИНВ-5», двое получают отказ дубликата и вместе с ним
+ * общий замок промежутка после «ИНВ-5» — и уже следующую вставку «ИНВ-6»
+ * ждут друг у друга.
+ */
+export function isDeadlock(err: unknown): boolean {
+  return chainOf(err).some(e => e.code === "ER_LOCK_DEADLOCK" || e.errno === 1213);
+}
+
+/**
+ * Сделку, которую база откатила взаимной блокировкой, — повторить целиком.
+ * Только для сделок без побочных действий снаружи базы: повтор делает всё
+ * заново, включая то, что внутри уже было сделано и откатано.
+ */
+export async function retryOnDeadlock<T>(run: () => Promise<T>, attempts = 4): Promise<T> {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await run();
+    } catch (err) {
+      if (!isDeadlock(err) || attempt >= attempts) throw err;
+    }
+  }
+}

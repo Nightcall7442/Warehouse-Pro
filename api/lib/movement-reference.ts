@@ -17,8 +17,11 @@ import { stockMovements } from "@db/schema";
  *
  * Одно выражение для всех выборок истории: по типу ссылки берётся номер из
  * своей таблицы. Ссылка на заказ — order_number, на приход — arrival_number,
- * на возврат — return_number, на инвентаризацию — её номер. У перемещения
- * своего номера нет — остаётся порядковый; у возврата поставщику ссылка
+ * на возврат — return_number, на инвентаризацию — её номер (и на правку или
+ * остатки из файла, проведённые утверждением директора: у них тот же документ
+ * ИНВ-N; у прямой правки ссылки нет — номера нет), на документ перемещения —
+ * «ПМ-12». У прежних строк перемещения (до документов) своего
+ * номера нет — остаётся порядковый; у возврата поставщику ссылка
  * ведёт на платёж, номера у него нет вовсе — документ называется без номера.
  * Подзапрос по первичному ключу: движение уже принадлежит арендатору, а
  * значит и документ, на который оно ссылается.
@@ -31,9 +34,13 @@ export const movementReferenceNumber = sql<string | null>`CASE ${stockMovements.
   WHEN 'arrival'          THEN (SELECT a.arrival_number FROM arrivals a WHERE a.id = ${stockMovements.referenceId})
   WHEN 'return_completed' THEN (SELECT r.return_number FROM returns r WHERE r.id = ${stockMovements.referenceId})
   WHEN 'inventory'        THEN (SELECT c.number FROM stock_counts c WHERE c.id = ${stockMovements.referenceId})
+  WHEN 'manual_adjustment' THEN (SELECT c.number FROM stock_counts c WHERE c.id = ${stockMovements.referenceId})
+  WHEN 'import'           THEN (SELECT c.number FROM stock_counts c WHERE c.id = ${stockMovements.referenceId})
   WHEN 'transfer_out'     THEN CAST(${stockMovements.referenceId} AS CHAR)
   WHEN 'transfer_in'      THEN CAST(${stockMovements.referenceId} AS CHAR)
+  WHEN 'transfer_doc_out' THEN (SELECT d.number FROM stock_transfer_docs d WHERE d.id = ${stockMovements.referenceId})
+  WHEN 'transfer_doc_in'  THEN (SELECT d.number FROM stock_transfer_docs d WHERE d.id = ${stockMovements.referenceId})
   ELSE NULL END`;
 
 /** Типы ссылок, у которых номер берётся из своей таблицы, — для стража. */
-export const NUMBERED_REFERENCES = ["order", "order_delivery", "order_return", "order_edit", "arrival", "return_completed", "inventory"] as const;
+export const NUMBERED_REFERENCES = ["order", "order_delivery", "order_return", "order_edit", "arrival", "return_completed", "inventory", "manual_adjustment", "import", "transfer_doc_out", "transfer_doc_in"] as const;

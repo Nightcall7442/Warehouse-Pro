@@ -1,6 +1,6 @@
 import { eq, and, or, asc, desc, sql, isNull, isNotNull, inArray, type SQL, type SQLWrapper } from "drizzle-orm";
 import { alias } from "drizzle-orm/mysql-core";
-import { orders, orderItems, shops, users, products, payments, orderAdjustments, territories, priceLists } from "@db/schema";
+import { orders, orderItems, shops, users, products, payments, orderAdjustments, territories, priceLists, warehouses } from "@db/schema";
 import { OPEN_ORDER_STATUSES, CLOSED_ORDER_STATUSES } from "../lib/order-status";
 import type { Db, OrderViewer } from "./order-shared";
 import { couriers, viewerScope } from "./order-shared";
@@ -220,7 +220,11 @@ export async function getById(db: Db, tenantId: number, orderId: number, viewer:
     shopConfirmedAt: orders.shopConfirmedAt, shopDisputedAt: orders.shopDisputedAt, shopDisputeNote: orders.shopDisputeNote,
     closedAt: orders.closedAt,
     priceListId: orders.priceListId, priceListName: priceLists.name,
+    // Склад заказа — откуда он резервирует и отгружает (ADR 0012). Пусто у
+    // заказов до колонки склада: они с основного.
+    warehouseId: orders.warehouseId, warehouseName: warehouses.name,
   }).from(orders).leftJoin(priceLists, and(eq(priceLists.id, orders.priceListId), eq(priceLists.tenantId, tenantId)))
+    .leftJoin(warehouses, and(eq(warehouses.id, orders.warehouseId), eq(warehouses.tenantId, tenantId)))
     .where(and(eq(orders.id, orderId), eq(orders.tenantId, tenantId), isNull(orders.deletedAt), ...scope)).limit(1);
   if (!order) return null;
 

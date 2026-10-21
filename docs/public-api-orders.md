@@ -137,7 +137,7 @@ own clock. A minute of drift loses orders.
 | `status` | comma-separated; an unknown value is a `400`, never a silent empty page |
 | `created_from`, `created_to` | `YYYY-MM-DD` or ISO 8601. **Both bounds inclusive.** A bare date expands: `from` → `00:00:00`, `to` → `23:59:59` |
 | `updated_since` | ISO 8601; switches to changes mode |
-| `warehouse_id` | validated against your company; an unknown id is a `404`. Sales happen from the **default warehouse only**, so any other (valid) warehouse legitimately returns **zero rows** — not the whole company |
+| `warehouse_id` | validated against your company; an unknown id is a `404`. Returns only the orders shipped from that warehouse (see [`warehouse_id`](#warehouse_id)); a warehouse nobody sells from legitimately returns **zero rows** — not the whole company |
 
 Date filters apply to **`created_at`** (and `updated_at` for `updated_since`).
 
@@ -226,10 +226,12 @@ no longer be changed, so a late delivery cannot be tidied away afterwards.
 
 ### `warehouse_id`
 
-Orders in this ERP are not per-warehouse: sales are made from the default
-warehouse only (an owner's decision). The field carries that warehouse's id —
-the place the goods actually leave from — or `null` if the organisation has no
-default warehouse. It is never a made-up `0`.
+The warehouse the order reserves and ships from — the place the goods
+actually leave from. By default every organisation sells from its default
+warehouse; one that marks other warehouses as sales points sells from those
+too, each order from exactly one. Orders created before the warehouse was
+recorded carry the default warehouse. `null` only if the organisation has no
+default warehouse; it is never a made-up `0`.
 
 ### `territory_id` / `territory_name`
 

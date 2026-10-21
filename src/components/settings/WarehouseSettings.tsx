@@ -2,7 +2,7 @@ import { useState } from "react";
 import { trpc } from "@/providers/trpc";
 import { useLang } from "@/i18n";
 import { notify } from "@/lib/toast";
-import { Loader2, Warehouse, Plus, Star, Pencil, MapPin } from "lucide-react";
+import { Loader2, Warehouse, Plus, Star, Pencil, MapPin, Store } from "lucide-react";
 import { errorText } from "@/lib/error-text";
 
 export function WarehouseSettings() {
@@ -38,6 +38,22 @@ export function WarehouseSettings() {
       setEditId(null);
       setForm({ name: "", address: "", city: "" });
       notify.success(t("Склад обновлён", "Omborxona yangilandi"));
+    },
+    onError: (e) => notify.error(errorText(e)),
+  });
+
+  /*
+    Точка продаж (ADR 0012): с этого склада, кроме основного, продают —
+    заказы и каталог сотрудников, закреплённых за ним в «Пользователях».
+    Отдельной мутацией, а не updateWarehouse: та закрывает форму правки, а
+    отметку ставят, не открывая её.
+  */
+  const toggleSalesPoint = trpc.warehouseMulti.update.useMutation({
+    onSuccess: (_r, v) => {
+      utils.warehouseMulti.list.invalidate();
+      notify.success(v.isSalesPoint
+        ? t("С этого склада теперь продают — закрепите за ним сотрудников в «Пользователях»", "Endi bu ombordan sotiladi — «Foydalanuvchilar» bo'limida unga xodimlarni biriktiring")
+        : t("С этого склада больше не продают", "Bu ombordan endi sotilmaydi"));
     },
     onError: (e) => notify.error(errorText(e)),
   });
@@ -115,6 +131,18 @@ export function WarehouseSettings() {
                       {t("Основной", "Asosiy")}
                     </span>
                   )}
+                  {!wh.isDefault && wh.isSalesPoint && (
+                    <span className="text-[11px] font-semibold px-2 py-0.5 rounded" data-testid={`sales-point-badge-${wh.id}`}
+                      style={{ background: "color-mix(in srgb, var(--color-primary) 15%, transparent)", color: "var(--color-primary-text)" }}>
+                      {t("Точка продаж", "Savdo nuqtasi")}
+                    </span>
+                  )}
+                  {wh.status === "inactive" && (
+                    <span className="text-[11px] font-semibold px-2 py-0.5 rounded"
+                      style={{ background: "var(--color-surface)", color: "var(--color-text-secondary)" }}>
+                      {t("Отключён", "O'chirilgan")}
+                    </span>
+                  )}
                 </div>
                 {(wh.address || wh.city) && (
                   <p className="text-xs text-secondary mt-0.5 truncate flex items-center gap-1">
@@ -124,6 +152,18 @@ export function WarehouseSettings() {
                 )}
               </div>
               <div className="flex items-center gap-1.5 flex-shrink-0">
+                {!wh.isDefault && wh.status !== "inactive" && (
+                  <button onClick={() => toggleSalesPoint.mutate({ id: wh.id, isSalesPoint: !wh.isSalesPoint })}
+                    disabled={toggleSalesPoint.isPending}
+                    className="neo-btn w-9 h-9 p-0 disabled:opacity-40"
+                    aria-pressed={Boolean(wh.isSalesPoint)}
+                    data-testid={`sales-point-toggle-${wh.id}`}
+                    style={wh.isSalesPoint ? { color: "var(--color-primary)", borderColor: "color-mix(in srgb, var(--color-primary) 40%, transparent)" } : undefined}
+                    aria-label={wh.isSalesPoint ? t("Больше не продавать с этого склада", "Bu ombordan sotishni to'xtatish") : t("Продавать с этого склада", "Bu ombordan sotish")}
+                    title={wh.isSalesPoint ? t("Точка продаж — снять отметку", "Savdo nuqtasi — belgini olib tashlash") : t("Сделать точкой продаж", "Savdo nuqtasi qilish")}>
+                    <Store size={14} />
+                  </button>
+                )}
                 {!wh.isDefault && (
                   <button onClick={() => setDefault.mutate({ id: wh.id })}
                     disabled={setDefault.isPending}
@@ -143,6 +183,14 @@ export function WarehouseSettings() {
             </div>
           ))}
         </div>
+      )}
+
+      {/* Что значит «точка продаж» — пока складов больше одного. */}
+      {warehouses && warehouses.length > 1 && (
+        <p className="text-xs text-tertiary px-1" style={{ lineHeight: 1.5 }}>
+          {t("С основного склада продают всегда. Кнопка с магазином делает склад точкой продаж: закреплённые за ним в «Пользователях» сотрудники видят его остаток и продают с него. Остальные склады — для хранения и перемещений.",
+             "Asosiy ombordan har doim sotiladi. Do'kon tugmasi omborni savdo nuqtasiga aylantiradi: «Foydalanuvchilar» bo'limida unga biriktirilgan xodimlar uning qoldig'ini ko'radi va undan sotadi. Qolgan omborlar — saqlash va ko'chirish uchun.")}
+        </p>
       )}
 
       {/* Empty state */}

@@ -14,6 +14,7 @@ import { PhotoOrIcon } from "@/components/PhotoOrIcon";
 import { useOfflineCopy, useShopPrices } from "@/hooks/useOfflineCopy";
 import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "../../../api/router";
+import type { CatalogScope } from "@/lib/sales-warehouse";
 
 type CatalogProduct = inferRouterOutputs<AppRouter>["product"]["listAll"][number];
 /** «В прошлый раз»: среднее количество товара по последним заказам магазина (order.repeatDraft). */
@@ -32,13 +33,22 @@ interface ProductSelectorProps {
   shopId?: number;
   /** Сколько этот магазин брал в последние разы — число у товара и «Как в прошлый раз». */
   lastTime?: LastTimeHint[];
+  /**
+   * Склад каталога (ADR 0012): выбранный офисом или агент, на которого
+   * оформляют. Те же доводы, что у итога в NewOrder, — один ключ запроса.
+   * Пусто — свой склад, ключ прежний.
+   */
+  scope?: CatalogScope;
 }
 
-export function ProductSelector({ items, onChange, cartOpen = false, onCartOpenChange, shopId, lastTime }: ProductSelectorProps) {
+export function ProductSelector({ items, onChange, cartOpen = false, onCartOpenChange, shopId, lastTime, scope }: ProductSelectorProps) {
   const { fmt } = useCurrency();
   const { lang } = useLang();
   const t = (ru: string, uz: string) => lang === "uz" ? uz : ru;
-  const { data: products, isLoading, isLoadingError, refetch } = trpc.product.listAll.useQuery(shopId ? { shopId } : undefined);
+  const scoped = scope?.warehouseId || scope?.agentId ? scope : undefined;
+  const { data: products, isLoading, isLoadingError, refetch } = trpc.product.listAll.useQuery(
+    shopId || scoped ? { ...(shopId ? { shopId } : {}), ...scoped } : undefined,
+  );
   const [search, setSearch] = useState("");
   const searchRef = useRef<HTMLInputElement>(null);
   const [scanning, setScanning] = useState(false);

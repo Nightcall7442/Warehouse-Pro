@@ -1,10 +1,12 @@
 import { z } from "zod";
 import { receiveStock } from "./services/stock-ledger";
+import { orderWarehouseId } from "./services/order-shared";
+import { defaultWarehouseId } from "./services/sales-warehouse";
 import { monthRange } from "./lib/period";
 import { createRouter, fieldSalesQuery, operatorQuery } from "./middleware";
 import { getDb } from "./queries/connection";
 import { assertProductsBelongToTenant } from "./lib/tenant-refs";
-import { returns, returnItems, orderItems, shops, users, products, orders, warehouseStock, warehouses } from "@db/schema";
+import { returns, returnItems, orderItems, shops, users, products, orders, warehouseStock } from "@db/schema";
 import { ORDER_STATUS_LABELS, RETURN_STATUS_LABELS } from "./lib/order-status";
 
 /** Офис видит все возвраты организации, поле — только свои. */
@@ -378,9 +380,19 @@ export const returnsRouter = createRouter({
           // Returned goods land in one warehouse. Without this filter the quantity
           // was added to every warehouse holding the product, inflating stock by a
           // multiple of the return for multi-warehouse tenants.
-          const [defaultWh] = await tx.select({ id: warehouses.id }).from(warehouses)
-            .where(and(eq(warehouses.tenantId, tenantId), eq(warehouses.isDefault, true))).limit(1);
-          const whId = defaultWh?.id;
+          /*
+            Склад возврата — склад заказа (ADR 0012): товар филиала уехал с
+            полки филиала и возвращается на неё же, а не на основной, откуда
+            его никто не отгружал. Возврат без заказа и заказ до колонки
+            склада — на основной, как было (orderWarehouseId).
+          */
+          let whId: number | null = null;
+          if (ret.orderId) {
+            const [linked] = await tx.select({ warehouseId: orders.warehouseId }).from(orders)
+              .where(and(eq(orders.id, ret.orderId), eq(orders.tenantId, tenantId))).limit(1);
+            if (linked) whId = await orderWarehouseId(tx, tenantId, linked);
+          }
+          whId ??= await defaultWarehouseId(tx, tenantId);
           if (!whId) throw new Error("Склад по умолчанию не найден");
 
           // Lock stock rows and add items back to inventory

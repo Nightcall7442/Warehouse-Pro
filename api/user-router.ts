@@ -1,7 +1,8 @@
 import { z } from "zod";
 import { createRouter, adminQuery, operatorQuery, authedQuery, superAdminQuery } from "./middleware";
 import { getDb } from "./queries/connection";
-import { users } from "@db/schema";
+import { users, warehouses } from "@db/schema";
+import { findSellableWarehouse } from "./services/sales-warehouse";
 import { eq, ne, like, and, sql, desc } from "drizzle-orm";
 import { hashPassword, verifyPassword } from "./auth/password";
 import { TRPCError } from "@trpc/server";
@@ -53,7 +54,9 @@ export const userRouter = createRouter({
       const [data, countResult] = await Promise.all([
         db.select({ id: users.id, name: users.name, email: users.email, phone: users.phone,
                     avatar: users.avatar, role: users.role, status: users.status,
-                    createdAt: users.createdAt, lastSignInAt: users.lastSignInAt })
+                    createdAt: users.createdAt, lastSignInAt: users.lastSignInAt,
+                    // Склад продаж сотрудника (ADR 0012); пусто — основной.
+                    warehouseId: users.warehouseId })
           .from(users).where(where).limit(pageSize).offset(offset).orderBy(desc(users.createdAt)),
         // Активные считаются тем же запросом, что и всего: плитки на экране
         // считали их по странице в 25 строк и на второй странице врали.
@@ -246,6 +249,11 @@ export const userRouter = createRouter({
       phone:  z.string().optional(),
       role:   z.enum(["ceo","operator","agent","supervisor","merchandiser","courier"]).optional(),
       status: z.enum(["active","inactive"]).optional(),
+      /*
+        Склад, с которого продаёт сотрудник (ADR 0012): его каталог и его
+        заказы. null — снять, продаёт с основного. Не прислали — не трогаем.
+      */
+      warehouseId: z.number().int().positive().nullable().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
       const db = getDb();
@@ -266,15 +274,38 @@ export const userRouter = createRouter({
       }
 
       // Capture before state for audit
-      const [before] = await db.select({ role: users.role, status: users.status, name: users.name })
-        .from(users).where(and(eq(users.id, id), eq(users.tenantId, ctx.tenant.id))).limit(1);
+      const [before] = await db.select({ role: users.role, status: users.status, name: users.name, warehouseId: users.warehouseId, warehouseName: warehouses.name })
+        .from(users)
+        .leftJoin(warehouses, and(eq(warehouses.id, users.warehouseId), eq(warehouses.tenantId, ctx.tenant.id)))
+        .where(and(eq(users.id, id), eq(users.tenantId, ctx.tenant.id))).limit(1);
 
-      await db.update(users).set(data)
-        .where(and(eq(users.id, id), eq(users.tenantId, ctx.tenant.id)));
+      /*
+        Склад — только свой и только тот, с которого продают: действующий,
+        основной или отмеченный точкой продаж. Чужой номер склада записался
+        бы как есть и увёл бы резерв заказов агента на склад другой
+        организации; склад хранения — молча не подействовал бы.
+
+        Проверка и запись — одной сделкой, склад под разделяемым замком:
+        иначе между «склад продаёт» и записью его успевали отключить
+        (warehouseMulti.update проверяет закреплённых под своим замком), и
+        агент оказывался закреплён за отключённым складом — то есть молча
+        продавал с основного.
+      */
+      let warehouseName: string | null = null;
+      await db.transaction(async (tx) => {
+        if (data.warehouseId != null) {
+          const wh = await findSellableWarehouse(tx, ctx.tenant.id, data.warehouseId, true);
+          if (!wh) throw new TRPCError({ code: "BAD_REQUEST", message: "С этого склада не продают: он отключён или не отмечен точкой продаж" });
+          warehouseName = wh.name;
+        }
+        await tx.update(users).set(data)
+          .where(and(eq(users.id, id), eq(users.tenantId, ctx.tenant.id)));
+      });
       invalidateAuthUser(id);
 
-      // Audit: user updated (role/status change)
-      if (data.role || data.status) {
+      // Audit: user updated (role/status change, склад продаж)
+      const warehouseChanged = data.warehouseId !== undefined && (data.warehouseId ?? null) !== (before?.warehouseId ?? null);
+      if (data.role || data.status || warehouseChanged) {
         await recordAudit(db, {
           tenantId: ctx.tenant.id,
           actorId: ctx.user.id,
@@ -282,7 +313,11 @@ export const userRouter = createRouter({
           action: "user.updated",
           targetType: "user",
           targetId: id,
-          meta: { before: { role: before?.role, status: before?.status }, after: { role: data.role ?? before?.role, status: data.status ?? before?.status }, userName: before?.name },
+          meta: {
+            before: { role: before?.role, status: before?.status, ...(warehouseChanged ? { warehouse: before?.warehouseName ?? null } : {}) },
+            after: { role: data.role ?? before?.role, status: data.status ?? before?.status, ...(warehouseChanged ? { warehouse: warehouseName } : {}) },
+            userName: before?.name,
+          },
           ip: getClientIp(ctx.req) ?? undefined,
         });
       }

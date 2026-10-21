@@ -1,4 +1,4 @@
-import { and, eq, sql, isNull, isNotNull, inArray } from "drizzle-orm";
+import { and, eq, or, sql, isNull, isNotNull, inArray } from "drizzle-orm";
 import { products, warehouseStock, warehouses, users, settings } from "@db/schema";
 import { getDb } from "../queries/connection";
 import { logger } from "../lib/logger";
@@ -55,7 +55,14 @@ export function lowStockCondition() {
   );
 }
 
-/** Условие «на основном складе» — для строк warehouse_stock. */
+/**
+ * Условие «на основном складе» — для строк warehouse_stock.
+ *
+ * Экраны, бот и сводка «что заканчивается» остаются на основном складе и при
+ * точках продаж (ADR 0012): их ответ — список товаров, и строка на каждый
+ * склад задвоила бы товар без имени склада (мобилка читает reorderAlerts
+ * этой же формы). Тревога крона ниже — по каждому складу продаж.
+ */
 export function onDefaultWarehouse(tenantId: number) {
   return sql`${warehouseStock.warehouseId} IN (SELECT id FROM ${warehouses} WHERE ${warehouses.tenantId} = ${tenantId} AND ${warehouses.isDefault} = 1)`;
 }
@@ -107,8 +114,15 @@ export async function runLowStockAlerts(db: Db = getDb()): Promise<{ alerted: nu
     ));
   await markLowStockAlerted(db, recovered.map(r => r.id), null);
 
-  // 2. Новые пересечения — только основной склад каждой организации.
-  const fresh = await db.select({
+  /*
+    2. Новые пересечения — на складах, с которых продают: основной и
+    действующие точки продаж (ADR 0012). Кончается товар у филиала — его
+    агенты уже не продадут, и офису надо знать об этом так же, как об
+    основном. Склад хранения тревог не шлёт: с него не продают, и его
+    «кончилось» — повод для перемещения, а не для заказа поставщику.
+    Строка не основного склада называет склад: «Сахар («Филиал»)».
+  */
+  const freshRows = await db.select({
     tenantId: warehouseStock.tenantId,
     stockId: warehouseStock.id,
     productId: products.id,
@@ -116,12 +130,22 @@ export async function runLowStockAlerts(db: Db = getDb()): Promise<{ alerted: nu
     unit: products.unit,
     available: warehouseStock.available,
     reorderPoint: products.reorderPoint,
+    isDefault: warehouses.isDefault,
+    warehouseName: warehouses.name,
   })
     .from(warehouseStock)
     .innerJoin(products, and(eq(products.id, warehouseStock.productId), eq(products.tenantId, warehouseStock.tenantId)))
-    .innerJoin(warehouses, and(eq(warehouses.id, warehouseStock.warehouseId), eq(warehouses.isDefault, true)))
+    .innerJoin(warehouses, and(
+      eq(warehouses.id, warehouseStock.warehouseId),
+      eq(warehouses.tenantId, warehouseStock.tenantId),
+      or(eq(warehouses.isDefault, true), and(eq(warehouses.isSalesPoint, true), eq(warehouses.status, "active"))),
+    ))
     .where(and(isNull(warehouseStock.lowStockAlertedAt), eq(products.status, "active"), lowStockCondition()))
     .limit(500);
+  const fresh: LowStockRow[] = freshRows.map(({ isDefault, warehouseName, ...r }) => ({
+    ...r,
+    productName: !isDefault && warehouseName ? `${r.productName} («${warehouseName}»)` : r.productName,
+  }));
 
   const byTenant = new Map<number, LowStockRow[]>();
   for (const r of fresh) byTenant.set(r.tenantId, [...(byTenant.get(r.tenantId) ?? []), r]);

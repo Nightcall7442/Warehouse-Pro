@@ -39,7 +39,8 @@ import { errorText } from "@/lib/error-text";
  *
  *   не успеет / нет продаж — уценить (цена-потолок для всех магазинов, пока
  *                            партия жива; агенты видят «Продать первым»);
- *   не на основном складе  — переместить: продают только с основного;
+ *   на складе, с которого не продают — переместить: продают с основного и
+ *                            с точек продаж (ADR 0012), склад хранения ждёт;
  *   просрочено             — списать (окно движения, заполненное заранее);
  *   успеет                 — ничего не делать.
  *
@@ -52,7 +53,7 @@ import { errorText } from "@/lib/error-text";
  * подпись говорит об этом прямо.
  */
 export function ExpiringBatches({ onOpenTransfers }: {
-  /** «Переместить на основной» — раздел перемещений той же страницы склада. */
+  /** «Переместить туда, где продают» — раздел перемещений той же страницы склада. */
   onOpenTransfers?: () => void;
 } = {}) {
   const { lang } = useLang();
@@ -92,11 +93,13 @@ export function ExpiringBatches({ onOpenTransfers }: {
     onError: (e) => notify.error(errorText(e)),
   });
   const adjust = trpc.warehouse.adjustStock.useMutation({
-    onSuccess: () => {
+    onSuccess: (r) => {
       setWriteOff(null);
       utils.warehouseReports.expiring.invalidate();
       utils.warehouseReports.expiringSummary.invalidate();
-      notify.success(t("Списано", "Hisobdan chiqarildi"));
+      // Оператору без права проводить: списание ждёт директора, партия пока на месте.
+      if (r.pendingApproval) notify.info(t(`Списание отправлено руководителю на утверждение (${r.number})`, `Hisobdan chiqarish rahbarga tasdiqlash uchun yuborildi (${r.number})`));
+      else notify.success(t("Списано", "Hisobdan chiqarildi"));
     },
     onError: (e) => notify.error(errorText(e)),
   });
@@ -298,6 +301,7 @@ export function ExpiringBatches({ onOpenTransfers }: {
           onSave={d => adjust.mutate(d as Parameters<typeof adjust.mutate>[0])}
           onClose={() => setWriteOff(null)}
           isPending={adjust.isPending}
+          needsApproval={!can("warehouse.apply")}
         />
       )}
     </div>
@@ -440,7 +444,7 @@ function ExpiryRowCard({ r, seesCost, canPrice, canAdjust, opening, clearing, on
           ) : r.verdict === "elsewhere" ? (
             <button type="button" className="neo-btn tap w-full lg:w-auto" onClick={onMove}>
               <ArrowLeftRight size={14} />
-              {t("Переместить на основной", "Asosiyga ko'chirish")}
+              {t("Переместить туда, где продают", "Sotiladigan omborga ko'chirish")}
             </button>
           ) : r.verdict === "expired" ? (
             canAdjust ? (

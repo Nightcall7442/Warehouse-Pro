@@ -1,4 +1,5 @@
 import { COLORS, SHADOW, thStyle, type User, type Lang } from "./types";
+import type { SalesWarehouseChoice } from "./UserRow";
 import { UserRow } from "./UserRow";
 import { CardTable } from "@/components/CardTable";
 
@@ -14,10 +15,13 @@ interface UserTableProps {
   onPageChange: (page: number) => void;
   onWorkZone?: (id: number, name: string) => void;
   onTransferCredentials?: (id: number, name: string, email: string) => void;
+  /** Склад продаж сотрудника (ADR 0012). Нет — колонки нет: продают только с основного. */
+  salesWarehouse?: SalesWarehouseChoice;
 }
 
-export function UserTable({ users, isLoading, page, total, lang, onResetPassword, onDeactivate, onReactivate, onPageChange, onWorkZone, onTransferCredentials }: UserTableProps) {
+export function UserTable({ users, isLoading, page, total, lang, onResetPassword, onDeactivate, onReactivate, onPageChange, onWorkZone, onTransferCredentials, salesWarehouse }: UserTableProps) {
   const t = (ru: string, uz: string) => (lang === "uz" ? uz : ru);
+  const columns = salesWarehouse ? 8 : 7;
 
   return (
     <>
@@ -34,6 +38,7 @@ export function UserTable({ users, isLoading, page, total, lang, onResetPassword
                   t("EMAIL", "EMAIL"),
                   t("РОЛЬ", "LAVOZIM"),
                   t("СТАТУС", "HOLAT"),
+                  ...(salesWarehouse ? [t("СКЛАД ПРОДАЖ", "SAVDO OMBORI")] : []),
                   t("ПОСЛЕДНИЙ ВХОД", "SO'NGGI KIRISH"),
                   "",
                   "",
@@ -46,7 +51,7 @@ export function UserTable({ users, isLoading, page, total, lang, onResetPassword
               {isLoading
                 ? Array.from({ length: 5 }).map((_, i) => (
                     <tr key={i}>
-                      <td colSpan={6} style={{ padding: "14px 16px" }}>
+                      <td colSpan={columns - 1} style={{ padding: "14px 16px" }}>
                         <div style={{ height: "16px", borderRadius: "6px", background: COLORS.surfaceLight, animation: `slideUp ${0.4 + i * 0.05}s ease` }} />
                       </td>
                     </tr>
@@ -54,7 +59,7 @@ export function UserTable({ users, isLoading, page, total, lang, onResetPassword
                 : users.length === 0
                 ? (
                   <tr>
-                    <td colSpan={7} style={{ textAlign: "center", padding: "48px 16px", color: COLORS.textSecondary, fontSize: "14px", fontFamily: "var(--font-body, 'Manrope', -apple-system, sans-serif)" }}>
+                    <td colSpan={columns} style={{ textAlign: "center", padding: "48px 16px", color: COLORS.textSecondary, fontSize: "14px", fontFamily: "var(--font-body, 'Manrope', -apple-system, sans-serif)" }}>
                       {t("Пользователи не найдены", "Foydalanuvchilar topilmadi")}
                     </td>
                   </tr>
@@ -69,6 +74,7 @@ export function UserTable({ users, isLoading, page, total, lang, onResetPassword
                       onReactivate={onReactivate}
                       onWorkZone={onWorkZone}
                       onTransferCredentials={onTransferCredentials}
+                      salesWarehouse={salesWarehouse}
                     />
                   ))}
             </tbody>

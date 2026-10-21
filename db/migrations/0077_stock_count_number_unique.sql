@@ -1,0 +1,1 @@
+ALTER TABLE `stock_counts` ADD CONSTRAINT `uq_stock_counts_number` UNIQUE(`tenant_id`,`number`);

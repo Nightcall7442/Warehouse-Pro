@@ -12,9 +12,11 @@ type Warehouse = { id: number; name: string; isDefault?: boolean | null };
  * Сравнение складов — товар строкой, склад колонкой.
  *
  * Прежний режим «Все склады» отдавал СУММУ по складам одной цифрой — и врал
- * дважды: продать можно только с основного, а в списке остатков строки
+ * дважды: продают со своего склада (основного или точки продаж, ADR 0012),
+ * а не с суммы всех, и в списке остатков строки
  * удваивались (по строке на склад). Здесь суммы нет: видно, где именно лежит
- * товар, и сколько свободно на каждом складе.
+ * товар, и сколько свободно на каждом складе. И сколько к складу едет
+ * документом «в пути» — отдельной строкой в его ячейке.
  */
 export function WarehouseCompare({ warehouses }: { warehouses: Warehouse[] }) {
   const { lang } = useLang();
@@ -24,12 +26,12 @@ export function WarehouseCompare({ warehouses }: { warehouses: Warehouse[] }) {
   const q = trpc.warehouseMulti.getStock.useQuery({ pageSize: 10000 });
 
   const rows = useMemo(() => {
-    const byProduct = new Map<number, { id: number; name: string; code: string | null; unit: string | null; perWarehouse: Record<number, { available: number; current: number }> }>();
+    const byProduct = new Map<number, { id: number; name: string; code: string | null; unit: string | null; perWarehouse: Record<number, { available: number; current: number; inTransit: number }> }>();
     for (const r of (q.data?.data ?? []) as Array<Record<string, unknown>>) {
       const pid = Number(r.productId);
       const row = byProduct.get(pid) ?? { id: pid, name: String(r.productName ?? ""), code: (r.productCode as string | null) ?? null, unit: (r.unit as string | null) ?? null, perWarehouse: {} };
       const wid = r.warehouseId == null ? null : Number(r.warehouseId);
-      if (wid != null) row.perWarehouse[wid] = { available: Number(r.available ?? 0), current: Number(r.currentStock ?? 0) };
+      if (wid != null) row.perWarehouse[wid] = { available: Number(r.available ?? 0), current: Number(r.currentStock ?? 0), inTransit: Number(r.inTransitIn ?? 0) };
       byProduct.set(pid, row);
     }
     const s = search.trim().toLowerCase();
@@ -83,6 +85,11 @@ export function WarehouseCompare({ warehouses }: { warehouses: Warehouse[] }) {
                         {c ? `${formatQty(avail)} ${unitShort(p.unit, lang)}` : "—"}
                         {c && c.current !== avail && (
                           <div style={{ fontSize: 11, color: COLORS.textTertiary }}>{t("всего", "jami")} {formatQty(c.current)}</div>
+                        )}
+                        {/* Едет на этот склад документом «в пути»: со склада-отправителя уже
+                            ушло, здесь ещё не принято — без этой строки товар не виден нигде. */}
+                        {c && c.inTransit > 0 && (
+                          <div style={{ fontSize: 11, color: "var(--color-info-text)" }}>{t("в пути", "yo'lda")} +{formatQty(c.inTransit)}</div>
                         )}
                       </td>
                     );

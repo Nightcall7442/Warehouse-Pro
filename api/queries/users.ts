@@ -24,6 +24,8 @@ export async function findUserById(id: number) {
       lastSignInAt: schema.users.lastSignInAt,
       telegramChatId: schema.users.telegramChatId,
       telegramLang:   schema.users.telegramLang,
+      // Склад продаж (ADR 0012): экран заказа показывает, с какого склада продаёт сотрудник.
+      warehouseId:    schema.users.warehouseId,
     })
     .from(schema.users)
     .where(eq(schema.users.id, id))

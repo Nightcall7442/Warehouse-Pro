@@ -109,9 +109,17 @@ const ROUTERS = fs.readdirSync(path.resolve(ROOT, "api"))
   .map(f => ({ file: f, src: read(`api/${f}`) }));
 
 describe("переключатель закрывает настоящие ручки", () => {
+  /*
+    Ручке может быть нужно два решения директора подряд: применить
+    инвентаризацию — это и «править остатки», и «проводить без утверждения»
+    (`operatorQuery.use(can("warehouse.adjust")).use(can("warehouse.apply"))`).
+    Поэтому читается вся цепочка can(), а не только первое звено: иначе
+    вторая возможность выглядела бы переключателем, который ничего не закрывает.
+  */
   const guarded = ROUTERS.flatMap(r =>
-    [...r.src.matchAll(/\n {2}(\w+): (\w+Query)\.use\(can\("([\w.]+)"\)\)/g)]
-      .map(m => ({ file: r.file, proc: m[1], kind: m[2], cap: m[3] })));
+    [...r.src.matchAll(/\n {2}(\w+): (\w+Query)((?:\.use\(can\("[\w.]+"\)\))+)/g)]
+      .flatMap(m => [...m[3].matchAll(/can\("([\w.]+)"\)/g)]
+        .map(c => ({ file: r.file, proc: m[1], kind: m[2], cap: c[1] }))));
 
   it("каждая возможность закрывает хотя бы одну процедуру", () => {
     /*
@@ -163,6 +171,9 @@ describe("переключатель закрывает настоящие ру�
     expect(has("restore", "orders.delete") || has("restore", "shops.delete")).toBe(true);
     expect(has("addPayment", "payments.accept")).toBe(true);
     expect(has("adjustStock", "warehouse.adjust")).toBe(true);
+    // Применить инвентаризацию — два решения: править остатки И проводить без утверждения.
+    expect(has("applyCount", "warehouse.adjust")).toBe(true);
+    expect(has("applyCount", "warehouse.apply"), "инвентаризация проводится мимо утверждения").toBe(true);
     // Аудит 20.09.2026: три денежные ручки заказа, смена статуса и приходы обходили настройку.
     expect(has("recordPartialPayment", "payments.accept"), "платёж через окно завершения мимо настройки").toBe(true);
     expect(has("recordDeliveryAndPayment", "payments.accept")).toBe(true);

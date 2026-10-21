@@ -193,8 +193,7 @@ describe("страж: сервисы записи сбрасывают отчё�
     ["services/arrival.ts", 5],            // создан, строки заменены, завершён, расходы, удалён
     ["services/stock.ts", 1],              // ручная корректировка
     ["stock-count-router.ts", 1],          // инвентаризация
-    ["warehouse-multi-router.ts", 1],      // перемещение
-    ["services/stock-transfer.ts", 1],     // перемещение документом в один шаг
+    ["services/stock-transfer.ts", 4],     // документ перемещения, приёмка «в пути», отмена, прежняя строка «в пути»
     ["services/order-close.ts", 1],        // «Закрыть расчёт»: платежи офиса, долг, недостача
     ["supplier-router.ts", 1],             // возврат поставщику
     ["product-router.ts", 4],              // цена/себестоимость, удаление ×3
@@ -209,6 +208,10 @@ describe("страж: сервисы записи сбрасывают отчё�
     const src = read(file);
     expect(src).toContain('from "./lib/report-cache"'.replace("./", file.includes("/") ? "../" : "./"));
     expect(src.match(/invalidateReports\(/g)?.length ?? 0).toBe(times);
+  });
+
+  it("роутер складов перемещение сам не проводит — сброс отчётов в службе документа", () => {
+    expect(read("warehouse-multi-router.ts")).not.toContain("invalidateReports(");
   });
 
   it("чтение, которое пишет (черновик комиссии), отчёты НЕ сбрасывает", () => {

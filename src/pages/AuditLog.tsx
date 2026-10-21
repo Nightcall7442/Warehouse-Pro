@@ -132,6 +132,12 @@ const ACTION_CONFIG: Record<string, { icon: LucideIcon; gradient: string }> = {
   // Склад
   "stock.adjusted":                  { icon: Package, gradient: WARNING },
   "stock.transfer_completed":        { icon: Boxes, gradient: PRIMARY },
+  // Склад стал или перестал быть точкой продаж, включён или отключён (ADR 0012).
+  "warehouse.updated":               { icon: Boxes, gradient: WARNING },
+  // Документ перемещения в два шага: ушло «в пути», принято (недостача — в подробностях), отменено.
+  "stock.transfer_shipped":          { icon: Boxes, gradient: PRIMARY },
+  "stock.transfer_received":         { icon: Boxes, gradient: SUCCESS },
+  "stock.transfer_cancelled":        { icon: Boxes, gradient: WARNING },
   "control.enabled":                 { icon: ShieldCheck, gradient: SUCCESS },
   "control.disabled":                { icon: ShieldCheck, gradient: WARNING },
   "control.shop_confirmed":          { icon: ShieldCheck, gradient: SUCCESS },
@@ -139,6 +145,9 @@ const ACTION_CONFIG: Record<string, { icon: LucideIcon; gradient: string }> = {
   "stock_count.create":              { icon: ClipboardCheck, gradient: PRIMARY },
   "stock_count.apply":               { icon: ClipboardCheck, gradient: SUCCESS },
   "stock_count.cancel":              { icon: ClipboardCheck, gradient: DANGER },
+  "stock_count.submit":              { icon: ClipboardCheck, gradient: WARNING },
+  "stock_count.approve":             { icon: ClipboardCheck, gradient: SUCCESS },
+  "stock_count.reject":              { icon: ClipboardCheck, gradient: DANGER },
   "arrival.completed":               { icon: Truck, gradient: SUCCESS },
   "product.cost_averaged":           { icon: Package, gradient: PRIMARY },
   "supplier.return_goods":           { icon: Truck, gradient: WARNING },

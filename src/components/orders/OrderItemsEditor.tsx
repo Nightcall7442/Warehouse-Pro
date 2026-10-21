@@ -81,7 +81,9 @@ export function OrderItemsEditor({ orderId, shopId, priceListId, items, onSaved 
 
   // Каталог тянется только когда его открыли: у организации это пятьсот строк,
   // и грузить их при каждом открытии карточки заказа незачем.
-  const { data: catalog } = trpc.product.list.useQuery({ pageSize: 500, shopId, priceListId }, { enabled: open });
+  // orderId — остаток и уценка склада ЭТОГО заказа (ADR 0012): заказ филиала,
+  // открытый в офисе, правится по остатку филиала, а не основного склада.
+  const { data: catalog } = trpc.product.list.useQuery({ pageSize: 500, shopId, priceListId, orderId }, { enabled: open });
   const products = useMemo(() => catalog?.data ?? [], [catalog]);
 
   const start = () => {

@@ -19,8 +19,9 @@ import { dateLocale } from "@/lib/date-locale";
 import {
   ArrowLeft, Printer, FileDown, CheckCircle2,
   ChevronDown, Truck, Trash2, Edit3, CreditCard,
-  Phone, Package, User, Clock, AlertTriangle, Store, ShieldCheck, ShieldAlert, X, Tag,
+  Phone, Package, User, Clock, AlertTriangle, Store, ShieldCheck, ShieldAlert, X, Tag, Warehouse,
 } from "lucide-react";
+import { sellableWarehouses } from "@/lib/sales-warehouse";
 import { useState, useCallback } from "react";
 import { PremiumSelect } from "@/components/PremiumSelect";
 import { exportToExcel } from "@/lib/excel";
@@ -111,6 +112,13 @@ export default function OrderDetail() {
   );
   // Чек — по нажатию, не при открытии: HTML с QR нужен только для печати.
   const receipt = trpc.order.receipt.useQuery({ id: Number(id) }, { enabled: false });
+  /*
+    Склад заказа (ADR 0012) — когда продают больше чем с одного склада: тогда
+    кладовщику и офису важно, откуда везти. Список складов уже в кэше
+    (WarehouseProvider), второго запроса нет.
+  */
+  const { data: warehouseList } = trpc.warehouseMulti.list.useQuery();
+  const showsWarehouse = sellableWarehouses(warehouseList).length > 1;
 
   const { company: seller, footerNote, invoice } = useSellerCompany();
 
@@ -497,7 +505,7 @@ export default function OrderDetail() {
           {/* ── Слева: кому, что, сколько ── */}
           <div className="space-y-4 min-w-0">
             <div className="neo-card p-6 space-y-5">
-              <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
+              <div className={`grid grid-cols-2 gap-4 ${showsWarehouse && order.warehouseName ? "sm:grid-cols-3 xl:grid-cols-6" : "sm:grid-cols-5"}`}>
                 <Fact icon={<Store size={12}/>} label={lang === "uz" ? "Xaridor" : "Покупатель"}>
                   <p className="font-medium">{order.shop?.name ?? "—"}</p>
                   {order.shop?.phone && <p className="text-xs text-secondary flex items-center gap-1 mt-0.5"><Phone size={10}/> {order.shop.phone}</p>}
@@ -505,6 +513,11 @@ export default function OrderDetail() {
                 </Fact>
                 <Fact icon={<User size={12}/>} label={lang === "uz" ? "Agent" : "Агент"}>{order.agent?.name ?? "—"}</Fact>
                 <Fact icon={<Truck size={12}/>} label={lang === "uz" ? "Kuryer" : "Курьер"}>{order.courier?.name ?? "—"}</Fact>
+                {showsWarehouse && order.warehouseName && (
+                  <Fact icon={<Warehouse size={12}/>} label={lang === "uz" ? "Ombor" : "Склад"}>
+                    <span data-testid="order-warehouse">{order.warehouseName}</span>
+                  </Fact>
+                )}
                 <Fact icon={<Tag size={12}/>} label={lang === "uz" ? "Narxlar ro'yxati" : "Прайс-лист"}>{order.priceListName ?? (lang === "uz" ? "Tovar kartasi" : "По карточке")}</Fact>
                 <Fact icon={<CreditCard size={12}/>} label={lang === "uz" ? "Yetkazib berish" : "Доставка"}>
                   {lang === "uz" ? deliveryLabel[1] : deliveryLabel[0]}

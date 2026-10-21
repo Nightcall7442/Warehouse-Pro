@@ -512,6 +512,41 @@
       "when": 1792445294727,
       "tag": "0072_commission_month_end",
       "breakpoints": true
+    },
+    {
+      "idx": 73,
+      "version": "5",
+      "when": 1792568910577,
+      "tag": "0073_transfer_docs",
+      "breakpoints": true
+    },
+    {
+      "idx": 74,
+      "version": "5",
+      "when": 1792573686930,
+      "tag": "0074_stock_count_approval",
+      "breakpoints": true
+    },
+    {
+      "idx": 75,
+      "version": "5",
+      "when": 1792577858363,
+      "tag": "0075_sales_warehouses",
+      "breakpoints": true
+    },
+    {
+      "idx": 76,
+      "version": "5",
+      "when": 1792588204820,
+      "tag": "0076_stock_count_number_dedupe",
+      "breakpoints": true
+    },
+    {
+      "idx": 77,
+      "version": "5",
+      "when": 1792588238700,
+      "tag": "0077_stock_count_number_unique",
+      "breakpoints": true
     }
   ]
 }

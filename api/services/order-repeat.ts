@@ -18,8 +18,10 @@
  * Цены — ТЕКУЩИЕ и той же функцией, что каталог и заказ (resolvePrices: списки
  * магазина, ступень по количеству строки, правило «к карточке»). Старая цена
  * из прошлого заказа была бы обещанием, которое сервер при создании не
- * сдержит. Остаток — по основному складу: продают только с него (решение
- * владельца), и сумма по всем складам обещала бы то, чего заказ не даст.
+ * сдержит. Остаток — склада, с которого продаст новый заказ того, кто
+ * повторяет (ADR 0012: его склад продаж, иначе основной; salesWarehouseFor),
+ * и уценка — того же склада. Сумма по всем складам обещала бы то, чего заказ
+ * не даст.
  *
  * Товар, снятый с продажи, в черновик не попадает, а называется отдельным
  * списком: молча выкинутая строка — это магазин, которому не довезли и не
@@ -36,8 +38,9 @@
  */
 import { and, desc, eq, inArray, isNull, notInArray, sql } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
-import { orders, orderItems, products, shops, warehouses, warehouseStock } from "@db/schema";
+import { orders, orderItems, products, shops, warehouseStock } from "@db/schema";
 import { resolvePrices } from "./price-resolver";
+import { salesWarehouseFor } from "./sales-warehouse";
 import { orderAccessError, viewerScope, type Db, type Tx } from "./order-shared";
 
 /** Кто спрашивает — роль решает, чьи заказы видны. */
@@ -166,22 +169,24 @@ export async function repeatDraft(
   const skipped = rows.filter(r => r.status !== "active")
     .map(r => ({ productId: Number(r.productId), name: r.name, quantity: String(r.quantity) }));
 
+  // Склад нового заказа — тот же, что выберет order.create для повторяющего
+  // без явного выбора: его склад продаж, иначе основной. Без склада продавать
+  // неоткуда, и честный ответ — ноль.
+  const whId = await salesWarehouseFor(db, tenantId, { agentId: viewer.userId });
+
   // Цена строки — при её количестве, тем же resolvePrices, что и order.create
-  // без выбранного списка: списки магазина, иначе карточка.
+  // без выбранного списка: списки магазина, иначе карточка; уценка — этого склада.
   const priced = await resolvePrices(db, tenantId, { shopId, priceListId: null },
     alive.map(r => ({ productId: Number(r.productId), quantity: r.quantity })),
-    new Map(alive.map(r => [Number(r.productId), String(r.cardPrice)])));
+    new Map(alive.map(r => [Number(r.productId), String(r.cardPrice)])), whId);
 
-  // Остаток — основного склада; без него продавать неоткуда, и честный ответ — ноль.
-  const [wh] = await db.select({ id: warehouses.id }).from(warehouses)
-    .where(and(eq(warehouses.tenantId, tenantId), eq(warehouses.isDefault, true))).limit(1);
   const stock = new Map<number, string>();
-  if (wh && alive.length > 0) {
+  if (whId && alive.length > 0) {
     const s = await db.select({ productId: warehouseStock.productId, available: warehouseStock.available })
       .from(warehouseStock)
       .where(and(
         eq(warehouseStock.tenantId, tenantId),
-        eq(warehouseStock.warehouseId, wh.id),
+        eq(warehouseStock.warehouseId, whId),
         inArray(warehouseStock.productId, alive.map(r => Number(r.productId))),
       ));
     for (const r of s) stock.set(Number(r.productId), String(r.available));

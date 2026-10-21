@@ -399,37 +399,27 @@ describe("warehouseMulti.getStock", () => {
  * через дверь остатка, и оператор с правом «warehouse.adjust».
  */
 describe("warehouseMulti.createTransfer — документ", () => {
-  it("проводит несколько позиций за один шаг: строки completed, приёмная сторона выросла", async () => {
-    const { warehouseMultiRouter } = await import("../warehouse-multi-router");
-    const caller = warehouseMultiRouter.createCaller(buildCtx());
-    const result = await caller.createTransfer({
-      fromWarehouseId: 1, toWarehouseId: 2,
-      items: [{ productId: 1, quantity: 10 }, { productId: 2, quantity: 5 }],
-      notes: "на второй склад",
-    });
-    expect(result.count).toBe(2);
-    expect(result.ids).toHaveLength(2);
-    expect(stockTransfersTable.length).toBe(2);
-    for (const row of stockTransfersTable) {
-      expect(row.status).toBe("completed");
-      expect(row.completedAt).toBeInstanceOf(Date);
-      expect(row.notes).toBe("на второй склад");
-    }
-    // Приёмная сторона заведена дверью (receiveStock): было 30, приехало 10.
-    const dest1 = warehouseStockTable.find(r => r.warehouseId === 2 && r.productId === 1);
-    expect(dest1?.currentStock).toBe("40.00");
-    // Второго товара на складе 2 не было — строка появилась.
-    const dest2 = warehouseStockTable.find(r => r.warehouseId === 2 && r.productId === 2);
-    expect(Number(dest2?.currentStock)).toBe(5);
-  });
-
-  it("отказывает целиком, если хоть одной позиции не хватает — и называет товар", async () => {
-    const { warehouseMultiRouter } = await import("../warehouse-multi-router");
-    const caller = warehouseMultiRouter.createCaller(buildCtx());
-    await expect(caller.createTransfer({
-      fromWarehouseId: 1, toWarehouseId: 2,
-      items: [{ productId: 1, quantity: 10 }, { productId: 2, quantity: 500 }],
-    })).rejects.toThrow(/недостаточно.*Cucumber/i);
+  /*
+    Арифметика документа (партии на получателе, отказ всему документу при
+    нехватке одной позиции, «в пути», приёмка, отмена) — в
+    real-db/transfer-docs.test.ts: дверь теперь отдаёт, какие партии ушли, а
+    эта подделка базы партий не держит. Здесь — только что роутер передаёт
+    службе и кого пускает.
+  */
+  it("передаёт службе документ целиком: позиции, выбранные партии, режим, кто провёл", async () => {
+    const svc = await import("../services/stock-transfer");
+    const spy = vi.spyOn(svc, "transferStock").mockResolvedValue({ id: 1, number: "ПМ-1", ids: [7], count: 1, fromName: "a", toName: "b", mode: "transit", status: "in_transit" });
+    try {
+      const { warehouseMultiRouter } = await import("../warehouse-multi-router");
+      const caller = warehouseMultiRouter.createCaller(buildCtx());
+      const input = {
+        fromWarehouseId: 1, toWarehouseId: 2, notes: "на второй склад", mode: "transit" as const,
+        items: [{ productId: 1, quantity: 3, picks: [{ batchId: 5, quantity: 2 }, { batchId: null, quantity: 1 }] }],
+      };
+      const result = await caller.createTransfer(input);
+      expect(result.number).toBe("ПМ-1");
+      expect(spy).toHaveBeenCalledWith(mockDb, 1, { id: 10, name: "CEO", role: "ceo" }, input);
+    } finally { spy.mockRestore(); }
   });
 
   it("отказывает на тот же склад и на повтор товара в документе", async () => {
@@ -450,6 +440,8 @@ describe("warehouseMulti.createTransfer — документ", () => {
   });
 
   it("оператору открыто по праву warehouse.adjust, агенту — нет", async () => {
+    const svc = await import("../services/stock-transfer");
+    vi.spyOn(svc, "transferStock").mockResolvedValue({ id: 1, number: "ПМ-1", ids: [7], count: 1, fromName: "a", toName: "b", mode: "instant", status: "received" });
     const { warehouseMultiRouter } = await import("../warehouse-multi-router");
     const operator = warehouseMultiRouter.createCaller(buildCtx({
       user: { id: 30, tenantId: 1, role: "operator" as const, status: "active" as const, name: "Op", email: "op@test.com", passwordHash: "x", avatar: null, phone: null, createdAt: new Date(), updatedAt: new Date(), lastSignInAt: new Date() },
@@ -458,11 +450,18 @@ describe("warehouseMulti.createTransfer — документ", () => {
     expect(r.count).toBe(1);
     await expect(warehouseMultiRouter.createCaller(agentCtx()).createTransfer({ fromWarehouseId: 1, toWarehouseId: 2, items: [{ productId: 1, quantity: 1 }] }))
       .rejects.toThrow();
+    // Приёмка и отмена — то же право; агенту закрыто, как и само перемещение.
+    await expect(warehouseMultiRouter.createCaller(agentCtx()).receiveTransfer({ docId: 1 })).rejects.toThrow();
+    await expect(warehouseMultiRouter.createCaller(agentCtx()).cancelTransfer({ docId: 1 })).rejects.toThrow();
+    await expect(warehouseMultiRouter.createCaller(agentCtx()).transferDocs()).rejects.toThrow();
+    vi.restoreAllMocks();
   });
 
   it("право закрыто в настройках организации — оператору отказ, директору нет", async () => {
     const perms = await import("../lib/role-permissions");
     const spy = vi.spyOn(perms, "capabilitiesOf").mockResolvedValue({ "warehouse.adjust": false } as never);
+    const svc = await import("../services/stock-transfer");
+    const stub = vi.spyOn(svc, "transferStock").mockResolvedValue({ id: 1, number: "ПМ-1", ids: [7], count: 1, fromName: "a", toName: "b", mode: "instant", status: "received" });
     try {
       const { warehouseMultiRouter } = await import("../warehouse-multi-router");
       const operator = warehouseMultiRouter.createCaller(buildCtx({
@@ -472,7 +471,9 @@ describe("warehouseMulti.createTransfer — документ", () => {
         .rejects.toThrow(/закрыто оператору/);
       const ceo = warehouseMultiRouter.createCaller(buildCtx());
       await expect(ceo.createTransfer({ fromWarehouseId: 1, toWarehouseId: 2, items: [{ productId: 1, quantity: 1 }] })).resolves.toBeTruthy();
-    } finally { spy.mockRestore(); }
+      await expect(operator.receiveTransfer({ docId: 1 })).rejects.toThrow(/закрыто оператору/);
+      await expect(operator.cancelTransfer({ docId: 1 })).rejects.toThrow(/закрыто оператору/);
+    } finally { spy.mockRestore(); stub.mockRestore(); }
   });
 });
 
@@ -489,20 +490,17 @@ describe("warehouseMulti.getStock — признак склада", () => {
 });
 
 describe("warehouseMulti.completeTransfer", () => {
-  it("completes a pending transfer", async () => {
-    stockTransfersTable.push({
-      id: 500, tenantId: 1, fromWarehouseId: 1, toWarehouseId: 2,
-      productId: 1, quantity: "10.00", status: "pending", notes: null, createdBy: 10, createdAt: new Date(),
-    });
-    const { warehouseMultiRouter } = await import("../warehouse-multi-router");
-    const caller = warehouseMultiRouter.createCaller(buildCtx());
-    const result = await caller.completeTransfer({ transferId: 500 });
-    expect(result.success).toBe(true);
-    expect(stockTransfersTable.find(t => t.id === 500)?.status).toBe("completed");
-    // Приёмная сторона заведена дверью (receiveStock). Списание с источника —
-    // пакетный сдвиг той же двери; его арифметику держит real-db/stock-door.
-    const dest = warehouseStockTable.find(r => r.warehouseId === 2 && r.productId === 1);
-    expect(dest?.currentStock).toBe("40.00"); // было 30, приехало 10
+  // Провести застрявшую строку — служба completeLegacyTransfer; её арифметику
+  // (партии едут своими) держит real-db/transfer-docs.test.ts.
+  it("передаёт службе строку и того, кто провёл", async () => {
+    const svc = await import("../services/stock-transfer");
+    const spy = vi.spyOn(svc, "completeLegacyTransfer").mockResolvedValue(undefined);
+    try {
+      const { warehouseMultiRouter } = await import("../warehouse-multi-router");
+      const caller = warehouseMultiRouter.createCaller(buildCtx());
+      expect(await caller.completeTransfer({ transferId: 500 })).toEqual({ success: true });
+      expect(spy).toHaveBeenCalledWith(mockDb, 1, { id: 10, name: "CEO", role: "ceo" }, 500);
+    } finally { spy.mockRestore(); }
   });
 
   it("rejects for nonexistent transfer", async () => {

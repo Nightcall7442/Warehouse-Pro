@@ -21,7 +21,13 @@ import { OPERATOR_CAPABILITIES, type OperatorCapability } from "@contracts/const
 
 const ROLE: ConfigurableRole = "operator";
 
-const capabilitiesInput = z.record(
+/*
+  Не все ключи обязательны. z.record с перечислением в zod 4 требует КАЖДЫЙ
+  ключ — и новая возможность (warehouse.apply) ломала сохранение экрану,
+  открытому до выкладки: он присылает прежний список без неё. Чего нет в
+  запросе — не трогается (writeAccess пропускает undefined).
+*/
+const capabilitiesInput = z.partialRecord(
   z.enum(OPERATOR_CAPABILITIES),
   z.boolean(),
 );

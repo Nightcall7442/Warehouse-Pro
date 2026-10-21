@@ -1,14 +1,18 @@
 import { z } from "zod";
 import { createRouter, adminQuery, authedQuery, operatorQuery, can } from "./middleware";
 import { getDb } from "./queries/connection";
-import { warehouses, warehouseStock, stockTransfers, products, orders } from "@db/schema";
-import { eq, and, sql, desc, isNull, inArray, gt } from "drizzle-orm";
+import { warehouses, warehouseStock, stockTransfers, stockTransferDocs, products, orders, users } from "@db/schema";
+import { eq, and, or, sql, asc, desc, isNull, inArray, gt } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { OPEN_ORDER_STATUSES } from "./lib/order-status";
-import { applyStockEffect, receiveStock } from "./services/stock-ledger";
-import { transferStock } from "./services/stock-transfer";
 import { recordAudit, auditActor } from "./services/audit-log";
-import { invalidateReports } from "./lib/report-cache";
+import {
+  transferStock, completeLegacyTransfer, listTransferDocs, previewTransfer, receiveTransfer, cancelTransfer,
+} from "./services/stock-transfer";
+
+/** Кто провёл — для журнала и строк документа. */
+const actorOf = (ctx: { user: { id: number; name: string | null; role: string } }) =>
+  ({ id: ctx.user.id, name: ctx.user.name ?? undefined, role: ctx.user.role });
 
 export const warehouseMultiRouter = createRouter({
   /** List all warehouses for current tenant */
@@ -52,13 +56,94 @@ export const warehouseMultiRouter = createRouter({
       address: z.string().max(500).optional(),
       city:    z.string().max(100).optional(),
       status:  z.enum(["active", "inactive"]).optional(),
+      /*
+        Точка продаж (ADR 0012): с этого склада, кроме основного, продают —
+        заказы агентов, закреплённых за ним (user.update warehouseId).
+        Необязательное: старые клиенты его не шлют, и склад остаётся каким был.
+      */
+      isSalesPoint: z.boolean().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
       const db = getDb();
+      const tenantId = ctx.tenant.id;
       const { id, ...data } = input;
-      await db.update(warehouses)
-        .set(data)
-        .where(and(eq(warehouses.id, id), eq(warehouses.tenantId, ctx.tenant.id)));
+      /*
+        Проверки и запись — одной сделкой под замком строки склада. Без него
+        между «никто не закреплён, в пути пусто» и «отключить» успевали
+        закрепить агента (user.update) или отправить на склад перемещение
+        «в пути» (transferStock) — и получалось ровно то, от чего проверки:
+        агент молча переезжал на основной склад, документ висел на
+        отключённом. Те двое читают склад под разделяемым замком и ждут.
+      */
+      const before = await db.transaction(async (tx) => {
+        const [row] = await tx.select({ name: warehouses.name, status: warehouses.status, isDefault: warehouses.isDefault, isSalesPoint: warehouses.isSalesPoint })
+          .from(warehouses).where(and(eq(warehouses.id, id), eq(warehouses.tenantId, tenantId))).for("update").limit(1);
+        if (!row) throw new TRPCError({ code: "NOT_FOUND", message: "Склад не найден" });
+
+        /*
+          Склад перестаёт продавать — отключением или снятием отметки «точка
+          продаж». Пока за ним закреплены сотрудники, их каталог и заказы молча
+          переехали бы на основной склад: агент увидел бы чужой остаток, не
+          понимая почему. Пока на нём лежит резерв открытых заказов — их
+          отгрузка шла бы с отключённого склада. Сначала переназначить людей и
+          довезти заказы, потом выключать.
+        */
+        const stopsSelling = (data.status === "inactive" && row.status !== "inactive")
+          || (data.isSalesPoint === false && row.isSalesPoint && !row.isDefault);
+        if (stopsSelling) {
+          const [assigned] = await tx.select({ n: sql<number>`count(*)` }).from(users)
+            .where(and(eq(users.tenantId, tenantId), eq(users.warehouseId, id), eq(users.status, "active")));
+          const n = Number(assigned?.n ?? 0);
+          if (n > 0) {
+            throw new TRPCError({ code: "BAD_REQUEST", message: `С этого склада продают ${n} сотр. — сначала назначьте им другой склад в «Пользователях»` });
+          }
+        }
+        if (data.status === "inactive" && row.status !== "inactive") {
+          // Основной склад — источник продаж и приходов по умолчанию; без него
+          // заказ не оформить вовсе. Сначала назначить основным другой.
+          if (row.isDefault) {
+            throw new TRPCError({ code: "BAD_REQUEST", message: "Основной склад не отключают — сначала сделайте основным другой" });
+          }
+          const [held] = await tx.select({ n: sql<number>`count(*)` }).from(warehouseStock)
+            .where(and(eq(warehouseStock.tenantId, tenantId), eq(warehouseStock.warehouseId, id), gt(warehouseStock.reserved, "0")));
+          const h = Number(held?.n ?? 0);
+          if (h > 0) {
+            throw new TRPCError({ code: "BAD_REQUEST", message: `Нельзя отключить склад: позиций под резервом открытых заказов ${h} — довезите или отмените заказы` });
+          }
+        }
+        /*
+          Отключённый склад не принимает и не отдаёт перемещений
+          (services/stock-transfer.ts). Отключи его, пока к нему или от него
+          что-то едет, — документ повиснет: принять его будет некуда, а товар
+          уже ушёл с другого склада.
+        */
+        if (data.status === "inactive") {
+          const [row] = await tx.select({ n: sql<number>`count(*)` }).from(stockTransferDocs)
+            .where(and(
+              eq(stockTransferDocs.tenantId, ctx.tenant.id), eq(stockTransferDocs.status, "in_transit"),
+              or(eq(stockTransferDocs.fromWarehouseId, id), eq(stockTransferDocs.toWarehouseId, id)),
+            ));
+          const n = Number(row?.n ?? 0);
+          if (n > 0) {
+            throw new TRPCError({ code: "BAD_REQUEST", message: `Нельзя отключить склад: перемещений в пути ${n} — примите или отмените их` });
+          }
+        }
+        await tx.update(warehouses)
+          .set(data)
+          .where(and(eq(warehouses.id, id), eq(warehouses.tenantId, ctx.tenant.id)));
+        return row;
+      });
+      // След — когда склад начинает или перестаёт продавать: с этим спорят о
+      // том, откуда ушёл товар.
+      const changes: Record<string, { from: unknown; to: unknown }> = {};
+      if (data.isSalesPoint !== undefined && data.isSalesPoint !== Boolean(before.isSalesPoint)) changes.isSalesPoint = { from: Boolean(before.isSalesPoint), to: data.isSalesPoint };
+      if (data.status !== undefined && data.status !== before.status) changes.status = { from: before.status, to: data.status };
+      if (Object.keys(changes).length > 0) {
+        await recordAudit(db, {
+          ...auditActor(ctx), action: "warehouse.updated", targetType: "warehouse", targetId: id,
+          targetLabel: data.name ?? before.name, meta: { changes },
+        });
+      }
       return { success: true };
     }),
 
@@ -69,13 +154,39 @@ export const warehouseMultiRouter = createRouter({
       const db = getDb();
 
       await db.transaction(async (tx) => {
-        // Lock target row inside transaction to prevent race condition
-        const [target] = await tx.select({ id: warehouses.id })
+        /*
+          Все склады организации — под замком и по возрастанию номера: ниже
+          их переписывают разом, а перемещение и закрепление сотрудника
+          читают склады под разделяемым замком в том же порядке — встречные
+          сделки не ждут друг друга по кругу.
+        */
+        const all = await tx.select({ id: warehouses.id, name: warehouses.name, isDefault: warehouses.isDefault, isSalesPoint: warehouses.isSalesPoint })
           .from(warehouses)
-          .where(and(eq(warehouses.id, input.id), eq(warehouses.tenantId, ctx.tenant.id)))
-          .for("update")
-          .limit(1);
+          .where(eq(warehouses.tenantId, ctx.tenant.id))
+          .orderBy(asc(warehouses.id))
+          .for("update");
+        const target = all.find(w => w.id === input.id);
         if (!target) throw new TRPCError({ code: "NOT_FOUND", message: "Склад не найден" });
+
+        /*
+          С основного продают все, кому склад не назначен, — и те, кому его
+          назначили (users.warehouse_id = основной). Перестав быть основным,
+          он продаёт, только если отмечен точкой продаж; иначе каталог и
+          новые заказы этих сотрудников молча переехали бы на новый основной.
+          Тот же отказ, что у снятия отметки (update выше).
+        */
+        const old = all.find(w => w.isDefault);
+        if (old && old.id !== target.id && !old.isSalesPoint) {
+          const [assigned] = await tx.select({ n: sql<number>`count(*)` }).from(users)
+            .where(and(eq(users.tenantId, ctx.tenant.id), eq(users.warehouseId, old.id), eq(users.status, "active")));
+          const n = Number(assigned?.n ?? 0);
+          if (n > 0) {
+            throw new TRPCError({
+              code: "PRECONDITION_FAILED",
+              message: `С основного склада «${old.name}» продают ${n} сотр. — отметьте его точкой продаж или назначьте им другой склад в «Пользователях»`,
+            });
+          }
+        }
 
         /*
           Пока есть открытые заказы (те, что держат резерв — holdsStock) или
@@ -118,8 +229,16 @@ export const warehouseMultiRouter = createRouter({
       const offset   = (page - 1) * pageSize;
       const search   = input?.search ?? "";
 
+      /*
+        inTransitIn — сколько этого товара едет НА склад строки по документам
+        «в пути». Со склада-отправителя он уже ушёл, на получатель ещё не
+        пришёл; без этой колонки он пропадал бы из списка остатков вовсе.
+        Строка остатка получателя заведена до отправки (ensureStockRows),
+        поэтому соединение по ws.warehouse_id находит её всегда.
+      */
       // Use parameterized Drizzle sql templates to prevent SQL injection
-      const searchCondition = search ? sql`AND p.name LIKE ${"%" + search + "%"}` : sql``;
+      // И по коду: поиск товаров в инвентаризации и перемещениях обещает «название или код».
+      const searchCondition = search ? sql`AND (p.name LIKE ${"%" + search + "%"} OR p.code LIKE ${"%" + search + "%"})` : sql``;
       const warehouseCondition = input?.warehouseId ? sql`AND ws.warehouse_id = ${input.warehouseId}` : sql``;
 
       const dataQuery = sql`
@@ -130,9 +249,17 @@ export const warehouseMultiRouter = createRouter({
                p.name AS productName, p.code AS productCode,
                p.category, p.unit, p.unit_weight AS unitWeight,
                p.unit_price AS unitPrice, p.cost_price AS costPrice,
-               p.reorder_point AS reorderPoint
+               p.reorder_point AS reorderPoint,
+               COALESCE(tr.qty, 0) AS inTransitIn
         FROM products p
         LEFT JOIN warehouse_stock ws ON ws.product_id = p.id AND ws.tenant_id = p.tenant_id ${warehouseCondition}
+        LEFT JOIN (
+          SELECT st.product_id, d.to_warehouse_id, SUM(st.quantity) AS qty
+          FROM stock_transfers st
+          INNER JOIN stock_transfer_docs d ON d.id = st.doc_id AND d.tenant_id = st.tenant_id
+          WHERE st.tenant_id = ${tenantId} AND d.status = 'in_transit'
+          GROUP BY st.product_id, d.to_warehouse_id
+        ) tr ON tr.product_id = p.id AND tr.to_warehouse_id = ws.warehouse_id
         WHERE p.tenant_id = ${tenantId} AND p.status = 'active' ${searchCondition}
         ORDER BY p.name
         LIMIT ${pageSize} OFFSET ${offset}
@@ -180,16 +307,18 @@ export const warehouseMultiRouter = createRouter({
     }),
 
   /**
-   * Перемещение между складами — документ в один шаг.
+   * Перемещение между складами — документ («ПМ-12»).
    *
    * Было: по одному товару, «создать» → «принять», между шагами товар нигде,
    * и только директор. Владелец (16.09.2026): много позиций, товар сразу на
    * складе-получателе, делает и оператор с правом «warehouse.adjust» — тем
    * же, что даёт ручную правку остатков: перемещение — та же рука на остатке.
    *
-   * Строки stock_transfers остаются по одной на позицию — это история; статус
-   * ставится «completed» сразу. Прежний двухшаговый путь (completeTransfer)
-   * оставлен только для строк, застрявших «в пути» до этой правки.
+   * Теперь товар едет своими партиями (номер, срок, себестоимость), партии
+   * можно выбрать вручную, а организация может включить второй шаг — «в
+   * пути» до приёмки (settings.transferTwoStep). mode и picks необязательны:
+   * без них — как раньше, по настройке и по FEFO. Подробно — в
+   * services/stock-transfer.ts.
    */
   createTransfer: operatorQuery.use(can("warehouse.adjust"))
     .input(z.object({
@@ -198,96 +327,68 @@ export const warehouseMultiRouter = createRouter({
       items: z.array(z.object({
         productId: z.number(),
         quantity:  z.number().positive(),
+        picks: z.array(z.object({
+          batchId:  z.number().int().positive().nullable(),
+          quantity: z.number().positive(),
+        })).max(50).optional(),
       })).min(1).max(200),
       notes: z.string().max(500).optional(),
+      mode:  z.enum(["instant", "transit"]).optional(),
     }))
-    .mutation(({ input, ctx }) => transferStock(getDb(), ctx.tenant.id, { id: ctx.user.id, name: ctx.user.name, role: ctx.user.role }, input)),
+    .mutation(({ input, ctx }) => transferStock(getDb(), ctx.tenant.id, actorOf(ctx), input)),
 
-  /** Complete a stock transfer */
+  /**
+   * Провести строку, застрявшую «в пути» до перехода на документы. Строки
+   * документов сюда не попадают: у них приёмка receiveTransfer.
+   */
   completeTransfer: adminQuery
     .input(z.object({ transferId: z.number() }))
     .mutation(async ({ input, ctx }) => {
-      const db = getDb();
-
-      await db.transaction(async (tx) => {
-        // Lock transfer row inside transaction — this is the critical fix
-        // for race conditions: two concurrent calls queue on this lock,
-        // and only the first one sees status === "pending".
-        const [transfer] = await tx.select()
-          .from(stockTransfers)
-          .where(and(
-            eq(stockTransfers.id, input.transferId),
-            eq(stockTransfers.tenantId, ctx.tenant.id),
-          ))
-          .for("update")
-          .limit(1);
-
-        if (!transfer || transfer.status !== "pending") {
-          throw new TRPCError({ code: "NOT_FOUND", message: "Перемещение не найдено или уже выполнено" });
-        }
-
-        // Lock source stock row
-        const [lockedStock] = await tx.select()
-          .from(warehouseStock)
-          .where(and(
-            eq(warehouseStock.tenantId, ctx.tenant.id),
-            eq(warehouseStock.warehouseId, transfer.fromWarehouseId),
-            eq(warehouseStock.productId, transfer.productId),
-          ))
-          .for("update");
-
-        if (!lockedStock || Number(lockedStock.available) < Number(transfer.quantity)) {
-          throw new TRPCError({ code: "BAD_REQUEST", message: "Недостаточно товара на складе отправителе" });
-        }
-
-        /*
-          Одно физическое перемещение — две записи через дверь: ушло с одного
-          склада (с партий по FEFO), пришло на другой. Раньше оба склада
-          правились своим SQL, партии источника не трогались, а строка на
-          складе-получателе заводилась третьим путём.
-          ponytail: партия на приёмной стороне не переносится — товар ложится
-          без срока; переносить партии, когда склады начнут отчитываться по
-          срокам порознь.
-        */
-        await applyStockEffect(tx, {
-          tenantId: ctx.tenant.id, warehouseId: transfer.fromWarehouseId,
-          items: [{ productId: transfer.productId, quantity: transfer.quantity }],
-          shift: { onHand: -1, held: 0 }, reason: "transfer_out", referenceId: input.transferId,
-          notes: "Перемещение на другой склад",
-        });
-        await receiveStock(tx, {
-          tenantId: ctx.tenant.id, warehouseId: transfer.toWarehouseId,
-          productId: transfer.productId, quantity: transfer.quantity,
-          reason: "transfer_in", referenceId: input.transferId,
-          notes: "Перемещение с другого склада",
-        });
-
-        // Mark transfer as completed — with status check for double-execution safety
-        const [updateResult] = await tx.update(stockTransfers)
-          .set({ status: "completed", completedAt: new Date() })
-          .where(and(
-            eq(stockTransfers.id, input.transferId),
-            eq(stockTransfers.status, "pending"),
-          ));
-
-        if ((updateResult as { affectedRows?: number }).affectedRows !== 1) {
-          throw new TRPCError({ code: "CONFLICT", message: "Перемещение уже было выполнено" });
-        }
-        await recordAudit(tx as unknown as typeof db, {
-          ...auditActor(ctx), action: "stock.transfer_completed", targetType: "stock_transfer", targetId: input.transferId,
-          meta: { fromWarehouseId: transfer.fromWarehouseId, toWarehouseId: transfer.toWarehouseId, productId: transfer.productId, quantity: transfer.quantity },
-        }, { strict: true });
-      });
-      await invalidateReports(ctx.tenant.id, "stock.transfer");
-
+      await completeLegacyTransfer(getDb(), ctx.tenant.id, actorOf(ctx), input.transferId);
       return { success: true };
     }),
 
-  /** List transfers */
+  /** Документы перемещений со строками и партиями — раздел «Перемещения». */
+  transferDocs: operatorQuery
+    .input(z.object({
+      status: z.enum(["in_transit", "received", "received_short", "cancelled", "all"]).default("all"),
+      limit:  z.number().int().min(1).max(100).default(30),
+    }).optional())
+    .query(({ input, ctx }) => listTransferDocs(getDb(), ctx.tenant.id, { status: input?.status ?? "all", limit: input?.limit ?? 30 })),
+
+  /** Что уйдёт по FEFO и какие уценки это заденет — до проведения. */
+  previewTransfer: operatorQuery
+    .input(z.object({
+      fromWarehouseId: z.number(),
+      items: z.array(z.object({ productId: z.number(), quantity: z.number().positive() })).max(200),
+    }))
+    .query(({ input, ctx }) => previewTransfer(getDb(), ctx.tenant.id, input)),
+
+  /** Принять перемещение «в пути» — по строкам, не больше отправленного. */
+  receiveTransfer: operatorQuery.use(can("warehouse.adjust"))
+    .input(z.object({
+      docId: z.number().int().positive(),
+      lines: z.array(z.object({
+        lineId:           z.number().int().positive(),
+        receivedQuantity: z.number().min(0),
+      })).max(500).optional(),
+    }))
+    .mutation(({ input, ctx }) => receiveTransfer(getDb(), ctx.tenant.id, actorOf(ctx), input)),
+
+  /** Отменить перемещение, которое ещё в пути: товар вернётся теми же партиями. */
+  cancelTransfer: operatorQuery.use(can("warehouse.adjust"))
+    .input(z.object({ docId: z.number().int().positive() }))
+    .mutation(({ input, ctx }) => cancelTransfer(getDb(), ctx.tenant.id, actorOf(ctx), input)),
+
+  /**
+   * Строки перемещений. legacy — только строки без документа: застрявшие
+   * «в пути» до перехода на документы, их ещё можно провести completeTransfer.
+   */
   listTransfers: authedQuery
     .input(z.object({
       status: z.enum(["pending", "completed", "all"]).default("all"),
       limit:  z.number().int().min(1).max(100).default(20),
+      legacy: z.boolean().optional(),
     }).optional())
     .query(async ({ input, ctx }) => {
       const db = getDb();
@@ -296,9 +397,11 @@ export const warehouseMultiRouter = createRouter({
       if (input?.status && input.status !== "all") {
         conditions.push(eq(stockTransfers.status, input.status));
       }
+      if (input?.legacy) conditions.push(isNull(stockTransfers.docId));
 
       return db.select({
         id: stockTransfers.id,
+        docId: stockTransfers.docId,
         fromWarehouseId: stockTransfers.fromWarehouseId,
         toWarehouseId: stockTransfers.toWarehouseId,
         productId: stockTransfers.productId,

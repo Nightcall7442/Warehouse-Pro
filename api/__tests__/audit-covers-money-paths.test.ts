@@ -34,7 +34,11 @@ const COVERAGE: Array<[string, string]> = [
   ["api_key.status",             "api/api-key-router.ts"],
   ["return.status",              "api/returns-router.ts"],
   ["arrival.completed",          "api/services/arrival.ts"],
-  ["stock.transfer_completed",   "api/warehouse-multi-router.ts"],
+  // Перемещение ушло из роутера в службу документа (services/stock-transfer.ts).
+  ["stock.transfer_completed",   "api/services/stock-transfer.ts"],
+  ["stock.transfer_shipped",     "api/services/stock-transfer.ts"],
+  ["stock.transfer_received",    "api/services/stock-transfer.ts"],
+  ["stock.transfer_cancelled",   "api/services/stock-transfer.ts"],
   ["audit.purged",               "api/audit-router.ts"],
   // уже были — держим, чтобы не пропали
   ["order.create",               "api/order-router.ts"],
@@ -42,6 +46,10 @@ const COVERAGE: Array<[string, string]> = [
   ["payment.reverse",            "api/services/payment.ts"],
   ["stock.adjusted",             "api/services/stock.ts"],
   ["supplier.return_goods",      "api/supplier-router.ts"],
+  // Остаток на утверждении директора: заявка, решение и отказ (services/stock-count.ts).
+  ["stock_count.submit",         "api/services/stock-count.ts"],
+  ["stock_count.approve",        "api/services/stock-count.ts"],
+  ["stock_count.reject",         "api/services/stock-count.ts"],
 ];
 
 /** Действия, след которых обязан быть в транзакции (strict), — и файл, где смотреть. */
@@ -51,7 +59,12 @@ const STRICT: Array<[string, string]> = [
   ["settings.updated",          "api/settings-router.ts"],
   ["return.status",             "api/returns-router.ts"],
   ["arrival.completed",         "api/services/arrival.ts"],
-  ["stock.transfer_completed",  "api/warehouse-multi-router.ts"],
+  ["stock.transfer_completed",  "api/services/stock-transfer.ts"],
+  ["stock.transfer_shipped",    "api/services/stock-transfer.ts"],
+  ["stock.transfer_received",   "api/services/stock-transfer.ts"],
+  ["stock.transfer_cancelled",  "api/services/stock-transfer.ts"],
+  // Утверждённая правка остатка без следа в журнале — ровно то, ради чего утверждение заводили.
+  ["stock_count.approve",       "api/services/stock-count.ts"],
 ];
 
 describe("журнал действий", () => {

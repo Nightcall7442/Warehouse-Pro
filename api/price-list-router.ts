@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { resolvePrices } from "./services/price-resolver";
+import { salesWarehouseFor } from "./services/sales-warehouse";
 import { createRouter, operatorQuery, authedQuery, managementQuery, fieldSalesQuery, can } from "./middleware";
 import { getDb } from "./queries/connection";
 import { assertProductsBelongToTenant } from "./lib/tenant-refs";
@@ -396,6 +397,8 @@ export const priceListRouter = createRouter({
         quantity:  stockBatches.quantity,
         expiresAt: sql<string | null>`DATE_FORMAT(${stockBatches.expiresAt}, '%Y-%m-%d')`,
         isDefault: warehouses.isDefault,
+        isSalesPoint: warehouses.isSalesPoint,
+        whActive:  sql<number>`${warehouses.status} = 'active'`,
         unitPrice: products.unitPrice,
         cost:      sql<string>`COALESCE(${stockBatches.costPrice}, ${products.costPrice})`,
       })
@@ -407,7 +410,14 @@ export const priceListRouter = createRouter({
       if (!b || !(Number(b.quantity) > 0)) throw new TRPCError({ code: "NOT_FOUND", message: "Партия не найдена или уже продана" });
       if (!b.expiresAt) throw new TRPCError({ code: "BAD_REQUEST", message: "У партии нет срока — уценять её незачем" });
       if (b.expiresAt < today) throw new TRPCError({ code: "BAD_REQUEST", message: "Срок партии вышел — её не продают, а списывают" });
-      if (!b.isDefault) throw new TRPCError({ code: "BAD_REQUEST", message: "Партия не на основном складе — с него не продают. Сначала переместите её" });
+      /*
+        Уценка действует на заказы своего склада (ADR 0012, services/markdown.ts).
+        Склад, с которого не продают, её никогда не применит — цена висела бы
+        обещанием. Основной склад продаёт всегда, точка продаж — пока действует.
+      */
+      if (!(b.isDefault || (b.isSalesPoint && Number(b.whActive) === 1))) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "С этого склада не продают — уценка там не подействует. Сначала переместите партию" });
+      }
       const card = Number(b.unitPrice);
       const price = Math.round(input.price * 100) / 100;
       if (!(price < card)) throw new TRPCError({ code: "BAD_REQUEST", message: "Уценка — это цена ниже цены карточки" });
@@ -483,8 +493,10 @@ export const priceListRouter = createRouter({
       const [product] = await db.select({ unitPrice: products.unitPrice })
         .from(products).where(and(eq(products.id, input.productId), eq(products.tenantId, tenantId))).limit(1);
       const card = product ? String(product.unitPrice) : "0";
+      // Уценка — склада, с которого продаст заказ спрашивающего (ADR 0012).
+      const whId = await salesWarehouseFor(db, tenantId, { agentId: ctx.user.id });
       const resolved = (await resolvePrices(db, tenantId, input.shopId, [{ productId: input.productId, quantity: input.quantity }],
-        new Map(product ? [[input.productId, card]] : []))).get(input.productId);
+        new Map(product ? [[input.productId, card]] : []), whId)).get(input.productId);
       return resolved?.priceListId
         ? { price: resolved.price, source: `price_list_${resolved.priceListId}` }
         : { price: card, source: "default" };

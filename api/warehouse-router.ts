@@ -5,6 +5,9 @@ import { eq, like, and, sql, desc } from "drizzle-orm";
 import { movementReferenceNumber } from "./lib/movement-reference";
 import { StockService } from "./services/stock";
 import { lowStockCondition } from "./services/reorder";
+import { dayStartUtc } from "./lib/date-range";
+import { firstRow } from "./lib/db-rows";
+import { businessDaysAgo } from "@contracts/business-time";
 
 export const warehouseRouter = createRouter({
   list: operatorQuery
@@ -123,11 +126,16 @@ export const warehouseRouter = createRouter({
     }))
     .mutation(async ({ input, ctx }) => {
       const { getClientIp } = await import("./lib/rate-limit");
+      const { needsStockApproval } = await import("./lib/role-permissions");
+      // Оператор без права проводить (warehouse.apply) правку не теряет: она
+      // уходит директору заявкой. Ответ говорит об этом pendingApproval —
+      // старый экран его не читает и просто покажет «готово».
+      const mode = await needsStockApproval(ctx.db, ctx.tenant.id, ctx.user.role) ? "request" : "apply";
       return StockService.adjust(ctx.db, ctx.tenant.id, input.productId, Number(input.quantity), input.type, input.notes, {
         id: ctx.user.id,
         name: ctx.user.name,
         ip: getClientIp(ctx.req) ?? undefined,
-      }, input.warehouseId);
+      }, input.warehouseId, mode);
     }),
 
   // ── Stock Valuation ─────────────────────────────────────────────────────────
@@ -149,7 +157,45 @@ export const warehouseRouter = createRouter({
         .leftJoin(products, and(eq(warehouseStock.productId, products.id), eq(products.tenantId, ctx.tenant.id)))
         .where(and(eq(warehouseStock.tenantId, tenantId), ...(input?.warehouseId ? [eq(warehouseStock.warehouseId, input.warehouseId)] : [])));
 
-      return summary ?? { totalCostValue: "0", totalRetailValue: "0", totalUnits: "0" };
+      /*
+        «В пути» и недостача при перемещении — рядом с оценкой склада.
+
+        Товар документа «в пути» со склада-отправителя уже ушёл, а на
+        получатель ещё не пришёл: без этой строки он выпадал из оценки обоих.
+        По складу — едущее НА него (он его ждёт); по всем — всё едущее.
+        Цена — партии, с которой товар ушёл, иначе карточки.
+
+        Недостача — что не доехало при приёмке за последние 30 рабочих дней
+        по Ташкенту: деньги, которые склад потерял в дороге и которых в
+        остатке уже нет нигде.
+      */
+      const whDoc = input?.warehouseId ? sql`AND d.to_warehouse_id = ${input.warehouseId}` : sql``;
+      const since = dayStartUtc(businessDaysAgo(30));
+      const transitRows = await db.execute(sql`
+        SELECT
+          COALESCE(SUM(CASE WHEN d.status = 'in_transit' THEN st.quantity END), 0) AS inTransitUnits,
+          COALESCE(SUM(CASE WHEN d.status = 'in_transit' THEN st.quantity * COALESCE(st.batch_cost, p.cost_price, 0) END), 0) AS inTransitCost,
+          COALESCE(SUM(CASE WHEN d.status = 'received_short' AND d.received_at >= ${since} THEN st.quantity - COALESCE(st.received_quantity, 0) END), 0) AS shortUnits
+        FROM stock_transfer_docs d
+        INNER JOIN stock_transfers st ON st.doc_id = d.id AND st.tenant_id = d.tenant_id
+        LEFT JOIN products p ON p.id = st.product_id AND p.tenant_id = d.tenant_id
+        WHERE d.tenant_id = ${tenantId} AND d.status IN ('in_transit', 'received_short') ${whDoc}
+      `);
+      const shortRows = await db.execute(sql`
+        SELECT COALESCE(SUM(d.shortage_cost), 0) AS shortCost FROM stock_transfer_docs d
+        WHERE d.tenant_id = ${tenantId} AND d.status = 'received_short' AND d.received_at >= ${since} ${whDoc}
+      `);
+      const t = firstRow<{ inTransitUnits: string; inTransitCost: string; shortUnits: string }>(transitRows);
+      const sc = firstRow<{ shortCost: string }>(shortRows);
+      const round2 = (v: unknown) => Math.round(Number(v ?? 0) * 100) / 100;
+
+      return {
+        ...(summary ?? { totalCostValue: "0", totalRetailValue: "0", totalUnits: "0" }),
+        inTransitUnits: round2(t?.inTransitUnits),
+        inTransitCost: round2(t?.inTransitCost),
+        transitShortageUnits: round2(t?.shortUnits),
+        transitShortageCost: round2(sc?.shortCost),
+      };
     }),
 
   // ── Dead Stock — products with stock but no orders in last N days ──────────
