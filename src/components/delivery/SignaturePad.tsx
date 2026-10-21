@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Eraser } from "lucide-react";
 import { useTranslate } from "@/i18n";
 import { normalizeSignature, type RawPoint, type Signature } from "@contracts/delivery-proof";
@@ -14,6 +14,15 @@ import { normalizeSignature, type RawPoint, type Signature } from "@contracts/de
   Цвет чернил берётся из вычисленного цвета самого холста (color из темы):
   canvas не понимает var(--…), а вписанное значение разошлось бы с тёмной
   темой.
+
+  ── Размер — по раскладке, не по рамке на экране ───────────────────────────
+
+  Холст мерился getBoundingClientRect() при открытии, а окно подтверждения
+  въезжает с увеличением (animate-scale-in, 0.95 → 1): рамка в этот миг на
+  5% меньше настоящей, холст получал меньший растр, и линия ложилась мимо
+  пальца. Поворот телефона растр не менял вовсе. Теперь размер — clientWidth/
+  clientHeight (их не трогают трансформации), пересчёт — по ResizeObserver,
+  а точка пальца переводится из экранной рамки в раскладку.
 */
 
 export function SignaturePad({ onChange, height = 160 }: {
@@ -24,33 +33,64 @@ export function SignaturePad({ onChange, height = 160 }: {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const strokesRef = useRef<RawPoint[][]>([]);
   const drawingRef = useRef(false);
+  /** Размер холста в раскладке, по которому записаны штрихи. */
+  const sizeRef = useRef({ w: 0, h: 0 });
   const [empty, setEmpty] = useState(true);
 
   // Холст в настоящих пикселях экрана: иначе линия на телефоне мыльная.
-  useEffect(() => {
+  // Новый размер (поворот, конец анимации окна) — штрихи растягиваются за
+  // ним и рисуются заново: подпись не пропадает и не съезжает.
+  const fit = useCallback(() => {
     const c = canvasRef.current;
     if (!c) return;
-    const r = c.getBoundingClientRect();
+    const w = c.clientWidth, h = c.clientHeight;
+    if (!w || !h) return;
+    const old = sizeRef.current;
+    if (old.w === w && old.h === h) return;
+    if (old.w && old.h) {
+      strokesRef.current = strokesRef.current.map(st => st.map(p => ({ x: (p.x * w) / old.w, y: (p.y * h) / old.h })));
+    }
+    sizeRef.current = { w, h };
     const dpr = window.devicePixelRatio || 1;
-    c.width = Math.max(1, Math.round(r.width * dpr));
-    c.height = Math.max(1, Math.round(r.height * dpr));
+    c.width = Math.max(1, Math.round(w * dpr));
+    c.height = Math.max(1, Math.round(h * dpr));
     const ctx = c.getContext?.("2d");
-    if (ctx) {
-      ctx.scale(dpr, dpr);
-      ctx.lineWidth = 2.5;
-      ctx.lineCap = "round";
-      ctx.lineJoin = "round";
-      ctx.strokeStyle = getComputedStyle(c).color;
+    if (!ctx) return;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.lineWidth = 2.5;
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    ctx.strokeStyle = getComputedStyle(c).color;
+    for (const st of strokesRef.current) {
+      if (st.length === 0) continue;
+      ctx.beginPath();
+      ctx.moveTo(st[0].x, st[0].y);
+      for (const p of st.length > 1 ? st.slice(1) : [{ x: st[0].x + 0.1, y: st[0].y }]) ctx.lineTo(p.x, p.y);
+      ctx.stroke();
     }
   }, []);
 
+  useEffect(() => {
+    const c = canvasRef.current;
+    fit();
+    if (!c || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(() => fit());
+    ro.observe(c);
+    return () => ro.disconnect();
+  }, [fit]);
+
+  /** Точка пальца — в координатах раскладки, даже пока окно ещё въезжает с масштабом. */
   const point = (e: React.PointerEvent<HTMLCanvasElement>): RawPoint => {
-    const r = e.currentTarget.getBoundingClientRect();
-    return { x: e.clientX - r.left, y: e.clientY - r.top };
+    const c = e.currentTarget;
+    const r = c.getBoundingClientRect();
+    const sx = r.width > 0 && c.clientWidth > 0 ? c.clientWidth / r.width : 1;
+    const sy = r.height > 0 && c.clientHeight > 0 ? c.clientHeight / r.height : 1;
+    return { x: (e.clientX - r.left) * sx, y: (e.clientY - r.top) * sy };
   };
 
   const down = (e: React.PointerEvent<HTMLCanvasElement>) => {
     e.preventDefault();
+    fit();
     e.currentTarget.setPointerCapture?.(e.pointerId);
     drawingRef.current = true;
     const p = point(e);
@@ -70,8 +110,8 @@ export function SignaturePad({ onChange, height = 160 }: {
   const up = (e: React.PointerEvent<HTMLCanvasElement>) => {
     if (!drawingRef.current) return;
     drawingRef.current = false;
-    const r = e.currentTarget.getBoundingClientRect();
-    const sig = normalizeSignature(strokesRef.current, r.width, r.height);
+    const c = e.currentTarget;
+    const sig = normalizeSignature(strokesRef.current, c.clientWidth || sizeRef.current.w, c.clientHeight || sizeRef.current.h);
     setEmpty(!sig);
     onChange(sig);
   };
