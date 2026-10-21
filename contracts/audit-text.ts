@@ -114,6 +114,7 @@ export const AUDIT_ACTION_LABEL: Record<string, Label> = {
   "price_list.deleted": { ru: "Удалён прайс-лист", uz: "Narxlar ro'yxati o'chirildi" },
   "stock.adjusted": { ru: "Корректировка склада", uz: "Ombor tahrirlandi" },
   "stock.transfer_completed": { ru: "Перемещение между складами", uz: "Omborlar orasida ko'chirish" },
+  "warehouse.updated": { ru: "Изменён склад", uz: "Ombor o'zgartirildi" },
   "stock.transfer_shipped": { ru: "Перемещение отправлено — товар в пути", uz: "Ko'chirish jo'natildi — tovar yo'lda" },
   "stock.transfer_received": { ru: "Перемещение принято на складе", uz: "Ko'chirish omborda qabul qilindi" },
   "stock.transfer_cancelled": { ru: "Перемещение отменено — товар вернулся", uz: "Ko'chirish bekor qilindi — tovar qaytdi" },
@@ -167,6 +168,8 @@ const FIELD_LABEL: Record<string, Label> = {
   overdueHoldEnabled: { ru: "просрочка держит заказ", uz: "muddati o'tgan qarz buyurtmani ushlab turadi" },
   overdueGraceDays: { ru: "отсрочка оплаты, дней", uz: "to'lov muddati, kun" },
   transferTwoStep: { ru: "перемещение в два шага", uz: "ikki bosqichli ko'chirish" },
+  // Продажи с нескольких складов (ADR 0012): склад сотрудника и отметка склада.
+  warehouse: { ru: "склад продаж", uz: "savdo ombori" }, isSalesPoint: { ru: "точка продаж", uz: "savdo nuqtasi" },
 };
 
 /** Статусы, которых нет среди статусов заказа: доступ, ключи, возвраты. */

@@ -1,10 +1,11 @@
 import { z } from "zod";
 import { createRouter, adminQuery, authedQuery, operatorQuery, can } from "./middleware";
 import { getDb } from "./queries/connection";
-import { warehouses, warehouseStock, stockTransfers, stockTransferDocs, products, orders } from "@db/schema";
+import { warehouses, warehouseStock, stockTransfers, stockTransferDocs, products, orders, users } from "@db/schema";
 import { eq, and, or, sql, desc, isNull, inArray, gt } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { OPEN_ORDER_STATUSES } from "./lib/order-status";
+import { recordAudit, auditActor } from "./services/audit-log";
 import {
   transferStock, completeLegacyTransfer, listTransferDocs, previewTransfer, receiveTransfer, cancelTransfer,
 } from "./services/stock-transfer";
@@ -55,10 +56,52 @@ export const warehouseMultiRouter = createRouter({
       address: z.string().max(500).optional(),
       city:    z.string().max(100).optional(),
       status:  z.enum(["active", "inactive"]).optional(),
+      /*
+        Точка продаж (ADR 0012): с этого склада, кроме основного, продают —
+        заказы агентов, закреплённых за ним (user.update warehouseId).
+        Необязательное: старые клиенты его не шлют, и склад остаётся каким был.
+      */
+      isSalesPoint: z.boolean().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
       const db = getDb();
+      const tenantId = ctx.tenant.id;
       const { id, ...data } = input;
+      const [before] = await db.select({ name: warehouses.name, status: warehouses.status, isDefault: warehouses.isDefault, isSalesPoint: warehouses.isSalesPoint })
+        .from(warehouses).where(and(eq(warehouses.id, id), eq(warehouses.tenantId, tenantId))).limit(1);
+      if (!before) throw new TRPCError({ code: "NOT_FOUND", message: "Склад не найден" });
+
+      /*
+        Склад перестаёт продавать — отключением или снятием отметки «точка
+        продаж». Пока за ним закреплены сотрудники, их каталог и заказы молча
+        переехали бы на основной склад: агент увидел бы чужой остаток, не
+        понимая почему. Пока на нём лежит резерв открытых заказов — их
+        отгрузка шла бы с отключённого склада. Сначала переназначить людей и
+        довезти заказы, потом выключать.
+      */
+      const stopsSelling = (data.status === "inactive" && before.status !== "inactive")
+        || (data.isSalesPoint === false && before.isSalesPoint && !before.isDefault);
+      if (stopsSelling) {
+        const [assigned] = await db.select({ n: sql<number>`count(*)` }).from(users)
+          .where(and(eq(users.tenantId, tenantId), eq(users.warehouseId, id), eq(users.status, "active")));
+        const n = Number(assigned?.n ?? 0);
+        if (n > 0) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: `С этого склада продают ${n} сотр. — сначала назначьте им другой склад в «Сотрудниках»` });
+        }
+      }
+      if (data.status === "inactive" && before.status !== "inactive") {
+        // Основной склад — источник продаж и приходов по умолчанию; без него
+        // заказ не оформить вовсе. Сначала назначить основным другой.
+        if (before.isDefault) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Основной склад не отключают — сначала сделайте основным другой" });
+        }
+        const [held] = await db.select({ n: sql<number>`count(*)` }).from(warehouseStock)
+          .where(and(eq(warehouseStock.tenantId, tenantId), eq(warehouseStock.warehouseId, id), gt(warehouseStock.reserved, "0")));
+        const h = Number(held?.n ?? 0);
+        if (h > 0) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: `Нельзя отключить склад: позиций под резервом открытых заказов ${h} — довезите или отмените заказы` });
+        }
+      }
       /*
         Отключённый склад не принимает и не отдаёт перемещений
         (services/stock-transfer.ts). Отключи его, пока к нему или от него
@@ -79,6 +122,17 @@ export const warehouseMultiRouter = createRouter({
       await db.update(warehouses)
         .set(data)
         .where(and(eq(warehouses.id, id), eq(warehouses.tenantId, ctx.tenant.id)));
+      // След — когда склад начинает или перестаёт продавать: с этим спорят о
+      // том, откуда ушёл товар.
+      const changes: Record<string, { from: unknown; to: unknown }> = {};
+      if (data.isSalesPoint !== undefined && data.isSalesPoint !== Boolean(before.isSalesPoint)) changes.isSalesPoint = { from: Boolean(before.isSalesPoint), to: data.isSalesPoint };
+      if (data.status !== undefined && data.status !== before.status) changes.status = { from: before.status, to: data.status };
+      if (Object.keys(changes).length > 0) {
+        await recordAudit(db, {
+          ...auditActor(ctx), action: "warehouse.updated", targetType: "warehouse", targetId: id,
+          targetLabel: data.name ?? before.name, meta: { changes },
+        });
+      }
       return { success: true };
     }),
 

@@ -132,6 +132,8 @@ const ACTION_CONFIG: Record<string, { icon: LucideIcon; gradient: string }> = {
   // Склад
   "stock.adjusted":                  { icon: Package, gradient: WARNING },
   "stock.transfer_completed":        { icon: Boxes, gradient: PRIMARY },
+  // Склад стал или перестал быть точкой продаж, включён или отключён (ADR 0012).
+  "warehouse.updated":               { icon: Boxes, gradient: WARNING },
   // Документ перемещения в два шага: ушло «в пути», принято (недостача — в подробностях), отменено.
   "stock.transfer_shipped":          { icon: Boxes, gradient: PRIMARY },
   "stock.transfer_received":         { icon: Boxes, gradient: SUCCESS },
