@@ -14,6 +14,7 @@
  *   • счёт по категории берёт только эту категорию, по выбранным — ровно их;
  *   • у оператора без права warehouse.apply ручная правка становится заявкой,
  *     списание после утверждения забирает просроченную партию первой;
+ *   • начальные остатки из файла — тоже заявка;
  *   • директор и оператор с правом (умолчание) работают как раньше.
  *
  * Нарочная поломка: в applyCountLines поставить `target = counted` вместо
@@ -29,6 +30,7 @@ import { ctxFor, hasRealDb, connectRealDb, closeRealDb, truncateAll, seed, stock
 let current: ServiceDb;
 vi.mock("../../queries/connection", () => ({ getDb: () => current, getPool: () => null }));
 
+const csv = (lines: string[]) => Buffer.from(lines.join("\n"), "utf-8").toString("base64");
 const inDays = (n: number) => new Date(Date.now() + n * 86_400_000).toISOString().slice(0, 10);
 
 describe.skipIf(!hasRealDb)("инвентаризация на утверждении директора", () => {
@@ -274,5 +276,28 @@ describe.skipIf(!hasRealDb)("инвентаризация на утвержде�
     expect(r).toMatchObject({ success: true, pendingApproval: false });
     expect((await stockOf(s.productId)).current).toBe(13);
     expect(await countOf("stock_counts")).toBe(0);
+  });
+
+  it("право выключено: начальные остатки из файла ждут директора одним документом", async () => {
+    await denyApply();
+    const importer = (await import("../../import-router")).importRouter.createCaller(ctxFor(db, s.tenantId, operatorId, "operator"));
+    const r = await importer.executeImport({
+      type: "products", filename: "goods.csv",
+      base64: csv(["Код,Название,Цена продажи (сум),Остаток на складе", "N-1,Сок,1000,25", "N-2,Чай,1500,0"]),
+    });
+    expect(r.success).toBe(2);
+    expect(r.stockRequest).toMatchObject({ lines: 1 });
+
+    const [juice] = await db.select().from(schema.products).where(eq(schema.products.code, "N-1"));
+    const [tea] = await db.select().from(schema.products).where(eq(schema.products.code, "N-2"));
+    expect((await stockOf(juice.id)).current, "остаток из файла пришёл мимо директора").toBe(0);
+    expect(await countOf("warehouse_stock", `product_id = ${tea.id}`), "строка остатка заведена и у нуля").toBe(1);
+
+    const ceo = await asCeo();
+    const [doc] = await db.select().from(schema.stockCounts).where(eq(schema.stockCounts.number, r.stockRequest!.number));
+    expect(doc).toMatchObject({ status: "submitted", origin: "import" });
+    await ceo.approveCount({ id: doc.id });
+    expect((await stockOf(juice.id)).current).toBe(25);
+    expect(await countOf("stock_movements", `reference_type = 'import' AND reference_id = ${doc.id}`)).toBe(1);
   });
 });

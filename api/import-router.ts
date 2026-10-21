@@ -399,6 +399,8 @@ export const importRouter = createRouter({
       let success = 0;
       const errors: string[] = [];
       const skipped: string[] = [];
+      /** Начальные остатки, отправленные директору, — когда оператору закрыто проводить их самому. */
+      let stockRequest: { number: string; lines: number } | null = null;
       /** Сколько ячеек «фото» пришлось отбросить — о них надо сказать вслух. */
       const unusablePhotos = { count: 0 };
 
@@ -533,6 +535,17 @@ export const importRouter = createRouter({
             заранее, снаружи транзакции: сеть держать под открытой
             транзакцией незачем.
           */
+          /*
+            Начальный остаток из файла — та же правка остатка, что и ручная:
+            у оператора без права warehouse.apply товары заводятся с нулём, а
+            числа уходят директору одним документом на утверждение. Иначе
+            файл с «остаток 1000» по новым товарам обходил бы запрет, ради
+            которого его ставили.
+          */
+          const { needsStockApproval } = await import("./lib/role-permissions");
+          const askApproval = await needsStockApproval(db, tenantId, ctx.user.role);
+          const pendingStock: Array<{ productId: number; quantity: number }> = [];
+
           const CHUNK = 100;
           const noteRowError = (row: { code: string; rowNum: number }, err: unknown) => {
             const e = err as { cause?: { message?: string }; message?: string; sqlMessage?: string; code?: string };
@@ -572,9 +585,11 @@ export const importRouter = createRouter({
                   // «ниже резерва» здесь невозможен.
                   await setStock(tx, {
                     tenantId, warehouseId: defaultWarehouse.id,
-                    productId, quantity: row.initialStock,
+                    productId, quantity: askApproval ? 0 : row.initialStock,
                   });
-                  if (Number(row.initialStock) > 0) {
+                  if (askApproval) {
+                    if (Number(row.initialStock) > 0) pendingStock.push({ productId, quantity: Number(row.initialStock) });
+                  } else if (Number(row.initialStock) > 0) {
                     // An import states the opening count, so it enters the ledger the
                     // same way a manual correction does.
                     await recordStockMovement(tx, {
@@ -590,6 +605,12 @@ export const importRouter = createRouter({
                 }
               }
             });
+          }
+
+          if (askApproval && pendingStock.length > 0) {
+            const { requestImportStock } = await import("./services/stock-count");
+            const req = await requestImportStock(db, tenantId, { id: ctx.user.id, name: ctx.user.name }, { warehouseId: defaultWarehouse.id, lines: pendingStock });
+            if (req) stockRequest = { number: req.number, lines: req.lines };
           }
 
           if (blockedByPlan > 0) {
@@ -737,6 +758,6 @@ export const importRouter = createRouter({
         );
       }
 
-      return { success, errors, skipped, total: dataRows.length };
+      return { success, errors, skipped, total: dataRows.length, stockRequest };
     }),
 });

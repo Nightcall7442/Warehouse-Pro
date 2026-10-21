@@ -483,3 +483,18 @@ export async function requestAdjust(
     },
   }]);
 }
+
+/**
+ * Начальные остатки из файла у оператора без права проводить: товары
+ * заведены (с нулём), а числа ждут директора одним документом.
+ */
+export async function requestImportStock(
+  db: Db, tenantId: number, actor: Actor,
+  input: { warehouseId: number; lines: Array<{ productId: number; quantity: number }> },
+) {
+  const lines = input.lines.filter(l => l.quantity > 0);
+  if (lines.length === 0) return null;
+  return createSubmitted(db, tenantId, actor, {
+    warehouseId: input.warehouseId, origin: "import", notes: "Начальные остатки из файла",
+  }, lines.map(l => ({ productId: l.productId, counted: () => l.quantity })));
+}

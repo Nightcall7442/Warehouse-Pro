@@ -94,6 +94,15 @@ export function ExcelImport({ type, onDone, onCancel }: Props) {
         ));
         if (result.errors.length > 0) setErrors(result.errors);
         if (result.skipped.length > 0) setErrors(prev => [...prev, ...result.skipped.map(s => `${t("Пропущено", "O'tkazib yuborildi")}: ${s}`)]);
+        // Оператору закрыто проводить остатки самому: товары заведены с нулём,
+        // числа из файла ждут директора — сказать это вслух, иначе «остатки
+        // не загрузились» выглядит поломкой импорта.
+        if (result.stockRequest) {
+          notify.info(t(
+            `Остатки ${result.stockRequest.lines} товаров отправлены руководителю на утверждение (${result.stockRequest.number})`,
+            `${result.stockRequest.lines} ta tovar qoldig'i rahbarga tasdiqlash uchun yuborildi (${result.stockRequest.number})`,
+          ));
+        }
         // Only close if no errors
         if (result.errors.length === 0) {
           onDone();
