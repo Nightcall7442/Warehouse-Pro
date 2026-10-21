@@ -67,7 +67,18 @@ export async function rescheduleByCourier(db: Db, tenantId: number, courierId: n
   // Без кода — «просили привезти в другой день»: так переносят чаще всего.
   const reason = failReasonOf({ reasonCode: input.reasonCode, note: input.note }, "asked_reschedule");
   assertFailReason(reason.code, reason.note);
-  assertPlanDay(input.date, 1, RESCHEDULE_MAX_DAYS);
+  /*
+    «С завтра» — от дня, когда курьер нажал, а не от дня, когда дошёл запрос.
+
+    Отметка из очереди телефона приходит с опозданием: в 22:00 без связи
+    курьер выбрал «Завтра», очередь ушла в 09:00 — и по часам сервера этот
+    день уже «сегодня». Окно считалось от сервера, перенос получал отказ, а
+    очередь телефона — красную строку навсегда: заказ оставался в рейсе
+    вчерашнего дня. Время отметки — то же, что пишется в журнал (eventTime:
+    не старше недели и не из будущего).
+  */
+  const at = eventTime(input.recordedAt);
+  assertPlanDay(input.date, 1, RESCHEDULE_MAX_DAYS, at.getTime());
 
   let order: { id: number; orderNumber: string; agentId: number | null; shopId: number };
   try {
@@ -93,7 +104,7 @@ export async function rescheduleByCourier(db: Db, tenantId: number, courierId: n
         tenantId, orderId: o.id, courierId, kind: "rescheduled",
         reasonCode: reason.code, note: reason.note, rescheduledTo: input.date,
         lat: input.lat ?? null, lng: input.lng ?? null,
-        recordedAt: eventTime(input.recordedAt),
+        recordedAt: at,
         idempotencyKey: input.idempotencyKey ?? null,
       });
       return o;

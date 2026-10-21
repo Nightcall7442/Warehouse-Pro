@@ -997,6 +997,24 @@ describe("courier.reschedule", () => {
     await expect(caller.reschedule({ orderId: 1, date: businessDaysAgo(-14) })).resolves.toMatchObject({ success: true });
   });
 
+  /*
+    Очередь телефона: «Завтра» выбрано вчера в 22:00 без связи, запрос дошёл
+    сегодня. Окно считается от времени отметки — иначе по часам сервера это
+    «сегодня», отказ, и у курьера красная строка навсегда.
+  */
+  it("«Завтра», отмеченное вчера вечером без связи, принимается, когда очередь доходит сегодня", async () => {
+    const { courierRouter } = await import("../courier-router");
+    const caller = courierRouter.createCaller(makeCtx(1, 100, "courier"));
+    // Вчера 22:00 по Ташкенту — 17:00 UTC того же дня.
+    const recordedAt = `${businessDaysAgo(1)}T17:00:00.000Z`;
+    await expect(caller.reschedule({ orderId: 1, date: businessToday(), recordedAt, idempotencyKey: "resched-late-1" }))
+      .resolves.toMatchObject({ success: true, plannedDeliveryDate: businessToday() });
+    expect(eventsTable[0]).toMatchObject({ kind: "rescheduled", rescheduledTo: businessToday() });
+    expect((eventsTable[0].recordedAt as Date).toISOString()).toBe(recordedAt);
+    // Отмеченное сейчас «на сегодня» — по-прежнему отказ.
+    await expect(caller.reschedule({ orderId: 3, date: businessToday(), recordedAt: new Date().toISOString() })).rejects.toThrow(/с завтрашнего дня/);
+  });
+
   it("чужой заказ, заказ без курьера и отменённый — отказ", async () => {
     usersTable.push({ id: 101, tenantId: 1, name: "Courier Two", email: "c2@test.com", role: "courier", status: "active" });
     const { courierRouter } = await import("../courier-router");
