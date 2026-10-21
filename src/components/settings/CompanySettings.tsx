@@ -72,6 +72,9 @@ export function CompanySettings() {
   const t = (ru: string, uz: string) => lang === "uz" ? uz : ru;
   const logoRef = useRef<HTMLInputElement>(null);
   const { data: settings, isLoading, isLoadingError, refetch } = trpc.settings.get.useQuery();
+  // Склады — тот же запрос, что у выбора склада (WarehouseProvider): с одним складом перемещать некуда.
+  const { data: warehouseList } = trpc.warehouseMulti.list.useQuery();
+  const multiWarehouse = (warehouseList?.length ?? 0) > 1;
   const utils = trpc.useUtils();
   const [form, setForm] = useState<CompanyForm | null>(null);
 
@@ -255,7 +258,7 @@ export function CompanySettings() {
           получатель не примет его по строкам; недоехавшее остаётся недостачей
           на документе. Видно только тем, у кого больше одного склада, но
           хранится одно на организацию. */}
-      <FieldGroup title={t("Перемещение между складами", "Omborlar orasida ko'chirish")}>
+      {multiWarehouse && <FieldGroup title={t("Перемещение между складами", "Omborlar orasida ko'chirish")}>
         <label className="flex items-center gap-3 text-sm text-primary cursor-pointer" style={{ minHeight: "44px" }}>
           <input type="checkbox" className="neo-toggle" data-testid="transfer-two-step"
             checked={form.transferTwoStep}
@@ -267,7 +270,7 @@ export function CompanySettings() {
           {t("Принимают по строкам — не больше отправленного; недоехавшее остаётся недостачей на документе, директор получает уведомление. В самом перемещении режим можно сменить.",
              "Qatorlar bo'yicha qabul qilinadi — jo'natilgandan ko'p emas; yetib kelmagani hujjatda kamomad bo'lib qoladi, direktor xabar oladi. Ko'chirishning o'zida rejimni o'zgartirish mumkin.")}
         </p>
-      </FieldGroup>
+      </FieldGroup>}
 
       <SaveBar
         onSave={save}

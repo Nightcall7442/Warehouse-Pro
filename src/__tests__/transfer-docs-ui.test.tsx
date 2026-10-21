@@ -40,6 +40,7 @@ const h = vi.hoisted(() => {
     preview: { items: [], markdowns: [] } as Record<string, unknown>,
     batches: { onHand: 0, inBatches: 0, untracked: 0, batches: [] } as Record<string, unknown>,
     me: { can: {} } as Record<string, unknown>,
+    warehouses: [] as Array<Record<string, unknown>>,
     inTransit: [] as Doc[],
     history: [] as Doc[],
     legacy: [] as Array<Record<string, unknown>>,
@@ -65,6 +66,7 @@ const h = vi.hoisted(() => {
         update: { useMutation: m(state.settingsSave) },
       },
       warehouseMulti: {
+        list: { useQuery: q(() => state.warehouses) },
         getStock: { useQuery: q(() => ({ data: state.stockRows, total: state.stockRows.length, page: 1, pageSize: 10000, summary: {} })) },
         listTransfers: { useQuery: (input?: unknown) => { state.legacyInput(input); return q(() => state.legacy)(); } },
         transferDocs: { useQuery: (input?: { status?: string }) => q(() => (input?.status === "in_transit" ? state.inTransit : state.history))() },
@@ -101,6 +103,7 @@ beforeEach(() => {
   s.batches = { onHand: 0, inBatches: 0, untracked: 0, batches: [] };
   s.inTransit = []; s.history = []; s.legacy = [];
   s.me = { can: {} };
+  s.warehouses = [{ id: 1, name: "Основной склад", isDefault: true }, { id: 2, name: "Склад №2", isDefault: false }];
   for (const f of [s.legacyInput, s.createTransfer, s.receiveTransfer, s.cancelTransfer, s.completeTransfer, s.settingsSave, s.invalidate]) f.mockReset();
   vi.stubGlobal("matchMedia", (q: string) => ({
     matches: false, media: q, onchange: null,
@@ -352,6 +355,13 @@ describe("настройка организации", () => {
     fireEvent.click(toggle);
     fireEvent.click(screen.getByRole("button", { name: "Сохранить" }));
     expect(h.state.settingsSave.mock.calls[0][0]).toMatchObject({ transferTwoStep: true });
+  });
+
+  it("с одним складом настройки перемещений нет: перемещать некуда", () => {
+    h.state.warehouses = [{ id: 1, name: "Основной склад", isDefault: true }];
+    wrap(<CompanySettings />);
+    expect(screen.queryByTestId("transfer-two-step")).toBeNull();
+    expect(screen.queryByText("Перемещение между складами")).toBeNull();
   });
 });
 

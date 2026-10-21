@@ -64,6 +64,8 @@ vi.mock("@/providers/trpc", () => {
         light: { useQuery: query(null) },
       },
       user: { list: { useQuery: query({ data: [] }) } },
+      // «Компания» спрашивает склады: с одним складом настройки перемещений нет.
+      warehouseMulti: { list: { useQuery: query([{ id: 1, name: "Основной", isDefault: true }]) } },
       order: { shopOverdue: { useQuery: () => ({ data: h.overdue }) } },
       useUtils: () => ({ settings: { get: { invalidate: vi.fn() } }, shop: { getById: { invalidate: vi.fn() }, list: { invalidate: vi.fn() } } }),
     },
