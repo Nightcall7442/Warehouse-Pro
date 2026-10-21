@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router";
+import { useNavigate, useSearchParams } from "react-router";
 import { ChevronLeft, ChevronRight, Plus, FileDown } from "lucide-react";
 import { trpc } from "@/providers/trpc";
 import { exportToExcel, formatPurchaseOrdersForExport } from "@/lib/excel";
@@ -30,7 +30,9 @@ export function PurchaseOrdersSection() {
   const t = (ru: string, uz: string) => (lang === "uz" ? uz : ru);
   const navigate = useNavigate();
   const [status, setStatus] = useState<PurchaseOrderStatus | "">("");
-  const [supplierId, setSupplierId] = useState("");
+  // «Все заказы поставщика» из карточки контрагента приходят с поставщиком в адресе.
+  const [params] = useSearchParams();
+  const [supplierId, setSupplierId] = useState(() => /^\d+$/.test(params.get("supplierId") ?? "") ? String(params.get("supplierId")) : "");
   const [page, setPage] = useState(1);
   useScrollTopOnChange(page);
   // Заводит заказ тот, кто ведёт поставщиков; смотреть список может и без этого права.
@@ -155,7 +157,8 @@ export function PurchaseOrdersSection() {
             </thead>
             <tbody>
               {rows.map(r => (
-                <tr key={r.id} data-testid={`po-row-${r.id}`} onClick={() => navigate(`/purchase-orders/${r.id}`)} style={{ cursor: "pointer" }}>
+                <tr key={r.id} data-testid={`po-row-${r.id}`} onClick={() => navigate(`/purchase-orders/${r.id}`)} style={{ cursor: "pointer" }}
+                  tabIndex={0} onKeyDown={e => { if (e.key === "Enter") navigate(`/purchase-orders/${r.id}`); }}>
                   <td style={{ ...td, fontWeight: 700, color: COLORS.primaryText, whiteSpace: "nowrap" }}>{r.number}</td>
                   <td style={td}>{r.supplierName}</td>
                   <td style={td}>{r.warehouseName}</td>

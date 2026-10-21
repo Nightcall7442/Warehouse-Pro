@@ -25,7 +25,7 @@ const trpcStub = vi.hoisted(() => {
       id: 9, number: "PO-9", status: "pending_approval", supplierId: 5, supplierName: "Завод",
       warehouseId: 1, warehouseName: "Основной", currency: "USD", expectedDate: "2026-10-25",
       paymentTermsDays: 10, source: "manual", createdAt: new Date("2026-10-20T10:00:00Z"), updatedAt: new Date(),
-      total: 250, remaining: 250, lines: 1, openArrivals: 0, expectedPaymentDate: "2026-11-04",
+      total: 250, remaining: 250, expectedPaymentDate: "2026-11-04",
     }],
     total: 1, page: 1, pageSize: 25,
     summary: { pendingApproval: 1, open: 2, plannedUzs: 1800, plannedUsd: 250 },
@@ -76,6 +76,22 @@ describe("вкладка заказов поставщикам", () => {
     act(() => { fireEvent.click(row); });
     expect(screen.getByTestId("where").textContent).toBe("/purchase-orders/9");
     expect(listArgs).toHaveBeenCalledWith({ status: undefined, page: 1, pageSize: 25 });
+  });
+
+  it("из карточки поставщика — сразу с его фильтром; строка открывается и с клавиатуры", () => {
+    render(
+      <LangProvider>
+        <MemoryRouter initialEntries={["/arrivals?tab=orders&supplierId=5"]}>
+          <Routes>
+            <Route path="/arrivals" element={<PurchaseOrdersSection />} />
+            <Route path="/purchase-orders/:id" element={<Where />} />
+          </Routes>
+        </MemoryRouter>
+      </LangProvider>,
+    );
+    expect(listArgs).toHaveBeenLastCalledWith({ status: undefined, supplierId: 5, page: 1, pageSize: 25 });
+    act(() => { fireEvent.keyDown(screen.getByTestId("po-row-9"), { key: "Enter" }); });
+    expect(screen.getByTestId("where").textContent).toBe("/purchase-orders/9");
   });
 
   it("«Новый заказ» ведёт на пустой заказ", () => {

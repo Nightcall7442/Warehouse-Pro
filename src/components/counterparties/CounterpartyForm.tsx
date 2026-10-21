@@ -113,7 +113,7 @@ export function CounterpartyForm({ open, initial, isPending, onSave, onClose }: 
             className="neo-input"
             style={{ width: "100%" }}
             inputMode="numeric"
-            placeholder={t("Пусто — оплата по факту", "Bo'sh — haqiqatda to'lanadi")}
+            placeholder={t("Пусто — оплата по факту", "Bo'sh — yetkazib berilganda to'lanadi")}
             value={form.paymentTermsDays}
             onChange={e => set("paymentTermsDays")(e.target.value.replace(/[^\d]/g, "").slice(0, 3))}
           />

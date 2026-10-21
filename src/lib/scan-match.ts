@@ -38,11 +38,6 @@ export function matchesBarcode(p: Scannable, norm: string): boolean {
   return same(p.barcode, norm) || (p.barcodes ?? []).some(b => same(b, norm));
 }
 
-/** Совпадение скана с товаром: штрих-код (любой из) или код товара. norm — из normScan. */
-export function matchesScan(p: Scannable, norm: string): boolean {
-  return matchesBarcode(p, norm) || same(p.code, norm);
-}
-
 /**
  * Товар по скану из списка. view — как достать из строки код и штрих-коды,
  * если они названы иначе (строка инвентаризации: productCode).

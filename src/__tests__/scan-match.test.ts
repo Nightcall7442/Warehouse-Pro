@@ -8,7 +8,7 @@
  */
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
-import { findScanned, matchesBarcode, matchesScan, normScan } from "@/lib/scan-match";
+import { findScanned, matchesBarcode, normScan } from "@/lib/scan-match";
 
 const catalog = [
   { id: 1, code: "A-1", barcode: "4870001234567", barcodes: ["4870000000024"] },
@@ -44,12 +44,11 @@ describe("findScanned", () => {
   });
 });
 
-describe("matchesScan / matchesBarcode", () => {
-  it("совпадение по любому штрих-коду; matchesScan — ещё и по коду; пустой скан не совпадает ни с чем", () => {
+describe("matchesBarcode", () => {
+  it("совпадение по любому штрих-коду, но не по коду товара; пустой скан не совпадает ни с чем", () => {
     expect(matchesBarcode(catalog[1], normScan("AB-77"))).toBe(true);
     expect(matchesBarcode(catalog[1], normScan("B-2"))).toBe(false);
-    expect(matchesScan(catalog[1], normScan("B-2"))).toBe(true);
-    expect(matchesScan({ code: "", barcode: "" }, normScan(""))).toBe(false);
+    expect(matchesBarcode({ code: "", barcode: "" }, normScan(""))).toBe(false);
   });
 });
 

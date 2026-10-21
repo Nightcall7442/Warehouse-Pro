@@ -64,13 +64,6 @@ const remainingSql = sql<string>`COALESCE((
   SELECT SUM(GREATEST(i.quantity - i.received_qty, 0) * i.unit_price) FROM purchase_order_items i
   WHERE i.purchase_order_id = \`purchase_orders\`.\`id\`
 ), 0)`;
-const linesSql = sql<number>`(
-  SELECT COUNT(*) FROM purchase_order_items i WHERE i.purchase_order_id = \`purchase_orders\`.\`id\`
-)`;
-const openArrivalsSql = sql<number>`(
-  SELECT COUNT(*) FROM arrivals a
-  WHERE a.purchase_order_id = \`purchase_orders\`.\`id\` AND a.status <> 'completed'
-)`;
 
 const money = (v: unknown) => Math.round(Number(v ?? 0) * 100) / 100;
 
@@ -115,7 +108,7 @@ export const purchaseOrderRouter = createRouter({
           currency: purchaseOrders.currency, expectedDate: purchaseOrders.expectedDate,
           paymentTermsDays: purchaseOrders.paymentTermsDays, source: purchaseOrders.source,
           createdAt: purchaseOrders.createdAt, updatedAt: purchaseOrders.updatedAt,
-          total: totalSql, remaining: remainingSql, lines: linesSql, openArrivals: openArrivalsSql,
+          total: totalSql, remaining: remainingSql,
         })
           .from(purchaseOrders)
           .innerJoin(suppliers, and(eq(suppliers.id, purchaseOrders.supplierId), eq(suppliers.tenantId, tenantId)))
@@ -140,7 +133,6 @@ export const purchaseOrderRouter = createRouter({
             ...r,
             expectedDate: expected,
             total: money(r.total), remaining: money(r.remaining),
-            lines: Number(r.lines), openArrivals: Number(r.openArrivals),
             // Когда ждать счёт к оплате: день поставки плюс отсрочка — прогноз.
             expectedPaymentDate: expected ? dueDateAfter(expected, r.paymentTermsDays) : null,
           };

@@ -341,7 +341,8 @@ export function CounterpartyDetail({ supplierId, lang, onClose, onEdit, onPay, o
                 </thead>
                 <tbody>
                   {(orders?.data ?? []).map(o => (
-                    <tr key={o.id} data-testid={`cp-order-${o.id}`} onClick={() => navigate(`/purchase-orders/${o.id}`)} style={{ cursor: "pointer" }}>
+                    <tr key={o.id} data-testid={`cp-order-${o.id}`} onClick={() => navigate(`/purchase-orders/${o.id}`)} style={{ cursor: "pointer" }}
+                      tabIndex={0} onKeyDown={e => { if (e.key === "Enter") navigate(`/purchase-orders/${o.id}`); }}>
                       <td style={{ ...td, fontWeight: 600, color: COLORS.primaryText }}>{o.number}</td>
                       <td style={{ ...td, whiteSpace: "nowrap", color: COLORS.textSecondary }}>{format(new Date(o.createdAt), "dd.MM.yyyy")}</td>
                       <td style={td}><PurchaseOrderStatusBadge status={o.status} /></td>
@@ -352,6 +353,15 @@ export function CounterpartyDetail({ supplierId, lang, onClose, onEdit, onPay, o
                   ))}
                 </tbody>
               </table>
+            </div>
+          )}
+          {/* Здесь — последние 50; остальное — во вкладке заказов с этим поставщиком в фильтре, а не молча обрезано. */}
+          {orders && orders.total > orders.data.length && (
+            <div data-testid="cp-orders-more" style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap", marginTop: "10px", fontSize: "12px", color: COLORS.textSecondary }}>
+              {t(`Показаны последние ${orders.data.length} из ${orders.total}`, `Oxirgi ${orders.data.length} ta ko'rsatilgan, jami ${orders.total}`)}
+              <button className="neo-btn neo-btn-sm" data-testid="cp-orders-all" onClick={() => navigate(`/arrivals?tab=orders&supplierId=${supplierId}`)}>
+                {t("Все заказы поставщика", "Yetkazib beruvchining barcha buyurtmalari")}
+              </button>
             </div>
           )}
         </div>
