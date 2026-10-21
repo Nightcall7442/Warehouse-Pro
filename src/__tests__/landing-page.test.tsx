@@ -8,7 +8,7 @@ import { MemoryRouter } from "react-router";
  *
  * ── Почему проверяется целиком, а не по кускам ───────────────────────────────
  *
- * У страницы ровно одна внешняя зависимость — trpc.lead.create для формы
+ * У страницы ровно одна внешняя зависимость — lead.create (lib/public-api) для формы
  * заявки. Всё остальное это разметка и вычисления, поэтому её можно собрать
  * в jsdom как есть. Так проверяются не отдельные компоненты, а решения,
  * ради которых страницу переделывали, — и ни одно из них нельзя отменить
@@ -38,10 +38,10 @@ import { MemoryRouter } from "react-router";
 vi.setConfig({ testTimeout: 20_000 });
 
 const leadMutate = vi.fn();
-vi.mock("@/providers/trpc", () => ({
-  trpc: {
-    lead: { create: { useMutation: () => ({ mutate: leadMutate, isPending: false, isSuccess: false, error: null }) } },
-  },
+// Форма заявки ходит на сервер голым клиентом сайта (lib/public-api), без
+// react-query: заявка «уходит» и ждёт ответа, которого в тесте нет.
+vi.mock("@/lib/public-api", () => ({
+  createLead: (input: unknown) => { leadMutate(input); return new Promise(() => {}); },
 }));
 
 import Landing from "@/pages/Landing";

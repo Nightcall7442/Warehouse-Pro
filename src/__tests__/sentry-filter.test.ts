@@ -18,10 +18,12 @@ import { describe, it, expect, vi } from "vitest";
  * доходят. Одной первой половины мало — ей удовлетворяет `return null`.
  */
 
-const captured = vi.hoisted(() => ({ options: null as any }));
+const captured = vi.hoisted(() => ({ options: null as any, all: [] as any[] }));
 
 vi.mock("@sentry/react", () => ({
-  init: (options: unknown) => { captured.options = options; },
+  // Первый init — приложения (src/sentry.ts); его настройки и проверяются
+  // ниже. Второй — сайта для гостя (src/sentry-lite.ts), в конце файла.
+  init: (options: unknown) => { captured.all.push(options); captured.options ??= options; },
   setUser: vi.fn(),
   setTag: vi.fn(),
   browserTracingIntegration: () => ({ name: "BrowserTracing" }),
@@ -29,6 +31,7 @@ vi.mock("@sentry/react", () => ({
 }));
 
 await import("@/sentry");
+await import("@/sentry-lite");
 
 /** Событие в том виде, в каком его отдаёт Sentry в beforeSend. */
 const event = (message: string) => ({ exception: { values: [{ value: message }] } });
@@ -87,5 +90,25 @@ describe("Sentry: настройки, влияющие на разбор", () =>
 
   it("личные данные не отправляются по умолчанию", () => {
     expect(captured.options.sendDefaultPii).toBe(false);
+  });
+});
+
+describe("Sentry на сайте для гостя (sentry-lite)", () => {
+  const app = captured.all[0];
+  const site = captured.all[1];
+
+  it("тот же отсев, версия и без личных данных, что у приложения", () => {
+    expect(site).toBeTruthy();
+    expect(site.beforeSend).toBe(app.beforeSend);
+    expect(site.ignoreErrors).toBe(app.ignoreErrors);
+    expect(site.release).toBe(app.release);
+    expect(site.sendDefaultPii).toBe(false);
+  });
+
+  it("без трассировки и записи сеанса: у гостя одна страница и одна форма", () => {
+    expect(site.integrations).toBeUndefined();
+    expect(site.tracesSampleRate).toBe(0);
+    expect(site.replaysOnErrorSampleRate).toBeUndefined();
+    expect(app.integrations.map((i: { name: string }) => i.name)).toContain("BrowserTracing");
   });
 });

@@ -30,11 +30,7 @@ import { readFileSync } from "node:fs";
  */
 vi.setConfig({ testTimeout: 30_000 });
 
-vi.mock("@/providers/trpc", () => ({
-  trpc: {
-    lead: { create: { useMutation: () => ({ mutate: vi.fn(), isPending: false, isSuccess: false, error: null }) } },
-  },
-}));
+vi.mock("@/lib/public-api", () => ({ createLead: () => new Promise(() => {}) }));
 
 const { default: Landing } = await import("@/pages/Landing");
 const { LangProvider } = await import("@/i18n");

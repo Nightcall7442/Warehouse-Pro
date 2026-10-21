@@ -24,7 +24,7 @@ describe("обновление приложения по кнопке", () => {
   });
 
   it("UpdatePrompt смонтирован в корне и обновляет только по действию человека", () => {
-    expect(read("src/main.tsx")).toContain("<UpdatePrompt />");
+    expect(read("src/app-main.tsx")).toContain("<UpdatePrompt />");
     const cmp = stripComments(read("src/components/UpdatePrompt.tsx"));
     expect(cmp).toContain("useRegisterSW");
     expect(cmp).toContain("updateServiceWorker(true)");

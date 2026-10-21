@@ -31,10 +31,10 @@ import type { L } from "@/components/pitch/pitch-content";
 vi.setConfig({ testTimeout: 30_000 });
 
 const leadMutate = vi.fn();
-vi.mock("@/providers/trpc", () => ({
-  trpc: {
-    lead: { create: { useMutation: () => ({ mutate: leadMutate, isPending: false, isSuccess: false, error: null }) } },
-  },
+// Форма заявки ходит на сервер голым клиентом сайта (lib/public-api), без
+// react-query: заявка «уходит» и ждёт ответа, которого в тесте нет.
+vi.mock("@/lib/public-api", () => ({
+  createLead: (input: unknown) => { leadMutate(input); return new Promise(() => {}); },
 }));
 
 const { default: Landing } = await import("@/pages/Landing");

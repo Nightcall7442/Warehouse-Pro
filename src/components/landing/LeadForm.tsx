@@ -1,6 +1,6 @@
 import { useId, useState } from "react";
 import { ArrowRight, Check, Loader2 } from "lucide-react";
-import { trpc } from "@/providers/trpc";
+import { createLead } from "@/lib/public-api";
 import { useTranslate } from "@/i18n";
 import { LX, MONO } from "./landing-tokens";
 import { errorText } from "@/lib/error-text";
@@ -48,10 +48,10 @@ export default function LeadForm({ compact = false, onInk = false, stack = false
   const [phone, setPhone] = useState("");
   const [comment, setComment] = useState("");
   const [error, setError] = useState<string | null>(null);
-
-  const create = trpc.lead.create.useMutation({
-    onError: (e) => setError(errorText(e)),
-  });
+  // Своё состояние отправки, а не useMutation: форма живёт и на лёгком входе
+  // сайта, где react-query нет (lib/public-api).
+  const [sent, setSent] = useState<"idle" | "pending" | "done">("idle");
+  const pending = sent === "pending";
 
   const text = onInk ? LX.paperOnInk : LX.ink;
   const soft = onInk ? LX.softOnInk : LX.inkFaint;
@@ -60,7 +60,7 @@ export default function LeadForm({ compact = false, onInk = false, stack = false
 
   /* Отправлено — форма уступает место ответу. Оставлять поля заполненными и
      показывать сообщение сверху значит приглашать отправить второй раз. */
-  if (create.isSuccess) {
+  if (sent === "done") {
     return (
       <div
         className="flex items-start gap-3 rounded-lg px-5 py-4"
@@ -93,8 +93,10 @@ export default function LeadForm({ compact = false, onInk = false, stack = false
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (pending) return;
     setError(null);
-    create.mutate({
+    setSent("pending");
+    createLead({
       name: name.trim(),
       phone: phone.trim(),
       company: company.trim() || undefined,
@@ -103,7 +105,10 @@ export default function LeadForm({ compact = false, onInk = false, stack = false
       // Метки рекламы, по которой человек пришёл на сайт (lib/attribution):
       // форма отвечает «откуда на странице», метки — «с какой рекламы».
       attribution: (() => { const a = readAttribution(); return Object.keys(a).length ? a : undefined; })(),
-    });
+    }).then(
+      () => setSent("done"),
+      (e: unknown) => { setSent("idle"); setError(errorText(e)); },
+    );
   };
 
   // Кнопка недоступна, пока не заполнено необходимое, — но проверка идёт по
@@ -174,23 +179,23 @@ export default function LeadForm({ compact = false, onInk = false, stack = false
         <button
           type="submit"
           data-testid="lead-submit"
-          disabled={!ready || create.isPending}
+          disabled={!ready || pending}
           className="inline-flex items-center justify-center gap-2 font-semibold"
           // Пока поля пусты, кнопка — контурная, а не притушенная серым: серая
           // читалась как сломанная, и это был первый экран страницы.
           style={{
-            background: !ready && !create.isPending ? "transparent" : onInk ? LX.paperOnInk : LX.ink,
-            color: !ready && !create.isPending ? text : onInk ? LX.ink : LX.paperOnInk,
+            background: !ready && !pending ? "transparent" : onInk ? LX.paperOnInk : LX.ink,
+            color: !ready && !pending ? text : onInk ? LX.ink : LX.paperOnInk,
             borderRadius: 8,
             padding: "12px 22px",
             fontSize: 15,
-            border: !ready && !create.isPending ? `1px solid ${line}` : "1px solid transparent",
-            cursor: !ready || create.isPending ? "not-allowed" : "pointer",
-            opacity: create.isPending ? 0.6 : 1,
+            border: !ready && !pending ? `1px solid ${line}` : "1px solid transparent",
+            cursor: !ready || pending ? "not-allowed" : "pointer",
+            opacity: pending ? 0.6 : 1,
             whiteSpace: "nowrap",
           }}
         >
-          {create.isPending
+          {pending
             ? <><Loader2 size={15} className="animate-spin" />{tr("Отправляем…", "Yuborilmoqda…")}</>
             : <>{tr("Перезвоните мне", "Menga qo'ng'iroq qiling")}<ArrowRight size={15} /></>}
         </button>

@@ -33,9 +33,11 @@ vi.setConfig({ testTimeout: 30_000 });
 
 const leadMutate = vi.fn();
 const registerMutate = vi.fn();
+vi.mock("@/lib/public-api", () => ({
+  createLead: (input: unknown) => { leadMutate(input); return new Promise(() => {}); },
+}));
 vi.mock("@/providers/trpc", () => ({
   trpc: {
-    lead: { create: { useMutation: () => ({ mutate: leadMutate, isPending: false, isSuccess: false, error: null }) } },
     tenant: { register: { useMutation: () => ({ mutate: registerMutate, isPending: false, isSuccess: false, error: null }) } },
     auth: { resendVerification: { useMutation: () => ({ mutate: vi.fn(), isPending: false }) } },
   },
