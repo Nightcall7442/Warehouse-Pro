@@ -38,11 +38,10 @@ import { TRPCError } from "@trpc/server";
 type Db = ReturnType<typeof import("../queries/connection").getDb>;
 type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
 
-/** Кто вправе выбрать склад заказа сам: офис. Полевым склад назначает директор. */
-export const WAREHOUSE_CHOOSERS = ["ceo", "operator"] as const;
-export const mayChooseWarehouse = (role: string): boolean => (WAREHOUSE_CHOOSERS as readonly string[]).includes(role);
+// Кто выбирает склад сам — общее с экраном правило (contracts/sales-warehouse.ts).
+export { WAREHOUSE_CHOOSERS, mayChooseWarehouse } from "@contracts/sales-warehouse";
 
-/** Условие «с этого склада продают»: действующий, основной или точка продаж. */
+/** Условие «с этого склада продают»: действующий, основной или точка продаж (isSellableWarehouse на экране). */
 export function sellableWarehouse(tenantId: number) {
   return and(
     eq(warehouses.tenantId, tenantId),

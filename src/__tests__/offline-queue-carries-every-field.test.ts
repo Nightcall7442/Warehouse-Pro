@@ -69,6 +69,20 @@ describe("офлайн-очередь довозит то же, что и обы
     ).toEqual(online);
   });
 
+  it("кнопка «Отправить» на экране «Офлайн» довозит то же самое", () => {
+    // Второй путь отправки из очереди — вручную, по одной записи. Он терял
+    // обещанный срок, а с ADR 0012 потерял бы и выбранный офисом склад.
+    const MANUAL = blockAfter(read("src/pages/OfflineOrders.tsx"), "await createOrder.mutateAsync({");
+    const online = topLevelKeys(ONLINE).sort();
+    const manual = topLevelKeys(MANUAL).sort();
+    expect(manual, `не довозит: ${online.filter(k => !manual.includes(k)).join(", ") || "—"}`).toEqual(online);
+  });
+
+  it("склад, выбранный офисом, среди них", () => {
+    expect(topLevelKeys(ONLINE)).toContain("warehouseId");
+    expect(topLevelKeys(OFFLINE)).toContain("warehouseId");
+  });
+
   it("обещанный срок среди них", () => {
     // Именно на нём это и поймали: агент называет срок магазину, связь на
     // складе пропадает регулярно, и потерянное обещание выглядит как срыв.

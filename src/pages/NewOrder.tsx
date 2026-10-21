@@ -20,6 +20,8 @@ import { OverdueNotice } from "@/components/orders/OverdueNotice";
 import { useShopPrices } from "@/hooks/useOfflineCopy";
 import { errorText } from "@/lib/error-text";
 import { fromBizInput } from "@/lib/business-time";
+import { catalogScope, mayChooseWarehouse, type CatalogScope } from "@/lib/sales-warehouse";
+import { SalesWarehousePicker } from "@/components/orders/SalesWarehousePicker";
 
 const LABELS_RU = ["Магазин", "Товары", "Итог"];
 const LABELS_UZ = ["Do'kon", "Mahsulotlar", "Xulosa"];
@@ -71,6 +73,16 @@ interface OrderWizard {
   assignableAgents?: { id: number; name: string }[];
   agentId: number;
   setAgentId: (id: number) => void;
+  /*
+    Склад продажи (ADR 0012). Выбор — только у офиса (mayChooseWarehouse);
+    0 — не выбирали: сервер возьмёт склад агента заказа или основной.
+    catalogScope — доводы, с которыми каталог шага «Товары» читает остаток
+    и цены того же склада, что спишет заказ.
+  */
+  mayChooseWarehouse: boolean;
+  warehouseId: number;
+  setWarehouseId: (id: number) => void;
+  catalogScope: CatalogScope;
 }
 
 const useWizard = () => useOutletContext<OrderWizard>();
@@ -85,14 +97,18 @@ export function NewOrderShopStep() {
 export function NewOrderItemsStep() {
   const w = useWizard();
   return (
-    <ProductSelector
-      items={w.items}
-      onChange={w.setItems}
-      cartOpen={w.cartOpen}
-      onCartOpenChange={w.setCartOpen}
-      shopId={w.shopId || undefined}
-      lastTime={w.lastTime}
-    />
+    <>
+      {w.mayChooseWarehouse && <SalesWarehousePicker value={w.warehouseId} onChange={w.setWarehouseId} />}
+      <ProductSelector
+        items={w.items}
+        onChange={w.setItems}
+        cartOpen={w.cartOpen}
+        onCartOpenChange={w.setCartOpen}
+        shopId={w.shopId || undefined}
+        lastTime={w.lastTime}
+        scope={w.catalogScope}
+      />
+    </>
   );
 }
 
@@ -168,6 +184,17 @@ export default function NewOrder() {
     const meLabel = lang === "uz" ? "siz" : "вы";
     return [{ id: user.id, name: `${user.name} (${meLabel})` }, ...others];
   }, [canAssign, agentList, user, lang]);
+  /*
+    Склад продажи (ADR 0012). Выбирает только офис; 0 — «склад агента
+    заказа»: сервер возьмёт склад того, на кого оформлен заказ, или основной.
+    Каталог читает остаток того же склада — с теми же доводами (catalogScope).
+  */
+  const canChooseWarehouse = mayChooseWarehouse(user?.role);
+  const [warehouseId, setWarehouseId] = useState(0);
+  const scope = useMemo(
+    () => catalogScope({ role: user?.role, userId: user?.id, agentId, warehouseId }),
+    [user?.role, user?.id, agentId, warehouseId],
+  );
   const [idempotencyKey] = useState(() => crypto.randomUUID());
   // Открыта ли панель корзины. Признак нужен только на мобильном, но живёт
   // здесь: кнопка-итог стоит в нижней строке этой страницы, а сама панель —
@@ -320,7 +347,7 @@ export default function NewOrder() {
     Без связи — копия цен ЭТОГО магазина: после перезагрузки живого ответа
     нет, и итог шёл по цене одной штуки мимо ступеней.
   */
-  const { data: liveShopPrices } = trpc.product.listAll.useQuery({ shopId }, { enabled: shopId > 0 });
+  const { data: liveShopPrices } = trpc.product.listAll.useQuery({ shopId, ...scope }, { enabled: shopId > 0 });
   const { data: shopPrices } = useShopPrices(shopId, liveShopPrices);
   const catalog = useMemo(() => new Map((shopPrices ?? []).map(p => [p.id, p])), [shopPrices]);
   const pricedItems = useMemo(() => {
@@ -394,6 +421,8 @@ export default function NewOrder() {
         прочиталось бы в его поясе и уехало бы на часы.
       */
       promisedDeliveryAt: promisedAt ? fromBizInput(promisedAt)?.toISOString() : undefined,
+      // Склад, выбранный офисом. Не выбирали — поля нет, склад решит сервер.
+      warehouseId: canChooseWarehouse && warehouseId > 0 ? warehouseId : undefined,
     };
 
     if (!navigator.onLine) {
@@ -471,6 +500,7 @@ export default function NewOrder() {
     cartOpen, setCartOpen,
     lastTime: repeatDraft?.lastTime,
     assignableAgents, agentId, setAgentId,
+    mayChooseWarehouse: canChooseWarehouse, warehouseId, setWarehouseId, catalogScope: scope,
   };
 
   return (

@@ -106,6 +106,8 @@ describe.skipIf(!hasRealDb)("продажи с нескольких складо
     const { id } = await create(branchAgent, "3");
     expect(await orderWarehouse(id)).toBe(w2);
     expect(await stockAt(w2)).toEqual({ current: 5, reserved: 3, available: 2 });
+    // Карточка заказа называет склад — кладовщику видно, откуда везти.
+    expect(await (await orders("operator", operatorId)).getById({ id })).toMatchObject({ warehouseId: w2, warehouseName: "Филиал" });
     expect(await stockAt(s.warehouseId)).toEqual({ current: 10, reserved: 0, available: 10 });
 
     // Правка состава — резерв растёт там же.

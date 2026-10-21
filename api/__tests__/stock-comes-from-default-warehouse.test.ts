@@ -87,7 +87,9 @@ describe("каталог и заказ — один склад продажи", 
     expect(ORDER).toContain("requested: input.warehouseId, agentId, mayChoose: input.mayChooseWarehouse ?? false,");
     expect(ORDER).toContain("Склад по умолчанию не найден");
     expect(RULE).toContain("Склад заказа выбирает офис. Агенту склад назначают в карточке сотрудника");
-    expect(RULE).toContain('export const WAREHOUSE_CHOOSERS = ["ceo", "operator"] as const;');
+    // Кто выбирает — одно правило на сервер и экран.
+    expect(RULE).toContain('export { WAREHOUSE_CHOOSERS, mayChooseWarehouse } from "@contracts/sales-warehouse";');
+    expect(read("contracts/sales-warehouse.ts")).toContain('export const WAREHOUSE_CHOOSERS = ["ceo", "operator"] as const;');
     expect(read("api/order-router.ts")).toContain("mayChooseWarehouse: mayChooseWarehouse(ctx.user.role),");
   });
 

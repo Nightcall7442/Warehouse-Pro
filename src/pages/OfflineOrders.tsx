@@ -81,6 +81,13 @@ export default function OfflineOrders() {
         notes:    order.notes as string | undefined,
         discount: order.discount as string | number | undefined,
         paymentMethod: toPaymentMethod(order.paymentMethod),
+        /*
+          Обещанный срок и склад — как у фоновой отправки (useOfflineSync):
+          кнопка «Отправить» довозит то же, что и очередь. Страж —
+          offline-queue-carries-every-field.
+        */
+        promisedDeliveryAt: (order.promisedDeliveryAt as string | undefined) || undefined,
+        warehouseId: (order.warehouseId as number | undefined) || undefined,
         idempotencyKey: (order.idempotencyKey as string) || crypto.randomUUID(),
       });
       await deletePendingOrder(order.localId as number);

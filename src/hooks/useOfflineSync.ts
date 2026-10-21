@@ -141,6 +141,9 @@ export function useOfflineSync(): OfflineSync {
               offline-queue-carries-every-field.
             */
             promisedDeliveryAt: (order.promisedDeliveryAt as string | undefined) || undefined,
+            // Склад, выбранный офисом (ADR 0012): без него заказ ушёл бы со
+            // склада агента, а не с того, чей остаток видели при наборе.
+            warehouseId: (order.warehouseId as number | undefined) || undefined,
             // Ключ повторной отправки берётся сохранённый: без него повтор
             // после обрыва на полпути завёл бы второй такой же заказ.
             idempotencyKey: (order.idempotencyKey as string) || crypto.randomUUID(),
