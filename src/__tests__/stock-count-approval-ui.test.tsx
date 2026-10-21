@@ -1,11 +1,13 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
-import { render, screen, fireEvent, cleanup, act } from "@testing-library/react";
+import { render, screen, fireEvent, cleanup, act, within } from "@testing-library/react";
 import { LangProvider } from "@/i18n";
 
 /**
  * Инвентаризация на утверждении директора — на экране.
  *
+ *   • что считать: весь склад, категория или выбранные товары — и ровно это
+ *     уходит в stockCount.create;
  *   • оператор без права проводить видит «На утверждение», а не «Применить»;
  *   • директор у отправленного документа — «Утвердить» и «Вернуть», и вернуть
  *     без объяснения нельзя;
@@ -19,6 +21,7 @@ const h = vi.hoisted(() => {
     canApply: true,
     doc: null as Record<string, unknown> | null,
     list: [] as Array<Record<string, unknown>>,
+    found: [] as Array<Record<string, unknown>>,
     calls: [] as Array<[string, unknown]>,
   };
   const q = (get: () => unknown) => () => ({ data: get(), isLoading: false, isError: false, refetch: vi.fn() });
@@ -41,8 +44,10 @@ const h = vi.hoisted(() => {
         rejectCount: { useMutation: m("rejectCount") },
         cancel: { useMutation: m("cancel") },
       },
+      product: { categories: { useQuery: q(() => ["Напитки", "Сладости"]) } },
       // Валюта итогов документа (useCurrency).
       settings: { get: { useQuery: q(() => null) } },
+      warehouseMulti: { getStock: { useQuery: q(() => ({ data: state.found })) } },
       useUtils: () => ({ stockCount: { list: inv, get: inv }, warehouseMulti: { getStock: inv } }),
     },
   };
@@ -52,6 +57,9 @@ vi.mock("@/components/ConfirmDialog", () => ({ useConfirm: () => ({ confirm: asy
 vi.mock("@/hooks/useAuth", () => ({ useAuth: () => ({ user: { id: 1, role: h.state.role } }) }));
 vi.mock("@/hooks/useCan", () => ({ useCan: () => (cap: string) => cap === "warehouse.apply" ? h.state.canApply : true }));
 vi.mock("@/components/BarcodeScanner", () => ({ BarcodeScanner: () => null }));
+
+// jsdom не умеет прокручивать: выпадающий список склада прокручивает выбранный пункт в вид.
+Element.prototype.scrollIntoView ??= () => {};
 
 const { StockCounts } = await import("@/components/warehouse/StockCounts");
 const { AdjustModal } = await import("@/components/warehouse/AdjustModal");
@@ -71,12 +79,40 @@ const doc = (over: Record<string, unknown> = {}) => ({
 });
 
 beforeEach(() => {
-  h.state.role = "operator"; h.state.canApply = true; h.state.calls = [];
+  h.state.role = "operator"; h.state.canApply = true; h.state.calls = []; h.state.found = [];
   h.state.list = []; h.state.doc = null;
 });
 afterEach(cleanup);
 
-describe("список документов", () => {
+describe("что считать", () => {
+  it("категория: в create уходит только она; без выбранной категории начать нельзя", () => {
+    wrap(<StockCounts warehouses={WH} />);
+    fireEvent.click(screen.getByTestId("stock-count-scope-category"));
+    expect((screen.getByTestId("stock-count-new") as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.click(screen.getByRole("combobox"));
+    fireEvent.click(screen.getByRole("option", { name: "Напитки" }));
+    fireEvent.click(screen.getByTestId("stock-count-new"));
+    expect(h.state.calls).toEqual([["create", { warehouseId: 1, category: "Напитки" }]]);
+  });
+
+  it("выбранные товары: найденное добавляется кнопкой, в create уходят их номера", () => {
+    h.state.found = [{ productId: 5, productName: "Вода", productCode: "W1" }, { productId: 9, productName: "Сок", productCode: "J1" }];
+    wrap(<StockCounts warehouses={WH} />);
+    fireEvent.click(screen.getByTestId("stock-count-scope-items"));
+    fireEvent.change(screen.getByTestId("stock-count-item-search"), { target: { value: "во" } });
+    fireEvent.click(screen.getByTestId("stock-count-pick-9"));
+    fireEvent.click(screen.getByTestId("stock-count-pick-5"));
+    expect(within(screen.getByTestId("stock-count-picked")).getByText("Сок")).toBeTruthy();
+    fireEvent.click(screen.getByTestId("stock-count-new"));
+    expect(h.state.calls).toEqual([["create", { warehouseId: 1, productIds: [9, 5] }]]);
+  });
+
+  it("весь склад — как раньше: только склад", () => {
+    wrap(<StockCounts warehouses={WH} />);
+    fireEvent.click(screen.getByTestId("stock-count-new"));
+    expect(h.state.calls).toEqual([["create", { warehouseId: 1 }]]);
+  });
+
   it("директор видит, сколько документов ждёт его решения", () => {
     h.state.role = "ceo";
     h.state.list = [

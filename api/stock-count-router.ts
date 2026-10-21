@@ -1,10 +1,11 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { createRouter, operatorQuery, adminQuery, can } from "./middleware";
 import { products, stockCountItems, stockCounts, warehouseStock, warehouses, users } from "@db/schema";
 import { applyCountLines, approveCount, nextCountNumber, rejectCount, submitCount } from "./services/stock-count";
 import { recordAudit } from "./services/audit-log";
+import { assertProductsBelongToTenant } from "./lib/tenant-refs";
 import { cache } from "./lib/cache";
 import { invalidateReports } from "./lib/report-cache";
 
@@ -20,7 +21,8 @@ type Db = ReturnType<typeof import("./queries/connection").getDb>;
   действием через дверь остатка — и в журнале движений «инвентаризация» по
   каждой разнице. Применённый документ не правится: он и есть акт.
 
-  Оператор без права warehouse.apply не применяет, а отправляет
+  Считать можно не весь склад: категорию или выбранные товары — полку, а не
+  ангар. Оператор без права warehouse.apply не применяет, а отправляет
   директору (submitCount); утверждение и отказ — у директора. Как и почему
   утверждается разница, а не число, — в services/stock-count.ts.
 */
@@ -68,32 +70,60 @@ export const stockCountRouter = createRouter({
    * Новый черновик: строка на каждый товар со строкой остатка на складе,
    * expected — учётный остаток на этот момент. Снимок нужен, чтобы «ожидалось»
    * не плыло, пока считают: продажи идут, а акт — про момент начала.
+   *
+   * category — только товары этой категории; productIds — ровно выбранные
+   * (товар без строки остатка на этом складе — ожидалось ноль). Без них —
+   * весь склад, как было.
    */
   create: operatorQuery.use(can("warehouse.adjust"))
-    .input(z.object({ warehouseId: z.number().int().positive(), notes: z.string().max(500).optional() }))
+    .input(z.object({
+      warehouseId: z.number().int().positive(),
+      notes: z.string().max(500).optional(),
+      category: z.string().trim().min(1).max(100).optional(),
+      productIds: z.array(z.number().int().positive()).min(1).max(500).optional(),
+    }))
     .mutation(async ({ input, ctx }) => {
       const db = ctx.db;
+      const tenantId = ctx.tenant.id;
+      if (input.category && input.productIds) throw new TRPCError({ code: "BAD_REQUEST", message: "Выберите что-то одно: категорию или товары" });
       const [wh] = await db.select({ id: warehouses.id }).from(warehouses)
-        .where(and(eq(warehouses.id, input.warehouseId), eq(warehouses.tenantId, ctx.tenant.id))).limit(1);
+        .where(and(eq(warehouses.id, input.warehouseId), eq(warehouses.tenantId, tenantId))).limit(1);
       if (!wh) throw new TRPCError({ code: "NOT_FOUND", message: "Склад не найден" });
+      // stock_count_items без tenant_id: чужой товар в строке документа
+      // потом показал бы своё название и себестоимость.
+      const picked = input.productIds ? [...new Set(input.productIds)] : null;
+      if (picked) await assertProductsBelongToTenant(db, tenantId, picked);
 
-      const number = await nextCountNumber(db, ctx.tenant.id);
+      const number = await nextCountNumber(db, tenantId);
+      const scope = picked ? "items" : input.category ? "category" : "full";
 
       const id = await db.transaction(async (tx) => {
         const [r] = await tx.insert(stockCounts).values({
-          tenantId: ctx.tenant.id, warehouseId: wh.id, number, notes: input.notes ?? null, createdBy: ctx.user.id,
+          tenantId, warehouseId: wh.id, number, notes: input.notes ?? null, createdBy: ctx.user.id,
+          scope, scopeCategory: input.category ?? null,
         });
         const countId = Number(r.insertId);
-        const rows = await tx.select({ productId: warehouseStock.productId, current: warehouseStock.currentStock })
-          .from(warehouseStock)
-          .innerJoin(products, and(eq(warehouseStock.productId, products.id), eq(products.tenantId, ctx.tenant.id), eq(products.status, "active")))
-          .where(and(eq(warehouseStock.tenantId, ctx.tenant.id), eq(warehouseStock.warehouseId, wh.id)));
+        const rows = picked
+          ? await tx.select({ productId: products.id, current: warehouseStock.currentStock })
+            .from(products)
+            .leftJoin(warehouseStock, and(eq(warehouseStock.productId, products.id), eq(warehouseStock.tenantId, tenantId), eq(warehouseStock.warehouseId, wh.id)))
+            .where(and(eq(products.tenantId, tenantId), inArray(products.id, picked)))
+          : await tx.select({ productId: warehouseStock.productId, current: warehouseStock.currentStock })
+            .from(warehouseStock)
+            .innerJoin(products, and(
+              eq(warehouseStock.productId, products.id), eq(products.tenantId, tenantId), eq(products.status, "active"),
+              ...(input.category ? [eq(products.category, input.category)] : []),
+            ))
+            .where(and(eq(warehouseStock.tenantId, tenantId), eq(warehouseStock.warehouseId, wh.id)));
+        if (rows.length === 0 && input.category) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: `В категории «${input.category}» на этом складе нет товаров` });
+        }
         if (rows.length > 0) {
           await tx.insert(stockCountItems).values(rows.map(r => ({ countId, productId: r.productId, expected: String(r.current ?? "0.00") })));
         }
         return countId;
       });
-      await recordAudit(db, { tenantId: ctx.tenant.id, actorId: ctx.user.id, actorName: ctx.user.name, action: "stock_count.create", targetType: "stock_count", targetId: id, meta: { number, warehouseId: wh.id } });
+      await recordAudit(db, { tenantId, actorId: ctx.user.id, actorName: ctx.user.name, action: "stock_count.create", targetType: "stock_count", targetId: id, meta: { number, warehouseId: wh.id, scope, category: input.category, lines: picked?.length } });
       return { id, number };
     }),
 
@@ -145,11 +175,15 @@ export const stockCountRouter = createRouter({
           .where(and(eq(stockCountItems.countId, count.id), eq(stockCountItems.productId, input.productId))).limit(1);
         let itemId = item?.id;
         if (!itemId) {
-          // Товар, которого в учёте на этом складе не было: ожидалось ноль.
+          // Товара нет в документе. Либо в учёте на этом складе его не было
+          // (ожидалось ноль), либо документ на категорию или выбранные товары, а
+          // этот товар за его рамкой — тогда ожидалось то, что в учёте сейчас.
           const [p] = await tx.select({ id: products.id }).from(products)
             .where(and(eq(products.id, input.productId), eq(products.tenantId, ctx.tenant.id))).limit(1);
           if (!p) throw new TRPCError({ code: "NOT_FOUND", message: "Товар не найден в вашей организации" });
-          const [r] = await tx.insert(stockCountItems).values({ countId: count.id, productId: p.id, expected: "0.00" });
+          const [st] = await tx.select({ current: warehouseStock.currentStock }).from(warehouseStock)
+            .where(and(eq(warehouseStock.tenantId, ctx.tenant.id), eq(warehouseStock.warehouseId, count.warehouseId), eq(warehouseStock.productId, p.id))).limit(1);
+          const [r] = await tx.insert(stockCountItems).values({ countId: count.id, productId: p.id, expected: String(st?.current ?? "0.00") });
           itemId = Number(r.insertId);
         }
         const base = item?.counted != null ? Number(item.counted) : 0;

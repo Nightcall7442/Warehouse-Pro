@@ -395,6 +395,8 @@ export const SERVER_ERROR_TEXT: Record<string, ErrorText> = {
   "«{0}»: после отправки остаток стал {1}, а по документу нужно снять {2}. Верните документ — пусть пересчитают заново.": { uz: "«{0}»: yuborilgandan keyin qoldiq {1} bo'ldi, hujjat bo'yicha esa {2} ayirish kerak. Hujjatni qaytaring — qayta sanashsin." },
   "«{0}»: списать {1} нельзя — свободно {2}, остальное отложено под заказы.": { uz: "«{0}»: {1} hisobdan chiqarib bo'lmaydi — bo'sh {2}, qolgani buyurtmalar uchun ajratilgan." },
   "Остаток уже {0} — менять нечего": { uz: "Qoldiq allaqachon {0} — o'zgartiradigan narsa yo'q" },
+  "Выберите что-то одно: категорию или товары": { uz: "Bittasini tanlang: turkum yoki tovarlar" },
+  "В категории «{0}» на этом складе нет товаров": { uz: "Bu omborda «{0}» turkumida tovar yo'q" },
   "Напишите, что исправить": { uz: "Nimani tuzatish kerakligini yozing" },
   "Сменить склад по умолчанию нельзя: открытых заказов {0}, позиций с резервом {1}. Довезите или отмените открытые заказы и повторите.": { uz: "Asosiy omborni almashtirib bo'lmaydi: ochiq buyurtmalar {0}, zahiradagi pozitsiyalar {1}. Ochiq buyurtmalarni yetkazing yoki bekor qiling va qayta urinib ko'ring." },
   "Перемещение не найдено или уже выполнено": { uz: "Ko'chirish topilmadi yoki allaqachon bajarilgan" },

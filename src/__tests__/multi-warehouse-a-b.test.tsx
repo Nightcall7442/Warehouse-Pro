@@ -55,6 +55,8 @@ const stub = vi.hoisted(() => {
         list: { useQuery: q(() => []) },
         create: { useMutation: m(state.createCount) },
       },
+      // Счёт по категории — список категорий (зовётся всегда, включается выбором).
+      product: { categories: { useQuery: q(() => []) } },
       useUtils: () => ({
         warehouseMulti: {
           listTransfers: { invalidate: state.invalidate }, getStock: { invalidate: state.invalidate },

@@ -25,7 +25,8 @@ import { errorText } from "@/lib/error-text";
  * штуках и деньгах по себестоимости; «Применить» проводит всё разом через
  * дверь остатка. Непосчитанные строки не трогаются: «не считали» — не «ноль».
  *
- * Оператор, которому директор закрыл «проводить без утверждения» (warehouse.apply),
+ * Считать можно и не весь склад: категорию или выбранные товары. Оператор,
+ * которому директор закрыл «проводить без утверждения» (warehouse.apply),
  * вместо «Применить» видит «На утверждение»; директор — «Утвердить» и
  * «Вернуть» с объяснением. Сюда же приходят заявки на ручную правку и
  * начальные остатки из файла: это такие же документы на утверждении.
@@ -75,10 +76,23 @@ export function StockCounts({ warehouses }: { warehouses: Warehouse[] }) {
   const isDirector = user?.role === "ceo";
   const [openId, setOpenId] = useState<number | null>(null);
   const [warehouseId, setWarehouseId] = useState<string>(String(warehouses.find(w => w.isDefault)?.id ?? warehouses[0]?.id ?? ""));
+  // Что считаем: весь склад, одну категорию или выбранные товары.
+  const [scope, setScope] = useState<"full" | "category" | "items">("full");
+  const [category, setCategory] = useState("");
+  const [picked, setPicked] = useState<Array<{ id: number; name: string }>>([]);
+  const [search, setSearch] = useState("");
 
   const listQ = trpc.stockCount.list.useQuery({ limit: 50 });
+  const categoriesQ = trpc.product.categories.useQuery(undefined, { enabled: scope === "category" });
+  const productsQ = trpc.warehouseMulti.getStock.useQuery(
+    { warehouseId: Number(warehouseId) || undefined, search, pageSize: 20 },
+    { enabled: scope === "items" && search.trim().length >= 2 },
+  );
   const create = trpc.stockCount.create.useMutation({
-    onSuccess: (r) => { utils.stockCount.list.invalidate(); setOpenId(r.id); notify.success(t(`Черновик ${r.number} создан`, `${r.number} qoralamasi yaratildi`)); },
+    onSuccess: (r) => {
+      utils.stockCount.list.invalidate(); setOpenId(r.id); setPicked([]); setSearch("");
+      notify.success(t(`Черновик ${r.number} создан`, `${r.number} qoralamasi yaratildi`));
+    },
     onError: (e) => notify.error(errorText(e)),
   });
 
@@ -87,6 +101,15 @@ export function StockCounts({ warehouses }: { warehouses: Warehouse[] }) {
   const STATUS = statusLook(t);
   const rows = listQ.data ?? [];
   const waiting = rows.filter(c => c.status === "submitted").length;
+  const ready = scope === "full" || (scope === "category" && !!category) || (scope === "items" && picked.length > 0);
+  const found = ((productsQ.data?.data ?? []) as Array<{ productId: number; productName?: string | null; productCode?: string | null }>)
+    .filter(p => !picked.some(x => x.id === Number(p.productId)));
+
+  const start = () => create.mutate({
+    warehouseId: Number(warehouseId),
+    ...(scope === "category" ? { category } : {}),
+    ...(scope === "items" ? { productIds: picked.map(p => p.id) } : {}),
+  });
 
   return (
     <div className="space-y-4">
@@ -102,20 +125,67 @@ export function StockCounts({ warehouses }: { warehouses: Warehouse[] }) {
         </div>
       )}
 
-      <div className="neo-card p-5 flex flex-wrap items-end gap-3">
-        {/* Выбор склада — только когда есть из чего выбирать. */}
-        {warehouses.length > 1 && (
-          <div className="min-w-[220px]">
-            <p className="text-[10px] font-semibold tracking-wider uppercase mb-2" style={{ color: COLORS.textTertiary }}>{t("Склад", "Ombor")}</p>
-            <PremiumSelect value={warehouseId} onChange={setWarehouseId} width="100%"
-              options={warehouses.map(w => ({ value: String(w.id), label: w.name }))} />
+      <div className="neo-card p-5 space-y-3">
+        <div className="flex flex-wrap items-end gap-3">
+          {/* Выбор склада — только когда есть из чего выбирать. */}
+          {warehouses.length > 1 && (
+            <div className="min-w-[220px]">
+              <p className="text-[10px] font-semibold tracking-wider uppercase mb-2" style={{ color: COLORS.textTertiary }}>{t("Склад", "Ombor")}</p>
+              <PremiumSelect value={warehouseId} onChange={setWarehouseId} width="100%"
+                options={warehouses.map(w => ({ value: String(w.id), label: w.name }))} />
+            </div>
+          )}
+          <div>
+            <p className="text-[10px] font-semibold tracking-wider uppercase mb-2" style={{ color: COLORS.textTertiary }}>{t("Что считаем", "Nimani sanaymiz")}</p>
+            <div className="range-pills" role="tablist" data-testid="stock-count-scope">
+              {([["full", t("Весь склад", "Butun ombor")], ["category", t("Категория", "Turkum")], ["items", t("Выбранные товары", "Tanlangan tovarlar")]] as const).map(([key, label]) => (
+                <button key={key} type="button" role="tab" aria-selected={scope === key} onClick={() => setScope(key)}
+                  className={"range-pill tap" + (scope === key ? " active" : "")} data-testid={`stock-count-scope-${key}`}>{label}</button>
+              ))}
+            </div>
+          </div>
+          {scope === "category" && (
+            <div className="min-w-[220px]">
+              <p className="text-[10px] font-semibold tracking-wider uppercase mb-2" style={{ color: COLORS.textTertiary }}>{t("Категория", "Turkum")}</p>
+              <PremiumSelect value={category} onChange={setCategory} width="100%" placeholder={t("Выберите категорию", "Turkumni tanlang")}
+                options={(categoriesQ.data ?? []).map(c => ({ value: c, label: c }))} />
+            </div>
+          )}
+          <button className="neo-btn-primary tap flex items-center gap-2" disabled={!warehouseId || !ready || create.isPending}
+            onClick={start} data-testid="stock-count-new">
+            <Plus size={16} /> {t("Новая инвентаризация", "Yangi inventarizatsiya")}
+          </button>
+        </div>
+
+        {scope === "items" && (
+          <div className="space-y-2">
+            <input className="neo-input" style={{ maxWidth: 360 }} value={search} onChange={e => setSearch(e.target.value)} data-testid="stock-count-item-search"
+              placeholder={t("Найти товар: название или код (от 2 букв)", "Tovarni topish: nomi yoki kodi (2 harfdan)")} />
+            {search.trim().length >= 2 && found.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {found.slice(0, 10).map(p => (
+                  <button key={p.productId} type="button" className="neo-btn neo-btn-xs tap" data-testid={`stock-count-pick-${p.productId}`}
+                    onClick={() => { setPicked(prev => [...prev, { id: Number(p.productId), name: p.productName ?? "" }]); }}>
+                    + {p.productName}{p.productCode ? ` · ${p.productCode}` : ""}
+                  </button>
+                ))}
+              </div>
+            )}
+            {picked.length > 0 && (
+              <div className="flex flex-wrap gap-2" data-testid="stock-count-picked">
+                {picked.map(p => (
+                  <span key={p.id} className="flex items-center gap-1" style={{ padding: "3px 10px", borderRadius: 999, fontSize: 12, background: "var(--color-primary-subtle)", color: "var(--color-primary-text)" }}>
+                    {p.name}
+                    <button type="button" className="tap" aria-label={t("Убрать", "Olib tashlash")} style={{ border: "none", background: "transparent", color: "inherit", cursor: "pointer", padding: 0 }}
+                      onClick={() => setPicked(prev => prev.filter(x => x.id !== p.id))}><X size={12} /></button>
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
         )}
-        <button className="neo-btn-primary tap flex items-center gap-2" disabled={!warehouseId || create.isPending}
-          onClick={() => create.mutate({ warehouseId: Number(warehouseId) })} data-testid="stock-count-new">
-          <Plus size={16} /> {t("Новая инвентаризация", "Yangi inventarizatsiya")}
-        </button>
-        <p className="text-xs" style={{ color: COLORS.textTertiary }}>
+
+        <p className="text-xs" style={{ color: COLORS.textTertiary, margin: 0 }}>
           {t("Черновик снимает остатки склада на этот момент; считать можно несколько дней.", "Qoralama shu paytdagi qoldiqlarni oladi; hisoblash bir necha kun davom etishi mumkin.")}
         </p>
       </div>

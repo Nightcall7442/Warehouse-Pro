@@ -25,7 +25,7 @@ const KEY_LABEL: Record<string, Label> = {
   shortage: { ru: "Недостача", uz: "Kamomad" }, paid: { ru: "Оплачено", uz: "To'langan" },
   surplus: { ru: "Излишек", uz: "Ortiqcha" },
   // инвентаризация и правка на утверждении (services/stock-count.ts)
-  origin: { ru: "Откуда", uz: "Manba" },
+  origin: { ru: "Откуда", uz: "Manba" }, scope: { ru: "Что считали", uz: "Nima sanaldi" }, category: { ru: "Категория", uz: "Turkum" },
   // недоехавшее при перемещении «в пути» (services/stock-transfer.ts)
   shortageQty: { ru: "Не доехало", uz: "Yetib kelmadi" }, shortageCost: { ru: "Недостача по себестоимости", uz: "Tannarx bo'yicha kamomad" },
   // «Принять по заявленному» — вечерняя сдача курьера пачкой (services/order-close-batch.ts).
@@ -181,9 +181,12 @@ const DISPOSITION: Record<string, Label> = {
 const FORMAT: Record<string, Label> = {
   aggregated: { ru: "сводный", uz: "jamlangan" }, byRoute: { ru: "по маршрутам", uz: "marshrut bo'yicha" },
 };
-/** Откуда документ инвентаризации (services/stock-count.ts). */
+/** Откуда документ инвентаризации и что в нём считали (services/stock-count.ts). */
 const COUNT_ORIGIN: Record<string, Label> = {
   count: { ru: "пересчёт", uz: "qayta sanash" }, adjust: { ru: "ручная правка", uz: "qo'lda tuzatish" }, import: { ru: "остатки из файла", uz: "fayldagi qoldiqlar" },
+};
+const COUNT_SCOPE: Record<string, Label> = {
+  full: { ru: "весь склад", uz: "butun ombor" }, category: { ru: "категория", uz: "turkum" }, items: { ru: "выбранные товары", uz: "tanlangan tovarlar" },
 };
 
 function money(v: unknown): string {
@@ -220,6 +223,7 @@ function word(key: string, v: unknown, lang: Lang): string {
   if (key === "disposition") return labelled(DISPOSITION, v, lang);
   if (key === "format") return labelled(FORMAT, v, lang);
   if (key === "origin") return labelled(COUNT_ORIGIN, v, lang);
+  if (key === "scope") return labelled(COUNT_SCOPE, v, lang);
   if (key === "type") return movementKind(String(v), lang);
   if (key === "items" || key === "lines" || key === "shortages" || key === "orders") return Array.isArray(v) ? String(v.length) : String(v);
   if (key === "failed" || key === "updated") return Array.isArray(v) ? String(v.length) : String(v);

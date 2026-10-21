@@ -11,6 +11,7 @@
  *   • продажа между отправкой и утверждением остаётся в остатке;
  *   • оператор не утверждает — ни свой документ, ни чужой;
  *   • отказ возвращает черновик со словами директора, остаток цел;
+ *   • счёт по категории берёт только эту категорию, по выбранным — ровно их;
  *   • у оператора без права warehouse.apply ручная правка становится заявкой,
  *     списание после утверждения забирает просроченную партию первой;
  *   • директор и оператор с правом (умолчание) работают как раньше.
@@ -170,6 +171,38 @@ describe.skipIf(!hasRealDb)("инвентаризация на утвержде�
     expect(Number(again.items.find(i => i.productId === s.productId)?.bookAtSubmit)).toBe(8);
     await ceo.approveCount({ id });
     expect((await stockOf(s.productId)).current).toBe(6);
+  });
+
+  it("счёт по категории берёт только эту категорию; по выбранным — ровно выбранные, чужой товар — отказ", async () => {
+    await db.update(schema.products).set({ category: "Напитки" }).where(eq(schema.products.id, s.productId));
+    await db.update(schema.products).set({ category: "Сладости" }).where(eq(schema.products.id, s.secondProductId));
+    const [third] = await db.insert(schema.products).values({ tenantId: s.tenantId, code: "P-3", name: "Третий", unitPrice: "50.00", category: "Напитки" });
+    const thirdId = Number(third.insertId);
+    await db.insert(schema.warehouseStock).values({ tenantId: s.tenantId, productId: thirdId, warehouseId: s.warehouseId, currentStock: "4.00", reserved: "0.00", available: "4.00" });
+
+    const op = await asOperator();
+    const byCat = await op.create({ warehouseId: s.warehouseId, category: "Напитки" });
+    const doc = await op.get({ id: byCat.id });
+    expect(doc).toMatchObject({ scope: "category", scopeCategory: "Напитки" });
+    expect(doc.items.map(i => i.productId).sort((a, b) => a - b)).toEqual([s.productId, thirdId].sort((a, b) => a - b));
+    await expect(op.create({ warehouseId: s.warehouseId, category: "Нет такой" })).rejects.toThrow(/В категории «Нет такой» на этом складе нет товаров/);
+
+    // Товар за рамкой документа, добавленный сканером, ожидается по учёту, а не нулём.
+    await op.setCounted({ id: byCat.id, productId: s.secondProductId, delta: 1 });
+    const widened = await op.get({ id: byCat.id });
+    expect(Number(widened.items.find(i => i.productId === s.secondProductId)?.expected)).toBe(10);
+
+    // Выбранные товары: второй (со строкой остатка) и новый без неё — ожидалось ноль.
+    const [fresh] = await db.insert(schema.products).values({ tenantId: s.tenantId, code: "P-4", name: "Новинка", unitPrice: "10.00" });
+    const freshId = Number(fresh.insertId);
+    const picked = await op.create({ warehouseId: s.warehouseId, productIds: [s.secondProductId, freshId, freshId] });
+    const pdoc = await op.get({ id: picked.id });
+    expect(pdoc.scope).toBe("items");
+    expect(pdoc.items.map(i => [i.productId, Number(i.expected)]).sort((a, b) => a[0] - b[0])).toEqual([[s.secondProductId, 10], [freshId, 0]]);
+
+    const [alien] = await db.insert(schema.products).values({ tenantId: s.otherTenantId, code: "X-1", name: "Чужой", unitPrice: "1.00" });
+    await expect(op.create({ warehouseId: s.warehouseId, productIds: [Number(alien.insertId)] })).rejects.toThrow(/не найден в вашей организации/);
+    await expect(op.create({ warehouseId: s.warehouseId, category: "Напитки", productIds: [s.productId] })).rejects.toThrow(/категорию или товары/);
   });
 
   it("право выключено: применить нельзя, отправить можно; директор применяет сам, как раньше", async () => {
