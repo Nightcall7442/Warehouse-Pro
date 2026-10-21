@@ -230,7 +230,9 @@ describe("экраны", () => {
   it("регистрация после успеха показывает «проверьте почту», а не идёт на главную", () => {
     const src = read("src/pages/Register.tsx");
     expect(src).not.toContain('navigate("/")');
-    expect(src).toContain("onSuccess: () => setSentTo(form.email)");
+    // После успеха — экран «проверьте почту»; перед ним сохраняется язык из
+    // адреса (/register?lang=uz, keepUrlLang), чтобы письмо и вход шли на нём.
+    expect(src).toMatch(/onSuccess: \(\) => \{ keepUrlLang\(\); setSentTo\(form\.email\); \}/);
     expect(src).toContain('data-testid="register-check-mail"');
     expect(src).toContain("trpc.auth.resendVerification.useMutation()");
     expect(src).toContain('tr("Проверьте почту", "Pochtangizni tekshiring")');
