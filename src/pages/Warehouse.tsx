@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useState } from "react";
 import { useSearchParams } from "react-router";
 import { useCan } from "@/hooks/useCan";
+import { useAuth } from "@/hooks/useAuth";
 import { keepPreviousData } from "@tanstack/react-query";
 import { trpc } from "@/providers/trpc";
 import { useWarehouse } from "@/providers/WarehouseContext";
@@ -25,6 +26,7 @@ import { KpiCard } from "@/components/reports/ReportKpiCards";
 // Те же токены, что у страницы заказов: у отчётов нет warningText/onPrimary.
 import { F, COLORS, SHADOW } from "@/components/orders/theme-tokens";
 import { StockTransfers } from "@/components/warehouse/StockTransfers";
+import { valuationNote } from "@/components/warehouse/transfer-text";
 import { WarehouseCompare } from "@/components/warehouse/WarehouseCompare";
 import { StockCounts } from "@/components/warehouse/StockCounts";
 import { DemandForecast } from "@/components/warehouse/DemandForecast";
@@ -50,6 +52,8 @@ type StockRow = {
   // blanked by the procedure for roles that may not see the buying price
   costPrice: string | undefined;
   reorderPoint: string;
+  // Едет НА склад строки документом «в пути»: с отправителя уже ушло, здесь ещё не принято.
+  inTransitIn?: string | number | null;
 };
 
 type StockSummary = {
@@ -170,6 +174,7 @@ export default function Warehouse() {
   */
   const can = useCan();
   const canAdjust = can("warehouse.adjust");
+  const { user } = useAuth();
   // Без права проводить правка не исчезает, а уходит директору заявкой.
   const needsApproval = !can("warehouse.apply");
   const canDeleteProduct = can("products.manage");
@@ -280,6 +285,8 @@ export default function Warehouse() {
   const costValue = Number(valuation?.totalCostValue ?? 0);
   // Едущее между складами в остаток не входит ни там, ни тут — называется рядом.
   const inTransitCost = Number(valuation?.inTransitCost ?? 0);
+  // Не доехавшее при приёмке за 30 дней — потеряно в дороге, в остатке его нет нигде.
+  const transitShortageCost = Number(valuation?.transitShortageCost ?? 0);
   const totalKg = Number(summary?.totalWeight ?? 0).toLocaleString("ru-RU", { maximumFractionDigits: 0 });
 
   /*
@@ -296,12 +303,17 @@ export default function Warehouse() {
   // (не успеют до срока и просроченные). Тот же ключ, что у самого раздела.
   const expiryQ = trpc.warehouseReports.expiringSummary.useQuery({ withinDays: 30 });
   const expiryCount = (expiryQ.data?.riskCount ?? 0) + (expiryQ.data?.expiredCount ?? 0);
+  // Инвентаризации и заявки на правку, ждущие решения: решает директор — ему и
+  // счётчик. Тот же ключ запроса, что у самого раздела (StockCounts).
+  const isDirector = user?.role === "ceo";
+  const countsQ = trpc.stockCount.list.useQuery({ limit: 50 }, { enabled: canAdjust && isDirector });
+  const waitingCounts = isDirector ? (countsQ.data ?? []).filter(c => c.status === "submitted").length : 0;
 
   /*
     Лента разделов — тот же .range-pills, что на «Отчётах» и главной. Счётчик
     стоит только там, где число зовёт что-то сделать: ниже порога, без
-    продаж, в пути. У «Прогноза» и «Инвентаризации» счётчика нет — это не
-    список дел.
+    продаж, в пути. У «Прогноза» счётчика нет — это не список дел; у
+    «Инвентаризации» он есть только у директора: документы на его утверждении.
   */
   const tabs = useMemo(() => [
     { key: "stock" as const, label: t("Остатки", "Qoldiqlar"), icon: <Layers size={15} />, count: 0, warn: false },
@@ -321,8 +333,8 @@ export default function Warehouse() {
       { key: "transfers" as const, label: t("Перемещения", "Ko'chirishlar"), icon: <ArrowLeftRight size={15} />, count: pendingTransfers, warn: false },
     ] : []),
     // Инвентаризация — документ: снимок, счёт (в т. ч. сканером), применение разом.
-    ...(canAdjust ? [{ key: "counts" as const, label: t("Инвентаризация", "Inventarizatsiya"), icon: <ClipboardCheck size={15} />, count: 0, warn: false }] : []),
-  ], [deadCount, reorderSuggestions, expiryCount, pendingTransfers, multi, canAdjust, t]);
+    ...(canAdjust ? [{ key: "counts" as const, label: t("Инвентаризация", "Inventarizatsiya"), icon: <ClipboardCheck size={15} />, count: waitingCounts, warn: true }] : []),
+  ], [deadCount, reorderSuggestions, expiryCount, pendingTransfers, waitingCounts, multi, canAdjust, t]);
 
   if (isLoadingError) return <QueryErrorFallback onRetry={refetch} />;
 
@@ -432,7 +444,7 @@ export default function Warehouse() {
           label={t("СТОИМОСТЬ ОСТАТКОВ", "QOLDIQ QIYMATI")}
           value={valLoading ? "—" : fmt(costValue, true)}
           icon={<Banknote size={17} />}
-          note={valLoading ? t("по себестоимости", "tannarx bo'yicha") : `${t("по себестоимости", "tannarx bo'yicha")} · ${fmt(costValue.toFixed(0))}${inTransitCost > 0 ? ` · ${t("в пути", "yo'lda")} ${fmt(inTransitCost, true)}` : ""}`}
+          note={valLoading ? t("по себестоимости", "tannarx bo'yicha") : valuationNote(t, fmt, { cost: costValue, inTransitCost, shortageCost: transitShortageCost })}
         />
         <KpiCard
           tone={lowCount > 0 ? "red" : "green"}
@@ -535,6 +547,11 @@ export default function Warehouse() {
                               </div>
                             ))}
                           </div>
+                          {Number(item.inTransitIn ?? 0) > 0 && (
+                            <p data-testid={`stock-in-transit-${item.productId}`} className="text-[11px] mt-2" style={{ color: "var(--color-info-text)" }}>
+                              {t("в пути", "yo'lda")} +{formatQty(item.inTransitIn)}
+                            </p>
+                          )}
                         </div>
                       </div>
                     );
@@ -587,7 +604,15 @@ export default function Warehouse() {
                             <td style={{ ...num, fontWeight: 700, color: low ? COLORS.dangerText : COLORS.textPrimary }}>{formatQty(item.available)}</td>
                             <td style={{ ...num, color: COLORS.textSecondary }}>{formatQty(toKg(item.available, item.unitWeight))} {t("кг", "kg")}</td>
                             <td style={{ ...num, color: COLORS.textSecondary }}>{formatQty(item.reserved)}</td>
-                            <td style={num}>{formatQty(item.currentStock)}</td>
+                            <td style={num}>
+                              {formatQty(item.currentStock)}
+                              {/* Без этой строки едущее не видно в остатках вовсе: в «Сравнении» оно есть, а здесь — нет. */}
+                              {Number(item.inTransitIn ?? 0) > 0 && (
+                                <div data-testid={`stock-in-transit-${item.productId}`} style={{ fontSize: "11px", fontWeight: 500, color: "var(--color-info-text)" }}>
+                                  {t("в пути", "yo'lda")} +{formatQty(item.inTransitIn)}
+                                </div>
+                              )}
+                            </td>
                             <td style={{ ...num, color: COLORS.textTertiary }}>{Number(item.reorderPoint) > 0 ? formatQty(item.reorderPoint, 0) : "—"}</td>
                             <td style={{ padding: "6px 12px" }}>
                               {/* Действия — тихие: тридцать красных квадратов в столбце перекрикивали сами числа. */}
