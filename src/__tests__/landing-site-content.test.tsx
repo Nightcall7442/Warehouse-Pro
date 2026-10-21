@@ -7,18 +7,22 @@ import { MIN_FIELD_USERS } from "@contracts/pricing";
 import type { L } from "@/components/pitch/pitch-content";
 
 /**
- * Разделы лендинга, которые отвечают «про меня ли это»: для кого, кому не
- * подойдём (дальше — обещания и как начать).
+ * Разделы лендинга, которые отвечают «про меня ли это» и «можно ли верить»:
+ * для кого, кому не подойдём, обещания с проверкой (дальше — как начать).
  *
  *   · «Для кого» стоит на странице и говорит словами из site-content —
  *     одним источником, на двух языках;
  *   · минимум людей в поле — из contracts/pricing, а не цифрой в тексте;
  *   · «кому не подойдём» называет то, чего в программе нет: ТСД, 3PL,
- *     маркировку, кассу.
+ *     маркировку, кассу;
+ *   · у каждого обещания есть «как проверить за 14 дней», и стоят обещания
+ *     перед тарифами; сроков ответа поддержки и «гарантий» среди них нет —
+ *     их не держит код.
  *
  * Нарочная поломка: убрать <AudienceSection /> из Landing — падает «стоит на
  * странице»; написать в AUDIENCE_FIT «3–50» буквами — «минимум из модуля
- * цен» (при смене MIN_FIELD_USERS текст разошёлся бы с тарифом).
+ * цен» (при смене MIN_FIELD_USERS текст разошёлся бы с тарифом); убрать у
+ * обещания check — «у каждого обещания есть проверка».
  */
 vi.setConfig({ testTimeout: 30_000 });
 
@@ -31,6 +35,7 @@ vi.mock("@/providers/trpc", () => ({
 
 const { default: Landing } = await import("@/pages/Landing");
 const { default: AudienceSection } = await import("@/components/landing/AudienceSection");
+const { default: PromisesSection } = await import("@/components/landing/PromisesSection");
 const { LangProvider } = await import("@/i18n");
 const content = await import("@/components/landing/site-content");
 
@@ -114,5 +119,34 @@ describe("для кого", () => {
     draw(<AudienceSection />);
     expect(screen.getByTestId("landing-audience").textContent).toContain("Kim uchun");
     expect(screen.getByTestId("landing-audience").textContent).not.toMatch(/Для кого/);
+  });
+});
+
+describe("обещания, которые можно проверить", () => {
+  it("стоят перед тарифами", () => {
+    draw(<Landing />);
+    const promises = document.getElementById("promises");
+    expect(promises, "раздела обещаний нет").toBeTruthy();
+    const pricing = document.getElementById("pricing")!;
+    expect(promises!.compareDocumentPosition(pricing) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("у каждого обещания есть проверка — на странице и в site-content", () => {
+    draw(<PromisesSection />);
+    const items = screen.getAllByTestId("promise");
+    expect(items).toHaveLength(content.PROMISES.length);
+    expect(items.length).toBeGreaterThanOrEqual(4);
+    for (const [i, li] of items.entries()) {
+      const p = content.PROMISES[i];
+      expect(p.check.ru.length, p.key).toBeGreaterThan(40);
+      expect(within(li).getByTestId("promise-check").textContent).toContain(p.check.ru);
+      expect(li.textContent).toContain("Как проверить за 14 дней");
+    }
+  });
+
+  it("без сроков ответа, «гарантий» и процентов доступности — их не держит код", () => {
+    draw(<PromisesSection />);
+    const text = screen.getByTestId("landing-promises").textContent ?? "";
+    expect(text).not.toMatch(/гарант|SLA|99[.,]\d|в течение (часа|\d+ минут)|ответим за/i);
   });
 });

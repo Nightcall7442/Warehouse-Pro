@@ -97,3 +97,87 @@ export const AUDIENCE_NOT_FIT: Array<{ t: L; d: L }> = [
     },
   },
 ];
+
+/* ── Обещания, которые можно проверить ────────────────────────────────────── */
+
+/**
+ * Что программа делает всегда — и как убедиться в этом за пробные 14 дней.
+ *
+ * Каждое обещание держится кодом, а не словом; рядом — где именно, чтобы при
+ * правке было видно, что ломается вместе с ним:
+ *
+ *   offline  — заказ с ключом идемпотентности (uq_orders_idempotency,
+ *              services/order-create): повтор той же отправки возвращает
+ *              уже созданный заказ, а не второй;
+ *   accepted — частичная доставка: долг и остаток считаются по принятому
+ *              (services/order-close, stock-ledger.shipStock);
+ *   reserve  — заказ берёт строки остатка под замок (FOR UPDATE) и
+ *              резервирует; не хватает свободного — отказ с названием товара
+ *              и числом на складе (services/order-create);
+ *   journal  — цена, лимит, оплата, корректировка остатка пишутся в журнал
+ *              с прежним и новым значением (audit-covers-money-paths.test);
+ *   cost     — закупочная цена и маржа агенту не отдаются сервером
+ *              (cost-price-exposure.test).
+ */
+export const PROMISES: Array<{ key: string; t: L; d: L; check: L }> = [
+  {
+    key: "offline",
+    t: { ru: "Заказ без интернета не потеряется и не задвоится", uz: "Internetsiz buyurtma yo'qolmaydi va ikkilanmaydi" },
+    d: {
+      ru: "Заказ, оформленный без сети, ждёт в телефоне и уходит, когда сеть появится. Повторная отправка того же заказа второго не создаёт.",
+      uz: "Tarmoqsiz rasmiylashtirilgan buyurtma telefonda kutadi va tarmoq paydo bo'lganda jo'naydi. Shu buyurtmani qayta yuborish ikkinchisini yaratmaydi.",
+    },
+    check: {
+      ru: "Включите на телефоне агента режим полёта, оформите заказ, выключите режим — в офисе появится один заказ, а не два.",
+      uz: "Agent telefonida parvoz rejimini yoqing, buyurtma bering, rejimni o'chiring — ofisda ikkita emas, bitta buyurtma paydo bo'ladi.",
+    },
+  },
+  {
+    key: "accepted",
+    t: { ru: "Долг — по тому, что магазин принял", uz: "Qarz — do'kon qabul qilgan narsa bo'yicha" },
+    d: {
+      ru: "Курьер отмечает, сколько принято. Долг магазина и остаток на складе пересчитываются по факту, а не по заказу.",
+      uz: "Kuryer qancha qabul qilinganini belgilaydi. Do'kon qarzi va ombordagi qoldiq buyurtma bo'yicha emas, fakt bo'yicha qayta hisoblanadi.",
+    },
+    check: {
+      ru: "Оформите заказ на 10 штук, при доставке отметьте 8 — долг магазина будет за 8, две штуки останутся на складе.",
+      uz: "10 donaga buyurtma bering, yetkazishda 8 tasini belgilang — do'kon qarzi 8 ta uchun bo'ladi, ikki dona omborda qoladi.",
+    },
+  },
+  {
+    key: "reserve",
+    t: { ru: "Последний ящик не продать дважды", uz: "Oxirgi qutini ikki marta sotib bo'lmaydi" },
+    d: {
+      ru: "Заказ резервирует товар. Два агента не продадут один и тот же остаток: второй увидит, сколько осталось на складе.",
+      uz: "Buyurtma tovarni zaxiraga oladi. Ikki agent bitta qoldiqni sota olmaydi: ikkinchisi omborda qancha qolganini ko'radi.",
+    },
+    check: {
+      ru: "Заведите товар с остатком 5 и оформите два заказа по 4 — второй не пройдёт, и программа назовёт товар и свободный остаток.",
+      uz: "Qoldig'i 5 ta tovar kiriting va 4 tadan ikkita buyurtma bering — ikkinchisi o'tmaydi, dastur tovar va bo'sh qoldiqni aytadi.",
+    },
+  },
+  {
+    key: "journal",
+    t: { ru: "Цена, оплата и лимит не меняются бесследно", uz: "Narx, to'lov va limit izsiz o'zgarmaydi" },
+    d: {
+      ru: "Правка цены товара, кредитного лимита магазина, приём и отмена оплаты, корректировка остатка — в журнале: кто, когда, что было и что стало.",
+      uz: "Tovar narxini, do'kon kredit limitini o'zgartirish, to'lovni qabul qilish va bekor qilish, qoldiqni tuzatish — jurnalda: kim, qachon, nima edi va nima bo'ldi.",
+    },
+    check: {
+      ru: "Поменяйте цену любого товара и откройте «Журнал действий» — там ваша правка и прежняя цена.",
+      uz: "Istalgan tovar narxini o'zgartiring va «Harakatlar jurnali»ni oching — u yerda sizning tuzatishingiz va oldingi narx.",
+    },
+  },
+  {
+    key: "cost",
+    t: { ru: "Агент не видит закупочную цену и маржу", uz: "Agent xarid narxi va marjani ko'rmaydi" },
+    d: {
+      ru: "Сервер не отдаёт их агенту вовсе, а не прячет на экране: ни в каталоге, ни в отчётах, ни через приложение.",
+      uz: "Server ularni agentga umuman bermaydi, ekranda yashirmaydi: katalogda ham, hisobotlarda ham, ilova orqali ham.",
+    },
+    check: {
+      ru: "Пригласите сотрудника агентом и зайдите под ним — в каталоге нет закупочной цены, а отчёта о прибыли нет в меню.",
+      uz: "Xodimni agent sifatida taklif qiling va uning nomidan kiring — katalogda xarid narxi yo'q, foyda hisoboti esa menyuda yo'q.",
+    },
+  },
+];

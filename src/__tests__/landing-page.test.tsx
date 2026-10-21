@@ -77,7 +77,7 @@ const draw = () =>
 describe("лендинг: страница собирается", () => {
   it("рисуются все главы по порядку", () => {
     draw();
-    const ids = ["audience", "loss", "product", "features", "map", "orders", "warehouse", "money", "setup", "mobile", "manual", "pricing", "faq"];
+    const ids = ["audience", "loss", "product", "features", "map", "orders", "warehouse", "money", "setup", "mobile", "manual", "promises", "pricing", "faq"];
     for (const id of ids) {
       expect(document.getElementById(id), `главы #${id} нет на странице`).toBeTruthy();
     }

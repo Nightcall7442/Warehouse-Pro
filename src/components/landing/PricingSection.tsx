@@ -14,7 +14,7 @@ import {
 } from "@contracts/pricing";
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   12 / Тарифы — цена за полевого сотрудника.
+   13 / Тарифы — цена за полевого сотрудника.
 
    ── Что было ────────────────────────────────────────────────────────────────
 
@@ -96,7 +96,7 @@ export default function PricingSection() {
         <SectionHead
           id="pricing"
           tone="dark"
-          index="12"
+          index="13"
           label={tr("Тарифы", "Tariflar")}
           title={tr("Платите за тех, кто в поле", "Faqat dalada ishlaydiganlar uchun to'lang")}
           lead={tr(
