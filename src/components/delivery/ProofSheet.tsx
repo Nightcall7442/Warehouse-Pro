@@ -83,7 +83,7 @@ export function ProofSheet({ target, onClose }: { target: ProofTarget; onClose: 
 
   return (
     <DeliverySheet
-      title={t("Подтверждение вручения", "Topshirilganini tasdiqlash")}
+      title={t("Подтверждение вручения", "Topshirish tasdig'i")}
       subtitle={[target.orderNumber, target.shopName].filter(Boolean).join(" · ")}
       dirty={hasSomething}
       onClose={onClose}

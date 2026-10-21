@@ -3,7 +3,7 @@ import { deliveryEvents, type InsertDeliveryEvent } from "@db/schema";
 import {
   DELIVERY_FAIL_LABEL, DELIVERY_FAIL_NOTE_MAX, deliveryFailInputError, legacyFailReasonCode, type DeliveryFailReason,
 } from "@contracts/delivery-fail-reason";
-import { businessDaysAgo, businessToday } from "@contracts/business-time";
+import { businessDaysAgo } from "@contracts/business-time";
 import { badRequest } from "../lib/errors";
 import { sanitizeString } from "../lib/sanitize";
 import type { Db } from "./order-shared";
@@ -95,9 +95,4 @@ export function assertPlanDay(day: string, fromDays: number, toDays: number, now
       ? `Перенести можно с завтрашнего дня и не дальше чем на ${toDays} дней`
       : `День доставки — с сегодняшнего и не дальше чем на ${toDays} дней`);
   }
-}
-
-/** Сегодня по Ташкенту — отдельным именем, чтобы стенд мог его подменить. */
-export function planToday(now: number = Date.now()): string {
-  return businessToday(now);
 }

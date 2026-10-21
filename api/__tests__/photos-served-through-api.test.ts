@@ -134,13 +134,15 @@ describe("ручка /api/photos", () => {
   списка до базы не доходит, организация — из сессии.
 */
 describe("ручка /api/photos/delivery", () => {
-  async function app(photo: string | null) {
+  async function app(photo: string | null, tenantId = 1) {
     vi.resetModules();
-    const select = vi.fn(() => ({ from: () => ({ where: () => ({ limit: async () => [{ photo }] }) }) }));
+    /** Условия запросов — тест 3 проверяет, что организация в них есть. */
+    const wheres: unknown[] = [];
+    const select = vi.fn(() => ({ from: () => ({ where: (w: unknown) => { wheres.push(w); return { limit: async () => [{ photo }] }; } }) }));
     vi.doMock("../queries/connection", () => ({ getDb: () => ({ select }) }));
-    vi.doMock("../auth", () => ({ authenticateRequest: async () => ({ tenant: { id: 1 }, user: { id: 1 } }) }));
+    vi.doMock("../auth", () => ({ authenticateRequest: async () => ({ tenant: { id: tenantId }, user: { id: 1 } }) }));
     const { default: photos } = await import("../photos");
-    return { photos, select };
+    return { photos, select, wheres };
   }
 
   it("снимок строкой данных — отдаётся байтами; номер вне 0..10 и пустой элемент — 404 без базы", async () => {
@@ -160,6 +162,21 @@ describe("ручка /api/photos/delivery", () => {
   it("SVG в списке снимков наружу не уходит", async () => {
     const { photos } = await app("data:image/svg+xml;base64,PHN2Zz4=");
     expect((await photos.request("/delivery/5/0")).status).toBe(404);
+  });
+
+  /*
+    Номер попытки — сквозной по всем организациям: без условия на
+    организацию из сессии чужое фото вручения открывалось бы перебором
+    номеров. Подделка базы where не исполняет — проверяем сам запрос.
+  */
+  it("3. ищется только в организации из сессии", async () => {
+    const { photos, wheres } = await app("data:image/png;base64,iVBORw==", 42);
+    expect((await photos.request("/delivery/5/0")).status).toBe(200);
+    expect(wheres).toHaveLength(1);
+    const q = new MySqlDialect().sqlToQuery(wheres[0] as ReturnType<typeof sql>);
+    expect(q.sql).toMatch(/`delivery_events`\.`id` = \?/);
+    expect(q.sql).toMatch(/`delivery_events`\.`tenant_id` = \?/);
+    expect(q.params).toEqual(expect.arrayContaining([5, 42]));
   });
 });
 

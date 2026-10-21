@@ -255,7 +255,7 @@ for (const [webRel, mobRel] of COPIES) {
 if (copyErrors) process.exit(1);
 
 console.log(`проверок: ${n} вызовов из ${apiPath}; не проверено: ${unchecked.length}`);
-const tsc =resolve(WEB, "node_modules", "typescript", "bin", "tsc");
+const tsc = resolve(WEB, "node_modules", "typescript", "bin", "tsc");
 const r = spawnSync(process.execPath, [tsc, "-p", tsconfigPath, "--pretty", "false"], { stdio: "pipe", encoding: "utf8" });
 const out = (r.stdout || "") + (r.stderr || "");
 if (r.status !== 0) {
