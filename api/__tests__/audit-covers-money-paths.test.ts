@@ -42,6 +42,10 @@ const COVERAGE: Array<[string, string]> = [
   ["payment.reverse",            "api/services/payment.ts"],
   ["stock.adjusted",             "api/services/stock.ts"],
   ["supplier.return_goods",      "api/supplier-router.ts"],
+  // Заказ поставщику: согласование — обещание денег, приёмка — сам долг (ADR 0013).
+  ["purchase_order.approved",    "api/services/purchase-order.ts"],
+  ["purchase_order.receiving",   "api/services/purchase-order.ts"],
+  ["purchase_order.received",    "api/services/purchase-order-receipt.ts"],
 ];
 
 /** Действия, след которых обязан быть в транзакции (strict), — и файл, где смотреть. */
@@ -52,6 +56,9 @@ const STRICT: Array<[string, string]> = [
   ["return.status",             "api/returns-router.ts"],
   ["arrival.completed",         "api/services/arrival.ts"],
   ["stock.transfer_completed",  "api/warehouse-multi-router.ts"],
+  ["purchase_order.updated",    "api/services/purchase-order.ts"],
+  ["purchase_order.approved",   "api/services/purchase-order.ts"],
+  ["purchase_order.received",   "api/services/purchase-order-receipt.ts"],
 ];
 
 describe("журнал действий", () => {
