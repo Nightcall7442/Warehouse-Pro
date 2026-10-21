@@ -63,13 +63,15 @@
          that had drifted from vite.config.ts. Two manifest links is undefined
          behaviour per spec — the browser picks one, and this one (being first
          in the head) is what iOS Safari was reading for "Add to Home Screen." -->
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <!-- Manrope и JetBrains Mono: у обоих есть кириллица. DM Sans её не имел, и
          каждое русское слово набиралось системным шрифтом — Segoe UI рядом с
          геометрической латиницей. Решение владельца от 07.09.2026 для мобилки,
-         теперь и веб. -->
-    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+         теперь и веб. Файлы — свои (public/fonts, @font-face в src/index.css),
+         не с Google Fonts. Кириллический Manrope нужен первому же заголовку —
+         браузер узнал бы о нём только из CSS, поэтому он предзагружается.
+         crossorigin обязателен и для своего домена: шрифты грузятся в режиме
+         CORS, без него предзагрузка не совпадёт с запросом и уйдёт впустую. -->
+    <link rel="preload" href="/fonts/manrope-cyrillic-wght-normal.woff2" as="font" type="font/woff2" crossorigin />
     <!-- Что это за сайт, словами, которые понимает поиск.
          Разметка schema.org сама по себе позиции не поднимает — она отвечает
          на вопрос «что это такое»: программа, деловая, для Узбекистана, на

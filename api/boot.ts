@@ -11,6 +11,7 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { compress } from "hono/compress";
 import { secureHeaders } from "hono/secure-headers";
+import { CSP_DIRECTIVES } from "./lib/csp";
 import { bodyLimit } from "hono/body-limit";
 import { HTTPException } from "hono/http-exception";
 import { logger as honoLogger } from "hono/logger";
@@ -317,20 +318,9 @@ if (env.isProduction) {
 }
 
 // ── Security headers ─────────────────────────────────────────────────────────
+// Директивы — в lib/csp.ts: там же объяснено, кому ещё нужен Google Fonts.
 app.use(secureHeaders({
-  contentSecurityPolicy: {
-    defaultSrc: ["'self'"],
-    scriptSrc:  ["'self'", "https://api-maps.yandex.ru", "https://core.apimaps.yandex.ru", "https://yastatic.net", "https://*.maps.yandex.net", "https://*.yandex.ru"],
-    styleSrc:   ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com", "https://*.gstatic.com"],  // Google Fonts + Tailwind + Translate
-    imgSrc:     ["'self'", "data:", "blob:", "https:"],  // product photos, S3, base64 avatars, blob previews
-    connectSrc: ["'self'", "https://api-maps.yandex.ru", "https://*.ingest.de.sentry.io", "https://*.sentry.io"],
-    workerSrc:  ["'self'", "blob:"],                      // tRPC, SSE, WebSocket, Yandex Maps
-    fontSrc:    ["'self'", "data:", "https://fonts.gstatic.com"],             // Google Fonts files
-    frameAncestors: ["'none'"],
-    objectSrc:  ["'none'"],
-    baseUri:    ["'self'"],
-    formAction: ["'self'"],
-  },
+  contentSecurityPolicy: CSP_DIRECTIVES,
   crossOriginEmbedderPolicy: false,
 }));
 

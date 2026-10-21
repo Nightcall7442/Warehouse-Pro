@@ -5,7 +5,49 @@
    Font: Manrope
    ═══════════════════════════════════════════════════════════════════════════ */
 
-@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
+/* ── Шрифты — свои, с нашего же сервера ────────────────────────────────────
+   Manrope и JetBrains Mono грузились с Google Fonts — дважды (<link> в
+   index.html и @import здесь), с чужого домена, с отдельной цепочкой
+   «CSS → файл» до первого текста. Теперь это переменные шрифты из
+   @fontsource-variable (5.3.0, лицензия SIL OFL 1.1 — public/fonts/OFL-*.txt),
+   только наборы latin и cyrillic: русский, узбекская латиница с oʻ/gʻ и
+   цифры. Один файл на набор покрывает все начертания 200–800 (моно —
+   100–800). Браузер качает набор, только когда на странице есть его буквы
+   (unicode-range). Кириллический Manrope предзагружается из index.html —
+   его ждёт первый же заголовок. Кэш: /fonts/* — неделя у сервера
+   (api/lib/vite.ts), CacheFirst у service worker (vite.config.ts). */
+@font-face {
+  font-family: 'Manrope';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 200 800;
+  src: url('/fonts/manrope-cyrillic-wght-normal.woff2') format('woff2-variations'), url('/fonts/manrope-cyrillic-wght-normal.woff2') format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+@font-face {
+  font-family: 'Manrope';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 200 800;
+  src: url('/fonts/manrope-latin-wght-normal.woff2') format('woff2-variations'), url('/fonts/manrope-latin-wght-normal.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 800;
+  src: url('/fonts/jetbrains-mono-cyrillic-wght-normal.woff2') format('woff2-variations'), url('/fonts/jetbrains-mono-cyrillic-wght-normal.woff2') format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 800;
+  src: url('/fonts/jetbrains-mono-latin-wght-normal.woff2') format('woff2-variations'), url('/fonts/jetbrains-mono-latin-wght-normal.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
 
 @tailwind base;
 @tailwind components;

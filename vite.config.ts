@@ -123,6 +123,26 @@ export default defineConfig(({ isSsrBuild }) => ({
             urlPattern: /^\/api\/trpc\//,
             handler:    "NetworkOnly",
           },
+          /*
+            Шрифты — свои (public/fonts), и в предкэш они не входят: в
+            globPatterns нет woff2, иначе каждый телефон качал бы все наборы
+            при каждом обновлении. Но офлайн приложение должно говорить своим
+            шрифтом, а не системным: файл, однажды скачанный, берётся из кэша.
+            Имена файлов без хэша, поэтому при смене версии шрифта — новое имя
+            файла (или новое имя кэша здесь).
+
+            Проверка — функцией по пути, а не регуляркой: регулярку workbox
+            сверяет с полным адресом (https://…), и «^/fonts/» не совпала бы
+            никогда.
+          */
+          {
+            urlPattern: ({ url, sameOrigin }) => sameOrigin && url.pathname.startsWith("/fonts/") && url.pathname.endsWith(".woff2"),
+            handler:    "CacheFirst",
+            options: {
+              cacheName:  "wp-fonts-v1",
+              expiration: { maxEntries: 8, maxAgeSeconds: 60 * 60 * 24 * 365 },
+            },
+          },
         ],
       },
     }),
