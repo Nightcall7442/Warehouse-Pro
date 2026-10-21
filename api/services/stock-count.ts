@@ -42,7 +42,9 @@ type Actor = { id: number; name: string };
    остаются в остатке.
 
    Прямое применение (директор, оператор с правом) по-прежнему ставит число,
-   посчитанное сейчас: там между счётом и применением никто не ждёт.
+   посчитанное сейчас: там между счётом и применением никто не ждёт. Кроме
+   заявки, вернувшейся черновиком: она — сдвиг, а не число на полке, и
+   проводится разницей и при повторной отправке, и при «Применить».
    ═══════════════════════════════════════════════════════════════════════════ */
 
 export type CountOrigin = "count" | "adjust" | "import";
@@ -197,20 +199,46 @@ export async function applyCountLines(
 /**
  * Учёт в момент отправки — под замком строк остатка, чтобы число было ровно
  * тем, что лежало в учёте, когда документ ушёл директору.
+ *
+ * Заявка (ручная правка, остатки из файла) — не пересчёт полки. Её смысл —
+ * сдвиг «посчитано − ожидалось» от учёта в минуту заявки: «списать 2».
+ * Директор вернул её, за это время пришло 50 — снять учёт заново и оставить
+ * прежнее «посчитано» значило бы утвердить «списать 52»; продали 8 — и
+ * списание превратилось бы в приход. Поэтому у заявки сдвиг переносится на
+ * учёт этой минуты: ожидалось = учёт сейчас, посчитано = учёт сейчас + сдвиг.
+ * У пересчёта — нет: посчитанное там — это полка, и её пересчитывают заново.
  */
-async function snapshotBook(tx: Tx, tenantId: number, warehouseId: number, countId: number): Promise<number> {
-  const lines = await tx.select({ id: stockCountItems.id, productId: stockCountItems.productId })
+async function snapshotBook(tx: Tx, tenantId: number, count: { id: number; warehouseId: number; origin: string }): Promise<number> {
+  const lines = await tx.select({
+    id: stockCountItems.id, productId: stockCountItems.productId, expected: stockCountItems.expected, counted: stockCountItems.counted,
+  })
     .from(stockCountItems)
-    .where(and(eq(stockCountItems.countId, countId), sql`${stockCountItems.counted} IS NOT NULL`))
+    .where(and(eq(stockCountItems.countId, count.id), sql`${stockCountItems.counted} IS NOT NULL`))
     .orderBy(asc(stockCountItems.productId));
   if (lines.length === 0) return 0;
   const rows = await tx.select({ productId: warehouseStock.productId, current: warehouseStock.currentStock }).from(warehouseStock)
-    .where(and(eq(warehouseStock.tenantId, tenantId), eq(warehouseStock.warehouseId, warehouseId), inArray(warehouseStock.productId, lines.map(l => l.productId))))
+    .where(and(eq(warehouseStock.tenantId, tenantId), eq(warehouseStock.warehouseId, count.warehouseId), inArray(warehouseStock.productId, lines.map(l => l.productId))))
     .orderBy(asc(warehouseStock.productId))
     .for("update");
-  const book = new Map(rows.map(r => [r.productId, r.current ?? "0.00"]));
+  const book = new Map(rows.map(r => [r.productId, Number(r.current ?? 0)]));
+  const request = count.origin !== "count";
   for (const l of lines) {
-    await tx.update(stockCountItems).set({ bookAtSubmit: book.get(l.productId) ?? "0.00" }).where(eq(stockCountItems.id, l.id));
+    const now = book.get(l.productId) ?? 0;
+    if (!request) {
+      await tx.update(stockCountItems).set({ bookAtSubmit: money2(now) }).where(eq(stockCountItems.id, l.id));
+      continue;
+    }
+    const shift = round2(Number(l.counted) - Number(l.expected));
+    const counted = round2(now + shift);
+    if (counted < 0) {
+      throw new TRPCError({
+        code: "PRECONDITION_FAILED",
+        message: `«${await productName(tx, tenantId, l.productId)}»: в учёте сейчас ${money2(now)}, а заявка снимает ${money2(-shift)}. Исправьте количество или отмените заявку`,
+      });
+    }
+    await tx.update(stockCountItems)
+      .set({ expected: money2(now), counted: money2(counted), bookAtSubmit: money2(now) })
+      .where(eq(stockCountItems.id, l.id));
   }
   return lines.length;
 }
@@ -319,7 +347,7 @@ export async function submitCount(db: Db, tenantId: number, actor: Actor, countI
         message: count.status === "submitted" ? "Документ уже на утверждении у руководителя" : "Документ уже применён или отменён",
       });
     }
-    const lines = await snapshotBook(tx, tenantId, count.warehouseId, count.id);
+    const lines = await snapshotBook(tx, tenantId, count);
     if (lines === 0) throw new TRPCError({ code: "BAD_REQUEST", message: "Ни одна строка не посчитана — отправлять нечего" });
     await tx.update(stockCounts)
       .set({ status: "submitted", submittedBy: actor.id, submittedAt: new Date(), reviewNote: null })
@@ -394,7 +422,7 @@ export async function rejectCount(db: Db, tenantId: number, actor: Actor, countI
       .set({ status: "draft", reviewNote: note, reviewedBy: actor.id, reviewedAt: new Date() })
       .where(and(eq(stockCounts.id, row.id), eq(stockCounts.status, "submitted")));
     // Учёт при отправке устарел вместе с отказом: при следующей отправке он
-    // снимается заново.
+    // снимается заново (у заявки — вместе с переносом её сдвига, см. snapshotBook).
     await tx.update(stockCountItems).set({ bookAtSubmit: null }).where(eq(stockCountItems.countId, row.id));
     return row;
   });

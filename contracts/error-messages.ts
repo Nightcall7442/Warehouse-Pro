@@ -392,6 +392,7 @@ export const SERVER_ERROR_TEXT: Record<string, ErrorText> = {
   "Утвердить можно только документ, отправленный на утверждение": { uz: "Faqat tasdiqlashga yuborilgan hujjatni tasdiqlash mumkin" },
   "Вернуть можно только документ, отправленный на утверждение": { uz: "Faqat tasdiqlashga yuborilgan hujjatni qaytarish mumkin" },
   "«{0}»: после отправки остаток стал {1}, а по документу нужно снять {2}. Верните документ — пусть пересчитают заново.": { uz: "«{0}»: yuborilgandan keyin qoldiq {1} bo'ldi, hujjat bo'yicha esa {2} ayirish kerak. Hujjatni qaytaring — qayta sanashsin." },
+  "«{0}»: в учёте сейчас {1}, а заявка снимает {2}. Исправьте количество или отмените заявку": { uz: "«{0}»: hisobda hozir {1}, so'rov esa {2} ayiradi. Miqdorni tuzating yoki so'rovni bekor qiling" },
   "«{0}»: списать {1} нельзя — свободно {2}, остальное отложено под заказы.": { uz: "«{0}»: {1} hisobdan chiqarib bo'lmaydi — bo'sh {2}, qolgani buyurtmalar uchun ajratilgan." },
   "Остаток уже {0} — менять нечего": { uz: "Qoldiq allaqachon {0} — o'zgartiradigan narsa yo'q" },
   "Выберите что-то одно: категорию или товары": { uz: "Bittasini tanlang: turkum yoki tovarlar" },

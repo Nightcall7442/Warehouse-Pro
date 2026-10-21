@@ -184,6 +184,20 @@ describe("кто что нажимает", () => {
     openSheet();
     expect(screen.getByTestId("stock-count-review-note").textContent).toContain("Пересчитайте воду");
   });
+
+  it("вернувшаяся заявка «списать 2» — сдвиг: «сейчас → станет» от текущего остатка, а не старое число", () => {
+    // Заявка при учёте 10: посчитано 8. С тех пор пришло 50 — сейчас 60.
+    // Станет 58, а не 8: так её проведут и «Применить», и повторная отправка.
+    h.state.doc = doc({ origin: "adjust", adjustType: "out", reviewNote: "Проверьте", items: [item({ expected: "10.00", counted: "8.00", current: "60.00" })] });
+    openSheet();
+    expect(screen.getByText("ПРИ ЗАЯВКЕ")).toBeTruthy();
+    expect(screen.getByTestId("count-will-5").textContent).toBe("60 → 58");
+    cleanup();
+    // Пересчёт полки — не заявка: в черновике колонки «станет» нет.
+    h.state.doc = doc({ items: [item({ current: "60.00" })] });
+    openSheet();
+    expect(screen.queryByTestId("count-will-5")).toBeNull();
+  });
 });
 
 describe("окно ручной правки", () => {

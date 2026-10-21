@@ -49,7 +49,9 @@ function statusLook(t: Translate): Record<string, [string, string, string]> {
  * Учёт, от которого считается разница. У отправленного на утверждение — учёт
  * при отправке: именно разницу от него директор проводит поверх текущего
  * остатка. У черновика — снимок при создании (при отказе учёт отправки
- * стирается, и строка снова считается от снимка).
+ * стирается, и строка снова считается от снимка). У вернувшейся заявки снимок —
+ * учёт в минуту заявки, и разница от него — то самое «списать 2»: она и
+ * проводится поверх текущего остатка, сколько бы ни пришло и ни ушло с тех пор.
  */
 function baseOf(it: { expected: string; bookAtSubmit: string | null }): number {
   return Number(it.bookAtSubmit ?? it.expected);
@@ -267,7 +269,7 @@ function StockCountSheet({ id, onBack }: { id: number; onBack: () => void }) {
     onSuccess: (r) => {
       utils.stockCount.get.invalidate({ id }); utils.warehouseMulti.getStock.invalidate();
       notify.success(t(`${r.number} применена: изменено ${r.changed} из ${r.applied}, излишек ${formatQty(r.surplus)}, недостача ${formatQty(r.shortage)}`,
-        `${r.number} qo'llandi: ${r.applied} dan ${r.changed} o'zgardi`));
+        `${r.number} qo'llandi: ${r.applied} tadan ${r.changed} o'zgardi, ortiqcha ${formatQty(r.surplus)}, kamomad ${formatQty(r.shortage)}`));
     },
     onError: (e) => notify.error(errorText(e)),
   });
@@ -286,7 +288,7 @@ function StockCountSheet({ id, onBack }: { id: number; onBack: () => void }) {
     onSuccess: (r) => {
       utils.stockCount.get.invalidate({ id }); utils.stockCount.list.invalidate(); utils.warehouseMulti.getStock.invalidate();
       notify.success(t(`${r.number} утверждена: изменено ${r.changed} из ${r.applied}, излишек ${formatQty(r.surplus)}, недостача ${formatQty(r.shortage)}`,
-        `${r.number} tasdiqlandi: ${r.applied} dan ${r.changed} o'zgardi`));
+        `${r.number} tasdiqlandi: ${r.applied} tadan ${r.changed} o'zgardi, ortiqcha ${formatQty(r.surplus)}, kamomad ${formatQty(r.shortage)}`));
     },
     onError: (e) => notify.error(errorText(e)),
   });
@@ -302,6 +304,10 @@ function StockCountSheet({ id, onBack }: { id: number; onBack: () => void }) {
   const items = useMemo(() => q.data?.items ?? [], [q.data]);
   const draft = q.data?.status === "draft";
   const submitted = q.data?.status === "submitted";
+  // Заявка (правка, остатки из файла) — сдвиг, а не полка: и вернувшаяся
+  // черновиком, она проводится разницей поверх текущего остатка.
+  const request = !!q.data?.origin && q.data.origin !== "count";
+  const showWill = submitted || (draft && request);
 
   const summary = useMemo(() => {
     let surplusQty = 0, shortageQty = 0, surplusMoney = 0, shortageMoney = 0, counted = 0;
@@ -332,12 +338,18 @@ function StockCountSheet({ id, onBack }: { id: number; onBack: () => void }) {
   });
 
   const onApply = async () => {
+    const money = `${t("Излишек", "Ortiqcha")} ${formatQty(summary.surplusQty)} (${fmt(summary.surplusMoney.toFixed(0))}), ${t("недостача", "kamomad")} ${formatQty(summary.shortageQty)} (${fmt(summary.shortageMoney.toFixed(0))}).`;
     const ok = await confirm({
       title: t("Применить инвентаризацию?", "Inventarizatsiyani qo'llash?"),
-      message: t(
-        `${q.data?.number}: посчитано ${summary.counted} из ${summary.total} строк. Излишек ${formatQty(summary.surplusQty)} (${fmt(summary.surplusMoney.toFixed(0))}), недостача ${formatQty(summary.shortageQty)} (${fmt(summary.shortageMoney.toFixed(0))}). Остатки станут такими, как посчитано; непосчитанные строки не тронутся. Отменить нельзя.`,
-        `${q.data?.number}: ${summary.total} qatordan ${summary.counted} hisoblandi. Ortiqcha ${formatQty(summary.surplusQty)}, kamomad ${formatQty(summary.shortageQty)}. Bekor qilib bo'lmaydi.`,
-      ),
+      message: request
+        ? t(
+          `${q.data?.number}: ${money} К текущему остатку прибавится изменение по заявке — «посчитано − ожидалось», сколько бы ни пришло и ни ушло с тех пор. Отменить нельзя.`,
+          `${q.data?.number}: ${money} Joriy qoldiqqa so'rov bo'yicha o'zgarish — «sanalgan − kutilgan» qo'shiladi, o'shandan beri qancha kelgan yoki ketganidan qat'i nazar. Bekor qilib bo'lmaydi.`,
+        )
+        : t(
+          `${q.data?.number}: посчитано ${summary.counted} из ${summary.total} строк. ${money} Остатки станут такими, как посчитано; непосчитанные строки не тронутся. Отменить нельзя.`,
+          `${q.data?.number}: ${summary.total} qatordan ${summary.counted} hisoblandi. ${money} Qoldiqlar sanalganidek bo'ladi; sanalmagan qatorlarga tegilmaydi. Bekor qilib bo'lmaydi.`,
+        ),
       confirmText: t("Применить", "Qo'llash"),
       danger: summary.shortageQty > 0,
     });
@@ -349,7 +361,7 @@ function StockCountSheet({ id, onBack }: { id: number; onBack: () => void }) {
       title: t("Отправить на утверждение?", "Tasdiqlashga yuborilsinmi?"),
       message: t(
         `${q.data?.number}: посчитано ${summary.counted} из ${summary.total} строк. Руководитель увидит излишек ${formatQty(summary.surplusQty)} и недостачу ${formatQty(summary.shortageQty)}. До его решения остатки не изменятся, а документ нельзя будет править.`,
-        `${q.data?.number}: ${summary.total} qatordan ${summary.counted} hisoblandi. Rahbar qaroriga qadar qoldiqlar o'zgarmaydi, hujjatni tahrirlab bo'lmaydi.`,
+        `${q.data?.number}: ${summary.total} qatordan ${summary.counted} hisoblandi. Rahbar ortiqcha ${formatQty(summary.surplusQty)} va kamomad ${formatQty(summary.shortageQty)} ni ko'radi. Uning qaroriga qadar qoldiqlar o'zgarmaydi, hujjatni esa tahrirlab bo'lmaydi.`,
       ),
       confirmText: t("Отправить", "Yuborish"),
     });
@@ -361,7 +373,7 @@ function StockCountSheet({ id, onBack }: { id: number; onBack: () => void }) {
       title: t("Утвердить и провести?", "Tasdiqlab o'tkazilsinmi?"),
       message: t(
         `${q.data?.number}: излишек ${formatQty(summary.surplusQty)} (${fmt(summary.surplusMoney.toFixed(0))}), недостача ${formatQty(summary.shortageQty)} (${fmt(summary.shortageMoney.toFixed(0))}). К текущему остатку прибавится разница «посчитано − учёт при отправке»: проданное после отправки останется проданным. Отменить нельзя.`,
-        `${q.data?.number}: ortiqcha ${formatQty(summary.surplusQty)}, kamomad ${formatQty(summary.shortageQty)}. Joriy qoldiqqa «sanalgan − yuborilgandagi hisob» farqi qo'shiladi. Bekor qilib bo'lmaydi.`,
+        `${q.data?.number}: ortiqcha ${formatQty(summary.surplusQty)} (${fmt(summary.surplusMoney.toFixed(0))}), kamomad ${formatQty(summary.shortageQty)} (${fmt(summary.shortageMoney.toFixed(0))}). Joriy qoldiqqa «sanalgan − yuborilgandagi hisob» farqi qo'shiladi: yuborilgandan keyin sotilgani sotilganligicha qoladi. Bekor qilib bo'lmaydi.`,
       ),
       confirmText: t("Утвердить", "Tasdiqlash"),
       danger: summary.shortageQty > 0,
@@ -441,7 +453,10 @@ function StockCountSheet({ id, onBack }: { id: number; onBack: () => void }) {
               placeholder={t("Например: пересчитайте воду на второй полке", "Masalan: ikkinchi tokchadagi suvni qayta sanang")} />
           </div>
           <p className="text-xs" style={{ color: COLORS.textTertiary, margin: 0 }}>
-            {t("Остатки не изменятся; документ снова станет черновиком у того, кто считал.", "Qoldiqlar o'zgarmaydi; hujjat sanagan odamda yana qoralama bo'ladi.")}
+            {request
+              ? t("Остатки не изменятся; заявка снова станет черновиком у того, кто её подал. При повторной отправке её изменение перенесётся на учёт той минуты.",
+                  "Qoldiqlar o'zgarmaydi; so'rov uni bergan odamda yana qoralama bo'ladi. Qayta yuborilganda uning o'zgarishi o'sha daqiqadagi hisobga o'tkaziladi.")
+              : t("Остатки не изменятся; документ снова станет черновиком у того, кто считал.", "Qoldiqlar o'zgarmaydi; hujjat sanagan odamda yana qoralama bo'ladi.")}
           </p>
         </AppModal>
       )}
@@ -472,8 +487,8 @@ function StockCountSheet({ id, onBack }: { id: number; onBack: () => void }) {
         <div style={{ overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0 }}>
             <thead><tr>
-              {[t("ТОВАР", "MAHSULOT"), t("КОД", "KOD"), submitted ? t("ПРИ ОТПРАВКЕ", "YUBORILGANDA") : t("ПО УЧЁТУ", "HISOBDA"), t("ПОСЧИТАНО", "HISOBLANDI"), t("РАЗНИЦА", "FARQ"),
-                ...(submitted ? [t("СЕЙЧАС → СТАНЕТ", "HOZIR → BO'LADI")] : [])].map((h, i) => (
+              {[t("ТОВАР", "MAHSULOT"), t("КОД", "KOD"), submitted ? t("ПРИ ОТПРАВКЕ", "YUBORILGANDA") : request ? t("ПРИ ЗАЯВКЕ", "SO'ROVDA") : t("ПО УЧЁТУ", "HISOBDA"), t("ПОСЧИТАНО", "HISOBLANDI"), t("РАЗНИЦА", "FARQ"),
+                ...(showWill ? [t("СЕЙЧАС → СТАНЕТ", "HOZIR → BO'LADI")] : [])].map((h, i) => (
                 <th key={i} style={{ ...thStyle, textAlign: i < 2 ? "left" : "right" }}>{h}</th>
               ))}
             </tr></thead>
@@ -493,7 +508,7 @@ function StockCountSheet({ id, onBack }: { id: number; onBack: () => void }) {
                     <td style={{ ...tdStyle, textAlign: "right", fontWeight: 700, fontVariantNumeric: "tabular-nums", color: diff == null ? COLORS.textTertiary : diff > 0 ? "var(--color-success-text)" : diff < 0 ? "var(--color-danger-text)" : COLORS.textSecondary }}>
                       {diff == null ? "—" : diff > 0 ? `+${formatQty(diff)}` : formatQty(diff)}
                     </td>
-                    {submitted && (
+                    {showWill && (
                       <td style={{ ...tdStyle, textAlign: "right", fontVariantNumeric: "tabular-nums", color: COLORS.textSecondary }} data-testid={`count-will-${it.productId}`}>
                         {diff == null ? "—" : `${formatQty(Number(it.current ?? 0))} → ${formatQty(Number(it.current ?? 0) + diff)}`}
                       </td>

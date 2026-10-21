@@ -204,6 +204,7 @@ export const stockCountRouter = createRouter({
    * (services/stock-count.ts → applyCountLines).
    *
    * Оператору без права warehouse.apply закрыто: он отправляет на утверждение.
+   * Возвращённая заявка проводится разницей, а не числом (см. ниже).
    */
   // «apply» — служебное слово у tRPC (router({}) его не принимает), поэтому applyCount.
   applyCount: operatorQuery.use(can("warehouse.adjust")).use(can("warehouse.apply"))
@@ -216,12 +217,22 @@ export const stockCountRouter = createRouter({
         if (!count) throw new TRPCError({ code: "NOT_FOUND", message: "Инвентаризация не найдена" });
         assertDraft(count.status);
 
-        const items = await tx.select({ productId: stockCountItems.productId, counted: stockCountItems.counted, note: stockCountItems.note })
+        const items = await tx.select({ productId: stockCountItems.productId, counted: stockCountItems.counted, expected: stockCountItems.expected, note: stockCountItems.note })
           .from(stockCountItems).where(eq(stockCountItems.countId, count.id));
         const toApply = items.filter(i => i.counted != null);
         if (toApply.length === 0) throw new TRPCError({ code: "BAD_REQUEST", message: "Ни одна строка не посчитана — применять нечего" });
 
-        const applied = await applyCountLines(tx, ctx.tenant.id, count, toApply.map(i => ({ productId: i.productId, counted: Number(i.counted), note: i.note })), "absolute");
+        /*
+          Черновиком бывает и заявка (правка, остатки из файла), которую
+          директор вернул. Она — сдвиг от учёта в минуту заявки, а не число на
+          полке: «списать 2», применённое числом после прихода 50, поставило
+          бы старый остаток и списало 52. Заявка проводится разницей
+          «посчитано − ожидалось» поверх текущего остатка — как при утверждении.
+        */
+        const request = count.origin !== "count";
+        const applied = await applyCountLines(tx, ctx.tenant.id, count, toApply.map(i => ({
+          productId: i.productId, counted: Number(i.counted), note: i.note, book: request ? Number(i.expected) : null,
+        })), request ? "delta" : "absolute");
         await tx.update(stockCounts).set({ status: "applied", appliedBy: ctx.user.id, appliedAt: new Date() })
           .where(and(eq(stockCounts.id, count.id), eq(stockCounts.status, "draft")));
         return applied;

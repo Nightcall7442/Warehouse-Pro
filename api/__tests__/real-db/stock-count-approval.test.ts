@@ -15,10 +15,13 @@
  *   • у оператора без права warehouse.apply ручная правка становится заявкой,
  *     списание после утверждения забирает просроченную партию первой;
  *   • начальные остатки из файла — тоже заявка;
+ *   • вернувшаяся заявка остаётся сдвигом: «списать 2» после прихода 50
+ *     списывает 2 и при повторной отправке, и при «Применить»;
  *   • директор и оператор с правом (умолчание) работают как раньше.
  *
  * Нарочная поломка: в applyCountLines поставить `target = counted` вместо
- * `current + (counted − book)` — первый тест увидит 7 вместо 4.
+ * `current + (counted − book)` — первый тест увидит 7 вместо 4. Убрать
+ * перенос сдвига в snapshotBook — заявка «списать 2» оставит 8 вместо 58.
  */
 import { describe, it, expect, beforeAll, beforeEach, afterAll, vi } from "vitest";
 import { and, eq, sql } from "drizzle-orm";
@@ -268,6 +271,50 @@ describe.skipIf(!hasRealDb)("инвентаризация на утвержде�
     await ceo.approveCount({ id: exact.countId! });
     expect((await stockOf(s.secondProductId)).current).toBe(14);
     expect((await stockOf(s.productId)).current).toBe(12);
+  });
+
+  it("возвращённая заявка «списать 2» после прихода 50 списывает 2, а не 52 — и при повторной отправке, и при «Применить»", async () => {
+    // Заявка — сдвиг от учёта в минуту заявки. Отказ стирает учёт отправки;
+    // снять его заново и оставить прежнее «посчитано» (8) значило бы
+    // утвердить «поставить 8» — то есть списать 52 из 60.
+    await denyApply();
+    const wh = await warehouse(operatorId, "operator");
+    const op = await asOperator();
+    const ceo = await asCeo();
+    const arrive = (quantity: number) => receiveStock(db as never, {
+      tenantId: s.tenantId, warehouseId: s.warehouseId, productId: s.productId, quantity, reason: "arrival",
+    });
+
+    const first = await wh.adjustStock({ productId: s.productId, warehouseId: s.warehouseId, quantity: "2", type: "out", notes: "Бой" });
+    await ceo.rejectCount({ id: first.countId!, note: "Проверьте ещё раз" });
+    await arrive(50);                                                     // 60
+    await op.submitCount({ id: first.countId! });
+    const resent = await ceo.get({ id: first.countId! });
+    expect(resent.items.map(i => [Number(i.expected), Number(i.counted), Number(i.bookAtSubmit)])).toEqual([[60, 58, 60]]);
+    await ceo.approveCount({ id: first.countId! });
+    expect((await stockOf(s.productId)).current).toBe(58);
+
+    // Директор применяет вернувшуюся заявку сам — тоже разницей, а не числом.
+    const second = await wh.adjustStock({ productId: s.productId, warehouseId: s.warehouseId, quantity: "2", type: "out" });
+    await ceo.rejectCount({ id: second.countId!, note: "Сам проведу" });
+    await arrive(50);                                                     // 108
+    const r = await ceo.applyCount({ id: second.countId! });
+    expect(r).toMatchObject({ changed: 1, shortage: 2, surplus: 0 });
+    expect((await stockOf(s.productId)).current).toBe(106);
+    const [mv] = await db.execute(sql`SELECT type, quantity FROM stock_movements WHERE reference_type = 'manual_adjustment' AND reference_id = ${second.countId!}`) as unknown as [Array<{ type: string; quantity: string }>];
+    expect(mv).toEqual([expect.objectContaining({ type: "out", quantity: "2.00" })]);
+  });
+
+  it("возвращённая заявка «списать 5», после которой продали 8: повторная отправка отказывает, а не превращает списание в приход", async () => {
+    await denyApply();
+    const wh = await warehouse(operatorId, "operator");
+    const req = await wh.adjustStock({ productId: s.productId, warehouseId: s.warehouseId, quantity: "5", type: "out" });
+    await (await asCeo()).rejectCount({ id: req.countId!, note: "Уточните" });
+    await sell(s.productId, 8);                                           // осталось 2
+    const op = await asOperator();
+    await expect(op.submitCount({ id: req.countId! })).rejects.toThrow(/«Товар»: в учёте сейчас 2\.00, а заявка снимает 5\.00/);
+    expect((await stockOf(s.productId)).current).toBe(2);
+    expect((await op.get({ id: req.countId! })).status).toBe("draft");
   });
 
   it("право по умолчанию: правка оператора проводится сразу, как до утверждения", async () => {
