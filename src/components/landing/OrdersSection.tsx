@@ -89,7 +89,7 @@ export default function OrdersSection() {
             {steps.map((s, i) => (
               <li key={s} className="flex items-center">
                 <span data-step className="inline-flex items-center gap-2 rounded-full px-4 h-11 text-[13px] font-semibold whitespace-nowrap" style={{ background: i === 3 ? LX.ink : LX.paperRaised, color: i === 3 ? LX.paperOnInk : LX.ink, border: `1px solid ${i === 3 ? LX.ink : LX.ruleStrong}` }}>
-                  <span className="text-[10px]" style={{ ...MONO, color: i === 3 ? LX.brassOnNight : LX.brassText }}>{String(i + 1).padStart(2, "0")}</span>
+                  <span className="text-[12px]" style={{ ...MONO, color: i === 3 ? LX.brassOnNight : LX.brassText }}>{String(i + 1).padStart(2, "0")}</span>
                   {s}
                 </span>
                 {i < steps.length - 1 && <span data-link className="block h-px w-10 md:w-16 origin-left" style={{ background: LX.ruleStrong }} />}
@@ -110,7 +110,7 @@ export default function OrdersSection() {
           card={
             <Sheet
               title={tr("Заказ № 981", "Buyurtma № 981")}
-              aside={<span data-tag className="text-[11px] rounded-full px-2.5 py-1" style={{ ...MONO, background: LX.brassSoft, color: LX.brassDeep }}>{tr("принят частично", "qisman qabul")}</span>}
+              aside={<span data-tag className="text-[12px] rounded-full px-2.5 py-1" style={{ ...MONO, background: LX.brassSoft, color: LX.brassDeep }}>{tr("принят частично", "qisman qabul")}</span>}
             >
               <div data-reveal="order-card" className="text-[17px] font-bold" style={{ color: LX.ink, letterSpacing: "-0.01em" }}>{tr("Рахмат Савдо · Ургенч, Гуллан", "Rahmat Savdo · Urganch, Gullan")}</div>
               <dl className="mt-5 text-[14.5px]">
@@ -129,7 +129,7 @@ export default function OrdersSection() {
                   <dd className="text-[22px] font-bold" style={{ ...MONO, color: LX.ink, letterSpacing: "-0.01em" }}><span data-debt>1 250 000</span> <span className="text-[12px] font-normal" style={{ color: LX.inkFaint }}>{tr("сум", "so'm")}</span></dd>
                 </div>
               </dl>
-              <p className="mt-5 text-[13.5px] leading-relaxed" style={{ color: LX.inkSoft }}>
+              <p className="mt-5 text-[15px] leading-relaxed" style={{ color: LX.inkSoft }}>
                 {tr("Курьер отметил 80 из 100 — сумма и долг пересчитались сами. Без этого 250 000 сум остались бы «ничьими».", "Kuryer 100 dan 80 tasini belgiladi — summa va qarz o'zi qayta hisoblandi. Aks holda 250 000 so'm «hech kimniki» bo'lib qolardi.")}
               </p>
               <DemoTag>{tr("демо-данные", "demo-ma'lumotlar")}</DemoTag>
@@ -139,7 +139,7 @@ export default function OrdersSection() {
 
         {/* Возможности — реестром, как в главе 04 */}
         <div className="mt-20 md:mt-24">
-          <div className="text-[11px] uppercase mb-4" style={{ ...MONO, color: LX.brassText, letterSpacing: "0.08em" }}>{tr("Что умеет заказ", "Buyurtma nimalarni qila oladi")}</div>
+          <div className="text-[12px] uppercase mb-4" style={{ ...MONO, color: LX.brassText, letterSpacing: "0.08em" }}>{tr("Что умеет заказ", "Buyurtma nimalarni qila oladi")}</div>
           <Ledger items={caps} />
         </div>
       </div>

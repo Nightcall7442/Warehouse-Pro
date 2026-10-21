@@ -43,7 +43,7 @@ export default function MarketSection() {
               <div style={{ fontSize: "clamp(28px, 3.4vw, 44px)", fontWeight: 800, letterSpacing: "-0.04em", lineHeight: 1, fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>{pick(lang, m.value)}</div>
               <div style={{ marginTop: 10, fontSize: 14, lineHeight: 1.45, color: "var(--soft)" }}>{pick(lang, m.label)}</div>
               <a href={m.source.href} target="_blank" rel="noopener noreferrer" className="p-mono p-focus" data-testid="pitch-market-size-source"
-                style={{ display: "inline-block", marginTop: 10, fontSize: 11.5, color: "var(--accent-text)", textDecoration: "underline", textUnderlineOffset: 4 }}>
+                style={{ display: "inline-block", marginTop: 10, fontSize: 12, color: "var(--accent-text)", textDecoration: "underline", textUnderlineOffset: 4 }}>
                 {m.source.label} ↗
               </a>
             </div>

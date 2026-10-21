@@ -169,7 +169,7 @@ export function LangSwitch() {
           data-testid={`pitch-lang-${l}`}
           className="p-mono p-focus"
           style={{
-            minWidth: 44, height: 40, padding: "0 10px", fontSize: 11.5, letterSpacing: "0.08em", textTransform: "uppercase",
+            minWidth: 44, height: 40, padding: "0 10px", fontSize: 12, letterSpacing: "0.08em", textTransform: "uppercase",
             background: lang === l ? "var(--btn-bg)" : "transparent", color: lang === l ? "var(--btn-fg)" : "var(--soft)",
             cursor: "pointer", border: 0,
           }}
@@ -208,7 +208,7 @@ function PitchFooter({ site }: { site: boolean }) {
   return (
     <footer style={{ borderTop: "1px solid var(--rule)", position: "relative" }}>
       <div className="p-wrap" style={{ display: "flex", flexWrap: "wrap", gap: "12px 28px", alignItems: "center", paddingTop: 32, paddingBottom: "calc(32px + env(safe-area-inset-bottom, 0px))" }}>
-        <span className="p-mono" style={{ fontSize: 11.5, color: "var(--faint)", letterSpacing: "0.04em" }}>{site ? "Warehouse Pro" : "Warehouse Pro · Pitch Day 3.0"}</span>
+        <span className="p-mono" style={{ fontSize: 12, color: "var(--faint)", letterSpacing: "0.04em" }}>{site ? "Warehouse Pro" : "Warehouse Pro · Pitch Day 3.0"}</span>
         <div style={{ display: "flex", flexWrap: "wrap", gap: "4px 22px", marginLeft: "auto" }} className="p-nav">
           {site
             ? <Link to={sitePath(siteLang, "/compare")}>{tr("Taqqoslash", "Сравнение")}</Link>
@@ -247,7 +247,7 @@ export function Chapter({ id, num, kicker, title, lead, children, band = false, 
 }
 
 export function Mono({ children, style }: { children: ReactNode; style?: CSSProperties }) {
-  return <span className="p-mono" style={{ fontSize: 11.5, letterSpacing: "0.06em", color: "var(--faint)", ...style }}>{children}</span>;
+  return <span className="p-mono" style={{ fontSize: 12, letterSpacing: "0.06em", color: "var(--faint)", ...style }}>{children}</span>;
 }
 
 export function ArrowLink({ to, children, solid = false, testId }: { to: string; children: ReactNode; solid?: boolean; testId?: string }) {

@@ -42,7 +42,7 @@ export function MobileScreens() {
           </figure>
         ))}
       </div>
-      <Mono style={{ display: "block", marginTop: 20, fontSize: 11, color: "var(--faint)", letterSpacing: "0.06em" }}>
+      <Mono style={{ display: "block", marginTop: 20, fontSize: 12, color: "var(--faint)", letterSpacing: "0.06em" }}>
         {tr("ILOVANING HAQIQIY EKRANLARI, NAMUNAVIY MA'LUMOTLAR BILAN", "НАСТОЯЩИЕ ЭКРАНЫ ПРИЛОЖЕНИЯ, НА ДЕМО-ДАННЫХ")}
       </Mono>
     </Chapter>

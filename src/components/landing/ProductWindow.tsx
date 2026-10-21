@@ -84,7 +84,7 @@ export default function ProductWindow() {
             <h2 className="font-bold" style={{ fontSize: "clamp(1.6rem, 2.8vw, 2.2rem)", letterSpacing: "-0.025em", color: LX.paperOnInk }}>
               {tr("Один экран вместо пяти тетрадей", "Beshta daftar o'rniga bitta ekran")}
             </h2>
-            <span className="text-[11px] uppercase" style={{ ...MONO, color: LX.softOnInk, letterSpacing: "0.08em" }}>
+            <span className="text-[12px] uppercase" style={{ ...MONO, color: LX.softOnInk, letterSpacing: "0.08em" }}>
               {tr("Настоящие экраны программы", "Dasturning haqiqiy ekranlari")}
             </span>
           </div>
@@ -94,7 +94,7 @@ export default function ProductWindow() {
               <div className="hidden sm:flex gap-1.5" aria-hidden="true">
                 {[0, 1, 2].map(i => <span key={i} className="w-2.5 h-2.5 rounded-full" style={{ background: LX.faintOnInk }} />)}
               </div>
-              <span className="hidden md:block text-[11px]" style={{ ...MONO, color: LX.softOnInk }}>app.warehouse-pro.uz</span>
+              <span className="hidden md:block text-[12px]" style={{ ...MONO, color: LX.softOnInk }}>app.warehouse-pro.uz</span>
               <div
                 role="tablist"
                 aria-label={tr("Разделы приложения", "Ilova bo'limlari")}
@@ -165,7 +165,7 @@ export default function ProductWindow() {
             </div>
           </div>
 
-          <p className="mt-4 text-[11.5px]" style={{ ...MONO, color: LX.softOnInk }}>
+          <p className="mt-4 text-[12px]" style={{ ...MONO, color: LX.softOnInk }}>
             {tr("Снимки сделаны с работающей программы на демо-данных · Ургенч, Хорезм", "Suratlar ishlayotgan dasturdan, demo-ma'lumotlarda · Urganch, Xorazm")}
           </p>
         </div>

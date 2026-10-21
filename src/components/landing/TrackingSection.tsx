@@ -41,7 +41,7 @@ function Battery({ level, hint }: { level: number; hint: string }) {
     <span className="inline-flex items-center gap-1.5" style={{ color: tone }}>
       <Icon size={14} />
       <span style={MONO}>{level}%</span>
-      {level <= 35 && <span className="text-[10px] uppercase" style={{ letterSpacing: "0.06em" }}>{hint}</span>}
+      {level <= 35 && <span className="text-[12px] uppercase" style={{ letterSpacing: "0.06em" }}>{hint}</span>}
     </span>
   );
 }
@@ -116,7 +116,7 @@ export default function TrackingSection() {
               tr("Визиты: был в точке, проехал мимо или ушёл без заказа — видно всё", "Tashriflar: nuqtada bo'ldi, o'tib ketdi yoki buyurtmasiz ketdi — hammasi ko'rinadi"),
               tr("Планы визитов на месяц и нормы продаж — расставили, программа считает выполнение", "Oylik tashrif rejalari va savdo normalari — belgiladingiz, dastur bajarilishini hisoblaydi"),
             ].map(item => (
-              <li key={item} className="flex items-start gap-3 text-[14.5px]" style={{ color: LX.softOnInk }}>
+              <li key={item} className="flex items-start gap-3 text-[15px]" style={{ color: LX.softOnInk }}>
                 <Check size={15} strokeWidth={3} className="mt-1 shrink-0" style={{ color: LX.brassOnNight }} />
                 {item}
               </li>
@@ -127,10 +127,10 @@ export default function TrackingSection() {
         {/* Живой экран слежения */}
         <div ref={root} data-reveal="track" className="p-4 md:p-6" style={{ borderRadius: 18, background: LX.ink, border: `1px solid ${LX.ruleOnInk}`, boxShadow: `0 40px 80px -40px ${LX.black80}` }}>
           <div className="flex items-center justify-between mb-3">
-            <span className="text-[11px] uppercase" style={{ ...MONO, color: LX.softOnInk, letterSpacing: "0.08em" }}>
+            <span className="text-[12px] uppercase" style={{ ...MONO, color: LX.softOnInk, letterSpacing: "0.08em" }}>
               {tr("Слежение · сегодня", "Nazorat · bugun")}
             </span>
-            <span className="inline-flex items-center gap-1.5 text-[11px]" style={{ ...MONO, color: LX.brassOnNight }}>
+            <span className="inline-flex items-center gap-1.5 text-[12px]" style={{ ...MONO, color: LX.brassOnNight }}>
               <span className="w-1.5 h-1.5 rounded-full" style={{ background: LX.brassOnNight }} />
               {tr("3 в поле", "Dalada 3")}
             </span>

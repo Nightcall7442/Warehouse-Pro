@@ -69,7 +69,7 @@ export default function HeroSection() {
         style={{ background: LX.paperRaised, border: `1px solid ${LX.rule}` }}
       >
         <div
-          className="flex items-center justify-between pl-5 pr-24 h-[52px] text-[11px] uppercase"
+          className="flex items-center justify-between pl-5 pr-24 h-[52px] text-[12px] uppercase"
           style={{ ...MONO, fontWeight: 500, letterSpacing: "0.08em", borderBottom: `1px solid ${LX.rule}` }}
         >
           <span style={{ color: LX.brassText }}>{tr("Склад · сегодня", "Ombor · bugun")}</span>
@@ -93,7 +93,7 @@ export default function HeroSection() {
           ))}
         </ol>
         <div
-          className="px-5 h-[44px] flex items-center text-[11px] uppercase"
+          className="px-5 h-[44px] flex items-center text-[12px] uppercase"
           style={{ ...MONO, fontWeight: 500, letterSpacing: "0.08em", color: LX.inkFaint }}
         >
           {tr("строки появляются по факту, а не по плану", "qatorlar reja bo'yicha emas, fakt bo'yicha paydo bo'ladi")}
@@ -120,7 +120,7 @@ export default function HeroSection() {
           {/* Поле листа */}
           <aside
            
-            className="lg:pr-6 mb-6 lg:mb-0 flex lg:flex-col gap-x-4 text-[11px] uppercase whitespace-nowrap"
+            className="lg:pr-6 mb-6 lg:mb-0 flex lg:flex-col gap-x-4 text-[12px] uppercase whitespace-nowrap"
             style={{ ...MONO, fontWeight: 500, letterSpacing: "0.08em", lineHeight: 1.9 }}
           >
             <span className="block" style={{ color: LX.brassText }}>{tr("Лист 01", "Varaq 01")}</span>
@@ -197,13 +197,13 @@ export default function HeroSection() {
             <p className="text-[15px] font-semibold" style={{ color: LX.ink }}>
               {tr("Не хотите разбираться сами?", "O'zingiz tushunishni xohlamaysizmi?")}
             </p>
-            <p className="text-[13px] mt-1" style={{ color: LX.inkSoft }}>
+            <p className="text-[15px] mt-1" style={{ color: LX.inkSoft }}>
               {tr("Оставьте номер — перезвоним и покажем на ваших данных.", "Raqam qoldiring — qo'ng'iroq qilib, o'z ma'lumotlaringizda ko'rsatamiz.")}
             </p>
           </div>
           <div>
             <LeadForm compact source="hero" />
-            <p className="mt-3 text-[13px] font-medium" style={{ color: LX.inkSoft }}>
+            <p className="mt-3 text-[15px] font-medium" style={{ color: LX.inkSoft }}>
               {tr("Двусторонний обмен с 1С", "1C bilan ikki tomonlama almashinuv")}
               <span style={{ color: LX.inkFaint }}> · </span>
               {tr("Приложение работает без интернета", "Ilova internetsiz ishlaydi")}

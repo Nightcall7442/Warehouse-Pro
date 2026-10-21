@@ -79,17 +79,17 @@ export default function SetupSection() {
         {/* Три колонки с линиями, без коробок: роли · права оператора · кто сколько стоит */}
         <div className="mt-14 grid md:grid-cols-3" style={{ borderTop: `1px solid ${LX.ruleStrong}`, borderBottom: `1px solid ${LX.rule}` }}>
           <div className="py-7 md:pr-10">
-            <div className="text-[11px] uppercase mb-4" style={{ ...MONO, color: LX.brassText, letterSpacing: "0.08em" }}>{tr("Шесть ролей", "Oltita rol")}</div>
+            <div className="text-[12px] uppercase mb-4" style={{ ...MONO, color: LX.brassText, letterSpacing: "0.08em" }}>{tr("Шесть ролей", "Oltita rol")}</div>
             <div className="flex flex-wrap gap-2">
               {roles.map(r => (
                 <span key={r} data-role className="inline-flex items-center rounded-full px-3.5 h-10 text-[13.5px] font-medium" style={{ background: LX.paperRaised, border: `1px solid ${LX.ruleStrong}`, color: LX.ink }}>{r}</span>
               ))}
             </div>
-            <p className="mt-5 text-[13.5px] leading-relaxed" style={{ color: LX.inkSoft }}>{tr("У каждой — свой набор экранов и ничего лишнего. Агент не увидит прибыль, курьер — каталог.", "Har birida — o'z ekranlari va ortiqchasi yo'q. Agent foydani ko'rmaydi, kuryer — katalogni.")}</p>
+            <p className="mt-5 text-[15px] leading-relaxed" style={{ color: LX.inkSoft }}>{tr("У каждой — свой набор экранов и ничего лишнего. Агент не увидит прибыль, курьер — каталог.", "Har birida — o'z ekranlari va ortiqchasi yo'q. Agent foydani ko'rmaydi, kuryer — katalogni.")}</p>
           </div>
 
           <div className="py-7 md:px-10" style={{ borderLeft: `1px solid ${LX.rule}`, borderRight: `1px solid ${LX.rule}` }}>
-            <div className="text-[11px] uppercase mb-4" style={{ ...MONO, color: LX.brassText, letterSpacing: "0.08em" }}>{tr("Права оператора", "Operator huquqlari")}</div>
+            <div className="text-[12px] uppercase mb-4" style={{ ...MONO, color: LX.brassText, letterSpacing: "0.08em" }}>{tr("Права оператора", "Operator huquqlari")}</div>
             <ul>
               {rights.map(r => (
                 <li key={r} className="flex items-center justify-between gap-3 text-[14px] py-2.5" style={{ color: LX.ink, borderBottom: `1px solid ${LX.rule}` }}>
@@ -100,11 +100,11 @@ export default function SetupSection() {
                 </li>
               ))}
             </ul>
-            <p className="mt-5 text-[13.5px] leading-relaxed" style={{ color: LX.inkSoft }}>{tr("Выключенное закрыто на сервере. По умолчанию разрешено всё — запрет появляется только там, где его поставили руками.", "O'chirilgani serverda yopiladi. Sukut bo'yicha hammasi ruxsat — taqiq faqat qo'lda qo'yilgan joyda paydo bo'ladi.")}</p>
+            <p className="mt-5 text-[15px] leading-relaxed" style={{ color: LX.inkSoft }}>{tr("Выключенное закрыто на сервере. По умолчанию разрешено всё — запрет появляется только там, где его поставили руками.", "O'chirilgani serverda yopiladi. Sukut bo'yicha hammasi ruxsat — taqiq faqat qo'lda qo'yilgan joyda paydo bo'ladi.")}</p>
           </div>
 
           <div className="py-7 md:pl-10">
-            <div className="text-[11px] uppercase mb-4" style={{ ...MONO, color: LX.brassText, letterSpacing: "0.08em" }}>{tr("Кто сколько стоит", "Kim qancha turadi")}</div>
+            <div className="text-[12px] uppercase mb-4" style={{ ...MONO, color: LX.brassText, letterSpacing: "0.08em" }}>{tr("Кто сколько стоит", "Kim qancha turadi")}</div>
             <dl>
               {[
                 [tr("Агент, курьер, мерчендайзер", "Agent, kuryer, merchandayzer"), `${formatSum(FIELD_PRICE_UZS)}`, tr("сум/мес", "so'm/oy")],
@@ -112,11 +112,11 @@ export default function SetupSection() {
               ].map(([k, v, unit]) => (
                 <div key={k} className="flex items-baseline justify-between gap-3 py-2.5" style={{ borderBottom: `1px solid ${LX.rule}` }}>
                   <dt className="text-[14px]" style={{ color: LX.inkSoft }}>{k}</dt>
-                  <dd className="text-[18px] font-bold whitespace-nowrap" style={{ ...MONO, color: LX.ink, letterSpacing: "-0.01em" }}>{v} {unit && <span className="text-[11px] font-normal" style={{ color: LX.inkFaint }}>{unit}</span>}</dd>
+                  <dd className="text-[18px] font-bold whitespace-nowrap" style={{ ...MONO, color: LX.ink, letterSpacing: "-0.01em" }}>{v} {unit && <span className="text-[12px] font-normal" style={{ color: LX.inkFaint }}>{unit}</span>}</dd>
                 </div>
               ))}
             </dl>
-            <p className="mt-5 text-[13.5px] leading-relaxed" style={{ color: LX.inkSoft }}>{tr("Платите только за тех, кто в поле. Офисных — сколько угодно, товаров и заказов — без ограничений.", "Faqat dalada ishlaydiganlar uchun to'laysiz. Ofis xodimlari — xohlagancha, mahsulot va buyurtmalar — cheklovsiz.")}</p>
+            <p className="mt-5 text-[15px] leading-relaxed" style={{ color: LX.inkSoft }}>{tr("Платите только за тех, кто в поле. Офисных — сколько угодно, товаров и заказов — без ограничений.", "Faqat dalada ishlaydiganlar uchun to'laysiz. Ofis xodimlari — xohlagancha, mahsulot va buyurtmalar — cheklovsiz.")}</p>
           </div>
         </div>
 
@@ -128,7 +128,7 @@ export default function SetupSection() {
               <h3 className="text-[24px] font-bold" style={{ color: LX.ink, letterSpacing: "-0.02em" }}>{tr("Товары и магазины — из Excel", "Mahsulot va do'konlar — Excel dan")}</h3>
               <p className="mt-3 text-[15.5px] leading-relaxed" style={{ color: LX.inkSoft }}>{tr("Скачали шаблон, заполнили, загрузили. Программа сначала показывает, что получится, и только потом записывает.", "Shablonni yukladingiz, to'ldirdingiz, yukladingiz. Dastur avval nima chiqishini ko'rsatadi, keyingina yozadi.")}</p>
               <div className="mt-7 rounded-lg overflow-hidden" style={{ border: `1px solid ${LX.ruleStrong}` }}>
-                <div className="grid grid-cols-[92px_1fr_72px] text-[10.5px] uppercase px-3.5 py-2" style={{ ...MONO, background: LX.paper, color: LX.inkFaint, letterSpacing: "0.06em" }}>
+                <div className="grid grid-cols-[92px_1fr_72px] text-[12px] uppercase px-3.5 py-2" style={{ ...MONO, background: LX.paper, color: LX.inkFaint, letterSpacing: "0.06em" }}>
                   <span>{tr("код", "kod")}</span><span>{tr("название", "nomi")}</span><span className="text-right">{tr("цена", "narx")}</span>
                 </div>
                 {sheet.map(r => (
@@ -143,7 +143,7 @@ export default function SetupSection() {
         />
 
         <div className="mt-20 md:mt-24">
-          <div className="text-[11px] uppercase mb-4" style={{ ...MONO, color: LX.brassText, letterSpacing: "0.08em" }}>{tr("Что настраивается", "Nima sozlanadi")}</div>
+          <div className="text-[12px] uppercase mb-4" style={{ ...MONO, color: LX.brassText, letterSpacing: "0.08em" }}>{tr("Что настраивается", "Nima sozlanadi")}</div>
           <Ledger items={caps} />
         </div>
       </div>

@@ -70,7 +70,7 @@ export default function LeadForm({ compact = false, onInk = false, stack = false
           <p className="text-[15px] font-semibold" style={{ color: text }}>
             {tr("Заявка принята", "Ariza qabul qilindi")}
           </p>
-          <p className="text-[13px] mt-1" style={{ color: soft }}>
+          <p className="text-[15px] mt-1" style={{ color: soft }}>
             {tr("Перезвоним в рабочее время. Обычно в течение дня.",
                 "Ish vaqtida qo'ng'iroq qilamiz. Odatda kun davomida.")}
           </p>
@@ -193,12 +193,12 @@ export default function LeadForm({ compact = false, onInk = false, stack = false
       </div>
 
       {error && (
-        <p role="alert" data-testid="lead-error" className="mt-2.5 text-[13px]" style={{ color: onInk ? "#e9a58f" : LX.bad }}>
+        <p role="alert" data-testid="lead-error" className="mt-2.5 text-[14px]" style={{ color: onInk ? "#e9a58f" : LX.bad }}>
           {error}
         </p>
       )}
 
-      <p className="mt-3 text-[11.5px]" style={{ ...MONO, color: soft, letterSpacing: "0.04em" }}>
+      <p className="mt-3 text-[12px]" style={{ ...MONO, color: soft, letterSpacing: "0.04em" }}>
         {tr("Звонок бесплатный. Номер не передаём третьим лицам.",
             "Qo'ng'iroq bepul. Raqamni uchinchi shaxslarga bermaymiz.")}
       </p>

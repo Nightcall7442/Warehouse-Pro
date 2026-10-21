@@ -82,14 +82,14 @@ function ClaimCell({ claim, name }: { claim: Area["salesDoctor"]; name: string }
     <div data-testid="compare-claim" data-claimed={claim ? "yes" : "no"}>
       <Mono style={{ display: "block", marginBottom: 4 }}><span className="lg:hidden">{name}</span></Mono>
       {claim ? (
-        <p style={{ margin: 0, color: "var(--soft)", fontSize: 14.5, lineHeight: 1.55 }}>
+        <p style={{ margin: 0, color: "var(--soft)", fontSize: 15, lineHeight: 1.55 }}>
           {pick(lang, claim.text)}{" "}
-          <a href={`#manba-${claim.source}`} className="p-mono p-focus" style={{ fontSize: 11, color: "var(--faint)", whiteSpace: "nowrap" }}>
+          <a href={`#manba-${claim.source}`} className="p-mono p-focus" style={{ fontSize: 12, color: "var(--faint)", whiteSpace: "nowrap" }}>
             [{SOURCES[claim.source].label.split(",")[0]}]
           </a>
         </p>
       ) : (
-        <p style={{ margin: 0, color: "var(--faint)", fontSize: 14.5, lineHeight: 1.55 }}>{tr("Kompaniyadan aniqlang", "Уточняйте у компании")}</p>
+        <p style={{ margin: 0, color: "var(--faint)", fontSize: 15, lineHeight: 1.55 }}>{tr("Kompaniyadan aniqlang", "Уточняйте у компании")}</p>
       )}
     </div>
   );
@@ -167,7 +167,7 @@ function SourceLink({ k }: { k: SourceKey }) {
   const { lang, tr } = useTr();
   const s = SOURCES[k];
   return (
-    <a id={`manba-${k}`} href={s.href} target="_blank" rel="noreferrer noopener" data-testid="compare-source" className="p-mono p-focus" style={{ fontSize: 11.5, color: "var(--faint)", letterSpacing: "0.04em", scrollMarginTop: 96 }}>
+    <a id={`manba-${k}`} href={s.href} target="_blank" rel="noreferrer noopener" data-testid="compare-source" className="p-mono p-focus" style={{ fontSize: 12, color: "var(--faint)", letterSpacing: "0.04em", scrollMarginTop: 96 }}>
       {tr("Manba", "Источник")}: {s.label}{s.note ? ` · ${pick(lang, s.note)}` : ""}
     </a>
   );
@@ -192,8 +192,8 @@ function Players() {
         {PLAYERS.map(p => (
           <article key={p.name} data-testid="compare-player" style={{ border: "1px solid var(--rule-strong)", borderRadius: 16, padding: 22, display: "flex", flexDirection: "column", gap: 12 }}>
             <h3 style={{ margin: 0, fontSize: 19, fontWeight: 800, letterSpacing: "-0.01em" }}>{p.name}</h3>
-            <p style={{ margin: 0, color: "var(--soft)", lineHeight: 1.55 }}>{pick(lang, p.what)}</p>
-            <ul style={{ margin: 0, paddingLeft: 18, color: "var(--soft)", lineHeight: 1.55, display: "grid", gap: 6 }}>
+            <p style={{ margin: 0, color: "var(--soft)", fontSize: 16, lineHeight: 1.55 }}>{pick(lang, p.what)}</p>
+            <ul style={{ margin: 0, paddingLeft: 18, color: "var(--soft)", fontSize: 15, lineHeight: 1.55, display: "grid", gap: 6 }}>
               {p.facts.map(f => <li key={f.ru}>{pick(lang, f)}</li>)}
             </ul>
             {p.sources.length > 0 && (
@@ -244,7 +244,7 @@ function Steps() {
           <li key={s.t.ru} data-testid="compare-step" style={{ borderTop: "2px solid var(--accent)", paddingTop: 16 }}>
             <Mono>{String(i + 1).padStart(2, "0")}</Mono>
             <div style={{ fontWeight: 800, fontSize: 18, marginTop: 8 }}>{pick(lang, s.t)}</div>
-            <p style={{ margin: "6px 0 0", color: "var(--soft)", lineHeight: 1.55 }}>{pick(lang, s.d)}</p>
+            <p style={{ margin: "6px 0 0", color: "var(--soft)", fontSize: 15, lineHeight: 1.55 }}>{pick(lang, s.d)}</p>
           </li>
         ))}
       </ol>

@@ -183,7 +183,7 @@ function VideoBlock({ videoRef }: { videoRef: RefObject<HTMLVideoElement | null>
           </div>
         </div>
       )}
-      <p className="p-mono" style={{ margin: "12px 0 0", fontSize: 11.5, letterSpacing: "0.06em", color: "var(--faint)" }}>
+      <p className="p-mono" style={{ margin: "12px 0 0", fontSize: 12, letterSpacing: "0.06em", color: "var(--faint)" }}>
         2:44 · 1920×1080 · {tr("OVOZSIZ, IZOHLAR BILAN", "БЕЗ ЗВУКА, С ПОДПИСЯМИ")}
       </p>
     </div>

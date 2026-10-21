@@ -132,7 +132,7 @@ export default function TallyField() {
   return (
     <div className="pt-8 pb-10" style={{ borderTop: `1px solid ${LX.rule}` }} aria-hidden="true">
       <div
-        className="max-w-[1240px] mx-auto px-6 flex items-baseline justify-between mb-5 text-[11px] uppercase"
+        className="max-w-[1240px] mx-auto px-6 flex items-baseline justify-between mb-5 text-[12px] uppercase"
         style={{ ...MONO, fontWeight: 500, color: LX.inkFaint, letterSpacing: "0.08em" }}
       >
         <span>{COLS} × {ROWS} — {tr("занятость ячеек", "katakchalar bandligi")}</span>

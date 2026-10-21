@@ -61,7 +61,7 @@ export default function StoryScroll() {
   }), [subscribe, still, steps.length]);
 
   const eyebrow = (
-    <div className="text-[11px] uppercase" style={{ ...MONO, fontWeight: 500, letterSpacing: "0.08em", lineHeight: 1.9, color: LX.brassText }}>
+    <div className="text-[12px] uppercase" style={{ ...MONO, fontWeight: 500, letterSpacing: "0.08em", lineHeight: 1.9, color: LX.brassText }}>
       {tr("Путь товара и денег", "Tovar va pul yo'li")}
     </div>
   );

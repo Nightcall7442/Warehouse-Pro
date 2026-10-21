@@ -91,7 +91,7 @@ export default function LossSection() {
         <div className="text-[56px] md:text-[72px] leading-none" style={{ ...MONO, letterSpacing: "-0.02em", color: LX.brassOnNight }}>
           <span data-count="200000">200 000</span>
         </div>
-        <p className="mt-3 text-[13px] font-medium max-w-md" style={{ color: LX.softOnInk }}>
+        <p className="mt-3 text-[15px] font-medium max-w-md" style={{ color: LX.softOnInk }}>
           {tr("сум по одному заказу, которые остались бы незаписанными без сверки. Боевая база, заказ №981.", "so'm — bitta buyurtma bo'yicha, solishtiruvsiz yozilmay qolardi. Jonli baza, №981 buyurtma.")}
         </p>
       </div>
@@ -112,11 +112,11 @@ export default function LossSection() {
         {items.map((it, i) => (
           <div key={i} data-reveal="loss" className="p-6 md:p-8" style={{ background: LX.ink }}>
             <div className="flex items-baseline gap-3 mb-3">
-              <span className="text-[11px]" style={{ ...MONO, fontWeight: 500, color: LX.brassOnNight, letterSpacing: "0.08em" }}>
+              <span className="text-[12px]" style={{ ...MONO, fontWeight: 500, color: LX.brassOnNight, letterSpacing: "0.08em" }}>
                 {String(i + 1).padStart(2, "0")}
               </span>
               <span
-                className="text-[10.5px] uppercase"
+                className="text-[12px] uppercase"
                 style={{ ...MONO, fontWeight: 500, color: LX.faintOnInk, letterSpacing: "0.08em" }}
               >
                 {it.who}
@@ -141,7 +141,7 @@ export default function LossSection() {
               >
                 {tr("В системе это видно как", "Tizimda bu shunday ko'rinadi")}
               </span>
-              <span className="block text-[14px]" style={{ color: LX.paperOnInk }}>
+              <span className="block text-[15px]" style={{ color: LX.paperOnInk }}>
                 {it.where}
               </span>
             </div>

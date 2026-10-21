@@ -61,7 +61,7 @@ function FactsStrip() {
               <div className="text-[32px] md:text-[40px] leading-none" style={{ ...MONO, letterSpacing: "-0.02em", color: LX.ink }}>
                 <span data-count={f.value}>{f.value.toLocaleString("ru-RU")}</span>{f.suffix ?? ""}
               </div>
-              <p className="mt-3 text-[13px] leading-snug max-w-[220px] font-medium" style={{ color: LX.inkSoft }}>
+              <p className="mt-3 text-[15px] leading-snug max-w-[220px] font-medium" style={{ color: LX.inkSoft }}>
                 {f.label}
               </p>
             </div>
@@ -157,7 +157,7 @@ function CtaSection() {
         style={{ opacity: 0.16, filter: "grayscale(0.6) sepia(0.3)" }}
       />
       <div className="relative max-w-[1240px] mx-auto px-6 py-20 md:py-28 lg:pl-[136px]">
-        <p data-reveal="cta" className="text-[11px] uppercase mb-6" style={{ ...MONO, fontWeight: 500, color: LX.brassOnNight, letterSpacing: "0.08em" }}>
+        <p data-reveal="cta" className="text-[12px] uppercase mb-6" style={{ ...MONO, fontWeight: 500, color: LX.brassOnNight, letterSpacing: "0.08em" }}>
           08 · {tr("Последняя строка реестра", "Reyestrning oxirgi qatori")}
         </p>
         <h2
@@ -189,7 +189,7 @@ function CtaSection() {
           className="mt-12 max-w-lg text-left rounded-lg p-6 md:p-8"
           style={{ background: LX.ink, border: `1px solid ${LX.ruleOnInk}` }}
         >
-          <p className="text-[13px] mb-3" style={{ color: LX.softOnInk }}>
+          <p className="text-[15px] mb-3" style={{ color: LX.softOnInk }}>
             {tr("Или оставьте номер — перезвоним и разберём ваш случай.",
                 "Yoki raqamingizni qoldiring — qo'ng'iroq qilib, holatingizni ko'rib chiqamiz.")}
           </p>
@@ -215,7 +215,7 @@ function Footer() {
     <footer className="py-12" style={{ borderTop: `1px solid ${LX.rule}` }}>
       <div className="max-w-[1240px] mx-auto px-6">
         {/* Последний лист реестра: та же метка, что открывала первый экран. */}
-        <div className="mb-8 flex flex-wrap gap-x-6 text-[11px] uppercase" style={{ ...MONO, fontWeight: 500, letterSpacing: "0.08em", lineHeight: 1.9 }}>
+        <div className="mb-8 flex flex-wrap gap-x-6 text-[12px] uppercase" style={{ ...MONO, fontWeight: 500, letterSpacing: "0.08em", lineHeight: 1.9 }}>
           <span style={{ color: LX.brassText }}>{tr("Лист 01 из 01", "Varaq 01 / 01")}</span>
           <span style={{ color: LX.inkFaint }}>{tr("Реестр WP-2026", "Reyestr WP-2026")}</span>
           <span style={{ color: LX.inkFaint }}>{tr("Сходится вечером", "Kechqurun to'g'ri keladi")}</span>
@@ -226,7 +226,7 @@ function Footer() {
               <LogoMark size={28} decorative />
               <span className="font-bold text-[14px]" style={{ color: LX.ink }}>Warehouse Pro</span>
             </div>
-            <p className="text-[13px] leading-relaxed" style={{ color: LX.inkSoft }}>
+            <p className="text-[15px] leading-relaxed" style={{ color: LX.inkSoft }}>
               {tr(
                 "Система учёта склада, заказов и доставки для дистрибьюторов Узбекистана.",
                 "O'zbekiston distribyutorlari uchun ombor, buyurtma va yetkazish hisobi tizimi.",
@@ -242,7 +242,7 @@ function Footer() {
           </nav>
         </div>
         <div
-          className="mt-10 pt-6 flex flex-col md:flex-row justify-between gap-3 text-[11.5px]"
+          className="mt-10 pt-6 flex flex-col md:flex-row justify-between gap-3 text-[12px]"
           style={{ ...MONO, color: LX.inkFaint, borderTop: `1px solid ${LX.rule}` }}
         >
           <span>© 2026 Warehouse Pro · {tr("Все права защищены", "Barcha huquqlar himoyalangan")}</span>

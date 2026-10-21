@@ -72,7 +72,7 @@ export default function ClosingSection() {
       <dl data-testid="pitch-closing" style={{ margin: 0, borderTop: "1px solid var(--rule-strong)" }}>
         {rows.map(r => (
           <div key={r.term} className="p-row grid md:grid-cols-[minmax(140px,2fr)_10fr]" style={{ gap: "6px 32px", padding: "20px 0" }}>
-            <dt className="p-mono" style={{ fontSize: 11.5, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--accent-text)", paddingTop: 4 }}>{r.term}</dt>
+            <dt className="p-mono" style={{ fontSize: 12, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--accent-text)", paddingTop: 4 }}>{r.term}</dt>
             <dd style={{ margin: 0, fontSize: 17, lineHeight: 1.55, fontWeight: 600 }}>{r.text}</dd>
           </div>
         ))}
@@ -80,7 +80,7 @@ export default function ClosingSection() {
       {/* Что просим — отдельно от пересказа: это вопрос, ради которого жюри
           дочитывает до конца. Инвестиции — только когда названа сумма. */}
       <div data-testid="pitch-ask" style={{ marginTop: 40 }}>
-        <span className="p-mono" style={{ fontSize: 11.5, letterSpacing: "0.08em", color: "var(--accent-text)" }}>{tr("PITCH DAY'DAN SO'ROVIMIZ", "ЧТО ПРОСИМ У PITCH DAY")}</span>
+        <span className="p-mono" style={{ fontSize: 12, letterSpacing: "0.08em", color: "var(--accent-text)" }}>{tr("PITCH DAY'DAN SO'ROVIMIZ", "ЧТО ПРОСИМ У PITCH DAY")}</span>
         <ol className="grid md:grid-cols-2" style={{ listStyle: "none", padding: 0, margin: "12px 0 0", gap: "0 64px", borderTop: "1px solid var(--rule-strong)" }}>
           {[
             ...(ASK.investment.amount

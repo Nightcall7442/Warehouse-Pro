@@ -46,7 +46,7 @@ export const PITCH_CSS = `
 .pitch .p-h1 { font-size: clamp(38px, 6.4vw, 80px); line-height: 1.0; letter-spacing: -0.045em; font-weight: 800; }
 .pitch .p-h2 { font-size: clamp(30px, 4.6vw, 56px); line-height: 1.04; letter-spacing: -0.035em; font-weight: 800; }
 .pitch .p-lead { font-size: clamp(16px, 1.5vw, 19px); line-height: 1.6; color: var(--soft); }
-.pitch .p-kicker { font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--accent-text); }
+.pitch .p-kicker { font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--accent-text); }
 .pitch .p-chapter { padding-top: 72px; padding-bottom: 72px; border-top: 1px solid var(--rule); }
 @media (min-width: 1024px) { .pitch .p-chapter { padding-top: 120px; padding-bottom: 120px; } }
 .pitch .p-row { border-bottom: 1px solid var(--rule); }

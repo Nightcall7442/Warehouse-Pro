@@ -23,7 +23,7 @@ function LangSwitch({ className }: { className?: string }) {
           // На касании цель должна быть не меньше 44 точек: 32×28 попадали мимо
           // пальца, а язык — первое, что переключает узбекоязычный посетитель.
           // В точках, а не h-11: при базовом шрифте 14px h-11 — это 38.5.
-          className="px-3.5 h-[44px] min-w-[44px] lg:px-2.5 lg:h-8 lg:min-w-0 text-[11px] uppercase cursor-pointer transition-colors"
+          className="px-3.5 h-[44px] min-w-[44px] lg:px-2.5 lg:h-8 lg:min-w-0 text-[12px] uppercase cursor-pointer transition-colors"
           style={{
             ...MONO,
             letterSpacing: "0.08em",

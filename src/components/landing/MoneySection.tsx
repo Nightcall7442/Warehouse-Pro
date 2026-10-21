@@ -72,7 +72,7 @@ export default function MoneySection() {
   ];
 
   const label = (text: string) => (
-    <div className="text-[11px] uppercase mb-4" style={{ ...MONO, color: LX.brassText, letterSpacing: "0.08em" }}>{text}</div>
+    <div className="text-[12px] uppercase mb-4" style={{ ...MONO, color: LX.brassText, letterSpacing: "0.08em" }}>{text}</div>
   );
 
   return (
@@ -112,7 +112,7 @@ export default function MoneySection() {
                   </div>
                 ))}
               </div>
-              <div className="mt-6 text-[11px] uppercase" style={{ ...MONO, color: LX.inkFaint, letterSpacing: "0.08em" }}>{tr("Кому звонить первым", "Kimga birinchi qo'ng'iroq qilish")}</div>
+              <div className="mt-6 text-[12px] uppercase" style={{ ...MONO, color: LX.inkFaint, letterSpacing: "0.08em" }}>{tr("Кому звонить первым", "Kimga birinchi qo'ng'iroq qilish")}</div>
               <ul className="mt-2">
                 {callFirst.map(c => (
                   <li key={c.s} data-call className="flex items-center justify-between gap-3 text-[13.5px] py-2.5" style={{ borderBottom: `1px solid ${LX.rule}` }}>
@@ -155,7 +155,7 @@ export default function MoneySection() {
                   <dd className="text-[22px] font-bold" style={{ ...MONO, color: LX.ink, letterSpacing: "-0.01em" }}><span data-total>{fmt(total)}</span> <span className="text-[12px] font-normal" style={{ color: LX.inkFaint }}>{tr("сум", "so'm")}</span></dd>
                 </div>
               </dl>
-              <p className="mt-5 text-[13.5px] leading-relaxed" style={{ color: LX.inkSoft }}>{tr("Выдали — сотрудник подтверждает получение с телефона. Остаток виден обоим.", "Berdingiz — xodim olganini telefondan tasdiqlaydi. Qoldiq ikkalasiga ko'rinadi.")}</p>
+              <p className="mt-5 text-[15px] leading-relaxed" style={{ color: LX.inkSoft }}>{tr("Выдали — сотрудник подтверждает получение с телефона. Остаток виден обоим.", "Berdingiz — xodim olganini telefondan tasdiqlaydi. Qoldiq ikkalasiga ko'rinadi.")}</p>
               <DemoTag>{tr("демо-данные", "demo-ma'lumotlar")}</DemoTag>
             </Sheet>
           }
