@@ -26,12 +26,13 @@ import { and, eq, inArray, ne, sql, type SQL } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { productBarcodes, products } from "@db/schema";
 import { isDuplicateOf } from "../lib/db-errors";
+import { MAX_EXTRA_BARCODES } from "@contracts/product-barcodes";
 
 type Db = ReturnType<typeof import("../queries/connection").getDb>;
 type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
 
-/** Сколько дополнительных кодов у одного товара: блок, пачка, пара поставщиков. */
-export const MAX_EXTRA_BARCODES = 20;
+// Предел — общий с формой (contracts/product-barcodes.ts).
+export { MAX_EXTRA_BARCODES };
 
 /** Сравнение — как у базы: без регистра (колонка в регистронезависимой сортировке). */
 export const barcodeKey = (code: string) => code.trim().toLowerCase();

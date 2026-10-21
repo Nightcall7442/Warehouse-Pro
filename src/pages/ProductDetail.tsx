@@ -20,6 +20,8 @@ import { exportToExcel, formatMovementsForExport } from "@/lib/excel";
 import { PremiumSelect } from "@/components/PremiumSelect";
 import { CategoryAutocomplete } from "@/components/products/CategoryAutocomplete";
 import { ProductTaxFields } from "@/components/products/ProductTaxFields";
+import { ExtraBarcodesEditor } from "@/components/products/ExtraBarcodesEditor";
+import { extraBarcodesPayload } from "@contracts/product-barcodes";
 import { VAT_RATE_LABEL, isBadIkpu } from "@contracts/tax-requisites";
 import { QueryErrorFallback } from "@/components/QueryErrorFallback";
 import { formatQty } from "@/lib/format";
@@ -190,6 +192,14 @@ export default function ProductDetail() {
                     defaultValue={product[k] ?? ""}
                     onChange={e=>setEditData((d: Record<string, unknown>)=>({...d,[k]:e.target.value}))}/>
                 ))}
+                {/* Основной штрих-код — тот, что печатают этикетки; пусто — штрих-кода нет. */}
+                <input className="neo-input font-data" placeholder={tr("Штрих-код","Shtrix-kod")} aria-label={tr("Штрих-код","Shtrix-kod")}
+                  data-testid="product-edit-barcode" maxLength={100} autoComplete="off"
+                  value={String(editData.barcode ?? product.barcode ?? "")}
+                  onChange={e=>setEditData((d: Record<string, unknown>)=>({...d,barcode:e.target.value}))}/>
+                <ExtraBarcodesEditor lang={lang}
+                  value={Array.isArray(editData.extraBarcodes) ? editData.extraBarcodes as string[] : product.barcodes ?? []}
+                  onChange={v=>setEditData((d: Record<string, unknown>)=>({...d,extraBarcodes:v}))}/>
                 <CategoryAutocomplete
                   value={String(editData.category ?? product.category ?? "")}
                   onChange={v=>setEditData((d: Record<string, unknown>)=>({...d,category:v}))}
@@ -229,7 +239,8 @@ export default function ProductDetail() {
                   defaultValue={product.description ?? ""}
                   onChange={e=>setEditData((d: Record<string, unknown>)=>({...d,description:e.target.value}))}/>
                 <div className="col-span-2 flex gap-2">
-                  <button onClick={()=>updateProduct.mutate({id:product.id,...editData})} disabled={updateProduct.isPending || isBadIkpu(String(editData.ikpu ?? ""))}
+                  <button onClick={()=>updateProduct.mutate({id:product.id,...editData,
+                      ...(Array.isArray(editData.extraBarcodes) ? { extraBarcodes: extraBarcodesPayload(editData.extraBarcodes as string[]) } : {})})} disabled={updateProduct.isPending || isBadIkpu(String(editData.ikpu ?? ""))}
                     className="neo-btn-primary flex items-center gap-2">
                     {updateProduct.isPending&&<Loader2 size={14} className="animate-spin"/>}{tr("Сохранить","Saqlash")}
                   </button>
@@ -256,6 +267,13 @@ export default function ProductDetail() {
                 <div className="flex items-center gap-4 mt-3 flex-wrap text-sm text-secondary">
                   {product.category && <span className="flex items-center gap-1.5"><Tag size={13} />{product.category}</span>}
                   {product.barcode && <span className="flex items-center gap-1.5 font-data">{product.barcode}</span>}
+                  {/* Дополнительные штрих-коды — по ним сканер находит тот же товар. */}
+                  {(product.barcodes ?? []).length > 0 && (
+                    <span className="flex items-center gap-1.5 font-data" data-testid="product-extra-barcodes-view"
+                      title={tr("Дополнительные штрих-коды","Qo'shimcha shtrix-kodlar")}>
+                      + {product.barcodes.join(", ")}
+                    </span>
+                  )}
                   {product.packSize != null && Number(product.packSize) > 0 && (
                     <span className="flex items-center gap-1.5" data-testid="product-pack">
                       <Boxes size={13} />1 {product.packLabel || tr("упаковка","qadoq")} = {formatQty(product.packSize)} {unitLabel(product.unit)}

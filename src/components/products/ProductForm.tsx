@@ -6,6 +6,8 @@ import { CategoryAutocomplete } from "./CategoryAutocomplete";
 import { notify } from "@/lib/toast";
 import { COLORS, SHADOW, F, UNITS, type Unit } from "./constants";
 import { ProductTaxFields } from "./ProductTaxFields";
+import { ExtraBarcodesEditor } from "./ExtraBarcodesEditor";
+import { extraBarcodesPayload } from "@contracts/product-barcodes";
 import { VAT_RATES, isBadIkpu, type VatRate } from "@contracts/tax-requisites";
 
 /**
@@ -33,6 +35,8 @@ export type ProductDraft = {
   ikpu?:        string;
   packageCode?: string;
   vatRate?:     VatRate;
+  /** Дополнительные штрих-коды; основной — barcode. */
+  extraBarcodes?: string[];
 };
 
 export interface ProductFormProps {
@@ -51,6 +55,7 @@ export function ProductForm({ onSave, onCancel, isPending, lang, categories = []
   const t = (ru: string, uz: string) => lang === "uz" ? uz : ru;
   const [d, setD] = useState<Omit<ProductDraft, "photoUrl">>({ code: "", barcode: "", name: "", category: "", costPrice: "", unitPrice: "", unit: "pcs", unitWeight: "", packSize: "", packLabel: "", reorderPoint: "10.00", description: "" });
   const [tax, setTax] = useState({ ikpu: "", packageCode: "", vatRate: "" });
+  const [extras, setExtras] = useState<string[]>([]);
   const taxBad = isBadIkpu(tax.ikpu);
   const [photo, setPhoto] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -109,6 +114,7 @@ export function ProductForm({ onSave, onCancel, isPending, lang, categories = []
           <DecimalInput className="neo-input font-data" placeholder={t("В упаковке, ед. (12)", "Qadoqda, dona (12)")} value={d.packSize} onValueChange={v => setD({ ...d, packSize: v })} data-testid="product-pack-size" />
           <input className="neo-input" placeholder={t("Название упаковки (коробка)", "Qadoq nomi (quti)")} value={d.packLabel} onChange={e => setD({ ...d, packLabel: e.target.value })} />
           <ProductTaxFields lang={lang} value={tax} onChange={patch => setTax(x => ({ ...x, ...patch }))} />
+          <ExtraBarcodesEditor lang={lang} value={extras} onChange={setExtras} />
           <input className="neo-input sm:col-span-2" placeholder={t("Описание", "Tavsif")} value={d.description} onChange={e => setD({ ...d, description: e.target.value })} />
         </div>
       </div>
@@ -117,6 +123,7 @@ export function ProductForm({ onSave, onCancel, isPending, lang, categories = []
             ...d, photoUrl: photo ?? undefined,
             ikpu: tax.ikpu.trim() || undefined, packageCode: tax.packageCode.trim() || undefined,
             vatRate: VAT_RATES.find(r => r === tax.vatRate),
+            extraBarcodes: extraBarcodesPayload(extras),
           })} disabled={isPending || taxBad}
           className="neo-btn-primary flex-1 sm:flex-none flex items-center justify-center gap-2">
           {isPending && <Loader2 size={14} className="animate-spin" />}{t("Сохранить", "Saqlash")}
