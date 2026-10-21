@@ -161,6 +161,33 @@ async function lockStock(tx: Tx, tenantId: number, warehouseId: number, productI
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
+/*
+  Хватит ли товара — до того, как заводить строки остатка получателя
+  (ensureStockRows идёт вне сделки и при отказе не откатывается). Без этой
+  проверки отказанный документ оставлял на складе-получателе пустые строки:
+  товар, которого там никогда не было, появлялся в остатках нулём, и тревога
+  «заканчивается» звала его докупить. Проверка без замка — предварительная;
+  окончательный ответ даёт дверь в сделке (moveOut), тем же отказом.
+*/
+async function assertMovable(
+  db: Db, tenantId: number, fromWarehouseId: number,
+  items: TransferInput["items"], nameOf: Map<number, string>,
+): Promise<void> {
+  const ids = items.map(i => i.productId);
+  const rows = await db.select({ productId: warehouseStock.productId, available: warehouseStock.available }).from(warehouseStock)
+    .where(and(eq(warehouseStock.tenantId, tenantId), eq(warehouseStock.warehouseId, fromWarehouseId), inArray(warehouseStock.productId, ids)));
+  const availableOf = new Map(rows.map(r => [r.productId, Number(r.available)]));
+  const expired = await expiredByProduct(db, tenantId, fromWarehouseId, ids);
+  for (const it of items) {
+    const available = availableOf.get(it.productId) ?? 0;
+    const name = nameOf.get(it.productId) ?? "";
+    // Выбранные вручную партии могут быть и просроченными (увезти на списание) — тогда хватает свободного остатка.
+    const rotten = it.picks && it.picks.length > 0 ? 0 : (expired.get(it.productId) ?? 0);
+    const movable = round2(available - rotten);
+    if (it.quantity > movable + 1e-9) throw refusal(new NotMovableError(available, rotten, Math.max(0, movable), it.quantity), name);
+  }
+}
+
 /**
  * Провести документ перемещения: товар уходит со склада-отправителя теми
  * партиями, которые взял, и — в режиме instant — сразу ложится на получателя
@@ -196,6 +223,7 @@ export async function transferStock(db: Db, tenantId: number, actor: Actor, inpu
   }
 
   const mode = input.mode ?? await transferMode(db, tenantId);
+  await assertMovable(db, tenantId, input.fromWarehouseId, input.items, nameOf);
   // Пустые строки получателя — до транзакции (см. ensureStockRows).
   await ensureStockRows(db, { tenantId, warehouseId: input.toWarehouseId, productIds });
 

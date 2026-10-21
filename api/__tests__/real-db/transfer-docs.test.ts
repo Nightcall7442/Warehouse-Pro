@@ -159,6 +159,14 @@ describe.skipIf(!hasRealDb)("документ перемещения на нас
     expect(Number((await rowsOf<{ n: number }>(sql`SELECT COUNT(*) AS n FROM stock_movements WHERE reference_type LIKE 'transfer%'`))[0].n)).toBe(0);
     expect(await shape(s.warehouseId)).toEqual([["A", LATER, 5, null]]);
     await expectInvariant();
+    // Получателю — ни одной пустой строки остатка: товар, которого там не было,
+    // не появляется нулём, и тревога «заканчивается» по нему не зовёт.
+    const rowsAtSecond = async () => Number((await rowsOf<{ n: number }>(sql`SELECT COUNT(*) AS n FROM warehouse_stock WHERE warehouse_id = ${second}`))[0].n);
+    expect(await rowsAtSecond()).toBe(0);
+    // Годного не хватает из-за просрочки — тот же отказ словами и тоже без строк.
+    await receive(2, { batchNumber: "OLD", expiresAt: GONE }, s.warehouseId, s.secondProductId);
+    await expect(send([{ productId: s.secondProductId, quantity: 2 }])).rejects.toThrow(/из них 2 просрочено — переместить можно 1, а в документе 2/);
+    expect(await rowsAtSecond()).toBe(0);
   });
 
   it("склад чужой организации — «не найден»; отключённый — отказ словами", async () => {
