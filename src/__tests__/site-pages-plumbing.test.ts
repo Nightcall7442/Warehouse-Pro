@@ -2,28 +2,34 @@ import { describe, it, expect } from "vitest";
 import { readFileSync, readdirSync, existsSync } from "node:fs";
 import path from "node:path";
 import {
-  APP_ROOTS, OG_HEIGHT, OG_WIDTH, SITE_PAGES, SITE_ROOTS, absoluteUrl, ogImagePath, pageLangs,
+  APP_ROOTS, OG_HEIGHT, OG_WIDTH, SITE_ORIGIN, SITE_PAGES, SITE_ROOTS,
+  absoluteUrl, alternatesOf, ogImagePath, pageLangs,
 } from "@contracts/site-pages";
 
 /**
  * Один список страниц сайта (contracts/site-pages) — и всё, что от него
  * зависит, с ним сходится.
  *
- * Адрес страницы записан в нескольких местах: маршруты приложения, сборка
- * готовых страниц, картинки карточек, вход сайта, сервер. Когда одно из них
- * отстаёт, это видно только в Search Console через недели: раздел
- * приложения, который сервер вдруг отдаёт как 404, карточка без картинки.
+ * Адрес страницы записан в нескольких местах: маршруты приложения, карта
+ * сайта, robots.txt, картинки карточек, сборка готовых страниц. Когда одно
+ * из них отстаёт, это видно только в Search Console через недели: страница,
+ * которой нет в карте, карта, ведущая на 404, раздел приложения, который
+ * сервер вдруг отдаёт как 404, карточка без картинки.
  *
  *   · APP_ROOTS — ровно первые части маршрутов App.tsx (кроме сайта):
  *     забытый раздел сервер отдавал бы как 404;
+ *   · sitemap.xml — каждая страница на каждом языке с взаимными hreflang,
+ *     /pitch и /demo; ни /login, ни /register; даты — из SITE_PAGES;
+ *   · robots.txt не закрывает ни одну страницу карты, ни кадры (/landing/),
+ *     ни картинки карточек, ни шрифты, ни пакеты;
  *   · у каждой страницы на каждом языке — своя картинка JPEG ровно
  *     1200×630; лишних нет;
  *   · сборка готовых страниц грузит те же куски, что вход сайта;
  *   · оболочка приложения закрыта от поиска и без canonical.
  *
  * Нарочная поломка: удалить "salaries" из APP_ROOTS — падает «маршруты»;
- * пересохранить картинку 1200×600 — «картинки»; вернуть canonical в
- * оболочку — «не страница сайта».
+ * поменять lastmod в карте — «карта»; вернуть Disallow: /landing — «robots»;
+ * пересохранить картинку 1200×600 — «картинки».
  */
 
 const ROOT = process.cwd();
@@ -61,6 +67,63 @@ describe("маршруты приложения и APP_ROOTS", () => {
     expect(SITE_ROOTS.filter(s => APP_ROOTS.includes(s))).toEqual([]);
     // Каждая страница сайта — под своей частью.
     for (const p of sitePaths) if (p !== "/") expect(SITE_ROOTS, p).toContain(p.split("/")[1]);
+  });
+});
+
+describe("карта сайта", () => {
+  const xml = read("public/sitemap.xml");
+  const urls = [...xml.matchAll(/<url>([\s\S]*?)<\/url>/g)].map(m => {
+    const body = m[1];
+    return {
+      loc: /<loc>([^<]+)<\/loc>/.exec(body)?.[1] ?? "",
+      lastmod: /<lastmod>([^<]+)<\/lastmod>/.exec(body)?.[1],
+      changefreq: /<changefreq>([^<]+)<\/changefreq>/.exec(body)?.[1],
+      priority: /<priority>([^<]+)<\/priority>/.exec(body)?.[1],
+      alternates: [...body.matchAll(/<xhtml:link rel="alternate" hreflang="([^"]+)" href="([^"]+)" \/>/g)].map(a => ({ hreflang: a[1], href: a[2] })),
+    };
+  });
+
+  it("каждая страница сайта на каждом языке, /pitch и /demo — и ничего больше", () => {
+    expect(urls.map(u => u.loc).sort()).toEqual([...sitePaths, "/pitch", "/demo"].map(absoluteUrl).sort());
+    expect(xml).not.toMatch(/\/(login|register)<\/loc>/);
+    expect(xml).toContain('xmlns:xhtml="http://www.w3.org/1999/xhtml"');
+  });
+
+  it("даты, частота, вес и hreflang — из SITE_PAGES, взаимно у обеих версий", () => {
+    for (const page of SITE_PAGES) {
+      for (const lang of pageLangs(page)) {
+        const u = urls.find(x => x.loc === absoluteUrl(page.paths[lang]!))!;
+        expect(u.lastmod, u.loc).toBe(page.lastmod);
+        expect(u.changefreq, u.loc).toBe(page.changefreq);
+        expect(u.priority, u.loc).toBe(page.priority);
+        expect(u.alternates, u.loc).toEqual(alternatesOf(page));
+      }
+    }
+  });
+});
+
+describe("robots.txt", () => {
+  const robots = read("public/robots.txt");
+  const disallowed = [...robots.matchAll(/^Disallow:\s*(\S+)/gm)].map(m => m[1]);
+
+  it("не закрывает ни одной страницы карты, кадров, картинок карточек, шрифтов и пакетов", () => {
+    const open = [...sitePaths, "/pitch", "/demo", "/landing", "/landing/film/w960/0001.webp", "/og/home-ru.jpg", "/fonts/manrope-cyrillic-wght-normal.woff2", "/assets/index-abc.js", "/login", "/register"];
+    for (const p of open) {
+      // Disallow — простое начало адреса: «/landing» закрыл бы и /landing/… .
+      const blocker = disallowed.find(d => p.startsWith(d));
+      expect(blocker, `${p} закрыт правилом Disallow: ${blocker}`).toBeUndefined();
+    }
+  });
+
+  it("закрывает только разделы приложения и /api/", () => {
+    for (const d of disallowed) {
+      const first = d.split("/")[1];
+      expect(first === "api" || APP_ROOTS.includes(first), d).toBe(true);
+    }
+  });
+
+  it("называет карту сайта", () => {
+    expect(robots).toContain(`Sitemap: ${SITE_ORIGIN}/sitemap.xml`);
   });
 });
 
