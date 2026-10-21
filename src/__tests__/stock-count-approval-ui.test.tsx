@@ -22,6 +22,7 @@ const h = vi.hoisted(() => {
     doc: null as Record<string, unknown> | null,
     list: [] as Array<Record<string, unknown>>,
     found: [] as Array<Record<string, unknown>>,
+    fetching: false,
     calls: [] as Array<[string, unknown]>,
   };
   const q = (get: () => unknown) => () => ({ data: get(), isLoading: false, isError: false, refetch: vi.fn() });
@@ -47,7 +48,7 @@ const h = vi.hoisted(() => {
       product: { categories: { useQuery: q(() => ["Напитки", "Сладости"]) } },
       // Валюта итогов документа (useCurrency).
       settings: { get: { useQuery: q(() => null) } },
-      warehouseMulti: { getStock: { useQuery: q(() => ({ data: state.found })) } },
+      warehouseMulti: { getStock: { useQuery: () => ({ ...q(() => ({ data: state.found }))(), isFetching: state.fetching }) } },
       useUtils: () => ({ stockCount: { list: inv, get: inv }, warehouseMulti: { getStock: inv } }),
     },
   };
@@ -79,7 +80,7 @@ const doc = (over: Record<string, unknown> = {}) => ({
 });
 
 beforeEach(() => {
-  h.state.role = "operator"; h.state.canApply = true; h.state.calls = []; h.state.found = [];
+  h.state.role = "operator"; h.state.canApply = true; h.state.calls = []; h.state.found = []; h.state.fetching = false;
   h.state.list = []; h.state.doc = null;
 });
 afterEach(cleanup);
@@ -105,6 +106,24 @@ describe("что считать", () => {
     expect(within(screen.getByTestId("stock-count-picked")).getByText("Сок")).toBeTruthy();
     fireEvent.click(screen.getByTestId("stock-count-new"));
     expect(h.state.calls).toEqual([["create", { warehouseId: 1, productIds: [9, 5] }]]);
+  });
+
+  it("поиск товаров: пока ищем — «Ищем…», ничего не нашлось — так и сказано", () => {
+    h.state.fetching = true;
+    wrap(<StockCounts warehouses={WH} />);
+    fireEvent.click(screen.getByTestId("stock-count-scope-items"));
+    fireEvent.change(screen.getByTestId("stock-count-item-search"), { target: { value: "P-9" } });
+    expect(screen.getByTestId("stock-count-search-loading")).toBeTruthy();
+    expect(screen.queryByTestId("stock-count-search-empty")).toBeNull();
+    cleanup();
+    h.state.fetching = false;
+    wrap(<StockCounts warehouses={WH} />);
+    fireEvent.click(screen.getByTestId("stock-count-scope-items"));
+    fireEvent.change(screen.getByTestId("stock-count-item-search"), { target: { value: "P-9" } });
+    expect(screen.getByTestId("stock-count-search-empty").textContent).toContain("Ничего не нашлось");
+    // Одна буква — ещё не поиск: ни «ищем», ни «ничего».
+    fireEvent.change(screen.getByTestId("stock-count-item-search"), { target: { value: "P" } });
+    expect(screen.queryByTestId("stock-count-search-empty")).toBeNull();
   });
 
   it("весь склад — как раньше: только склад", () => {

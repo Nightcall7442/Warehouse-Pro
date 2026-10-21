@@ -450,6 +450,15 @@ describe.skipIf(!hasRealDb)("документ перемещения на нас
     expect(p.markdowns).toEqual([{ batchId: b, productId: s.productId, price: 50, endsOn: SOON, batchQuantity: 3, batchNumber: "B" }]);
   });
 
+  it("поиск остатков — по названию и по коду товара", async () => {
+    const c = await router();
+    const ids = async (search: string) =>
+      ((await c.getStock({ warehouseId: s.warehouseId, search, pageSize: 100 })).data as Array<{ productId: number }>).map(x => Number(x.productId));
+    expect(await ids("P-2")).toEqual([s.secondProductId]);
+    expect(await ids("Второй")).toEqual([s.secondProductId]);
+    expect((await ids("P-")).sort((a, b) => a - b)).toEqual([s.productId, s.secondProductId].sort((a, b) => a - b));
+  });
+
   it("средняя себестоимость прихода считает и товар «в пути»", async () => {
     await twoStep();
     await (db as any).update(schema.settings).set({ costMethod: "average" }).where(eq(schema.settings.tenantId, s.tenantId));

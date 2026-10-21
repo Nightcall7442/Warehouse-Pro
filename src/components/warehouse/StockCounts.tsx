@@ -163,6 +163,16 @@ export function StockCounts({ warehouses }: { warehouses: Warehouse[] }) {
           <div className="space-y-2">
             <input className="neo-input" style={{ maxWidth: 360 }} value={search} onChange={e => setSearch(e.target.value)} data-testid="stock-count-item-search"
               placeholder={t("Найти товар: название или код (от 2 букв)", "Tovarni topish: nomi yoki kodi (2 harfdan)")} />
+            {/* Ищем / ничего — словами: пустое место под полем читалось как «поиск не работает». */}
+            {search.trim().length >= 2 && productsQ.isFetching && found.length === 0 && (
+              <p className="text-xs" style={{ color: COLORS.textTertiary, margin: 0 }} data-testid="stock-count-search-loading">{t("Ищем…", "Qidirilmoqda…")}</p>
+            )}
+            {search.trim().length >= 2 && !productsQ.isFetching && productsQ.isError && (
+              <p className="text-xs" role="alert" style={{ color: "var(--color-danger-text)", margin: 0 }}>{t("Не удалось найти — повторите", "Topib bo'lmadi — qayta urinib ko'ring")}</p>
+            )}
+            {search.trim().length >= 2 && !productsQ.isFetching && !productsQ.isError && found.length === 0 && (
+              <p className="text-xs" style={{ color: COLORS.textTertiary, margin: 0 }} data-testid="stock-count-search-empty">{t("Ничего не нашлось — проверьте название или код", "Hech narsa topilmadi — nomi yoki kodini tekshiring")}</p>
+            )}
             {search.trim().length >= 2 && found.length > 0 && (
               <div className="flex flex-wrap gap-2">
                 {found.slice(0, 10).map(p => (

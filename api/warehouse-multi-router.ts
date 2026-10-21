@@ -237,7 +237,8 @@ export const warehouseMultiRouter = createRouter({
         поэтому соединение по ws.warehouse_id находит её всегда.
       */
       // Use parameterized Drizzle sql templates to prevent SQL injection
-      const searchCondition = search ? sql`AND p.name LIKE ${"%" + search + "%"}` : sql``;
+      // И по коду: поиск товаров в инвентаризации и перемещениях обещает «название или код».
+      const searchCondition = search ? sql`AND (p.name LIKE ${"%" + search + "%"} OR p.code LIKE ${"%" + search + "%"})` : sql``;
       const warehouseCondition = input?.warehouseId ? sql`AND ws.warehouse_id = ${input.warehouseId}` : sql``;
 
       const dataQuery = sql`
