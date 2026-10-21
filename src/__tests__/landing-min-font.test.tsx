@@ -25,13 +25,16 @@ import type { ReactElement } from "react";
  *     размера меньше 12px — классом text-[Npx], стилем fontSize: N или CSS
  *     font-size: Npx. Исключение одно — кольцо и подпись печати (Stamp):
  *     это рисунок aria-hidden, его не читают;
- *   · отрисовка лендинга и сравнения: каждый абзац текста (предложение от 70
- *     знаков) набран не мельче 15px на телефоне — по базовому классу или
- *     стилю, без md:/lg:.
+ *   · отрисовка лендинга, сравнения и политики: каждый абзац текста
+ *     (предложение от 70 знаков) набран не мельче 15px на телефоне — по
+ *     базовому классу или стилю, без md:/lg:;
+ *   · статья: всё, что читают подряд, — не мельче 16px (стили wa-), рубрика,
+ *     номера оглавления и кнопки шапки — по общему правилу.
  *
  * Нарочная поломка: вернуть text-[11px] в подпись SectionHead — падает
  * «исходники»; вернуть ответам FAQ text-[14px] — «абзацы лендинга»; вернуть
- * ячейкам сравнения fontSize 14.5 — «абзацы сравнения».
+ * ячейкам сравнения fontSize 14.5 — «абзацы сравнения»; вернуть P в
+ * Privacy 14.5px — «абзацы политики»; дать .wa-crumbs ol 14px — «стили wa-».
  */
 vi.setConfig({ testTimeout: 30_000 });
 
@@ -45,6 +48,9 @@ const SITE_FILES = [
   ...filesIn("src/components/compare"),
   // Статьи сайта: раскладка и тексты.
   ...filesIn("src/site/articles"),
+  // Остальное, что сборка рисует страницами сайта: 404, политика.
+  ...filesIn("src/site"),
+  "src/pages/Privacy.tsx",
   "src/pages/Landing.tsx",
   "src/pages/Compare.tsx",
   "src/pages/Pitch.tsx",
@@ -90,6 +96,7 @@ vi.mock("@/lib/public-api", () => ({
 
 const { default: Landing } = await import("@/pages/Landing");
 const { default: Compare } = await import("@/pages/Compare");
+const { default: Privacy } = await import("@/pages/Privacy");
 const { LangProvider } = await import("@/i18n");
 
 beforeEach(() => {
@@ -154,5 +161,27 @@ describe("абзацы — 15px и крупнее на телефоне", () => 
 
   it("абзацы сравнения", () => {
     expect(smallParagraphs(<Compare />)).toEqual([]);
+  });
+
+  it("абзацы политики конфиденциальности — она теперь страница сайта", () => {
+    expect(smallParagraphs(<Privacy />)).toEqual([]);
+  });
+});
+
+describe("статья: то, что читают подряд, — не мельче 16px", () => {
+  /*
+    Правило раскладки статьи (ArticleLayout): абзацы, списки, подписи к
+    снимкам, крошки, FAQ, «Ещё по теме» — от 16px. Стили статьи — один блок
+    CSS с классами wa-; меньше 16 в нём можно только номерам оглавления.
+  */
+  it("стили wa-: размеры шрифта — от 16px, кроме номеров оглавления", () => {
+    const src = readFileSync(path.join(ROOT, "src/site/articles/ArticleLayout.tsx"), "utf8");
+    const rules = [...src.matchAll(/^\s*(\.wa-[^{]+)\{([^}]*)\}/gm)].map(m => ({ sel: m[1].trim(), body: m[2] }));
+    expect(rules.length, "стили статьи не найдены").toBeGreaterThan(10);
+    const small = rules
+      .map(r => ({ sel: r.sel, px: /font-size:\s*(\d+(?:\.\d+)?)px/.exec(r.body)?.[1] }))
+      .filter(r => r.px && Number(r.px) < 16 && r.sel !== ".wa-toc li::before");
+    expect(small, "мелкий шрифт в тексте статьи").toEqual([]);
+    expect(src).toMatch(/\.wa-body \{ font-size: 17px;/);
   });
 });
