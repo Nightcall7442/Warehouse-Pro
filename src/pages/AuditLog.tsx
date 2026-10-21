@@ -142,6 +142,16 @@ const ACTION_CONFIG: Record<string, { icon: LucideIcon; gradient: string }> = {
   "arrival.completed":               { icon: Truck, gradient: SUCCESS },
   "product.cost_averaged":           { icon: Package, gradient: PRIMARY },
   "supplier.return_goods":           { icon: Truck, gradient: WARNING },
+  // Заказы поставщикам: согласование — обещание денег, приёмка — сам долг (ADR 0013).
+  "purchase_order.created":          { icon: ClipboardList, gradient: PRIMARY },
+  "purchase_order.updated":          { icon: ClipboardList, gradient: PRIMARY },
+  "purchase_order.submitted":        { icon: ClipboardList, gradient: WARNING },
+  "purchase_order.approved":         { icon: ShieldCheck, gradient: SUCCESS },
+  "purchase_order.rejected":         { icon: Undo2, gradient: WARNING },
+  "purchase_order.cancelled":        { icon: ClipboardList, gradient: DANGER },
+  "purchase_order.closed":           { icon: ClipboardList, gradient: WARNING },
+  "purchase_order.receiving":        { icon: Truck, gradient: PRIMARY },
+  "purchase_order.received":         { icon: Truck, gradient: SUCCESS },
   "loading_list.created":            { icon: ClipboardList, gradient: PRIMARY },
   "loading_list.picked":             { icon: ClipboardList, gradient: SUCCESS },
   // Зарплата

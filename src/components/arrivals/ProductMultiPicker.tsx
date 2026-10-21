@@ -19,11 +19,14 @@ const SHOWN = 200;
  * найденные», — и одной кнопкой встают в приход строками. Уже стоящие в
  * приходе видны отмеченными и второй раз не добавляются.
  */
-export function ProductMultiPicker({ onClose, products, already, onPick }: {
+export function ProductMultiPicker({ onClose, products, already, onPick, title, subtitle }: {
   onClose: () => void;
   products: PickerProduct[];
   already: Set<number>;
   onPick: (picked: PickerProduct[]) => void;
+  /** Заголовок окна; по умолчанию — для прихода. Заказ поставщику зовёт его со своим. */
+  title?: string;
+  subtitle?: string;
 }) {
   const { lang } = useLang();
   const { fmt } = useCurrency();
@@ -64,8 +67,8 @@ export function ProductMultiPicker({ onClose, products, already, onPick }: {
       open
       onClose={onClose}
       dirty={sel.size > 0}
-      title={t("Товары в приход", "Kelishga mahsulotlar")}
-      subtitle={t("Отметьте все позиции накладной сразу", "Hujjatdagi barcha pozitsiyalarni birdaniga belgilang")}
+      title={title ?? t("Товары в приход", "Kelishga mahsulotlar")}
+      subtitle={subtitle ?? t("Отметьте все позиции накладной сразу", "Hujjatdagi barcha pozitsiyalarni birdaniga belgilang")}
       maxWidth={760}
       footer={
         <div style={{ display: "flex", alignItems: "center", gap: 10, width: "100%" }}>

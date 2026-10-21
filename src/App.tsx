@@ -53,6 +53,7 @@ const OrderDetail          = lazyWithRecovery(() => import("./pages/OrderDetail"
 const Warehouse            = lazyWithRecovery(() => import("./pages/Warehouse"));
 const Arrivals             = lazyWithRecovery(() => import("./pages/Arrivals"));
 const ArrivalEditor        = lazyWithRecovery(() => import("./pages/ArrivalEditor"));
+const PurchaseOrderEditor  = lazyWithRecovery(() => import("./pages/PurchaseOrderEditor"));
 const PriceListEditor      = lazyWithRecovery(() => import("./pages/PriceListEditor"));
 const Reports              = lazyWithRecovery(() => import("./pages/Reports"));
 const Users                = lazyWithRecovery(() => import("./pages/Users"));
@@ -259,6 +260,7 @@ export default function App() {
           <Route path="/warehouse"      element={<RoleGuard roles={["ceo","operator"]}><Warehouse /></RoleGuard>} />
           <Route path="/arrivals"       element={<RoleGuard roles={["ceo","operator"]}><Arrivals /></RoleGuard>} />
           <Route path="/arrivals/:id"   element={<RoleGuard roles={["ceo","operator"]}><ArrivalEditor /></RoleGuard>} />
+          <Route path="/purchase-orders/:id" element={<RoleGuard roles={["ceo","operator"]}><PurchaseOrderEditor /></RoleGuard>} />
           <Route path="/price-lists/:id" element={<RoleGuard roles={["ceo","operator"]}><PriceListEditor /></RoleGuard>} />
           {/* Настройки открыты всем: внутри каждый видит только свои разделы
               (см. SECTIONS в pages/Settings.tsx). Раньше маршрут был закрыт
