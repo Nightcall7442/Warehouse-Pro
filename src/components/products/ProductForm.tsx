@@ -37,6 +37,8 @@ export type ProductDraft = {
   vatRate?:     VatRate;
   /** Дополнительные штрих-коды; основной — barcode. */
   extraBarcodes?: string[];
+  /** У кого обычно закупаем; не задан — undefined. */
+  defaultSupplierId?: number;
 };
 
 export interface ProductFormProps {
@@ -45,17 +47,25 @@ export interface ProductFormProps {
   isPending: boolean;
   lang: string;
   categories?: string[];
+  /**
+   * Поставщики для «поставщика по умолчанию» — у кого обычно закупаем: его
+   * подставит заказ из «Дозаказа». Список грузит страница (operatorQuery);
+   * пусто — поля нет. Пояснение здесь, а не у поля: комментарий в разметке
+   * ниже accept="image/*" сбивает счёт цветов в color-by-number.
+   */
+  suppliers?: Array<{ id: number; name: string }>;
 }
 
 function isUnit(v: string): v is Unit {
   return UNITS.some(u => u.value === v);
 }
 
-export function ProductForm({ onSave, onCancel, isPending, lang, categories = [] }: ProductFormProps) {
+export function ProductForm({ onSave, onCancel, isPending, lang, categories = [], suppliers = [] }: ProductFormProps) {
   const t = (ru: string, uz: string) => lang === "uz" ? uz : ru;
   const [d, setD] = useState<Omit<ProductDraft, "photoUrl">>({ code: "", barcode: "", name: "", category: "", costPrice: "", unitPrice: "", unit: "pcs", unitWeight: "", packSize: "", packLabel: "", reorderPoint: "10.00", description: "" });
   const [tax, setTax] = useState({ ikpu: "", packageCode: "", vatRate: "" });
   const [extras, setExtras] = useState<string[]>([]);
+  const [supplierId, setSupplierId] = useState("");
   const taxBad = isBadIkpu(tax.ikpu);
   const [photo, setPhoto] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -114,6 +124,17 @@ export function ProductForm({ onSave, onCancel, isPending, lang, categories = []
           <DecimalInput className="neo-input font-data" placeholder={t("В упаковке, ед. (12)", "Qadoqda, dona (12)")} value={d.packSize} onValueChange={v => setD({ ...d, packSize: v })} data-testid="product-pack-size" />
           <input className="neo-input" placeholder={t("Название упаковки (коробка)", "Qadoq nomi (quti)")} value={d.packLabel} onChange={e => setD({ ...d, packLabel: e.target.value })} />
           <ProductTaxFields lang={lang} value={tax} onChange={patch => setTax(x => ({ ...x, ...patch }))} />
+          {suppliers.length > 0 && (
+            <PremiumSelect
+              aria-label={t("Поставщик по умолчанию", "Standart yetkazib beruvchi")}
+              value={supplierId}
+              onChange={setSupplierId}
+              options={[
+                { value: "", label: t("Поставщик по умолчанию — нет", "Standart yetkazib beruvchi — yo'q") },
+                ...suppliers.map(sp => ({ value: String(sp.id), label: sp.name })),
+              ]}
+              width="100%" />
+          )}
           <ExtraBarcodesEditor lang={lang} value={extras} onChange={setExtras} />
           <input className="neo-input sm:col-span-2" placeholder={t("Описание", "Tavsif")} value={d.description} onChange={e => setD({ ...d, description: e.target.value })} />
         </div>
@@ -124,6 +145,7 @@ export function ProductForm({ onSave, onCancel, isPending, lang, categories = []
             ikpu: tax.ikpu.trim() || undefined, packageCode: tax.packageCode.trim() || undefined,
             vatRate: VAT_RATES.find(r => r === tax.vatRate),
             extraBarcodes: extraBarcodesPayload(extras),
+            defaultSupplierId: supplierId ? Number(supplierId) : undefined,
           })} disabled={isPending || taxBad}
           className="neo-btn-primary flex-1 sm:flex-none flex items-center justify-center gap-2">
           {isPending && <Loader2 size={14} className="animate-spin" />}{t("Сохранить", "Saqlash")}
