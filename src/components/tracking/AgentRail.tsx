@@ -236,7 +236,7 @@ function AgentRow({ agent, day, selected, onSelect, lang, t }: {
     >
       <div className="flex items-center gap-2.5">
         <span
-          className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold"
+          className={`w-8 h-8 ${agent.courier ? "rounded-lg" : "rounded-full"} flex items-center justify-center flex-shrink-0 text-xs font-bold`}
           // Надпись на заливке — через readableInk: цвета темы у арендатора
           // свои, и «белым по светло-зелёному» в тёмной теме уже было — там
           // --color-success равен #00e68a, контраст с белым 1.7:1.
@@ -245,7 +245,16 @@ function AgentRow({ agent, day, selected, onSelect, lang, t }: {
           {name[0].toUpperCase()}
         </span>
         <span className="flex-1 min-w-0">
-          <span className="block text-sm font-medium text-primary truncate">{name}</span>
+          <span className="flex items-center gap-1.5 min-w-0">
+            <span className="block text-sm font-medium text-primary truncate">{name}</span>
+            {/* Курьер — словом и квадратной меткой, как на карте. */}
+            {agent.courier && (
+              <span className="flex-shrink-0 px-1.5 py-0.5 rounded text-[10px] font-semibold"
+                style={{ background: "var(--color-info-subtle)", color: "var(--color-info-text)" }} data-testid="rail-courier">
+                {t("курьер", "kuryer")}
+              </span>
+            )}
+          </span>
           <span className="block text-[11px] truncate" style={{ color: "var(--color-text-tertiary)" }}>
             {agent.state === "silent"
               ? t("Не выходил на связь за сутки", "Sutka davomida aloqaga chiqmadi")

@@ -308,6 +308,18 @@ export default function SupervisorTracking() {
           ? cssVar("--color-success-text", "#157a45")
           : cssVar("--color-text-tertiary", "#6b6760");
         const initial = esc(name[0].toUpperCase());
+        /*
+          Курьер — квадратом, агент — кругом. Точки пишут оба, и одинаковые
+          кружки путали: машина с товаром на трассе выглядела агентом,
+          ушедшим с маршрута. Форма, а не цвет: цвет уже занят «на связи».
+        */
+        const shape = agent.courier
+          ? `<rect x="3" y="3" width="34" height="34" rx="8" fill="${color}" stroke="white" stroke-width="3"/>`
+          : `<circle cx="20" cy="20" r="18" fill="${color}" stroke="white" stroke-width="3"/>
+                <circle cx="20" cy="20" r="18" fill="none" stroke="${color}" stroke-width="1" opacity="0.3">
+                  <animate attributeName="r" from="18" to="24" dur="2s" repeatCount="indefinite"/>
+                  <animate attributeName="opacity" from="0.3" to="0" dur="2s" repeatCount="indefinite"/>
+                </circle>`;
 
         const placemark = new ymaps.Placemark(
           [agent.lat as number, agent.lng as number],
@@ -315,22 +327,18 @@ export default function SupervisorTracking() {
             balloonContentHeader: `<b style="font-family:Inter,sans-serif;font-size:14px">${esc(name)}</b>`,
             balloonContentBody: `
               <div style="font-family:Inter,sans-serif;font-size:12px;color:#666;padding:4px 0">
-                ${agent.state === "online" ? t("На связи", "Aloqada") : t("Был здесь", "Shu yerda edi")}
+                ${agent.courier ? `<b>${esc(t("Курьер", "Kuryer"))}</b> · ` : ""}${agent.state === "online" ? t("На связи", "Aloqada") : t("Был здесь", "Shu yerda edi")}
                 ${agent.at ? ` — ${esc(format(agent.at, "dd.MM HH:mm"))}` : ""}
                 ${agent.batteryLevel != null ? `<br/>🔋 ${agent.batteryLevel}%` : ""}
               </div>
             `,
-            hintContent: esc(name),
+            hintContent: agent.courier ? `${esc(name)} — ${esc(t("курьер", "kuryer"))}` : esc(name),
           },
           {
             iconLayout: "default#imageWithContent",
             iconImageHref: `data:image/svg+xml,${encodeURIComponent(`
               <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40">
-                <circle cx="20" cy="20" r="18" fill="${color}" stroke="white" stroke-width="3"/>
-                <circle cx="20" cy="20" r="18" fill="none" stroke="${color}" stroke-width="1" opacity="0.3">
-                  <animate attributeName="r" from="18" to="24" dur="2s" repeatCount="indefinite"/>
-                  <animate attributeName="opacity" from="0.3" to="0" dur="2s" repeatCount="indefinite"/>
-                </circle>
+                ${shape}
                 <text x="20" y="25" text-anchor="middle" fill="white" font-family="Inter,sans-serif" font-weight="700" font-size="15">${initial}</text>
               </svg>
             `)}`,
@@ -881,8 +889,14 @@ declare global {
     Map: new (element: HTMLElement, options: { center: number[]; zoom: number; controls?: string[] }) => YandexMap;
     Placemark: new (
       geometry: number[],
-      properties: { balloonContentHeader?: string; balloonContentBody?: string; hintContent?: string },
+      properties: {
+        balloonContentHeader?: string; balloonContentBody?: string; hintContent?: string;
+        /** Короткая надпись на метке-пресете: номер остановки на доске развоза. */
+        iconContent?: string;
+      },
       options: {
+        /** Готовая метка Яндекса («islands#blueIcon») — цвет без своей картинки. */
+        preset?: string;
         iconLayout?: string;
         iconImageHref?: string;
         iconImageSize?: number[];
@@ -899,6 +913,8 @@ declare global {
         strokeColor?: string;
         strokeWidth?: number;
         strokeOpacity?: number;
+        /** «shortdash» — план маршрута; сплошная — пройденный след. */
+        strokeStyle?: string;
         zIndex?: number;
       },
     ) => YandexPolyline;
