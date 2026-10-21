@@ -240,6 +240,26 @@ describe.skipIf(!hasRealDb)("журнал попыток доставки и п�
     await expect(op.suggestRoute({ courierId: s.agentId })).rejects.toThrow(/Курьер не найден/);
   });
 
+  it("доска называет склад остановки; заказы двух складов в одной машине — предупреждение у курьера", async () => {
+    const [w] = await (db as any).execute(sql`INSERT INTO warehouses (tenant_id, name, is_default) VALUES (${s.tenantId}, 'Филиал', 0)`) as unknown as [{ insertId: number }];
+    const branch = Number(w.insertId);
+    const legacy = await assigned();
+    const branchOrder = await assigned();
+    // Заказ до колонки склада — основного (ADR 0012, orderWarehouseId).
+    await q(sql`UPDATE orders SET warehouse_id = NULL WHERE id = ${legacy}`);
+    const op = await operatorApi();
+
+    let board = await op.board();
+    expect(board.couriers[0].warehouses).toBe(1);
+    expect(board.stops.find(x => x.orderId === legacy)).toMatchObject({ warehouseId: s.warehouseId, warehouseName: "Основной" });
+
+    // Только чтение доски: резерв этого заказа здесь не важен.
+    await q(sql`UPDATE orders SET warehouse_id = ${branch} WHERE id = ${branchOrder}`);
+    board = await op.board();
+    expect(board.couriers[0].warehouses).toBe(2);
+    expect(board.stops.find(x => x.orderId === branchOrder)).toMatchObject({ warehouseId: branch, warehouseName: "Филиал" });
+  });
+
   it("«Предложить порядок»: вчерашняя точка не старт, ждущий офиса — в конце; день плана — свой порядок", async () => {
     const east = (km: number) => (69.2 + km / (111.32 * Math.cos((41.3 * Math.PI) / 180))).toFixed(8);
     const shopAt = async (km: number) => {

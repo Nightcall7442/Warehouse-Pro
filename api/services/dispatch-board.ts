@@ -1,5 +1,5 @@
 import { and, asc, desc, eq, gte, inArray, isNull, lte, or, sql, type SQL } from "drizzle-orm";
-import { agentLocations, deliveryEvents, orders, shops, users } from "@db/schema";
+import { agentLocations, deliveryEvents, orders, shops, users, warehouses } from "@db/schema";
 import { businessToday } from "@contracts/business-time";
 import { nearestNeighbour, routeKm, coordsOf, type LatLng } from "@contracts/route-order";
 import { RESCHEDULE_MAX_DAYS } from "@contracts/delivery-fail-reason";
@@ -7,6 +7,7 @@ import { OPEN_ORDER_STATUSES } from "../lib/order-status";
 import { onDay } from "../lib/date-range";
 import { assertPlanDay } from "./delivery-events";
 import { cleanTrack } from "./visit-geo";
+import { defaultWarehouseId } from "./sales-warehouse";
 import type { Db } from "./order-shared";
 
 /*
@@ -98,10 +99,27 @@ const stopFields = {
   lng: shops.gpsLng,
 };
 
+/*
+  Склад остановки — склад заказа (ADR 0012), заказ без склада — основного.
+
+  Погрузочный лист собирают с одного склада, а курьеру заказы назначают и
+  по одному: в машине могут оказаться заказы основного склада и филиала.
+  Доска называет склад у остановок такого курьера и предупреждает в его
+  строке — иначе диспетчер узнаёт об этом, когда курьер уже уехал с
+  одного склада без товара другого.
+*/
+
 /** Остановки курьеров на день: по курьеру, в порядке маршрута. */
 async function stopsOf(db: Db, tenantId: number, day: string, courierId?: number) {
-  return db.select(stopFields).from(orders)
+  const defaultWh = await defaultWarehouseId(db, tenantId);
+  const stopWarehouse = sql`COALESCE(${orders.warehouseId}, ${defaultWh})`;
+  const rows = await db.select({
+    ...stopFields,
+    warehouseId: sql<string | number | null>`${stopWarehouse}`,
+    warehouseName: warehouses.name,
+  }).from(orders)
     .leftJoin(shops, and(eq(orders.shopId, shops.id), eq(shops.tenantId, tenantId)))
+    .leftJoin(warehouses, and(eq(warehouses.tenantId, tenantId), sql`${warehouses.id} = ${stopWarehouse}`))
     .where(and(
       ...inRunConditions(tenantId),
       onPlanDay(day),
@@ -109,6 +127,8 @@ async function stopsOf(db: Db, tenantId: number, day: string, courierId?: number
     ))
     .orderBy(asc(orders.courierId), sql`${orders.routeSeq} IS NULL`, asc(orders.routeSeq), desc(orders.createdAt))
     .limit(courierId ? 200 : 1000);
+  // COALESCE отдаётся строкой — номер склада числом, как у остальных номеров.
+  return rows.map(r => ({ ...r, warehouseId: r.warehouseId == null ? null : Number(r.warehouseId) }));
 }
 
 /** Последняя точка за сутки — по каждому из этих людей. */
@@ -163,6 +183,8 @@ export async function dispatchBoard(db: Db, tenantId: number, date?: string) {
         lastPing: ping ? { lat: ping.lat, lng: ping.lng, at: ping.at } : null,
         open: stops.filter(s => s.courierId === c.id).length,
         held: stops.filter(s => s.courierId === c.id && isHeld(s)).length,
+        /** Со скольких складов заказы в машине; больше одного — грузиться в двух местах. */
+        warehouses: new Set(stops.filter(s => s.courierId === c.id).map(s => s.warehouseId)).size,
         delivered: doneBy.get(c.id) ?? 0,
         failed: countOf(c.id, "failed"),
         rescheduled: countOf(c.id, "rescheduled"),

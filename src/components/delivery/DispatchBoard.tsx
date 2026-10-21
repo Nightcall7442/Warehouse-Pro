@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { CalendarClock, GripVertical, Hourglass, MapPin, RefreshCw, Route, Save, Truck, Wand2 } from "lucide-react";
+import { CalendarClock, GripVertical, Hourglass, MapPin, RefreshCw, Route, Save, Truck, Wand2, Warehouse } from "lucide-react";
 import {
   DndContext, PointerSensor, KeyboardSensor, closestCenter,
   useSensor, useSensors, type DragEndEvent,
@@ -101,6 +101,8 @@ export function DispatchBoard() {
     return { shownIds: ids, shown: ids.map(id => byId.get(id)).filter((s): s is Stop => !!s) };
   }, [serverIds, serverStops, localIds]);
   const dirty = orderChanged(serverIds, shownIds);
+  // Заказы разных складов в одной машине (ADR 0012): у остановок — имя склада.
+  const multiWarehouse = new Set(shown.map(s => s.warehouseId)).size > 1;
 
   // След — только у сегодняшнего дня: у завтрашнего его ещё нет.
   const track = trpc.courier.dayTrack.useQuery(
@@ -246,6 +248,11 @@ export function DispatchBoard() {
                         {t(`Ждут офиса: ${c.held}`, `Ofis qarorini kutmoqda: ${c.held}`)}
                       </span>
                     )}
+                    {(c.warehouses ?? 0) > 1 && (
+                      <span className="block text-xs mt-1" style={{ color: "var(--color-warning-text)" }} data-testid={`dispatch-courier-warehouses-${c.id}`}>
+                        {t(`Заказы с ${c.warehouses} складов — грузиться в нескольких местах`, `${c.warehouses} ta ombor buyurtmalari — bir necha joydan yuklanadi`)}
+                      </span>
+                    )}
                   </button>
                 </li>
               );
@@ -300,7 +307,7 @@ export function DispatchBoard() {
                     <SortableContext items={shownIds} strategy={verticalListSortingStrategy}>
                       <ol className="space-y-1.5">
                         {shown.map((s, i) => (
-                          <StopRow key={s.orderId} stop={s} n={i + 1} fmt={fmt} lang={lang} t={t}
+                          <StopRow key={s.orderId} stop={s} n={i + 1} fmt={fmt} lang={lang} t={t} showWarehouse={multiWarehouse}
                             onReschedule={canEdit ? () => setRescheduleFor(s) : undefined} />
                         ))}
                       </ol>
@@ -327,8 +334,10 @@ export function DispatchBoard() {
   );
 }
 
-function StopRow({ stop, n, fmt, lang, t, onReschedule }: {
+function StopRow({ stop, n, fmt, lang, t, onReschedule, showWarehouse = false }: {
   stop: Stop; n: number; fmt: (v: string | number) => string; lang: Lang; t: (ru: string, uz: string) => string;
+  /** У курьера заказы нескольких складов — назвать склад остановки. */
+  showWarehouse?: boolean;
   /** Есть — у остановки кнопка «Перенести» (офис с правом править заказы). */
   onReschedule?: () => void;
 }) {
@@ -352,6 +361,11 @@ function StopRow({ stop, n, fmt, lang, t, onReschedule }: {
           {stop.orderNumber} · {labelled(DELIVERY_STATUS_LABEL, stop.deliveryStatus, lang)} · {fmt(stop.total)}
           {stop.shopAddress ? ` · ${stop.shopAddress}` : ""}
         </span>
+        {showWarehouse && stop.warehouseName && (
+          <span className="flex items-center gap-1 text-xs truncate" style={{ color: "var(--color-text-secondary)" }} data-testid="dispatch-stop-warehouse">
+            <Warehouse size={11} className="flex-shrink-0" />{t(`Склад: ${stop.warehouseName}`, `Ombor: ${stop.warehouseName}`)}
+          </span>
+        )}
       </span>
       {held && (
         <span className="flex items-center gap-1 text-[10px] flex-shrink-0" style={{ color: "var(--color-warning-text)" }}
