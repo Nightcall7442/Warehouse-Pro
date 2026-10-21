@@ -43,12 +43,14 @@ export const NAV_ITEMS: Record<string, NavItem[]> = {
   // «Настройки». «Магазины» — выше «Продаж» (владелец, 20.09.2026: «продажа
   // внизу должна магазина»), «Настройки» — самый нижний пункт (владелец,
   // 20.09.2026, стрелкой на снимке меню). «Отчёты склада» пунктом больше нет:
-  // это вкладка на «Складе».
+  // это вкладка на «Складе». «Доставки» — в «Продажах» (21.10.2026): там доска
+  // развоза, и без пункта офис попадал на неё только через Ctrl+K.
   ceo: [
     { labelKey: "nav.dashboard",  path: "/",          icon: "LayoutDashboard" },
     { labelKey: "nav.shops",      path: "/shops",     icon: "Store"           },
     { labelKey: "nav.orders",     path: "/orders",    icon: "ClipboardList",  group: "sales" },
     { labelKey: "nav.returns",    path: "/returns",   icon: "RotateCcw",      group: "sales" },
+    { labelKey: "nav.deliveries", path: "/deliveries", icon: "Truck",         group: "sales" },
     { labelKey: "nav.stock",      path: "/warehouse", icon: "Warehouse",      group: "warehouse" },
     { labelKey: "nav.arrivals",   path: "/arrivals",  icon: "Truck",          group: "warehouse" },
     { labelKey: "nav.products",   path: "/products",  icon: "Package",        group: "warehouse" },
@@ -81,6 +83,7 @@ export const NAV_ITEMS: Record<string, NavItem[]> = {
     { labelKey: "nav.shops",      path: "/shops",     icon: "Store"           },
     { labelKey: "nav.orders",     path: "/orders",    icon: "ClipboardList",  group: "sales" },
     { labelKey: "nav.returns",    path: "/returns",   icon: "RotateCcw",      group: "sales" },
+    { labelKey: "nav.deliveries", path: "/deliveries", icon: "Truck",         group: "sales" },
     { labelKey: "nav.stock",      path: "/warehouse", icon: "Warehouse",      group: "warehouse" },
     { labelKey: "nav.arrivals",   path: "/arrivals",  icon: "Truck",          group: "warehouse" },
     { labelKey: "nav.products",   path: "/products",  icon: "Package",        group: "warehouse" },

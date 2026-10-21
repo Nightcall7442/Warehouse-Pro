@@ -100,6 +100,19 @@ describe("устройство меню", () => {
     }
   });
 
+  // Доска развоза живёт на /deliveries. Без пункта меню директор и оператор
+  // попадали на неё только через Ctrl+K или набрав адрес (21.10.2026).
+  // Нарочная поломка: убери пункт «Доставки» у оператора — тест упадёт.
+  it("директор и оператор: «Доставки» внутри «Продаж», раскрываются на /deliveries", () => {
+    for (const role of ["ceo", "operator"] as const) {
+      const rows = navRows(NAV_ITEMS[role], "/deliveries", undefined);
+      const item = rows.find(r => r.kind === "item" && r.item.path === "/deliveries");
+      expect(item && item.kind === "item" && item.item.group, role).toBe("sales");
+      expect(item && item.kind === "item" && item.active && item.nested, role).toBe(true);
+      expect(groupsOf(rows).find(g => g.key === "sales")!.open, role).toBe(true);
+    }
+  });
+
   it("отчёты склада — вкладка на странице склада, а не пункт меню; прежний адрес ведёт туда", () => {
     for (const items of Object.values(NAV_ITEMS)) expect(items.some(i => i.path === "/warehouse-reports")).toBe(false);
     expect(read("src/App.tsx")).toContain('<Route path="/warehouse-reports" element={<Navigate to="/warehouse?tab=reports" replace />} />');

@@ -192,7 +192,7 @@ export default function CourierDeliveries() {
       <div className="hidden md:flex items-center gap-3">
         <Truck size={24} className="text-primary" />
         <div>
-          <h1 className="text-lg font-bold">{t("Мои доставки", "Mening yetkazishlarim")}</h1>
+          <h1 className="text-lg font-bold">{isCourier ? t("Мои доставки", "Mening yetkazishlarim") : t("Доставки", "Yetkazishlar")}</h1>
           <p className="text-sm text-secondary">{user?.name}</p>
         </div>
       </div>
