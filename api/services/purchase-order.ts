@@ -173,32 +173,104 @@ async function insertLines(tx: Tx, purchaseOrderId: number, items: PurchaseOrder
 }
 
 export async function createPurchaseOrder(db: Db, tenantId: number, actor: PurchaseOrderActor, input: PurchaseOrderInput) {
-  return db.transaction(async (tx) => {
-    const { supplier, warehouse } = await checkInput(tx, tenantId, input);
-    let n = await nextPurchaseOrderNumber(tx, tenantId);
-    let id = 0;
-    for (let attempt = 0; ; attempt++) {
-      try {
-        const [res] = await tx.insert(purchaseOrders).values({
-          tenantId, number: `PO-${n}`, status: "draft", source: input.source ?? "manual",
-          createdBy: actor.id,
-          ...headerValues(input, supplier.terms ?? null, warehouse.id),
-        });
-        id = Number(res.insertId);
-        break;
-      } catch (e) {
-        // Два заказа в одну секунду посчитают один номер — второй берёт следующий.
-        if (!isDuplicateOf(e, "uq_po_number_tenant") || attempt >= 4) throw e;
-        n += 1;
-      }
+  return db.transaction(tx => createPurchaseOrderTx(tx, tenantId, actor, input));
+}
+
+/**
+ * Заказ-черновик внутри чужой транзакции: заказ с экрана — одна, черновики
+ * из «Дозаказа» — все в одной (или все, или ни одного).
+ */
+async function createPurchaseOrderTx(tx: Tx, tenantId: number, actor: PurchaseOrderActor, input: PurchaseOrderInput) {
+  const { supplier, warehouse } = await checkInput(tx, tenantId, input);
+  let n = await nextPurchaseOrderNumber(tx, tenantId);
+  let id = 0;
+  for (let attempt = 0; ; attempt++) {
+    try {
+      const [res] = await tx.insert(purchaseOrders).values({
+        tenantId, number: `PO-${n}`, status: "draft", source: input.source ?? "manual",
+        createdBy: actor.id,
+        ...headerValues(input, supplier.terms ?? null, warehouse.id),
+      });
+      id = Number(res.insertId);
+      break;
+    } catch (e) {
+      // Два заказа в одну секунду посчитают один номер — второй берёт следующий.
+      if (!isDuplicateOf(e, "uq_po_number_tenant") || attempt >= 4) throw e;
+      n += 1;
     }
-    await insertLines(tx, id, input.items);
-    await recordAudit(tx as unknown as Db, {
-      tenantId, actorId: actor.id, actorName: actor.name, ip: actor.ip,
-      action: "purchase_order.created", targetType: "purchase_order", targetId: id,
-      meta: { number: `PO-${n}`, supplier: supplier.name, lines: input.items.length, currency: input.currency },
-    }, { strict: true });
-    return { id, number: `PO-${n}` };
+  }
+  await insertLines(tx, id, input.items);
+  await recordAudit(tx as unknown as Db, {
+    tenantId, actorId: actor.id, actorName: actor.name, ip: actor.ip,
+    action: "purchase_order.created", targetType: "purchase_order", targetId: id,
+    meta: {
+      number: `PO-${n}`, supplier: supplier.name, lines: input.items.length, currency: input.currency,
+      ...(input.source === "reorder" ? { fromReorder: true } : {}),
+    },
+  }, { strict: true });
+  return { id, number: `PO-${n}`, supplierName: supplier.name };
+}
+
+export interface ReorderGroupInput {
+  supplierId: number;
+  items: Array<{ productId: number; quantity: string }>;
+}
+
+/**
+ * Черновики заказов поставщикам из «Дозаказа» — по одному на поставщика.
+ *
+ * Группы одного поставщика сливаются в один заказ. Всё — одной транзакцией:
+ * отказ по одному поставщику (выключен, товар снят с продажи) не оставляет
+ * половину черновиков.
+ *
+ * Валюта — валюта организации (сумы или доллары; иная — сумы). Цена строки —
+ * последняя цена этого товара у этого поставщика в этой валюте из прежних
+ * заказов; нет такой — себестоимость товара, если она в той же валюте;
+ * иначе ноль — «цену ещё не знают», её впишут в черновик. Долга черновик
+ * не создаёт (ADR 0013), согласует его директор, как любой другой.
+ */
+export async function createPurchaseOrdersFromReorder(
+  db: Db, tenantId: number, actor: PurchaseOrderActor,
+  input: { warehouseId?: number; groups: ReorderGroupInput[] },
+) {
+  const bySupplier = new Map<number, ReorderGroupInput["items"]>();
+  for (const g of input.groups) bySupplier.set(g.supplierId, [...(bySupplier.get(g.supplierId) ?? []), ...g.items]);
+
+  return db.transaction(async (tx) => {
+    const [cfg] = await tx.select({ currency: settings.currency }).from(settings).where(eq(settings.tenantId, tenantId)).limit(1);
+    const tenantCurrency = String(cfg?.currency ?? "UZS").toUpperCase();
+    const currency: "UZS" | "USD" = tenantCurrency === "USD" ? "USD" : "UZS";
+
+    const allIds = [...new Set(input.groups.flatMap(g => g.items.map(i => i.productId)))];
+    const cost = new Map((allIds.length === 0 ? [] : await tx.select({ id: products.id, costPrice: products.costPrice }).from(products)
+      .where(and(eq(products.tenantId, tenantId), inArray(products.id, allIds))))
+      .map(p => [Number(p.id), Number(p.costPrice ?? 0)]));
+
+    const created: Array<{ id: number; number: string; supplierId: number; supplierName: string; lines: number }> = [];
+    for (const [supplierId, items] of bySupplier) {
+      const ids = items.map(i => i.productId);
+      const history = await tx.select({ productId: purchaseOrderItems.productId, unitPrice: purchaseOrderItems.unitPrice })
+        .from(purchaseOrderItems)
+        .innerJoin(purchaseOrders, eq(purchaseOrders.id, purchaseOrderItems.purchaseOrderId))
+        .where(and(
+          eq(purchaseOrders.tenantId, tenantId), eq(purchaseOrders.supplierId, supplierId), eq(purchaseOrders.currency, currency),
+          ne(purchaseOrders.status, "cancelled"), sql`${purchaseOrderItems.unitPrice} > 0`, inArray(purchaseOrderItems.productId, ids),
+        ))
+        .orderBy(sql`${purchaseOrders.createdAt} DESC`, sql`${purchaseOrders.id} DESC`);
+      const lastPrice = new Map<number, string>();
+      for (const h of history) if (!lastPrice.has(Number(h.productId))) lastPrice.set(Number(h.productId), String(h.unitPrice));
+
+      const order = await createPurchaseOrderTx(tx, tenantId, actor, {
+        supplierId, warehouseId: input.warehouseId, currency, source: "reorder",
+        items: items.map(i => {
+          const own = cost.get(i.productId) ?? 0;
+          const price = lastPrice.get(i.productId) ?? (currency === tenantCurrency && own > 0 ? own.toFixed(2) : "0.00");
+          return { productId: i.productId, quantity: i.quantity, unitPrice: price };
+        }),
+      });
+      created.push({ id: order.id, number: order.number, supplierId, supplierName: order.supplierName, lines: items.length });
+    }
+    return { orders: created };
   });
 }
 

@@ -7,7 +7,8 @@ import { decimalOrDefault } from "./lib/zod-decimal";
 import { auditActor } from "./services/audit-log";
 import {
   createPurchaseOrder, updatePurchaseOrder, submitPurchaseOrder, approvePurchaseOrder,
-  rejectPurchaseOrder, cancelPurchaseOrder, receivePurchaseOrder, type PurchaseOrderActor,
+  rejectPurchaseOrder, cancelPurchaseOrder, receivePurchaseOrder, createPurchaseOrdersFromReorder,
+  type PurchaseOrderActor,
 } from "./services/purchase-order";
 import { PO_STATUSES, MAX_ARRIVAL_COST, dueDateAfter } from "./services/purchase-order-receipt";
 import { dateColumnDay } from "./lib/period";
@@ -240,6 +241,21 @@ export const purchaseOrderRouter = createRouter({
   create: operatorQuery.use(can("suppliers.manage"))
     .input(orderInput)
     .mutation(({ input, ctx }) => createPurchaseOrder(ctx.db, ctx.tenant.id, actorOf(ctx), input)),
+
+  /*
+    Черновики из «Дозаказа» на складе: по одному на поставщика, одной
+    транзакцией. Цены и валюту ставит сервер (services/purchase-order.ts);
+    с экрана приходят только поставщик, товар и количество.
+  */
+  createFromSuggestions: operatorQuery.use(can("suppliers.manage"))
+    .input(z.object({
+      warehouseId: z.number().int().positive().optional(),
+      groups: z.array(z.object({
+        supplierId: z.number().int().positive(),
+        items: z.array(lineInput.pick({ productId: true, quantity: true })).min(1, "Добавьте в заказ хотя бы один товар").max(2000),
+      })).min(1, "Отметьте хотя бы один товар для заказа").max(50),
+    }).refine(v => v.groups.reduce((n, g) => n + g.items.length, 0) <= 2000, "За раз — не больше 2000 строк"))
+    .mutation(({ input, ctx }) => createPurchaseOrdersFromReorder(ctx.db, ctx.tenant.id, actorOf(ctx), input)),
 
   /*
     Шапка и строки целиком. Согласованный заказ после правки — снова

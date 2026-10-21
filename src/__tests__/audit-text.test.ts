@@ -84,6 +84,11 @@ describe("describeMeta — все ключи журнала", () => {
     expect(describeMeta({ changed: { reorderMax: { from: "40", to: "60" } } }, "uz")).toBe("maksimal zaxira: 40 → 60");
   });
 
+  it("заказ поставщику из «Дозаказа» — так и сказано", () => {
+    expect(describeMeta({ number: "PO-7", supplier: "Завод", lines: 2, currency: "UZS", fromReorder: true }, "ru", "PO-7"))
+      .toBe("Поставщик: Завод · Позиций: 2 · Валюта: UZS · Из дозаказа: да");
+  });
+
   it("правка настроек: changed как пары «было → стало»", () => {
     expect(describeMeta({ changed: { companyName: { from: "Серена", to: "Serena Trade" } } }, "ru")).toBe("название компании: Серена → Serena Trade");
   });

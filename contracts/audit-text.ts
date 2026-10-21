@@ -69,6 +69,7 @@ const KEY_LABEL: Record<string, Label> = {
   // заказ поставщику
   supplier: { ru: "Поставщик", uz: "Yetkazib beruvchi" }, debt: { ru: "Долг поставщику", uz: "Yetkazib beruvchiga qarz" },
   dueDate: { ru: "Срок оплаты", uz: "To'lov muddati" },
+  fromReorder: { ru: "Из дозаказа", uz: "Qayta buyurtmadan" },
 };
 
 /** Подписи действий журнала — по-русски и по-узбекски; на экране и в CSV одни слова. */

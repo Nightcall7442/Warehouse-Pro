@@ -424,6 +424,9 @@ export const SERVER_ERROR_TEXT: Record<string, ErrorText> = {
   "Цена — от нуля до 99 999 999,99": { uz: "Narx — noldan 99 999 999,99 gacha" },
   "Добавьте в заказ хотя бы один товар": { uz: "Buyurtmaga kamida bitta mahsulot qo'shing" },
   "Напишите, что поправить в заказе": { uz: "Buyurtmada nimani tuzatish kerakligini yozing" },
+  // Черновики из «Дозаказа» (purchaseOrder.createFromSuggestions).
+  "Отметьте хотя бы один товар для заказа": { uz: "Buyurtma uchun kamida bitta mahsulotni belgilang" },
+  "За раз — не больше 2000 строк": { uz: "Bir martada — 2000 qatordan oshmasin" },
 
   // ── Погрузочные листы ─────────────────────────────────────────────────────
   "Погрузочный лист не найден": { uz: "Yuklash varaqasi topilmadi" },

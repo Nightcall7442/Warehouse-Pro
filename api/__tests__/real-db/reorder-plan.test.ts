@@ -4,12 +4,13 @@ import * as schema from "@db/schema";
 import { ctxFor, hasRealDb, connectRealDb, closeRealDb, truncateAll, seed, countOf, type ServiceDb, type Seeded } from "./harness";
 
 /**
- * «Дозаказ» на настоящей MySQL: что и сколько, у кого.
+ * «Дозаказ» на настоящей MySQL: что и сколько, у кого — и черновики
+ * заказов поставщикам по одному на поставщика.
  *
  * Здесь то, что заглушка не проверит: какие склады и какие заказы
  * считаются «в пути» (статусы, склад заказа, COALESCE склада у прихода без
  * заказа), ROW_NUMBER по последнему приходу, остаток заказа
- * GREATEST(quantity − received_qty, 0).
+ * GREATEST(quantity − received_qty, 0) и одна транзакция на все черновики.
  *
  * Нарочная поломка: в services/reorder.ts считай «в пути» и приходы по
  * заказу (убери isNull(arrivals.purchaseOrderId)) — «в пути» насчитает
@@ -147,5 +148,90 @@ describe.skipIf(!hasRealDb)("дозаказ: склад, свободный ос
     // Поставщик из карточки выключен — последний, кто привёз.
     expect(byId.get(s.secondProductId)).toMatchObject({ supplierId: supB, supplierName: "Завод Б", supplierSource: "last" });
     expect(byId.get(thirdProduct)).toMatchObject({ supplierId: null, supplierName: null, supplierSource: null });
+  });
+
+  it("черновики по одному на поставщика: «Дозаказ», цены из прошлых заказов или себестоимость; сразу «в пути»", async () => {
+    await runSql(sql`UPDATE products SET reorder_point = 20 WHERE id = ${thirdProduct}`);
+    // Прежние заказы у Завода А: по 82 — действующий, по 80 — позже, но отменён.
+    const c = await po();
+    await c.create({ supplierId: supA, currency: "UZS", items: [{ productId: s.productId, quantity: "1", unitPrice: "82" }] });
+    const { id: dropped } = await c.create({ supplierId: supA, currency: "UZS", items: [{ productId: s.productId, quantity: "1", unitPrice: "80" }] });
+    await c.cancel({ id: dropped });
+    const before = await countOf("purchase_orders");
+
+    const res = await c.createFromSuggestions({
+      groups: [
+        { supplierId: supA, items: [{ productId: s.productId, quantity: "34" }] },
+        { supplierId: supB, items: [{ productId: s.secondProductId, quantity: "5" }] },
+        // Тот же поставщик второй группой — тот же заказ.
+        { supplierId: supA, items: [{ productId: thirdProduct, quantity: "2" }] },
+      ],
+    });
+    expect(res.orders).toHaveLength(2);
+    expect(res.orders.map(o => [o.supplierName, o.lines])).toEqual([["Завод А", 2], ["Завод Б", 1]]);
+    expect(await countOf("purchase_orders")).toBe(before + 2);
+
+    const heads = await rows<{ id: number; status: string; source: string; currency: string; wh: number }>(sql`
+      SELECT id, status, source, currency, warehouse_id AS wh FROM purchase_orders WHERE id IN (${res.orders[0].id}, ${res.orders[1].id}) ORDER BY id`);
+    for (const h of heads) expect(h).toMatchObject({ status: "draft", source: "reorder", currency: "UZS", wh: s.warehouseId });
+
+    const lines = await rows<{ po: number; productId: number; q: string; price: string }>(sql`
+      SELECT purchase_order_id AS po, product_id AS productId, quantity AS q, unit_price AS price
+      FROM purchase_order_items WHERE purchase_order_id IN (${res.orders[0].id}, ${res.orders[1].id}) ORDER BY purchase_order_id, product_id`);
+    expect(lines.map(l => [Number(l.po), Number(l.productId), Number(l.q), Number(l.price)])).toEqual([
+      // Последняя цена у этого поставщика (82, а не отменённые 80).
+      [res.orders[0].id, s.productId, 34, 82],
+      // Заказов не было — себестоимость.
+      [res.orders[0].id, thirdProduct, 2, 20],
+      [res.orders[1].id, s.secondProductId, 5, 30],
+    ]);
+
+    // Долга и прихода черновик не создаёт (ADR 0013); в журнале — «из дозаказа».
+    expect(await countOf("supplies")).toBe(0);
+    expect(await countOf("arrivals")).toBe(0);
+    const audit = await rows<{ meta: unknown }>(sql`SELECT meta FROM audit_log WHERE action = 'purchase_order.created' AND target_id = ${res.orders[0].id}`);
+    expect(JSON.stringify(audit[0].meta)).toContain("fromReorder");
+
+    // Заказанное сразу «в пути»: второй раз то же не предлагается.
+    expect(await rowOf(s.productId)).toMatchObject({ suggestedQty: 0 });
+  });
+
+  it("одна транзакция: отказ по одному поставщику — ни одного черновика", async () => {
+    await runSql(sql`UPDATE suppliers SET status = 'inactive' WHERE id = ${supC}`);
+    const before = await countOf("purchase_orders");
+    await expect((await po()).createFromSuggestions({
+      groups: [
+        { supplierId: supA, items: [{ productId: s.productId, quantity: "34" }] },
+        { supplierId: supC, items: [{ productId: s.secondProductId, quantity: "5" }] },
+      ],
+    })).rejects.toThrow(/«Завод В» выключен/);
+    expect(await countOf("purchase_orders")).toBe(before);
+    expect(await countOf("purchase_order_items")).toBe(0);
+  });
+
+  it("чужое: склад — не найден; поставщик, товар и склад в черновике — отказ", async () => {
+    const d = db as any;
+    const [foreignWh] = await d.insert(schema.warehouses).values({ tenantId: s.otherTenantId, name: "Чужой склад", isDefault: true });
+    const [foreignSup] = await d.insert(schema.suppliers).values({ tenantId: s.otherTenantId, name: "Чужой завод" });
+    const [foreignProduct] = await d.insert(schema.products).values({ tenantId: s.otherTenantId, code: "X-1", name: "Чужой товар", unitPrice: "1.00" });
+
+    await expect(plan(Number(foreignWh.insertId))).rejects.toMatchObject({ code: "NOT_FOUND" });
+    const c = await po();
+    await expect(c.createFromSuggestions({ groups: [{ supplierId: Number(foreignSup.insertId), items: [{ productId: s.productId, quantity: "1" }] }] }))
+      .rejects.toThrow("Поставщик не найден");
+    await expect(c.createFromSuggestions({ groups: [{ supplierId: supA, items: [{ productId: Number(foreignProduct.insertId), quantity: "1" }] }] }))
+      .rejects.toThrow(/не найден в вашей организации/);
+    await expect(c.createFromSuggestions({ warehouseId: Number(foreignWh.insertId), groups: [{ supplierId: supA, items: [{ productId: s.productId, quantity: "1" }] }] }))
+      .rejects.toThrow("Склад не найден");
+    expect(await countOf("purchase_orders")).toBe(0);
+  });
+
+  it("организация в долларах — черновик в долларах, себестоимость подходит как цена", async () => {
+    await (db as any).insert(schema.settings).values({ tenantId: s.tenantId, currency: "USD" });
+    const res = await (await po()).createFromSuggestions({ groups: [{ supplierId: supA, items: [{ productId: s.productId, quantity: "3" }] }] });
+    const [head] = await rows<{ currency: string }>(sql`SELECT currency FROM purchase_orders WHERE id = ${res.orders[0].id}`);
+    expect(head.currency).toBe("USD");
+    const [line] = await rows<{ price: string }>(sql`SELECT unit_price AS price FROM purchase_order_items WHERE purchase_order_id = ${res.orders[0].id}`);
+    expect(Number(line.price)).toBe(75);
   });
 });
