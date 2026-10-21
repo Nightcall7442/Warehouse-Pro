@@ -13,7 +13,8 @@ import { businessDaysAgo, businessToday } from "@contracts/business-time";
  * карточке, сдвиг дня по Ташкенту в отчёте и в KPI.
  *
  * Нарочная поломка: в markFailed убери inArray(orders.status, …) из UPDATE —
- * падает гонка; убери failedAttemptsOf из calculateCourierStats — падает KPI.
+ * падает гонка; убери failedAttemptsOf из calculateCourierStats — падает KPI;
+ * в setRouteOrder пиши routeSeq: 1 вместо CASE — падает порядок.
  */
 let current: ServiceDb;
 vi.mock("../../queries/connection", () => ({
@@ -138,6 +139,27 @@ describe.skipIf(!hasRealDb)("журнал попыток доставки и п�
     expect((await (await operatorApi()).listMyDeliveries()).map(r => r.id)).not.toContain(id);
   });
 
+  it("порядок объезда: места 1..n по списку, остальным — пусто; новое назначение сбрасывает место и день", async () => {
+    const [a, b, c] = [await assigned(), await assigned(), await assigned()];
+    const op = await operatorApi();
+    await op.setRouteOrder({ courierId: s.courierId, orderIds: [c, a] });
+    const seq = async () => Object.fromEntries((await q(sql`SELECT id, route_seq AS r FROM orders WHERE id IN (${a}, ${b}, ${c})`)).map(r => [Number(r.id), r.r]));
+    expect(await seq()).toEqual({ [c]: 1, [a]: 2, [b]: null });
+    expect((await (await courierApi()).listMyDeliveries()).map(r => r.id)).toEqual([c, a, b]);
+    expect(await countOf("audit_log", "action = 'courier.route_set'")).toBe(1);
+
+    // Второй курьер; заказ c уходит к нему — место и плановый день стираются.
+    await q(sql`UPDATE orders SET planned_delivery_date = ${businessDaysAgo(-2)} WHERE id = ${c}`);
+    const [u] = await (db as any).execute(sql`INSERT INTO users (tenant_id, name, email, password_hash, role) VALUES (${s.tenantId}, 'Курьер 2', 'c2@test.local', 'x', 'courier')`) as unknown as [{ insertId: number }];
+    await op.assignCourier({ orderId: c, courierId: Number(u.insertId) });
+    const [row] = await q(sql`SELECT route_seq AS r, planned_delivery_date AS p, courier_id AS k FROM orders WHERE id = ${c}`);
+    expect(row).toMatchObject({ r: null, p: null, k: Number(u.insertId) });
+
+    // Заказ другого курьера в порядке — отказ, ничего не записано.
+    await expect(op.setRouteOrder({ courierId: s.courierId, orderIds: [a, c] })).rejects.toThrow(/только открытым заказам этого курьера/);
+    expect((await seq())[a]).toBe(2);
+  });
+
   it("подтверждение вручения: повтор — одна строка и одно фото; карточка отдаёт попытки с числом фото", async () => {
     const id = await assigned();
     const courier = await courierApi();
@@ -160,6 +182,41 @@ describe.skipIf(!hasRealDb)("журнал попыток доставки и п�
     expect(card.deliveryEvents[0]).toMatchObject({ reasonCode: "other", note: "шлагбаум", courierName: "Курьер", photoCount: 0 });
     expect(card.deliveryEvents[1]).toMatchObject({ photoCount: 1, recipientName: "Дилшод", signature: sig });
     expect(JSON.stringify(card)).not.toContain("base64");
+  });
+
+  it("доска, след и «Предложить порядок»: только курьер; порядок — от последней точки", async () => {
+    // Три магазина на востоке от склада: 1, 3 и 2 км.
+    const east = (km: number) => (69.2 + km / (111.32 * Math.cos((41.3 * Math.PI) / 180))).toFixed(8);
+    const shopAt = async (km: number) => {
+      const [r] = await (db as any).execute(sql`INSERT INTO shops (tenant_id, name, gps_lat, gps_lng) VALUES (${s.tenantId}, ${"Магазин " + km}, '41.30000000', ${east(km)})`) as unknown as [{ insertId: number }];
+      return Number(r.insertId);
+    };
+    const op = await operatorApi();
+    const ids: number[] = [];
+    for (const km of [1, 3, 2]) {
+      const id = await newOrder("1", await shopAt(km));
+      await op.assignCourier({ orderId: id, courierId: s.courierId });
+      ids.push(id);
+    }
+    await q(sql`INSERT INTO agent_locations (tenant_id, agent_id, lat, lng) VALUES (${s.tenantId}, ${s.courierId}, '41.30000000', '69.20000000')`);
+    await q(sql`INSERT INTO agent_locations (tenant_id, agent_id, lat, lng) VALUES (${s.tenantId}, ${s.agentId}, '41.31000000', '69.21000000')`);
+
+    const r = await op.suggestRoute({ courierId: s.courierId });
+    expect(r.orderIds).toEqual([ids[0], ids[2], ids[1]]);
+    expect(r.fromCourier).toBe(true);
+    expect(r.km).toBeCloseTo(3, 0);
+
+    const board = await op.board();
+    expect(board.couriers.map(c => c.id)).toEqual([s.courierId]);
+    expect(board.couriers[0].lastPing).not.toBeNull();
+    expect(board.couriers[0].open).toBe(3);
+    expect(board.stops.map(x => x.orderId).sort()).toEqual([...ids].sort());
+
+    const track = await op.dayTrack({ courierId: s.courierId, day: businessToday() });
+    expect(track.points).toHaveLength(1);
+    // След агента оператору не отдаётся.
+    await expect(op.dayTrack({ courierId: s.agentId, day: businessToday() })).rejects.toThrow(/Курьер не найден/);
+    await expect(op.suggestRoute({ courierId: s.agentId })).rejects.toThrow(/Курьер не найден/);
   });
 
   it("страница для магазина: в пути — имя курьера без координат; приостановленная организация — 404", async () => {

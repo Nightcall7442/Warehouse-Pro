@@ -1170,3 +1170,76 @@ describe("courier.saveProof", () => {
   });
 });
 
+/*
+  ── Доска развоза ────────────────────────────────────────────────────────────
+
+  Доска открыта офису и супервайзеру. След за день и «Предложить порядок» —
+  только по КУРЬЕРУ: номер агента в запросе оператора — отказ, а не его
+  маршрут за день (след агента — экран супервайзера).
+*/
+describe("доска развоза: board, dayTrack, suggestRoute", () => {
+  it("на доске — курьеры, без агентов; курьеру и агенту доска закрыта", async () => {
+    const { courierRouter } = await import("../courier-router");
+    const board = await courierRouter.createCaller(makeCtx(1, 1, "operator")).board();
+    expect(board.couriers.map(c => c.id)).toEqual([100]);
+    // Стенд отдаёт строки целиком, без выборки полей: номер — в id.
+    expect(board.stops.map(s => (s as unknown as { id: number }).id).sort()).toEqual([1, 3]);
+    await expect(courierRouter.createCaller(makeCtx(1, 100, "courier")).board()).rejects.toThrow();
+    await expect(courierRouter.createCaller(makeCtx(1, 10, "agent")).board()).rejects.toThrow();
+  });
+
+  it("след за день: оператору по номеру агента — отказ, по курьеру — есть", async () => {
+    const { courierRouter } = await import("../courier-router");
+    const op = courierRouter.createCaller(makeCtx(1, 1, "operator"));
+    await expect(op.dayTrack({ courierId: 10, day: businessToday() })).rejects.toThrow(/Курьер не найден/);
+    await expect(op.dayTrack({ courierId: 1, day: businessToday() })).rejects.toThrow(/Курьер не найден/);
+    const track = await op.dayTrack({ courierId: 100, day: businessToday() });
+    expect(track.courier).toMatchObject({ id: 100 });
+    // Курьер соседней организации — тоже «не найден».
+    await expect(courierRouter.createCaller(makeCtx(2, 1, "operator")).dayTrack({ courierId: 100, day: businessToday() })).rejects.toThrow(/Курьер не найден/);
+  });
+
+  it("«Предложить порядок» — только курьеру, отдаёт его сегодняшние заказы", async () => {
+    const { courierRouter } = await import("../courier-router");
+    const op = courierRouter.createCaller(makeCtx(1, 1, "operator"));
+    await expect(op.suggestRoute({ courierId: 10 })).rejects.toThrow(/Курьер не найден/);
+    const r = await op.suggestRoute({ courierId: 100 });
+    // Номера заказов в порядке — на настоящей базе (real-db/delivery-events):
+    // стенд отдаёт строки без выборки полей.
+    expect(r.orderIds).toHaveLength(2);
+    expect(r.noGps).toBe(2);
+  });
+});
+
+/*
+  ── Порядок объезда ──────────────────────────────────────────────────────────
+
+  Сохраняется только порядок ОТКРЫТЫХ заказов ЭТОГО курьера: чужой номер в
+  списке — устаревшая доска или подмена, и тогда не пишется ничего.
+*/
+describe("courier.setRouteOrder", () => {
+  it("оператор сохраняет порядок — след в аудите", async () => {
+    const { courierRouter } = await import("../courier-router");
+    const r = await courierRouter.createCaller(makeCtx(1, 1, "operator")).setRouteOrder({ courierId: 100, orderIds: [3, 1] });
+    expect(r).toEqual({ success: true, stops: 2 });
+    expect(auditTable[0]).toMatchObject({ action: "courier.route_set", targetType: "user", targetId: 100 });
+    expect(auditTable[0].meta).toMatchObject({ orderIds: [3, 1] });
+  });
+
+  it("чужой заказ, закрытый заказ, повтор номера, номер агента — отказ, ничего не записано", async () => {
+    const { courierRouter } = await import("../courier-router");
+    const op = courierRouter.createCaller(makeCtx(1, 1, "operator"));
+    await expect(op.setRouteOrder({ courierId: 100, orderIds: [1, 2] })).rejects.toThrow(/только открытым заказам этого курьера/);
+    await expect(op.setRouteOrder({ courierId: 100, orderIds: [1, 1] })).rejects.toThrow(/дважды/);
+    await expect(op.setRouteOrder({ courierId: 10, orderIds: [1] })).rejects.toThrow(/Курьер не найден/);
+    ordersTable.find(o => o.id === 3)!.status = "cancelled";
+    await expect(op.setRouteOrder({ courierId: 100, orderIds: [1, 3] })).rejects.toThrow(/только открытым заказам этого курьера/);
+    expect(auditTable).toHaveLength(0);
+  });
+
+  it("курьер и супервайзер порядок не задают", async () => {
+    const { courierRouter } = await import("../courier-router");
+    await expect(courierRouter.createCaller(makeCtx(1, 100, "courier")).setRouteOrder({ courierId: 100, orderIds: [1] })).rejects.toThrow();
+    await expect(courierRouter.createCaller(makeCtx(1, 5, "supervisor")).setRouteOrder({ courierId: 100, orderIds: [1] })).rejects.toThrow();
+  });
+});

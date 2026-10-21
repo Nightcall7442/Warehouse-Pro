@@ -1,7 +1,7 @@
 import { inBackground } from "./lib/graceful-shutdown";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { createRouter, courierQuery, operatorQuery, can } from "./middleware";
+import { createRouter, courierQuery, operatorQuery, managementQuery, can } from "./middleware";
 import { getDb } from "./queries/connection";
 import { markDelivered, completeDelivery, markFailed } from "./services/courier-delivery";
 import { orders, shops, users, orderItems, products } from "@db/schema";
@@ -16,10 +16,10 @@ import { recordedAtInput } from "./lib/event-time";
 import { DELIVERY_FAIL_REASONS, DELIVERY_FAIL_NOTE_MAX } from "@contracts/delivery-fail-reason";
 import { isSafePhotoValue, PHOTO_VALUE_ERROR } from "./lib/photo-value";
 import { auditActor } from "./services/audit-log";
-import { rescheduleByCourier, rescheduleByOffice } from "./services/delivery-plan";
+import { rescheduleByCourier, rescheduleByOffice, setRouteOrder } from "./services/delivery-plan";
 import { saveProof } from "./services/delivery-proof";
 import { PROOF_PHOTO_MAX_CHARS, SIGNATURE_MAX_STROKES, SIGNATURE_SCALE, SIGNATURE_STROKE_MAX_POINTS } from "@contracts/delivery-proof";
-import { inRunConditions, dueBy } from "./services/dispatch-board";
+import { dispatchBoard, courierDayTrack, suggestCourierRoute, inRunConditions, dueBy } from "./services/dispatch-board";
 
 /** Координаты строкой, как у точек GPS (agent.saveLocation). */
 const latInput = z.string().refine(v => { const n = Number(v); return v.trim() !== "" && Number.isFinite(n) && n >= -90 && n <= 90; }, "Широта должна быть от -90 до 90").optional();
@@ -352,4 +352,35 @@ export const courierRouter = createRouter({
       if (ctx.user.role !== "courier") throw new TRPCError({ code: "FORBIDDEN", message: ErrorMessages.insufficientRole });
       return saveProof(getDb(), ctx.tenant.id, ctx.user.id, input);
     }),
+
+  // ── Доска развоза (офис) ───────────────────────────────────────────────────
+
+  /** Курьеры на сегодня: где, сколько везут, сколько довезли — и их остановки по порядку. */
+  board: managementQuery.query(({ ctx }) => dispatchBoard(getDb(), ctx.tenant.id)),
+
+  /** След курьера за день. Номер не курьера — отказ: след агента здесь не отдаётся. */
+  dayTrack: managementQuery
+    .input(z.object({ courierId: z.number().int().positive(), day: dayInput }))
+    .query(async ({ input, ctx }) => {
+      const track = await courierDayTrack(getDb(), ctx.tenant.id, input.courierId, input.day);
+      if (!track) throw new TRPCError({ code: "NOT_FOUND", message: "Курьер не найден в вашей организации" });
+      return track;
+    }),
+
+  /** «Предложить порядок»: ближайший сосед от последней точки курьера. Не сохраняет. */
+  suggestRoute: managementQuery
+    .input(z.object({ courierId: z.number().int().positive() }))
+    .query(async ({ input, ctx }) => {
+      const route = await suggestCourierRoute(getDb(), ctx.tenant.id, input.courierId);
+      if (!route) throw new TRPCError({ code: "NOT_FOUND", message: "Курьер не найден в вашей организации" });
+      return route;
+    }),
+
+  /** «Сохранить» порядок объезда — курьер получит список в нём. */
+  setRouteOrder: operatorQuery.use(can("orders.edit"))
+    .input(z.object({
+      courierId: z.number().int().positive(),
+      orderIds: z.array(z.number().int().positive()).min(1, "Выберите хотя бы один заказ").max(200),
+    }))
+    .mutation(({ input, ctx }) => setRouteOrder(getDb(), auditActor(ctx), input)),
 });

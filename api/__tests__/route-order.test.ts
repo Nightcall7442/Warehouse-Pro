@@ -13,7 +13,8 @@
  *  2. Без старта первая остановка — первая точка с координатами.
  *  3. Точки без координат (и с нулём) — в конце, в пришедшем порядке.
  *  4. Длина маршрута — от старта по точкам с координатами.
- *  5. Обе ручки пользуются общим модулем, своего цикла в них нет.
+ *  5. Обе ручки (agent.getOptimizedRoute, courier.suggestRoute) пользуются
+ *     общим модулем, своего цикла в них нет.
  *
  * Нарочная поломка: в nearestNeighbour верни `[...unlocated, ...out]` —
  * падает 3; замени `km < bestKm` на `km > bestKm` — падает 1.
@@ -59,11 +60,17 @@ describe("ближайший сосед", () => {
     expect(routeKm([NOGPS], start)).toBe(0);
   });
 
-  it("5. маршрут агента зовёт общий модуль, своего цикла у него нет", () => {
+  it("5. маршрут агента и «Предложить порядок» курьера зовут общий модуль, своего цикла нет", () => {
     const read = (f: string) => readFileSync(join(__dirname, "..", f), "utf8");
     const agent = read("agent-router.ts");
     const route = agent.slice(agent.indexOf("getOptimizedRoute:"), agent.indexOf("updatePlanStatus:"));
     expect(route).toContain("nearestNeighbour(");
     expect(route).not.toMatch(/while \(remaining\.length/);
+
+    const board = read("services/dispatch-board.ts");
+    const suggest = board.slice(board.indexOf("export async function suggestCourierRoute"));
+    expect(suggest).toContain("nearestNeighbour(");
+    expect(suggest).not.toMatch(/while \(/);
+    expect(read("courier-router.ts")).toMatch(/suggestRoute: managementQuery[\s\S]*?suggestCourierRoute\(/);
   });
 });

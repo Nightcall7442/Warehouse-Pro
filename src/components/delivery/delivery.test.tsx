@@ -4,7 +4,7 @@
  *
  * ── Что проверяется ─────────────────────────────────────────────────────────
  *
- *  1. Подсказки на картах (карта курьера) экранируют название
+ *  1. Подсказки на картах (доска развоза, карта курьера) экранируют название
  *     магазина, номер заказа и имя: «<img onerror>» в названии магазина —
  *     текст, а не картинка, выполняющая код на экране офиса.
  *  2. Порядок на доске: перетащенный поверх серверного; довезённые выпадают,
@@ -41,13 +41,14 @@ describe("подсказки карт", () => {
     expect(b.hint).toBe("Магазин &quot;Ромашка&quot; &lt;img src=x onerror=alert(1)&gt;");
   });
 
-  it("1. карта курьера не собирает подсказку сырой строкой", () => {
+  it("1. карта курьера и доска развоза не собирают подсказку сырой строкой", () => {
     const read = (p: string) => readFileSync(resolve(__dirname, p), "utf8");
     const courierPage = read("../../pages/CourierDeliveries.tsx");
+    const board = read("./DispatchBoard.tsx");
     // Прежняя строка вставляла ${m.name} прямо в <b>…</b>.
     expect(courierPage).not.toMatch(/balloonContentHeader:\s*`[^`]*\$\{m\.name\}/);
     expect(courierPage).toContain("balloonHtml(m.name)");
-    for (const src of [courierPage]) {
+    for (const src of [courierPage, board]) {
       for (const m of src.matchAll(/balloonContent(?:Header|Body):\s*([^,}]+)/g)) {
         expect(m[1].trim(), "подсказка — только из balloonHtml").toMatch(/^b\.(header|body)$/);
       }

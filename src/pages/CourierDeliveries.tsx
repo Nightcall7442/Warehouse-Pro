@@ -12,6 +12,7 @@ import { notify } from "@/lib/toast";
 import { QueryErrorFallback } from "@/components/QueryErrorFallback";
 import { formatQty } from "@/lib/format";
 import { CARD } from "@/components/phone/tones";
+import { DispatchBoard } from "@/components/delivery/DispatchBoard";
 import { FailReasonDialog, RescheduleDialog } from "@/components/delivery/DeliveryDialogs";
 import { ProofSheet, type ProofTarget } from "@/components/delivery/ProofSheet";
 import { newEventKey } from "@/components/delivery/links";
@@ -191,8 +192,11 @@ export default function CourierDeliveries() {
         </div>
       </div>
 
-      {/* Map with delivery locations */}
-      <div className="hidden md:block"><MapView deliveries={deliveries} /></div>
+      {/* Офису — доска развоза: курьеры, карта, порядок объезда. Курьеру —
+          карта своих адресов (на телефоне её заменяет список). */}
+      {isCourier
+        ? <div className="hidden md:block"><MapView deliveries={deliveries} /></div>
+        : <DispatchBoard />}
 
       {/* In Transit */}
       {inTransit.length > 0 && (

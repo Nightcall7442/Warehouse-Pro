@@ -11,12 +11,13 @@
  *
  * Нарочная поломка: убери `isCourier &&` у MonthTotals или у кнопки
  * courier-take-all в CourierDeliveries.tsx.
-
+ *
+ * Доска развоза (DispatchBoard) — наоборот, офисная: курьеру её нет.
  */
 import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
 import { render, screen, cleanup } from "@testing-library/react";
 
-const state = vi.hoisted(() => ({ role: "courier", kpiCalls: 0 }));
+const state = vi.hoisted(() => ({ role: "courier", kpiCalls: 0, boardCalls: 0 }));
 
 vi.mock("@/providers/trpc", () => {
   const mutation = () => ({ mutate: () => {}, isPending: false, variables: undefined });
@@ -29,7 +30,12 @@ vi.mock("@/providers/trpc", () => {
         markDelivered: { useMutation: mutation },
         markFailed: { useMutation: mutation },
         reschedule: { useMutation: mutation },
+        // Доска развоза офиса: курьеров нет — она говорит это словами.
+        board: { useQuery: () => { state.boardCalls++; return { data: { day: "2026-10-21", couriers: [], stops: [] }, isLoading: false }; } },
+        dayTrack: { useQuery: () => ({ data: undefined }) },
+        setRouteOrder: { useMutation: mutation },
       },
+      useUtils: () => ({ courier: { board: { invalidate: () => {} }, suggestRoute: { fetch: async () => ({ orderIds: [], km: 0, noGps: 0, fromCourier: false }) } } }),
       kpi: { courierKpi: { useQuery: () => { state.kpiCalls++; return { data: { delivered: 0, failed: 0, successRate: 0, workDays: 0 } }; } } },
     },
   };
@@ -42,7 +48,7 @@ vi.mock("react-router", () => ({ useNavigate: () => () => {} }));
 
 const { default: CourierDeliveries } = await import("@/pages/CourierDeliveries");
 
-beforeEach(() => { state.role = "courier"; state.kpiCalls = 0; });
+beforeEach(() => { state.role = "courier"; state.kpiCalls = 0; state.boardCalls = 0; });
 afterEach(cleanup);
 
 describe("/deliveries: курьерское — только курьеру", () => {
@@ -53,6 +59,9 @@ describe("/deliveries: курьерское — только курьеру", ()
     expect(screen.getAllByText("Взять в доставку")).toHaveLength(2);
     expect(screen.getByText("Доставлено")).toBeTruthy();
     expect(screen.getByText("Не доставлено")).toBeTruthy();
+    // Доска развоза — офисная: курьеру её не показывают и не запрашивают.
+    expect(screen.queryByTestId("dispatch-board")).toBeNull();
+    expect(state.boardCalls).toBe(0);
   });
 
   for (const role of ["ceo", "operator"]) {
@@ -69,6 +78,8 @@ describe("/deliveries: курьерское — только курьеру", ()
       expect(screen.queryByTestId("courier-month-totals")).toBeNull();
       expect(state.kpiCalls, "courierKpi спрошен за директора").toBe(0);
       expect(screen.queryByTestId("courier-take-all")).toBeNull();
+      // Вместо курьерских кнопок — доска развоза.
+      expect(screen.getByTestId("dispatch-board")).toBeTruthy();
       expect(screen.queryByTestId("courier-reschedule")).toBeNull();
     });
   }
