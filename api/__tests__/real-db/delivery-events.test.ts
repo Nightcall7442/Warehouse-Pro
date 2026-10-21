@@ -184,6 +184,27 @@ describe.skipIf(!hasRealDb)("журнал попыток доставки и п�
     expect(JSON.stringify(card)).not.toContain("base64");
   });
 
+  it("отчёт «Недоставленные»: срыв и перенос — по причинам и курьеру, доля от попыток", async () => {
+    const courier = await courierApi();
+    const a = await assigned();
+    await courier.markFailed({ orderId: a, reasonCode: "no_money" });
+    const b = await assigned();
+    await courier.reschedule({ orderId: b, date: businessDaysAgo(-3), reasonCode: "asked_reschedule" });
+    const c = await assigned();
+    await courier.markDelivered({ orderId: c });
+
+    const reports = (await import("../../reports-router")).reportsRouter.createCaller(ctxFor(db, s.tenantId, s.agentId, "ceo"));
+    const r = await reports.failedDeliveries({ dateFrom: businessDaysAgo(1), dateTo: businessToday() });
+    expect(r.totals).toMatchObject({ failed: 1, rescheduled: 1, delivered: 1, orders: 2, failShare: 0.5 });
+    expect(r.byReason).toEqual([{ reason: "no_money", count: 1, share: 1 }]);
+    expect(r.byCourier).toEqual([expect.objectContaining({ courierId: s.courierId, failed: 1, rescheduled: 1, delivered: 1 })]);
+    expect(r.recent.map(x => x.kind).sort()).toEqual(["failed", "rescheduled"]);
+
+    // Соседняя организация отчёта не видит.
+    const other = (await import("../../reports-router")).reportsRouter.createCaller(ctxFor(db, s.otherTenantId, s.agentId, "ceo"));
+    expect((await other.failedDeliveries({ dateFrom: businessDaysAgo(1), dateTo: businessToday() })).totals.failed).toBe(0);
+  });
+
   it("доска, след и «Предложить порядок»: только курьер; порядок — от последней точки", async () => {
     // Три магазина на востоке от склада: 1, 3 и 2 км.
     const east = (km: number) => (69.2 + km / (111.32 * Math.cos((41.3 * Math.PI) / 180))).toFixed(8);

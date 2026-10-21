@@ -5,7 +5,7 @@ import { useLang } from "@/i18n";
 import { useAuth } from "@/hooks/useAuth";
 import { differenceInCalendarDays, subDays } from "date-fns";
 import { bizNow, bizToday, format } from "@/lib/business-time";
-import { FileDown, Printer, LayoutDashboard, ShoppingCart, Award, LayoutGrid, Wallet, CircleSlash, TrendingUp, ChartBarStacked, MapPinned } from "lucide-react";
+import { FileDown, Printer, LayoutDashboard, ShoppingCart, Award, LayoutGrid, Wallet, CircleSlash, TrendingUp, ChartBarStacked, MapPinned, Truck } from "lucide-react";
 import { exportToExcel } from "@/lib/excel";
 import { exportToPDF, escapeHtml } from "@/lib/export";
 import { unitShort } from "@/lib/units";
@@ -23,6 +23,7 @@ import { ReportsHub } from "@/components/reports/ReportsHub";
 import { DebtorsPanel } from "@/components/debts/DebtorsPanel";
 import { DebtJournalPanel } from "@/components/debts/DebtJournalPanel";
 import { NoOrderVisitsTab } from "@/components/reports/NoOrderVisitsTab";
+import { FailedDeliveriesTab } from "@/components/reports/FailedDeliveriesTab";
 import { ProfitTab } from "@/components/reports/ProfitTab";
 import { AbcTab } from "@/components/reports/AbcTab";
 import { SalesMapTab } from "@/components/reports/SalesMapTab";
@@ -32,9 +33,9 @@ import { keepPreviousData } from "@tanstack/react-query";
 import { SectionPeriodPicker } from "@/components/SectionPeriodPicker";
 import { useSectionPeriod } from "@/hooks/useSectionPeriod";
 
-const TAB_KEYS: readonly TabKey[] = ["overview", "sales", "agents", "debts", "noorder", "profit", "abc", "map", "all"];
+const TAB_KEYS: readonly TabKey[] = ["overview", "sales", "agents", "debts", "noorder", "failed", "profit", "abc", "map", "all"];
 /** Разделы со своим периодом в адресе: общий переключатель дней, «Сводка» и печать там ничего не меняют. */
-const OWN_PERIOD: readonly TabKey[] = ["noorder", "profit", "abc", "map"];
+const OWN_PERIOD: readonly TabKey[] = ["noorder", "failed", "profit", "abc", "map"];
 const TAB_CODEC = urlEnum<TabKey>(TAB_KEYS, "overview");
 
 /**
@@ -135,7 +136,9 @@ export default function Reports() {
     директор и супервайзер — кнопку раздел прячет сам.
   */
   const seesMap = seesNoOrder;
-  const tab: TabKey = (urlTab === "noorder" && !seesNoOrder) || (urlTab === "profit" && !seesProfit) || (urlTab === "map" && !seesMap) ? "overview" : urlTab;
+  /* «Недоставленные» — тому же кругу (reports.failedDeliveries — managementQuery). */
+  const seesFailed = seesNoOrder;
+  const tab: TabKey = (urlTab === "noorder" && !seesNoOrder) || (urlTab === "failed" && !seesFailed) || (urlTab === "profit" && !seesProfit) || (urlTab === "map" && !seesMap) ? "overview" : urlTab;
   const ownPeriod = OWN_PERIOD.includes(tab);
   /*
     У каталога выгрузок тоже свой период — одно поле сверху на все файлы.
@@ -324,6 +327,7 @@ export default function Reports() {
     { key: "agents" as const, ru: "Агенты", uz: "Agentlar", icon: <Award size={16} /> },
     { key: "debts" as const, ru: "Долги", uz: "Qarzlar", icon: <Wallet size={16} /> },
     ...(seesNoOrder ? [{ key: "noorder" as const, ru: "Без заказа", uz: "Buyurtmasiz", icon: <CircleSlash size={16} /> }] : []),
+    ...(seesFailed ? [{ key: "failed" as const, ru: "Недоставленные", uz: "Yetkazilmagan", icon: <Truck size={16} /> }] : []),
     ...(seesProfit ? [{ key: "profit" as const, ru: "Прибыль", uz: "Foyda", icon: <TrendingUp size={16} /> }] : []),
     { key: "abc" as const, ru: "ABC", uz: "ABC", icon: <ChartBarStacked size={16} /> },
     ...(seesMap ? [{ key: "map" as const, ru: "Карта продаж", uz: "Savdo xaritasi", icon: <MapPinned size={16} /> }] : []),
@@ -638,6 +642,7 @@ export default function Reports() {
       )}
 
       {tab === "noorder" && <NoOrderVisitsTab />}
+      {tab === "failed" && <FailedDeliveriesTab />}
       {tab === "profit" && <ProfitTab />}
       {tab === "abc" && <AbcTab />}
       {tab === "map" && <SalesMapTab />}

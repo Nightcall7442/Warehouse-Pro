@@ -3,6 +3,7 @@ import { z } from "zod";
 import { createRouter, reportsQuery, managementQuery, financeQuery, FINANCE_ROLES } from "./middleware";
 import { TRPCError } from "@trpc/server";
 import { noOrderReport } from "./services/no-order-visits";
+import { failedDeliveriesReport } from "./services/delivery-failures";
 import { marginReport } from "./services/margin-report";
 import { abcReport } from "./services/abc-report";
 import { salesMapBase } from "./services/sales-map";
@@ -319,6 +320,25 @@ export const reportsRouter = createRouter({
       return noOrderReport(getDb(), ctx.tenant.id, {
         from: input.dateFrom, to: input.dateTo, agentId: input.agentId, territoryId: input.territoryId,
       });
+    }),
+
+  /*
+    «Недоставленные»: срывы и переносы из журнала попыток — по причинам,
+    курьерам и магазинам. Тот же круг, что у «Визитов без заказа»: директор,
+    оператор, супервайзер.
+  */
+  failedDeliveries: managementQuery
+    .input(z.object({
+      dateFrom: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+      dateTo: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+      courierId: z.number().int().positive().optional(),
+    }))
+    .query(async ({ input, ctx }) => {
+      const days = (Date.parse(input.dateTo) - Date.parse(input.dateFrom)) / 86_400_000;
+      if (!(days >= 0) || days > 366) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Период — от одного дня до года." });
+      }
+      return failedDeliveriesReport(getDb(), ctx.tenant.id, { from: input.dateFrom, to: input.dateTo, courierId: input.courierId });
     }),
 
   getVisitsLog: reportsQuery
