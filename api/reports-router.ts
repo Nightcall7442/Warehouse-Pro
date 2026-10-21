@@ -16,6 +16,7 @@ import { subDays } from "date-fns";
 import { bizClock, onDate, sinceDay, untilDate, untilDay } from "./lib/date-range";
 import { businessDaysAgo, businessToday } from "@contracts/business-time";
 import { reportCached, ReportTTL } from "./lib/report-cache";
+import { SALES_PING_ROLES } from "./lib/field-users";
 
 /** День «ГГГГ-ММ-ДД». */
 const DAY = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
@@ -71,10 +72,13 @@ export const reportsRouter = createRouter({
 
         // Active agents today (those with location pings in last 2h).
         // Ждался отдельным await после Promise.all без причины — теперь в нём.
+        // Только полевые продажи: курьер тоже шлёт точки (lib/field-users).
         db.select({ agentId: agentLocations.agentId })
           .from(agentLocations)
+          .leftJoin(users, and(eq(agentLocations.agentId, users.id), eq(users.tenantId, tenantId)))
           .where(and(
             eq(agentLocations.tenantId, tenantId),
+            inArray(users.role, SALES_PING_ROLES),
             gte(agentLocations.createdAt, new Date(now.getTime() - 2 * 3600_000)),
           ))
           .groupBy(agentLocations.agentId),

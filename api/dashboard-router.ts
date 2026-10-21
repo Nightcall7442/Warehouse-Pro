@@ -7,6 +7,7 @@ import { businessDaysAgo, businessToday } from "@contracts/business-time";
 import { reportCached, ReportTTL } from "./lib/report-cache";
 import { bizClock, onDate, onDay, sinceDay, untilDay } from "./lib/date-range";
 import { returnsInPeriod, totalReturned } from "./services/revenue-returns";
+import { SALES_PING_ROLES } from "./lib/field-users";
 
 const isoDay = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Дата в виде ГГГГ-ММ-ДД");
 
@@ -280,8 +281,19 @@ export const dashboardRouter = createRouter({
         .where(and(eq(orders.tenantId, tenantId), onDay(orders.createdAt, today), inArray(orders.status, REVENUE_ORDER_STATUSES), isNull(orders.deletedAt))),
       db.select({ count: sql<number>`count(*)` }).from(users)
         .where(and(eq(users.tenantId, tenantId), eq(users.role, "agent"), eq(users.status, "active"))),
+      /*
+        «Онлайн» — полевые продажи: агенты и мерчендайзеры. Точки пишет и
+        курьер (locationQuery), и без отбора по роли его машина считалась бы
+        агентом на связи — при том что «Активные агенты» рядом курьеров не
+        считают, и онлайн выходил бы больше активных.
+      */
       db.select({ count: sql<number>`count(distinct ${agentLocations.agentId})` }).from(agentLocations)
-        .where(and(eq(agentLocations.tenantId, tenantId), sql`${agentLocations.createdAt} >= ${tenMinAgo}`)),
+        .innerJoin(users, eq(agentLocations.agentId, users.id))
+        .where(and(
+          eq(agentLocations.tenantId, tenantId), eq(users.tenantId, tenantId),
+          inArray(users.role, SALES_PING_ROLES),
+          sql`${agentLocations.createdAt} >= ${tenMinAgo}`,
+        )),
       db.select({ count: sql<number>`count(*)` }).from(dailyPlans)
         // plan_date is a DATE column — DATE() around it is a no-op that still blocks idx_plans_tenant_date
         .where(and(eq(dailyPlans.tenantId, tenantId), onDate(dailyPlans.planDate, today), eq(dailyPlans.status, "planned"))),

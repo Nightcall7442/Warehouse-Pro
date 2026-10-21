@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { isSafePhotoValue, PHOTO_VALUE_ERROR } from "./lib/photo-value";
 import { TRPCError } from "@trpc/server";
-import { createRouter, fieldSalesQuery, merchVisitQuery, supervisorQuery, authedQuery, reportsQuery } from "./middleware";
+import { createRouter, fieldSalesQuery, merchVisitQuery, supervisorQuery, authedQuery, reportsQuery, locationQuery } from "./middleware";
 import { getDb } from "./queries/connection";
 import { agentLocations, dailyPlans, shops, users, agentTerritories, territories } from "@db/schema";
 import { eq, and, sql, desc, gte, lte , inArray, isNull, type SQL } from "drizzle-orm";
@@ -448,7 +448,9 @@ export const agentRouter = createRouter({
       return listActiveShops(ctx.tenant.id, input);
     }),
 
-  saveLocation: fieldSalesQuery
+  // Курьер тоже: его точки видят диспетчер (courier.board) и магазин на
+  // странице отслеживания — грубо, без координат (services/tracking.ts).
+  saveLocation: locationQuery
     .input(z.object({
       lat: z.string().refine(v => { const n = Number(v); return v.trim() !== "" && Number.isFinite(n) && n >= -90 && n <= 90; }, "Широта должна быть от -90 до 90"),
       lng: z.string().refine(v => { const n = Number(v); return v.trim() !== "" && Number.isFinite(n) && n >= -180 && n <= 180; }, "Долгота должна быть от -180 до 180"),
@@ -534,6 +536,9 @@ export const agentRouter = createRouter({
       // человека поставило приложение-подделка.
       mocked: agentLocations.mocked,
       agentName: users.name,
+      // Кто это: точки пишет и курьер (locationQuery), и карта должна
+      // отличать его машину от агента, а не подписывать «агент».
+      role: users.role,
     })
       .from(agentLocations)
       .leftJoin(users, and(eq(agentLocations.agentId, users.id), eq(users.tenantId, ctx.tenant.id)))

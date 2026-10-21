@@ -541,6 +541,13 @@ describe("agent.saveLocation", () => {
     expect(locationsTable[0].accuracy).toBe("10");
     expect(locationsTable[0].batteryLevel).toBe(85);
   });
+
+  it("курьер тоже пишет точку — раньше отказ FORBIDDEN на каждую", async () => {
+    const { agentRouter } = await import("../agent-router");
+    const caller = agentRouter.createCaller(makeCtx(1, 12, "courier"));
+    await expect(caller.saveLocation({ lat: "41.3111", lng: "69.2797" })).resolves.toEqual({ success: true });
+    expect(locationsTable.at(-1)!.agentId).toBe(12);
+  });
 });
 
 describe("agent.createShop", () => {

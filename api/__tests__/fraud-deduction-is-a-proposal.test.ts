@@ -52,7 +52,7 @@ describe("подмена координат = фрод", () => {
 
   it("saveLocation принимает признак mocked и пишет его в agent_locations", () => {
     const src = readFileSync("api/agent-router.ts", "utf-8");
-    const i = src.indexOf("saveLocation: fieldSalesQuery");
+    const i = src.indexOf("saveLocation: locationQuery");
     const body = src.slice(i, i + 1800);
     expect(body).toContain("mocked: z.boolean().optional()");
     expect(body).toContain("mocked: input.mocked === true");
