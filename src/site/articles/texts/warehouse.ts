@@ -9,6 +9,12 @@ import { both, type ArticleText } from "../types";
   пересечение порога — крон каждые 30 минут, инвентаризация и перемещения —
   stock-count-router и warehouse-multi-router.
 
+  После слияния веток склада и закупок сверено ещё раз: точки продаж (ADR
+  0012, склад заказа), «Дозаказ» по выбранному складу с черновиками заказов
+  поставщикам (ADR 0014, ReorderPlan), утверждение инвентаризации директором
+  (право warehouse.apply), перемещение в два шага («в пути», настройка
+  transferTwoStep) и действие «Переместить туда, где продают» в «Сроках».
+
   Формулу предлагаемого количества не называем намеренно: её меняет
   соседняя работа по дозаказу, а статья не должна устареть вместе с ней.
   Адресного хранения, ТСД и маркировки в программе нет — так и сказано.
@@ -61,8 +67,8 @@ export const WAREHOUSE_ARTICLE: ArticleText = {
         },
         {
           p: both(
-            "Заказ агента сразу резервирует товар. Второй агент видит уже уменьшенное «Доступно» и не может продать то же самое; если товара не хватает, программа называет позицию и сколько осталось свободно. Заказы резервируются и отгружаются с основного склада.",
-            "Agent buyurtmasi tovarni darhol zahiraga oladi. Ikkinchi agent kamaygan «Mavjud»ni ko'radi va xuddi shu tovarni sota olmaydi; tovar yetmasa, dastur qaysi mahsulot ekanini va qanchasi bo'sh qolganini aytadi. Buyurtmalar asosiy ombordan zahiraga olinadi va jo'natiladi.",
+            "Заказ агента сразу резервирует товар. Второй агент видит уже уменьшенное «Доступно» и не может продать то же самое; если товара не хватает, программа называет позицию и сколько осталось свободно. Заказы резервируются и отгружаются с основного склада. Если у компании есть филиал, директор может отметить его склад точкой продаж и закрепить за ним агентов: их заказы резервируются на складе филиала, и агент видит его остаток.",
+            "Agent buyurtmasi tovarni darhol zahiraga oladi. Ikkinchi agent kamaygan «Mavjud»ni ko'radi va xuddi shu tovarni sota olmaydi; tovar yetmasa, dastur qaysi mahsulot ekanini va qanchasi bo'sh qolganini aytadi. Buyurtmalar asosiy ombordan zahiraga olinadi va jo'natiladi. Kompaniyaning filiali bo'lsa, direktor uning omborini savdo nuqtasi deb belgilab, unga agentlarni biriktirishi mumkin: ularning buyurtmalari filial omborida zahiraga olinadi va agent o'sha ombor qoldig'ini ko'radi.",
           ),
         },
         {
@@ -95,8 +101,8 @@ export const WAREHOUSE_ARTICLE: ArticleText = {
         },
         {
           p: both(
-            "Вкладка «Сроки» — список дел: партии, с которыми пора что-то делать. По каждой — прогноз, сколько успеет продаться до срока, и действия: уценить, перевезти на основной склад или списать.",
-            "«Muddatlar» yorlig'i — vazifalar ro'yxati: biror narsa qilish kerak bo'lgan partiyalar. Har biri bo'yicha — muddatgacha qanchasi sotilib ulgurishi haqida prognoz va amallar: narxini tushirish, asosiy omborga ko'chirish yoki hisobdan chiqarish.",
+            "Вкладка «Сроки» — список дел: партии, с которыми пора что-то делать. По каждой — прогноз, сколько успеет продаться до срока, и действия: уценить, перевезти на склад, с которого продают, или списать.",
+            "«Muddatlar» yorlig'i — vazifalar ro'yxati: biror narsa qilish kerak bo'lgan partiyalar. Har biri bo'yicha — muddatgacha qanchasi sotilib ulgurishi haqida prognoz va amallar: narxini tushirish, sotiladigan omborga ko'chirish yoki hisobdan chiqarish.",
           ),
         },
         { see: "delivery", text: both("Как собирается погрузочный лист и закрывается доставка", "Yuklash varag'i qanday yig'iladi va yetkazish qanday yopiladi") },
@@ -108,8 +114,8 @@ export const WAREHOUSE_ARTICLE: ArticleText = {
       blocks: [
         {
           p: both(
-            "Вкладка «Дозаказ» собирает товары, у которых доступный остаток на основном складе опустился до порога или ниже. По каждому — средние продажи в день, на сколько дней хватит остатка, сколько предлагается заказать и на какую сумму. Список выгружается в Excel — его можно сразу отправить поставщику.",
-            "«Qayta buyurtma» yorlig'i asosiy ombordagi mavjud qoldig'i chegaragacha yoki undan pastga tushgan mahsulotlarni yig'adi. Har biri bo'yicha — kunlik o'rtacha sotuv, qoldiq necha kunga yetishi, qancha buyurtma qilish taklif etilgani va qancha summaga. Ro'yxat Excelga yuklanadi — uni darhol yetkazib beruvchiga yuborish mumkin.",
+            "Вкладка «Дозаказ» собирает товары, у которых доступный остаток на выбранном складе — по умолчанию на основном — опустился до порога или ниже. По каждому — средние продажи в день, на сколько дней хватит остатка, сколько уже едет и сколько предлагается заказать. Строки собраны по поставщикам: одной кнопкой из них получаются черновики заказов поставщикам, а согласует их директор. Список можно и выгрузить в Excel.",
+            "«Qayta buyurtma» yorlig'i tanlangan ombordagi — odatda asosiy ombordagi — mavjud qoldig'i chegaragacha yoki undan pastga tushgan mahsulotlarni yig'adi. Har biri bo'yicha — kunlik o'rtacha sotuv, qoldiq necha kunga yetishi, qanchasi allaqachon yo'lda va qancha buyurtma qilish taklif etilgani. Qatorlar yetkazib beruvchilar bo'yicha guruhlangan: bitta tugma bilan ulardan yetkazib beruvchilarga buyurtma qoralamalari tuziladi, ularni esa direktor kelishadi. Ro'yxatni Excelga ham yuklash mumkin.",
           ),
         },
         {
@@ -141,8 +147,8 @@ export const WAREHOUSE_ARTICLE: ArticleText = {
               "Omborchi qancha sanaganini qatorma-qator kiritadi.",
             ),
             both(
-              "Документ проводится одним действием: разницы становятся движениями «инвентаризация» в журнале, и остатки выравниваются по факту.",
-              "Hujjat bitta amal bilan o'tkaziladi: farqlar jurnalda «inventarizatsiya» harakatlariga aylanadi va qoldiqlar haqiqiy holatga tenglashtiriladi.",
+              "Документ проводится одним действием: разницы становятся движениями «инвентаризация» в журнале, и остатки выравниваются по факту. Если директор не дал оператору права проводить правки самому, документ уходит директору «на утверждение», и остатки меняются, когда он нажмёт «Утвердить».",
+              "Hujjat bitta amal bilan o'tkaziladi: farqlar jurnalda «inventarizatsiya» harakatlariga aylanadi va qoldiqlar haqiqiy holatga tenglashtiriladi. Agar direktor operatorga tuzatishlarni o'zi o'tkazish huquqini bermagan bo'lsa, hujjat direktorga «tasdiqlashga» yuboriladi va qoldiqlar u «Tasdiqlash»ni bosganda o'zgaradi.",
             ),
             both(
               "Проведённый документ больше не меняется — его можно только смотреть.",
@@ -164,8 +170,8 @@ export const WAREHOUSE_ARTICLE: ArticleText = {
       blocks: [
         {
           p: both(
-            "Если складов больше одного, появляются вкладки «Перемещения» и «Сравнение». Перемещение — один документ на несколько товаров: программа проверяет, что на складе-источнике хватает свободного остатка, и товар сразу числится на складе-получателе. Делают это директор или оператор с правом корректировать склад.",
-            "Omborlar bittadan ko'p bo'lsa, «Ko'chirishlar» va «Taqqoslash» yorliqlari paydo bo'ladi. Ko'chirish — bir nechta mahsulot uchun bitta hujjat: dastur manba omborda bo'sh qoldiq yetarliligini tekshiradi va tovar darhol qabul qiluvchi omborda hisoblanadi. Buni direktor yoki omborni tuzatish huquqi bor operator bajaradi.",
+            "Если складов больше одного, появляются вкладки «Перемещения» и «Сравнение». Перемещение — один документ на несколько товаров: программа проверяет, что на складе-источнике хватает свободного годного остатка, и товар едет своими партиями со сроками. По умолчанию он сразу числится на складе-получателе. В настройках можно включить перемещение в два шага: тогда товар «в пути», пока получатель не примет его по строкам, а недоехавшее остаётся недостачей на документе. Делают это директор или оператор с правом корректировать склад.",
+            "Omborlar bittadan ko'p bo'lsa, «Ko'chirishlar» va «Taqqoslash» yorliqlari paydo bo'ladi. Ko'chirish — bir nechta mahsulot uchun bitta hujjat: dastur manba omborda bo'sh yaroqli qoldiq yetarliligini tekshiradi va tovar o'z partiyalari va muddatlari bilan ketadi. Odatda u darhol qabul qiluvchi omborda hisoblanadi. Sozlamalarda ikki bosqichli ko'chirishni yoqish mumkin: unda qabul qiluvchi qatorlar bo'yicha qabul qilmaguncha tovar «yo'lda» bo'ladi, yetib kelmagani esa hujjatda kamomad bo'lib qoladi. Buni direktor yoki omborni tuzatish huquqi bor operator bajaradi.",
           ),
         },
         {
@@ -198,8 +204,8 @@ export const WAREHOUSE_ARTICLE: ArticleText = {
     {
       q: both("Можно ли вести несколько складов?", "Bir nechta omborni yuritish mumkinmi?"),
       a: both(
-        "Да. Остатки видны по каждому складу, между складами есть перемещения и сравнение. Заказы резервируются и отгружаются с основного склада.",
-        "Ha. Qoldiqlar har bir ombor bo'yicha ko'rinadi, omborlar orasida ko'chirish va taqqoslash bor. Buyurtmalar asosiy ombordan zahiraga olinadi va jo'natiladi.",
+        "Да. Остатки видны по каждому складу, между складами есть перемещения и сравнение. Заказы резервируются и отгружаются с основного склада, а со склада, который директор отметил точкой продаж, — заказы закреплённых за ним агентов.",
+        "Ha. Qoldiqlar har bir ombor bo'yicha ko'rinadi, omborlar orasida ko'chirish va taqqoslash bor. Buyurtmalar asosiy ombordan zahiraga olinadi va jo'natiladi, direktor savdo nuqtasi deb belgilagan ombordan esa — unga biriktirilgan agentlarning buyurtmalari.",
       ),
     },
     {

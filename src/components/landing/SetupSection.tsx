@@ -34,7 +34,7 @@ export default function SetupSection() {
 
   const caps = [
     { t: tr("Сотрудники и приглашения", "Xodimlar va takliflar"), d: tr("Пригласить по почте или завести с паролем; уволил — отключил", "Pochta orqali taklif yoki parol bilan yaratish; ishdan ketdi — o'chirildi") },
-    { t: tr("Склады и склад по умолчанию", "Omborlar va asosiy ombor"), d: tr("Продажи идут с основного; между складами — перемещения", "Savdo asosiy ombordan; omborlar orasida — ko'chirish") },
+    { t: tr("Склады и склад по умолчанию", "Omborlar va asosiy ombor"), d: tr("Продажи — с основного и с отмеченных точек продаж; между складами — перемещения", "Savdo — asosiy ombordan va belgilangan savdo nuqtalaridan; omborlar orasida — ko'chirish") },
     { t: tr("Магазины и территории", "Do'konlar va hududlar"), d: tr("Координаты, районы, закреплённый агент; автораспределение точек", "Koordinatalar, tumanlar, biriktirilgan agent; nuqtalarni avtomatik taqsimlash") },
     { t: tr("Прайс-листы", "Narx ro'yxatlari"), d: tr("Своя цена сети и своя ларьку; агент видит правильную в телефоне", "Tarmoqqa o'z narxi, do'konchaga o'z narxi; agent telefonda to'g'risini ko'radi") },
     { t: tr("Telegram", "Telegram"), d: tr("Группа компании, сотрудники по ID, правила уведомлений, ответы бота", "Kompaniya guruhi, xodimlar ID bo'yicha, bildirishnoma qoidalari, bot javoblari") },
