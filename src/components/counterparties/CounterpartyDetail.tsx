@@ -277,7 +277,7 @@ export function CounterpartyDetail({ supplierId, lang, onClose, onEdit, onPay, o
                       {onReturn && (
                         <button
                           data-testid={`cp-return-${r.id}`}
-                          onClick={() => onReturn({ id: r.id, supplyNumber: r.supplyNumber, supplierName: r.supplierName, currency: r.currency, debt: r.debt })}
+                          onClick={() => onReturn({ id: r.id, supplyNumber: r.supplyNumber, supplierName: r.supplierName, currency: r.currency, debt: r.debt, receivedWarehouseName: r.receivedWarehouseName })}
                           className="neo-btn neo-btn-sm"
                           style={{ whiteSpace: "nowrap", marginLeft: 6 }}
                         >

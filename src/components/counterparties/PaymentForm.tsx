@@ -11,6 +11,8 @@ export interface PayableSupply {
   supplierName: string;
   currency: string;
   debt: number;
+  /** Склад приёмки, если не основной: возврат уйдёт с него (supplier.returnGoods). */
+  receivedWarehouseName?: string | null;
 }
 
 export interface PaymentValues {

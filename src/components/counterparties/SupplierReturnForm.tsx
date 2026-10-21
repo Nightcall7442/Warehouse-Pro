@@ -40,6 +40,12 @@ export function SupplierReturnForm({ open, supply, isPending, lang, onSubmit, on
 
   if (!supply) return null;
 
+  /*
+    Поставку приняли не на основной склад — возврат уйдёт с того склада
+    (supplier.returnGoods). «Свободно» в поиске — остаток склада каталога,
+    то есть основного: рядом с чужим складом это число сбивало бы.
+  */
+  const fromWarehouse = supply.receivedWarehouseName ?? null;
   const total = lines.reduce((s, l) => s + Number(l.quantity || 0) * Number(l.unitCost || 0), 0);
   const valid = lines.length > 0 && lines.every(l => Number(l.quantity) > 0);
 
@@ -83,7 +89,7 @@ export function SupplierReturnForm({ open, supply, isPending, lang, onSubmit, on
                     setSearch("");
                   }}>
                   <span className="text-sm" style={{ color: "var(--color-text-primary)" }}>{p.name}</span>
-                  <span className="text-xs ml-2" style={{ color: "var(--color-text-tertiary)" }}>{p.code} · {t("себест.", "tannarx")} {formatQty(p.costPrice ?? 0)} · {t("свободно", "bo'sh")} {formatQty(p.available ?? 0)}</span>
+                  <span className="text-xs ml-2" style={{ color: "var(--color-text-tertiary)" }}>{p.code} · {t("себест.", "tannarx")} {formatQty(p.costPrice ?? 0)}{fromWarehouse ? "" : <> · {t("свободно", "bo'sh")} {formatQty(p.available ?? 0)}</>}</span>
                 </button>
               ))}
             </div>
@@ -114,8 +120,10 @@ export function SupplierReturnForm({ open, supply, isPending, lang, onSubmit, on
           <label className={modalFieldLabel}>{t("Причина / примечание", "Sabab / izoh")}</label>
           <input className="neo-input" placeholder={t("брак, просрочка, пересорт…", "brak, muddati o'tgan…")} value={notes} onChange={e => setNotes(e.target.value)} />
         </div>
-        <p className="text-xs" style={{ color: "var(--color-text-tertiary)" }}>
-          {t("Товар уйдёт со склада (с просроченных партий первым), долг по поставке уменьшится на сумму по себестоимости — не больше остатка.", "Mahsulot ombordan chiqadi, yetkazib berish bo'yicha qarz tannarx summasiga kamayadi — qoldiqdan ko'p emas.")}
+        <p className="text-xs" style={{ color: "var(--color-text-tertiary)" }} data-testid="supplier-return-warehouse">
+          {fromWarehouse
+            ? t(`Товар уйдёт со склада «${fromWarehouse}», куда приняли эту поставку (с просроченных партий первым), долг по поставке уменьшится на сумму по себестоимости — не больше остатка.`, `Mahsulot shu yetkazib berish qabul qilingan «${fromWarehouse}» omboridan chiqadi, yetkazib berish bo'yicha qarz tannarx summasiga kamayadi — qoldiqdan ko'p emas.`)
+            : t("Товар уйдёт со склада (с просроченных партий первым), долг по поставке уменьшится на сумму по себестоимости — не больше остатка.", "Mahsulot ombordan chiqadi, yetkazib berish bo'yicha qarz tannarx summasiga kamayadi — qoldiqdan ko'p emas.")}
         </p>
       </div>
     </AppModal>

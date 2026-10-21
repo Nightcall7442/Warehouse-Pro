@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { createRouter, operatorQuery, can } from "./middleware";
-import { suppliers, supplies, supplierPayments, users, products, warehouses } from "@db/schema";
+import { suppliers, supplies, supplierPayments, users, products, warehouses, arrivals } from "@db/schema";
 import { applyStockEffect } from "./services/stock-ledger";
 import { recordAudit } from "./services/audit-log";
 import { eq, and, sql, desc, like } from "drizzle-orm";
@@ -342,6 +342,14 @@ export const supplierRouter = createRouter({
         arrivalNumber: sql<string | null>`(
           SELECT a.arrival_number FROM arrivals a WHERE a.id = \`supplies\`.\`arrival_id\`
         )`,
+        /*
+          Склад, куда поставку приняли, если это не основной: с него уйдёт
+          возврат (returnGoods), и форма возврата называет его, а не молчит.
+        */
+        receivedWarehouseName: sql<string | null>`(
+          SELECT w.name FROM arrivals a JOIN warehouses w ON w.id = a.warehouse_id AND w.tenant_id = a.tenant_id
+          WHERE a.id = \`supplies\`.\`arrival_id\` AND a.tenant_id = \`supplies\`.\`tenant_id\` AND w.is_default = 0
+        )`,
       })
         .from(supplies)
         .innerJoin(suppliers, eq(supplies.supplierId, suppliers.id))
@@ -568,6 +576,11 @@ export const supplierRouter = createRouter({
    * просроченных партий первым), а долг по поставке уменьшается на сумму
    * по себестоимости строкой «возврат товара». Больше остатка долга не
    * гасится: лишнее — предмет разговора с поставщиком, а не минус в учёте.
+   *
+   * Склад без явного выбора — тот, куда поставку приняли: приход по заказу
+   * поставщику ложится на склад заказа (ADR 0013), и брать возврат с
+   * основного значило снять с него чужой товар, а на филиале оставить
+   * вернутый. Основной — только у поставки без прихода или без склада в нём.
    */
   returnGoods: operatorQuery.use(can("suppliers.manage"))
     .input(z.object({
@@ -590,19 +603,33 @@ export const supplierRouter = createRouter({
         const [supply] = await tx.select({
           id: supplies.id, supplierId: supplies.supplierId, amount: supplies.amount,
           currency: supplies.currency, rateToUzs: supplies.rateToUzs, supplyNumber: supplies.supplyNumber, paid: paidSubquery,
+          arrivalId: supplies.arrivalId,
         }).from(supplies)
           .where(and(eq(supplies.id, input.supplyId), eq(supplies.tenantId, tenantId)))
           .limit(1).for("update");
         if (!supply) throw new Error("Поставка не найдена");
 
-        const [wh] = input.warehouseId
-          ? await tx.select({ id: warehouses.id }).from(warehouses).where(and(eq(warehouses.id, input.warehouseId), eq(warehouses.tenantId, tenantId))).limit(1)
+        let warehouseId = input.warehouseId ?? null;
+        if (warehouseId == null && supply.arrivalId != null) {
+          const [received] = await tx.select({ warehouseId: arrivals.warehouseId }).from(arrivals)
+            .where(and(eq(arrivals.id, supply.arrivalId), eq(arrivals.tenantId, tenantId))).limit(1);
+          warehouseId = received?.warehouseId ?? null;
+        }
+        const [wh] = warehouseId != null
+          ? await tx.select({ id: warehouses.id }).from(warehouses).where(and(eq(warehouses.id, warehouseId), eq(warehouses.tenantId, tenantId))).limit(1)
           : await tx.select({ id: warehouses.id }).from(warehouses).where(and(eq(warehouses.tenantId, tenantId), eq(warehouses.isDefault, true))).limit(1);
         if (!wh) throw new Error("Склад не найден");
 
         const ids = input.items.map(i => i.productId);
+        /*
+          Товар внешнего запроса — по имени таблицы, буквами. Запрос из одной
+          таблицы drizzle печатает колонку без таблицы — «ws.product_id =
+          \`id\`», — и внутри подзапроса это ws.id: свободный остаток брался
+          из строки, чей номер случайно совпал с номером товара, а у
+          остальных выходило «свободно 0» и отказ.
+        */
         const rows = await tx.select({ id: products.id, name: products.name, costPrice: products.costPrice, available: sql<string>`(
-          SELECT ws.available FROM warehouse_stock ws WHERE ws.product_id = ${products.id} AND ws.warehouse_id = ${wh.id} AND ws.tenant_id = ${tenantId} LIMIT 1)` })
+          SELECT ws.available FROM warehouse_stock ws WHERE ws.product_id = \`products\`.\`id\` AND ws.warehouse_id = ${wh.id} AND ws.tenant_id = ${tenantId} LIMIT 1)` })
           .from(products).where(and(eq(products.tenantId, tenantId), sql`${products.id} IN (${sql.join(ids.map(id => sql`${id}`), sql`, `)})`));
         const byId = new Map(rows.map(r => [r.id, r]));
 

@@ -1112,8 +1112,10 @@ export const arrivals = mysqlTable("arrivals", {
   purchaseOrderId: bigint("purchase_order_id", { mode: "number", unsigned: true }).references(() => purchaseOrders.id, { onDelete: "set null" }),
   /*
     Склад, на который приход ляжет при проведении. Заказ знает его заранее и
-    записывает сюда; у старых и обычных приходов пусто — проводят на
-    основной склад, как раньше.
+    записывает сюда; у обычного прихода пусто — проводят на основной склад,
+    как раньше. Проведение записывает сюда склад, куда товар лёг на деле: с
+    него уходит возврат поставщику по этой поставке. У приходов, проведённых
+    раньше, пусто — возврат по ним идёт с основного.
   */
   warehouseId:   bigint("warehouse_id", { mode: "number", unsigned: true }).references(() => warehouses.id, { onDelete: "restrict" }),
   createdAt:     timestamp("created_at").defaultNow().notNull(),

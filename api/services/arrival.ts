@@ -512,6 +512,10 @@ export async function updateArrival(db: Db, tenantId: number, input: UpdateArriv
       // cheap line of defense alongside the lock above.
       const notCompleted = and(eq(arrivals.id, id), eq(arrivals.tenantId, tenantId), sql`${arrivals.status} != 'completed'`);
       let statusUpdateResult: unknown;
+      // Склад, куда товар лёг, остаётся в самом приходе: возврат поставщику
+      // по этой поставке уходит с него же (supplier.returnGoods), а не с
+      // основного, даже если склад выбрали только при проведении.
+      const done = { ...data, warehouseId };
       if (data.fuelCost || data.tollCost || data.otherCost) {
         // Неуказанные расходы берутся из самой записи, а не считаются нулём.
         //
@@ -527,10 +531,10 @@ export async function updateArrival(db: Db, tenantId: number, input: UpdateArriv
         const fuel  = Number(data.fuelCost  ?? lockedArrival.fuelCost  ?? "0");
         const toll  = Number(data.tollCost  ?? lockedArrival.tollCost  ?? "0");
         const other = Number(data.otherCost ?? lockedArrival.otherCost ?? "0");
-        [statusUpdateResult] = await tx.update(arrivals).set({ ...data, totalExpense: (fuel + toll + other).toFixed(2) })
+        [statusUpdateResult] = await tx.update(arrivals).set({ ...done, totalExpense: (fuel + toll + other).toFixed(2) })
           .where(notCompleted);
       } else {
-        [statusUpdateResult] = await tx.update(arrivals).set(data).where(notCompleted);
+        [statusUpdateResult] = await tx.update(arrivals).set(done).where(notCompleted);
       }
       if ((statusUpdateResult as { affectedRows?: number }).affectedRows !== 1) {
         throw new Error("Приход уже завершён");
