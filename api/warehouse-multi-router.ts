@@ -1,8 +1,8 @@
 import { z } from "zod";
 import { createRouter, adminQuery, authedQuery, operatorQuery, can } from "./middleware";
 import { getDb } from "./queries/connection";
-import { warehouses, warehouseStock, stockTransfers, products, orders } from "@db/schema";
-import { eq, and, sql, desc, isNull, inArray, gt } from "drizzle-orm";
+import { warehouses, warehouseStock, stockTransfers, stockTransferDocs, products, orders } from "@db/schema";
+import { eq, and, or, sql, desc, isNull, inArray, gt } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { OPEN_ORDER_STATUSES } from "./lib/order-status";
 import {
@@ -59,6 +59,23 @@ export const warehouseMultiRouter = createRouter({
     .mutation(async ({ input, ctx }) => {
       const db = getDb();
       const { id, ...data } = input;
+      /*
+        Отключённый склад не принимает и не отдаёт перемещений
+        (services/stock-transfer.ts). Отключи его, пока к нему или от него
+        что-то едет, — документ повиснет: принять его будет некуда, а товар
+        уже ушёл с другого склада.
+      */
+      if (data.status === "inactive") {
+        const [row] = await db.select({ n: sql<number>`count(*)` }).from(stockTransferDocs)
+          .where(and(
+            eq(stockTransferDocs.tenantId, ctx.tenant.id), eq(stockTransferDocs.status, "in_transit"),
+            or(eq(stockTransferDocs.fromWarehouseId, id), eq(stockTransferDocs.toWarehouseId, id)),
+          ));
+        const n = Number(row?.n ?? 0);
+        if (n > 0) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: `Нельзя отключить склад: перемещений в пути ${n} — примите или отмените их` });
+        }
+      }
       await db.update(warehouses)
         .set(data)
         .where(and(eq(warehouses.id, id), eq(warehouses.tenantId, ctx.tenant.id)));

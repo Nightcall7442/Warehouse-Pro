@@ -286,6 +286,22 @@ describe.skipIf(!hasRealDb)("документ перемещения на нас
     await expectInvariant();
   });
 
+  it("склад с перемещением «в пути» не отключить, пока его не примут или не отменят", async () => {
+    await twoStep();
+    await receive(3, { batchNumber: "A", expiresAt: LATER });
+    const r = await send([{ productId: s.productId, quantity: 2 }]);
+    const c = await router();
+    for (const id of [s.warehouseId, second]) {
+      await expect(c.update({ id, status: "inactive" })).rejects.toThrow(/перемещений в пути 1 — примите или отмените их/);
+    }
+    const [w] = await rowsOf<{ st: string }>(sql`SELECT status AS st FROM warehouses WHERE id = ${second}`);
+    expect(w.st).toBe("active");
+    await c.receiveTransfer({ docId: r.id });
+    await c.update({ id: second, status: "inactive" });
+    const [after] = await rowsOf<{ st: string }>(sql`SELECT status AS st FROM warehouses WHERE id = ${second}`);
+    expect(after.st).toBe("inactive");
+  });
+
   it("чужая организация: документ «не найден», в списке пусто, чужую партию не выбрать", async () => {
     await twoStep();
     await receive(3, { batchNumber: "A", expiresAt: LATER });

@@ -395,6 +395,7 @@ export const SERVER_ERROR_TEXT: Record<string, ErrorText> = {
   "«{0}»: выбранные партии в сумме {1}, а в строке {2}": { uz: "«{0}»: tanlangan partiyalar jami {1}, qatorda esa {2}" },
   "«{0}»: в выбранной партии {1}, а выбрано {2} — обновите список партий": { uz: "«{0}»: tanlangan partiyada {1}, tanlangani esa {2} — partiyalar ro'yxatini yangilang" },
   "Перемещение не найдено": { uz: "Ko'chirish topilmadi" },
+  "Нельзя отключить склад: перемещений в пути {0} — примите или отмените их": { uz: "Omborni o'chirib bo'lmaydi: yo'ldagi ko'chirishlar {0} — ularni qabul qiling yoki bekor qiling" },
   "Перемещение {0} уже принято или отменено — обновите список": { uz: "{0} ko'chirish allaqachon qabul qilingan yoki bekor qilingan — ro'yxatni yangilang" },
   "В документе нет такой строки — обновите список": { uz: "Hujjatda bunday qator yo'q — ro'yxatni yangilang" },
   "«{0}»: принято {1}, а отправлено {2}. Больше отправленного принять нельзя — лишнее оформите инвентаризацией": { uz: "«{0}»: qabul qilingan {1}, jo'natilgan esa {2}. Jo'natilgandan ko'pini qabul qilib bo'lmaydi — ortiqchasini inventarizatsiya bilan rasmiylashtiring" },
