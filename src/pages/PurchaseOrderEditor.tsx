@@ -1,16 +1,23 @@
 import { useMemo, useState } from "react";
-import { useNavigate, useParams } from "react-router";
+import { useNavigate, useParams, useSearchParams } from "react-router";
 import type { inferRouterOutputs } from "@trpc/server";
-import { ArrowLeft, Plus, Trash2, Loader2, Send, CheckCircle2, Undo2, Truck, XCircle, Save } from "lucide-react";
+import {
+  ArrowLeft, Plus, Trash2, Loader2, Send, CheckCircle2, Undo2, Truck, XCircle, Save, Printer, FileDown, Clock, RefreshCw,
+} from "lucide-react";
 import type { AppRouter } from "../../api/router";
 import { trpc } from "@/providers/trpc";
 import { useLang } from "@/i18n";
 import { useAuth } from "@/hooks/useAuth";
 import { useCan } from "@/hooks/useCan";
+import { useLeaveGuard } from "@/hooks/useLeaveGuard";
+import { useSellerCompany } from "@/hooks/useSellerCompany";
 import { notify } from "@/lib/toast";
 import { errorText } from "@/lib/error-text";
 import { formatQty } from "@/lib/format";
+import { bizDateText } from "@/lib/business-time";
 import { labelled, ARRIVAL_STATUS_LABEL } from "@/lib/entity-labels";
+import { printPurchaseOrder } from "@/lib/documents";
+import { exportToExcel, formatPurchaseOrderLinesForExport } from "@/lib/excel";
 import { DecimalInput } from "@/components/ui/DecimalInput";
 import { AppModal, modalFieldLabel } from "@/components/ui/AppModal";
 import { PremiumSelect } from "@/components/PremiumSelect";
@@ -42,40 +49,71 @@ const EDITABLE = new Set(["draft", "pending_approval", "approved"]);
 /**
  * Заказ поставщику: новый (/purchase-orders/new) или заведённый.
  *
- * Здесь самое нужное, чтобы пройти путь целиком: завести заказ, отправить
- * директору, согласовать или вернуть с замечанием, принять товар приходом
- * (экран сразу открывает приход), закрыть остаток или отменить. Долг по
+ * Путь целиком: завести заказ, отправить директору, согласовать или вернуть
+ * с замечанием, принять товар приходом (экран сразу открывает приход),
+ * закрыть остаток или отменить; напечатать и выгрузить в Excel. Долг по
  * заказу рождается только при проведении прихода (ADR 0013) — на этом
  * экране денег поставщику нет, только сумма заказа.
+ *
+ * Версия на экране. Заказ меняется и без этого экрана: проведённый приход
+ * двигает «принято» (живое событие arrival.completed перечитывает заказы),
+ * директор согласует из соседней вкладки. Без правок экран показывает новую
+ * версию сразу — у формы новый ключ. С правками набранное не пропадает:
+ * экран держит версию, с которой начали, и говорит, что заказ изменился;
+ * сохранить поверх всё равно не даст сервер (версия документа).
  */
 export default function PurchaseOrderEditor() {
   const { id } = useParams<{ id: string }>();
   const isNew = id === "new";
   const orderId = isNew ? 0 : Number(id);
   const detailQ = trpc.purchaseOrder.getById.useQuery({ id: orderId }, { enabled: !isNew && orderId > 0 });
+  const [pinned, setPinned] = useState<Order | null>(null);
+  // «Отменить правки» на той же версии — форма собирается заново.
+  const [reset, setReset] = useState(0);
 
   if (!isNew && detailQ.isLoadingError) return <QueryErrorFallback onRetry={detailQ.refetch} />;
   if (!isNew && !detailQ.data) {
     return <div style={{ padding: "40px", display: "flex", justifyContent: "center" }}><Loader2 className="animate-spin" size={24} /></div>;
   }
-  // Новая версия документа — новое состояние формы: правки поверх старой не живут.
-  const order = isNew ? null : detailQ.data!;
-  return <OrderScreen key={order ? `${order.id}:${String(order.updatedAt)}` : "new"} order={order} />;
+  const latest = isNew ? null : detailQ.data!;
+  const order = isNew ? null : (pinned ?? latest);
+  const stale = pinned != null && latest != null && String(latest.updatedAt) !== String(pinned.updatedAt);
+  return (
+    <OrderScreen
+      key={order ? `${order.id}:${String(order.updatedAt)}:${reset}` : `new:${reset}`}
+      order={order}
+      stale={stale}
+      onDirty={d => setPinned(d && latest ? (p => p ?? latest) : null)}
+      onDiscard={() => { setPinned(null); setReset(n => n + 1); }}
+    />
+  );
 }
 
-function OrderScreen({ order }: { order: Order | null }) {
+function OrderScreen({ order, stale, onDirty, onDiscard }: {
+  order: Order | null;
+  /** Заказ изменили, пока здесь правили: сохранить поверх нельзя. */
+  stale: boolean;
+  /** Правки появились (true) или их больше нет (false): держать ли версию. */
+  onDirty: (dirty: boolean) => void;
+  onDiscard: () => void;
+}) {
   const { lang } = useLang();
   const t = (ru: string, uz: string) => (lang === "uz" ? uz : ru);
   const navigate = useNavigate();
+  const [params] = useSearchParams();
   const utils = trpc.useUtils();
   const { user } = useAuth();
   const can = useCan();
   const { confirm, dialog } = useConfirm();
+  const { company: seller } = useSellerCompany();
 
   const isCeo = user?.role === "ceo";
   const canManage = can("suppliers.manage");
   const status = order?.status ?? "draft";
-  const editable = canManage && (!order || EDITABLE.has(status));
+  // Непроведённый приход по заказу: пока он есть, заказ не правят, не
+  // возвращают и не отменяют — сервер откажет, так что и кнопок нет.
+  const openArrival = order?.arrivals.find(a => a.status !== "completed") ?? null;
+  const editable = canManage && (!order || (EDITABLE.has(status) && !openArrival));
 
   const suppliersQ = trpc.supplier.list.useQuery(undefined, { enabled: editable });
   const warehousesQ = trpc.warehouseMulti.list.useQuery(undefined, { enabled: editable });
@@ -90,29 +128,51 @@ function OrderScreen({ order }: { order: Order | null }) {
     paymentTermsDays: order.paymentTermsDays == null ? "" : String(order.paymentTermsDays),
     expectedDate: order.expectedDate ?? "",
     notes: order.notes ?? "",
-  } : { supplierId: "", warehouseId: "", currency: "UZS", rateToUzs: "", paymentTermsDays: "", expectedDate: "", notes: "" });
+  } : {
+    // «Новый заказ» из карточки контрагента приходит с поставщиком в адресе.
+    supplierId: /^\d+$/.test(params.get("supplierId") ?? "") ? String(params.get("supplierId")) : "",
+    warehouseId: "", currency: "UZS", rateToUzs: "", paymentTermsDays: "", expectedDate: "", notes: "",
+  });
   const [lines, setLines] = useState<Line[]>(() => (order?.items ?? []).map(i => ({
     productId: i.productId, name: i.productName, code: i.productCode ?? "",
     quantity: String(i.quantity), unitPrice: String(i.unitPrice),
   })));
-  const [dirty, setDirty] = useState(false);
+  const [dirty, setDirtyState] = useState(false);
   const [picking, setPicking] = useState(false);
   const [rejecting, setRejecting] = useState(false);
   const [rejectNote, setRejectNote] = useState("");
 
-  const setH = <K extends keyof Head>(k: K, v: Head[K]) => { setHead(h => ({ ...h, [k]: v })); setDirty(true); };
+  const markDirty = () => { if (!dirty) { setDirtyState(true); onDirty(true); } };
+  const setH = <K extends keyof Head>(k: K, v: Head[K]) => { setHead(h => ({ ...h, [k]: v })); markDirty(); };
   const setLine = (productId: number, patch: Partial<Line>) => {
     setLines(ls => ls.map(l => (l.productId === productId ? { ...l, ...patch } : l)));
-    setDirty(true);
+    markDirty();
   };
+
+  /*
+    Уход с несохранёнными правками — спросить (hooks/useLeaveGuard): заказ на
+    тридцать позиций набирают руками, и «← Заказы поставщикам» или пункт меню
+    стирали его молча.
+  */
+  useLeaveGuard(dirty ? () => confirm({
+    title: t("Уйти без сохранения?", "Saqlamasdan chiqilsinmi?"),
+    message: t("Несохранённые правки заказа пропадут.", "Buyurtmadagi saqlanmagan o'zgarishlar yo'qoladi."),
+    confirmText: t("Уйти", "Chiqish"), danger: true,
+  }) : null);
 
   const onError = (e: unknown) => notify.error(errorText(e));
   const refresh = () => { void utils.purchaseOrder.getById.invalidate(); void utils.purchaseOrder.list.invalidate(); };
+  const saved = () => { setDirtyState(false); onDirty(false); };
   const create = trpc.purchaseOrder.create.useMutation({
-    onSuccess: r => { notify.success(t(`Заказ ${r.number} сохранён`, `${r.number} buyurtma saqlandi`)); void utils.purchaseOrder.list.invalidate(); navigate(`/purchase-orders/${r.id}`, { replace: true }); },
+    onSuccess: r => {
+      notify.success(t(`Заказ ${r.number} сохранён`, `${r.number} buyurtma saqlandi`));
+      saved();
+      void utils.purchaseOrder.list.invalidate();
+      navigate(`/purchase-orders/${r.id}`, { replace: true });
+    },
     onError,
   });
-  const update = trpc.purchaseOrder.update.useMutation({ onSuccess: () => { notify.success(t("Заказ сохранён", "Buyurtma saqlandi")); refresh(); }, onError });
+  const update = trpc.purchaseOrder.update.useMutation({ onSuccess: () => { notify.success(t("Заказ сохранён", "Buyurtma saqlandi")); saved(); refresh(); }, onError });
   const submit = trpc.purchaseOrder.submit.useMutation({ onSuccess: () => { notify.success(t("Заказ отправлен директору", "Buyurtma direktorga yuborildi")); refresh(); }, onError });
   const approve = trpc.purchaseOrder.approve.useMutation({ onSuccess: () => { notify.success(t("Заказ согласован", "Buyurtma kelishildi")); refresh(); }, onError });
   const reject = trpc.purchaseOrder.reject.useMutation({ onSuccess: () => { notify.success(t("Заказ возвращён на доработку", "Buyurtma qayta ishlashga qaytarildi")); setRejecting(false); refresh(); }, onError });
@@ -125,7 +185,7 @@ function OrderScreen({ order }: { order: Order | null }) {
 
   const total = lines.reduce((s, l) => s + Number(l.quantity || 0) * Number(l.unitPrice || 0), 0);
   const linesOk = lines.length > 0 && lines.every(l => Number(l.quantity) > 0);
-  const canSave = editable && !busy && head.supplierId !== "" && linesOk && (!order || dirty);
+  const canSave = editable && !busy && !stale && head.supplierId !== "" && linesOk && (!order || dirty);
 
   const payload = () => ({
     supplierId: Number(head.supplierId),
@@ -152,6 +212,15 @@ function OrderScreen({ order }: { order: Order | null }) {
     update.mutate({ id: order.id, updatedAt: order.updatedAt, ...payload() });
   };
 
+  const discard = async () => {
+    const ok = await confirm({
+      title: t("Отменить правки?", "O'zgarishlar bekor qilinsinmi?"),
+      message: t("Заказ вернётся к сохранённому виду.", "Buyurtma saqlangan holatiga qaytadi."),
+      confirmText: t("Отменить правки", "Bekor qilish"), danger: true,
+    });
+    if (ok) onDiscard();
+  };
+
   const closeOrCancel = async () => {
     if (!order) return;
     const closing = status === "partially_received";
@@ -172,13 +241,36 @@ function OrderScreen({ order }: { order: Order | null }) {
       // Цена прошлой закупки подходит только заказу в сумах; в долларах её вписывают по счёту.
       unitPrice: head.currency === "UZS" && Number(p.costPrice ?? 0) > 0 ? String(Number(p.costPrice)) : "",
     }))]);
-    setDirty(true);
+    markDirty();
     setPicking(false);
   };
+
+  /* ── Печать и Excel: то, что сохранено (бумага и файл — по-русски) ─── */
+  const print = (order: Order) => printPurchaseOrder({
+    number: order.number,
+    date: bizDateText(order.createdAt, "ru-RU"),
+    supplier: { name: order.supplierName, inn: order.supplierInn ?? undefined, address: order.supplierAddress ?? undefined, phone: order.supplierPhone ?? undefined },
+    buyer: seller,
+    warehouse: order.warehouseName,
+    currency: order.currency,
+    rate: order.rateToUzs ? Number(order.rateToUzs) : null,
+    expectedDate: order.expectedDate ? dayText(order.expectedDate) : null,
+    paymentTermsDays: order.paymentTermsDays,
+    items: order.items.map(i => ({ name: i.productName, code: i.productCode ?? undefined, unit: i.unit ?? undefined, qty: i.quantity, price: i.unitPrice })),
+    notes: order.notes,
+    status: order.status,
+    approvedBy: order.approvedByName,
+  });
+  const excel = (order: Order) => exportToExcel(
+    formatPurchaseOrderLinesForExport(order.items),
+    `purchase-order-${order.number}`, "Заказ поставщику",
+    `Заказ поставщику ${order.number} — ${order.supplierName}, ${order.currency}`,
+  );
 
   const byProduct = new Map((order?.items ?? []).map(i => [i.productId, i]));
   const warehouses = (warehousesQ.data ?? []).filter(w => w.status === "active" || String(w.id) === head.warehouseId);
   const defaultWarehouse = warehouses.find(w => w.isDefault);
+  const ready = order != null && !dirty;
 
   const th: React.CSSProperties = {
     fontFamily: F.display, fontSize: "10px", fontWeight: 600, textTransform: "uppercase",
@@ -188,23 +280,69 @@ function OrderScreen({ order }: { order: Order | null }) {
   const td: React.CSSProperties = { padding: "10px 12px", borderBottom: `1px solid ${COLORS.border}`, fontSize: "13px", fontFamily: F.body, color: COLORS.textPrimary };
   const num: React.CSSProperties = { ...td, textAlign: "right", whiteSpace: "nowrap" };
   const card: React.CSSProperties = { background: COLORS.surface, borderRadius: "20px", boxShadow: SHADOW, padding: "18px" };
+  const note: React.CSSProperties = { ...card, display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap", fontSize: "13px", fontFamily: F.body, color: COLORS.textSecondary };
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
       {dialog}
       <div style={{ display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
-        <button className="neo-btn" onClick={() => navigate("/arrivals?tab=orders")} style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+        <button className="neo-btn" data-testid="po-back" onClick={() => navigate("/arrivals?tab=orders")} style={{ display: "flex", alignItems: "center", gap: "6px" }}>
           <ArrowLeft size={14} /> {t("Заказы поставщикам", "Yetkazib beruvchiga buyurtmalar")}
         </button>
         <h1 style={{ fontFamily: F.display, fontSize: "22px", fontWeight: 700, color: COLORS.textPrimary, margin: 0 }}>
           {order ? order.number : t("Новый заказ поставщику", "Yetkazib beruvchiga yangi buyurtma")}
         </h1>
         {order && <PurchaseOrderStatusBadge status={order.status} />}
+        {dirty && order && <span style={{ fontSize: "12px", fontWeight: 600, color: COLORS.warningText }}>{t("есть несохранённые правки", "saqlanmagan o'zgarishlar bor")}</span>}
+        <span style={{ flex: 1 }} />
+        {order && (
+          <>
+            {/* Пока реквизиты не приехали, заказчика на листе нет — печать ждёт их, а не уходит с пустой шапкой. */}
+            <button className="neo-btn" data-testid="po-print" disabled={dirty || !seller.name} onClick={() => print(order)} title={dirty ? t("Сохраните правки — печатается сохранённый заказ", "O'zgarishlarni saqlang — saqlangan buyurtma chop etiladi") : undefined}
+              style={{ display: "flex", alignItems: "center", gap: "6px", opacity: dirty || !seller.name ? 0.5 : 1 }}>
+              <Printer size={14} /> {t("Печать", "Chop etish")}
+            </button>
+            <button className="neo-btn" data-testid="po-excel" disabled={dirty} onClick={() => void excel(order)} style={{ display: "flex", alignItems: "center", gap: "6px", opacity: dirty ? 0.5 : 1 }}>
+              <FileDown size={14} /> Excel
+            </button>
+          </>
+        )}
       </div>
+
+      {stale && (
+        <div data-testid="po-stale" style={{ ...note, borderLeft: "4px solid var(--color-warning)" }}>
+          <span style={{ flex: 1 }}>{t("Заказ изменили, пока вы правили. Поверх новой версии сохранить нельзя — отмените правки, чтобы её увидеть.", "Siz tahrirlayotganda buyurtma o'zgardi. Yangi versiya ustidan saqlab bo'lmaydi — uni ko'rish uchun o'zgarishlarni bekor qiling.")}</span>
+          <button className="neo-btn" data-testid="po-stale-reload" onClick={onDiscard} style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+            <RefreshCw size={14} /> {t("Показать новую версию", "Yangi versiyani ko'rsatish")}
+          </button>
+        </div>
+      )}
 
       {order?.rejectNote && status === "draft" && (
         <div data-testid="po-reject-note" style={{ ...card, borderLeft: "4px solid var(--color-warning)" }}>
           <b>{t("Вернули на доработку", "Qayta ishlashga qaytarildi")}:</b> {order.rejectNote}
+        </div>
+      )}
+
+      {/* Что заказ ждёт и от кого — словами, чтобы не гадать по кнопкам. */}
+      {order && status === "pending_approval" && !isCeo && (
+        <div data-testid="po-waiting-director" style={note}>
+          <Clock size={15} />
+          {t("Ждёт согласования директора", "Direktor kelishuvini kutmoqda")}
+          {order.submittedAt && <span>· {t("отправлен", "yuborilgan")} {bizDateText(order.submittedAt, "ru-RU")}</span>}
+        </div>
+      )}
+      {order && order.approvedByName && order.approvedAt && status !== "draft" && status !== "pending_approval" && (
+        <div data-testid="po-approved-by" style={note}>
+          <CheckCircle2 size={15} />
+          {t(`Согласовал: ${order.approvedByName}`, `Kelishdi: ${order.approvedByName}`)} · {bizDateText(order.approvedAt, "ru-RU")}
+        </div>
+      )}
+      {openArrival && (
+        <div data-testid="po-open-arrival" style={note}>
+          <Truck size={15} />
+          <span style={{ flex: 1 }}>{t(`По заказу заведён приход ${openArrival.arrivalNumber}: принимают там. Пока он не проведён или не удалён, заказ не правят и не отменяют.`, `Buyurtma bo'yicha ${openArrival.arrivalNumber} kirimi yaratilgan: qabul shu yerda. U yakunlanmaguncha yoki o'chirilmaguncha buyurtma o'zgartirilmaydi va bekor qilinmaydi.`)}</span>
+          <button className="neo-btn" onClick={() => navigate(`/arrivals/${openArrival.id}`)}>{t("Открыть приход", "Kirimni ochish")}</button>
         </div>
       )}
 
@@ -331,7 +469,7 @@ function OrderScreen({ order }: { order: Order | null }) {
                   {order && <td style={num}>{got && got.inTransit > 0 ? formatQty(got.inTransit) : "—"}</td>}
                   {editable && (
                     <td style={{ ...td, width: "40px" }}>
-                      <button className="neo-btn" aria-label={t("Убрать строку", "Qatorni olib tashlash")} onClick={() => { setLines(ls => ls.filter(x => x.productId !== l.productId)); setDirty(true); }}>
+                      <button className="neo-btn" aria-label={t("Убрать строку", "Qatorni olib tashlash")} onClick={() => { setLines(ls => ls.filter(x => x.productId !== l.productId)); markDirty(); }}>
                         <Trash2 size={14} />
                       </button>
                     </td>
@@ -371,35 +509,43 @@ function OrderScreen({ order }: { order: Order | null }) {
         </div>
       )}
 
-      {/* Действия */}
-      <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+      {/* Действия — по роли: директор согласует сам, оператор отправляет ему. */}
+      <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
         {editable && (
           <button className="neo-btn-primary" data-testid="po-save" disabled={!canSave} onClick={save} style={{ display: "flex", alignItems: "center", gap: "6px", opacity: canSave ? 1 : 0.5 }}>
             {(create.isPending || update.isPending) ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
             {order ? t("Сохранить", "Saqlash") : t("Сохранить черновик", "Qoralamani saqlash")}
           </button>
         )}
-        {order && canManage && status === "draft" && !dirty && (
+        {order && dirty && (
+          <button className="neo-btn" data-testid="po-discard" disabled={busy} onClick={() => void discard()}>{t("Отменить правки", "Bekor qilish")}</button>
+        )}
+        {order && dirty && (
+          <span data-testid="po-save-first" style={{ fontSize: "12px", color: COLORS.textTertiary }}>
+            {t("Сохраните правки — потом отправка, согласование и приёмка", "O'zgarishlarni saqlang — keyin yuborish, kelishish va qabul")}
+          </span>
+        )}
+        {ready && canManage && !isCeo && status === "draft" && (
           <button className="neo-btn" data-testid="po-submit" disabled={busy} onClick={() => submit.mutate({ id: order.id })} style={{ display: "flex", alignItems: "center", gap: "6px" }}>
             <Send size={14} /> {t("Отправить на согласование", "Kelishuvga yuborish")}
           </button>
         )}
-        {order && isCeo && (status === "draft" || status === "pending_approval") && !dirty && (
+        {ready && isCeo && (status === "draft" || status === "pending_approval") && (
           <button className="neo-btn-primary" data-testid="po-approve" disabled={busy} onClick={() => approve.mutate({ id: order.id })} style={{ display: "flex", alignItems: "center", gap: "6px" }}>
             <CheckCircle2 size={14} /> {t("Согласовать", "Kelishish")}
           </button>
         )}
-        {order && isCeo && (status === "pending_approval" || status === "approved") && !dirty && (
+        {ready && isCeo && !openArrival && (status === "pending_approval" || status === "approved") && (
           <button className="neo-btn" data-testid="po-reject" disabled={busy} onClick={() => { setRejectNote(""); setRejecting(true); }} style={{ display: "flex", alignItems: "center", gap: "6px" }}>
             <Undo2 size={14} /> {t("Вернуть на доработку", "Qayta ishlashga qaytarish")}
           </button>
         )}
-        {order && canManage && (status === "approved" || status === "partially_received") && !dirty && (
+        {ready && canManage && (status === "approved" || status === "partially_received") && (
           <button className="neo-btn-primary" data-testid="po-receive" disabled={busy} onClick={() => receive.mutate({ id: order.id })} style={{ display: "flex", alignItems: "center", gap: "6px" }}>
             {receive.isPending ? <Loader2 size={14} className="animate-spin" /> : <Truck size={14} />} {t("Принять товар", "Mahsulotni qabul qilish")}
           </button>
         )}
-        {order && canManage && (EDITABLE.has(status) || status === "partially_received") && !dirty && (
+        {ready && canManage && !openArrival && (EDITABLE.has(status) || status === "partially_received") && (
           <button className="neo-btn" data-testid="po-cancel" disabled={busy} onClick={closeOrCancel} style={{ display: "flex", alignItems: "center", gap: "6px", color: COLORS.dangerText }}>
             <XCircle size={14} /> {status === "partially_received" ? t("Закрыть с недовозом", "Kam kelgan holda yopish") : t("Отменить заказ", "Buyurtmani bekor qilish")}
           </button>

@@ -1,7 +1,10 @@
 import { useState } from "react";
 import { useNavigate } from "react-router";
-import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, FileDown } from "lucide-react";
 import { trpc } from "@/providers/trpc";
+import { exportToExcel, formatPurchaseOrdersForExport } from "@/lib/excel";
+import { notify } from "@/lib/toast";
+import { errorText } from "@/lib/error-text";
 import { useLang } from "@/i18n";
 import { useCan } from "@/hooks/useCan";
 import { useScrollTopOnChange } from "@/hooks/useScrollTopOnChange";
@@ -27,12 +30,34 @@ export function PurchaseOrdersSection() {
   const t = (ru: string, uz: string) => (lang === "uz" ? uz : ru);
   const navigate = useNavigate();
   const [status, setStatus] = useState<PurchaseOrderStatus | "">("");
+  const [supplierId, setSupplierId] = useState("");
   const [page, setPage] = useState(1);
   useScrollTopOnChange(page);
   // Заводит заказ тот, кто ведёт поставщиков; смотреть список может и без этого права.
   const can = useCan();
+  const utils = trpc.useUtils();
 
-  const listQ = trpc.purchaseOrder.list.useQuery({ status: status || undefined, page, pageSize: PAGE_SIZE });
+  const filter = { status: status || undefined, supplierId: supplierId ? Number(supplierId) : undefined };
+  const listQ = trpc.purchaseOrder.list.useQuery({ ...filter, page, pageSize: PAGE_SIZE });
+  const suppliersQ = trpc.supplier.list.useQuery({ includeInactive: true });
+
+  /*
+    Выгрузка — по нажатию и под тем же фильтром, что на экране, а не
+    страница в 25 строк: файл открывают, чтобы увидеть всё.
+  */
+  const [exporting, setExporting] = useState(false);
+  const exportAll = async () => {
+    setExporting(true);
+    try {
+      const all = await utils.purchaseOrder.list.fetch({ ...filter, page: 1, pageSize: 5000 });
+      await exportToExcel(formatPurchaseOrdersForExport(all.data), "purchase-orders", "Заказы поставщикам", "Заказы поставщикам");
+    } catch (e) {
+      notify.error(errorText(e));
+    } finally {
+      setExporting(false);
+    }
+  };
+
   if (listQ.isLoadingError) return <QueryErrorFallback onRetry={listQ.refetch} />;
 
   const rows = listQ.data?.data ?? [];
@@ -86,7 +111,21 @@ export function PurchaseOrdersSection() {
           ]}
           width="240px"
         />
+        <PremiumSelect
+          aria-label={t("Поставщик", "Yetkazib beruvchi")}
+          value={supplierId}
+          onChange={v => { setSupplierId(v); setPage(1); }}
+          options={[
+            { value: "", label: t("Все поставщики", "Barcha yetkazib beruvchilar") },
+            ...(suppliersQ.data ?? []).map(s => ({ value: String(s.id), label: s.name })),
+          ]}
+          width="240px"
+        />
         <span style={{ flex: 1 }} />
+        <button onClick={() => void exportAll()} disabled={exporting} className="neo-btn" data-testid="purchase-orders-excel"
+          style={{ display: "flex", alignItems: "center", gap: "6px", padding: "8px 14px" }}>
+          <FileDown size={14} /> Excel
+        </button>
         {can("suppliers.manage") && (
           <button onClick={() => navigate("/purchase-orders/new")} className="neo-btn-primary" data-testid="purchase-orders-new"
             style={{ display: "flex", alignItems: "center", gap: "6px", padding: "8px 16px" }}>

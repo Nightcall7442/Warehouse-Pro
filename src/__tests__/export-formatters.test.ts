@@ -12,6 +12,8 @@ import {
   formatReorderForExport,
   formatUsersForExport,
   formatPnLForExport,
+  formatPurchaseOrdersForExport,
+  formatPurchaseOrderLinesForExport,
 } from "@/lib/excel";
 
 /**
@@ -179,6 +181,37 @@ describe("приходы и заказы поставщикам в отчёте"
     expect(bare["Заказ поставщику"]).toBe("");
   });
 
+  it("заказы: состояние словом, дни бумагой, деньги не складываются через валюты", () => {
+    const [row] = formatPurchaseOrdersForExport([{
+      number: "PO-1", createdAt: new Date("2026-10-20T20:30:00Z"), supplierName: "Завод", warehouseName: "Основной",
+      status: "partially_received", expectedDate: "2026-10-25", currency: "USD", total: "250.5", remaining: 100,
+      paymentTermsDays: 0, expectedPaymentDate: "2026-11-04", source: "reorder",
+    }]);
+    expect(row["Статус"]).toBe("Принят частично");
+    // 20:30 UTC — уже 21 октября в Ташкенте.
+    expect(row["Дата"]).toBe("21.10.2026");
+    expect(row["Ждём к"]).toBe("25.10.2026");
+    expect(row["Оплата ожидается"]).toBe("04.11.2026");
+    expect(row["Сумма заказа"]).toBe(250.5);
+    // Ноль дней — оплата сразу, а не «не указано».
+    expect(row["Отсрочка, дней"]).toBe(0);
+    expect(row["Откуда"]).toBe("Из дозаказа");
+    // Сумы с долларами в «ИТОГО» не сложить: имена денежных колонок не из суммируемых.
+    expect(Object.keys(row)).not.toContain("Сумма");
+    const [manual] = formatPurchaseOrdersForExport([{ number: "PO-2", status: "draft", paymentTermsDays: null }]);
+    expect(manual["Отсрочка, дней"]).toBe("");
+    expect(manual["Ждём к"]).toBe("");
+    expect(manual["Откуда"]).toBe("Вручную");
+    expect(Object.values(manual).join(" ")).not.toMatch(/undefined|NaN/);
+  });
+
+  it("строки заказа: сумма строки — количество на цену, без копеечного хвоста", () => {
+    const [line] = formatPurchaseOrderLinesForExport([{ productName: "Мука", productCode: "M-1", unit: "kg", quantity: "3", unitPrice: "0.1", receivedQty: 1, remaining: 2 }]);
+    expect(line["Сумма"]).toBe(0.3);
+    expect(line["Заказано"]).toBe(3);
+    expect(line["Принято"]).toBe(1);
+    expect(line["Осталось"]).toBe(2);
+  });
 });
 
 describe("магазины и оценка склада", () => {

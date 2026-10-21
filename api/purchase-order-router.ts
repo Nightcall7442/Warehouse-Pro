@@ -79,7 +79,8 @@ export const purchaseOrderRouter = createRouter({
       status:     z.enum(PO_STATUSES).optional(),
       supplierId: z.number().int().positive().optional(),
       page:       z.number().int().min(1).default(1),
-      pageSize:   z.number().int().min(1).max(200).default(25),
+      // Экран листает по 25; выгрузка в Excel берёт всё разом — как у приходов.
+      pageSize:   z.number().int().min(1).max(5000).default(25),
     }).optional())
     .query(async ({ input, ctx }) => {
       const db = ctx.db;
@@ -161,6 +162,8 @@ export const purchaseOrderRouter = createRouter({
       const [po] = await db.select({
         id: purchaseOrders.id, number: purchaseOrders.number, status: purchaseOrders.status,
         supplierId: purchaseOrders.supplierId, supplierName: suppliers.name, supplierPhone: suppliers.phone,
+        // Реквизиты поставщика — для печатного заказа.
+        supplierInn: suppliers.inn, supplierAddress: suppliers.address,
         warehouseId: purchaseOrders.warehouseId, warehouseName: warehouses.name,
         currency: purchaseOrders.currency, rateToUzs: purchaseOrders.rateToUzs,
         paymentTermsDays: purchaseOrders.paymentTermsDays, expectedDate: purchaseOrders.expectedDate,

@@ -613,6 +613,130 @@ export function printArrivalReceipt(data: ArrivalDocData) {
   openPrintWindow(html, `Приходная накладная № ${escapeHtml(data.number)}`);
 }
 
+// ── 2а. ЗАКАЗ ПОСТАВЩИКУ ──────────────────────────────────────────────────────
+export type PurchaseOrderDocData = {
+  number:    string;
+  /** «ДД.ММ.ГГГГ» — день, когда заказ заведён. */
+  date:      string;
+  supplier:  CompanyInfo;
+  buyer:     CompanyInfo;
+  warehouse: string;
+  /** Валюта заказа: UZS или USD. */
+  currency:  string;
+  /** Курс заказа, сумов за доллар; только у долларового. */
+  rate?:     number | null;
+  /** «ДД.ММ.ГГГГ»; пусто — срок не назван. */
+  expectedDate?: string | null;
+  /** Отсрочка оплаты в днях; null — оплата по факту. */
+  paymentTermsDays?: number | null;
+  items:     Array<{ name: string; code?: string; unit?: string; qty: number; price: number }>;
+  notes?:    string | null;
+  status:    string;
+  approvedBy?: string | null;
+};
+
+/**
+ * Заказ поставщику на бумаге — то, что отправляют заводу: что, сколько,
+ * почём, куда и когда привезти, на каких условиях оплаты.
+ *
+ * Это не долг и не накладная: по нему ничего не принято. Поэтому ни граф
+ * «принято», ни подписи кладовщика — только «заказал» и «согласовал», а
+ * пока директор не согласовал, на листе так и написано.
+ */
+export function printPurchaseOrder(data: PurchaseOrderDocData) {
+  const total = Math.round(data.items.reduce((s, i) => s + i.qty * i.price, 0) * 100) / 100;
+  const money = (n: number) => n.toLocaleString("ru-RU", { maximumFractionDigits: 2 });
+  const itemRows = data.items.map((item, i) => `
+    <tr>
+      <td class="center">${i + 1}</td>
+      <td>${escapeHtml(item.name)}${item.code ? ` (${escapeHtml(item.code)})` : ""}</td>
+      <td class="center">${unitLabel(item.unit)}</td>
+      <td class="right bold">${cleanNum(item.qty)}</td>
+      <td class="right">${item.price > 0 ? money(item.price) : ""}</td>
+      <td class="right">${item.price > 0 ? money(Math.round(item.qty * item.price * 100) / 100) : ""}</td>
+    </tr>`).join("");
+  const terms = data.paymentTermsDays == null ? "по факту поставки" : `отсрочка ${data.paymentTermsDays} дн. с даты поставки`;
+  const approved = data.status !== "draft" && data.status !== "pending_approval";
+
+  const html = `
+    <table class="no-border" style="margin-bottom:8px">
+      <tr>
+        <td style="width:50%">
+          <div class="meta">
+            <div class="meta-row"><span class="meta-label">Поставщик:</span><span class="meta-value bold">${escapeHtml(data.supplier.name)}</span></div>
+            ${metaRow("ИНН / СТИР:", data.supplier.inn)}
+            ${metaRow("Адрес:", data.supplier.address)}
+            ${metaRow("Телефон:", data.supplier.phone)}
+          </div>
+        </td>
+        <td style="width:50%">
+          <div class="meta">
+            <div class="meta-row"><span class="meta-label">Заказчик:</span><span class="meta-value bold">${escapeHtml(data.buyer.name)}</span></div>
+            ${metaRow("ИНН / СТИР:", data.buyer.inn)}
+            ${metaRow("Адрес:", data.buyer.address)}
+            ${metaRow("Телефон:", data.buyer.phone)}
+          </div>
+        </td>
+      </tr>
+    </table>
+
+    <div class="title">ЗАКАЗ ПОСТАВЩИКУ</div>
+    <div class="subtitle">№ ${escapeHtml(data.number)} от ${escapeHtml(data.date)}</div>
+
+    <div class="meta">
+      ${metaRow("Склад доставки:", data.warehouse)}
+      ${metaRow("Привезти к:", data.expectedDate ?? "")}
+      ${metaRow("Оплата:", terms)}
+      ${metaRow("Валюта:", data.currency === "USD" && data.rate ? `USD, курс ${money(data.rate)} сум за $1` : data.currency)}
+    </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th style="width:4%">№</th>
+          <th>Наименование товара</th>
+          <th style="width:7%">Ед.изм.</th>
+          <th style="width:11%">Количество</th>
+          <th style="width:13%">Цена</th>
+          <th style="width:14%">Сумма</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${itemRows}
+        <tr>
+          <td colspan="5" class="right bold">ИТОГО:</td>
+          <td class="right bold">${money(total)} ${escapeHtml(data.currency)}</td>
+        </tr>
+      </tbody>
+    </table>
+
+    ${data.notes ? `<p style="margin-top:8px;font-size:10pt"><b>Примечание:</b> ${escapeHtml(data.notes)}</p>` : ""}
+    ${approved ? "" : `<p style="margin-top:8px;font-size:10pt"><b>Заказ ещё не согласован директором.</b></p>`}
+
+    <div class="signature-block">
+      <div class="sig-row">
+        <div class="sig-col">
+          <div class="sig-label">Заказал</div>
+          <div class="sig-line"></div>
+          <div class="sig-label">___________________________</div>
+        </div>
+        <div class="sig-col">
+          <div class="sig-label">Согласовал (Директор)</div>
+          <div class="sig-line"></div>
+          <div class="sig-label">${escapeHtml(data.approvedBy ?? data.buyer.director ?? "___________________________")}</div>
+        </div>
+        <div class="sig-col">
+          <div class="sig-label">Принял к исполнению (Поставщик)</div>
+          <div class="sig-line"></div>
+          <div class="sig-label">"____" ____________ 20___ г.</div>
+        </div>
+      </div>
+    </div>
+  `;
+
+  openPrintWindow(html, `Заказ поставщику № ${escapeHtml(data.number)}`);
+}
+
 // ── 3. ТОРГ-12 (Russian standard) ────────────────────────────────────────────
 export function printTorg12(data: OrderDocData) {
   /*

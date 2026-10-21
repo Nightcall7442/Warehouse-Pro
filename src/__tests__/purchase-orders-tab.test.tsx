@@ -9,37 +9,43 @@ import { LangProvider } from "@/i18n";
  *
  * «Ожидаемые платежи» — прогноз по неполученному остатку открытых заказов,
  * по валютам; сумы с долларами не складываются (как долг в «Контрагентах»).
- * Строка открывает заказ.
+ * Строка открывает заказ. Фильтр по поставщику; Excel — все заказы под
+ * тем же фильтром, а не страница.
  */
 
 Element.prototype.scrollIntoView = () => {};
 afterEach(cleanup);
 
 const listArgs = vi.hoisted(() => vi.fn());
-const trpcStub = vi.hoisted(() => ({
-  purchaseOrder: {
-    list: {
-      useQuery: (input: unknown) => {
-        listArgs(input);
-        return {
-          data: {
-            data: [{
-              id: 9, number: "PO-9", status: "pending_approval", supplierId: 5, supplierName: "Завод",
-              warehouseId: 1, warehouseName: "Основной", currency: "USD", expectedDate: "2026-10-25",
-              paymentTermsDays: 10, source: "manual", createdAt: new Date(), updatedAt: new Date(),
-              total: 250, remaining: 250, lines: 1, openArrivals: 0, expectedPaymentDate: "2026-11-04",
-            }],
-            total: 1, page: 1, pageSize: 25,
-            summary: { pendingApproval: 1, open: 2, plannedUzs: 1800, plannedUsd: 250 },
-          },
-          isLoading: false, isLoadingError: false, refetch: vi.fn(),
-        };
+const fetchArgs = vi.hoisted(() => vi.fn());
+const exported = vi.hoisted(() => vi.fn());
+const trpcStub = vi.hoisted(() => {
+  const page = () => ({
+    data: [{
+      id: 9, number: "PO-9", status: "pending_approval", supplierId: 5, supplierName: "Завод",
+      warehouseId: 1, warehouseName: "Основной", currency: "USD", expectedDate: "2026-10-25",
+      paymentTermsDays: 10, source: "manual", createdAt: new Date("2026-10-20T10:00:00Z"), updatedAt: new Date(),
+      total: 250, remaining: 250, lines: 1, openArrivals: 0, expectedPaymentDate: "2026-11-04",
+    }],
+    total: 1, page: 1, pageSize: 25,
+    summary: { pendingApproval: 1, open: 2, plannedUzs: 1800, plannedUsd: 250 },
+  });
+  return {
+    purchaseOrder: {
+      list: {
+        useQuery: (input: unknown) => {
+          listArgs(input);
+          return { data: page(), isLoading: false, isLoadingError: false, refetch: vi.fn() };
+        },
       },
     },
-  },
-  auth: { me: { useQuery: () => ({ data: { id: 1, role: "operator" }, isLoading: false }) } },
-}));
+    supplier: { list: { useQuery: () => ({ data: [{ id: 5, name: "Завод" }, { id: 6, name: "Мельница" }], isLoading: false }) } },
+    auth: { me: { useQuery: () => ({ data: { id: 1, role: "operator" }, isLoading: false }) } },
+    useUtils: () => ({ purchaseOrder: { list: { fetch: async (input: unknown) => { fetchArgs(input); return page(); } } } }),
+  };
+});
 vi.mock("@/providers/trpc", () => ({ trpc: trpcStub }));
+vi.mock("@/lib/excel", async orig => ({ ...(await orig<typeof import("@/lib/excel")>()), exportToExcel: exported }));
 
 const { PurchaseOrdersSection } = await import("@/components/purchase-orders/PurchaseOrdersSection");
 
@@ -85,5 +91,30 @@ describe("вкладка заказов поставщикам", () => {
     );
     act(() => { fireEvent.click(screen.getByTestId("purchase-orders-new")); });
     expect(screen.getByTestId("where").textContent).toBe("/purchase-orders/new");
+  });
+
+  it("фильтр по поставщику уходит в список, Excel — все заказы под тем же фильтром", async () => {
+    render(
+      <LangProvider>
+        <MemoryRouter initialEntries={["/arrivals"]}>
+          <Routes>
+            <Route path="/arrivals" element={<PurchaseOrdersSection />} />
+          </Routes>
+        </MemoryRouter>
+      </LangProvider>,
+    );
+    act(() => { fireEvent.click(screen.getByRole("combobox", { name: "Поставщик" })); });
+    act(() => { fireEvent.click(screen.getByRole("option", { name: "Завод" })); });
+    expect(listArgs).toHaveBeenLastCalledWith({ status: undefined, supplierId: 5, page: 1, pageSize: 25 });
+
+    await act(async () => { fireEvent.click(screen.getByTestId("purchase-orders-excel")); });
+    expect(fetchArgs).toHaveBeenCalledWith({ status: undefined, supplierId: 5, page: 1, pageSize: 5000 });
+    expect(exported).toHaveBeenCalledTimes(1);
+    const [rows, file] = exported.mock.calls[0] as [Array<Record<string, unknown>>, string];
+    expect(file).toBe("purchase-orders");
+    expect(rows).toEqual([expect.objectContaining({
+      "Заказ №": "PO-9", "Поставщик": "Завод", "Статус": "На согласовании", "Валюта": "USD",
+      "Сумма заказа": 250, "Не получено": 250,
+    })]);
   });
 });

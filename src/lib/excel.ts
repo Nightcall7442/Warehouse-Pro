@@ -14,7 +14,7 @@ import { VAT_RATE_LABEL, type VatRate } from "@contracts/tax-requisites";
 import { cssVar } from "@/lib/css-var";
 import {
   labelled, ACTIVE_STATUS_LABEL, ARRIVAL_STATUS_LABEL,
-  ORDER_STATUS_LABEL, ROLE_LABEL, STOCK_LEVEL_LABEL,
+  ORDER_STATUS_LABEL, PURCHASE_ORDER_STATUS_LABEL, ROLE_LABEL, STOCK_LEVEL_LABEL,
 } from "@/lib/entity-labels";
 import { errorText } from "@/lib/error-text";
 
@@ -550,6 +550,50 @@ export function formatReorderForExport(items: Record<string, unknown>[]) {
     "Дней до конца": Number(s.daysUntilStockout ?? 0),
     "Заказать":      Number(s.suggestedQty ?? 0),
     "Стоимость":     Number(s.suggestedCost ?? 0),
+  }));
+}
+
+/** «2026-10-21» → «21.10.2026»: день заказа поставщику — строка, через Date его не гоняем. */
+const paperDayOfString = (v: unknown) => (typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v.split("-").reverse().join(".") : "");
+
+/**
+ * Список заказов поставщикам (purchaseOrder.list).
+ *
+ * Деньги — «Сумма заказа» и «Не получено», а не «Сумма»: в списке рядом
+ * заказы в сумах и в долларах, и строка «ИТОГО» сложила бы их в одно число.
+ * Валюта — отдельной колонкой; по ней фильтруют и складывают сами.
+ */
+export function formatPurchaseOrdersForExport(orders: Record<string, unknown>[]) {
+  return orders.map(o => ({
+    "Заказ №":          String(o.number ?? ""),
+    "Дата":             paperDay(o.createdAt) ?? "",
+    "Поставщик":        String(o.supplierName ?? ""),
+    "Склад":            String(o.warehouseName ?? ""),
+    "Статус":           labelled(PURCHASE_ORDER_STATUS_LABEL, o.status),
+    "Ждём к":           paperDayOfString(o.expectedDate),
+    "Валюта":           String(o.currency ?? ""),
+    "Сумма заказа":     Number(o.total ?? 0),
+    "Не получено":      Number(o.remaining ?? 0),
+    "Отсрочка, дней":   o.paymentTermsDays == null ? "" : Number(o.paymentTermsDays),
+    "Оплата ожидается": paperDayOfString(o.expectedPaymentDate),
+    "Откуда":           o.source === "reorder" ? "Из дозаказа" : "Вручную",
+  }));
+}
+
+/**
+ * Строки одного заказа поставщику. Валюта у заказа одна — «Сумма»
+ * складывается в «ИТОГО»; количества — нет: у товаров разные единицы.
+ */
+export function formatPurchaseOrderLinesForExport(items: Record<string, unknown>[]) {
+  return items.map(i => ({
+    "Товар":     String(i.productName ?? ""),
+    "Код":       String(i.productCode ?? ""),
+    "Единица":   unitShort(i.unit as string | null | undefined),
+    "Заказано":  Number(i.quantity ?? 0),
+    "Цена":      Number(i.unitPrice ?? 0),
+    "Сумма":     Math.round(Number(i.quantity ?? 0) * Number(i.unitPrice ?? 0) * 100) / 100,
+    "Принято":   Number(i.receivedQty ?? 0),
+    "Осталось":  Number(i.remaining ?? 0),
   }));
 }
 
