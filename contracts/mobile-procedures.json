@@ -355,6 +355,11 @@
     "kind": "mutation"
   },
   {
+    "fn": "getTrackingLink",
+    "path": "order.trackingLink",
+    "kind": "query"
+  },
+  {
     "fn": "updateOrder",
     "path": "order.update",
     "kind": "mutation"
