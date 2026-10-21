@@ -10,6 +10,7 @@ import { isDuplicateOf } from "../lib/db-errors";
 import { dateColumnDay } from "../lib/period";
 import type { Db } from "./order-shared";
 import { recordAudit } from "./audit-log";
+import { applyReceiptTx, linkedArrivalItemsTx, lockReceivingOrderTx } from "./purchase-order-receipt";
 
 /*
   Приход товара: создать, провести (оприходовать на склад через дверь
@@ -52,6 +53,15 @@ export interface CreateArrivalInput {
   notes?: string;
   items?: ArrivalItemInput[];
   supplier?: ArrivalSupplierInput;
+  /**
+   * Приход по заказу поставщику — его заводит только приёмка заказа
+   * (services/purchase-order.ts), в zod прихода этих полей нет. Долг по такому
+   * приходу рождается при проведении (ADR 0013), поэтому блок supplier с ним
+   * несовместим.
+   */
+  purchaseOrderId?: number;
+  /** Склад, на который приход ляжет при проведении; пусто — основной. */
+  warehouseId?: number;
 }
 
 export interface UpdateArrivalInput {
@@ -78,6 +88,23 @@ export interface UpdateArrivalInput {
  * а разницу с накладной не посчитать.
  */
 async function assertItems(db: Db | Tx, tenantId: number, arrivalDate: string, items: ArrivalItemInput[]): Promise<void> {
+  assertItemShape(arrivalDate, items);
+  if (items.length === 0) return;
+  const existing = await db.select({ id: products.id }).from(products)
+    .where(and(
+      sql`${products.id} IN (${sql.join(items.map(i => sql`${i.productId}`), sql`, `)})`,
+      eq(products.tenantId, tenantId),
+    ));
+  const existingIds = new Set(existing.map(p => p.id));
+  for (const item of items) {
+    if (!existingIds.has(item.productId)) {
+      throw new Error(`Товар #${item.productId} не найден в вашей организации`);
+    }
+  }
+}
+
+/** Часть проверки, которой не нужна база: её можно сделать до транзакции. */
+function assertItemShape(arrivalDate: string, items: ArrivalItemInput[]): void {
   const seen = new Set<number>();
   for (const item of items) {
     if (item.expiresAt && item.expiresAt < arrivalDate) {
@@ -90,18 +117,6 @@ async function assertItems(db: Db | Tx, tenantId: number, arrivalDate: string, i
       throw new TRPCError({ code: "BAD_REQUEST", message: `Товар #${item.productId} встречается в приходе дважды — объедините строки` });
     }
     seen.add(item.productId);
-  }
-  if (items.length === 0) return;
-  const existing = await db.select({ id: products.id }).from(products)
-    .where(and(
-      sql`${products.id} IN (${sql.join(items.map(i => sql`${i.productId}`), sql`, `)})`,
-      eq(products.tenantId, tenantId),
-    ));
-  const existingIds = new Set(existing.map(p => p.id));
-  for (const item of items) {
-    if (!existingIds.has(item.productId)) {
-      throw new Error(`Товар #${item.productId} не найден в вашей организации`);
-    }
   }
 }
 
@@ -126,8 +141,26 @@ async function insertItems(tx: Tx, arrivalId: number, items: ArrivalItemInput[])
   }
 }
 
-export async function createArrival(db: Db, tenantId: number, userId: number, input: CreateArrivalInput) {
-  await assertItems(db, tenantId, input.arrivalDate, input.items ?? []);
+/**
+ * Завести приход внутри чужой транзакции.
+ *
+ * Отдельно от createArrival ради приёмки заказа поставщику: остаток к
+ * приёму там считается под замком заказа, и приход обязан появиться в той же
+ * транзакции. Своя транзакция createArrival отпускала бы замок раньше, и два
+ * одновременных «Принять» оба заполняли бы один и тот же остаток.
+ */
+export async function insertArrivalTx(tx: Tx, tenantId: number, userId: number, input: CreateArrivalInput): Promise<{ id: number; arrivalNumber: string }> {
+  // Отказ здесь, а не только в zod: функцию зовёт не один роутер, а
+  // второй долг за тот же товар — ровно то, от чего бережёт ADR 0013.
+  if (input.purchaseOrderId && input.supplier) {
+    throw new TRPCError({ code: "BAD_REQUEST", message: "Приход по заказу поставщику заводит долг сам при проведении — сумму поставщику здесь не указывают" });
+  }
+  await assertItems(tx, tenantId, input.arrivalDate, input.items ?? []);
+  if (input.warehouseId) {
+    const [own] = await tx.select({ id: warehouses.id }).from(warehouses)
+      .where(and(eq(warehouses.id, input.warehouseId), eq(warehouses.tenantId, tenantId))).limit(1);
+    if (!own) throw new Error("Указанный склад не найден");
+  }
   const raw = crypto.randomUUID().replace(/-/g, "");
   const arrivalNumber = `ARR-${raw.slice(0, 12).toUpperCase()}`;
   const totalExpense  = (Number(input.fuelCost) + Number(input.tollCost) + Number(input.otherCost)).toFixed(2);
@@ -140,75 +173,81 @@ export async function createArrival(db: Db, tenantId: number, userId: number, in
       throw new Error("Для поставки в долларах укажите курс на день сделки");
     }
     if (input.supplier.supplierId) {
-      const [own] = await db.select({ id: suppliers.id }).from(suppliers)
+      const [own] = await tx.select({ id: suppliers.id }).from(suppliers)
         .where(and(eq(suppliers.id, input.supplier.supplierId), eq(suppliers.tenantId, tenantId)))
         .limit(1);
       if (!own) throw new Error("Поставщик не найден");
     }
   }
 
-  const created = await db.transaction(async (tx) => {
-    const [result] = await tx.insert(arrivals).values({
-      tenantId, arrivalNumber,
-      truckId:     input.truckId ? sanitizeString(input.truckId) : undefined,
-      driverName:  input.driverName ? sanitizeString(input.driverName) : undefined,
-      driverPhone: input.driverPhone,
-      arrivalDate: new Date(input.arrivalDate),
-      fuelCost:    input.fuelCost,
-      tollCost:    input.tollCost,
-      otherCost:   input.otherCost,
-      totalExpense,
-      notes:       input.notes ? sanitizeString(input.notes) : undefined,
-      status:      "pending",
-    });
+  const [result] = await tx.insert(arrivals).values({
+    tenantId, arrivalNumber,
+    truckId:     input.truckId ? sanitizeString(input.truckId) : undefined,
+    driverName:  input.driverName ? sanitizeString(input.driverName) : undefined,
+    driverPhone: input.driverPhone,
+    arrivalDate: new Date(input.arrivalDate),
+    fuelCost:    input.fuelCost,
+    tollCost:    input.tollCost,
+    otherCost:   input.otherCost,
+    totalExpense,
+    notes:       input.notes ? sanitizeString(input.notes) : undefined,
+    status:      "pending",
+    purchaseOrderId: input.purchaseOrderId ?? null,
+    warehouseId:     input.warehouseId ?? null,
+  });
 
-    const arrivalId = Number(result.insertId);
+  const arrivalId = Number(result.insertId);
 
-    if (input.supplier) {
-      let supplierId = input.supplier.supplierId;
-      if (!supplierId) {
-        // Тот же уникальный индекс (имя, организация), что и у
-        // supplier.create — тут он не мешает, а подстраховывает: до
-        // этого момента дважды кликнуть «Сохранить» на форме прихода с
-        // новым поставщиком означало бы завести его дважды.
-        try {
-          const [newSupplier] = await tx.insert(suppliers).values({
-            tenantId,
-            name: sanitizeString(input.supplier.newSupplierName!),
-          });
-          supplierId = Number(newSupplier.insertId);
-        } catch (e) {
-          // Через isDuplicateOf: drizzle прячет ошибку драйвера в cause,
-          // и проверка по тексту e.message не срабатывала никогда.
-          if (isDuplicateOf(e, "uq_supplier_name_tenant")) {
-            throw new Error("Поставщик с таким названием уже заведён — выберите его из списка");
-          }
-          throw e;
+  if (input.supplier) {
+    let supplierId = input.supplier.supplierId;
+    if (!supplierId) {
+      // Тот же уникальный индекс (имя, организация), что и у
+      // supplier.create — тут он не мешает, а подстраховывает: до
+      // этого момента дважды кликнуть «Сохранить» на форме прихода с
+      // новым поставщиком означало бы завести его дважды.
+      try {
+        const [newSupplier] = await tx.insert(suppliers).values({
+          tenantId,
+          name: sanitizeString(input.supplier.newSupplierName!),
+        });
+        supplierId = Number(newSupplier.insertId);
+      } catch (e) {
+        // Через isDuplicateOf: drizzle прячет ошибку драйвера в cause,
+        // и проверка по тексту e.message не срабатывала никогда.
+        if (isDuplicateOf(e, "uq_supplier_name_tenant")) {
+          throw new Error("Поставщик с таким названием уже заведён — выберите его из списка");
         }
+        throw e;
       }
-
-      // Номер поставки — тот же случайный хвост, что у номера прихода,
-      // под своим префиксом: они физически один документ, оформленный
-      // одной формой, и совместный номер это подчёркивает, а не просто
-      // экономит вызов crypto.randomUUID().
-      await tx.insert(supplies).values({
-        tenantId,
-        supplierId,
-        arrivalId,
-        supplyNumber: `SUP-${raw.slice(0, 12).toUpperCase()}`,
-        amount:       input.supplier.amount,
-        currency:     input.supplier.currency,
-        rateToUzs:    input.supplier.currency === "USD" ? input.supplier.rateToUzs : undefined,
-        supplyDate:   new Date(input.arrivalDate),
-        dueDate:      input.supplier.dueDate ? new Date(input.supplier.dueDate) : undefined,
-        createdBy:    userId,
-      });
     }
 
-    await insertItems(tx, arrivalId, input.items ?? []);
+    // Номер поставки — тот же случайный хвост, что у номера прихода,
+    // под своим префиксом: они физически один документ, оформленный
+    // одной формой, и совместный номер это подчёркивает, а не просто
+    // экономит вызов crypto.randomUUID().
+    await tx.insert(supplies).values({
+      tenantId,
+      supplierId,
+      arrivalId,
+      supplyNumber: `SUP-${raw.slice(0, 12).toUpperCase()}`,
+      amount:       input.supplier.amount,
+      currency:     input.supplier.currency,
+      rateToUzs:    input.supplier.currency === "USD" ? input.supplier.rateToUzs : undefined,
+      supplyDate:   new Date(input.arrivalDate),
+      dueDate:      input.supplier.dueDate ? new Date(input.supplier.dueDate) : undefined,
+      createdBy:    userId,
+    });
+  }
 
-    return { id: arrivalId, arrivalNumber };
-  });
+  await insertItems(tx, arrivalId, input.items ?? []);
+
+  return { id: arrivalId, arrivalNumber };
+}
+
+export async function createArrival(db: Db, tenantId: number, userId: number, input: CreateArrivalInput) {
+  // Опечатку в строках видно без базы — отказ до того, как открыта транзакция.
+  assertItemShape(input.arrivalDate, input.items ?? []);
+  const created = await db.transaction(tx => insertArrivalTx(tx, tenantId, userId, input));
   // «Расходы прихода» считают по дате создания без статуса — сброс уже на создании.
   await invalidateReports(tenantId, "arrival");
   return created;
@@ -231,7 +270,7 @@ export async function createArrival(db: Db, tenantId: number, userId: number, in
 export async function setArrivalItems(db: Db, tenantId: number, arrivalId: number, items: ArrivalItemInput[], seenUpdatedAt?: Date) {
   const own = and(eq(arrivals.id, arrivalId), eq(arrivals.tenantId, tenantId));
   const version = await db.transaction(async (tx) => {
-    const [locked] = await tx.select({ status: arrivals.status, arrivalDate: arrivals.arrivalDate, updatedAt: arrivals.updatedAt })
+    const [locked] = await tx.select({ status: arrivals.status, arrivalDate: arrivals.arrivalDate, updatedAt: arrivals.updatedAt, purchaseOrderId: arrivals.purchaseOrderId })
       .from(arrivals).where(own).for("update").limit(1);
     if (!locked) throw new TRPCError({ code: "NOT_FOUND", message: "Приход не найден" });
     if (locked.status === "completed") {
@@ -241,8 +280,11 @@ export async function setArrivalItems(db: Db, tenantId: number, arrivalId: numbe
       throw new TRPCError({ code: "CONFLICT", message: "Документ изменили, пока вы правили — обновите страницу" });
     }
     await assertItems(tx, tenantId, dateColumnDay(locked.arrivalDate), items);
+    // Приход по заказу: только заказанный товар, а у заказа в чужой валюте
+    // себестоимость — от цены заказа (services/purchase-order-receipt.ts).
+    const rows = locked.purchaseOrderId ? await linkedArrivalItemsTx(tx, tenantId, locked.purchaseOrderId, items) : items;
     await tx.delete(arrivalItems).where(eq(arrivalItems.arrivalId, arrivalId));
-    await insertItems(tx, arrivalId, items);
+    await insertItems(tx, arrivalId, rows);
     // Строки — в своей таблице, версию документа двигаем сами. Хотя бы на
     // секунду: колонка хранит секунды, и две правки в одну секунду дали бы ту же версию.
     const next = new Date(Math.max(Date.now(), locked.updatedAt.getTime() + 1000));
@@ -261,39 +303,28 @@ export async function updateArrival(db: Db, tenantId: number, input: UpdateArriv
   const targetWarehouseId = data.warehouseId;
   delete data.warehouseId;
 
-  // Prevent duplicate completion
-  if (data.status === "completed") {
-    const [current] = await db.select({ status: arrivals.status })
-      .from(arrivals).where(and(eq(arrivals.id, id), eq(arrivals.tenantId, tenantId))).limit(1);
-    if (current?.status === "completed") {
-      throw new Error("Приход уже завершён");
-    }
-  }
-
   // When completing an arrival, update warehouse stock in a transaction
   if (data.status === "completed") {
-    // Get arrival number for stock movement notes
-    const [arrivalRow] = await db.select({ arrivalNumber: arrivals.arrivalNumber })
-      .from(arrivals).where(and(eq(arrivals.id, id), eq(arrivals.tenantId, tenantId))).limit(1);
-    const arrivalNumber = arrivalRow?.arrivalNumber ?? `#${id}`;
-
     await db.transaction(async (tx) => {
-      // Lock and re-check the arrival's status inside the transaction —
-      // the "prevent duplicate completion" check above ran on an
-      // unlocked read outside any transaction, so two concurrent
-      // `update({status:"completed"})` calls for the same arrival (a
-      // double-click, or a retried request) both pass it before either
-      // commits, and each then credits warehouse_stock for the same
+      // Lock and re-check the arrival's status inside the transaction:
+      // two concurrent `update({status:"completed"})` calls for the same
+      // arrival (a double-click, or a retried request) would otherwise both
+      // see it pending, and each would credit warehouse_stock for the same
       // physical shipment. This lock makes the second one queue behind
-      // the first and see it already completed.
-      // Расходы читаются здесь же, под той же блокировкой: ниже они нужны
-      // для пересчёта итога, и брать их отдельным запросом значило бы
-      // считать по значениям, которые мог поменять другой вызов.
+      // the first and see it already completed. Прежняя проверка без замка
+      // до транзакции ничего не добавляла к этой и снята.
+      // Расходы, номер, склад и заказ читаются здесь же, под той же
+      // блокировкой: брать их отдельным запросом значило бы считать по
+      // значениям, которые мог поменять другой вызов.
       const [lockedArrival] = await tx.select({
         status: arrivals.status,
+        arrivalNumber: arrivals.arrivalNumber,
+        arrivalDate: arrivals.arrivalDate,
         fuelCost: arrivals.fuelCost,
         tollCost: arrivals.tollCost,
         otherCost: arrivals.otherCost,
+        purchaseOrderId: arrivals.purchaseOrderId,
+        warehouseId: arrivals.warehouseId,
       })
         .from(arrivals)
         .where(and(eq(arrivals.id, id), eq(arrivals.tenantId, tenantId)))
@@ -301,6 +332,15 @@ export async function updateArrival(db: Db, tenantId: number, input: UpdateArriv
         .limit(1);
       if (!lockedArrival) throw new Error("Приход не найден");
       if (lockedArrival.status === "completed") throw new Error("Приход уже завершён");
+      const arrivalNumber = lockedArrival.arrivalNumber ?? `#${id}`;
+      const purchaseOrderId = lockedArrival.purchaseOrderId ?? null;
+      /*
+        Приход по заказу проводит человек: долг, который родится ниже,
+        помнит, кто его завёл (supplies.createdBy), и след в журнале строгий.
+      */
+      if (purchaseOrderId && !actor) throw new Error("Приход по заказу проводится только от имени сотрудника");
+      // Замок заказа — сразу за замком прихода, до остатка (почему — у lockReceivingOrderTx).
+      if (purchaseOrderId) await lockReceivingOrderTx(tx, tenantId, purchaseOrderId);
 
       // Use sql template (not Drizzle select) to avoid selecting non-existent columns
       // Партия и срок читаются здесь же: приёмка — единственное место, где
@@ -330,12 +370,23 @@ export async function updateArrival(db: Db, tenantId: number, input: UpdateArriv
         throw new TRPCError({ code: "BAD_REQUEST", message: "Ничего не посчитано: впишите «Пришло» хотя бы в одну строку" });
       }
 
-      // Use provided warehouseId, or fall back to default warehouse
+      /*
+        Склад: у прихода по заказу — склад заказа, записанный в сам приход;
+        другой склад в запросе — отказ, а не молчаливая подмена: товар лёг
+        бы не туда, где его ждёт заказ. У обычного прихода — присланный,
+        потом записанный в приход, потом основной.
+      */
+      if (purchaseOrderId && lockedArrival.warehouseId && targetWarehouseId && targetWarehouseId !== Number(lockedArrival.warehouseId)) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Приход по заказу принимается на склад заказа — другой склад здесь не выбирают" });
+      }
+      const ownWarehouseId = purchaseOrderId
+        ? (lockedArrival.warehouseId ?? targetWarehouseId)
+        : (targetWarehouseId ?? lockedArrival.warehouseId);
       let warehouseId: number;
-      if (targetWarehouseId) {
+      if (ownWarehouseId) {
         const [warehouse] = await tx.select({ id: warehouses.id })
           .from(warehouses)
-          .where(and(eq(warehouses.id, targetWarehouseId), eq(warehouses.tenantId, tenantId)))
+          .where(and(eq(warehouses.id, Number(ownWarehouseId)), eq(warehouses.tenantId, tenantId)))
           .limit(1);
         if (!warehouse) throw new Error("Указанный склад не найден");
         warehouseId = warehouse.id;
@@ -441,6 +492,17 @@ export async function updateArrival(db: Db, tenantId: number, input: UpdateArriv
         }
       }
 
+      /*
+        Приход по заказу: заказ узнаёт принятое, и рождается долг — здесь же,
+        в этой транзакции, после того как товар лёг на склад (ADR 0013). Замок
+        прихода уже взят выше, замок заказа берёт applyReceiptTx: порядок один.
+      */
+      if (purchaseOrderId) {
+        await applyReceiptTx(tx, tenantId, {
+          id, arrivalNumber, arrivalDay: dateColumnDay(lockedArrival.arrivalDate), purchaseOrderId: Number(purchaseOrderId),
+        }, items, actor!);
+      }
+
       // Update arrival status. Guarded on status != 'completed' as a second,
       // cheap line of defense alongside the lock above.
       const notCompleted = and(eq(arrivals.id, id), eq(arrivals.tenantId, tenantId), sql`${arrivals.status} != 'completed'`);
@@ -512,46 +574,59 @@ export async function updateArrival(db: Db, tenantId: number, input: UpdateArriv
 }
 
 export async function deleteArrival(db: Db, tenantId: number, arrivalId: number) {
-  // Only allow deleting pending arrivals
-  const [arrival] = await db.select({ id: arrivals.id, status: arrivals.status })
-    .from(arrivals).where(and(eq(arrivals.id, arrivalId), eq(arrivals.tenantId, tenantId))).limit(1);
-  if (!arrival) throw new Error("Приход не найден");
-  if (arrival.status === "completed") throw new Error("Нельзя удалить завершённый приход");
-
-  /*
-    Поставка, заведённая той же формой, удаляется вместе с приходом.
-
-    Внешний ключ у supplies.arrival_id — ON DELETE SET NULL, поэтому
-    удаление ошибочно заведённого прихода оставляло долг перед
-    поставщиком жить дальше: без ссылки на документ, которым он
-    появился, и без всякого следа на экране приходов. Найти его потом
-    можно было только в списке поставок, гадая, откуда он взялся.
-
-    Если по поставке уже платили — не удаляем ничего и говорим прямо:
-    оплата это движение денег, и стирать её заодно с черновиком
-    прихода нельзя.
-  */
-  const [linkedSupply] = await db.select({ id: supplies.id, supplyNumber: supplies.supplyNumber })
-    .from(supplies)
-    .where(and(eq(supplies.arrivalId, arrivalId), eq(supplies.tenantId, tenantId)))
-    .limit(1);
-
-  if (linkedSupply) {
-    const [paid] = await db.select({ count: sql<number>`count(*)` })
-      .from(supplierPayments)
-      .where(and(eq(supplierPayments.supplyId, linkedSupply.id), eq(supplierPayments.tenantId, tenantId)));
-    if (Number(paid?.count ?? 0) > 0) {
-      throw new Error(`По поставке ${linkedSupply.supplyNumber} уже проходили оплаты — сначала разберитесь с ней в разделе поставщиков`);
-    }
-  }
-
+  const own = and(eq(arrivals.id, arrivalId), eq(arrivals.tenantId, tenantId));
   await db.transaction(async (tx) => {
+    /*
+      Статус и поставка — под замком строки прихода, тем же, что берёт
+      проведение. Раньше обе проверки шли чтением без замка до транзакции, и
+      проведение, закончившееся между проверкой и удалением, оставляло на
+      складе товар удалённого прихода — а у прихода по заказу ещё и долг и
+      «принято» в заказе, указывающие в пустоту.
+    */
+    const [arrival] = await tx.select({ id: arrivals.id, status: arrivals.status })
+      .from(arrivals).where(own).for("update").limit(1);
+    if (!arrival) throw new Error("Приход не найден");
+    if (arrival.status === "completed") throw new Error("Нельзя удалить завершённый приход");
+
+    /*
+      Поставка, заведённая той же формой, удаляется вместе с приходом.
+
+      Внешний ключ у supplies.arrival_id — ON DELETE SET NULL, поэтому
+      удаление ошибочно заведённого прихода оставляло долг перед
+      поставщиком жить дальше: без ссылки на документ, которым он
+      появился, и без всякого следа на экране приходов. Найти его потом
+      можно было только в списке поставок, гадая, откуда он взялся.
+
+      Если по поставке уже платили — не удаляем ничего и говорим прямо:
+      оплата это движение денег, и стирать её заодно с черновиком
+      прихода нельзя.
+
+      Непроведённый приход по заказу ничего в заказе не менял (принятое
+      растёт только при проведении), поэтому заказ здесь не трогается.
+    */
+    // Под замком и поставка: платёж (supplier.pay) запирает ту же строку,
+    // и оплата не проскочит между проверкой и удалением.
+    const [linkedSupply] = await tx.select({ id: supplies.id, supplyNumber: supplies.supplyNumber })
+      .from(supplies)
+      .where(and(eq(supplies.arrivalId, arrivalId), eq(supplies.tenantId, tenantId)))
+      .for("update")
+      .limit(1);
+
+    if (linkedSupply) {
+      const [paid] = await tx.select({ count: sql<number>`count(*)` })
+        .from(supplierPayments)
+        .where(and(eq(supplierPayments.supplyId, linkedSupply.id), eq(supplierPayments.tenantId, tenantId)));
+      if (Number(paid?.count ?? 0) > 0) {
+        throw new Error(`По поставке ${linkedSupply.supplyNumber} уже проходили оплаты — сначала разберитесь с ней в разделе поставщиков`);
+      }
+    }
+
     // Delete items first (FK) — use sql template for safe parameterization
     await tx.execute(sql`DELETE FROM arrival_items WHERE arrival_id = ${arrivalId}`);
     if (linkedSupply) {
       await tx.delete(supplies).where(and(eq(supplies.id, linkedSupply.id), eq(supplies.tenantId, tenantId)));
     }
-    await tx.delete(arrivals).where(and(eq(arrivals.id, arrivalId), eq(arrivals.tenantId, tenantId)));
+    await tx.delete(arrivals).where(own);
   });
   await invalidateReports(tenantId, "arrival.delete");
 

@@ -35,7 +35,7 @@
    потерянных данных.
    ═══════════════════════════════════════════════════════════════════════════ */
 import type {
-  Order, User, Arrival, DailyPlan, Tenant, Subscription, OrderAdjustment, Return,
+  Order, User, Arrival, DailyPlan, Tenant, Subscription, OrderAdjustment, Return, PurchaseOrder,
 } from "@contracts/types";
 
 /** Подпись на двух языках. */
@@ -139,6 +139,22 @@ export const ARRIVAL_STATUS_LABEL: Record<Arrival["status"], Label> = {
   pending:   { ru: "Ожидает",      uz: "Kutilmoqda" },
   unloading: { ru: "Разгружается", uz: "Tushirilmoqda" },
   completed: { ru: "Принят",       uz: "Qabul qilindi" },
+};
+
+/**
+ * Состояние заказа поставщику.
+ *
+ * «Согласован» — слово директора: заказ можно принимать. «Закрыт» — принят
+ * не весь, остаток больше не ждут; «Отменён» — не принято ничего.
+ */
+export const PURCHASE_ORDER_STATUS_LABEL: Record<PurchaseOrder["status"], Label> = {
+  draft:              { ru: "Черновик",          uz: "Qoralama" },
+  pending_approval:   { ru: "На согласовании",   uz: "Kelishuvda" },
+  approved:           { ru: "Согласован",        uz: "Kelishilgan" },
+  partially_received: { ru: "Принят частично",   uz: "Qisman qabul qilingan" },
+  received:           { ru: "Принят",            uz: "Qabul qilingan" },
+  closed:             { ru: "Закрыт с недовозом", uz: "Kam kelgan holda yopilgan" },
+  cancelled:          { ru: "Отменён",           uz: "Bekor qilingan" },
 };
 
 /**

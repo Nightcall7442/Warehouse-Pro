@@ -8,6 +8,7 @@ import { orderRouter }        from "./order-router";
 import { warehouseRouter }    from "./warehouse-router";
 import { arrivalRouter }      from "./arrival-router";
 import { supplierRouter }     from "./supplier-router";
+import { purchaseOrderRouter } from "./purchase-order-router";
 import { analyticsRouter }    from "./analytics-router";
 import { agentRouter }        from "./agent-router";
 import { userRouter }         from "./user-router";
@@ -58,6 +59,7 @@ export const appRouter = createRouter({
   warehouse:    warehouseRouter,
   arrival:      arrivalRouter,
   supplier:     supplierRouter,
+  purchaseOrder: purchaseOrderRouter,
   analytics:    analyticsRouter,
   agent:        agentRouter,
   user:         userRouter,
