@@ -4,6 +4,7 @@ import { serveStatic } from "@hono/node-server/serve-static";
 import fs from "fs";
 import path from "path";
 import { pageMetaFor, wantsAppShell, withPageMeta } from "./public-pages";
+import { createSitePages, isUnknownPage } from "./site-pages";
 
 type App = Hono<{ Bindings: HttpBindings }>;
 
@@ -25,11 +26,24 @@ function servesAppShell(filePath: string, reqPath: string): boolean {
 }
 
 /**
- * root — только для проверки (api/__tests__/pitch-video-serving.test.ts): по
- * умолчанию собранный фронт, как в бою.
+ * root и prerenderRoot — только для проверки (api/__tests__/pitch-video-serving,
+ * site-pages-serving): по умолчанию собранный фронт и готовые страницы сайта,
+ * как в бою. Проверка, давшая свой root без prerenderRoot, готовых страниц
+ * не получает — на временной папке их нет.
  */
-export function serveStaticFiles(app: App, opts: { root?: string } = {}) {
+export function serveStaticFiles(app: App, opts: { root?: string; prerenderRoot?: string } = {}) {
   const distPath = opts.root ? path.resolve(opts.root) : path.resolve(import.meta.dirname, "../dist/public");
+  const prerenderPath = opts.prerenderRoot
+    ? path.resolve(opts.prerenderRoot)
+    : opts.root ? null : path.resolve(import.meta.dirname, "../dist/prerender");
+
+  /*
+    Страницы сайта — раньше статики: «/» лежит в статике как оболочка
+    (index.html), а гостю нужна готовая страница. Тут же 301 со старых и
+    двойных адресов (/ru/…, /landing, /uz/). См. api/lib/site-pages.ts.
+  */
+  const site = createSitePages(prerenderPath);
+  app.use("*", site.pages);
 
   /*
     Заголовок кэша — ПОСЛЕ раздачи, а не в onFound.
@@ -105,12 +119,23 @@ export function serveStaticFiles(app: App, opts: { root?: string } = {}) {
     if (!wantsAppShell(c.req.path, c.req.method, c.req.header("accept") ?? "")) {
       return c.json({ error: "Not Found" }, 404);
     }
+    c.header("Cache-Control", "no-cache");
+    /*
+      Адрес не сайта и не приложения (/nonexistent, /uz/xyz) — 404 с
+      настоящим кодом и страницей на двух языках. Раньше здесь была оболочка
+      с кодом 200, и поиск считал опечатки страницами сайта.
+    */
+    const unknown = isUnknownPage(c.req.path);
+    if (unknown) {
+      const missing = site.notFound(c);
+      if (missing) return missing;
+    }
     if (indexHtml === null) {
       indexHtml = fs.readFileSync(path.resolve(distPath, "index.html"), "utf-8");
     }
-    c.header("Cache-Control", "no-cache");
     const meta = pageMetaFor(c.req.path);
-    if (!meta) return c.html(indexHtml);
+    // Сборка без готовой страницы 404 — оболочка, но код всё равно 404.
+    if (!meta) return c.html(indexHtml, unknown ? 404 : 200);
     let html = pageHtml.get(meta.url);
     if (html === undefined) { html = withPageMeta(indexHtml, meta); pageHtml.set(meta.url, html); }
     return c.html(html);

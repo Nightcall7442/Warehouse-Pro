@@ -1,28 +1,35 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync, readdirSync, existsSync } from "node:fs";
 import path from "node:path";
-import { OG_HEIGHT, OG_WIDTH, SITE_PAGES, ogImagePath, pageLangs } from "@contracts/site-pages";
+import {
+  APP_ROOTS, OG_HEIGHT, OG_WIDTH, SITE_PAGES, SITE_ROOTS, absoluteUrl, ogImagePath, pageLangs,
+} from "@contracts/site-pages";
 
 /**
  * Один список страниц сайта (contracts/site-pages) — и всё, что от него
  * зависит, с ним сходится.
  *
- * Адрес страницы записан в нескольких местах: сборка готовых страниц,
- * картинки карточек, вход сайта. Когда одно из них отстаёт, это видно только
- * в Search Console или в переписке через недели: карточка без картинки,
- * страница, собранная без своего куска.
+ * Адрес страницы записан в нескольких местах: маршруты приложения, сборка
+ * готовых страниц, картинки карточек, вход сайта, сервер. Когда одно из них
+ * отстаёт, это видно только в Search Console через недели: раздел
+ * приложения, который сервер вдруг отдаёт как 404, карточка без картинки.
  *
+ *   · APP_ROOTS — ровно первые части маршрутов App.tsx (кроме сайта):
+ *     забытый раздел сервер отдавал бы как 404;
  *   · у каждой страницы на каждом языке — своя картинка JPEG ровно
  *     1200×630; лишних нет;
- *   · сборка готовых страниц грузит те же куски, что вход сайта, и стоит в
- *     npm run build между vite и сборкой сервера.
+ *   · сборка готовых страниц грузит те же куски, что вход сайта;
+ *   · оболочка приложения закрыта от поиска и без canonical.
  *
- * Нарочная поломка: пересохранить картинку 1200×600 — «картинки»; добавить
- * страницу в LOADERS без PAGE_SOURCES — «одно и то же».
+ * Нарочная поломка: удалить "salaries" из APP_ROOTS — падает «маршруты»;
+ * пересохранить картинку 1200×600 — «картинки»; вернуть canonical в
+ * оболочку — «не страница сайта».
  */
 
 const ROOT = process.cwd();
 const read = (p: string) => readFileSync(path.join(ROOT, p), "utf8");
+
+const sitePaths = SITE_PAGES.flatMap(p => pageLangs(p).map(l => p.paths[l]!));
 
 /** Размер JPEG из маркера SOF — без библиотек. */
 function jpegSize(buf: Buffer): { width: number; height: number } {
@@ -40,6 +47,23 @@ function jpegSize(buf: Buffer): { width: number; height: number } {
   throw new Error("в JPEG нет маркера SOF");
 }
 
+describe("маршруты приложения и APP_ROOTS", () => {
+  it("APP_ROOTS — ровно первые части маршрутов App.tsx, кроме страниц сайта", () => {
+    const app = read("src/App.tsx");
+    const firsts = new Set(
+      [...app.matchAll(/<Route\s+path="\/([^"/]*)/g)].map(m => m[1]).filter(s => s !== "" && !s.startsWith(":")),
+    );
+    for (const s of SITE_ROOTS) firsts.delete(s);
+    expect([...firsts].sort()).toEqual([...APP_ROOTS].sort());
+  });
+
+  it("части сайта и приложения не пересекаются", () => {
+    expect(SITE_ROOTS.filter(s => APP_ROOTS.includes(s))).toEqual([]);
+    // Каждая страница сайта — под своей частью.
+    for (const p of sitePaths) if (p !== "/") expect(SITE_ROOTS, p).toContain(p.split("/")[1]);
+  });
+});
+
 describe("картинки карточек ссылок", () => {
   it("у каждой страницы на каждом языке — своя, JPEG ровно 1200×630", () => {
     const expected: string[] = [];
@@ -55,6 +79,12 @@ describe("картинки карточек ссылок", () => {
       expect(buf.length, rel).toBeLessThan(300_000);
     }
     expect(readdirSync(path.join(ROOT, "public", "og")).sort()).toEqual(expected.sort());
+  });
+
+  it("оболочка показывает картинку главной — существующую", () => {
+    const shell = read("index.html");
+    const image = /<meta property="og:image" content="([^"]+)"/.exec(shell)?.[1] ?? "";
+    expect(image).toBe(absoluteUrl(ogImagePath("home", "ru")));
   });
 });
 
@@ -75,3 +105,21 @@ describe("сборка готовых страниц и вход сайта гр
   });
 });
 
+describe("оболочка приложения — не страница сайта", () => {
+  const shell = read("index.html");
+  const seo = /<!--seo-->([\s\S]*?)<!--\/seo-->/.exec(shell)?.[1] ?? "";
+
+  it("блок seo на месте; в нём noindex и нет canonical", () => {
+    expect(seo).not.toBe("");
+    expect(seo).toContain('<meta name="robots" content="noindex" />');
+    expect(shell.replace(/<!--[\s\S]*?-->/g, "")).not.toMatch(/rel="canonical"/);
+  });
+
+  it("разметки schema.org в оболочке нет — она у каждой страницы своя", () => {
+    expect(shell).not.toMatch(/application\/ld\+json/);
+  });
+
+  it("заглушка #root размечена — сборка и сервер меняют только её", () => {
+    expect(shell).toMatch(/<div id="root"><!--root-fallback-->[\s\S]*<!--\/root-fallback--><\/div>/);
+  });
+});
