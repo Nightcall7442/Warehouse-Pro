@@ -213,6 +213,8 @@ describe("«в пути»", () => {
     expect(first.value).toBe("4");
     fireEvent.change(first, { target: { value: "3" } });
     expect(screen.getByTestId("receive-shortage").textContent).toMatch(/Не доехало 1/);
+    // И сколько это денег — по себестоимости партии (9 000 за единицу).
+    expect(screen.getByTestId("receive-shortage").textContent).toMatch(/9\s000/);
     await act(async () => { fireEvent.click(screen.getByTestId("transfer-receive-confirm")); });
     expect(h.state.receiveTransfer).toHaveBeenCalledWith({ docId: 3, lines: [{ lineId: 31, receivedQuantity: 3 }, { lineId: 32, receivedQuantity: 3 }] });
 
