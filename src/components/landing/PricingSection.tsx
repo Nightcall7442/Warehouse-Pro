@@ -8,6 +8,7 @@ import { useAnime } from "./landing-anime";
 import { LX, MONO, tgLink, linkProps } from "./landing-tokens";
 import { useSiteLinkClick } from "./use-site-link";
 import { withAttribution } from "@/lib/attribution";
+import { appPath } from "@/lib/site-paths";
 import { FEATURES, PRODUCT_FEATURES, SERVICE_FEATURES } from "@contracts/constants";
 import {
   ANNUAL_DISCOUNT, FIELD_PRICE_UZS, GRANDFATHER_UNTIL, MIN_FIELD_USERS,
@@ -137,7 +138,7 @@ export default function PricingSection() {
               </div>
 
               <div className="mt-8">
-                <Btn kind="brass" href={withAttribution("/register")} testId="pricing-start">{tr("Начать бесплатно", "Bepul boshlash")}</Btn>
+                <Btn kind="brass" href={withAttribution(appPath(lang, "/register"))} testId="pricing-start">{tr("Начать бесплатно", "Bepul boshlash")}</Btn>
                 <p className="mt-3 text-center text-[12px]" style={{ ...MONO, color: LX.softOnInk }}>
                   {tr("14 дней бесплатно · все функции · карта не нужна", "14 kun bepul · barcha funksiyalar · karta kerak emas")}
                 </p>

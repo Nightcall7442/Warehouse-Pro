@@ -117,9 +117,9 @@ describe("готовый HTML статьи", () => {
     expect(html).toContain(`<li aria-current="page">${ARTICLES[key].nav[lang].replace(/'/g, "&#x27;")}</li>`);
     // Переключатель — настоящая ссылка на ту же статью на другом языке.
     expect(html).toMatch(new RegExp(`<a href="${page.paths[other]}" hrefLang="${other}" lang="${other}"`));
-    // Призыв: регистрация и демо на языке страницы.
+    // Призыв: регистрация и демо на языке страницы (узбекская — с ?lang=uz).
     expect(html).toMatch(/data-testid="article-cta-register"/);
-    expect(html).toMatch(/<a href="\/register"[^>]*data-testid="article-cta-register"/);
+    expect(html).toMatch(new RegExp(`<a href="/register${lang === "uz" ? "\\?lang=uz" : ""}"[^>]*data-testid="article-cta-register"`));
     expect(html).toContain(`href="/demo?lang=${lang}"`);
     // Цена под призывом — из contracts/pricing и в сумах (цена платформы).
     expect(html).toContain(`${formatSum(FIELD_PRICE_UZS)} ${lang === "ru" ? "сум" : "so&#x27;m"}`);

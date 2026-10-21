@@ -32,7 +32,7 @@ import StartSection from "@/components/landing/StartSection";
 import { FAQ_ITEMS } from "@/components/landing/site-content";
 import { ARTICLES } from "@/site/articles/registry";
 import { ARTICLE_KEYS, sitePage } from "@contracts/site-pages";
-import { sitePath } from "@/lib/site-paths";
+import { appPath, sitePath } from "@/lib/site-paths";
 
 /* ═══════════════════════════════════════════════════════════════════════════
    ЛЕНДИНГ «СКЛАДСКАЯ КНИГА»
@@ -107,6 +107,7 @@ function FaqSection() {
 /* ── Чернильная зона №2: финальный CTA ───────────────────────────────────── */
 function CtaSection() {
   const tr = useTranslate();
+  const { lang } = useLang();
   const tg = tgLink(tr("Здравствуйте! Хочу подключить Warehouse Pro.", "Assalomu alaykum! Warehouse Pro'ni ulamoqchiman."));
   return (
     <section className="lx-ink relative overflow-hidden" style={{ background: LX.night, borderTop: `1px solid ${LX.brassOnNight}` }}>
@@ -133,7 +134,7 @@ function CtaSection() {
           {tr("Бесплатно, без привязки карты. Настройка — 10 минут.", "Bepul, karta bog'lamasdan. Sozlash — 10 daqiqa.")}
         </p>
         <div data-reveal="cta" className="mt-9 flex flex-wrap items-center gap-3">
-          <BtnInk onPaper={false} href={withAttribution("/register")}>
+          <BtnInk onPaper={false} href={withAttribution(appPath(lang, "/register"))}>
             {tr("Начать бесплатно", "Bepul boshlash")}
             <ArrowRight size={15} />
           </BtnInk>
@@ -261,6 +262,7 @@ function Footer() {
    экранов. Панель появляется после первого экрана и не перекрывает hero. */
 function MobileCtaBar() {
   const tr = useTranslate();
+  const { lang } = useLang();
   const siteClick = useSiteLinkClick();
   const [shown, setShown] = useState(false);
   useEffect(() => {
@@ -283,7 +285,7 @@ function MobileCtaBar() {
     >
       <div className="px-4 py-3 flex gap-2.5">
         <a
-          href={withAttribution("/register")}
+          href={withAttribution(appPath(lang, "/register"))}
           onClick={siteClick}
           data-testid="mobile-cta-register"
           className="flex-1 h-11 inline-flex items-center justify-center rounded-[9px] text-[14px] font-semibold cursor-pointer"

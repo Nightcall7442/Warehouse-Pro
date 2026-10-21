@@ -5,6 +5,7 @@ import { PitchShell, Mono, ArrowLink } from "@/components/pitch/pitch-ui";
 import { useDemoStatus, demoLogin, type DemoRole, type DemoStatus } from "@/components/pitch/demo-access";
 import { pick, VIDEO_SRC, VIDEO_POSTER, VIDEO_DESCRIPTION, type L } from "@/components/pitch/pitch-content";
 import { withAttribution } from "@/lib/attribution";
+import { appPath } from "@/lib/site-paths";
 
 /* ═══════════════════════════════════════════════════════════════════════════
    /demo — шестой раздел конкурса: 6.1 ролик, 6.2 его описание, 6.3 доступ к
@@ -236,7 +237,7 @@ function RoleList({ status }: { status: DemoStatus | null }) {
         <p style={{ margin: "8px 0 16px", fontSize: 14.5, color: "var(--soft)", lineHeight: 1.6 }}>
           {tr("Mahsulotni o'z tashkilotingizda 14 kun bepul sinab ko'rishingiz mumkin.", "Продукт можно попробовать в своей организации — 14 дней бесплатно.")}
         </p>
-        <ArrowLink to={withAttribution("/register")} solid>{tr("Ro'yxatdan o'tish", "Регистрация")}</ArrowLink>
+        <ArrowLink to={withAttribution(appPath(lang, "/register"))} solid>{tr("Ro'yxatdan o'tish", "Регистрация")}</ArrowLink>
       </div>
     );
   }

@@ -1,16 +1,16 @@
 import { useEffect, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
-import { Link, useLocation, useNavigate } from "react-router";
+import { Link, useLocation } from "react-router";
 import { ArrowRight, Menu, Moon, Sun, X } from "lucide-react";
 import { LogoMark } from "@/components/brand/Logo";
-import { PreferLang, UrlLang, useLang, type Lang } from "@/i18n";
-import { langFromSearch } from "@/i18n/page-lang";
+import { useLang } from "@/i18n";
+import QueryLang from "@/components/QueryLang";
 import { useTheme } from "@/hooks/useTheme";
 import { usePrerender } from "@/site/prerender";
 import { pick, type L } from "./pitch-content";
 import { PITCH_CSS } from "./pitch-tokens";
 import { useDisclosure } from "@/components/landing/use-disclosure";
-import { sitePath } from "@/lib/site-paths";
+import { appPath, sitePath } from "@/lib/site-paths";
 import { captureAttribution, withAttribution } from "@/lib/attribution";
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -36,33 +36,21 @@ import { captureAttribution, withAttribution } from "@/lib/attribution";
 export function PitchShell({ title, children, nav, lang = "uz", site = false }: {
   title: L; children: ReactNode; nav?: Array<{ href: string; label: L }>; lang?: "uz" | "ru"; site?: boolean;
 }) {
-  const outer = useLang();
-  const { search, hash } = useLocation();
-  const navigate = useNavigate();
+  const { search } = useLocation();
   // Метки рекламы из адреса (/compare?utm_source=tg) — до отрисовки шапки:
   // её «Начать» берёт их в свой адрес (lib/attribution).
   useState(() => captureAttribution(search));
-  const inner = <ShellInner title={title} nav={nav} site={site}>{children}</ShellInner>;
   /*
     ?lang=ru|uz в адресе — язык страницы: /demo?lang=ru из русского лендинга
     открывается по-русски, хотя у демо по умолчанию узбекский, и поверх
-    сохранённого выбора. Заход по ссылке выбор не сохраняет (UrlLang);
-    нажатие на переключатель сохраняет и меняет ?lang в адресе на месте —
-    иначе адрес продолжал бы держать прежний язык.
-
-    Если язык уже задан адресом выше (/uz/compare), ?lang не спорит с ним:
-    две страницы-владельца языка разошлись бы между React и uiLang.
+    сохранённого выбора (QueryLang). Язык адреса страницы сайта (/compare,
+    /uz/compare) сильнее и ?lang, и умолчания.
   */
-  const urlLang = outer.fromUrl ? null : langFromSearch(search);
-  if (urlLang) {
-    const onSwitch = (l: Lang) => {
-      const q = new URLSearchParams(search);
-      q.set("lang", l);
-      navigate({ search: `?${q.toString()}`, hash }, { replace: true });
-    };
-    return <UrlLang lang={urlLang} onSwitch={onSwitch}>{inner}</UrlLang>;
-  }
-  return <PreferLang lang={lang}>{inner}</PreferLang>;
+  return (
+    <QueryLang prefer={lang}>
+      <ShellInner title={title} nav={nav} site={site}>{children}</ShellInner>
+    </QueryLang>
+  );
 }
 
 function ShellInner({ title, children, nav, site }: { title: L; children: ReactNode; nav?: Array<{ href: string; label: L }>; site: boolean }) {
@@ -136,8 +124,8 @@ function PitchHeader({ nav, site }: { nav?: Array<{ href: string; label: L }>; s
         <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8 }}>
           {site && (
             <div className="hidden lg:flex" style={{ alignItems: "center", gap: 8, marginRight: 4 }}>
-              <Link to="/login" className="p-nav p-focus" style={{ padding: "10px 8px", fontSize: 14, fontWeight: 600, color: "var(--soft)", textDecoration: "none" }}>{tr("Kirish", "Войти")}</Link>
-              <Link to={withAttribution("/register")} className="p-btn p-btn-solid p-focus" data-testid="pitch-header-register" style={{ minHeight: 40, padding: "0 16px", fontSize: 14 }}>{tr("Boshlash", "Начать")}</Link>
+              <Link to={appPath(lang, "/login")} className="p-nav p-focus" style={{ padding: "10px 8px", fontSize: 14, fontWeight: 600, color: "var(--soft)", textDecoration: "none" }}>{tr("Kirish", "Войти")}</Link>
+              <Link to={withAttribution(appPath(lang, "/register"))} className="p-btn p-btn-solid p-focus" data-testid="pitch-header-register" style={{ minHeight: 40, padding: "0 16px", fontSize: 14 }}>{tr("Boshlash", "Начать")}</Link>
             </div>
           )}
           <LangSwitch />
@@ -174,8 +162,8 @@ function PitchHeader({ nav, site }: { nav?: Array<{ href: string; label: L }>; s
             )}
             {site && (
               <div style={{ display: "flex", gap: 10, marginTop: 12 }}>
-                <Link to="/login" className="p-btn p-btn-line p-focus" style={{ flex: 1 }}>{tr("Kirish", "Войти")}</Link>
-                <Link to={withAttribution("/register")} className="p-btn p-btn-solid p-focus" style={{ flex: 1 }} data-testid="pitch-menu-register">{tr("Boshlash", "Начать")}</Link>
+                <Link to={appPath(lang, "/login")} className="p-btn p-btn-line p-focus" style={{ flex: 1 }}>{tr("Kirish", "Войти")}</Link>
+                <Link to={withAttribution(appPath(lang, "/register"))} className="p-btn p-btn-solid p-focus" style={{ flex: 1 }} data-testid="pitch-menu-register">{tr("Boshlash", "Начать")}</Link>
               </div>
             )}
           </div>

@@ -7,6 +7,7 @@ import Layout from "@/components/Layout";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import { lazyWithRecovery } from "@/lib/stale-app-recovery";
 import SitePageLang from "@/components/landing/SitePageLang";
+import QueryLang from "@/components/QueryLang";
 import { CommandPalette } from "@/components/CommandPalette";
 import { QuickOrderHost } from "@/components/orders/QuickOrderHost";
 import { NoAccess } from "@/components/NoAccess";
@@ -218,8 +219,10 @@ export default function App() {
       <ScrollToTop />
       <Routes>
         {/* Public */}
-        <Route path="/login"              element={<Login />} />
-        <Route path="/register"           element={<Register />} />
+        {/* ?lang=uz — язык страницы сайта, с которой пришёл человек (QueryLang):
+            с /uz «Kirish» и «Bepul boshlang» открывали русскую форму. */}
+        <Route path="/login"              element={<QueryLang><Login /></QueryLang>} />
+        <Route path="/register"           element={<QueryLang><Register /></QueryLang>} />
         <Route path="/forgot-password"    element={<ForgotPassword />} />
         <Route path="/reset-password"     element={<ResetPassword />} />
         <Route path="/verify-email"       element={<VerifyEmail />} />

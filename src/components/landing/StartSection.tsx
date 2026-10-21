@@ -1,9 +1,10 @@
 import { ArrowRight } from "lucide-react";
-import { useTranslate } from "@/i18n";
+import { useLang, useTranslate } from "@/i18n";
 import { LX, MONO } from "./landing-tokens";
 import { SectionHead, BtnInk } from "./landing-shared";
 import LeadForm from "./LeadForm";
 import { withAttribution } from "@/lib/attribution";
+import { appPath } from "@/lib/site-paths";
 import { START_STEPS, PILOT } from "./site-content";
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -28,6 +29,7 @@ import { START_STEPS, PILOT } from "./site-content";
 
 export default function StartSection() {
   const tr = useTranslate();
+  const { lang } = useLang();
   return (
     <section id="start" className="py-16 md:py-24 scroll-mt-16" style={{ background: LX.paper }} data-testid="landing-start">
       <div className="max-w-[1240px] mx-auto px-6 lg:pl-[136px]">
@@ -50,7 +52,7 @@ export default function StartSection() {
         </ol>
 
         <div className="mt-10">
-          <BtnInk href={withAttribution("/register")}>
+          <BtnInk href={withAttribution(appPath(lang, "/register"))}>
             {tr("Начать бесплатно", "Bepul boshlash")}
             <ArrowRight size={15} />
           </BtnInk>

@@ -4,6 +4,7 @@ import { CONTACT, tgLink } from "@/components/landing/landing-tokens";
 import { Chapter, ArrowLink } from "./pitch-ui";
 import { pick, PROBLEMS, TRACTION, HIRING, NEXT_STEPS, ASK, fmtNum, mrrMln } from "./pitch-content";
 import { withAttribution } from "@/lib/attribution";
+import { appPath } from "@/lib/site-paths";
 
 /* ── 09 Итог ───────────────────────────────────────────────────────────────
    Страница кончалась справочником API — кодами ошибок и примером JSON.
@@ -101,7 +102,7 @@ export default function ClosingSection() {
       </div>
       <div className="p-cta" style={{ display: "flex", flexWrap: "wrap", gap: 12, marginTop: 36, alignItems: "center" }}>
         <ArrowLink to="/demo" solid testId="pitch-closing-demo">{tr("Demo va prototip", "Демо и прототип")}</ArrowLink>
-        <ArrowLink to={withAttribution("/register")} testId="pitch-closing-trial">{tr("14 kun bepul sinash", "14 дней бесплатно")}</ArrowLink>
+        <ArrowLink to={withAttribution(appPath(lang, "/register"))} testId="pitch-closing-trial">{tr("14 kun bepul sinash", "14 дней бесплатно")}</ArrowLink>
         {/* Почта — та же, что в подвале сайта (CONTACT): одна точка правды. */}
         {CONTACT.email && (
           <a href={`mailto:${CONTACT.email}`} data-testid="pitch-closing-email" className="p-mono p-focus"

@@ -42,3 +42,25 @@ export function stripUzPrefix(path: string): string {
   }
   return path;
 }
+
+/**
+ * Адрес экрана приложения (/register, /login) со страницы сайта: с
+ * узбекской — с ?lang=uz, с русской — как есть.
+ *
+ * Регистрация и вход живут в приложении, а его язык — сохранённый выбор
+ * (LangProvider). Посетитель /uz выбора не делал — заход по ссылке не
+ * считается, — и «Bepul boshlang» открывал ему русскую форму. ?lang=uz
+ * несёт язык страницы дальше (QueryLang в App.tsx). Русский — язык по
+ * умолчанию, как и в адресах сайта: с русской страницы ссылка без ?lang, и
+ * тот, кто когда-то выбрал узбекский, получает свой выбор.
+ */
+export function appPath(lang: SiteLang, path: string): string {
+  if (lang === "ru") return path;
+  const hashAt = path.indexOf("#");
+  const hash = hashAt >= 0 ? path.slice(hashAt) : "";
+  const noHash = hashAt >= 0 ? path.slice(0, hashAt) : path;
+  const qAt = noHash.indexOf("?");
+  const q = new URLSearchParams(qAt >= 0 ? noHash.slice(qAt + 1) : "");
+  q.set("lang", lang);
+  return `${qAt >= 0 ? noHash.slice(0, qAt) : noHash}?${q.toString()}${hash}`;
+}

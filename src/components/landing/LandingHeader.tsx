@@ -6,6 +6,7 @@ import { cn, LX, MONO, CONTACT, tgLink } from "./landing-tokens";
 import { useDisclosure } from "./use-disclosure";
 import { useSiteLinkClick } from "./use-site-link";
 import { withAttribution } from "@/lib/attribution";
+import { appPath } from "@/lib/site-paths";
 
 /** Переключатель языка: посетитель-узбек не должен искать его в приложении. */
 function LangSwitch({ className }: { className?: string }) {
@@ -41,10 +42,13 @@ function LangSwitch({ className }: { className?: string }) {
 
 export default function LandingHeader() {
   const tr = useTranslate();
+  const { lang } = useLang();
   // «Войти» и «Начать» — ссылки: у них есть адрес, и «Начать» несёт метки
   // рекламы (lib/attribution). Обычное нажатие — переход без перезагрузки.
+  // С /uz обе несут ?lang=uz — форма открывается на языке страницы.
   const siteClick = useSiteLinkClick();
-  const registerHref = withAttribution("/register");
+  const registerHref = withAttribution(appPath(lang, "/register"));
+  const loginHref = appPath(lang, "/login");
   const [scrolled, setScrolled] = useState(false);
   // Esc, касание мимо, переход — закрывают; aria-expanded/controls — на кнопке.
   const menu = useDisclosure("lx-menu");
@@ -129,7 +133,7 @@ export default function LandingHeader() {
             </a>
           )}
           <a
-            href="/login"
+            href={loginHref}
             onClick={siteClick}
             className="text-[13.5px] px-3.5 py-2 rounded-md font-medium cursor-pointer hover:bg-[#ece9e2] transition-colors"
             style={{ color: LX.ink }}
@@ -186,7 +190,7 @@ export default function LandingHeader() {
           ))}
           <div className="pt-3 flex gap-2.5">
             <a
-              href="/login"
+              href={loginHref}
               onClick={siteClick}
               className="flex-1 h-[44px] inline-flex items-center justify-center rounded-[9px] text-[14px] font-medium cursor-pointer"
               style={{ border: `1px solid ${LX.ruleStrong}`, color: LX.ink }}

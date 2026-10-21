@@ -9,7 +9,7 @@ import { useSiteLinkClick } from "@/components/landing/use-site-link";
 import { MOBILE_ASPECT, WEB_CONTENT_ASPECT, mobileShot, webContent } from "@/components/landing/shots";
 import { PRICE_LINE } from "@/components/landing/price-line";
 import { captureAttribution, withAttribution } from "@/lib/attribution";
-import { langOfPath, sitePath } from "@/lib/site-paths";
+import { appPath, langOfPath, sitePath } from "@/lib/site-paths";
 import { formatDay } from "@contracts/pricing";
 import { ARTICLE_KEYS, sitePage, type SiteLang } from "@contracts/site-pages";
 import { ARTICLES } from "./registry";
@@ -223,11 +223,11 @@ function ArticleHeader({ lang, pair }: { lang: SiteLang; pair: string }) {
               </a>
             ))}
           </div>
-          <a href="/login" onClick={siteClick} className="hidden sm:inline-flex items-center h-10 px-3.5 rounded-md text-[14px] font-medium" style={{ color: LX.ink }}>
+          <a href={appPath(lang, "/login")} onClick={siteClick} className="hidden sm:inline-flex items-center h-10 px-3.5 rounded-md text-[14px] font-medium" style={{ color: LX.ink }}>
             {UI.login[lang]}
           </a>
           <a
-            href={withAttribution("/register")}
+            href={withAttribution(appPath(lang, "/register"))}
             onClick={siteClick}
             data-testid="article-header-register"
             className="inline-flex items-center h-[44px] px-4 rounded-[9px] text-[14px] font-semibold"
@@ -290,7 +290,7 @@ function ArticleCta({ lang }: { lang: SiteLang }) {
         </h2>
         <p className="text-[17px]" style={{ lineHeight: 1.65, color: LX.softOnInk, margin: "14px 0 26px" }}>{PRICE_LINE[lang]}</p>
         <div className="flex flex-wrap gap-3">
-          <a href={withAttribution("/register")} onClick={siteClick} data-testid="article-cta-register" className={btn} style={{ background: LX.paper, color: LX.ink }}>
+          <a href={withAttribution(appPath(lang, "/register"))} onClick={siteClick} data-testid="article-cta-register" className={btn} style={{ background: LX.paper, color: LX.ink }}>
             {UI.ctaStart[lang]}
             <ArrowRight size={16} aria-hidden />
           </a>

@@ -3,6 +3,7 @@ import { PitchShell, Chapter, Mono, ArrowLink } from "@/components/pitch/pitch-u
 import { pick, GAPS, type L } from "@/components/pitch/pitch-content";
 import { AREAS, QUESTIONS, PLAYERS, STEPS, SOURCES, CHECKED_AT, type Area, type SourceKey } from "@/components/compare/compare-content";
 import { withAttribution } from "@/lib/attribution";
+import { appPath } from "@/lib/site-paths";
 
 /* ═══════════════════════════════════════════════════════════════════════════
    /compare — «Выбираете систему для дистрибуции? Сравните по делу».
@@ -65,7 +66,7 @@ function Hero() {
             )}
           </p>
           <div className="lg:col-span-5 p-cta" style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "flex-start", alignContent: "flex-start" }}>
-            <ArrowLink to={withAttribution("/register")} solid testId="compare-cta-register">{tr("14 kun bepul sinab ko'rish", "Попробовать 14 дней бесплатно")}</ArrowLink>
+            <ArrowLink to={withAttribution(appPath(lang, "/register"))} solid testId="compare-cta-register">{tr("14 kun bepul sinab ko'rish", "Попробовать 14 дней бесплатно")}</ArrowLink>
             <ArrowLink to={`/demo?lang=${lang}`} testId="compare-cta-demo">{tr("Ro'yxatdan o'tmasdan demo", "Демо без регистрации")}</ArrowLink>
           </div>
         </div>
@@ -251,7 +252,7 @@ function Steps() {
         ))}
       </ol>
       <div className="p-cta" style={{ display: "flex", flexWrap: "wrap", gap: 12, marginTop: 40 }}>
-        <ArrowLink to={withAttribution("/register")} solid>{tr("14 kun bepul sinab ko'rish", "Попробовать 14 дней бесплатно")}</ArrowLink>
+        <ArrowLink to={withAttribution(appPath(lang, "/register"))} solid>{tr("14 kun bepul sinab ko'rish", "Попробовать 14 дней бесплатно")}</ArrowLink>
         {/* Демо — на языке этой страницы: у /demo по умолчанию узбекский. */}
         <ArrowLink to={`/demo?lang=${lang}`}>{tr("Ro'yxatdan o'tmasdan demo", "Демо без регистрации")}</ArrowLink>
       </div>

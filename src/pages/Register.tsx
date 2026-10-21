@@ -4,12 +4,14 @@ import { Link } from "react-router";
 import { trpc } from "@/providers/trpc";
 import { Eye, EyeOff, Loader2, CheckCircle2, MailCheck } from "lucide-react";
 import { useLang, useTranslate } from "@/i18n";
+import { useKeepUrlLang } from "@/i18n/keep-url-lang";
 import {
   UZ_PHONE_PREFIX, PHONE_ERROR, SIGNUP_ANSWERS, SIGNUP_ANSWER_LABEL, maskUzPhoneNational, normalizeUzPhone,
   type SignupAnswer,
 } from "@contracts/signup";
 import { errorText } from "@/lib/error-text";
 import { attributionFromSearch, readAttribution, type Attribution } from "@/lib/attribution";
+import { appPath } from "@/lib/site-paths";
 
 /**
  * Метки из адреса страницы: /register?utm_source=ig_sept&utm_campaign=okt&ref=bekzod.
@@ -66,8 +68,11 @@ function PasswordStrength({ password }: { password: string }) {
 }
 
 export default function Register() {
-  const { t } = useLang();
+  const { t, lang, fromUrl } = useLang();
   const tr = useTranslate();
+  // Пришёл с /uz (?lang=uz): форма по-узбекски, и дальше — тоже (useKeepUrlLang).
+  const keepUrlLang = useKeepUrlLang();
+  const loginPath = fromUrl ? appPath(lang, "/login") : "/login";
   const [form, setForm] = useState({ name: "", companyName: "", email: "", password: "" });
   /*
     Телефон — только девять своих цифр: «+998» стоит в поле неподвижно.
@@ -85,7 +90,7 @@ export default function Register() {
 
   const phoneError = tr(PHONE_ERROR.ru, PHONE_ERROR.uz);
   const registerMutation = trpc.tenant.register.useMutation({
-    onSuccess: () => setSentTo(form.email),
+    onSuccess: () => { keepUrlLang(); setSentTo(form.email); },
     // Отказ по телефону сервер пишет по-русски — показываем его на языке экрана.
     // Отказ по телефону сервер присылает уже на языке интерфейса (x-lang).
     onError:   (e) => setError(errorText(e, t("auth.register.error"))),
@@ -198,7 +203,7 @@ export default function Register() {
                 ? tr("Письмо отправлено ещё раз", "Xat qayta yuborildi")
                 : tr("Отправить письмо ещё раз", "Xatni qayta yuborish")}
             </button>
-            <Link to="/login" className="text-sm font-medium hover:underline" style={{ color: "var(--color-primary-text)" }}>{tr("К входу", "Kirishga")}</Link>
+            <Link to={loginPath} className="text-sm font-medium hover:underline" style={{ color: "var(--color-primary-text)" }}>{tr("К входу", "Kirishga")}</Link>
           </div>
         ) : (
         <div className="w-full max-w-[380px]">
@@ -206,7 +211,7 @@ export default function Register() {
             <h2 className="font-display text-2xl text-primary mb-1.5">{tr("Создайте аккаунт", "Hisob yarating")}</h2>
             <p className="text-sm" style={{ color: "var(--color-text-secondary, #5e5b54)" }}>
               {tr("Уже есть аккаунт?", "Hisobingiz bormi?")}{" "}
-              <Link to="/login" className="font-medium hover:underline" style={{ color: "var(--color-primary-text)" }}>{tr("Войти", "Kirish")}</Link>
+              <Link to={loginPath} className="font-medium hover:underline" style={{ color: "var(--color-primary-text)" }}>{tr("Войти", "Kirish")}</Link>
             </p>
           </div>
 

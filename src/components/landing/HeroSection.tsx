@@ -1,5 +1,6 @@
 import LeadForm from "./LeadForm";
 import { withAttribution } from "@/lib/attribution";
+import { appPath } from "@/lib/site-paths";
 import { useLang, useTranslate } from "@/i18n";
 import { ArrowRight } from "lucide-react";
 import { BtnInk, Stamp } from "./landing-shared";
@@ -180,7 +181,7 @@ export default function HeroSection() {
 
             <div className="mt-8 lg:mt-10 flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-7">
               {/* Ссылка, а не кнопка: с адресом уходят метки рекламы (lib/attribution). */}
-              <BtnInk href={withAttribution("/register")} className="h-[52px] px-7 text-[15px] w-full sm:w-auto justify-center">
+              <BtnInk href={withAttribution(appPath(lang, "/register"))} className="h-[52px] px-7 text-[15px] w-full sm:w-auto justify-center">
                 {tr("Начать бесплатно", "Bepul boshlash")}
                 <ArrowRight size={15} />
               </BtnInk>

@@ -271,7 +271,8 @@ describe("/pitch: разделы конкурса", () => {
     // Следующий шаг — со сроками.
     for (const st of NEXT_STEPS.filter(x => x.when)) expect(t).toContain(`${st.what.uz} — ${st.when!.uz}`);
     expect(screen.getByTestId("pitch-closing-demo").getAttribute("href")).toBe("/demo");
-    expect(screen.getByTestId("pitch-closing-trial").getAttribute("href")).toBe("/register");
+    // Страница по-узбекски — и регистрация откроется по-узбекски (?lang=uz).
+    expect(screen.getByTestId("pitch-closing-trial").getAttribute("href")).toBe("/register?lang=uz");
     if (CONTACT.email) expect(screen.getByTestId("pitch-closing-email").getAttribute("href")).toBe(`mailto:${CONTACT.email}`);
   });
 
@@ -516,7 +517,7 @@ describe("/demo", () => {
     status = { enabled: false, roles: [], apiKey: null };
     draw(<PitchDemo />);
     const box = await screen.findByTestId("pitch-demo-unavailable");
-    expect(within(box).getByRole("link").getAttribute("href")).toBe("/register");
+    expect(within(box).getByRole("link").getAttribute("href")).toBe("/register?lang=uz");
     expect(screen.queryByTestId("pitch-demo-login-ceo")).toBeNull();
   });
 });
