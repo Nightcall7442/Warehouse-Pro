@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, cleanup, act } from "@testing-library/react";
-import { MemoryRouter } from "react-router";
+import { Link, MemoryRouter } from "react-router";
 import { SITE_PAGES } from "@contracts/site-pages";
 import type { SitePages } from "@/site/SiteApp";
 
@@ -24,12 +24,14 @@ import type { SitePages } from "@/site/SiteApp";
  *    <html lang> — / по-русски и у выбравшего узбекский, /uz по-узбекски;
  *    переключатель уводит на парный адрес;
  *    адрес не сайта (/register) — полной загрузкой с теми же метками;
- *    ожившая страница помечает #root (data-live) — её ждут проверки e2e.
+ *    ожившая страница помечает #root (data-live) — её ждут проверки e2e;
+ *    переход по ссылке без перезагрузки меняет заголовок вкладки на
+ *    заголовок новой страницы.
  *
  * Нарочная поломка: в main.tsx грузить сайт без проверки hadSession —
  * падает «входивший получает приложение»; убрать x-lang из lib/client-fetch
  * — «язык страницы в заголовке»; убрать проверку pending в submit — «вторая
- * заявка не уходит».
+ * заявка не уходит»; убрать <PageTitle /> из SiteApp — «заголовок вкладки».
  */
 
 const flags = { site: 0, app: 0 };
@@ -170,6 +172,8 @@ describe("маршруты сайта", () => {
         <>
           <p data-testid="page">{name}:{lang}</p>
           <button type="button" onClick={() => setLang(lang === "ru" ? "uz" : "ru")}>switch</button>
+          <Link to="/uz/shop-debts">article</Link>
+          <Link to="/uz">home</Link>
         </>
       );
     };
@@ -226,6 +230,26 @@ describe("маршруты сайта", () => {
     expect(screen.getByTestId("page").textContent).toBe("home:ru");
     expect(document.documentElement.lang).toBe("ru");
     expect(leaveSite).not.toHaveBeenCalled();
+  });
+
+  /*
+    Готовый HTML несёт <title> только первой открытой страницы, а ссылки
+    сайта дальше работают без перезагрузки. Раньше вкладка, история и
+    закладка показывали заголовок главной на статье и наоборот.
+  */
+  it("заголовок вкладки — у каждой страницы свой и после перехода без перезагрузки", async () => {
+    vi.spyOn(window, "scrollTo").mockImplementation(() => {});
+    const { PAGE_TITLES } = await import("@/site/page-titles");
+    document.title = "готовый HTML первой страницы";
+    await draw("/");
+    expect(document.title).toBe(PAGE_TITLES.home.ru);
+    fireEvent.click(screen.getByText("switch"));
+    expect(document.title).toBe(PAGE_TITLES.home.uz);
+    fireEvent.click(screen.getByText("article"));
+    expect(screen.getByTestId("page").textContent).toMatch(/^debts:/);
+    expect(document.title).toBe(PAGE_TITLES.debts.uz);
+    fireEvent.click(screen.getByText("home"));
+    expect(document.title).toBe(PAGE_TITLES.home.uz);
   });
 
   it("ожившая страница ставит метку data-live на #root — до неё готовый HTML ещё не нажимается", async () => {

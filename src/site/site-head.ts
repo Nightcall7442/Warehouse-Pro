@@ -36,6 +36,7 @@ import { FAQ_ITEMS } from "@/components/landing/site-content";
 import { sitePath } from "@/lib/site-paths";
 import { ARTICLES } from "./articles/registry";
 import { ARTICLE_TEXTS } from "./articles/texts";
+import { PAGE_TITLES } from "./page-titles";
 
 type L = Record<SiteLang, string>;
 
@@ -43,19 +44,19 @@ type PageMeta = { title: L; description: L; imageAlt: L };
 
 /** Статьи — из их списка (src/site/articles/registry): подпись картинки — заголовок карточки. */
 const ARTICLE_META = Object.fromEntries(ARTICLE_KEYS.map(k => [k, {
-  title: ARTICLES[k].title,
+  title: PAGE_TITLES[k],
   description: ARTICLES[k].description,
   imageAlt: ARTICLES[k].card.title,
 }])) as Record<ArticleKey, PageMeta>;
 
-/** Заголовок, описание и подпись картинки — для каждой страницы на каждом языке. */
+/**
+ * Заголовок, описание и подпись картинки — для каждой страницы на каждом языке.
+ * Заголовки — из page-titles: их же ставит вкладке переход без перезагрузки.
+ */
 export const PAGE_META: Record<SitePageKey, PageMeta> = {
   ...ARTICLE_META,
   home: {
-    title: {
-      ru: "Warehouse Pro — агенты, долги магазинов и доставка в одной программе",
-      uz: "Warehouse Pro — agentlar, do'kon qarzlari va yetkazish bitta dasturda",
-    },
+    title: PAGE_TITLES.home,
     description: {
       ru: "Программа для дистрибьюторов с торговыми агентами: заказы с телефона даже без сети, склад, доставка и долг каждого магазина. 14 дней бесплатно, без карты. Ургенч, Хорезм.",
       uz: "Savdo agentlari bor distribyutorlar uchun dastur: tarmoq bo'lmasa ham telefondan buyurtma, ombor, yetkazish va har bir do'konning qarzi. 14 kun bepul, kartasiz. Urganch, Xorazm.",
@@ -66,10 +67,7 @@ export const PAGE_META: Record<SitePageKey, PageMeta> = {
     },
   },
   compare: {
-    title: {
-      ru: "Warehouse Pro, Sales Doctor, Smartup — сравнение систем для дистрибуции",
-      uz: "Warehouse Pro, Sales Doctor, Smartup — distribyutsiya tizimlarini taqqoslash",
-    },
+    title: PAGE_TITLES.compare,
     description: {
       ru: "Раздел за разделом: погрузочные листы, редактор заказа, частичная доставка, акт сверки, склад, отчёты. Что работает у нас и что другие говорят публично — со ссылками и датой.",
       uz: "Bo'limma-bo'lim: yuklash varaqalari, buyurtma muharriri, qisman yetkazish, solishtirma dalolatnoma, ombor, hisobotlar. Bizda nima ishlaydi va boshqalar ochiq nima deydi — havola va sana bilan.",
@@ -82,10 +80,7 @@ export const PAGE_META: Record<SitePageKey, PageMeta> = {
   privacy: {
     // Политика — русский документ (src/pages/Privacy.tsx); узбекские строки
     // здесь только чтобы тип был полным — страницы /uz/privacy нет.
-    title: {
-      ru: "Политика конфиденциальности — Warehouse Pro",
-      uz: "Maxfiylik siyosati — Warehouse Pro",
-    },
+    title: PAGE_TITLES.privacy,
     description: {
       ru: "Что собирает Warehouse Pro и зачем: данные организации, местоположение агента — только при включённом «Авто-трекинге», фото визитов. Кто это видит, сколько хранится и как удалить.",
       uz: "Warehouse Pro nimani va nima uchun yig'adi: tashkilot ma'lumotlari, agent joylashuvi — faqat «Avto-kuzatuv» yoqilganda, tashrif suratlari.",

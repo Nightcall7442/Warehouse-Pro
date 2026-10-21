@@ -2,8 +2,9 @@ import { useEffect, useLayoutEffect, type ComponentType } from "react";
 import { Routes, Route, useLocation } from "react-router";
 import SitePageLang from "@/components/landing/SitePageLang";
 import { ScrollToTop } from "@/components/ScrollToTop";
-import { SITE_PAGES, pageLangs, type SitePageKey } from "@contracts/site-pages";
+import { SITE_PAGES, pageLangs, siteRoute, type SitePageKey } from "@contracts/site-pages";
 import { leaveSite } from "./leave-site";
+import { PAGE_TITLES } from "./page-titles";
 
 export type SitePages = Record<SitePageKey, ComponentType>;
 
@@ -19,6 +20,9 @@ export type SitePages = Record<SitePageKey, ComponentType>;
  * Переход по ссылке сайта (подвал → статья, статья → соседняя) — без
  * перезагрузки, поэтому новая страница открывается с начала (ScrollToTop):
  * иначе статья открывалась бы на той высоте, где читатель нажал ссылку.
+ * И с заголовком своей страницы (PageTitle): <title> в готовом HTML — у
+ * первой открытой, и без этого вкладка, история и закладка показывали бы его
+ * на любой следующей.
  *
  * Страницы передаются снаружи: при сборке — обычным импортом (entry-server,
  * готовый HTML без заглушек загрузки), в браузере — загруженная заранее
@@ -49,8 +53,25 @@ export default function SiteApp({ pages }: { pages: SitePages }) {
         }))}
         <Route path="*" element={<LeaveSite />} />
       </Routes>
+      <PageTitle />
     </>
   );
+}
+
+/**
+ * Заголовок вкладки — по адресу, тот же, что у готового HTML этой страницы.
+ *
+ * Стоит после маршрутов: эффекты соседей идут по порядку, и заголовок
+ * ставится последним — после того, что поставила сама страница (PitchShell у
+ * сравнения ставит тот же текст) и после того, как ушедшая вернула прежний.
+ */
+function PageTitle() {
+  const { pathname } = useLocation();
+  useEffect(() => {
+    const route = siteRoute(pathname);
+    if (route) document.title = PAGE_TITLES[route.page.key][route.lang];
+  }, [pathname]);
+  return null;
 }
 
 /**
