@@ -39,6 +39,8 @@ export const LISTS: Array<{ table: string; column: string; folder: string; tenan
   */
   { table: "order_items",       column: "return_photos", folder: "returns",
     tenant: sql`(SELECT tenant_id FROM orders WHERE orders.id = order_items.order_id)` },
+  // Фото вручения от курьера (courier.saveProof) — без S3 тоже лежат строкой данных.
+  { table: "delivery_events",   column: "photos",        folder: "deliveries" },
 ];
 
 export const OFFLOAD_BATCH = 200;

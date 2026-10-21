@@ -3,6 +3,7 @@ import { z } from "zod";
 import { createRouter, reportsQuery, managementQuery, financeQuery, FINANCE_ROLES } from "./middleware";
 import { TRPCError } from "@trpc/server";
 import { noOrderReport } from "./services/no-order-visits";
+import { failedDeliveriesReport } from "./services/delivery-failures";
 import { marginReport } from "./services/margin-report";
 import { abcReport } from "./services/abc-report";
 import { salesMapBase } from "./services/sales-map";
@@ -16,6 +17,7 @@ import { subDays } from "date-fns";
 import { bizClock, onDate, sinceDay, untilDate, untilDay } from "./lib/date-range";
 import { businessDaysAgo, businessToday } from "@contracts/business-time";
 import { reportCached, ReportTTL } from "./lib/report-cache";
+import { SALES_PING_ROLES } from "./lib/field-users";
 
 /** День «ГГГГ-ММ-ДД». */
 const DAY = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
@@ -71,10 +73,13 @@ export const reportsRouter = createRouter({
 
         // Active agents today (those with location pings in last 2h).
         // Ждался отдельным await после Promise.all без причины — теперь в нём.
+        // Только полевые продажи: курьер тоже шлёт точки (lib/field-users).
         db.select({ agentId: agentLocations.agentId })
           .from(agentLocations)
+          .leftJoin(users, and(eq(agentLocations.agentId, users.id), eq(users.tenantId, tenantId)))
           .where(and(
             eq(agentLocations.tenantId, tenantId),
+            inArray(users.role, SALES_PING_ROLES),
             gte(agentLocations.createdAt, new Date(now.getTime() - 2 * 3600_000)),
           ))
           .groupBy(agentLocations.agentId),
@@ -315,6 +320,27 @@ export const reportsRouter = createRouter({
       return noOrderReport(getDb(), ctx.tenant.id, {
         from: input.dateFrom, to: input.dateTo, agentId: input.agentId, territoryId: input.territoryId,
       });
+    }),
+
+  /*
+    «Недоставленные»: срывы и переносы из журнала попыток — по причинам,
+    курьерам и магазинам. Тот же круг, что у «Визитов без заказа»: директор,
+    оператор, супервайзер.
+  */
+  failedDeliveries: managementQuery
+    .input(z.object({
+      dateFrom: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+      dateTo: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+      courierId: z.number().int().positive().optional(),
+      /** Для выгрузки: все попытки периода (до потолка отчёта), а не последние 200. */
+      allRows: z.boolean().optional(),
+    }))
+    .query(async ({ input, ctx }) => {
+      const days = (Date.parse(input.dateTo) - Date.parse(input.dateFrom)) / 86_400_000;
+      if (!(days >= 0) || days > 366) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Период — от одного дня до года." });
+      }
+      return failedDeliveriesReport(getDb(), ctx.tenant.id, { from: input.dateFrom, to: input.dateTo, courierId: input.courierId, allRows: input.allRows });
     }),
 
   getVisitsLog: reportsQuery

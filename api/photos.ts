@@ -1,7 +1,7 @@
 import { Hono, type Context } from "hono";
 import { allowedPhotoHost, readObject, storageKeyOf } from "./lib/s3";
 import { eq, and, sql } from "drizzle-orm";
-import { products, shops, dailyPlans, visitReports } from "@db/schema";
+import { products, shops, dailyPlans, visitReports, deliveryEvents } from "@db/schema";
 import { getDb } from "./queries/connection";
 import { authenticateRequest } from "./auth";
 import { isAppError } from "@contracts/errors";
@@ -249,6 +249,28 @@ photos.get("/report/:id/:n", (c) =>
       .limit(1);
     // JSON_UNQUOTE от несуществующего элемента даёт SQL NULL, но строка "null"
     // тоже возможна, если в массиве лежит literal null — обе означают «нет».
+    const photo = row?.photo;
+    return photo && photo !== "null" ? photo : null;
+  }));
+
+/*
+  Фото вручения: курьер снял товар у двери магазина (courier.saveProof).
+
+  Устроено как снимки отчёта выше: в строке попытки лежит список, наружу —
+  только его длина (order.getById отдаёт photoCount), а экран собирает
+  ссылки сюда: /api/photos/delivery/<id попытки>/<номер>. Организация —
+  из сессии, номер попытки чужой организации даёт 404.
+*/
+photos.get("/delivery/:id/:n", (c) =>
+  serve(c, async (tenantId, id) => {
+    const n = Number(c.req.param("n"));
+    if (!Number.isInteger(n) || n < 0 || n > 10) return null;
+    const [row] = await getDb().select({
+      photo: sql<string | null>`JSON_UNQUOTE(JSON_EXTRACT(${deliveryEvents.photos}, ${"$[" + n + "]"}))`,
+    })
+      .from(deliveryEvents)
+      .where(and(eq(deliveryEvents.id, id), eq(deliveryEvents.tenantId, tenantId)))
+      .limit(1);
     const photo = row?.photo;
     return photo && photo !== "null" ? photo : null;
   }));

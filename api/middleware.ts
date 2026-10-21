@@ -492,9 +492,32 @@ export const orderReaderQuery = authedQuery
   .use(requireRole(["ceo", "operator", "agent", "supervisor", "merchandiser", "courier"]))
   .use(mutationRateLimit("agent", 200));
 
+/*
+  Точки GPS — от всех, кто ездит по магазинам, включая курьера.
+
+  agent.saveLocation стояла под fieldSalesQuery, и курьер получал отказ на
+  каждую точку: где он сейчас, не видел никто — ни диспетчер, ни магазин,
+  ждущий заказ. Отдельный вид, а не расширенный fieldSalesQuery: за тем стоят
+  магазины, каталог и заказы, которых курьеру не надо.
+
+  Свой счётчик частоты ("location"): пачка точек из буфера телефона после
+  долгого отсутствия связи иначе съедала бюджет доставок курьера (и заказов
+  агента) — отметка «Доставлено» получала 429 из-за собственного GPS.
+*/
+export const locationQuery = authedQuery
+  .use(requireRole(["ceo", "operator", "agent", "supervisor", "merchandiser", "courier"]))
+  .use(mutationRateLimit("location", 300));
+
 export const supervisorQuery = authedQuery.use(requireRole(["ceo", "supervisor"])).use(mutationRateLimit("supervisor", 120));
 export const merchQuery      = authedQuery.use(requireRole(["ceo", "supervisor", "merchandiser"]));
 export const courierQuery    = authedQuery.use(requireRole(["ceo", "operator", "courier"])).use(mutationRateLimit("courier", 200));
+/*
+  Только сам курьер — для того, что может сказать лишь стоявший у прилавка
+  (подтверждение вручения). Директор и оператор работают через courierQuery
+  и могли бы дописать «доказательство» задним числом. Счётчик частоты —
+  курьерский: это те же отметки из той же очереди телефона.
+*/
+export const courierOnlyQuery = authedQuery.use(requireRole(["courier"])).use(mutationRateLimit("courier", 200));
 export const reportsQuery    = authedQuery.use(requireRole(["ceo", "operator", "supervisor", "merchandiser"]));
 export const auditQuery      = authedQuery.use(requireRole(["ceo", "superadmin"]));
 

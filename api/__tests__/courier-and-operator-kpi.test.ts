@@ -476,13 +476,26 @@ describe("курьеру засчитывают доставленный зак�
     expect(daily).toContain("${orders.status} = 'delivered' THEN 1 ELSE 0 END");
   });
 
-  it("сорванное остаётся по отметке курьера", () => {
+  it("сорванное — по отметке курьера в журнале попыток, во всех трёх местах", () => {
     /*
       «Магазин закрыт», «не дозвонились», «отказ» отмечает именно курьер в
       приложении — другого источника у этого нет, и статус заказа при срыве
       возвращается в «новый».
+
+      Изменено намеренно 21.10.2026: раньше здесь требовалось
+      `${orders.deliveryStatus} = 'failed'` по заказам курьера — а «не довёз»
+      снимает курьера с заказа, и такое условие не находило ни одного срыва.
+      «Сорвано» было нулём у всех. Теперь срыв — строка delivery_events, где
+      курьер остаётся.
     */
-    expect(stats).toContain("${orders.deliveryStatus} = 'failed'");
+    const list = SERVICE.slice(SERVICE.indexOf("export async function getCourierList"), SERVICE.indexOf("export interface AgentListEntry"));
+    const daily = SERVICE.slice(SERVICE.indexOf("export async function getCourierDaily"), SERVICE.indexOf("export interface CourierListEntry"));
+    const rule = SERVICE.slice(SERVICE.indexOf("function failedAttemptsWhere"), SERVICE.indexOf("async function failedAttemptsOf"));
+    expect(rule).toContain('eq(deliveryEvents.kind, "failed")');
+    expect(stats).toContain("failedAttemptsOf(");
+    expect(list).toContain("failedAttemptsWhere(");
+    expect(daily).toContain("failedAttemptsWhere(");
+    for (const part of [stats, list, daily]) expect(part).not.toContain("${orders.deliveryStatus} = 'failed'");
   });
 });
 

@@ -1,7 +1,7 @@
 import { inBackground } from "../lib/graceful-shutdown";
 import { orders, users, shops, payments, orderItems, warehouseStock, orderAdjustments } from "@db/schema";
-import { ORDER_STATUS_LABELS } from "../lib/order-status";
-import { eq, and, sql, isNull } from "drizzle-orm";
+import { ORDER_STATUS_LABELS, OPEN_ORDER_STATUSES } from "../lib/order-status";
+import { eq, and, sql, isNull, inArray } from "drizzle-orm";
 import { logger } from "../lib/logger";
 import { sendPushToUser } from "./push-service";
 import { sanitizeString } from "../lib/sanitize";
@@ -13,6 +13,11 @@ import { NotificationService } from "./NotificationService";
 import { invalidateReports } from "../lib/report-cache";
 import { orderWarehouseId, upsertDebtReminder, type Db } from "./order-shared";
 import { eventTime } from "../lib/event-time";
+import { affectedRows } from "../lib/db-rows";
+import { isDuplicateEntry } from "../lib/db-errors";
+import { badRequest } from "../lib/errors";
+import type { DeliveryFailReason } from "@contracts/delivery-fail-reason";
+import { assertFailReason, eventByKey, failReasonOf, placeOf, reasonWords, recordDeliveryEvent } from "./delivery-events";
 
 /*
   Доставка глазами курьера: довёз, довёз с расчётом, не довёз.
@@ -46,10 +51,29 @@ async function alreadyDeliveredByMe(
   return done ?? null;
 }
 
+/*
+  Где курьер нажал — точка телефона в момент отметки, строкой, как у точек
+  GPS. Необязательна: старые сборки её не шлют, GPS бывает выключен. Без неё
+  доска развоза ставит отметку на магазин (services/dispatch-board.ts), а
+  карточка заказа не показывает «Где отмечено».
+*/
+export interface MarkPlace { lat?: string; lng?: string }
+
 /** recordedAt — когда это было на телефоне (отметка ждала связи); см. lib/event-time. */
-export interface MarkDeliveredInput { orderId: number; cashAmount?: string; recordedAt?: string }
-export interface MarkFailedInput { orderId: number; reason?: string }
-export interface CompleteDeliveryInput {
+export interface MarkDeliveredInput extends MarkPlace { orderId: number; cashAmount?: string; recordedAt?: string }
+export interface MarkFailedInput {
+  orderId: number;
+  /** Свободный текст — так шлёт мобилка старой версии; узнаётся кодом (failReasonOf). */
+  reason?: string;
+  reasonCode?: DeliveryFailReason;
+  note?: string;
+  recordedAt?: string;
+  lat?: string;
+  lng?: string;
+  /** id записи очереди телефона: повтор после обрыва связи не пишет вторую попытку. */
+  idempotencyKey?: string;
+}
+export interface CompleteDeliveryInput extends MarkPlace {
   orderId: number;
   recordedAt?: string;
   result: "paid" | "partial_paid" | "returned" | "partial_returned";
@@ -118,8 +142,9 @@ export async function markDelivered(db: Db, tenantId: number, courierId: number,
     // that check before either commits. This makes the second one queue
     // behind the first and then see the order already delivered, so it
     // fails here instead of deducting stock a second time.
+    const deliveredAt = eventTime(input.recordedAt);
     const [statusUpdateResult] = await tx.update(orders)
-      .set({ deliveryStatus: "delivered", deliveredAt: eventTime(input.recordedAt), status: "delivered" })
+      .set({ deliveryStatus: "delivered", deliveredAt, status: "delivered" })
       .where(and(
         eq(orders.id, input.orderId), eq(orders.tenantId, tenantId),
         sql`${orders.deliveryStatus} IN ('assigned', 'out_for_delivery')`,
@@ -127,6 +152,12 @@ export async function markDelivered(db: Db, tenantId: number, courierId: number,
     if ((statusUpdateResult as { affectedRows?: number }).affectedRows !== 1) {
       throw new Error("Заказ уже завершён — повторное выполнение невозможно");
     }
+    // Попытка — в журнал, с курьером: к ней же потом цепляется фото и
+    // подпись вручения (courier.saveProof).
+    await recordDeliveryEvent(tx, {
+      tenantId, orderId: order.id, courierId, kind: "delivered", recordedAt: deliveredAt,
+      ...placeOf(input),
+    });
 
     const items = await tx.select().from(orderItems).where(eq(orderItems.orderId, input.orderId));
     // Склад заказа — тот, где лежит его резерв.
@@ -582,13 +613,19 @@ export async function completeDelivery(db: Db, tenantId: number, courierId: numb
     finalStatus = input.result === "returned" ? "returned" : "delivered";
 
     // ── Update order ──
+    const deliveredAt = eventTime(input.recordedAt);
     await tx.update(orders).set({
       status: finalStatus as "new" | "processing" | "shipped" | "pending" | "delivered" | "cancelled" | "returned",
       deliveryStatus: "delivered",
-      deliveredAt: eventTime(input.recordedAt),
+      deliveredAt,
       deliveryResult,
       deliveryNotes: input.notes ? sanitizeString(input.notes) : null,
     }).where(and(eq(orders.id, input.orderId), eq(orders.tenantId, tenantId)));
+    // Курьер у двери побывал — и при полном возврате тоже: попытка в журнал.
+    await recordDeliveryEvent(tx, {
+      tenantId, orderId: order.id, courierId, kind: "delivered", recordedAt: deliveredAt,
+      ...placeOf(input),
+    });
 
     // ── Record payment ──
     if (paidAmount > 0) {
@@ -694,6 +731,13 @@ export async function completeDelivery(db: Db, tenantId: number, courierId: numb
 }
 
 export async function markFailed(db: Db, tenantId: number, courierId: number, input: MarkFailedInput) {
+  // Повтор из очереди с тем же ключом: попытка уже записана.
+  if (await eventByKey(db, tenantId, input.idempotencyKey)) return { success: true, duplicate: true };
+
+  // Причина — до всего остального: «Другое» без текста не проводится.
+  const reason = failReasonOf(input);
+  assertFailReason(reason.code, reason.note);
+
   const [order] = await db.select({ id: orders.id, status: orders.status, deliveryStatus: orders.deliveryStatus, orderNumber: orders.orderNumber }).from(orders)
     .where(and(
       eq(orders.id, input.orderId),
@@ -705,7 +749,7 @@ export async function markFailed(db: Db, tenantId: number, courierId: number, in
     // Ответ на «не довёз» не дошёл до телефона, отметка ушла из очереди
     // повторно: заказ уже снят с курьера (courierId = null, failed). Это дубль,
     // а не отказ — иначе курьер видел красную строку «не назначен на вас» по
-    // действию, которое проведено, и звонил в офис.
+    // действию, которое проведено.
     const [failed] = await db.select({ id: orders.id }).from(orders)
       .where(and(eq(orders.id, input.orderId), eq(orders.tenantId, tenantId), eq(orders.deliveryStatus, "failed"), isNull(orders.courierId)))
       .limit(1);
@@ -727,21 +771,64 @@ export async function markFailed(db: Db, tenantId: number, courierId: number, in
     throw new Error("Заказ уже завершён, отменён или возвращён — повторное действие невозможно");
   }
 
-  const safeReason = input.reason ? sanitizeString(input.reason) : "";
+  const words = reasonWords(reason.code, reason.note);
 
-  await db.transaction(async (tx) => {
-    // Update order status — keep deliveryStatus for history, but allow reassignment
-    await tx.update(orders)
-      .set({ deliveryStatus: "failed", status: "new", courierId: null })
-      .where(and(eq(orders.id, input.orderId), eq(orders.tenantId, tenantId)));
+  try {
+    const replay = await db.transaction(async (tx) => {
+      /*
+        Условие — в самом UPDATE, и число изменённых строк проверяется.
 
-    // The reservation deliberately stays in place. The goods never left the
-    // warehouse (current_stock is only touched on delivery) and the order goes
-    // back to "new" for another delivery attempt, so it still owns them.
-    // Releasing here made the same units sellable twice and drove `reserved`
-    // negative once the retried delivery completed. Stock is returned only
-    // when the order is cancelled or deleted.
-  });
+        Проверка выше идёт вне транзакции. Здесь стояло `WHERE id AND tenant`
+        без статуса: если одновременно с этим «не довёз» проходил «Доставлено»
+        (второй телефон, повтор очереди) и успевал закоммитить первым — товар
+        уже списан, деньги приняты, — этот UPDATE возвращал доставленный заказ
+        в «новый» без курьера. Склад и долг магазина расходились с заказом.
+        Теперь проигравший гонку получает отказ, а заказ остаётся доставленным.
+
+        Курьер снимается (заказ можно назначить заново), с ним — место в
+        маршруте и плановый день: новому курьеру они ничего не говорят.
+      */
+      const res = await tx.update(orders)
+        .set({ deliveryStatus: "failed", status: "new", courierId: null, routeSeq: null, plannedDeliveryDate: null })
+        .where(and(
+          eq(orders.id, input.orderId), eq(orders.tenantId, tenantId),
+          eq(orders.courierId, courierId), isNull(orders.deletedAt),
+          inArray(orders.deliveryStatus, ["assigned", "out_for_delivery"]),
+          inArray(orders.status, OPEN_ORDER_STATUSES),
+        ));
+      if (affectedRows(res) !== 1) {
+        // Тот же ключ пришёл двумя запросами разом: этот ждал замка строки,
+        // пока первый проводил «не довёз», и после него заказ уже снят с
+        // курьера. Это дубль, а не отказ — строка первого уже видна.
+        if (await eventByKey(tx, tenantId, input.idempotencyKey)) return true;
+        throw badRequest("Заказ уже завершён, отменён или возвращён — повторное действие невозможно");
+      }
+
+      // Попытка — в журнал С КУРЬЕРОМ: на заказе он только что стёрт, и без
+      // этой строки «Сорвано» в его KPI было нулём всегда.
+      await recordDeliveryEvent(tx, {
+        tenantId, orderId: order.id, courierId, kind: "failed",
+        reasonCode: reason.code, note: reason.note,
+        ...placeOf(input),
+        recordedAt: eventTime(input.recordedAt),
+        idempotencyKey: input.idempotencyKey ?? null,
+      });
+
+      // The reservation deliberately stays in place. The goods never left the
+      // warehouse (current_stock is only touched on delivery) and the order goes
+      // back to "new" for another delivery attempt, so it still owns them.
+      // Releasing here made the same units sellable twice and drove `reserved`
+      // negative once the retried delivery completed. Stock is returned only
+      // when the order is cancelled or deleted.
+      return false;
+    });
+    if (replay) return { success: true, duplicate: true };
+  } catch (e) {
+    // Тот же ключ пришёл двумя запросами разом: второй упёрся в уникальный
+    // индекс, его транзакция откатилась целиком — первый всё провёл.
+    if (input.idempotencyKey && isDuplicateEntry(e)) return { success: true, duplicate: true };
+    throw e;
+  }
   await invalidateReports(tenantId, "delivery");
 
   const [ceo] = await db.select({ id: users.id }).from(users)
@@ -754,13 +841,13 @@ export async function markFailed(db: Db, tenantId: number, courierId: number, in
       userId: ceo.id,
       type: "order",
       title: { ru: "Доставка не состоялась", uz: "Yetkazish amalga oshmadi" },
-      message: { ru: `Заказ ${order.orderNumber}${safeReason ? ` — ${safeReason}` : ""}`, uz: `Buyurtma ${order.orderNumber}${safeReason ? ` — ${safeReason}` : ""}` },
+      message: { ru: `Заказ ${order.orderNumber}${words.ru ? ` — ${words.ru}` : ""}`, uz: `Buyurtma ${order.orderNumber}${words.uz ? ` — ${words.uz}` : ""}` },
     });
 
     // Push notification to CEO
     inBackground(sendPushToUser(ceo.id, {
       title: "Доставка не состоялась",
-      body: `Заказ ${order.orderNumber}${safeReason ? ` — ${safeReason}` : ""}`,
+      body: `Заказ ${order.orderNumber}${words.ru ? ` — ${words.ru}` : ""}`,
       data: { type: "order.failed", orderId: input.orderId },
     }).catch(() => {}));
   }
@@ -768,16 +855,19 @@ export async function markFailed(db: Db, tenantId: number, courierId: number, in
   // Telegram: оператору и агенту магазина — разобраться сегодня, а не завтра.
   inBackground((async () => {
     const [{ notifyEvent }, { tgMessages, fmtMoney }] = await Promise.all([import("./telegram-notify"), import("../lib/telegram")]);
-    const [full] = await db.select({ shopId: orders.shopId, agentId: orders.agentId, total: orders.total }).from(orders).where(eq(orders.id, input.orderId)).limit(1);
-    const [shop] = full ? await db.select({ name: shops.name }).from(shops).where(eq(shops.id, full.shopId)).limit(1) : [];
-    const [courier] = await db.select({ name: users.name }).from(users).where(eq(users.id, courierId)).limit(1);
+    const [full] = await db.select({ shopId: orders.shopId, agentId: orders.agentId, total: orders.total }).from(orders).where(and(eq(orders.id, input.orderId), eq(orders.tenantId, tenantId))).limit(1);
+    const [shop] = full ? await db.select({ name: shops.name }).from(shops).where(and(eq(shops.id, full.shopId), eq(shops.tenantId, tenantId))).limit(1) : [];
+    const [courier] = await db.select({ name: users.name }).from(users).where(and(eq(users.id, courierId), eq(users.tenantId, tenantId))).limit(1);
     await notifyEvent({
       tenantId, event: "delivery.failed", agentOnly: full?.agentId ?? undefined,
-      text: tgMessages.deliveryFailed({ number: order.orderNumber, shop: shop?.name ?? "Магазин", total: fmtMoney(full?.total ?? 0), reason: safeReason || null, courier: courier?.name }),
+      text: tgMessages.deliveryFailed({
+        number: order.orderNumber, shop: shop?.name ?? "Магазин", total: fmtMoney(full?.total ?? 0),
+        reason: words.ru ? `${words.ru} / ${words.uz}` : null, courier: courier?.name,
+      }),
     });
   })().catch(e => logger.warn("delivery.failed notify failed", { error: String(e) })));
 
-  logger.info("order delivery failed", { orderId: input.orderId, courierId, reason: input.reason });
+  logger.info("order delivery failed", { orderId: input.orderId, courierId, reasonCode: reason.code });
 
   return { success: true };
 }

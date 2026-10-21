@@ -568,6 +568,13 @@
       "when": 1792592472831,
       "tag": "0080_product_reorder_max",
       "breakpoints": true
+    },
+    {
+      "idx": 81,
+      "version": "5",
+      "when": 1792592718465,
+      "tag": "0081_delivery_events",
+      "breakpoints": true
     }
   ]
 }

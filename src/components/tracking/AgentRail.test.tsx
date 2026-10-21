@@ -26,6 +26,7 @@ const agent = (over: Partial<TrackedAgent> & { id: number }): TrackedAgent => ({
   batteryLevel: null,
   accuracy: null,
   mocked: false,
+  courier: false,
   ...over,
 });
 
@@ -106,6 +107,20 @@ describe("панель агентов", () => {
     expect(badges, "бейдж — только у того, чей телефон сообщил о подмене").toHaveLength(1);
     expect(badges[0].closest("button")?.textContent).toContain("Бек");
     expect((badges[0] as HTMLElement).style.color).toBe("var(--color-danger-text)");
+  });
+
+  it("курьер помечен словом и квадратной меткой — не путается с агентом", () => {
+    const rows = [
+      agent({ id: 1, name: "Курьер Азиз", state: "online", at: new Date(), lat: 41.3, lng: 69.2, courier: true }),
+      agent({ id: 2, name: "Агент Али", state: "online", at: new Date(), lat: 41.3, lng: 69.2 }),
+    ];
+    renderRail({ rows, silentCount: 0 });
+    const tags = screen.getAllByTestId("rail-courier");
+    expect(tags, "пометка — только у курьера").toHaveLength(1);
+    expect(tags[0].closest("button")?.textContent).toContain("Курьер Азиз");
+    const avatar = (name: string) => screen.getByText(name).closest("button")!.querySelector("span.w-8");
+    expect(avatar("Курьер Азиз")?.className).toContain("rounded-lg");
+    expect(avatar("Агент Али")?.className).toContain("rounded-full");
   });
 
   it("отбор без совпадений предлагает вернуться ко всем", () => {

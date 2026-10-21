@@ -71,6 +71,8 @@ export interface LocationPoint {
   accuracy?: string | number | null;
   /** Телефон пометил координаты как подменённые (Android). */
   mocked?: boolean | null;
+  /** Роль того, чья точка: точки шлёт и курьер (agent.getLocations отдаёт роль). */
+  role?: string | null;
 }
 
 export interface TrackedAgent {
@@ -86,6 +88,12 @@ export interface TrackedAgent {
   accuracy: number | null;
   /** Последняя точка подменена: метке на карте верить нельзя. */
   mocked: boolean;
+  /**
+   * Это курьер, а не агент. Точки GPS пишут оба, и на одной карте машина с
+   * товаром выглядела ровно как агент у магазина: супервайзер спрашивал
+   * «почему агент второй час на трассе».
+   */
+  courier: boolean;
 }
 
 export interface Roster {
@@ -163,6 +171,7 @@ export function buildRoster(
       batteryLevel: p?.batteryLevel ?? null,
       accuracy: p?.accuracy == null ? null : Number(p.accuracy),
       mocked: p?.mocked === true,
+      courier: p?.role === "courier",
     });
   }
 

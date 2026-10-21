@@ -636,7 +636,10 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
   // Полевые роли из браузера: точка местоположения сама раз в десять минут,
   // с любого экрана, пока приложение открыто. См. hooks/useLocationPing.ts.
-  useLocationPing(user?.role === "agent" || user?.role === "merchandiser");
+  // Курьер — тоже: по его точке диспетчер видит машину на развозе, а
+  // страница «где мой заказ» считает магазину, примерно через сколько минут
+  // он приедет (сами координаты магазину не показываются).
+  useLocationPing(user?.role === "agent" || user?.role === "merchandiser" || user?.role === "courier");
 
   /*
     Нет связи — это не «войдите заново».

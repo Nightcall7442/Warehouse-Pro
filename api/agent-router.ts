@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { isSafePhotoValue, PHOTO_VALUE_ERROR } from "./lib/photo-value";
 import { TRPCError } from "@trpc/server";
-import { createRouter, fieldSalesQuery, merchVisitQuery, supervisorQuery, authedQuery, reportsQuery } from "./middleware";
+import { createRouter, fieldSalesQuery, merchVisitQuery, supervisorQuery, authedQuery, reportsQuery, locationQuery } from "./middleware";
 import { getDb } from "./queries/connection";
 import { agentLocations, dailyPlans, shops, users, agentTerritories, territories } from "@db/schema";
 import { eq, and, sql, desc, gte, lte , inArray, isNull, type SQL } from "drizzle-orm";
@@ -11,6 +11,7 @@ import { sanitizeString, sanitizeSearch } from "./lib/sanitize";
 import { cache, withTenantDataCache, CacheTTL } from "./lib/cache";
 import { verifyVisit } from "./services/anti-fraud";
 import { haversineKm } from "./lib/geo";
+import { nearestNeighbour, coordsOf, routeKm } from "@contracts/route-order";
 import { bizClock, dayEndUtc, dayStartUtc, onDate } from "./lib/date-range";
 import { photoRef } from "./lib/photo-url";
 import { isDuplicateEntry } from "./lib/db-errors";
@@ -447,7 +448,9 @@ export const agentRouter = createRouter({
       return listActiveShops(ctx.tenant.id, input);
     }),
 
-  saveLocation: fieldSalesQuery
+  // Курьер тоже: его точки видят диспетчер (courier.board) и магазин на
+  // странице отслеживания — грубо, без координат (services/tracking.ts).
+  saveLocation: locationQuery
     .input(z.object({
       lat: z.string().refine(v => { const n = Number(v); return v.trim() !== "" && Number.isFinite(n) && n >= -90 && n <= 90; }, "Широта должна быть от -90 до 90"),
       lng: z.string().refine(v => { const n = Number(v); return v.trim() !== "" && Number.isFinite(n) && n >= -180 && n <= 180; }, "Долгота должна быть от -180 до 180"),
@@ -533,6 +536,9 @@ export const agentRouter = createRouter({
       // человека поставило приложение-подделка.
       mocked: agentLocations.mocked,
       agentName: users.name,
+      // Кто это: точки пишет и курьер (locationQuery), и карта должна
+      // отличать его машину от агента, а не подписывать «агент».
+      role: users.role,
     })
       .from(agentLocations)
       .leftJoin(users, and(eq(agentLocations.agentId, users.id), eq(users.tenantId, ctx.tenant.id)))
@@ -672,58 +678,20 @@ export const agentRouter = createRouter({
         .where(and(...conditions))
         .limit(50);
 
-      // Calculate distance from current location and sort
+      // Расстояние каждой точки от текущего места — для подписи в списке.
       const withDistance = plans.map(p => {
-        const lat = Number(p.lat);
-        const lng = Number(p.lng);
-        if (!lat || !lng) return { ...p, distance: 9999 };
-
-        const distance = haversineKm(input.currentLat, input.currentLng, lat, lng);
+        const c = coordsOf({ lat: p.lat, lng: p.lng });
+        if (!c) return { ...p, distance: 9999 };
+        const distance = haversineKm(input.currentLat, input.currentLng, c.lat, c.lng);
         return { ...p, distance: Math.round(distance * 10) / 10 };
       });
 
-      // Sort by distance (nearest first) — nearest neighbor heuristic
-      const sorted: typeof withDistance = [];
-      const remaining = [...withDistance];
-      let currentLat = input.currentLat;
-      let currentLng = input.currentLng;
-
-      while (remaining.length > 0) {
-        let nearestIdx = 0;
-        let nearestDist = Infinity;
-
-        for (let i = 0; i < remaining.length; i++) {
-          const lat = Number(remaining[i].lat);
-          const lng = Number(remaining[i].lng);
-          if (!lat || !lng) continue;
-
-          const dist = haversineKm(currentLat, currentLng, lat, lng);
-
-          if (dist < nearestDist) {
-            nearestDist = dist;
-            nearestIdx = i;
-          }
-        }
-
-        const nearest = remaining.splice(nearestIdx, 1)[0];
-        sorted.push(nearest);
-        currentLat = Number(nearest.lat) || currentLat;
-        currentLng = Number(nearest.lng) || currentLng;
-      }
-
-      // Calculate total distance (inter-stop distances, not from origin)
-      let totalDistance = 0;
-      let prevLat = input.currentLat;
-      let prevLng = input.currentLng;
-      let noGpsCount = 0;
-      for (let i = 0; i < sorted.length; i++) {
-        const lat = Number(sorted[i].lat);
-        const lng = Number(sorted[i].lng);
-        if (!lat || !lng) { noGpsCount++; continue; }
-        totalDistance += haversineKm(prevLat, prevLng, lat, lng);
-        prevLat = lat;
-        prevLng = lng;
-      }
+      // Порядок — ближайший сосед из текущего места; тот же, что у курьера
+      // (contracts/route-order). Магазины без GPS — в конце.
+      const here = { lat: input.currentLat, lng: input.currentLng };
+      const sorted = nearestNeighbour(withDistance, here);
+      const totalDistance = routeKm(sorted, here);
+      const noGpsCount = sorted.filter(p => !coordsOf({ lat: p.lat, lng: p.lng })).length;
 
       return {
         plans: sorted,

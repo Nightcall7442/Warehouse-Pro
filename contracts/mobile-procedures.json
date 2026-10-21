@@ -160,6 +160,16 @@
     "kind": "mutation"
   },
   {
+    "fn": "rescheduleDelivery",
+    "path": "courier.reschedule",
+    "kind": "mutation"
+  },
+  {
+    "fn": "saveDeliveryProof",
+    "path": "courier.saveProof",
+    "kind": "mutation"
+  },
+  {
     "fn": "getDashboardActivity",
     "path": "dashboard.activity",
     "kind": "query"
@@ -343,6 +353,11 @@
     "fn": "setPromisedDelivery",
     "path": "order.setPromisedDelivery",
     "kind": "mutation"
+  },
+  {
+    "fn": "getTrackingLink",
+    "path": "order.trackingLink",
+    "kind": "query"
   },
   {
     "fn": "updateOrder",

@@ -99,6 +99,18 @@ describe("visiblePins: карта начинается не в углу стра
   });
 });
 
+describe("buildRoster: курьер — не агент", () => {
+  it("роль из точки ставит пометку курьера; без роли — агент", () => {
+    const now = Date.UTC(2026, 9, 21, 7, 0, 0);
+    const r = buildRoster([{ id: 1, name: "Агент" }], [
+      { agentId: 1, lat: "41.3", lng: "69.2", at: new Date(now - 60_000), role: "agent" },
+      { agentId: 9, agentName: "Курьер", lat: "41.31", lng: "69.21", at: new Date(now - 60_000), role: "courier" },
+    ], now);
+    expect(r.rows.find(x => x.id === 9)?.courier).toBe(true);
+    expect(r.rows.find(x => x.id === 1)?.courier).toBe(false);
+  });
+});
+
 describe("boundsOf: под что подгонять вид", () => {
   it("пустой список — подгонять нечего", () => {
     expect(boundsOf([])).toBeNull();

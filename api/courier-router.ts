@@ -1,23 +1,72 @@
 import { inBackground } from "./lib/graceful-shutdown";
 import { z } from "zod";
-import { createRouter, courierQuery, operatorQuery } from "./middleware";
+import { TRPCError } from "@trpc/server";
+import { createRouter, courierQuery, courierOnlyQuery, operatorQuery, managementQuery, can } from "./middleware";
 import { getDb } from "./queries/connection";
 import { markDelivered, completeDelivery, markFailed } from "./services/courier-delivery";
 import { orders, shops, users, orderItems, products } from "@db/schema";
 import { OPEN_ORDER_STATUSES } from "./lib/order-status";
-import { eq, and, sql, desc, isNull } from "drizzle-orm";
+import { eq, and, sql, desc, asc } from "drizzle-orm";
+import { businessToday } from "@contracts/business-time";
 import { sseBus } from "./lib/sse";
 import { logger } from "./lib/logger";
 import { NotificationService } from "./services/NotificationService";
 import { recordedAtInput } from "./lib/event-time";
+import { DELIVERY_FAIL_REASONS, DELIVERY_FAIL_NOTE_MAX } from "@contracts/delivery-fail-reason";
+import { isSafePhotoValue, PHOTO_VALUE_ERROR } from "./lib/photo-value";
+import { auditActor } from "./services/audit-log";
+import { rescheduleByCourier, rescheduleByOffice, setRouteOrder } from "./services/delivery-plan";
+import { saveProof } from "./services/delivery-proof";
+import { PROOF_PHOTO_MAX_CHARS, SIGNATURE_MAX_STROKES, SIGNATURE_SCALE, SIGNATURE_STROKE_MAX_POINTS } from "@contracts/delivery-proof";
+import { dispatchBoard, courierDayTrack, suggestCourierRoute, inRunConditions, dueBy } from "./services/dispatch-board";
+
+/** Координаты строкой, как у точек GPS (agent.saveLocation). */
+const latInput = z.string().refine(v => { const n = Number(v); return v.trim() !== "" && Number.isFinite(n) && n >= -90 && n <= 90; }, "Широта должна быть от -90 до 90").optional();
+const lngInput = z.string().refine(v => { const n = Number(v); return v.trim() !== "" && Number.isFinite(n) && n >= -180 && n <= 180; }, "Долгота должна быть от -180 до 180").optional();
+/** Ключ записи очереди телефона (uuid или свой): столбец delivery_events.idempotency_key — 64. */
+const idempotencyKeyInput = z.string().min(8).max(64).optional();
+const dayInput = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Дата в формате ГГГГ-ММ-ДД");
+const failReasonInput = {
+  reasonCode: z.enum(DELIVERY_FAIL_REASONS).optional(),
+  note: z.string().max(DELIVERY_FAIL_NOTE_MAX).optional(),
+};
+/** Подпись — рамка и штрихи числами (contracts/delivery-proof.ts: signatureProblem). */
+const signatureInput = z.object({
+  w: z.number().int().min(1).max(SIGNATURE_SCALE),
+  h: z.number().int().min(1).max(SIGNATURE_SCALE),
+  strokes: z.array(z.array(z.number().int().min(0).max(SIGNATURE_SCALE)).max(SIGNATURE_STROKE_MAX_POINTS * 2)).min(1).max(SIGNATURE_MAX_STROKES),
+});
 
 export const courierRouter = createRouter({
-  listMyDeliveries: courierQuery.query(async ({ ctx }) => {
-    const db = getDb();
-    const courierId = ctx.user.role === "courier" ? ctx.user.id : undefined;
+  /*
+    Что везти — курьеру его заказы, офису — все в развозе.
 
-    if (!courierId) {
-      return db.select({
+    ── Курьер ─────────────────────────────────────────────────────────────────
+
+    Только ОТКРЫТЫЕ заказы. Отмена заказа не трогает его курьера и статус
+    доставки, и отменённый заказ оставался у курьера в списке — тот ехал к
+    магазину, который от заказа отказался. Перенесённый на другой день
+    (plannedDeliveryDate впереди) в сегодняшний список не попадает; includeLater
+    отдаёт и их — для свёрнутого раздела «Перенесено».
+
+    Порядок — маршрут диспетчера (routeSeq), за ним заказы без места, новые
+    сверху, как было.
+
+    ── Офис ───────────────────────────────────────────────────────────────────
+
+    Раньше отдавались только «назначен» и без имени курьера: заказ, уже
+    выехавший, пропадал из списка, а чей он — не видно. Теперь — и «в пути»,
+    с курьером и его маршрутом.
+  */
+  listMyDeliveries: courierQuery
+    .input(z.object({ includeLater: z.boolean().optional() }).optional())
+    .query(async ({ ctx, input }) => {
+      const db = getDb();
+      const tenantId = ctx.tenant.id;
+      const courierId = ctx.user.role === "courier" ? ctx.user.id : undefined;
+      const today = businessToday();
+
+      const fields = {
         id: orders.id,
         orderNumber: orders.orderNumber,
         status: orders.status,
@@ -36,51 +85,35 @@ export const courierRouter = createRouter({
         shopGpsLng: shops.gpsLng,
         createdAt: orders.createdAt,
         deliveredAt: orders.deliveredAt,
-      })
-        .from(orders)
-        .leftJoin(shops, and(eq(orders.shopId, shops.id), eq(shops.tenantId, ctx.tenant.id)))
-        .where(and(
-          eq(orders.tenantId, ctx.tenant.id),
-          isNull(orders.deletedAt),
-          eq(orders.deliveryStatus, "assigned"),
-        ))
-        .orderBy(desc(orders.createdAt))
-        .limit(50);
-    }
+        plannedDeliveryDate: orders.plannedDeliveryDate,
+        routeSeq: orders.routeSeq,
+        courierId: orders.courierId,
+      };
+      // Те же условия, что у доски развоза (services/dispatch-board.ts):
+      // курьер и диспетчер видят один и тот же список.
+      const open = inRunConditions(tenantId);
 
-    return db.select({
-      id: orders.id,
-      orderNumber: orders.orderNumber,
-      status: orders.status,
-      deliveryStatus: orders.deliveryStatus,
-      total: orders.total,
-      totalWeightKg: sql<string>`COALESCE((
-        SELECT SUM(CAST(oi.quantity AS DECIMAL(15,3)) * CAST(COALESCE(p.unit_weight, '1') AS DECIMAL(15,3)))
-        FROM ${orderItems} oi
-        LEFT JOIN ${products} p ON p.id = oi.product_id
-        WHERE oi.order_id = ${orders.id}
-      ), 0)`,
-      shopName: shops.name,
-      shopAddress: shops.address,
-      shopCity: shops.city,
-      shopGpsLat: shops.gpsLat,
-      shopGpsLng: shops.gpsLng,
-      createdAt: orders.createdAt,
-      deliveredAt: orders.deliveredAt,
-    })
-      .from(orders)
-      .leftJoin(shops, and(eq(orders.shopId, shops.id), eq(shops.tenantId, ctx.tenant.id)))
-      .where(and(
-        eq(orders.tenantId, ctx.tenant.id),
-        eq(orders.courierId, courierId),
-        // Удалённый заказ курьеру не показывается: его резерв уже вернулся
-        // на склад, и везти по нему нечего.
-        isNull(orders.deletedAt),
-        sql`${orders.deliveryStatus} IN ('assigned', 'out_for_delivery')`,
-      ))
-      .orderBy(desc(orders.createdAt))
-      .limit(50);
-  }),
+      if (!courierId) {
+        return db.select({ ...fields, courierName: users.name })
+          .from(orders)
+          .leftJoin(shops, and(eq(orders.shopId, shops.id), eq(shops.tenantId, tenantId)))
+          .leftJoin(users, and(eq(orders.courierId, users.id), eq(users.tenantId, tenantId)))
+          .where(and(...open))
+          .orderBy(desc(orders.createdAt))
+          .limit(200);
+      }
+
+      return db.select({ ...fields, courierName: sql<string | null>`NULL` })
+        .from(orders)
+        .leftJoin(shops, and(eq(orders.shopId, shops.id), eq(shops.tenantId, tenantId)))
+        .where(and(
+          ...open,
+          eq(orders.courierId, courierId),
+          ...(input?.includeLater ? [] : [dueBy(today)]),
+        ))
+        .orderBy(sql`${orders.routeSeq} IS NULL`, asc(orders.routeSeq), desc(orders.createdAt))
+        .limit(100);
+    }),
 
   assignCourier: operatorQuery
     .input(z.object({ orderId: z.number().int().positive(), courierId: z.number().int().positive() }))
@@ -115,8 +148,11 @@ export const courierRouter = createRouter({
         .limit(1);
       if (!courier) throw new Error("Курьер не найден");
 
+      // Новое назначение — новый план: место в прежнем маршруте и перенос
+      // «на четверг» относились к прежнему решению и новому курьеру ничего не
+      // говорят. Нужен другой день — его ставят переносом (officeReschedule).
       await db.update(orders)
-        .set({ courierId: input.courierId, deliveryStatus: "assigned" })
+        .set({ courierId: input.courierId, deliveryStatus: "assigned", routeSeq: null, plannedDeliveryDate: null })
         .where(and(eq(orders.id, input.orderId), eq(orders.tenantId, ctx.tenant.id)));
 
       const [shop] = await db.select({ name: shops.name }).from(shops)
@@ -131,10 +167,15 @@ export const courierRouter = createRouter({
       });
 
       // Push курьеру — после ответа: оператор не ждёт Expo.
+      //
+      // Тип — «order.assigned»: его телефон знает с первых сборок и по
+      // нажатию открывает список доставок. Здесь стоял «delivery», которого
+      // не знала ни одна сборка: нажатие открывало приложение на главной, и
+      // курьер искал новый заказ сам.
       inBackground(import("./services/push-service").then(({ sendPushToUser }) => sendPushToUser(input.courierId, {
         title: "Назначен заказ на доставку",
         body: `Заказ ${order.orderNumber} → ${shop?.name ?? "Магазин"}`,
-        data: { type: "delivery", orderId: input.orderId },
+        data: { type: "order.assigned", orderId: input.orderId },
       })).catch(() => { /* push is non-critical */ }));
 
       sseBus.emit({
@@ -194,6 +235,9 @@ export const courierRouter = createRouter({
       orderId: z.number().int().positive(),
       cashAmount: z.string().regex(/^\d+(\.\d{1,2})?$/, "Неверный формат суммы").optional(),
       recordedAt: recordedAtInput,
+      // Где нажато «Доставлено» — на доску развоза и в карточку заказа.
+      lat: latInput,
+      lng: lngInput,
     }))
     .mutation(({ input, ctx }) => markDelivered(getDb(), ctx.tenant.id, ctx.user.id, input)),
 
@@ -202,6 +246,8 @@ export const courierRouter = createRouter({
     .input(z.object({
       orderId: z.number().int().positive(),
       recordedAt: recordedAtInput,
+      lat: latInput,
+      lng: lngInput,
       result: z.enum(["paid", "partial_paid", "returned", "partial_returned"]),
       // Формат тот же, что у cashAmount в markDelivered выше. Раньше поле было
       // просто z.string(): курьер набирал «50,000» (запятая — привычный
@@ -250,10 +296,107 @@ export const courierRouter = createRouter({
     }))
     .mutation(({ input, ctx }) => completeDelivery(getDb(), ctx.tenant.id, ctx.user.id, input)),
 
+  /*
+    «Не довёз» — с причиной кодом.
+
+    Все новые поля необязательны: мобилка старой версии шлёт {orderId,
+    reason} свободным текстом и продолжает работать — три текста её кнопок
+    узнаются кодами (contracts/delivery-fail-reason.ts).
+  */
   markFailed: courierQuery
     .input(z.object({
       orderId: z.number().int().positive(),
       reason: z.string().max(500).optional(),
+      reasonCode: z.enum(DELIVERY_FAIL_REASONS).optional(),
+      note: z.string().max(DELIVERY_FAIL_NOTE_MAX).optional(),
+      recordedAt: recordedAtInput,
+      lat: latInput,
+      lng: lngInput,
+      idempotencyKey: idempotencyKeyInput,
     }))
     .mutation(({ input, ctx }) => markFailed(getDb(), ctx.tenant.id, ctx.user.id, input)),
+
+  /*
+    «Перенести на…» — курьер переносит свой заказ на другой день (с завтра,
+    не дальше двух недель). Заказ остаётся за ним и возвращается в его список
+    в этот день. Перенос — не срыв: в KPI «Сорвано» не идёт.
+  */
+  reschedule: courierQuery
+    .input(z.object({
+      orderId: z.number().int().positive(),
+      date: dayInput,
+      ...failReasonInput,
+      recordedAt: recordedAtInput,
+      lat: latInput,
+      lng: lngInput,
+      idempotencyKey: idempotencyKeyInput,
+    }))
+    .mutation(({ input, ctx }) => rescheduleByCourier(getDb(), ctx.tenant.id, ctx.user.id, input)),
+
+  /** Офис ставит заказу курьера день доставки — и на сегодня тоже (вернуть в развоз). */
+  officeReschedule: operatorQuery.use(can("orders.edit"))
+    .input(z.object({
+      orderId: z.number().int().positive(),
+      date: dayInput,
+      ...failReasonInput,
+    }))
+    .mutation(({ input, ctx }) => rescheduleByOffice(getDb(), auditActor(ctx), input)),
+
+  /*
+    Подтверждение вручения — после «Доставлено», отдельным запросом: фото,
+    подпись, имя принявшего. Одно фото за запрос — тело остаётся далеко от
+    предела в 10 МБ и на слабой связи уходит целиком.
+
+    Только курьер: подтверждение — слово того, кто стоял у прилавка, а не
+    офиса, дописанное потом.
+  */
+  saveProof: courierOnlyQuery
+    .input(z.object({
+      orderId: z.number().int().positive(),
+      photo: z.string().max(PROOF_PHOTO_MAX_CHARS, "Фото слишком большое — снимите ещё раз").refine(isSafePhotoValue, PHOTO_VALUE_ERROR).optional(),
+      signature: signatureInput.optional(),
+      recipientName: z.string().max(120).optional(),
+      lat: latInput,
+      lng: lngInput,
+    }))
+    .mutation(({ input, ctx }) => saveProof(getDb(), ctx.tenant.id, ctx.user.id, input)),
+
+  // ── Доска развоза (офис) ───────────────────────────────────────────────────
+
+  /**
+   * Курьеры на день (без даты — сегодня): где, сколько везут, сколько
+   * довезли — и их остановки по порядку. Другой день — до двух недель
+   * вперёд: заказы, перенесённые на него (services/dispatch-board.ts).
+   */
+  board: managementQuery
+    .input(z.object({ date: dayInput.optional() }).optional())
+    .query(({ ctx, input }) => dispatchBoard(getDb(), ctx.tenant.id, input?.date)),
+
+  /** След курьера за день. Номер не курьера — отказ: след агента здесь не отдаётся. */
+  dayTrack: managementQuery
+    .input(z.object({ courierId: z.number().int().positive(), day: dayInput }))
+    .query(async ({ input, ctx }) => {
+      const track = await courierDayTrack(getDb(), ctx.tenant.id, input.courierId, input.day);
+      if (!track) throw new TRPCError({ code: "NOT_FOUND", message: "Курьер не найден в вашей организации" });
+      return track;
+    }),
+
+  /** «Предложить порядок»: ближайший сосед от свежей точки курьера. Не сохраняет. */
+  suggestRoute: managementQuery
+    .input(z.object({ courierId: z.number().int().positive(), date: dayInput.optional() }))
+    .query(async ({ input, ctx }) => {
+      const route = await suggestCourierRoute(getDb(), ctx.tenant.id, input.courierId, input.date);
+      if (!route) throw new TRPCError({ code: "NOT_FOUND", message: "Курьер не найден в вашей организации" });
+      return route;
+    }),
+
+  /** «Сохранить» порядок объезда — курьер получит список в нём. */
+  setRouteOrder: operatorQuery.use(can("orders.edit"))
+    .input(z.object({
+      courierId: z.number().int().positive(),
+      /** День плана; без даты — сегодня (как у доски). */
+      date: dayInput.optional(),
+      orderIds: z.array(z.number().int().positive()).min(1, "Выберите хотя бы один заказ").max(200),
+    }))
+    .mutation(({ input, ctx }) => setRouteOrder(getDb(), auditActor(ctx), input)),
 });

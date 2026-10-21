@@ -1,6 +1,6 @@
 import { eq, and, or, asc, desc, sql, isNull, isNotNull, inArray, type SQL, type SQLWrapper } from "drizzle-orm";
 import { alias } from "drizzle-orm/mysql-core";
-import { orders, orderItems, shops, users, products, payments, orderAdjustments, territories, priceLists, warehouses } from "@db/schema";
+import { orders, orderItems, shops, users, products, payments, orderAdjustments, territories, priceLists, warehouses, deliveryEvents } from "@db/schema";
 import { OPEN_ORDER_STATUSES, CLOSED_ORDER_STATUSES } from "../lib/order-status";
 import type { Db, OrderViewer } from "./order-shared";
 import { couriers, viewerScope } from "./order-shared";
@@ -223,12 +223,16 @@ export async function getById(db: Db, tenantId: number, orderId: number, viewer:
     // Склад заказа — откуда он резервирует и отгружает (ADR 0012). Пусто у
     // заказов до колонки склада: они с основного.
     warehouseId: orders.warehouseId, warehouseName: warehouses.name,
+    // Как курьер закрыл доставку (оплачено, возврат…) и что написал — для
+    // блока «Доставка» в карточке; писалось с первого дня, не читалось нигде.
+    deliveryResult: orders.deliveryResult, deliveryNotes: orders.deliveryNotes,
+    plannedDeliveryDate: orders.plannedDeliveryDate,
   }).from(orders).leftJoin(priceLists, and(eq(priceLists.id, orders.priceListId), eq(priceLists.tenantId, tenantId)))
     .leftJoin(warehouses, and(eq(warehouses.id, orders.warehouseId), eq(warehouses.tenantId, tenantId)))
     .where(and(eq(orders.id, orderId), eq(orders.tenantId, tenantId), isNull(orders.deletedAt), ...scope)).limit(1);
   if (!order) return null;
 
-  const [items, [shop], [agent], [courier]] = await Promise.all([
+  const [items, [shop], [agent], [courier], events] = await Promise.all([
     db.select({
       id: orderItems.id, productId: orderItems.productId, quantity: orderItems.quantity,
       unitPrice: orderItems.unitPrice, subtotal: orderItems.subtotal,
@@ -250,9 +254,37 @@ export async function getById(db: Db, tenantId: number, orderId: number, viewer:
     order.courierId
       ? db.select({ id: users.id, name: users.name }).from(users).where(eq(users.id, order.courierId)).limit(1)
       : Promise.resolve([]),
+    deliveryHistory(db, tenantId, orderId),
   ]);
 
-  return { ...order, items, shop: shop ?? null, shopName: shop?.name ?? null, agent: agent ?? null, courier: courier ?? null };
+  return {
+    ...order, items, shop: shop ?? null, shopName: shop?.name ?? null, agent: agent ?? null, courier: courier ?? null,
+    deliveryEvents: events,
+  };
+}
+
+/**
+ * Попытки доставки заказа — для блока «Доставка» в карточке: кто, когда, с
+ * чем вернулся, на какой день перенёс, подтверждение вручения.
+ *
+ * Фото — только числом: сами снимки (до трёх по полмегабайта) отдаёт
+ * /api/photos/delivery/:id/:n, иначе карточка заказа тянула бы мегабайты.
+ * Подпись — числами, как записана: она маленькая, и рисует её экран.
+ */
+async function deliveryHistory(db: Db, tenantId: number, orderId: number) {
+  const rows = await db.select({
+    id: deliveryEvents.id, kind: deliveryEvents.kind, courierId: deliveryEvents.courierId, courierName: users.name,
+    reasonCode: deliveryEvents.reasonCode, note: deliveryEvents.note, rescheduledTo: deliveryEvents.rescheduledTo,
+    recipientName: deliveryEvents.recipientName, signature: deliveryEvents.signature,
+    photoCount: sql<number>`COALESCE(JSON_LENGTH(${deliveryEvents.photos}), 0)`,
+    lat: deliveryEvents.lat, lng: deliveryEvents.lng, recordedAt: deliveryEvents.recordedAt,
+  }).from(deliveryEvents)
+    .leftJoin(users, and(eq(users.id, deliveryEvents.courierId), eq(users.tenantId, tenantId)))
+    .where(and(eq(deliveryEvents.tenantId, tenantId), eq(deliveryEvents.orderId, orderId)))
+    // Столбцы без asc(): порядок по возрастанию и так.
+    .orderBy(deliveryEvents.recordedAt, deliveryEvents.id)
+    .limit(50);
+  return rows.map(r => ({ ...r, photoCount: Number(r.photoCount) || 0 }));
 }
 
 export async function myOrders(db: Db, tenantId: number, agentId: number) {

@@ -54,6 +54,7 @@ describe("tgMessages templates", () => {
     orderPending:   v => [{ number: v, shop: v, total: v, agent: v, reason: v }],
     orderDelivered: v => [{ number: v, shop: v, total: v, result: v, paid: v, debt: v, courier: v }],
     deliveryFailed: v => [{ number: v, shop: v, total: v, reason: v, courier: v }],
+    deliveryRescheduled: v => [{ number: v, shop: v, total: v, day: v, reason: v, courier: v }],
     pickingShort:   v => [v, [{ name: v, required: v, picked: v, unit: v }]],
   };
   const argsFor = (name: string, fn: (...a: never[]) => string, v: string) =>

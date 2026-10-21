@@ -417,6 +417,18 @@ describe("dashboard.supervisorDashboard", () => {
     expect(typeof result.onlineAgents).toBe("number");
     expect(typeof result.pendingPlans).toBe("number");
   });
+
+  it("курьер на связи не считается «агентом онлайн»; мерчендайзер — считается", async () => {
+    // Точки теперь пишет и курьер (locationQuery). Без отбора по роли его
+    // машина числилась бы агентом: онлайн 3 при двух активных агентах.
+    usersTable.push({ id: 30, tenantId: 1, role: "courier", status: "active", name: "Courier" });
+    usersTable.push({ id: 31, tenantId: 1, role: "merchandiser", status: "active", name: "Merch" });
+    agentLocationsTable.push({ id: 2, tenantId: 1, agentId: 30, createdAt: new Date() });
+    agentLocationsTable.push({ id: 3, tenantId: 1, agentId: 31, createdAt: new Date() });
+    const { dashboardRouter } = await import("../dashboard-router");
+    const result = await dashboardRouter.createCaller(supervisorCtx()).supervisorDashboard();
+    expect(result.onlineAgents).toBe(2);
+  });
 });
 
 describe("dashboard.revenueTrend", () => {

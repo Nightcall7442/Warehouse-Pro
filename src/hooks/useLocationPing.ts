@@ -1,5 +1,6 @@
 import { useEffect, useRef, useSyncExternalStore } from "react";
 import { trpc } from "@/providers/trpc";
+import { rememberFix } from "@/lib/last-fix";
 
 /*
   Точка местоположения из браузера — сама, раз в десять минут.
@@ -63,6 +64,8 @@ export function useLocationPing(enabled: boolean): void {
       if (denied || document.hidden || !navigator.onLine || !shouldPing(getLastPing(), Date.now())) return;
       navigator.geolocation.getCurrentPosition(
         pos => {
+          // Та же точка — для отметок доставки курьера (lib/last-fix.ts).
+          rememberFix(pos);
           saveRef.current.mutate({
             lat: String(pos.coords.latitude), lng: String(pos.coords.longitude),
             accuracy: String(Math.round(pos.coords.accuracy)),

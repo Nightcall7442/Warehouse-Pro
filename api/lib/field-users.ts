@@ -21,3 +21,12 @@ export async function countFieldUsersOf(db: Pick<Db, "select">, tenantId: number
   return Number(row?.c ?? 0);
 }
 
+
+/*
+  Чьи точки GPS значат «агент на связи».
+
+  Точки пишут и курьеры (locationQuery), но «Онлайн» на сводках — про полевые
+  продажи: агентов и мерчендайзеров. Курьерскую машину на линии показывает
+  развоз (courier.board), а не счётчик агентов.
+*/
+export const SALES_PING_ROLES: Array<"agent" | "merchandiser"> = ["agent", "merchandiser"];

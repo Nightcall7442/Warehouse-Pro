@@ -50,6 +50,7 @@ import { RepeatOrderButton } from "@/components/orders/RepeatOrderButtons";
 import { usesQuickOrder } from "@/lib/quick-order";
 import { OrderReturnButton, OrderReturnMarks } from "@/components/returns/WebReturn";
 import { errorText } from "@/lib/error-text";
+import { OrderDeliveryCard } from "@/components/delivery/OrderDeliveryCard";
 
 /** Statuses where the goods have not been handed over yet — these can still be completed. */
 const OPEN_STATUSES = ["new", "processing", "shipped", "pending"];
@@ -107,7 +108,7 @@ export default function OrderDetail() {
   const can = useCan();
   const { confirm, dialog } = useConfirm();
 
-  const { data: order, isLoading, isLoadingError, refetch } = trpc.order.getById.useQuery(
+  const { data: order, isLoading, isLoadingError, refetch, dataUpdatedAt } = trpc.order.getById.useQuery(
     { id: Number(id) }, { enabled: !!id }
   );
   // Чек — по нажатию, не при открытии: HTML с QR нужен только для печати.
@@ -761,6 +762,13 @@ export default function OrderDetail() {
                 />
               </div>
             )}
+
+            {/* Доставка: попытки, подтверждение вручения, день доставки, ссылка для магазина. */}
+            <OrderDeliveryCard
+              order={{ ...order, shopName: order.shop?.name ?? null }}
+              canReschedule={isOperatorOrCeo}
+              asOf={dataUpdatedAt}
+            />
           </div>
         </div>
       </div>

@@ -75,6 +75,8 @@ const KEY_LABEL: Record<string, Label> = {
   supplier: { ru: "Поставщик", uz: "Yetkazib beruvchi" }, debt: { ru: "Долг поставщику", uz: "Yetkazib beruvchiga qarz" },
   dueDate: { ru: "Срок оплаты", uz: "To'lov muddati" },
   fromReorder: { ru: "Из дозаказа", uz: "Qayta buyurtmadan" },
+  // доставка: перенос дня (courier.officeReschedule)
+  plannedDate: { ru: "День доставки", uz: "Yetkazish kuni" }, plannedBefore: { ru: "Был день", uz: "Avvalgi kun" },
 };
 
 /** Подписи действий журнала — по-русски и по-узбекски; на экране и в CSV одни слова. */
@@ -103,6 +105,8 @@ export const AUDIT_ACTION_LABEL: Record<string, Label> = {
   "order.revenue_reversed": { ru: "Доставка отменена задним числом", uz: "Yetkazish orqaga qaytarildi" },
   "payment.reverse": { ru: "Оплата отменена", uz: "To'lov bekor qilindi" },
   "order.closed": { ru: "Расчёт по заказу закрыт", uz: "Buyurtma hisob-kitobi yopildi" },
+  "order.delivery_rescheduled": { ru: "Перенесён день доставки", uz: "Yetkazish kuni ko'chirildi" },
+  "courier.route_set": { ru: "Задан порядок объезда курьера", uz: "Kuryerning yetkazish tartibi belgilandi" },
   "price_list.shop_set": { ru: "Магазину назначен прайс-лист", uz: "Do'konga narxlar ro'yxati belgilandi" },
   "price_list.shops_set": { ru: "Магазины прайс-листа", uz: "Narxlar ro'yxati do'konlari" },
   "price_list.items_set": { ru: "Цены прайс-листа", uz: "Narxlar ro'yxati narxlari" },
@@ -165,7 +169,7 @@ const HIDDEN = new Set(["shopId", "productId", "warehouseId", "agentId", "orderI
 const MONEY_KEYS = new Set(["amount", "total", "sum", "remaining", "creditLimit", "price", "was", "unitPrice", "costPrice", "credited", "baseSalary", "totalBefore", "totalAfter", "shortageCost"]);
 const PERCENT_KEYS = new Set(["discountPct", "commissionRate"]);
 const WEIGHT_KEYS = new Set(["totalWeight"]);
-const DATE_KEYS = new Set(["expiresAt", "monthStart", "dueDate"]);
+const DATE_KEYS = new Set(["expiresAt", "monthStart", "dueDate", "plannedDate", "plannedBefore"]);
 const STATUS_KEYS = new Set(["from", "to", "status", "newStatus", "statusBefore"]);
 const BOOL: Label = { ru: "да", uz: "ha" }; const BOOL_NO: Label = { ru: "нет", uz: "yo'q" };
 

@@ -2,7 +2,7 @@ import { sql, eq, and, gte, lte, inArray, isNull, isNotNull, desc } from "drizzl
 import { TRPCError } from "@trpc/server";
 import { dayKey, monthRange } from "../lib/period";
 import { REVENUE_ORDER_STATUSES, revenueOrderConditions } from "../lib/order-status";
-import { orders, dailyPlans, shops, salesTargets, commissions, agentLocations, visitReports, users, payments } from "@db/schema";
+import { orders, dailyPlans, shops, salesTargets, commissions, agentLocations, visitReports, users, payments, deliveryEvents } from "@db/schema";
 import { calculateFraudMetrics, calculateFraudMetricsForAgents, type FraudMetrics } from "./anti-fraud";
 import {
   returnsInPeriod, returnedByAgent, returnedOf, type ReturnedValue,
@@ -178,6 +178,38 @@ export interface CourierStats {
   successRate: number;
 }
 
+/*
+  ── «Сорвано» — по журналу попыток, а не по заказу ───────────────────────────
+
+  Считалось как заказы курьера с delivery_status = 'failed'. Таких не бывало:
+  «не довёз» снимает курьера с заказа (courier_id = NULL — чтобы его можно было
+  назначить снова), и сорванный заказ к курьеру больше не относился. «Сорвано»
+  стояло нулём у всех, а «успешных» — сто процентов.
+
+  Теперь срыв — строка delivery_events kind='failed', и курьер в ней остаётся.
+  Считаются ПОПЫТКИ: заказ, сорванный дважды, — два срыва; довезённый с
+  третьего раза — одна доставка и два срыва, успешных 33%. Время — с телефона
+  (recorded_at), как у доставки (delivered_at).
+
+  Прошлые срывы восстановить нечем — курьер в них стёрт; числа идут с дня,
+  когда журнал появился.
+*/
+function failedAttemptsWhere(tenantId: number, periodStart: Date, periodEnd: Date, courierId?: number) {
+  return and(
+    eq(deliveryEvents.tenantId, tenantId),
+    eq(deliveryEvents.kind, "failed"),
+    ...(courierId !== undefined ? [eq(deliveryEvents.courierId, courierId)] : [isNotNull(deliveryEvents.courierId)]),
+    gte(deliveryEvents.recordedAt, periodStart),
+    lte(deliveryEvents.recordedAt, periodEnd),
+  );
+}
+
+async function failedAttemptsOf(db: DrizzleInstance, tenantId: number, courierId: number, periodStart: Date, periodEnd: Date): Promise<number> {
+  const [row] = await db.select({ n: sql<number>`count(*)` }).from(deliveryEvents)
+    .where(failedAttemptsWhere(tenantId, periodStart, periodEnd, courierId));
+  return Number(row?.n ?? 0);
+}
+
 export async function calculateCourierStats(
   db: DrizzleInstance,
   courierId: number,
@@ -205,13 +237,12 @@ export async function calculateCourierStats(
     то, отметил ли её курьер в приложении.
 
     Теперь довезённое — это доставленный заказ, закреплённый за курьером,
-    независимо от того, кто нажал кнопку. Сорванное остаётся по
-    delivery_status: «не дозвонились» и «магазин закрыт» отмечает именно
-    курьер, и другого источника у этого нет.
+    независимо от того, кто нажал кнопку. Сорванное — по журналу попыток
+    (failedAttemptsOf выше): «не дозвонились» и «магазин закрыт» отмечает
+    именно курьер, и другого источника у этого нет.
   */
   const [counts] = await db.select({
     delivered: sql<number>`SUM(CASE WHEN ${orders.status} = 'delivered' THEN 1 ELSE 0 END)`,
-    failed: sql<number>`SUM(CASE WHEN ${orders.deliveryStatus} = 'failed' THEN 1 ELSE 0 END)`,
     returned: sql<number>`SUM(CASE WHEN ${orders.deliveryResult} IN ('returned', 'partial_returned') THEN 1 ELSE 0 END)`,
     deliveredAmount: sql<string>`COALESCE(SUM(CASE WHEN ${orders.status} = 'delivered' THEN CAST(${orders.total} AS DECIMAL(15,2)) ELSE 0 END), 0)`,
     /*
@@ -254,7 +285,7 @@ export async function calculateCourierStats(
   if (!who) throw new TRPCError({ code: "NOT_FOUND", message: "Курьер не найден" });
 
   const delivered = Number(counts?.delivered ?? 0);
-  const failed = Number(counts?.failed ?? 0);
+  const failed = await failedAttemptsOf(db, tenantId, courierId, periodStart, periodEnd);
   const assigned = delivered + failed;
 
   return {
@@ -327,7 +358,6 @@ export async function getCourierDaily(
     // Тот же счёт, что и в показателях: доставленный заказ, а не отметка в
     // курьерском приложении.
     delivered: sql<number>`SUM(CASE WHEN ${orders.status} = 'delivered' THEN 1 ELSE 0 END)`,
-    failed: sql<number>`SUM(CASE WHEN ${orders.deliveryStatus} = 'failed' THEN 1 ELSE 0 END)`,
   }).from(orders)
     .where(and(
       eq(orders.tenantId, tenantId),
@@ -339,11 +369,23 @@ export async function getCourierDaily(
     .groupBy(sql`DATE(${bizClock(sql`COALESCE(${orders.deliveredAt}, ${orders.createdAt})`)})`)
     .orderBy(sql`DATE(${bizClock(sql`COALESCE(${orders.deliveredAt}, ${orders.createdAt})`)})`);
 
-  return rows.map(r => ({
-    date: toIsoDay(r.date),
-    delivered: Number(r.delivered ?? 0),
-    failed: Number(r.failed ?? 0),
-  }));
+  // Срывы — по журналу попыток, тем же днём по Ташкенту (см. failedAttemptsWhere).
+  const fails = await db.select({
+    date: sql<string>`DATE(${bizClock(deliveryEvents.recordedAt)})`,
+    failed: sql<number>`count(*)`,
+  }).from(deliveryEvents)
+    .where(failedAttemptsWhere(tenantId, periodStart, periodEnd, courierId))
+    .groupBy(sql`DATE(${bizClock(deliveryEvents.recordedAt)})`);
+
+  const byDay = new Map<string, CourierDay>();
+  for (const r of rows) byDay.set(toIsoDay(r.date), { date: toIsoDay(r.date), delivered: Number(r.delivered ?? 0), failed: 0 });
+  for (const f of fails) {
+    const day = toIsoDay(f.date);
+    const cur = byDay.get(day) ?? { date: day, delivered: 0, failed: 0 };
+    cur.failed += Number(f.failed ?? 0);
+    byDay.set(day, cur);
+  }
+  return [...byDay.values()].sort((a, b) => a.date.localeCompare(b.date));
 }
 
 export interface CourierListEntry {
@@ -384,7 +426,6 @@ export async function getCourierList(
   const rows = await db.select({
     courierId: orders.courierId,
     delivered: sql<number>`SUM(CASE WHEN ${orders.status} = 'delivered' THEN 1 ELSE 0 END)`,
-    failed: sql<number>`SUM(CASE WHEN ${orders.deliveryStatus} = 'failed' THEN 1 ELSE 0 END)`,
     returned: sql<number>`SUM(CASE WHEN ${orders.deliveryResult} IN ('returned', 'partial_returned') THEN 1 ELSE 0 END)`,
     deliveredAmount: sql<string>`COALESCE(SUM(CASE WHEN ${orders.status} = 'delivered' THEN CAST(${orders.total} AS DECIMAL(15,2)) ELSE 0 END), 0)`,
     /*
@@ -419,14 +460,23 @@ export async function getCourierList(
     ))
     .groupBy(payments.createdBy);
 
+  // Срывы — по журналу попыток, одним запросом на всех (см. failedAttemptsWhere).
+  const fails = await db.select({
+    courierId: deliveryEvents.courierId,
+    failed: sql<number>`count(*)`,
+  }).from(deliveryEvents)
+    .where(failedAttemptsWhere(tenantId, periodStart, periodEnd))
+    .groupBy(deliveryEvents.courierId);
+
   const byId = new Map(rows.map(r => [Number(r.courierId), r]));
   const cashById = new Map(cash.map(r => [Number(r.courierId), Number(r.total ?? 0)]));
+  const failedById = new Map(fails.map(r => [Number(r.courierId), Number(r.failed ?? 0)]));
 
   return couriers.map(c => {
     const id = Number(c.id);
     const row = byId.get(id);
     const delivered = Number(row?.delivered ?? 0);
-    const failed = Number(row?.failed ?? 0);
+    const failed = failedById.get(id) ?? 0;
     const assigned = delivered + failed;
 
     return {
@@ -581,18 +631,26 @@ export async function calculateAgentKpi(
   const returnCount = returned.count;
   const returnRate = orderCount > 0 ? Math.round((returnCount / orderCount) * 100) : 0;
 
-  const [deliveryStats] = preloadedKpis?.deliveryCount != null ? [{ total: preloadedKpis.deliveryCount, delivered: preloadedKpis.deliveredCount, failed: preloadedKpis.failedCount }] : await db.select({
-    total: sql<number>`count(*)`,
-    delivered: sql<number>`count(CASE WHEN delivery_status = 'delivered' THEN 1 END)`,
-    failed: sql<number>`count(CASE WHEN delivery_status = 'failed' THEN 1 END)`,
-  }).from(orders)
-    .where(and(
-      eq(orders.tenantId, tenantId),
-      eq(orders.courierId, agentId),
-      sql`${orders.deliveryStatus} IN ('assigned', 'out_for_delivery', 'delivered', 'failed')`,
-      gte(orders.createdAt, periodStart),
-      lte(orders.createdAt, periodEnd),
-    ));
+  /*
+    Срывы — по журналу попыток (failedAttemptsWhere выше): заказ после срыва
+    с курьера снят, и по orders.courier_id его не найти. Всего попыток —
+    заказы на курьере плюс срывы. Готовые числа (preloadedKpis) приходят
+    уже посчитанными по тому же правилу и не пересчитываются.
+  */
+  const [deliveryStats] = preloadedKpis?.deliveryCount != null ? [{ total: preloadedKpis.deliveryCount, delivered: preloadedKpis.deliveredCount, failed: preloadedKpis.failedCount }] : await Promise.all([
+    db.select({
+      total: sql<number>`count(*)`,
+      delivered: sql<number>`count(CASE WHEN delivery_status = 'delivered' THEN 1 END)`,
+    }).from(orders)
+      .where(and(
+        eq(orders.tenantId, tenantId),
+        eq(orders.courierId, agentId),
+        sql`${orders.deliveryStatus} IN ('assigned', 'out_for_delivery', 'delivered')`,
+        gte(orders.createdAt, periodStart),
+        lte(orders.createdAt, periodEnd),
+      )),
+    failedAttemptsOf(db, tenantId, agentId, periodStart, periodEnd),
+  ]).then(([[o], failed]) => [{ total: Number(o?.total ?? 0) + failed, delivered: o?.delivered, failed }]);
 
   const deliveryCount = Number(deliveryStats?.total ?? 0);
   const deliveredCount = Number(deliveryStats?.delivered ?? 0);

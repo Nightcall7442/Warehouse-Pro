@@ -94,8 +94,13 @@ export default defineConfig({
           «Страница не найдена». В свежем браузере всё работало — поэтому
           на стенде не ловилось, а у арендатора с установленной PWA ловилось
           всегда. Проверяется в api/__tests__/manual-is-gated.test.ts.
+
+          /r/ (чек по QR) и /t/ (где мой заказ) — страницы сервера для
+          магазина, тоже мимо оболочки: оператор, открывший только что
+          скопированную ссылку в браузере с PWA, видел «Страница не
+          найдена» вместо страницы, которую получит магазин.
         */
-        navigateFallbackDenylist: [/^\/api\//, /^\/manual(\/|$)/],
+        navigateFallbackDenylist: [/^\/api\//, /^\/manual(\/|$)/, /^\/r\//, /^\/t\//],
         globPatterns:             ["**/*.{js,css,html,json,png,svg,ico}"],
         cleanupOutdatedCaches:    true,
         clientsClaim:             true,

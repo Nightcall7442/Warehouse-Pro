@@ -498,7 +498,8 @@ export const LoadingListService = {
     let assigned = 0;
     if (orderIds.length > 0) {
       const [result] = await db.update(orders)
-        .set({ courierId, deliveryStatus: "assigned" })
+        // Место в маршруте и плановый день — от прежнего решения (courier-router, assignCourier).
+        .set({ courierId, deliveryStatus: "assigned", routeSeq: null, plannedDeliveryDate: null })
         .where(and(
           eq(orders.tenantId, tenantId),
           inArray(orders.id, orderIds),

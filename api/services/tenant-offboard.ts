@@ -55,6 +55,8 @@ export const OFFBOARD_ORDER: readonly OffboardStep[] = [
   "commission_product_rates",
   "commissions",
   "debt_reminders",
+  // Журнал попыток доставки: держит заказ и курьера — раньше обоих.
+  "delivery_events",
   "id_mappings",
   "invites",
   { table: "loading_list_orders", via: { column: "list_id", parent: "loading_lists" } },

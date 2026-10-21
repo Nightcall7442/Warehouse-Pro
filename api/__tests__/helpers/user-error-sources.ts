@@ -10,7 +10,8 @@
  *  - свой текст проверки входа zod: `.min(1, "Введите пароль")`,
  *    `.refine(f, "…")`, `ctx.addIssue({ message })` — его форматтер
  *    показывает вместо общей фразы о поле;
- *  - ответ REST-входа, обёрнутый в `say("…")` (api/http/auth.ts).
+ *  - ответ REST-входа, обёрнутый в `say("…")` (api/http/auth.ts);
+ *  - `badRequest("…")` (api/lib/errors.ts) — TRPCError с кодом BAD_REQUEST.
  *
  * Сообщение приводится к форме каталога (contracts/error-messages.ts): каждая
  * вставка `${…}` шаблона становится `{}`, склейка строк плюсом — одной
@@ -196,6 +197,14 @@ export function collectMessageSites(dirs: string[], root: string): MessageSite[]
             if (human.length || loose.length) sites.push({ file: rel, line, kind: "zod", forms: human, unresolved: loose });
           }
         }
+      }
+      // badRequest("…") (api/lib/errors.ts) — тот же TRPCError с кодом BAD_REQUEST,
+      // только короче. Сканер его не видел: отказы через badRequest уходили к
+      // человеку по-русски под узбекскими кнопками, и тест этого не замечал.
+      if (ts.isCallExpression(n) && ts.isIdentifier(n.expression) && n.expression.text === "badRequest" && n.arguments[0]) {
+        const line = sf.getLineAndCharacterOfPosition(n.getStart(sf)).line + 1;
+        const { forms, unresolved } = evaluate(n.arguments[0], consts, sf);
+        sites.push({ file: rel, line, kind: "trpc", code: "BAD_REQUEST", forms, unresolved });
       }
       // Ответ REST-входа через say("…") (api/http/auth.ts) — тот же словарь.
       if (ts.isCallExpression(n) && ts.isIdentifier(n.expression) && n.expression.text === "say" && n.arguments[0]) {

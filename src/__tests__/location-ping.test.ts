@@ -30,7 +30,8 @@ describe("точка из браузера раз в десять минут", (
     const page = strip(readFileSync(resolve(__dirname, "../pages/AgentGps.tsx"), "utf8"));
     expect(page).not.toMatch(/autoTrack|watchPosition|Авто-трекинг/);
     const layout = readFileSync(resolve(__dirname, "../components/Layout.tsx"), "utf8");
-    expect(layout).toContain('useLocationPing(user?.role === "agent" || user?.role === "merchandiser")');
+    // Курьер с 21.10.2026: его точки принимает agent.saveLocation (locationQuery).
+    expect(layout).toContain('useLocationPing(user?.role === "agent" || user?.role === "merchandiser" || user?.role === "courier")');
     const hook = readFileSync(resolve(__dirname, "../hooks/useLocationPing.ts"), "utf8");
     // Грубая точность и кэш позиции: батарею веб не трогает.
     expect(hook).toContain("enableHighAccuracy: false");

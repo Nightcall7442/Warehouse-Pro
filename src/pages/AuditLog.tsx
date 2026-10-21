@@ -112,6 +112,9 @@ const ACTION_CONFIG: Record<string, { icon: LucideIcon; gradient: string }> = {
   "order.delete":                    { icon: ShoppingCart, gradient: DANGER },
   "order.restore":                   { icon: Undo2, gradient: SUCCESS },
   "order.revenue_reversed":          { icon: Undo2, gradient: DANGER },
+  // Доставка: офис назначил день, диспетчер — порядок объезда курьера.
+  "order.delivery_rescheduled":      { icon: Truck, gradient: INFO },
+  "courier.route_set":               { icon: Truck, gradient: PRIMARY },
   "payment.reverse":                 { icon: Undo2, gradient: DANGER },
   // Расчёт по заказу и безнал
   "order.closed":                    { icon: Wallet, gradient: SUCCESS },
