@@ -1,6 +1,6 @@
 import { TRPCError } from "@trpc/server";
 import { and, eq, sql } from "drizzle-orm";
-import { purchaseOrders, purchaseOrderItems, suppliers, supplies, settings } from "@db/schema";
+import { purchaseOrders, purchaseOrderItems, supplies, settings } from "@db/schema";
 import { businessDay, businessDayStart } from "@contracts/business-time";
 import { PURCHASE_ORDER_STATUS_LABEL } from "@contracts/entity-labels";
 import { recordAudit } from "./audit-log";
@@ -216,7 +216,10 @@ export interface ReceiptActor { id: number; name: string; ip?: string }
  *    (её правят по накладной, она же идёт в карточку товара);
  *  - заказ в другой валюте: Σ принято × цена заказа, по курсу заказа.
  * Излишек входит в долг: он на полке. Срок оплаты — день прихода плюс
- * отсрочка заказа, а без неё — поставщика.
+ * отсрочка заказа. Не поставщика: заказ берёт её из карточки при заведении,
+ * и договаривались на тех условиях; заказ без отсрочки — «по факту»,
+ * срока нет. Подставлять сегодняшнюю отсрочку из карточки значило бы
+ * молча менять условия уже согласованного заказа.
  *
  * Строка с ценой ноль не проводится: долг на неё не родился бы, а заказ
  * после приёмки уже не править — долг потом не добавить. Согласование
@@ -283,9 +286,7 @@ export async function applyReceiptTx(
 
   // ── Долг ───────────────────────────────────────────────────────────────────
   const amount = receiptDebt(counted, byProduct, sameCurrency);
-  const [supplier] = await tx.select({ terms: suppliers.paymentTermsDays }).from(suppliers)
-    .where(and(eq(suppliers.id, po.supplierId), eq(suppliers.tenantId, tenantId))).limit(1);
-  const due = dueDateAfter(arrival.arrivalDay, po.paymentTermsDays ?? supplier?.terms ?? null);
+  const due = dueDateAfter(arrival.arrivalDay, po.paymentTermsDays);
 
   // Приход по заказу блока поставщика не принимает (createArrival), так что
   // поставки у него быть не должно; если она всё же есть — второй долг за

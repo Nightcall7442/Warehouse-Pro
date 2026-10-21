@@ -281,6 +281,12 @@ function OrderScreen({ order, stale, onDirty, onDiscard }: {
   );
 
   const byProduct = new Map((order?.items ?? []).map(i => [i.productId, i]));
+  /*
+    Отсрочка, которую возьмёт заказ, если поле пустое: сервер копирует её из
+    карточки поставщика при сохранении, и срок оплаты при приёмке считается
+    от неё — от записанной в заказ, а не от той, что в карточке тогда.
+  */
+  const supplierTerms = (suppliersQ.data ?? []).find(sp => String(sp.id) === head.supplierId)?.paymentTermsDays ?? null;
   const warehouses = (warehousesQ.data ?? []).filter(w => w.status === "active" || String(w.id) === head.warehouseId);
   const defaultWarehouse = warehouses.find(w => w.isDefault);
   const ready = order != null && !dirty;
@@ -431,11 +437,14 @@ function OrderScreen({ order, stale, onDirty, onDiscard }: {
               className="neo-input font-data"
               style={{ width: "100%" }}
               inputMode="numeric"
-              placeholder={t("Как у поставщика", "Yetkazib beruvchidagidek")}
+              placeholder={supplierTerms != null
+                ? t(`Как у поставщика: ${supplierTerms} дн.`, `Yetkazib beruvchidagidek: ${supplierTerms} kun`)
+                : t("Как у поставщика: по факту", "Yetkazib beruvchidagidek: yetkazilganda")}
+              title={t("Пусто — отсрочка из карточки поставщика; 0 — оплата в день поставки", "Bo'sh — yetkazib beruvchi kartochkasidagi muddat; 0 — yetkazilgan kuni to'lanadi")}
               value={head.paymentTermsDays}
               onChange={e => setH("paymentTermsDays", e.target.value.replace(/[^\d]/g, "").slice(0, 3))}
             />
-          ) : <div>{order?.paymentTermsDays ?? "—"}</div>}
+          ) : <div>{order?.paymentTermsDays == null ? t("по факту поставки", "yetkazilganda") : t(`${order.paymentTermsDays} дн.`, `${order.paymentTermsDays} kun`)}</div>}
         </div>
         <div>
           <label className={modalFieldLabel}>{t("Ждём к", "Kutilayotgan sana")}</label>

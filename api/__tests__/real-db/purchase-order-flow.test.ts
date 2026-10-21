@@ -405,6 +405,23 @@ describe.skipIf(!hasRealDb)("заказ поставщику: согласова
     expect((await order(id)).status).toBe("approved");
   });
 
+  it("срок оплаты — по отсрочке заказа: появившаяся потом у поставщика отсрочка заказ без неё не меняет", async () => {
+    const d = db as any;
+    const [bare] = await d.insert(schema.suppliers).values({ tenantId: s.tenantId, name: "Без отсрочки" });
+    const bareId = Number(bare.insertId);
+    const c = await po();
+    const { id } = await c.create({ supplierId: bareId, currency: "UZS", items: [{ productId: s.productId, quantity: "2", unitPrice: "50" }] });
+    expect((await c.getById({ id })).paymentTermsDays).toBeNull();
+    // Уже после заказа поставщику дали отсрочку 30 дней.
+    await runSql(sql`UPDATE suppliers SET payment_terms_days = 30 WHERE id = ${bareId}`);
+
+    await (await director()).approve({ id });
+    const { arrivalId } = await c.receive({ id, arrivalDate: DAY });
+    await (await arr()).setItems({ id: arrivalId, items: [{ productId: s.productId, quantity: "2", expectedQuantity: "2", costPrice: "50.00" }] });
+    await (await arr()).update({ id: arrivalId, status: "completed" });
+    expect((await supplyOf(arrivalId)).due).toBeNull();
+  });
+
   it("приход по заказу в списке и в документе: поставщик и номер заказа, пока поставки нет", async () => {
     const { id, number } = await approvedOrder();
     const { arrivalId } = await (await po()).receive({ id, arrivalDate: DAY });

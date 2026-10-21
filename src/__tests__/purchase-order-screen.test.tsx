@@ -61,7 +61,7 @@ const trpcStub = vi.hoisted(() => {
       cancel: { useMutation: mutation(calls.cancel) },
       receive: { useMutation: mutation(calls.receive, { arrivalId: 41, arrivalNumber: "ARR-41" }) },
     },
-    supplier: { list: { useQuery: query(() => [{ id: 5, name: "Завод" }]) } },
+    supplier: { list: { useQuery: query(() => [{ id: 5, name: "Завод", paymentTermsDays: 14 }]) } },
     warehouseMulti: { list: { useQuery: query(() => [{ id: 1, name: "Основной", isDefault: true, status: "active" }]) } },
     product: { list: { useQuery: query(() => ({ data: [{ id: 3, name: "Мука", code: "M-1", unit: "pcs", costPrice: "75.00" }] })) } },
     auth: { me: { useQuery: query(() => ({ id: 1, name: "Кто-то", role: state.role })) } },
@@ -292,6 +292,12 @@ describe("заказ поставщику на экране", () => {
     state.role = "operator";
     renderAt("/purchase-orders/new?supplierId=5");
     expect(screen.getByRole("combobox", { name: "Поставщик" }).textContent).toContain("Завод");
+  });
+
+  it("пустая отсрочка говорит, какую возьмёт заказ — из карточки поставщика", () => {
+    state.role = "operator";
+    renderAt("/purchase-orders/new?supplierId=5");
+    expect((screen.getByTestId("po-terms") as HTMLInputElement).placeholder).toBe("Как у поставщика: 14 дн.");
   });
 
   it("заказ изменился, пока его правили: набранное не пропадает, экран говорит об этом", () => {

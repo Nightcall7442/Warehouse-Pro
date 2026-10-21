@@ -40,10 +40,10 @@ type Db = ReturnType<typeof getDb>;
  * ниже разложены по валютам: debtUzs и debtUsd отдельными полями.
  */
 
-/** Проверить, что контрагент из запроса принадлежит этой организации. */
 /** Отсрочка оплаты поставщику: целые дни, до года. */
 const paymentTermsInput = z.number().int().min(0).max(365).nullable().optional();
 
+/** Проверить, что контрагент из запроса принадлежит этой организации. */
 async function assertOwnSupplier(db: Db, tenantId: number, supplierId: number) {
   const [found] = await db.select({ id: suppliers.id })
     .from(suppliers)
