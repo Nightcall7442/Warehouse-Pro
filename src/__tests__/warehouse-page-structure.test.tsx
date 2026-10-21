@@ -46,6 +46,8 @@ const stub = vi.hoisted(() => {
       warehouseMulti: {
         getStock: { useQuery: q(() => ({ data: state.rows, total: state.rows.length, page: 1, pageSize: 10000, summary: state.summary })) },
         listTransfers: { useQuery: q(() => []) },
+        // Счётчик «Перемещений»: документы, ждущие приёмки.
+        transferDocs: { useQuery: q(() => []) },
       },
       warehouse: {
         valuation: { useQuery: q(() => ({ totalCostValue: "60279800" })) },

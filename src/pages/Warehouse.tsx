@@ -271,6 +271,8 @@ export default function Warehouse() {
   const deadCount = deadStockItems?.length ?? 0;
   const deadValue = (deadStockItems ?? []).reduce((acc, r) => acc + Number(r.value ?? 0), 0);
   const costValue = Number(valuation?.totalCostValue ?? 0);
+  // Едущее между складами в остаток не входит ни там, ни тут — называется рядом.
+  const inTransitCost = Number(valuation?.inTransitCost ?? 0);
   const totalKg = Number(summary?.totalWeight ?? 0).toLocaleString("ru-RU", { maximumFractionDigits: 0 });
 
   /*
@@ -279,8 +281,10 @@ export default function Warehouse() {
     Список складов нужен и самой вкладке (имена вместо номеров в маршруте), и
     счётчику на ней. Оба запроса лёгкие: складов у арендатора единицы.
   */
-  const pendingQ = trpc.warehouseMulti.listTransfers.useQuery({ status: "pending", limit: 100 }, { enabled: multi });
-  const pendingTransfers = pendingQ.data?.length ?? 0;
+  // В пути — и прежние строки без документа, и документы, ждущие приёмки.
+  const pendingQ = trpc.warehouseMulti.listTransfers.useQuery({ status: "pending", limit: 100, legacy: true }, { enabled: multi });
+  const transitQ = trpc.warehouseMulti.transferDocs.useQuery({ status: "in_transit", limit: 100 }, { enabled: multi });
+  const pendingTransfers = (pendingQ.data?.length ?? 0) + (transitQ.data?.length ?? 0);
   // «Сроки» — список дел: счётчик — партии, с которыми надо что-то сделать
   // (не успеют до срока и просроченные). Тот же ключ, что у самого раздела.
   const expiryQ = trpc.warehouseReports.expiringSummary.useQuery({ withinDays: 30 });
@@ -420,7 +424,7 @@ export default function Warehouse() {
           label={t("СТОИМОСТЬ ОСТАТКОВ", "QOLDIQ QIYMATI")}
           value={valLoading ? "—" : fmt(costValue, true)}
           icon={<Banknote size={17} />}
-          note={valLoading ? t("по себестоимости", "tannarx bo'yicha") : `${t("по себестоимости", "tannarx bo'yicha")} · ${fmt(costValue.toFixed(0))}`}
+          note={valLoading ? t("по себестоимости", "tannarx bo'yicha") : `${t("по себестоимости", "tannarx bo'yicha")} · ${fmt(costValue.toFixed(0))}${inTransitCost > 0 ? ` · ${t("в пути", "yo'lda")} ${fmt(inTransitCost, true)}` : ""}`}
         />
         <KpiCard
           tone={lowCount > 0 ? "red" : "green"}
