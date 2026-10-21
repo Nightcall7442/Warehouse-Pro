@@ -410,6 +410,8 @@ export const SERVER_ERROR_TEXT: Record<string, ErrorText> = {
   // Продажи с нескольких складов (ADR 0012).
   "Склад заказа выбирает офис. Агенту склад назначают в карточке сотрудника": { uz: "Buyurtma omborini ofis tanlaydi. Agentga ombor xodim kartochkasida biriktiriladi" },
   "С этого склада не продают: он отключён или не отмечен точкой продаж": { uz: "Bu ombordan sotilmaydi: u o'chirilgan yoki savdo nuqtasi deb belgilanmagan" },
+  "Заказы с разных складов — один лист собирают с одного склада: {0}. Сделайте отдельный лист на каждый склад.": { uz: "Buyurtmalar turli omborlardan — bitta varaqa bitta ombordan yig'iladi: {0}. Har bir ombor uchun alohida varaqa tuzing." },
+  "Заказы зарезервированы на другом складе — лист собирают там, где лежит их резерв": { uz: "Buyurtmalar boshqa omborda zahiralangan — varaqa ularning zahirasi turgan joyda yig'iladi" },
   "Перемещение {0} уже принято или отменено — обновите список": { uz: "{0} ko'chirish allaqachon qabul qilingan yoki bekor qilingan — ro'yxatni yangilang" },
   "В документе нет такой строки — обновите список": { uz: "Hujjatda bunday qator yo'q — ro'yxatni yangilang" },
   "«{0}»: принято {1}, а отправлено {2}. Больше отправленного принять нельзя — лишнее оформите инвентаризацией": { uz: "«{0}»: qabul qilingan {1}, jo'natilgan esa {2}. Jo'natilgandan ko'pini qabul qilib bo'lmaydi — ortiqchasini inventarizatsiya bilan rasmiylashtiring" },

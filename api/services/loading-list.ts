@@ -12,6 +12,7 @@ import {
 } from "../lib/order-status";
 import { badRequest } from "../lib/errors";
 import { businessToday } from "@contracts/business-time";
+import { defaultWarehouseId } from "./sales-warehouse";
 
 type Db = ReturnType<typeof import("../queries/connection").getDb>;
 
@@ -334,13 +335,43 @@ export const LoadingListService = {
       );
     }
 
-    // Склад листа: указанный, иначе основной — продают только с него.
-    let warehouseId = input.warehouseId ?? null;
-    if (!warehouseId) {
-      const [w] = await db.select({ id: warehouses.id }).from(warehouses)
-        .where(and(eq(warehouses.tenantId, tenantId), eq(warehouses.isDefault, true))).limit(1);
-      warehouseId = w?.id ?? null;
+    /*
+      Склад листа — склад заказов (ADR 0012).
+
+      Был «указанный, иначе основной»: продавали только с основного. Теперь
+      заказ филиала резервирует на складе филиала, и лист, собранный по
+      основному, подсказал бы кладовщику партии чужой полки, а отгрузка
+      списала бы с того склада, где лежит резерв. Заказы разных складов в
+      одном листе — отказ, называющий склады: одна машина грузится с одного
+      склада. Заказ до колонки склада — с основного (orderWarehouseId).
+    */
+    const defaultWh = await defaultWarehouseId(db, tenantId);
+    const orderWh = await db.select({ orderNumber: orders.orderNumber, warehouseId: orders.warehouseId }).from(orders)
+      .where(and(eq(orders.tenantId, tenantId), inArray(orders.id, input.orderIds), isNull(orders.deletedAt)));
+    const byWarehouse = new Map<number | null, string[]>();
+    for (const o of orderWh) {
+      const wh = o.warehouseId != null ? Number(o.warehouseId) : defaultWh;
+      byWarehouse.set(wh, [...(byWarehouse.get(wh) ?? []), o.orderNumber]);
     }
+    if (byWarehouse.size > 1) {
+      const ids = [...byWarehouse.keys()].filter((w): w is number => w != null);
+      const named = ids.length > 0
+        ? await db.select({ id: warehouses.id, name: warehouses.name }).from(warehouses)
+            .where(and(eq(warehouses.tenantId, tenantId), inArray(warehouses.id, ids)))
+        : [];
+      const nameOf = new Map(named.map(w => [Number(w.id), w.name]));
+      const parts = [...byWarehouse.entries()]
+        .map(([wh, numbers]) => `«${wh != null ? nameOf.get(wh) ?? "—" : "—"}»: ${numbers.join(", ")}`);
+      throw new TRPCError({
+        code: "BAD_REQUEST",
+        message: `Заказы с разных складов — один лист собирают с одного склада: ${parts.join("; ")}. Сделайте отдельный лист на каждый склад.`,
+      });
+    }
+    const ordersWarehouse = [...byWarehouse.keys()][0] ?? defaultWh;
+    if (input.warehouseId && ordersWarehouse && input.warehouseId !== ordersWarehouse) {
+      throw new TRPCError({ code: "BAD_REQUEST", message: "Заказы зарезервированы на другом складе — лист собирают там, где лежит их резерв" });
+    }
+    const warehouseId = ordersWarehouse ?? null;
     const need = new Map(items.map(i => [Number(i.productId), Number(i.totalQty)]));
     const planned = warehouseId ? await planBatches(db, tenantId, warehouseId, need) : new Map<number, PlannedBatch[]>();
 
