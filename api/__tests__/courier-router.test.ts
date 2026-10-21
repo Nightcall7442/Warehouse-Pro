@@ -47,8 +47,9 @@ vi.mock("../services/push-service", () => ({
   sendPushToUser: vi.fn(async () => {}),
 }));
 
-import { orders, shops, users, payments, notifications, orderItems, warehouseStock, warehouses, orderAdjustments } from "@db/schema";
+import { orders, shops, users, payments, notifications, orderItems, warehouseStock, warehouses, orderAdjustments, deliveryEvents } from "@db/schema";
 import { makeConditionEvaluator } from "./helpers/fake-conditions";
+import { businessDaysAgo, businessToday } from "@contracts/business-time";
 
 // ── Fake tables ──────────────────────────────────────────────────────────────
 interface FakeOrder { id: number; tenantId: number; orderNumber: string; status: string; deliveryStatus: string; total: string; subtotal: string; discount: string; shopId: number; courierId: number | null; agentId: number; deliveredAt: Date | null; createdAt: Date; }
@@ -87,6 +88,8 @@ let notificationsTable: FakeNotification[] = [];
 let orderItemsTable: FakeOrderItem[] = [];
 let adjustmentsTable: FakeAdjustment[] = [];
 let nextAdjustmentId = 1;
+/** Журнал попыток доставки: «не довёз» без строки здесь — та самая потеря курьера. */
+let eventsTable: Array<Record<string, unknown>> = [];
 let stocksTable: FakeStock[] = [];
 let nextPaymentId = 10;
 let nextNotifId = 10;
@@ -114,6 +117,7 @@ function resetTables() {
     { id: 2, orderId: 1, productId: 2, quantity: "5", unitPrice: "40.00", subtotal: "200.00", deliveredQuantity: null, returnReason: null },
   ];
   adjustmentsTable = [];
+  eventsTable = [];
   stocksTable = [
     { id: 1, productId: 1, tenantId: 1, warehouseId: 1, currentStock: "100.00", reserved: "15.00", available: "85.00" },
     { id: 2, productId: 2, tenantId: 1, warehouseId: 1, currentStock: "50.00", reserved: "5.00", available: "45.00" },
@@ -138,6 +142,7 @@ function tableOf(ref: unknown): string {
   if (ref === warehouseStock) return "warehouseStock";
   if (ref === warehouses) return "warehouses";
   if (ref === orderAdjustments) return "orderAdjustments";
+  if (ref === deliveryEvents) return "deliveryEvents";
   return "other";
 }
 
@@ -151,6 +156,7 @@ function rowsFor(table: string): Record<string, unknown>[] {
   if (table === "warehouseStock") return stocksTable as unknown as Record<string, unknown>[];
   if (table === "warehouses") return warehousesTable as unknown as Record<string, unknown>[];
   if (table === "orderAdjustments") return adjustmentsTable as unknown as Record<string, unknown>[];
+  if (table === "deliveryEvents") return eventsTable;
   return [];
 }
 
@@ -162,6 +168,7 @@ for (const [field, col] of Object.entries(payments)) columnToFieldName.set(col, 
 for (const [field, col] of Object.entries(notifications)) columnToFieldName.set(col, field);
 for (const [field, col] of Object.entries(orderItems)) columnToFieldName.set(col, field);
 for (const [field, col] of Object.entries(warehouseStock)) columnToFieldName.set(col, field);
+for (const [field, col] of Object.entries(deliveryEvents)) columnToFieldName.set(col, field);
 
 /**
  * Разбор условий отдан общему строгому разборщику.
@@ -245,6 +252,15 @@ function makeMockDb() {
             oldValue: vals.oldValue, newValue: vals.newValue,
             reason: (vals.reason as string | null) ?? null,
           });
+          return Promise.resolve([{ insertId: id }]);
+        }
+        if (table === "deliveryEvents") {
+          // Уникальный индекс (tenant_id, idempotency_key) — как в базе.
+          if (vals.idempotencyKey && eventsTable.some(e => e.tenantId === vals.tenantId && e.idempotencyKey === vals.idempotencyKey)) {
+            return Promise.reject(Object.assign(new Error("Duplicate entry"), { code: "ER_DUP_ENTRY", errno: 1062 }));
+          }
+          const id = eventsTable.length + 1;
+          eventsTable.push({ id, ...vals });
           return Promise.resolve([{ insertId: id }]);
         }
         if (table === "notifications") {
@@ -535,6 +551,96 @@ describe("courier.markFailed", () => {
   });
 });
 
+/*
+  ── «Не довёз»: причина, журнал, гонка ───────────────────────────────────────
+
+  Причина раньше уходила в уведомление и пропадала, а курьер стирался с
+  заказа — «Сорвано» в его KPI было нулём всегда. Теперь попытка ложится в
+  delivery_events с курьером и кодом причины. И UPDATE больше не возвращает в
+  «новый» заказ, который успели довезти между проверкой и записью.
+*/
+describe("courier.markFailed — причина и журнал попыток", () => {
+  it("попытка записана с курьером, кодом, пояснением и временем с телефона", async () => {
+    const { courierRouter } = await import("../courier-router");
+    const caller = courierRouter.createCaller(makeCtx(1, 100, "courier"));
+    const at = new Date(Date.now() - 20 * 60 * 1000).toISOString();
+    await caller.markFailed({ orderId: 1, reasonCode: "shop_closed", note: "до 14:00", recordedAt: at, lat: "41.3", lng: "69.2", idempotencyKey: "q-00000001" });
+    expect(eventsTable).toHaveLength(1);
+    expect(eventsTable[0]).toMatchObject({ tenantId: 1, orderId: 1, courierId: 100, kind: "failed", reasonCode: "shop_closed", note: "до 14:00", lat: "41.3", lng: "69.2", idempotencyKey: "q-00000001" });
+    expect(eventsTable[0].recordedAt).toEqual(new Date(at));
+    // С заказа курьер снят — но в журнале он остался.
+    expect(ordersTable.find(o => o.id === 1)!.courierId).toBeNull();
+  });
+
+  it("старая мобилка шлёт текст кнопки — он узнаётся кодом; свой текст — «Другое» с пояснением", async () => {
+    const { courierRouter } = await import("../courier-router");
+    const caller = courierRouter.createCaller(makeCtx(1, 100, "courier"));
+    await caller.markFailed({ orderId: 1, reason: "Нет денег" });
+    await caller.markFailed({ orderId: 3, reason: "Customer not home" });
+    expect(eventsTable.map(e => [e.reasonCode, e.note])).toEqual([["no_money", null], ["other", "Customer not home"]]);
+  });
+
+  it("«Другое» без текста — отказ, заказ не тронут", async () => {
+    const { courierRouter } = await import("../courier-router");
+    const caller = courierRouter.createCaller(makeCtx(1, 100, "courier"));
+    await expect(caller.markFailed({ orderId: 1, reasonCode: "other" })).rejects.toThrow("напишите, что случилось");
+    expect(ordersTable.find(o => o.id === 1)!.courierId).toBe(100);
+    expect(eventsTable).toHaveLength(0);
+  });
+
+  it("повтор из очереди с тем же ключом — дубль, вторая попытка не пишется", async () => {
+    const { courierRouter } = await import("../courier-router");
+    const caller = courierRouter.createCaller(makeCtx(1, 100, "courier"));
+    await caller.markFailed({ orderId: 1, reasonCode: "refused", idempotencyKey: "q-00000002" });
+    // Офис успел назначить заказ снова тому же курьеру — повтор всё равно дубль.
+    Object.assign(ordersTable.find(o => o.id === 1)!, { courierId: 100, deliveryStatus: "assigned" });
+    await expect(caller.markFailed({ orderId: 1, reasonCode: "refused", idempotencyKey: "q-00000002" }))
+      .resolves.toEqual({ success: true, duplicate: true });
+    expect(eventsTable).toHaveLength(1);
+    expect(ordersTable.find(o => o.id === 1)!.deliveryStatus).toBe("assigned");
+  });
+
+  it("гонка: заказ довезли между проверкой и записью — отказ, доставленный остаётся доставленным", async () => {
+    const { courierRouter } = await import("../courier-router");
+    const caller = courierRouter.createCaller(makeCtx(1, 100, "courier"));
+    // «Доставлено» со второго телефона коммитится ровно между проверкой вне
+    // транзакции и UPDATE внутри неё.
+    const plain = mockDb.transaction;
+    mockDb.transaction = async (fn: (tx: Record<string, unknown>) => Promise<unknown>) => {
+      Object.assign(ordersTable.find(o => o.id === 1)!, { status: "delivered", deliveryStatus: "delivered" });
+      return plain(fn);
+    };
+    await expect(caller.markFailed({ orderId: 1, reasonCode: "shop_closed" })).rejects.toThrow("уже завершён");
+    const order = ordersTable.find(o => o.id === 1)!;
+    expect(order).toMatchObject({ status: "delivered", deliveryStatus: "delivered", courierId: 100 });
+    expect(eventsTable).toHaveLength(0);
+  });
+
+  it("место в маршруте и плановый день стираются вместе с курьером", async () => {
+    Object.assign(ordersTable.find(o => o.id === 1)!, { routeSeq: 3, plannedDeliveryDate: businessToday() });
+    const { courierRouter } = await import("../courier-router");
+    await courierRouter.createCaller(makeCtx(1, 100, "courier")).markFailed({ orderId: 1, reasonCode: "no_answer" });
+    expect(ordersTable.find(o => o.id === 1)).toMatchObject({ routeSeq: null, plannedDeliveryDate: null });
+  });
+
+  it("довёз — попытка «delivered» в журнале, с курьером", async () => {
+    const { courierRouter } = await import("../courier-router");
+    const caller = courierRouter.createCaller(makeCtx(1, 100, "courier"));
+    await caller.markDelivered({ orderId: 1 });
+    await caller.completeDelivery({ orderId: 3, result: "paid" });
+    expect(eventsTable.map(e => [e.orderId, e.kind, e.courierId])).toEqual([[1, "delivered", 100], [3, "delivered", 100]]);
+  });
+});
+
+describe("новое назначение — новый маршрут", () => {
+  it("assignCourier стирает место в прежнем маршруте и плановый день", async () => {
+    Object.assign(ordersTable.find(o => o.id === 1)!, { routeSeq: 2, plannedDeliveryDate: "2026-10-30" });
+    const { courierRouter } = await import("../courier-router");
+    await courierRouter.createCaller(makeCtx(1, 1, "operator")).assignCourier({ orderId: 1, courierId: 100 });
+    expect(ordersTable.find(o => o.id === 1)).toMatchObject({ courierId: 100, routeSeq: null, plannedDeliveryDate: null });
+  });
+});
+
 /**
  * Список доставок.
  *
@@ -574,12 +680,32 @@ describe("courier.listMyDeliveries", () => {
     expect(idsOf(await caller.listMyDeliveries())).toEqual([1, 3]);
   });
 
-  it("оператор видит назначенные доставки организации", async () => {
+  it("оператор видит доставки организации — и назначенные, и уже в пути, с курьером", async () => {
     const { courierRouter } = await import("../courier-router");
     const caller = courierRouter.createCaller(makeCtx(1, 1, "operator"));
 
-    // Только «назначен»: заказ 3 уже в пути, заказ 2 не назначен вовсе.
+    // Было [1]: заказ 3, уже выехавший, пропадал из списка офиса. Изменено
+    // намеренно (развоз, 21.10.2026). Заказ 2 не назначен вовсе.
+    expect(idsOf(await caller.listMyDeliveries())).toEqual([1, 3]);
+  });
+
+  it("отменённый заказ уходит из списка курьера", async () => {
+    // Отмена не трогает курьера и статус доставки — курьер ехал к магазину,
+    // который от заказа отказался.
+    ordersTable.find(o => o.id === 1)!.status = "cancelled";
+    const { courierRouter } = await import("../courier-router");
+    expect(idsOf(await courierRouter.createCaller(makeCtx(1, 100, "courier")).listMyDeliveries())).toEqual([3]);
+    expect(idsOf(await courierRouter.createCaller(makeCtx(1, 1, "operator")).listMyDeliveries())).toEqual([3]);
+  });
+
+  it("перенесённый на будущий день — не в сегодняшнем списке; с includeLater — есть", async () => {
+    const later = businessDaysAgo(-2);
+    Object.assign(ordersTable.find(o => o.id === 3)!, { plannedDeliveryDate: later });
+    Object.assign(ordersTable.find(o => o.id === 1)!, { plannedDeliveryDate: businessToday() });
+    const { courierRouter } = await import("../courier-router");
+    const caller = courierRouter.createCaller(makeCtx(1, 100, "courier"));
     expect(idsOf(await caller.listMyDeliveries())).toEqual([1]);
+    expect(idsOf(await caller.listMyDeliveries({ includeLater: true }))).toEqual([1, 3]);
   });
 
   it("заказ соседней организации не приходит ни курьеру, ни оператору", async () => {

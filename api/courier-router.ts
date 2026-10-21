@@ -5,19 +5,50 @@ import { getDb } from "./queries/connection";
 import { markDelivered, completeDelivery, markFailed } from "./services/courier-delivery";
 import { orders, shops, users, orderItems, products } from "@db/schema";
 import { OPEN_ORDER_STATUSES } from "./lib/order-status";
-import { eq, and, sql, desc, isNull } from "drizzle-orm";
+import { eq, and, sql, desc, asc, isNull, inArray, or, lte } from "drizzle-orm";
+import { businessToday } from "@contracts/business-time";
 import { sseBus } from "./lib/sse";
 import { logger } from "./lib/logger";
 import { NotificationService } from "./services/NotificationService";
 import { recordedAtInput } from "./lib/event-time";
+import { DELIVERY_FAIL_REASONS, DELIVERY_FAIL_NOTE_MAX } from "@contracts/delivery-fail-reason";
+
+/** Координаты строкой, как у точек GPS (agent.saveLocation). */
+const latInput = z.string().refine(v => { const n = Number(v); return v.trim() !== "" && Number.isFinite(n) && n >= -90 && n <= 90; }, "Широта должна быть от -90 до 90").optional();
+const lngInput = z.string().refine(v => { const n = Number(v); return v.trim() !== "" && Number.isFinite(n) && n >= -180 && n <= 180; }, "Долгота должна быть от -180 до 180").optional();
+/** Ключ записи очереди телефона (uuid или свой): столбец delivery_events.idempotency_key — 64. */
+const idempotencyKeyInput = z.string().min(8).max(64).optional();
 
 export const courierRouter = createRouter({
-  listMyDeliveries: courierQuery.query(async ({ ctx }) => {
-    const db = getDb();
-    const courierId = ctx.user.role === "courier" ? ctx.user.id : undefined;
+  /*
+    Что везти — курьеру его заказы, офису — все в развозе.
 
-    if (!courierId) {
-      return db.select({
+    ── Курьер ─────────────────────────────────────────────────────────────────
+
+    Только ОТКРЫТЫЕ заказы. Отмена заказа не трогает его курьера и статус
+    доставки, и отменённый заказ оставался у курьера в списке — тот ехал к
+    магазину, который от заказа отказался. Перенесённый на другой день
+    (plannedDeliveryDate впереди) в сегодняшний список не попадает; includeLater
+    отдаёт и их — для свёрнутого раздела «Перенесено».
+
+    Порядок — маршрут диспетчера (routeSeq), за ним заказы без места, новые
+    сверху, как было.
+
+    ── Офис ───────────────────────────────────────────────────────────────────
+
+    Раньше отдавались только «назначен» и без имени курьера: заказ, уже
+    выехавший, пропадал из списка, а чей он — не видно. Теперь — и «в пути»,
+    с курьером и его маршрутом.
+  */
+  listMyDeliveries: courierQuery
+    .input(z.object({ includeLater: z.boolean().optional() }).optional())
+    .query(async ({ ctx, input }) => {
+      const db = getDb();
+      const tenantId = ctx.tenant.id;
+      const courierId = ctx.user.role === "courier" ? ctx.user.id : undefined;
+      const today = businessToday();
+
+      const fields = {
         id: orders.id,
         orderNumber: orders.orderNumber,
         status: orders.status,
@@ -36,51 +67,40 @@ export const courierRouter = createRouter({
         shopGpsLng: shops.gpsLng,
         createdAt: orders.createdAt,
         deliveredAt: orders.deliveredAt,
-      })
-        .from(orders)
-        .leftJoin(shops, and(eq(orders.shopId, shops.id), eq(shops.tenantId, ctx.tenant.id)))
-        .where(and(
-          eq(orders.tenantId, ctx.tenant.id),
-          isNull(orders.deletedAt),
-          eq(orders.deliveryStatus, "assigned"),
-        ))
-        .orderBy(desc(orders.createdAt))
-        .limit(50);
-    }
-
-    return db.select({
-      id: orders.id,
-      orderNumber: orders.orderNumber,
-      status: orders.status,
-      deliveryStatus: orders.deliveryStatus,
-      total: orders.total,
-      totalWeightKg: sql<string>`COALESCE((
-        SELECT SUM(CAST(oi.quantity AS DECIMAL(15,3)) * CAST(COALESCE(p.unit_weight, '1') AS DECIMAL(15,3)))
-        FROM ${orderItems} oi
-        LEFT JOIN ${products} p ON p.id = oi.product_id
-        WHERE oi.order_id = ${orders.id}
-      ), 0)`,
-      shopName: shops.name,
-      shopAddress: shops.address,
-      shopCity: shops.city,
-      shopGpsLat: shops.gpsLat,
-      shopGpsLng: shops.gpsLng,
-      createdAt: orders.createdAt,
-      deliveredAt: orders.deliveredAt,
-    })
-      .from(orders)
-      .leftJoin(shops, and(eq(orders.shopId, shops.id), eq(shops.tenantId, ctx.tenant.id)))
-      .where(and(
-        eq(orders.tenantId, ctx.tenant.id),
-        eq(orders.courierId, courierId),
+        plannedDeliveryDate: orders.plannedDeliveryDate,
+        routeSeq: orders.routeSeq,
+        courierId: orders.courierId,
+      };
+      const open = [
+        eq(orders.tenantId, tenantId),
         // Удалённый заказ курьеру не показывается: его резерв уже вернулся
         // на склад, и везти по нему нечего.
         isNull(orders.deletedAt),
-        sql`${orders.deliveryStatus} IN ('assigned', 'out_for_delivery')`,
-      ))
-      .orderBy(desc(orders.createdAt))
-      .limit(50);
-  }),
+        inArray(orders.status, OPEN_ORDER_STATUSES),
+        inArray(orders.deliveryStatus, ["assigned", "out_for_delivery"]),
+      ];
+
+      if (!courierId) {
+        return db.select({ ...fields, courierName: users.name })
+          .from(orders)
+          .leftJoin(shops, and(eq(orders.shopId, shops.id), eq(shops.tenantId, tenantId)))
+          .leftJoin(users, and(eq(orders.courierId, users.id), eq(users.tenantId, tenantId)))
+          .where(and(...open))
+          .orderBy(desc(orders.createdAt))
+          .limit(200);
+      }
+
+      return db.select({ ...fields, courierName: sql<string | null>`NULL` })
+        .from(orders)
+        .leftJoin(shops, and(eq(orders.shopId, shops.id), eq(shops.tenantId, tenantId)))
+        .where(and(
+          ...open,
+          eq(orders.courierId, courierId),
+          ...(input?.includeLater ? [] : [or(isNull(orders.plannedDeliveryDate), lte(orders.plannedDeliveryDate, today))]),
+        ))
+        .orderBy(sql`${orders.routeSeq} IS NULL`, asc(orders.routeSeq), desc(orders.createdAt))
+        .limit(100);
+    }),
 
   assignCourier: operatorQuery
     .input(z.object({ orderId: z.number().int().positive(), courierId: z.number().int().positive() }))
@@ -115,8 +135,11 @@ export const courierRouter = createRouter({
         .limit(1);
       if (!courier) throw new Error("Курьер не найден");
 
+      // Новое назначение — новый план: место в прежнем маршруте и перенос
+      // «на четверг» относились к прежнему решению и новому курьеру ничего не
+      // говорят. Нужен другой день — его ставят переносом (officeReschedule).
       await db.update(orders)
-        .set({ courierId: input.courierId, deliveryStatus: "assigned" })
+        .set({ courierId: input.courierId, deliveryStatus: "assigned", routeSeq: null, plannedDeliveryDate: null })
         .where(and(eq(orders.id, input.orderId), eq(orders.tenantId, ctx.tenant.id)));
 
       const [shop] = await db.select({ name: shops.name }).from(shops)
@@ -250,10 +273,23 @@ export const courierRouter = createRouter({
     }))
     .mutation(({ input, ctx }) => completeDelivery(getDb(), ctx.tenant.id, ctx.user.id, input)),
 
+  /*
+    «Не довёз» — с причиной кодом.
+
+    Все новые поля необязательны: мобилка старой версии шлёт {orderId,
+    reason} свободным текстом и продолжает работать — три текста её кнопок
+    узнаются кодами (contracts/delivery-fail-reason.ts).
+  */
   markFailed: courierQuery
     .input(z.object({
       orderId: z.number().int().positive(),
       reason: z.string().max(500).optional(),
+      reasonCode: z.enum(DELIVERY_FAIL_REASONS).optional(),
+      note: z.string().max(DELIVERY_FAIL_NOTE_MAX).optional(),
+      recordedAt: recordedAtInput,
+      lat: latInput,
+      lng: lngInput,
+      idempotencyKey: idempotencyKeyInput,
     }))
     .mutation(({ input, ctx }) => markFailed(getDb(), ctx.tenant.id, ctx.user.id, input)),
 });

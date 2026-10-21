@@ -176,6 +176,9 @@ export async function clearDeliveryTrace(tx: Tx, tenantId: number, orderId: numb
       // могут другому. Пока courier_id оставался, заказ не показывался в
       // списке нового курьера и не показывался старому — тот его уже закрыл.
       courierId:      null,
+      // С курьером уходит и его маршрут: место в нём и плановый день.
+      routeSeq:       null,
+      plannedDeliveryDate: null,
       // Накладную второй жизни печатают заново, а отметка о печати осталась бы
       // от первой и врала бы «уже печатался».
       invoicePrintedAt: null,

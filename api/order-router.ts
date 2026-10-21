@@ -801,7 +801,8 @@ export const orderRouter = createRouter({
       if (!courier) throw new Error("Курьер не найден");
 
       const [result] = await db.update(orders)
-        .set({ courierId: input.courierId, deliveryStatus: "assigned" })
+        // Место в маршруте и плановый день — от прежнего решения; см. assignCourier.
+        .set({ courierId: input.courierId, deliveryStatus: "assigned", routeSeq: null, plannedDeliveryDate: null })
         .where(and(
           eq(orders.tenantId, ctx.tenant.id),
           inArray(orders.id, input.orderIds),
