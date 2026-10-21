@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "react-router";
 import { LogoMark } from "@/components/brand/Logo";
 import LeadForm from "@/components/landing/LeadForm";
-import { useTranslate } from "@/i18n";
+import { useLang, useTranslate } from "@/i18n";
 import { ArrowRight, Send } from "lucide-react";
 
 import { LandingStyles, Accordion, SectionHead, BtnInk, BtnGhost } from "@/components/landing/landing-shared";
@@ -30,6 +30,9 @@ import PromisesSection from "@/components/landing/PromisesSection";
 import PricingSection from "@/components/landing/PricingSection";
 import StartSection from "@/components/landing/StartSection";
 import { FAQ_ITEMS } from "@/components/landing/site-content";
+import { ARTICLES } from "@/site/articles/registry";
+import { ARTICLE_KEYS, sitePage } from "@contracts/site-pages";
+import { sitePath } from "@/lib/site-paths";
 
 /* ═══════════════════════════════════════════════════════════════════════════
    ЛЕНДИНГ «СКЛАДСКАЯ КНИГА»
@@ -162,6 +165,8 @@ function CtaSection() {
 /* ── Футер ────────────────────────────────────────────────────────────────── */
 function Footer() {
   const tr = useTranslate();
+  const { lang } = useLang();
+  const siteClick = useSiteLinkClick();
   const cols = [
     { label: tr("Продукт", "Mahsulot"), href: "#features" },
     { label: tr("Как работает", "Qanday ishlaydi"), href: "#how" },
@@ -200,6 +205,27 @@ function Footer() {
             ))}
           </nav>
         </div>
+        {/*
+          Статьи — по одной на задачу, которую дистрибьютор ищет словами
+          («учёт долгов магазинов», «акт сверки»). Ссылка — на статью на языке
+          этой страницы; переход — без перезагрузки.
+        */}
+        <nav aria-label={tr("Статьи", "Maqolalar")} className="mt-8 flex flex-col md:flex-row md:items-baseline gap-x-8 gap-y-3" data-testid="footer-articles">
+          <span className="text-[12px] uppercase" style={{ ...MONO, letterSpacing: "0.08em", color: LX.brassText }}>{tr("Статьи", "Maqolalar")}</span>
+          <div className="flex flex-wrap gap-x-6 gap-y-3">
+            {ARTICLE_KEYS.map(k => (
+              <a
+                key={k}
+                href={sitePath(lang, sitePage(k).paths.ru)}
+                onClick={siteClick}
+                className="text-[13.5px] hover:underline underline-offset-4"
+                style={{ color: LX.inkSoft }}
+              >
+                {ARTICLES[k].nav[lang]}
+              </a>
+            ))}
+          </div>
+        </nav>
         <div
           className="mt-10 pt-6 flex flex-col md:flex-row justify-between gap-3 text-[12px]"
           style={{ ...MONO, color: LX.inkFaint, borderTop: `1px solid ${LX.rule}` }}
