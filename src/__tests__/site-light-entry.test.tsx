@@ -20,7 +20,9 @@ import type { SitePages } from "@/site/SiteApp";
  * 3. Форма заявки без react-query: «Отправляем…», «Заявка принята», текст
  *    отказа и повторная отправка после него; второй щелчок, пока первая
  *    заявка в пути, второй заявки не шлёт.
- * 4. Маршруты сайта: узбекская страница по-узбекски и с <html lang="uz">;
+ * 4. Маршруты сайта: каждая страница на языке своего адреса и с тем же
+ *    <html lang> — / по-русски и у выбравшего узбекский, /uz по-узбекски;
+ *    переключатель уводит на парный адрес;
  *    адрес не сайта (/register) — полной загрузкой с теми же метками;
  *    ожившая страница помечает #root (data-live) — её ждут проверки e2e.
  *
@@ -162,7 +164,15 @@ describe("маршруты сайта", () => {
   const draw = async (at: string) => {
     const { default: SiteApp } = await import("@/site/SiteApp");
     const { LangProvider, useLang } = await import("@/i18n");
-    const Page = ({ name }: { name: string }) => { const { lang } = useLang(); return <p data-testid="page">{name}:{lang}</p>; };
+    const Page = ({ name }: { name: string }) => {
+      const { lang, setLang } = useLang();
+      return (
+        <>
+          <p data-testid="page">{name}:{lang}</p>
+          <button type="button" onClick={() => setLang(lang === "ru" ? "uz" : "ru")}>switch</button>
+        </>
+      );
+    };
     render(
       <MemoryRouter initialEntries={[at]}>
         <LangProvider>
@@ -188,6 +198,34 @@ describe("маршруты сайта", () => {
     await draw("/uz/compare");
     expect(document.documentElement.lang).toBe("uz");
     expect(localStorage.getItem("lang")).toBeNull();
+  });
+
+  /*
+    Русские адреса держат язык так же, как узбекские. Раньше в SiteApp в
+    UrlLang оборачивались только /uz-страницы: выбравший узбекский получал на
+    «/» русский готовый HTML, который скрипт перерисовывал по-узбекски под
+    <html lang="ru">, а «Uz» на «/» менял текст, не меняя адреса.
+  */
+  it("русская страница — по-русски и у выбравшего узбекский, <html lang=\"ru\">", async () => {
+    localStorage.setItem("lang", "uz");
+    document.documentElement.lang = "ru";
+    await draw("/");
+    expect(screen.getByTestId("page").textContent).toBe("home:ru");
+    expect(document.documentElement.lang).toBe("ru");
+  });
+
+  it("переключатель на «/» ведёт на /uz, на /uz — обратно на «/»; <html lang> — за адресом", async () => {
+    // Новая страница открывается с начала (ScrollToTop); прокрутки в jsdom нет.
+    vi.spyOn(window, "scrollTo").mockImplementation(() => {});
+    await draw("/");
+    fireEvent.click(screen.getByText("switch"));
+    expect(screen.getByTestId("page").textContent).toBe("home:uz");
+    expect(document.documentElement.lang).toBe("uz");
+    expect(localStorage.getItem("lang")).toBe("uz");
+    fireEvent.click(screen.getByText("switch"));
+    expect(screen.getByTestId("page").textContent).toBe("home:ru");
+    expect(document.documentElement.lang).toBe("ru");
+    expect(leaveSite).not.toHaveBeenCalled();
   });
 
   it("ожившая страница ставит метку data-live на #root — до неё готовый HTML ещё не нажимается", async () => {

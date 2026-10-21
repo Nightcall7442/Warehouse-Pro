@@ -172,8 +172,10 @@ function Footer() {
     { label: tr("Как работает", "Qanday ishlaydi"), href: "#how" },
     { label: tr("Роли", "Rollar"), href: "#roles" },
     { label: tr("Цены", "Narxlar"), href: "#pricing" },
-    // Сравнение с Sales Doctor и Smartup — отдельная страница сайта.
-    { label: tr("Сравнение", "Taqqoslash"), href: "/compare" },
+    // Сравнение с Sales Doctor и Smartup — отдельная страница сайта, на
+    // языке этой: с /uz — /uz/compare (был /compare — по-русски и с
+    // перезагрузкой, а на /uz/compare не вела ни одна ссылка).
+    { label: tr("Сравнение", "Taqqoslash"), href: sitePath(lang, "/compare") },
   ];
   return (
     <footer className="py-12" style={{ borderTop: `1px solid ${LX.rule}` }}>
@@ -199,7 +201,7 @@ function Footer() {
           </div>
           <nav className="flex flex-wrap gap-x-8 gap-y-3">
             {cols.map(c => (
-              <a key={c.href} href={c.href} className="text-[13.5px] hover:underline underline-offset-4" style={{ color: LX.inkSoft }}>
+              <a key={c.href} href={c.href} onClick={siteClick} className="text-[13.5px] hover:underline underline-offset-4" style={{ color: LX.inkSoft }}>
                 {c.label}
               </a>
             ))}

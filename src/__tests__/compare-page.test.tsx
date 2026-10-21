@@ -55,7 +55,8 @@ describe("адрес публичный", () => {
 
   it("карта сайта знает адрес, подвал лендинга ведёт на него", () => {
     expect(readFileSync("public/sitemap.xml", "utf8")).toContain("https://www.warehouse-pro.uz/compare</loc>");
-    expect(readFileSync("src/pages/Landing.tsx", "utf8")).toMatch(/href: "\/compare"/);
+    // Адрес — на языке страницы: /compare с «/», /uz/compare с /uz.
+    expect(readFileSync("src/pages/Landing.tsx", "utf8")).toMatch(/href: sitePath\(lang, "\/compare"\)/);
   });
 });
 

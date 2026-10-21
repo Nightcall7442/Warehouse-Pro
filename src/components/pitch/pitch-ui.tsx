@@ -91,7 +91,7 @@ function ShellInner({ title, children, nav, site }: { title: L; children: ReactN
 }
 
 function PitchHeader({ nav, site }: { nav?: Array<{ href: string; label: L }>; site: boolean }) {
-  const { lang, fromUrl } = useLang();
+  const { lang } = useLang();
   const tr = (uz: string, ru: string) => (lang === "uz" ? uz : ru);
   const [scrolled, setScrolled] = useState(false);
   /*
@@ -103,7 +103,7 @@ function PitchHeader({ nav, site }: { nav?: Array<{ href: string; label: L }>; s
   const menu = useDisclosure("p-menu");
   const withMenu = Boolean(nav?.length) || site;
   // Знак ведёт на главную того же языка: с /uz/compare — на /uz.
-  const home = site ? sitePath(fromUrl && lang === "uz" ? "uz" : "ru", "/") : "/pitch";
+  const home = site ? sitePath(lang, "/") : "/pitch";
   useEffect(() => {
     const h = () => setScrolled(window.scrollY > 12);
     h();
@@ -230,10 +230,14 @@ function ThemeSwitch() {
 }
 
 function PitchFooter({ site }: { site: boolean }) {
-  const { lang, fromUrl } = useLang();
+  const { lang } = useLang();
   const tr = (uz: string, ru: string) => (lang === "uz" ? uz : ru);
-  // Страница сайта под /uz ведёт на узбекские страницы сайта.
-  const siteLang = fromUrl && lang === "uz" ? "uz" : "ru";
+  /*
+    Ссылки на сайт — на языке, который человек видит. У сравнения он и есть
+    язык адреса (/uz/compare — узбекский), у конкурса — выбранный на месте:
+    /pitch по-узбекски вёл «Sayt» и «Taqqoslash» на русские / и /compare.
+  */
+  const siteLang = lang;
   return (
     <footer style={{ borderTop: "1px solid var(--rule)", position: "relative" }}>
       <div className="p-wrap" style={{ display: "flex", flexWrap: "wrap", gap: "12px 28px", alignItems: "center", paddingTop: 32, paddingBottom: "calc(32px + env(safe-area-inset-bottom, 0px))" }}>

@@ -7,28 +7,31 @@ import { LangProvider, UrlLang, PreferLang, useLang, currentLang, tt } from "@/i
 import { uiLang, uiText } from "@/lib/ui-text";
 import { sitePath, stripUzPrefix } from "@/lib/site-paths";
 import { linkProps } from "@/components/landing/landing-tokens";
-import UzSite from "@/components/landing/UzSite";
+import SitePageLang from "@/components/landing/SitePageLang";
 
 /**
- * Язык сайта из адреса: /uz, /uz/compare.
+ * Язык сайта из адреса: / и /compare — русский, /uz и /uz/compare — узбекский.
  *
  * ── Что обещано ─────────────────────────────────────────────────────────────
  *
  *   · адрес сильнее сохранённого выбора: /uz открывается по-узбекски у того,
- *     кто когда-то переключал приложение на русский;
+ *     кто когда-то переключал приложение на русский, а «/» — по-русски у
+ *     того, кто выбрал узбекский; <html lang> — язык адреса;
  *   · заход по ссылке — не выбор: «lang» в хранилище не пишется;
  *   · язык адреса видят и помощники вне React — заголовок x-lang и errorText
  *     (uiLang), тосты (tt, currentLang): иначе форма заявки на /uz слала бы
  *     x-lang: ru и отвечала по-русски;
  *   · нажатие «Ру» на /uz — явный выбор: сохраняется и ведёт на русскую
- *     страницу того же раздела, с теми же метками в адресе;
+ *     страницу того же раздела, с теми же метками в адресе; «Uz» на «/» — на
+ *     /uz (раньше перекрашивал «/» по-узбекски под <html lang="ru">);
  *   · страница с собственным умолчанием (сравнение — русское) под /uz
  *     говорит по-узбекски;
  *   · своя страница сайта (/register, /demo) открывается в той же вкладке:
  *     в новой пропали бы метки рекламы из sessionStorage.
  *
  * Нарочная поломка: убрать pageLangOverride() из uiLang — падает «помощники
- * вне React»; писать lang в UrlLang при монтировании — «не выбор»; снять
+ * вне React»; писать lang в UrlLang при монтировании — «не выбор»; обернуть
+ * в SiteApp только узбекские страницы — «“/” по-русски» и «“Uz” на “/”»; снять
  * outer.fromUrl в PreferLang — «умолчание страницы»; вернуть linkProps
  * «всё, кроме якоря, — в новой вкладке» — «своя страница».
  */
@@ -54,10 +57,11 @@ const site = (entry: string) =>
     <MemoryRouter initialEntries={[entry]}>
       <LangProvider>
         <Routes>
-          <Route path="/" element={<Probe />} />
-          <Route path="/compare" element={<Probe />} />
-          <Route path="/uz" element={<UzSite path="/"><Probe /></UzSite>} />
-          <Route path="/uz/compare" element={<UzSite path="/compare"><Probe /></UzSite>} />
+          <Route path="/" element={<SitePageLang page="home"><Probe /></SitePageLang>} />
+          <Route path="/compare" element={<SitePageLang page="compare"><Probe /></SitePageLang>} />
+          <Route path="/privacy" element={<SitePageLang page="privacy"><Probe /></SitePageLang>} />
+          <Route path="/uz" element={<SitePageLang page="home"><Probe /></SitePageLang>} />
+          <Route path="/uz/compare" element={<SitePageLang page="compare"><Probe /></SitePageLang>} />
         </Routes>
       </LangProvider>
     </MemoryRouter>,
@@ -78,10 +82,14 @@ describe("адреса сайта на двух языках", () => {
     expect(stripUzPrefix("/uzum")).toBe("/uzum");
   });
 
-  it("App.tsx знает /uz и /uz/compare и не отдаёт им «Страница не найдена»", () => {
+  it("App.tsx знает /uz и /uz/compare и не отдаёт им «Страница не найдена»; язык и русских страниц — из адреса", () => {
     const app = readFileSync("src/App.tsx", "utf8");
-    expect(app).toMatch(/<Route path="\/uz"\s+element=\{<UzSite path="\/"><Landing \/><\/UzSite>\}/);
-    expect(app).toMatch(/<Route path="\/uz\/compare"\s+element=\{<UzSite path="\/compare"><Compare \/><\/UzSite>\}/);
+    expect(app).toMatch(/<Route path="\/uz"\s+element=\{<SitePageLang page="home"><Landing \/><\/SitePageLang>\}/);
+    expect(app).toMatch(/<Route path="\/uz\/compare"\s+element=\{<SitePageLang page="compare"><Compare \/><\/SitePageLang>\}/);
+    expect(app).toMatch(/<Route path="\/compare"\s+element=\{<SitePageLang page="compare"><Compare \/><\/SitePageLang>\}/);
+    // «/» гостя и прежний /landing — та же русская главная в SitePageLang.
+    expect(app).toMatch(/function SiteHome\(\) \{\s+return <SitePageLang page="home"><Landing \/><\/SitePageLang>;/);
+    expect(app).not.toMatch(/<Landing \/>\s*:|return <Landing \/>/);
     expect(app).toMatch(/<Route path="\/uz\/\*"\s+element=\{<Navigate to="\/uz" replace \/>\}/);
     // Сайт — до оболочки приложения: его открывают без входа.
     expect(app.indexOf('<Route path="/uz"')).toBeLessThan(app.indexOf("<Route element={<AppLayout />}>"));
@@ -122,6 +130,39 @@ describe("язык из адреса", () => {
     expect(screen.getByTestId("where").textContent).toBe("/compare?utm_source=tg_oct");
     expect(screen.getByTestId("lang").textContent).toBe("ru");
     expect(uiLang()).toBe("ru");
+  });
+
+  it("«/» — по-русски и у того, кто выбрал узбекский; <html lang> и помощники — тоже", () => {
+    localStorage.setItem("lang", "uz");
+    site("/");
+    expect(screen.getByTestId("lang").textContent).toBe("ru");
+    expect(document.documentElement.lang).toBe("ru");
+    expect(uiLang()).toBe("ru");
+    expect(localStorage.getItem("lang"), "заход по ссылке выбор не стирает").toBe("uz");
+  });
+
+  it("«Uz» на «/compare» — выбор сохраняется и ведёт на /uz/compare с метками, <html lang> — uz", () => {
+    site("/compare?utm_source=tg_oct");
+    fireEvent.click(screen.getByText("uz"));
+    expect(localStorage.getItem("lang")).toBe("uz");
+    expect(screen.getByTestId("where").textContent).toBe("/uz/compare?utm_source=tg_oct");
+    expect(screen.getByTestId("lang").textContent).toBe("uz");
+    expect(document.documentElement.lang).toBe("uz");
+  });
+
+  it("«Ру» на /uz — <html lang> снова ru, хотя готовый HTML /uz пришёл с lang=uz", () => {
+    document.documentElement.lang = "uz";
+    site("/uz");
+    fireEvent.click(screen.getByText("ru"));
+    expect(screen.getByTestId("where").textContent).toBe("/");
+    expect(document.documentElement.lang).toBe("ru");
+  });
+
+  it("страница на одном языке (политика): «Uz» сохраняет выбор, но не уводит на несуществующий /uz/privacy", () => {
+    site("/privacy");
+    fireEvent.click(screen.getByText("uz"));
+    expect(screen.getByTestId("where").textContent).toBe("/privacy");
+    expect(screen.getByTestId("lang").textContent).toBe("ru");
   });
 
   it("переход /uz → /uz/compare не теряет язык: уборка старой страницы не стирает язык новой", () => {

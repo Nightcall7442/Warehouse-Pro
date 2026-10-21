@@ -45,10 +45,10 @@ import { notFoundHead, siteHead } from "./site-head";
 
    ── Язык ───────────────────────────────────────────────────────────────────
 
-   Узбекская страница обёрнута в UzSite, статья — в свой UrlLang
+   Страница сайта обёрнута в SitePageLang, статья — в свой UrlLang
    (ArticleLayout): язык из адреса. Но эффект, который сообщает язык
-   помощникам вне React (tt, uiText), в Node не выполняется. Поэтому язык адреса ставится вокруг отрисовки здесь же — и
-   снимается сразу после.
+   помощникам вне React (tt, uiText), в Node не выполняется. Поэтому язык
+   адреса ставится вокруг отрисовки здесь же — и снимается сразу после.
    ═══════════════════════════════════════════════════════════════════════════ */
 
 const PAGES: SitePages = {
@@ -86,7 +86,7 @@ export function renderPage(path: string): PrerenderedPage {
   if (!route) throw new Error(`Нет такой страницы сайта: ${path}`);
   const { page, lang } = route;
   const owner = {};
-  if (lang === "uz") claimPageLang(owner, "uz");
+  claimPageLang(owner, lang);
   try {
     return {
       path,
