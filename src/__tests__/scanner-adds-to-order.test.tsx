@@ -20,7 +20,8 @@ afterEach(cleanup);
 const trpcStub = vi.hoisted(() => ({
   product: { listAll: { useQuery: () => ({ data: [
     { id: 1, code: "A-1", barcode: "4870001234567", name: "Печенье", unitPrice: "12000.00", unit: "pcs", available: "50", unitWeight: 1, photoUrl: null },
-    { id: 2, code: "A-2", barcode: null, name: "Сок", unitPrice: "8000.00", unit: "pcs", available: "5", unitWeight: 1, photoUrl: null },
+    // Второй товар — без основного штрих-кода, но с дополнительным (этикетка поставщика).
+    { id: 2, code: "A-2", barcode: null, barcodes: ["4870009999999"], name: "Сок", unitPrice: "8000.00", unit: "pcs", available: "5", unitWeight: 1, photoUrl: null },
   ], isLoading: false }) } },
 }));
 vi.mock("@/providers/trpc", () => ({ trpc: trpcStub }));
@@ -33,6 +34,7 @@ vi.mock("@/components/BarcodeScanner", () => ({
     <div data-testid="fake-scanner">
       <button onClick={() => onScan("4870001234567")}>scan-barcode</button>
       <button onClick={() => onScan("a-2")}>scan-code</button>
+      <button onClick={() => onScan("4870009999999")}>scan-extra</button>
       <button onClick={() => onScan("0000")}>scan-unknown</button>
       <span data-testid="fake-last">{lastResult ?? ""}</span>
     </div>
@@ -64,6 +66,14 @@ describe("сканер добавляет в корзину заказа", () =>
       expect.objectContaining({ productId: 2, quantity: "1" }),
     ]);
     expect(screen.getByTestId("fake-last").textContent).toBe("Сок");
+  });
+
+  it("дополнительный штрих-код — тот же товар, что и по коду", () => {
+    render(<Harness />);
+    fireEvent.click(screen.getByTestId("product-scan"));
+    fireEvent.click(screen.getByText("scan-extra"));
+    fireEvent.click(screen.getByText("scan-code"));
+    expect(JSON.parse(screen.getByTestId("cart-json").textContent ?? "[]")).toEqual([expect.objectContaining({ productId: 2, quantity: "2" })]);
   });
 
   it("незнакомый код — отказ вслух, корзина не меняется", () => {
@@ -108,7 +118,8 @@ describe("сканер на приёмке и режим «много подря
   it("приёмка: кнопка, поиск по штрих-коду и коду, +1 к строке", () => {
     const src = readFileSync("src/pages/ArrivalEditor.tsx", "utf-8");
     expect(src).toContain('data-testid="arrival-scan"');
-    expect(src).toContain("(x.barcode ?? \"\").toLowerCase() === norm || (x.code ?? \"\").toLowerCase() === norm");
+    // Сравнение — общее для всех экранов (src/lib/scan-match.ts, scan-match.test.ts).
+    expect(src).toContain("const p = findScanned(catalog, code);");
     expect(src).toContain("setRows(applyScan(rows, p));");
     // +1 к строке — в логике листа (arrival-sheet.test.ts проверяет поведение).
     expect(readFileSync("src/lib/arrival-sheet.ts", "utf-8")).toContain("quantity: String(num(r.quantity) + 1)");

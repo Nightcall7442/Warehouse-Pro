@@ -4,6 +4,7 @@ import { useLang } from "@/i18n";
 import { useConfirm } from "@/components/ConfirmDialog";
 import { PremiumSelect } from "@/components/PremiumSelect";
 import { BarcodeScanner } from "@/components/BarcodeScanner";
+import { findScanned } from "@/lib/scan-match";
 import { notify } from "@/lib/toast";
 import { formatQty } from "@/lib/format";
 import { useCurrency } from "@/hooks/useCurrency";
@@ -155,8 +156,7 @@ function StockCountSheet({ id, onBack }: { id: number; onBack: () => void }) {
 
   /** Скан или код + Enter: найденной строке +1; незнакомый код — вслух. */
   const scanned = (code: string) => {
-    const norm = code.trim().toLowerCase();
-    const hit = items.find(i => (i.barcode ?? "").toLowerCase() === norm || (i.productCode ?? "").toLowerCase() === norm);
+    const hit = findScanned(items, code, i => ({ code: i.productCode, barcode: i.barcode, barcodes: i.barcodes }));
     if (!hit) { setLastScanned(t(`Не найден: ${code}`, `Topilmadi: ${code}`)); notify.error(t(`Товар со штрих-кодом ${code} не найден в документе`, `${code} shtrix-kodli mahsulot hujjatda topilmadi`)); return; }
     setCounted.mutate({ id, productId: hit.productId, delta: 1 });
     setLastScanned(hit.productName);

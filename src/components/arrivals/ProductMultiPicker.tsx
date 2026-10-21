@@ -5,8 +5,9 @@ import { useLang } from "@/i18n";
 import { useCurrency } from "@/hooks/useCurrency";
 import { formatQty } from "@/lib/format";
 import type { ProductLike } from "@/lib/arrival-sheet";
+import { matchesBarcode, normScan } from "@/lib/scan-match";
 
-export type PickerProduct = ProductLike & { category?: string | null; available?: string | number | null; barcode?: string | null };
+export type PickerProduct = ProductLike & { category?: string | null; available?: string | number | null; barcode?: string | null; barcodes?: string[] | null };
 
 /** Сколько строк рисуем за раз: каталог бывает на тысячи позиций, выбирают поиском. */
 const SHOWN = 200;
@@ -33,10 +34,10 @@ export function ProductMultiPicker({ onClose, products, already, onPick }: {
 
   const categories = useMemo(() => [...new Set(products.map(p => p.category).filter((c): c is string => !!c))].sort((a, b) => a.localeCompare(b)), [products]);
   const found = useMemo(() => {
-    const s = q.trim().toLowerCase();
+    const s = normScan(q);
     return products.filter(p =>
       (!cat || p.category === cat) &&
-      (!s || p.name.toLowerCase().includes(s) || (p.code ?? "").toLowerCase().includes(s) || (p.barcode ?? "").toLowerCase() === s));
+      (!s || p.name.toLowerCase().includes(s) || (p.code ?? "").toLowerCase().includes(s) || matchesBarcode(p, s)));
   }, [products, q, cat]);
   const shown = found.slice(0, SHOWN);
   const selectable = found.filter(p => !already.has(p.id));

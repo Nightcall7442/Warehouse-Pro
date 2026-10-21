@@ -20,6 +20,7 @@ import { saveArrivalDraft, loadArrivalDraft, clearArrivalDraft, arrivalDraftHasW
 import { DecimalInput } from "@/components/ui/DecimalInput";
 import { PremiumSelect } from "@/components/PremiumSelect";
 import { BarcodeScanner } from "@/components/BarcodeScanner";
+import { findScanned } from "@/lib/scan-match";
 import { QueryErrorFallback } from "@/components/QueryErrorFallback";
 import { useConfirm } from "@/components/ConfirmDialog";
 import { ArrivalSheet } from "@/components/arrivals/ArrivalSheet";
@@ -179,8 +180,7 @@ export default function ArrivalEditor() {
     setTimeout(() => focusCell("arrival", { row: first, col: "quantity" }), 50);
   };
   const onScanned = (code: string) => {
-    const norm = code.trim().toLowerCase();
-    const p = catalog.find(x => (x.barcode ?? "").toLowerCase() === norm || (x.code ?? "").toLowerCase() === norm);
+    const p = findScanned(catalog, code);
     if (!p) {
       setLastScanned(t(`Не найден: ${code}`, `Topilmadi: ${code}`));
       notify.error(t(`Товар со штрих-кодом ${code} не найден`, `${code} shtrix-kodli mahsulot topilmadi`));
