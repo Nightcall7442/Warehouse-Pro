@@ -433,6 +433,8 @@ describe.skipIf(!hasRealDb)("заказ поставщику: согласова
     expect(listed.purchaseOrderId).toBe(id);
     const doc = (await (await arr()).getById({ id: arrivalId }))!;
     expect(doc.purchaseOrder).toMatchObject({ id, number, supplierId, supplierName: "Завод", currency: "UZS", paymentTermsDays: 10 });
+    // Товары заказа — экран прихода предлагает и сканирует только их.
+    expect([...doc.purchaseOrder!.productIds].sort((a, b) => a - b)).toEqual([s.productId, s.secondProductId].sort((a, b) => a - b));
 
     // Приход сам по себе — ни заказа, ни поставщика.
     const plain = await (await arr()).create({ arrivalDate: DAY, items: [{ productId: s.productId, quantity: "1", costPrice: "50" }] });

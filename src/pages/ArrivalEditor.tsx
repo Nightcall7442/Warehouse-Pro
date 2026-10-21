@@ -90,6 +90,10 @@ export default function ArrivalEditor() {
   // Приход по заказу поставщику: ссылка назад и поставщик, пока долга ещё нет.
   const linkedOrder = detail?.purchaseOrder ?? null;
   const supplierName = supplyQ.data?.supplierName ?? linkedOrder?.supplierName ?? null;
+  // Себестоимость по заказу в другой валюте сервер выводит из цены заказа и
+  // курса — только для пары сум–доллар (purchase-order-receipt.priceInTenantCurrency).
+  const tenantCurrency = currency.trim().toUpperCase();
+  const costLocked = linkedOrder != null && linkedOrder.currency !== tenantCurrency && (tenantCurrency === "UZS" || tenantCurrency === "USD");
 
   /* Новый — черновик у браузера; сохранённый — правки поверх документа, пока их не сохранили. */
   const [draft, setDraft] = useState<ArrivalDraft>(() => (isNew && user ? loadArrivalDraft(user.id) : null) ?? emptyDraft());
@@ -116,6 +120,14 @@ export default function ArrivalEditor() {
 
   const catalog = useMemo(() => (productsQ.data?.data ?? []) as PickerProduct[], [productsQ.data]);
   const byId = useMemo(() => new Map(catalog.map(p => [p.id, p])), [catalog]);
+  /*
+    Приход по заказу принимает только заказанное (сервер отказывает
+    остальному на сохранении): выбор и сканер — по товарам заказа, а скан
+    чужого товара говорит, куда его деть, а не молча добавляет строку,
+    которую потом не сохранить.
+  */
+  const orderProducts = useMemo(() => linkedOrder ? new Set(linkedOrder.productIds) : null, [linkedOrder]);
+  const pickable = useMemo(() => orderProducts ? catalog.filter(p => orderProducts.has(p.id)) : catalog, [catalog, orderProducts]);
 
   const head: Head = isNew ? draft.form : (edit?.head ?? base?.head ?? emptyDraft().form);
   const rawRows = useMemo(() => isNew ? draft.rows : (edit?.rows ?? base?.rows ?? []), [isNew, draft.rows, edit, base]);
@@ -173,6 +185,11 @@ export default function ArrivalEditor() {
       notify.error(t(`Товар со штрих-кодом ${code} не найден`, `${code} shtrix-kodli mahsulot topilmadi`));
       return;
     }
+    if (orderProducts && linkedOrder && !orderProducts.has(p.id)) {
+      setLastScanned(t(`Не из заказа: ${p.name}`, `Buyurtmada yo'q: ${p.name}`));
+      notify.error(t(`«${p.name}» нет в заказе ${linkedOrder.number} — оформите его отдельным приходом`, `«${p.name}» ${linkedOrder.number} buyurtmada yo'q — uni alohida kirim bilan rasmiylashtiring`));
+      return;
+    }
     setRows(applyScan(rows, p));
     setLastScanned(p.name);
   };
@@ -195,8 +212,21 @@ export default function ArrivalEditor() {
   const deleteMutation = trpc.arrival.delete.useMutation();
   const busy = createMutation.isPending || updateStatus.isPending || setItems.isPending || deleteMutation.isPending;
 
+  /*
+    После сохранения и проведения — всё, что этот документ меняет. Долг по
+    приходу из заказа рождается проведением (ADR 0013): без перечитывания
+    поставки блок долга, запомнивший «поставки ещё нет», сразу после
+    проведения говорил «долга по приходу нет», пока не придёт живое событие
+    (а без него — до перезагрузки). Заказ узнаёт «принято» тем же проведением.
+  */
   const refresh = async () => {
-    await Promise.all([utils.arrival.list.invalidate(), arrivalId ? utils.arrival.getById.invalidate({ id: arrivalId }) : Promise.resolve()]);
+    await Promise.all([
+      utils.arrival.list.invalidate(),
+      arrivalId ? utils.arrival.getById.invalidate({ id: arrivalId }) : Promise.resolve(),
+      arrivalId ? utils.supplier.getSupplyByArrival.invalidate({ arrivalId }) : Promise.resolve(),
+      linkedOrder ? utils.purchaseOrder.getById.invalidate({ id: linkedOrder.id }) : Promise.resolve(),
+      linkedOrder ? utils.purchaseOrder.list.invalidate() : Promise.resolve(),
+    ]);
   };
   const guard = (): boolean => {
     if (issues.length > 0) {
@@ -498,16 +528,16 @@ export default function ArrivalEditor() {
       )}
 
       {/* Заказ в чужой валюте: себестоимость строки — цена заказа по курсу, её
-          пересчитывает сервер (по ней же считается долг), так что правка цены
-          здесь не сохранится. Лучше сказать заранее, чем молча вернуть своё. */}
-      {linkedOrder && !completed && linkedOrder.currency !== currency.trim().toUpperCase() && (
+          пересчитывает сервер (по ней же считается долг), поэтому столбец
+          себестоимости здесь не правится — и сказано почему. */}
+      {linkedOrder && !completed && costLocked && (
         <p data-testid="arrival-order-currency" style={{ margin: 0, fontSize: 12, color: "var(--color-warning-text)" }}>
-          {t(`Заказ ${linkedOrder.number} в ${linkedOrder.currency}: себестоимость строк считается по цене заказа и курсу — правка цены здесь не сохранится.`,
-             `${linkedOrder.number} buyurtma ${linkedOrder.currency} da: tannarx buyurtma narxi va kurs bo'yicha hisoblanadi — bu yerda narxni o'zgartirish saqlanmaydi.`)}
+          {t(`Заказ ${linkedOrder.number} в ${linkedOrder.currency}: себестоимость строк — цена заказа по курсу, её считает система. Цену меняют в заказе.`,
+             `${linkedOrder.number} buyurtma ${linkedOrder.currency} da: qatorlar tannarxi — kurs bo'yicha buyurtma narxi, uni tizim hisoblaydi. Narx buyurtmada o'zgartiriladi.`)}
         </p>
       )}
 
-      <ArrivalSheet rows={rows} onChange={setRows} readOnly={readOnly} arrivalDate={head.arrivalDate} onAddClick={() => setPicking(true)} />
+      <ArrivalSheet rows={rows} onChange={setRows} readOnly={readOnly} costLocked={costLocked} arrivalDate={head.arrivalDate} onAddClick={() => setPicking(true)} />
 
       {!isNew && arrivalId && <SupplierDebtSection arrivalId={arrivalId} order={linkedOrder} completed={completed} />}
 
@@ -530,7 +560,7 @@ export default function ArrivalEditor() {
       )}
 
       {picking && (
-        <ProductMultiPicker onClose={() => setPicking(false)} products={catalog} already={new Set(rows.map(r => r.productId))} onPick={onPick} />
+        <ProductMultiPicker onClose={() => setPicking(false)} products={pickable} already={new Set(rows.map(r => r.productId))} onPick={onPick} />
       )}
       {scanning && (
         <BarcodeScanner

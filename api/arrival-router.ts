@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { createRouter, operatorQuery, can } from "./middleware";
 import { createArrival, updateArrival, deleteArrival, setArrivalItems } from "./services/arrival";
-import { arrivals, purchaseOrders, suppliers } from "@db/schema";
+import { arrivals, purchaseOrders, purchaseOrderItems, suppliers } from "@db/schema";
 import { eq, and, sql, desc } from "drizzle-orm";
 import { decimalOrDefault } from "./lib/zod-decimal";
 import { arrivalSupplyColumns } from "./supplier-router";
@@ -194,7 +194,18 @@ export const arrivalRouter = createRouter({
         items = [];
       }
 
-      return { ...arrival, items, purchaseOrder: purchaseOrder ?? null };
+      /*
+        Товары заказа: по заказу принимают только заказанное (setItems
+        отказывает остальному), и экран не предлагает в выборе и не берёт
+        сканером то, что сервер потом не сохранит. Заказ уже проверен на
+        организацию выше — строки читаются только у него.
+      */
+      const orderProductIds = purchaseOrder
+        ? (await db.select({ productId: purchaseOrderItems.productId }).from(purchaseOrderItems)
+          .where(eq(purchaseOrderItems.purchaseOrderId, purchaseOrder.id))).map(r => Number(r.productId))
+        : [];
+
+      return { ...arrival, items, purchaseOrder: purchaseOrder ? { ...purchaseOrder, productIds: orderProductIds } : null };
     }),
 
   // Приход — поставка: под «Поставщики, поставки и оплаты им». Без этого

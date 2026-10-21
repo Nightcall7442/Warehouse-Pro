@@ -19,9 +19,10 @@ import { render, screen, fireEvent, cleanup, act } from "@testing-library/react"
 import { MemoryRouter, Routes, Route, useLocation } from "react-router";
 import { LangProvider } from "@/i18n";
 
-const api = vi.hoisted(() => ({ details: {} as Record<number, unknown>, currency: "UZS" }));
+const api = vi.hoisted(() => ({ details: {} as Record<number, unknown>, currency: "UZS", invalidated: [] as string[] }));
+const toast = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn(), info: vi.fn() }));
 
-vi.mock("@/lib/toast", () => ({ notify: { success: vi.fn(), error: vi.fn(), info: vi.fn() } }));
+vi.mock("@/lib/toast", () => ({ notify: toast }));
 vi.mock("@/hooks/useAuth", () => ({ useAuth: () => ({ user: { id: 10 } }) }));
 vi.mock("@/hooks/useCan", () => ({ useCan: () => () => true }));
 vi.mock("@/hooks/useCurrency", () => ({ useCurrency: () => ({ fmt: (v: unknown) => `${Number(v)} сум`, symbol: "сум", currency: api.currency }) }));
@@ -33,11 +34,18 @@ vi.mock("@/providers/trpc", () => {
   const mutation = () => () => ({ mutateAsync: async () => ({}), mutate: () => {}, isPending: false });
   return {
     trpc: {
-      useUtils: () => ({
-        arrival: { list: { invalidate: async () => {} }, getById: { invalidate: async () => {} } },
-        supplier: { getSupplyByArrival: { invalidate: async () => {} }, list: { invalidate: async () => {} } },
-      }),
-      product: { list: { useQuery: () => ({ data: { data: [] } }) } },
+      useUtils: () => {
+        const spy = (name: string) => ({ invalidate: async () => { api.invalidated.push(name); } });
+        return {
+          arrival: { list: spy("arrival.list"), getById: spy("arrival.getById") },
+          supplier: { getSupplyByArrival: spy("supplier.getSupplyByArrival"), list: spy("supplier.list") },
+          purchaseOrder: { getById: spy("purchaseOrder.getById"), list: spy("purchaseOrder.list") },
+        };
+      },
+      product: { list: { useQuery: () => ({ data: { data: [
+        { id: 1, name: "Мука", code: "M-1", barcode: "111", status: "active" },
+        { id: 2, name: "Сахар", code: "S-1", barcode: "222", status: "active" },
+      ] } }) } },
       supplier: {
         list: { useQuery: () => ({ data: [] }) },
         // Приход по заказу: поставки до проведения нет.
@@ -67,7 +75,7 @@ const doc = (id: number, over: Record<string, unknown> = {}) => ({
     barcode: null, costPrice: "80.00", sellingPrice: "100.00", batchNumber: null, expiresAt: null,
     unit: "pcs", unitWeight: null, packSize: null, packLabel: null,
   }],
-  purchaseOrder: { id: 3, number: "PO-3", status: "approved", currency: "UZS", paymentTermsDays: 15, supplierId: 5, supplierName: "Завод" },
+  purchaseOrder: { id: 3, number: "PO-3", status: "approved", currency: "UZS", paymentTermsDays: 15, supplierId: 5, supplierName: "Завод", productIds: [1] },
   ...over,
 });
 
@@ -92,6 +100,8 @@ beforeEach(() => {
   localStorage.clear();
   api.currency = "UZS";
   api.details = { 5: doc(5) };
+  api.invalidated = [];
+  toast.error.mockClear();
 });
 
 describe("приход по заказу поставщику", () => {
@@ -109,11 +119,36 @@ describe("приход по заказу поставщику", () => {
     api.details = { 5: doc(5, { purchaseOrder: { ...doc(5).purchaseOrder, currency: "USD" } }) };
     open("/arrivals/5");
     expect(screen.getByTestId("arrival-order-currency").textContent).toContain("PO-3 в USD");
+    // Себестоимость считает сервер — поля для правки нет, а не правка, которая молча пропадёт.
+    expect(screen.queryByTestId("arrival-cell-costPrice-0")).toBeNull();
     cleanup();
 
     api.details = { 5: doc(5) };
     open("/arrivals/5");
     expect(screen.queryByTestId("arrival-order-currency")).toBeNull();
+    expect(screen.getByTestId("arrival-cell-costPrice-0")).toBeTruthy();
+  });
+
+  it("сканер по приходу из заказа берёт только заказанное и говорит, куда деть остальное", () => {
+    open("/arrivals/5");
+    const wedge = screen.getByTestId("arrival-wedge");
+    fireEvent.change(wedge, { target: { value: "222" } });
+    fireEvent.keyDown(wedge, { key: "Enter" });
+    expect(toast.error).toHaveBeenCalledWith(expect.stringContaining("«Сахар» нет в заказе PO-3"));
+    expect(screen.queryByText("Сахар")).toBeNull();
+
+    fireEvent.change(wedge, { target: { value: "111" } });
+    fireEvent.keyDown(wedge, { key: "Enter" });
+    expect((screen.getByTestId("arrival-cell-quantity-0") as HTMLInputElement).value).toBe("1");
+  });
+
+  it("проведение перечитывает долг по приходу и заказ — блок не врёт «долга нет»", async () => {
+    api.details = { 5: doc(5, { items: [{ ...doc(5).items[0], quantity: 10 }] }) };
+    open("/arrivals/5");
+    fireEvent.click(screen.getByTestId("arrival-complete"));
+    fireEvent.click(await screen.findByText("Завершить", { selector: "button" }));
+    await act(async () => {});
+    expect(api.invalidated).toEqual(expect.arrayContaining(["supplier.getSupplyByArrival", "purchaseOrder.getById", "arrival.getById"]));
   });
 
   it("долг: говорит, когда появится и с каким сроком; проведённый без поставки — долга нет", () => {
