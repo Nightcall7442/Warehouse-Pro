@@ -25,6 +25,8 @@ export type StockMovementReason =
   | "return_completed"   // a formal return was approved and restocked
   | "transfer_out"       // left this warehouse for another
   | "transfer_in"        // arrived here from another warehouse
+  | "transfer_doc_out"   // ушло документом перемещения (ссылка — номер документа, а не строки)
+  | "transfer_doc_in"    // пришло документом перемещения (или вернулось при его отмене)
   | "manual_adjustment"  // a person corrected the count
   | "import"             // set by a spreadsheet import
   | "onec_sync"          // set by the 1C integration
@@ -175,9 +177,12 @@ async function shiftStock(
   rows: Array<{ productId: number; onHand: number; held: number }>,
   /** Списывать ли с просроченных партий. Отгрузка — нет, списание — да и первым. */
   expiredToo = false,
-): Promise<void> {
-  if (rows.length === 0) return;
-  if (rows.every(r => r.onHand === 0 && r.held === 0)) return;
+  /** Партии, выбранные человеком, — по товарам. Нет — FEFO. */
+  picks?: Map<number, BatchPick[]>,
+): Promise<Map<number, BatchSlice[]>> {
+  const taken = new Map<number, BatchSlice[]>();
+  if (rows.length === 0) return taken;
+  if (rows.every(r => r.onHand === 0 && r.held === 0)) return taken;
 
   const ids = sql.join(rows.map(r => sql`${r.productId}`), sql`, `);
   const onHand = sql.join(rows.map(r => sql`WHEN product_id = ${r.productId} THEN ${r.onHand}`), sql` `);
@@ -205,9 +210,10 @@ async function shiftStock(
   */
   for (const row of rows) {
     if (row.onHand < 0) {
-      await consumeBatches(tx, tenantId, warehouseId, row.productId, -row.onHand, expiredToo);
+      taken.set(row.productId, await consumeBatches(tx, tenantId, warehouseId, row.productId, -row.onHand, expiredToo, picks?.get(row.productId)));
     }
   }
+  return taken;
 }
 
 /**
@@ -278,6 +284,58 @@ export interface BatchRef {
 }
 
 /**
+ * Часть партии, ушедшая со склада, — чтобы лечь на другой склад ТОЙ ЖЕ партией.
+ *
+ * Перемещение раньше списывало партии по FEFO и выбрасывало, какие именно:
+ * на складе-получателе товар ложился без срока, и ни отчёт «что сгорает»,
+ * ни FEFO, ни запрет продавать просрочку его там не видели. Списание теперь
+ * отдаёт, что взяло, — номер, срок, себестоимость.
+ */
+export interface BatchSlice {
+  /** Строка партии на складе-источнике; null — остаток без партии. */
+  batchId: number | null;
+  batchNumber: string | null;
+  /** «ГГГГ-ММ-ДД». */
+  expiresAt: string | null;
+  costPrice: string | null;
+  arrivalItemId: number | null;
+  quantity: number;
+}
+
+/** Выбор вручную: сколько взять из этой партии; batchId null — из остатка без партии. */
+export interface BatchPick {
+  batchId: number | null;
+  quantity: number;
+}
+
+/**
+ * Выбранной партии нет на складе или в ней меньше выбранного. Дверь товар по
+ * имени не знает — вызывающий называет его сам.
+ */
+export class BatchPickError extends Error {
+  readonly has: number;
+  readonly want: number;
+  constructor(has: number, want: number) {
+    super(`В выбранной партии ${has}, а взять нужно ${want}`);
+    this.has = has;
+    this.want = want;
+  }
+}
+
+/** Годного к перемещению меньше, чем просят. Товар называет вызывающий. */
+export class NotMovableError extends Error {
+  readonly available: number;
+  readonly expired: number;
+  readonly movable: number;
+  constructor(available: number, expired: number, movable: number, quantity: number) {
+    super(`Годного к перемещению ${movable}, а нужно ${quantity}`);
+    this.available = available;
+    this.expired = expired;
+    this.movable = movable;
+  }
+}
+
+/**
  * Списать количество с партий этого товара — сперва с того, что раньше портится.
  *
  * ── FEFO, а не FIFO ─────────────────────────────────────────────────────────
@@ -302,9 +360,9 @@ export interface BatchRef {
  */
 async function consumeBatches(
   tx: LedgerWriter, tenantId: number, warehouseId: number, productId: number, quantity: number,
-  expiredToo = false,
-): Promise<void> {
-  if (!(quantity > 0)) return;
+  expiredToo = false, picks?: BatchPick[],
+): Promise<BatchSlice[]> {
+  if (!(quantity > 0)) return [];
 
   /*
     Блокировка строк на чтении обязательна.
@@ -326,8 +384,8 @@ async function consumeBatches(
     списывают. Годное к продаже у оформления заказа считается без неё
     (expiredByProduct), поэтому отгрузке годных партий хватает.
   */
-  const rows = await tx.execute(expiredToo ? sql`
-    SELECT id, quantity FROM stock_batches
+  const rows = picks ? await lockPicked(tx, tenantId, warehouseId, productId, picks) : await tx.execute(expiredToo ? sql`
+    SELECT id, quantity, batch_number, DATE_FORMAT(expires_at, '%Y-%m-%d') AS expires_at, cost_price, arrival_item_id FROM stock_batches
     WHERE tenant_id = ${tenantId}
       AND warehouse_id = ${warehouseId}
       AND product_id = ${productId}
@@ -335,7 +393,7 @@ async function consumeBatches(
     ORDER BY expires_at IS NULL, expires_at, received_at, id
     FOR UPDATE
   ` : sql`
-    SELECT id, quantity FROM stock_batches
+    SELECT id, quantity, batch_number, DATE_FORMAT(expires_at, '%Y-%m-%d') AS expires_at, cost_price, arrival_item_id FROM stock_batches
     WHERE tenant_id = ${tenantId}
       AND warehouse_id = ${warehouseId}
       AND product_id = ${productId}
@@ -344,19 +402,50 @@ async function consumeBatches(
     ORDER BY expires_at IS NULL, expires_at, received_at, id
     FOR UPDATE
   `);
-  const list = resultRows<{ id: number; quantity: string }>(rows);
+  const list = resultRows<BatchRow>(rows);
 
-  let left = quantity;
-  for (const batch of list) {
-    if (left <= 0) break;
-    const take = Math.min(Number(batch.quantity), left);
-    if (!(take > 0)) continue;
-    left -= take;
+  /*
+    Сколько взять из каждой партии: по FEFO — сколько влезет по порядку; по
+    выбору человека — ровно выбранное. Выбранного может оказаться меньше, чем
+    просили (партию успели отгрузить), — тогда отказ, а не «взяли что было»:
+    человек выбирал именно эту партию и должен узнать, что её нет.
+  */
+  const plan: Array<{ batch: BatchRow; take: number }> = [];
+  if (picks) {
+    const byId = new Map(list.map(b => [Number(b.id), b]));
+    for (const pick of picks) {
+      if (pick.batchId == null || !(pick.quantity > 0)) continue;
+      const batch = byId.get(pick.batchId);
+      const has = Number(batch?.quantity ?? 0);
+      if (!batch || has + 1e-9 < pick.quantity) throw new BatchPickError(has, pick.quantity);
+      plan.push({ batch, take: pick.quantity });
+    }
+  } else {
+    let left = quantity;
+    for (const batch of list) {
+      if (left <= 0) break;
+      const take = Math.min(Number(batch.quantity), left);
+      if (!(take > 0)) continue;
+      left -= take;
+      plan.push({ batch, take });
+    }
+  }
+
+  const slices: BatchSlice[] = [];
+  for (const { batch, take } of plan) {
     await tx.execute(sql`
       UPDATE stock_batches
       SET quantity = GREATEST(0, quantity - ${take})
       WHERE id = ${batch.id} AND tenant_id = ${tenantId}
     `);
+    slices.push({
+      batchId: Number(batch.id),
+      batchNumber: batch.batch_number ?? null,
+      expiresAt: batch.expires_at ?? null,
+      costPrice: batch.cost_price == null ? null : String(batch.cost_price),
+      arrivalItemId: batch.arrival_item_id == null ? null : Number(batch.arrival_item_id),
+      quantity: take,
+    });
   }
 
   /*
@@ -386,6 +475,40 @@ async function consumeBatches(
       AND product_id = ${productId}
       AND quantity <= 0
   `);
+  return slices;
+}
+
+/** Строка партии, как её читает списание. */
+interface BatchRow {
+  id: number;
+  quantity: string;
+  batch_number: string | null;
+  expires_at: string | null;
+  cost_price: string | null;
+  arrival_item_id: number | null;
+}
+
+/**
+ * Выбранные человеком партии — под замком, только этого товара на этом складе.
+ *
+ * Номер партии приходит от клиента; условие по организации, складу и товару
+ * здесь не украшение: без него чужая партия с подходящим номером списалась бы
+ * с чужого склада.
+ */
+async function lockPicked(
+  tx: LedgerWriter, tenantId: number, warehouseId: number, productId: number, picks: BatchPick[],
+): Promise<unknown> {
+  const ids = [...new Set(picks.map(p => p.batchId).filter((id): id is number => id != null))];
+  if (ids.length === 0) return [];
+  return tx.execute(sql`
+    SELECT id, quantity, batch_number, DATE_FORMAT(expires_at, '%Y-%m-%d') AS expires_at, cost_price, arrival_item_id FROM stock_batches
+    WHERE tenant_id = ${tenantId}
+      AND warehouse_id = ${warehouseId}
+      AND product_id = ${productId}
+      AND id IN (${sql.join(ids.map(id => sql`${id}`), sql`, `)})
+    ORDER BY id
+    FOR UPDATE
+  `);
 }
 
 /**
@@ -394,6 +517,20 @@ async function consumeBatches(
  * Одним запросом, а не «поискать и вставить», по той же причине, что и у
  * прихода на остаток: заблокировать несуществующую строку нельзя, и два
  * одновременных прихода одной партии оба пошли бы вставлять.
+ *
+ * ── Себестоимость при слиянии ───────────────────────────────────────────────
+ *
+ * Та же партия, пришедшая второй раз по другой цене (вторая поставка или
+ * перемещение на склад, где эта партия уже лежит), раньше ЗАТИРАЛА цену
+ * первой: 4 шт. по 9 500 и 2 по 8 000 становились шестью по 8 000, и
+ * «сгорает на N» считалось по чужой цене. Теперь — средневзвешенная:
+ * (4 × 9 500 + 2 × 8 000) / 6 = 9 000. Не пришла цена — прежняя остаётся;
+ * не было прежней (партии до колонки) — берётся пришедшая.
+ *
+ * ПОРЯДОК ПРИСВОЕНИЙ НЕСУЩИЙ: MySQL вычисляет SET слева направо, и к цене
+ * quantity приходит уже НОВЫМ — поэтому прежнее количество в формуле
+ * записано как quantity − пришедшее. Переставь строки — формула поделит на
+ * старое количество и завысит цену.
  */
 async function receiveBatch(
   tx: LedgerWriter,
@@ -417,7 +554,11 @@ async function receiveBatch(
     )
     ON DUPLICATE KEY UPDATE
       quantity = quantity + ${entry.quantity},
-      cost_price = COALESCE(${entry.batch.costPrice ?? null}, cost_price)
+      cost_price = COALESCE(
+        ROUND(((quantity - ${entry.quantity}) * cost_price + ${entry.quantity} * ${entry.batch.costPrice ?? null}) / quantity, 2),
+        ${entry.batch.costPrice ?? null},
+        cost_price
+      )
   `);
 }
 
@@ -630,6 +771,142 @@ export async function applyStockEffect(
       notes: entry.notes ?? null,
     });
   }
+}
+
+/**
+ * Товар уехал на другой склад — с теми партиями, которыми ушёл.
+ *
+ * Возвращает, что именно ушло: части партий (номер, срок, себестоимость) и,
+ * если не хватило партий, часть без партии. Положить это на склад-получатель
+ * — дело вызывающего: receiveStock с той же партией на каждую часть.
+ *
+ * ── Без выбора — FEFO, как у отгрузки ──────────────────────────────────────
+ *
+ * Первым уходит то, что раньше сгорит; просрочка не уходит. Годного —
+ * available минус просрочка: больше этого уехало бы либо отложенное под
+ * заказы, либо сгоревшее мимо партий (остаток падал, а партия оставалась, и
+ * партий становилось больше, чем на полке).
+ *
+ * ── С выбором — ровно выбранное ────────────────────────────────────────────
+ *
+ * Кладовщик берёт конкретную партию — например, сгоревшую, чтобы увезти её на
+ * склад списания. Выбранная просрочка уходит, ей можно: продать её всё равно
+ * нельзя. Годные партии и остаток без партии по-прежнему не трогают
+ * отложенного под заказы: их в сумме не больше, чем available минус просрочка.
+ * Количество — сумма выбранного.
+ *
+ * Проверка здесь, а не у вызывающего, — в отличие от остальных путей двери:
+ * какие из выбранных партий сгорели и сколько лежит без партии, знает только
+ * тот, кто держит партии под замком. Порядок замков — строка остатка, потом
+ * партии — тот же, что у отгрузки.
+ */
+export async function moveOut(
+  tx: LedgerWriter,
+  entry: {
+    tenantId: number;
+    warehouseId: number;
+    productId: number;
+    quantity: number | string;
+    picks?: BatchPick[] | null;
+    reason: StockMovementReason;
+    referenceId?: number | null;
+    notes?: string | null;
+  },
+): Promise<BatchSlice[]> {
+  const [item] = normalize([{ productId: entry.productId, quantity: entry.quantity }], "перемещение");
+  if (!item) return [];
+  const { tenantId, warehouseId, productId } = entry;
+
+  const [row] = resultRows<{ current: unknown; available: unknown }>(await tx.execute(sql`
+    SELECT current_stock AS current, available FROM warehouse_stock
+    WHERE tenant_id = ${tenantId} AND warehouse_id = ${warehouseId} AND product_id = ${productId}
+    FOR UPDATE
+  `));
+  const current = Number(row?.current ?? 0);
+  const available = Number(row?.available ?? 0);
+  const batches = resultRows<{ id: number; quantity: unknown; expired: unknown }>(await tx.execute(sql`
+    SELECT id, quantity, (expires_at IS NOT NULL AND expires_at < DATE(UTC_TIMESTAMP() + INTERVAL 5 HOUR)) AS expired
+    FROM stock_batches
+    WHERE tenant_id = ${tenantId} AND warehouse_id = ${warehouseId} AND product_id = ${productId} AND quantity > 0
+    ORDER BY id
+    FOR UPDATE
+  `));
+  const isExpired = (b: { expired: unknown }) => Number(b.expired) === 1;
+  const expired = batches.filter(isExpired).reduce((sum, b) => sum + Number(b.quantity), 0);
+  const inBatches = batches.reduce((sum, b) => sum + Number(b.quantity), 0);
+  const movable = round2(available - expired);
+
+  // Выбор складывается по партии: дважды названная партия — одна строка.
+  let picks: BatchPick[] | undefined;
+  if (entry.picks && entry.picks.length > 0) {
+    const merged = new Map<number | null, number>();
+    for (const p of entry.picks) {
+      if (!(p.quantity > 0)) continue;
+      merged.set(p.batchId, round2((merged.get(p.batchId) ?? 0) + p.quantity));
+    }
+    picks = [...merged].map(([batchId, quantity]) => ({ batchId, quantity }));
+    const total = round2(picks.reduce((sum, p) => sum + p.quantity, 0));
+    if (Math.abs(total - item.quantity) > 1e-9) throw new BatchPickError(total, item.quantity);
+
+    const byId = new Map(batches.map(b => [Number(b.id), b]));
+    let good = 0;
+    for (const p of picks) {
+      if (p.batchId == null) {
+        const untracked = round2(Math.max(0, current - inBatches));
+        if (untracked + 1e-9 < p.quantity) throw new BatchPickError(untracked, p.quantity);
+        good += p.quantity;
+        continue;
+      }
+      const b = byId.get(p.batchId);
+      const has = Number(b?.quantity ?? 0);
+      if (!b || has + 1e-9 < p.quantity) throw new BatchPickError(has, p.quantity);
+      if (!isExpired(b)) good += p.quantity;
+    }
+    if (round2(good) > movable + 1e-9) throw new NotMovableError(available, expired, Math.max(0, movable), round2(good));
+  } else if (item.quantity > movable + 1e-9) {
+    throw new NotMovableError(available, expired, Math.max(0, movable), item.quantity);
+  }
+
+  const taken = await shiftStock(
+    tx, tenantId, warehouseId, [{ productId, onHand: -item.quantity, held: 0 }], false,
+    picks ? new Map([[productId, picks]]) : undefined,
+  );
+  const slices = taken.get(productId) ?? [];
+  const rest = round2(item.quantity - slices.reduce((sum, b) => sum + b.quantity, 0));
+  if (rest > 0) {
+    slices.push({ batchId: null, batchNumber: null, expiresAt: null, costPrice: null, arrivalItemId: null, quantity: rest });
+  }
+
+  await recordStockMovement(tx, {
+    tenantId, warehouseId, productId, type: "out", quantity: item.quantity,
+    reason: entry.reason, referenceId: entry.referenceId ?? null, notes: entry.notes ?? null,
+  });
+  return slices;
+}
+
+/** Две цифры после запятой — как в колонках количества. */
+const round2 = (n: number) => Math.round(n * 100) / 100;
+
+/**
+ * Завести пустые строки остатка под товары склада — если их ещё нет.
+ *
+ * Перемещение держит замки на обоих складах в одном порядке (склад, товар),
+ * иначе два встречных документа A→B и B→A одного товара ждали бы друг друга
+ * вечно. Заблокировать строку, которой нет, нельзя — поэтому она заводится
+ * заранее, нулями, ОТДЕЛЬНО от транзакции перемещения: пустая строка ничего
+ * не двигает, и если документ откажут, она просто останется пустой.
+ * Заодно «в пути» видно в списке склада-получателя ещё до приёмки.
+ */
+export async function ensureStockRows(
+  tx: LedgerWriter, entry: { tenantId: number; warehouseId: number; productIds: number[] },
+): Promise<void> {
+  const ids = [...new Set(entry.productIds)];
+  if (ids.length === 0) return;
+  await tx.execute(sql`
+    INSERT INTO warehouse_stock (tenant_id, warehouse_id, product_id, current_stock, reserved, available)
+    VALUES ${sql.join(ids.map(id => sql`(${entry.tenantId}, ${entry.warehouseId}, ${id}, 0, 0, 0)`), sql`, `)}
+    ON DUPLICATE KEY UPDATE tenant_id = tenant_id
+  `);
 }
 
 /**

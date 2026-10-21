@@ -411,6 +411,24 @@ describe("партии остатка", () => {
     expect(insert.values).toEqual(expect.arrayContaining(["A", "2026-03-01", "A|2026-03-01", 5]));
   });
 
+  it("цена слитой партии — средневзвешенная, и считается ПОСЛЕ количества", async () => {
+    /*
+      MySQL вычисляет SET слева направо: к цене quantity приходит уже новым,
+      и прежнее количество в формуле — quantity минус пришедшее. Переставь
+      присвоения — формула поделит на старое количество; арифметику на
+      настоящей базе держит real-db/transfer-batches.test.ts.
+    */
+    const { tx, queries } = spyTx();
+    await receiveStock(tx, {
+      tenantId: 1, warehouseId: 2, productId: 7, quantity: 2, reason: "transfer_doc_in",
+      batch: { batchNumber: "A", expiresAt: "2026-03-01", costPrice: "8000.00" },
+    });
+    const [insert] = batchQueries(queries);
+    const update = insert.text.slice(insert.text.indexOf("ON DUPLICATE KEY UPDATE"));
+    expect(update.indexOf("quantity = quantity +"), "количество не первым").toBeLessThan(update.indexOf("cost_price ="));
+    expect(update).toMatch(/\(\(quantity - \?\) \* cost_price \+ \? \* \?\) \/ quantity/);
+  });
+
   it("партия без номера и без срока — отказ, а не строка-пустышка", async () => {
     /*
       Такая строка ничем не отличается от остатка без партии, но встаёт в

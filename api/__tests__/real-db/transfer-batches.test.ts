@@ -16,15 +16,24 @@
  *     просрочка; больше — отказ с названием товара, остаток и партии целы;
  *   · то же правило у прежнего «провести застрявшее» (completeTransfer).
  *
+ *   · дверь (moveOut) отдаёт, ЧТО ушло: части партий с номером, сроком и
+ *     себестоимостью, и остаток без партии отдельной частью; выбор партий
+ *     вручную берёт ровно выбранное, просроченное — только выбором, и не
+ *     трогает отложенного под заказы;
+ *   · та же партия, пришедшая второй раз по другой цене, получает
+ *     средневзвешенную цену, а не затирается последней.
+ *
  * Главный инвариант после каждого шага: SUM(партий) <= current_stock.
  *
  * Нарочная поломка: убери вычет просрочки в stock-transfer.ts — падает
- * «просроченное не уезжает»; в completeTransfer — падает «застрявшее».
+ * «просроченное не уезжает»; в completeTransfer — падает «застрявшее»;
+ * переставь в receiveBatch присвоения quantity и cost_price — падает
+ * «средневзвешенная».
  */
 import { describe, it, expect, beforeAll, beforeEach, afterAll, vi } from "vitest";
 import { sql } from "drizzle-orm";
 import * as schema from "@db/schema";
-import { receiveStock } from "../../services/stock-ledger";
+import { receiveStock, moveOut, reserveStock, BatchPickError, NotMovableError } from "../../services/stock-ledger";
 import { ctxFor, hasRealDb, connectRealDb, closeRealDb, truncateAll, seed, type ServiceDb, type Seeded } from "./harness";
 
 let current: ServiceDb;
@@ -136,5 +145,79 @@ describe.skipIf(!hasRealDb)("перемещение и партии на нас�
     expect((await stockAt(s.warehouseId)).current).toBe(4);
     expect((await stockAt(second)).current).toBe(2);
     await expectInvariant();
+  });
+  describe("дверь: moveOut", () => {
+    const out = (quantity: number, picks?: Array<{ batchId: number | null; quantity: number }>) =>
+      db.transaction(tx => moveOut(tx as never, {
+        tenantId: s.tenantId, warehouseId: s.warehouseId, productId: s.productId,
+        quantity, picks: picks ?? null, reason: "transfer_doc_out", referenceId: 1,
+      }));
+    async function batchIds() {
+      const [rows] = await db.execute(sql`SELECT id, batch_number AS b FROM stock_batches WHERE tenant_id = ${s.tenantId} AND warehouse_id = ${s.warehouseId}`) as unknown as [Array<{ id: number; b: string }>];
+      return new Map(rows.map(r => [r.b, Number(r.id)]));
+    }
+
+    it("FEFO отдаёт части партий с номером, сроком и ценой; нехватку партий — частью без партии", async () => {
+      await receive(3, { batchNumber: "A", expiresAt: LATER, costPrice: "9500.00" });
+      await receive(4, { batchNumber: "B", expiresAt: SOON, costPrice: "8000.00" });
+      await receive(5);
+      const slices = await out(9);
+      expect(slices.map(x => [x.batchNumber, x.expiresAt, x.costPrice, x.quantity])).toEqual([
+        ["B", SOON, "8000.00", 4],
+        ["A", LATER, "9500.00", 3],
+        [null, null, null, 2],
+      ]);
+      expect((await stockAt(s.warehouseId)).current).toBe(3);
+      expect(await batchesAt(s.warehouseId), "партии ушли, а строки остались").toEqual([]);
+      await expectInvariant();
+    });
+
+    it("выбор вручную берёт ровно выбранное: позднюю партию и остаток без партии", async () => {
+      await receive(4, { batchNumber: "B", expiresAt: SOON });
+      await receive(6, { batchNumber: "A", expiresAt: LATER });
+      await receive(2);
+      const ids = await batchIds();
+      const slices = await out(5, [{ batchId: ids.get("A")!, quantity: 4 }, { batchId: null, quantity: 1 }]);
+      expect(slices.map(x => [x.batchNumber, x.quantity])).toEqual([["A", 4], [null, 1]]);
+      expect((await batchesAt(s.warehouseId)).map(b => [b.batch, b.qty]), "FEFO взял раннюю вместо выбранной").toEqual([["B", 4], ["A", 2]]);
+      await expectInvariant();
+    });
+
+    it("просроченное уходит только выбором; выбора больше партии или остатка без партии — отказ", async () => {
+      await receive(5, { batchNumber: "GONE", expiresAt: GONE });
+      await receive(2);
+      const ids = await batchIds();
+      await expect(out(5)).rejects.toBeInstanceOf(NotMovableError);
+      await expect(out(6, [{ batchId: ids.get("GONE")!, quantity: 6 }])).rejects.toBeInstanceOf(BatchPickError);
+      await expect(out(3, [{ batchId: null, quantity: 3 }])).rejects.toBeInstanceOf(BatchPickError);
+      // Чужой номер партии (другого товара) не находится — как будто партии нет.
+      await receive(1, { batchNumber: "X", expiresAt: LATER }, s.warehouseId, s.secondProductId);
+      const foreign = (await batchIds()).get("X")!;
+      await expect(out(1, [{ batchId: foreign, quantity: 1 }])).rejects.toBeInstanceOf(BatchPickError);
+
+      const slices = await out(5, [{ batchId: ids.get("GONE")!, quantity: 5 }]);
+      expect(slices.map(x => [x.batchNumber, x.expiresAt, x.quantity])).toEqual([["GONE", GONE, 5]]);
+      expect((await stockAt(s.warehouseId)).current).toBe(2);
+      await expectInvariant();
+    });
+
+    it("выбор не трогает отложенного под заказы", async () => {
+      await receive(10, { batchNumber: "A", expiresAt: LATER });
+      await reserveStock(db as never, { tenantId: s.tenantId, warehouseId: s.warehouseId, items: [{ productId: s.productId, quantity: 7 }] });
+      const ids = await batchIds();
+      await expect(out(4, [{ batchId: ids.get("A")!, quantity: 4 }])).rejects.toBeInstanceOf(NotMovableError);
+      await out(3, [{ batchId: ids.get("A")!, quantity: 3 }]);
+      expect(await stockAt(s.warehouseId)).toEqual({ current: 7, reserved: 7, available: 0 });
+      await expectInvariant();
+    });
+  });
+
+  it("та же партия по другой цене — средневзвешенная, а не последняя", async () => {
+    await receive(4, { batchNumber: "C", expiresAt: LATER, costPrice: "9500.00" });
+    await receive(2, { batchNumber: "C", expiresAt: LATER, costPrice: "8000.00" });
+    expect(await batchesAt(s.warehouseId)).toEqual([{ batch: "C", expires: LATER, qty: 6, cost: "9000.00" }]);
+    // Без цены — прежняя остаётся.
+    await receive(3, { batchNumber: "C", expiresAt: LATER });
+    expect((await batchesAt(s.warehouseId))[0].cost).toBe("9000.00");
   });
 });

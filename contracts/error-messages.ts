@@ -350,6 +350,9 @@ export const SERVER_ERROR_TEXT: Record<string, ErrorText> = {
   "Недостаточно свободного товара на складе (на складе: {0}, из них {1} зарезервировано под заказы; свободно: {2}, запрошено: {3})": { uz: "Omborda bo'sh mahsulot yetarli emas (omborda: {0}, shundan {1} buyurtmalar uchun zahirada; bo'sh: {2}, so'ralgan: {3})" },
   "Новое количество ({0}) меньше зарезервированного под заказы ({1}). Сначала проведите или отмените заказы, занявшие резерв.": { uz: "Yangi miqdor ({0}) buyurtmalar uchun zahiradan ({1}) kam. Avval zahirani band qilgan buyurtmalarni o'tkazing yoki bekor qiling." },
   "Остаток {0} меньше зарезервированного под заказы ({1}) у товара {2}": { uz: "Qoldiq {0} buyurtmalar uchun zahiradan ({1}) kam, mahsulot {2}" },
+  // Дверь остатка при перемещении: товар по имени называет вызывающий, но текст двери дойти может.
+  "В выбранной партии {0}, а взять нужно {1}": { uz: "Tanlangan partiyada {0}, olish kerak esa {1}" },
+  "Годного к перемещению {0}, а нужно {1}": { uz: "Ko'chirishga yaroqlisi {0}, kerak esa {1}" },
   "Срок годности {0} раньше даты прихода {1}": { uz: "Yaroqlilik muddati {0} kirim sanasi {1} dan oldin" },
   "Срок годности задаётся как ГГГГ-ММ-ДД": { uz: "Yaroqlilik muddati YYYY-OO-KK ko'rinishida beriladi" },
   "Товар #{0} встречается в приходе дважды — объедините строки": { uz: "#{0} mahsulot kirimda ikki marta uchraydi — qatorlarni birlashtiring" },
