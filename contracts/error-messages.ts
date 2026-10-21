@@ -391,6 +391,13 @@ export const SERVER_ERROR_TEXT: Record<string, ErrorText> = {
   "Недостаточно товара на складе отправителе": { uz: "Jo'natuvchi omborda mahsulot yetarli emas" },
   "«{0}»: на складе-отправителе свободно {1}, из них {2} просрочено — переместить можно {3}, а в документе {4}": { uz: "«{0}»: jo'natuvchi omborda bo'sh {1}, shundan {2} muddati o'tgan — ko'chirish mumkin {3}, hujjatda esa {4}" },
   "Перемещение уже было выполнено": { uz: "Ko'chirish allaqachon bajarilgan" },
+  "Склад «{0}» отключён — перемещать с него и на него нельзя": { uz: "«{0}» ombori o'chirilgan — undan ham, unga ham ko'chirib bo'lmaydi" },
+  "«{0}»: выбранные партии в сумме {1}, а в строке {2}": { uz: "«{0}»: tanlangan partiyalar jami {1}, qatorda esa {2}" },
+  "«{0}»: в выбранной партии {1}, а выбрано {2} — обновите список партий": { uz: "«{0}»: tanlangan partiyada {1}, tanlangani esa {2} — partiyalar ro'yxatini yangilang" },
+  "Перемещение не найдено": { uz: "Ko'chirish topilmadi" },
+  "Перемещение {0} уже принято или отменено — обновите список": { uz: "{0} ko'chirish allaqachon qabul qilingan yoki bekor qilingan — ro'yxatni yangilang" },
+  "В документе нет такой строки — обновите список": { uz: "Hujjatda bunday qator yo'q — ro'yxatni yangilang" },
+  "«{0}»: принято {1}, а отправлено {2}. Больше отправленного принять нельзя — лишнее оформите инвентаризацией": { uz: "«{0}»: qabul qilingan {1}, jo'natilgan esa {2}. Jo'natilgandan ko'pini qabul qilib bo'lmaydi — ortiqchasini inventarizatsiya bilan rasmiylashtiring" },
 
   // ── Погрузочные листы ─────────────────────────────────────────────────────
   "Погрузочный лист не найден": { uz: "Yuklash varaqasi topilmadi" },

@@ -34,7 +34,11 @@ const COVERAGE: Array<[string, string]> = [
   ["api_key.status",             "api/api-key-router.ts"],
   ["return.status",              "api/returns-router.ts"],
   ["arrival.completed",          "api/services/arrival.ts"],
-  ["stock.transfer_completed",   "api/warehouse-multi-router.ts"],
+  // Перемещение ушло из роутера в службу документа (services/stock-transfer.ts).
+  ["stock.transfer_completed",   "api/services/stock-transfer.ts"],
+  ["stock.transfer_shipped",     "api/services/stock-transfer.ts"],
+  ["stock.transfer_received",    "api/services/stock-transfer.ts"],
+  ["stock.transfer_cancelled",   "api/services/stock-transfer.ts"],
   ["audit.purged",               "api/audit-router.ts"],
   // уже были — держим, чтобы не пропали
   ["order.create",               "api/order-router.ts"],
@@ -51,7 +55,10 @@ const STRICT: Array<[string, string]> = [
   ["settings.updated",          "api/settings-router.ts"],
   ["return.status",             "api/returns-router.ts"],
   ["arrival.completed",         "api/services/arrival.ts"],
-  ["stock.transfer_completed",  "api/warehouse-multi-router.ts"],
+  ["stock.transfer_completed",  "api/services/stock-transfer.ts"],
+  ["stock.transfer_shipped",    "api/services/stock-transfer.ts"],
+  ["stock.transfer_received",   "api/services/stock-transfer.ts"],
+  ["stock.transfer_cancelled",  "api/services/stock-transfer.ts"],
 ];
 
 describe("журнал действий", () => {

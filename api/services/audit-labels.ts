@@ -1,5 +1,5 @@
 import { and, eq, inArray } from "drizzle-orm";
-import { orders, shops, products, users, arrivals, loadingLists, stockCounts, priceLists, apiKeys, tenants, supplies, suppliers, returns, payments } from "@db/schema";
+import { orders, shops, products, users, arrivals, loadingLists, stockCounts, stockTransferDocs, priceLists, apiKeys, tenants, supplies, suppliers, returns, payments } from "@db/schema";
 
 type Db = ReturnType<typeof import("../queries/connection").getDb>;
 
@@ -49,6 +49,11 @@ const LOADERS: Record<string, Loader> = {
   },
   stock_count: async (db, tenantId, ids) => {
     const rows = await db.select({ id: stockCounts.id, n: stockCounts.number }).from(stockCounts).where(and(eq(stockCounts.tenantId, tenantId), inArray(stockCounts.id, ids)));
+    return new Map(rows.map(r => [r.id, r.n]));
+  },
+  // Документ перемещения — «ПМ-12», как его зовут на экране «Перемещения».
+  stock_transfer_doc: async (db, tenantId, ids) => {
+    const rows = await db.select({ id: stockTransferDocs.id, n: stockTransferDocs.number }).from(stockTransferDocs).where(and(eq(stockTransferDocs.tenantId, tenantId), inArray(stockTransferDocs.id, ids)));
     return new Map(rows.map(r => [r.id, r.n]));
   },
   price_list: async (db, tenantId, ids) => {

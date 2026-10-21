@@ -327,11 +327,13 @@ export class NotMovableError extends Error {
   readonly available: number;
   readonly expired: number;
   readonly movable: number;
+  readonly quantity: number;
   constructor(available: number, expired: number, movable: number, quantity: number) {
     super(`Годного к перемещению ${movable}, а нужно ${quantity}`);
     this.available = available;
     this.expired = expired;
     this.movable = movable;
+    this.quantity = quantity;
   }
 }
 

@@ -23,6 +23,8 @@ const KEY_LABEL: Record<string, Label> = {
   expected: { ru: "Ожидалось", uz: "Kutilgan" }, discrepancy: { ru: "Расхождение", uz: "Farq" },
   bankRef: { ru: "Операция банка", uz: "Bank operatsiyasi" }, recordedBy: { ru: "Записал", uz: "Yozgan" },
   shortage: { ru: "Недостача", uz: "Kamomad" }, paid: { ru: "Оплачено", uz: "To'langan" },
+  // недоехавшее при перемещении «в пути» (services/stock-transfer.ts)
+  shortageQty: { ru: "Не доехало", uz: "Yetib kelmadi" }, shortageCost: { ru: "Недостача по себестоимости", uz: "Tannarx bo'yicha kamomad" },
   // «Принять по заявленному» — вечерняя сдача курьера пачкой (services/order-close-batch.ts).
   batch: { ru: "Пачкой", uz: "To'plam bilan" },
   system: { ru: "По системе", uz: "Tizim bo'yicha" }, counted: { ru: "Пересчёт", uz: "Sanash" }, stornoOf: { ru: "Сторно документа", uz: "Hujjat stornosi" },
@@ -109,6 +111,9 @@ export const AUDIT_ACTION_LABEL: Record<string, Label> = {
   "price_list.deleted": { ru: "Удалён прайс-лист", uz: "Narxlar ro'yxati o'chirildi" },
   "stock.adjusted": { ru: "Корректировка склада", uz: "Ombor tahrirlandi" },
   "stock.transfer_completed": { ru: "Перемещение между складами", uz: "Omborlar orasida ko'chirish" },
+  "stock.transfer_shipped": { ru: "Перемещение отправлено — товар в пути", uz: "Ko'chirish jo'natildi — tovar yo'lda" },
+  "stock.transfer_received": { ru: "Перемещение принято на складе", uz: "Ko'chirish omborda qabul qilindi" },
+  "stock.transfer_cancelled": { ru: "Перемещение отменено — товар вернулся", uz: "Ko'chirish bekor qilindi — tovar qaytdi" },
   "control.enabled": { ru: "Контроль включён", uz: "Nazorat yoqildi" },
   "control.disabled": { ru: "Контроль выключен", uz: "Nazorat o'chirildi" },
   "control.shop_confirmed": { ru: "Магазин подтвердил получение", uz: "Do'kon qabul qilganini tasdiqladi" },
@@ -137,7 +142,7 @@ export const AUDIT_ACTION_LABEL: Record<string, Label> = {
 
 /** Служебные номера: человеку они ничего не говорят, а имя рядом уже есть. */
 const HIDDEN = new Set(["shopId", "productId", "warehouseId", "agentId", "orderId", "paymentId", "reversalId", "fromWarehouseId", "toWarehouseId"]);
-const MONEY_KEYS = new Set(["amount", "total", "sum", "remaining", "creditLimit", "price", "was", "unitPrice", "costPrice", "credited", "baseSalary", "totalBefore", "totalAfter"]);
+const MONEY_KEYS = new Set(["amount", "total", "sum", "remaining", "creditLimit", "price", "was", "unitPrice", "costPrice", "credited", "baseSalary", "totalBefore", "totalAfter", "shortageCost"]);
 const PERCENT_KEYS = new Set(["discountPct", "commissionRate"]);
 const WEIGHT_KEYS = new Set(["totalWeight"]);
 const DATE_KEYS = new Set(["expiresAt", "monthStart"]);
@@ -155,6 +160,7 @@ const FIELD_LABEL: Record<string, Label> = {
   currency: { ru: "валюта", uz: "valyuta" }, timezone: { ru: "часовой пояс", uz: "vaqt mintaqasi" },
   overdueHoldEnabled: { ru: "просрочка держит заказ", uz: "muddati o'tgan qarz buyurtmani ushlab turadi" },
   overdueGraceDays: { ru: "отсрочка оплаты, дней", uz: "to'lov muddati, kun" },
+  transferTwoStep: { ru: "перемещение в два шага", uz: "ikki bosqichli ko'chirish" },
 };
 
 /** Статусы, которых нет среди статусов заказа: доступ, ключи, возвраты. */

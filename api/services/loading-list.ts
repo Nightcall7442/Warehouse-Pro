@@ -45,14 +45,21 @@ const courierUser = alias(users, "courier_user");
    ═══════════════════════════════════════════════════════════════════════════ */
 
 export type PlannedBatch = { batch: string | null; expires: string | null; qty: number };
+/** Подсказка с номером строки партии и тем, сколько в ней всего, — предпросмотру перемещения. */
+export type PlannedBatchRow = PlannedBatch & { batchId: number; batchQty: number; costPrice: string | null };
 
-/** Какие партии брать под нужное количество — FEFO, как в stock-ledger.consumeBatches, но без блокировки и списания. */
-async function planBatches(db: Db, tenantId: number, warehouseId: number, need: Map<number, number>): Promise<Map<number, PlannedBatch[]>> {
-  const out = new Map<number, PlannedBatch[]>();
+/**
+ * Какие партии брать под нужное количество — FEFO, как в stock-ledger (списание
+ * партий), но без блокировки и списания. Одно правило и для листа сборки, и
+ * для предпросмотра перемещения: кладовщик видит ровно то, что потом возьмёт
+ * дверь.
+ */
+export async function planBatchRows(db: Db, tenantId: number, warehouseId: number, need: Map<number, number>): Promise<Map<number, PlannedBatchRow[]>> {
+  const out = new Map<number, PlannedBatchRow[]>();
   const ids = [...need.keys()];
   if (ids.length === 0) return out;
-  const rows = rowsOf<{ product_id: number | string; batch_number: string | null; expires_at: string | null; quantity: string }>(await db.execute(sql`
-    SELECT product_id, batch_number, DATE_FORMAT(expires_at, '%Y-%m-%d') AS expires_at, quantity FROM stock_batches
+  const rows = rowsOf<{ id: number | string; product_id: number | string; batch_number: string | null; expires_at: string | null; quantity: string; cost_price: string | null }>(await db.execute(sql`
+    SELECT id, product_id, batch_number, DATE_FORMAT(expires_at, '%Y-%m-%d') AS expires_at, quantity, cost_price FROM stock_batches
     WHERE tenant_id = ${tenantId} AND warehouse_id = ${warehouseId}
       AND product_id IN (${sql.join(ids.map(id => sql`${id}`), sql`, `)})
       AND quantity > 0 AND (expires_at IS NULL OR expires_at >= DATE(UTC_TIMESTAMP() + INTERVAL 5 HOUR))
@@ -64,10 +71,19 @@ async function planBatches(db: Db, tenantId: number, warehouseId: number, need: 
     const rest = left.get(pid) ?? 0;
     if (rest <= 0) continue;
     const take = Math.min(Number(r.quantity), rest);
-    out.set(pid, [...(out.get(pid) ?? []), { batch: r.batch_number ?? null, expires: r.expires_at ?? null, qty: take }]);
+    out.set(pid, [...(out.get(pid) ?? []), {
+      batch: r.batch_number ?? null, expires: r.expires_at ?? null, qty: take,
+      batchId: Number(r.id), batchQty: Number(r.quantity), costPrice: r.cost_price ?? null,
+    }]);
     left.set(pid, rest - take);
   }
   return out;
+}
+
+/** Подсказка листа сборки — в той форме, что хранится в loading_list_items.batches. */
+async function planBatches(db: Db, tenantId: number, warehouseId: number, need: Map<number, number>): Promise<Map<number, PlannedBatch[]>> {
+  const rows = await planBatchRows(db, tenantId, warehouseId, need);
+  return new Map([...rows].map(([pid, list]) => [pid, list.map(({ batch, expires, qty }) => ({ batch, expires, qty }))]));
 }
 
 /**

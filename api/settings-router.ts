@@ -23,6 +23,7 @@ export const settingsRouter = createRouter({
       logoUrl: settings.logoUrl, createdAt: settings.createdAt, updatedAt: settings.updatedAt,
       costMethod: settings.costMethod,
       overdueHoldEnabled: settings.overdueHoldEnabled, overdueGraceDays: settings.overdueGraceDays,
+      transferTwoStep: settings.transferTwoStep,
       }).from(settings).where(eq(settings.tenantId, ctx.tenant.id)).limit(1);
       return row ?? null;
     });
@@ -83,6 +84,12 @@ export const settingsRouter = createRouter({
       overdueHoldEnabled:  z.boolean().optional(),
       // Отсрочка оплаты по умолчанию, дней; 0 — платить при доставке.
       overdueGraceDays:    z.number().int("Отсрочка — целое число дней").min(0, "Отсрочка — от 0 до 365 дней").max(365, "Отсрочка — от 0 до 365 дней").optional(),
+      /*
+        Перемещение в два шага: товар «в пути», пока склад-получатель не примет
+        его по строкам (services/stock-transfer.ts). Выключено — в один шаг,
+        как решил владелец 16.09.2026.
+      */
+      transferTwoStep:     z.boolean().optional(),
       /*
         Предел — не пожелание, а ёмкость столбца: logo_url объявлен как TEXT,
         это 65 535 байт. Строка длиннее не записывалась, и MySQL отклонял ВЕСЬ
