@@ -216,3 +216,61 @@ describe("плёнка из видео (Higgsfield → кадры → прокр
     expect(read("src/components/landing/FilmScroll.tsx")).not.toContain("<SectionHead");
   });
 });
+
+/*
+  Лёгкая плёнка (21.10.2026): телефон, медленная сеть и «экономия трафика»
+  получают один кадр-постер, а не 153 кадра (4,7 МБ на телефоне). И путь
+  без движения больше не качает плёнку целиком: раньше его постер стоял на
+  холсте, а холст при подходе секции грузил все кадры.
+
+  Нарочная поломка: вернуть still = reducedMotion() без lightFilm() — падает
+  «телефон получает один кадр»; вернуть в путь без движения SequenceCanvas —
+  «один кадр, а не плёнка»; убрать loading="lazy" у постера холста —
+  «постер холста ленивый».
+*/
+describe("лёгкая плёнка", () => {
+  const setConnection = (c: Record<string, unknown> | undefined) =>
+    Object.defineProperty(navigator, "connection", { configurable: true, value: c });
+  const setWidth = (w: number) => Object.defineProperty(window, "innerWidth", { configurable: true, value: w });
+  const wide = window.innerWidth;
+  afterEach(() => { setConnection(undefined); setWidth(wide); vi.unstubAllGlobals(); cleanup(); });
+
+  it("lightFilm: экономия трафика, медленная сеть или узкий экран — лёгкая; широкий экран с хорошей сетью — нет", async () => {
+    const { lightFilm } = await import("@/components/landing/film");
+    setWidth(1280);
+    expect(lightFilm()).toBe(false);
+    setConnection({ effectiveType: "4g", saveData: false });
+    expect(lightFilm()).toBe(false);
+    setConnection({ effectiveType: "4g", saveData: true });
+    expect(lightFilm(), "экономия трафика").toBe(true);
+    for (const t of ["slow-2g", "2g", "3g"]) {
+      setConnection({ effectiveType: t });
+      expect(lightFilm(), t).toBe(true);
+    }
+    setConnection(undefined);
+    setWidth(390);
+    expect(lightFilm(), "телефон без сведений о сети").toBe(true);
+  });
+
+  it("телефон получает один кадр: постер картинкой, без холста и без прокрутки по кадрам", async () => {
+    vi.stubGlobal("matchMedia", (q: string) => ({ matches: false, media: q, onchange: null, addListener: vi.fn(), removeListener: vi.fn(), addEventListener: vi.fn(), removeEventListener: vi.fn(), dispatchEvent: vi.fn() }));
+    vi.stubGlobal("IntersectionObserver", class { observe() {} unobserve() {} disconnect() {} takeRecords() { return []; } root = null; rootMargin = ""; thresholds = []; });
+    vi.stubGlobal("ResizeObserver", class { observe() {} unobserve() {} disconnect() {} });
+    setWidth(390);
+    const { default: FilmScroll } = await import("@/components/landing/FilmScroll");
+    const { container } = render(<LangProvider><FilmScroll /></LangProvider>);
+    const section = container.querySelector("#film") as HTMLElement;
+    expect(section.querySelector(".sticky"), "телефону — прокрутка по кадрам").toBeNull();
+    expect(section.querySelector("canvas"), "холст качает все кадры").toBeNull();
+    const imgs = section.querySelectorAll("img");
+    expect(imgs.length, "один кадр, а не плёнка").toBe(1);
+    expect(imgs[0].getAttribute("src")).toBe("/landing/film/warehouse/w960/001.webp");
+    expect(imgs[0].getAttribute("loading")).toBe("lazy");
+    // Строки — списком и видны.
+    expect(Array.from(section.querySelectorAll("[data-film-line]")).every(l => (l as HTMLElement).style.opacity === "")).toBe(true);
+  });
+
+  it("постер холста ленивый: плёнка экранами ниже первого", () => {
+    expect(read("src/components/landing/SequenceCanvas.tsx")).toMatch(/<img src=\{frames\[0\]\} alt=\{alt\} loading="lazy"/);
+  });
+});

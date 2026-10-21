@@ -4,7 +4,7 @@ import { LX, MONO } from "./landing-tokens";
 import { reducedMotion } from "./landing-anime";
 import { useScrollScrub } from "./scroll-scrub";
 import { SequenceCanvas } from "./SequenceCanvas";
-import { FILM, WAREHOUSE_ACTS, pickFilmWidth, windowOpacity, frameInset } from "./film";
+import { FILM, WAREHOUSE_ACTS, lightFilm, pickFilmWidth, windowOpacity, frameInset } from "./film";
 
 /* ═══════════════════════════════════════════════════════════════════════════
    ПЛЁНКА / ОДИН ДЕНЬ ТОВАРА
@@ -49,10 +49,14 @@ export default function FilmScroll() {
   const tr = useTranslate();
   const section = useRef<HTMLElement>(null);
   const { subscribe } = useScrollScrub(section);
-  const [still] = useState(() => reducedMotion());
+  // Без прокрутки по кадрам — и тем, кто попросил систему не двигать
+  // картинку, и телефону или медленной сети (lightFilm): им один кадр.
+  const [light] = useState(() => lightFilm());
+  const [still] = useState(() => reducedMotion() || light);
   const film = FILM[FILM_NAME];
   // Ширина кадров — по экрану, один раз: телефону 960, ноутбуку и монитору 1920.
-  const [width] = useState(() => pickFilmWidth(film.widths, typeof window === "undefined" ? 0 : window.innerWidth * Math.min(2, window.devicePixelRatio || 1)));
+  // Лёгкой плёнке — самая узкая: один кадр-постер не стоит мегабайта.
+  const [width] = useState(() => light ? film.widths[0] : pickFilmWidth(film.widths, typeof window === "undefined" ? 0 : window.innerWidth * Math.min(2, window.devicePixelRatio || 1)));
   const frames = useMemo(() => Array.from({ length: film.count }, (_, i) => `/landing/film/${FILM_NAME}/w${width}/${String(i + 1).padStart(3, "0")}.webp`), [film.count, width]);
 
   const lines = [
@@ -91,10 +95,20 @@ export default function FilmScroll() {
 
   if (still) {
     // Без движения: постер листом и три строки списком под ним — ничего не спрятано.
+    // Постер — обычная картинка, не холст: холст при подходе секции качал все
+    // 153 кадра, хотя показывал один (так было и при «уменьшить движение»).
     return (
       <section ref={section} id="film" data-film aria-label={tr("Один день товара", "Tovarning bir kuni")} style={{ background: LX.night }} className="px-6 md:px-10 py-16 md:py-24">
         <div className="max-w-[1240px] mx-auto">
-          <SequenceCanvas frames={frames} subscribe={subscribe} alt={tr("Склад на рассвете: стеллажи с товаром, машина у рампы", "Tongdagi ombor: tovarli javonlar, rampadagi mashina")} fit="cover" anchor="center" blend={false} className="relative w-full" style={{ aspectRatio: `${film.width} / ${film.height}`, borderRadius: 18 }} />
+          <img
+            src={frames[0]}
+            alt={tr("Склад на рассвете: стеллажи с товаром, машина у рампы", "Tongdagi ombor: tovarli javonlar, rampadagi mashina")}
+            loading="lazy"
+            decoding="async"
+            data-film-poster=""
+            className="block w-full"
+            style={{ aspectRatio: `${film.width} / ${film.height}`, borderRadius: 18, objectFit: "cover" }}
+          />
           <div className="grid gap-10 md:grid-cols-3 mt-12">
             {lines.map((l, i) => <div key={l.title} data-film-line={i + 1}>{caption(l)}</div>)}
           </div>

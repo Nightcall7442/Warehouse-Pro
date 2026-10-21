@@ -30,6 +30,28 @@ export const FILM = {
  */
 export const WAREHOUSE_ACTS = [0, 62, 107] as const;
 
+/**
+ * Лёгкая плёнка: один кадр-постер вместо ста пятидесяти.
+ *
+ * Плёнка — 153 кадра, на телефоне это 4,7 МБ, на широком экране — 10 МБ.
+ * Ради прокрутки кадр за кадром их стоит качать на ноутбуке с хорошей
+ * связью, но не на телефоне в поле: там прокрутка пальцем и так рывками, а
+ * мегабайты — чужие деньги и чужое время. Поэтому один кадр, когда:
+ *   · браузер передаёт «экономия трафика» (saveData);
+ *   · сеть медленная — slow-2g, 2g, 3g по effectiveType;
+ *   · экран уже 768 точек — телефон.
+ * Сведения о сети есть не во всех браузерах (Safari их не даёт) — тогда
+ * решает ширина. Вне браузера (тесты, сборка страниц сервером) — не лёгкая:
+ * решать там не о чем.
+ */
+export function lightFilm(): boolean {
+  if (typeof window === "undefined") return false;
+  const conn = (navigator as Navigator & { connection?: { saveData?: boolean; effectiveType?: string } }).connection;
+  if (conn?.saveData) return true;
+  if (conn?.effectiveType && /^(slow-2g|2g|3g)$/.test(conn.effectiveType)) return true;
+  return window.innerWidth < 768;
+}
+
 /** Первая ширина, которой хватает на экран (в физических точках); шире всех — последняя. */
 export function pickFilmWidth(widths: readonly number[], screenPx: number): number {
   return widths.find(w => w >= screenPx) ?? widths[widths.length - 1];
