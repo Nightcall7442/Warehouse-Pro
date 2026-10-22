@@ -7,6 +7,7 @@ import { ArrowRight, Send } from "lucide-react";
 
 import { LandingStyles, Accordion, SectionHead, BtnInk, BtnGhost } from "@/components/landing/landing-shared";
 import { LX, MONO, tgLink, CONTACT } from "@/components/landing/landing-tokens";
+import { TRACTION } from "@/components/pitch/pitch-content";
 import LandingHeader from "@/components/landing/LandingHeader";
 import TallyField from "@/components/landing/TallyField";
 import { startLandingMotion } from "@/lib/landing-motion";
@@ -43,13 +44,18 @@ function FactsStrip() {
   /*
     Ни одного выдуманного числа. Прежнее «40+ дистрибьюторов» было ложью —
     организаций в базе тринадцать. Теперь каждая цифра берётся из боевой
-    базы (2 сентября 2026) или из тарифа и подписана так, чтобы её можно
-    было проверить.
+    базы или из тарифа и подписана так, чтобы её можно было проверить.
+
+    Числа базы — те же, что на /pitch (TRACTION), а не свои. Здесь стояли
+    13 организаций, 3358 точек и 1121 заказ «за последние 30 дней» со
+    снимка 2 сентября: вместе с песочницами и выключенными магазинами, а
+    «последние 30 дней» к концу октября были семинедельной давности. Дата
+    снимка теперь написана под числами.
   */
   const facts: Array<{ value: number; suffix?: string; label: string }> = [
-    { value: 13, label: tr("компаний ведут учёт в системе", "kompaniya tizimda hisob yuritadi") },
-    { value: 3358, label: tr("торговых точек в базе", "bazadagi savdo nuqtalari") },
-    { value: 1121, label: tr("заказов проведено за последние 30 дней", "so'nggi 30 kunda o'tkazilgan buyurtmalar") },
+    { value: TRACTION.organizations, label: tr("компаний ведут учёт в системе", "kompaniya tizimda hisob yuritadi") },
+    { value: TRACTION.shops, label: tr("торговых точек в базе", "bazadagi savdo nuqtalari") },
+    { value: TRACTION.deliveredOrders30d, label: tr("заказов доставлено за 30 дней", "30 kunda yetkazilgan buyurtmalar") },
     { value: 14, label: tr("дней бесплатно — карта не привязывается", "kun bepul — karta bog'lanmaydi") },
   ];
   return (
@@ -67,6 +73,9 @@ function FactsStrip() {
             </div>
           ))}
         </div>
+        <p className="py-3 text-[12px]" style={{ ...MONO, color: LX.inkSoft }}>
+          {tr(`Данные рабочей базы на ${TRACTION.asOf}`, `${TRACTION.asOf} holatiga jonli baza ma'lumotlari`)}
+        </p>
       </div>
     </section>
   );
@@ -80,8 +89,8 @@ function FaqSection() {
       {
         q: tr("Работает ли обмен с 1С:Предприятие?", "1C:Predpriyatiye bilan almashinuv ishlaydimi?"),
         a: tr(
-          "Да, двусторонний: товары, заказы, остатки и контрагенты синхронизируются автоматически. При подключении помогаем настроить обмен бесплатно.",
-          "Ha, ikki tomonlama: tovarlar, buyurtmalar, qoldiqlar va kontragentlar avtomatik sinxronlanadi. Ulanishda almashinuvni bepul sozlab beramiz.",
+          "Да, в обе стороны, по расписанию: товары и цены приходят из 1С, контрагенты сопоставляются с магазинами, доставленные заказы уходят в 1С проведёнными реализациями. Если включить обмен оплатами, наличные уходят приходными кассовыми ордерами (ПКО), а переводы и оплаты картой подтверждаются по поступлениям на счёт в 1С. Остатки и оплаты 1С может присылать и сама — через вебхук, его настраивает программист 1С. При подключении помогаем настроить обмен бесплатно.",
+          "Ha, ikki tomonga, jadval bo'yicha: tovarlar va narxlar 1C dan keladi, kontragentlar do'konlar bilan moslanadi, yetkazilgan buyurtmalar 1C da o'tkazilgan sotuv hujjati bo'lib tushadi. To'lovlar almashinuvi yoqilsa, naqd to'lovlar kassa kirim orderi (KKO) bo'lib ketadi, o'tkazma va karta to'lovlari esa 1C dagi hisobga tushumlar bo'yicha tasdiqlanadi. Qoldiq va to'lovlarni 1C o'zi ham yubora oladi — vebhuk orqali, uni 1C dasturchisi sozlaydi. Ulanishda almashinuvni bepul sozlab beramiz.",
         ),
       },
       {
@@ -89,8 +98,8 @@ function FaqSection() {
         a: tr(
           // Без обещания переноса данных всем: это услуга по запросу
           // (SERVICE_FEATURES), и FAQ противоречил бы прайсу двумя экранами ниже.
-          "У агента три экрана: план визитов, заказ, долги точки. На освоение уходит один день. Обучение команды и разбор первых заказов входят в подключение.",
-          "Agentda uchta ekran bor: tashriflar rejasi, buyurtma, nuqta qarzlari. O'rganishga bir kun ketadi. Jamoani o'qitish va birinchi buyurtmalarni birga ko'rib chiqish ulanishga kiradi.",
+          "На главном экране агента — визиты на сегодня, кнопка нового заказа и долги точек по его заказам. На освоение уходит один день. Обучение команды и разбор первых заказов входят в подключение.",
+          "Agentning bosh ekranida — bugungi tashriflar, yangi buyurtma tugmasi va uning buyurtmalari bo'yicha nuqtalar qarzlari. O'rganishga bir kun ketadi. Jamoani o'qitish va birinchi buyurtmalarni birga ko'rib chiqish ulanishga kiradi.",
         ),
       },
       {
@@ -117,8 +126,8 @@ function FaqSection() {
       {
         q: tr("Насколько защищены мои данные?", "Ma'lumotlarim qanchalik himoyalangan?"),
         a: tr(
-          "Каждая компания изолирована от других, доступ — по ролям, все действия пишутся в журнал, резервные копии делаются ежедневно.",
-          "Har bir kompaniya boshqalardan izolyatsiyalangan, kirish rollar bo'yicha, barcha amallar jurnalga yoziladi, zaxira nusxalar har kuni olinadi.",
+          "Каждая компания изолирована от других, доступ — по ролям, правки цен, остатков, заказов и ролей пишутся в журнал с автором и временем, резервные копии делаются ежедневно.",
+          "Har bir kompaniya boshqalardan izolyatsiyalangan, kirish rollar bo'yicha, narx, qoldiq, buyurtma va rollar o'zgarishlari muallif va vaqti bilan jurnalga yoziladi, zaxira nusxalar har kuni olinadi.",
         ),
       },
     ],

@@ -119,8 +119,8 @@ export function ExtraLimitsCard({ t }: { t: (ru: string, uz: string) => string }
         </p>
         <p style={{ fontSize: "12.5px", color: "var(--color-text-secondary)", marginTop: "6px", maxWidth: "58ch" }}>
           {t(
-            "Не хватает мест или позиций, а переходить на старший тариф незачем — добавьте столько, сколько нужно.",
-            "Joy yoki mahsulot yetmayapti, lekin yuqori tarifga o'tish shart emas — kerakligicha qo'shing.",
+            "Не хватает мест или позиций — добавьте столько, сколько нужно, не меняя тариф. Или перейдите на «Стандарт»: там пределов нет.",
+            "Joy yoki mahsulot yetmayapti — tarifni o'zgartirmasdan kerakligicha qo'shing. Yoki «Standart»ga o'ting: u yerda cheklov yo'q.",
           )}
         </p>
       </div>
@@ -161,8 +161,8 @@ export function ExtraLimitsCard({ t }: { t: (ru: string, uz: string) => string }
 
       <p style={{ fontSize: "12px", color: "var(--color-text-tertiary)" }}>
         {t(
-          "Оплата пока принимается вручную: оператор перезвонит и включит надбавку. Она остаётся при смене тарифа.",
-          "To'lov hozircha qo'lda qabul qilinadi: operator qo'ng'iroq qilib qo'shimchani yoqadi. Tarif o'zgarganda ham saqlanadi.",
+          "Оплата пока принимается вручную: оператор перезвонит и включит надбавку. Она действует, пока вы на прежнем тарифе: на «Стандарте» пределов нет, и докупать ничего не нужно.",
+          "To'lov hozircha qo'lda qabul qilinadi: operator qo'ng'iroq qilib qo'shimchani yoqadi. U avvalgi tarifda qolar ekansiz amal qiladi: «Standart»da cheklov yo'q va qo'shimcha hech narsa sotib olish shart emas.",
         )}
       </p>
     </div>

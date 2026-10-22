@@ -85,7 +85,7 @@ app.use("*", async (c, next) => {
   // на любом тарифе, включая trial: apiKey.create тариф не смотрит. Пока это
   // так, единственное место, где тариф вообще проверяется, — вот это.
   if (!planHas(tenant.plan as PlanKey, "api")) {
-    return c.json({ error: "Public API requires the Exclusive plan." }, 403);
+    return c.json({ error: "Public API is not included in your current plan. Switch to Standard to use it." }, 403);
   }
 
   // 402, а не 403: подписку продлевают, а не выпрашивают права. По коду

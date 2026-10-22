@@ -78,8 +78,8 @@ export const AREAS: Area[] = [
   {
     area: { ru: "Погрузочные листы", uz: "Yuklash varaqalari" },
     ours: {
-      ru: "Лист на машину и сборка по строкам: кладовщик подтверждает каждую строку, недостача сразу уходит офису, партии подсказаны в порядке списания.",
-      uz: "Mashina uchun varaq va qatorma-qator yig'ish: omborchi har bir qatorni tasdiqlaydi, kamomad darhol ofisga boradi, partiyalar chiqim tartibida ko'rsatiladi.",
+      ru: "Лист на машину и сборка по строкам: оператор вносит, сколько собрано по каждой строке, недостача сразу уходит руководителю и операторам, партии подсказаны в порядке списания.",
+      uz: "Mashina uchun varaq va qatorma-qator yig'ish: operator har bir qator bo'yicha qancha yig'ilganini kiritadi, kamomad darhol rahbar va operatorlarga boradi, partiyalar chiqim tartibida ko'rsatiladi.",
     },
     salesDoctor: { text: { ru: "Заявлено: сборка со сканером, коды маркировки проверяются.", uz: "E'lon qilingan: skaner bilan yig'ish, markirovka kodlari tekshiriladi." }, source: "sd-ad" },
     smartup: { text: { ru: "Заявлена логистика; погрузочные листы — уточняйте.", uz: "Logistika e'lon qilingan; yuklash varaqalari — aniqlang." }, source: "smartup" },
@@ -96,8 +96,8 @@ export const AREAS: Area[] = [
   {
     area: { ru: "Долги и стоп отгрузки", uz: "Qarzlar va yuklashni to'xtatish" },
     ours: {
-      ru: "Долг по каждому заказу со сроком; при просрочке или превышении лимита отгрузка останавливается сама, причина записана в заказе.",
-      uz: "Har bir buyurtma bo'yicha muddatli qarz; muddat o'tsa yoki limit oshsa yuklash o'zi to'xtaydi, sababi buyurtmada yoziladi.",
+      ru: "Долг по каждому заказу со сроком; заказ в долг сверх кредитного лимита система не примет, а при просрочке (если это включено в настройках) заказ агента получает статус «Ожидает» до решения офиса, причина записана в заказе.",
+      uz: "Har bir buyurtma bo'yicha muddatli qarz; kredit limitidan oshgan nasiya buyurtmani tizim qabul qilmaydi, muddat o'tganda esa (agar bu sozlamalarda yoqilgan bo'lsa) agent buyurtmasi ofis qaroriga qadar «Kutishda» holatiga o'tadi, sababi buyurtmada yoziladi.",
     },
     salesDoctor: { text: { ru: "Заявлены оплаты и финансовый учёт.", uz: "To'lovlar va moliyaviy hisob e'lon qilingan." }, source: "sd-interview" },
     smartup: { text: { ru: "Заявлены финансы и дебиторская задолженность.", uz: "Moliya va debitorlik qarzi e'lon qilingan." }, source: "smartup" },
@@ -123,8 +123,8 @@ export const AREAS: Area[] = [
   {
     area: { ru: "Склад", uz: "Ombor" },
     ours: {
-      ru: "Партии и сроки годности, списание по FEFO, несколько складов, перемещения, инвентаризация, приход и долг поставщику.",
-      uz: "Partiyalar va yaroqlilik muddati, FEFO bo'yicha chiqim, bir nechta ombor, ko'chirishlar, inventarizatsiya, kirim va ta'minotchi qarzi.",
+      ru: "Партии и сроки годности, списание по FEFO, инвентаризация, приход и долг поставщику. Несколько складов: продажи идут с основного, между складами — перемещения.",
+      uz: "Partiyalar va yaroqlilik muddati, FEFO bo'yicha chiqim, inventarizatsiya, kirim va ta'minotchi qarzi. Bir nechta ombor: sotuv asosiy ombordan, omborlar orasida — ko'chirishlar.",
     },
     salesDoctor: { text: { ru: "Заявлено: склад и остатки в реальном времени.", uz: "E'lon qilingan: ombor va qoldiqlar real vaqtda." }, source: "sd-interview" },
     smartup: { text: { ru: "Заявлен складской учёт.", uz: "Ombor hisobi e'lon qilingan." }, source: "smartup" },

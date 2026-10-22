@@ -1,4 +1,4 @@
-import Redis from "ioredis";
+import Redis, { type RedisOptions } from "ioredis";
 import { env } from "./env";
 import { logger } from "./logger";
 
@@ -6,19 +6,102 @@ let client: Redis | null = null;
 let subscriber: Redis | null = null;
 let isAvailable = false;
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   Redis не имеет права останавливать запросы.
+
+   ── Что было (20.10.2026) ───────────────────────────────────────────────────
+
+   Каждый запрос с входом ждал Redis ДО первого обращения к базе: отзыв
+   сессии (auth/revocation.ts), общий предел запросов (middleware.ts), чтение
+   кэша. Команды шли по ОДНОМУ соединению, без единого тайм-аута, а Redis
+   стоял в другом регионе (sfo), чем приложение и MySQL (europe-west4).
+
+   Когда канал через океан терял пакеты, ответы Redis вставали в очередь за
+   потерянным, и с ними — все запросы процесса. Утром 20.10 программа
+   замирала целиком на 20 секунд, на минуту, на пять: ни один экран не
+   открывался, в MySQL за эти минуты не уходило ни байта, нагрузка — ноль.
+   Потом канал оживал, и всё накопленное отвечало разом, с кодом 200 —
+   поэтому ни ошибок, ни следов в журнале. Арендаторы видели «зависает».
+
+   ── Как теперь ──────────────────────────────────────────────────────────────
+
+   - На команду — тайм-аут (REDIS_COMMAND_TIMEOUT_MS, секунда). Вызывающие и
+     так ловят ошибку и берут память процесса; теперь они её получают, а не
+     ждут вечно.
+   - Соединение, которое молчит при неотвеченных командах (socketTimeout),
+     рвётся и открывается заново, а не висит за потерянным пакетом;
+     неотвеченное на новом не повторяется (autoResendUnfulfilledCommands).
+   - Команда упала по тайм-ауту — Redis полминуты не спрашиваем вовсе
+     (isRedisAvailable ложен): иначе каждый запрос в плохую минуту платил бы
+     по секунде.
+   - «Доступен» — только после готовности (ready), а не после TCP-соединения.
+
+   Проверка — api/__tests__/redis-silence-does-not-freeze.test.ts: настоящий
+   ioredis против сервера, который замолкает.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/** Соединение молчит при неотвеченных командах столько — рвём и открываем заново. */
+const SOCKET_TIMEOUT_MS = 5_000;
+/** После тайм-аута команды Redis не спрашиваем столько. */
+const BREAKER_MS = 30_000;
+/** Сообщение ioredis о тайм-ауте команды (built/Command.js). */
+const COMMAND_TIMED_OUT = "Command timed out";
+
+let breakerUntil = 0;
+
+function tripBreaker(): void {
+  const now = Date.now();
+  if (now < breakerUntil) return;
+  breakerUntil = now + BREAKER_MS;
+  logger.warn("Redis is not answering in time — using in-process memory for 30 s", {
+    commandTimeoutMs: env.redisCommandTimeoutMs,
+  });
+}
+
+function options(maxRetriesPerRequest: number): RedisOptions {
+  return {
+    lazyConnect: true,
+    connectTimeout: 5_000,
+    commandTimeout: env.redisCommandTimeoutMs,
+    socketTimeout: SOCKET_TIMEOUT_MS,
+    // Без этого keepAlive 0 — системные два часа: мёртвое соединение
+    // не замечается вовсе.
+    keepAlive: 10_000,
+    autoResendUnfulfilledCommands: false,
+    retryStrategy(times) {
+      return Math.min(times * 200, 5000);
+    },
+    maxRetriesPerRequest,
+    enableOfflineQueue: false,
+  };
+}
+
+/**
+ * Любая команда, упавшая по тайм-ауту, включает обход Redis.
+ *
+ * Через sendCommand проходят и одиночные команды, и MULTI/конвейеры
+ * (Pipeline.exec зовёт redis.sendCommand на каждую), поэтому одной обёртки
+ * хватает на все места, а вызывающим ничего знать не нужно.
+ */
+function watchTimeouts(r: Redis): void {
+  const send = r.sendCommand.bind(r) as (...args: unknown[]) => unknown;
+  (r as unknown as { sendCommand: (...args: unknown[]) => unknown }).sendCommand = (...args: unknown[]) => {
+    const p = send(...args);
+    if (p && typeof (p as Promise<unknown>).catch === "function") {
+      (p as Promise<unknown>).catch((e: unknown) => {
+        if (e instanceof Error && e.message === COMMAND_TIMED_OUT) tripBreaker();
+      });
+    }
+    return p;
+  };
+}
+
 export function getRedis(): Redis {
   if (!client) {
-    client = new Redis(env.redisUrl, {
-      lazyConnect: true,
-      retryStrategy(times) {
-        const delay = Math.min(times * 200, 5000);
-        return delay;
-      },
-      maxRetriesPerRequest: 3,
-      enableOfflineQueue: false,
-    });
+    client = new Redis(env.redisUrl, options(1));
+    watchTimeouts(client);
 
-    client.on("connect", () => {
+    client.on("ready", () => {
       logger.info("Redis connected");
       isAvailable = true;
     });
@@ -31,21 +114,17 @@ export function getRedis(): Redis {
     client.on("close", () => {
       isAvailable = false;
     });
+
+    client.on("reconnecting", () => {
+      isAvailable = false;
+    });
   }
   return client;
 }
 
 export function getSubscriber(): Redis {
   if (!subscriber) {
-    subscriber = new Redis(env.redisUrl, {
-      lazyConnect: true,
-      retryStrategy(times) {
-        const delay = Math.min(times * 200, 5000);
-        return delay;
-      },
-      maxRetriesPerRequest: 1,
-      enableOfflineQueue: false,
-    });
+    subscriber = new Redis(env.redisUrl, options(1));
 
     subscriber.on("error", (err) => {
       logger.error("Redis subscriber error", { error: err.message });
@@ -71,8 +150,9 @@ export async function connectRedis(): Promise<void> {
   }
 }
 
+/** Redis готов и не в обходе после тайм-аута. Ложь — берите память процесса. */
 export function isRedisAvailable(): boolean {
-  return isAvailable;
+  return isAvailable && Date.now() >= breakerUntil;
 }
 
 /*
@@ -96,7 +176,7 @@ let dispatcherBound = false;
 
 /** Подписаться на канал; true — подписка есть (или ставится), false — Redis нет. */
 export function subscribeChannel(channel: string, handler: (message: string) => void): boolean {
-  if (!isAvailable) return false;
+  if (!isRedisAvailable()) return false;
   let set = channelHandlers.get(channel);
   if (!set) { set = new Set(); channelHandlers.set(channel, set); }
   set.add(handler);
@@ -120,7 +200,7 @@ export function subscribeChannel(channel: string, handler: (message: string) => 
 
 /** Опубликовать; молча, если Redis нет — реплика одна, слушать некому. */
 export function publishChannel(channel: string, message: string): void {
-  if (!isAvailable) return;
+  if (!isRedisAvailable()) return;
   try { getRedis().publish(channel, message).catch(() => {}); } catch { /* Redis unavailable */ }
 }
 
@@ -136,6 +216,7 @@ export function _resetSubscriptions(): void {
 
 export async function disconnectRedis(): Promise<void> {
   isAvailable = false;
+  breakerUntil = 0;
   if (subscriber) {
     await subscriber.quit().catch(() => {});
     subscriber = null;

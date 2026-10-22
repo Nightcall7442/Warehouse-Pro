@@ -20,8 +20,8 @@ export function PaymentMethodsCard({ t }: PaymentMethodsCardProps) {
             {t("Способы оплаты", "To'lov usullari")}
           </p>
           <p style={{ fontSize: "13px", lineHeight: 1.55, color: "var(--color-text-secondary)" }}>
-            {t("Оплата через Click, Payme, Uzum Pay. Оператор свяжется с вами в течение 30 минут после запроса.",
-              "Click, Payme, Uzum Pay orqali to'lash mumkin. Operator 30 daqiqa ichida bog'lanadi.")}
+            {t("Оплатить можно наличными, переводом, картой, через Payme или Click. Оставьте заявку — оператор свяжется с вами и после оплаты подключит или продлит тариф.",
+              "Naqd pul, o'tkazma, karta, Payme yoki Click orqali to'lash mumkin. So'rov qoldiring — operator siz bilan bog'lanadi va to'lovdan keyin tarifni ulaydi yoki uzaytiradi.")}
           </p>
         </div>
       </div>

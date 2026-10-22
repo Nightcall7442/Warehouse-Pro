@@ -183,6 +183,13 @@ export const env = {
 
   // Redis
   redisUrl:            optional("REDIS_URL"),
+  /**
+   * Сколько ждать ответа Redis на одну команду, мс. Дольше — команда падает,
+   * и вызывающий берёт память процесса (см. lib/redis.ts). Секунда — с
+   * запасом на Redis в другом регионе (~170 мс туда и обратно); в одном
+   * регионе с приложением хватит и 200.
+   */
+  redisCommandTimeoutMs: parseInt(optional("REDIS_COMMAND_TIMEOUT_MS", "1000"), 10),
 
   // OpenTelemetry
   otelExporterUrl:     optional("OTEL_EXPORTER_OTLP_ENDPOINT"),

@@ -20,10 +20,10 @@ function DaySection() {
       {
         time: "07:30",
         who: tr("Агент", "Agent"),
-        title: tr("Маршрут уже в телефоне", "Marshrut allaqachon telefonda"),
+        title: tr("План уже в телефоне", "Reja allaqachon telefonda"),
         desc: tr(
-          "Санжар открывает приложение: 18 точек на сегодня, по каждой — долг, история заказов и что взять на пробу.",
-          "Sanjar ilovani ochadi: bugunga 18 nuqta, har birida qarz, buyurtmalar tarixi va namuna uchun nima olish kerakligi.",
+          "Санжар открывает приложение: 18 точек на сегодня, по каждой — долг, средний чек и сколько дней без заказа, а заказ «как в прошлый раз» собирается одной кнопкой.",
+          "Sanjar ilovani ochadi: bugunga 18 nuqta, har birida qarz, o'rtacha chek va necha kundan beri buyurtma yo'qligi, «o'tgan safargidek» buyurtma esa bir tugma bilan yig'iladi.",
         ),
       },
       {
@@ -40,8 +40,8 @@ function DaySection() {
         who: tr("Директор", "Direktor"),
         title: tr("День виден целиком", "Kun to'liq ko'rinadi"),
         desc: tr(
-          "Выручка, долги, маршруты и остатки — в отчётах и уже выгружены в 1С. Без обзвона агентов и сведения тетрадей.",
-          "Tushum, qarzlar, marshrutlar va qoldiqlar — hisobotlarda va allaqachon 1C ga yuklangan. Agentlarga qo'ng'iroqsiz, daftarlarni solishtirmasdan.",
+          "Выручка, долги и остатки — в отчётах, маршрут агентов за день — на карте, а доставленные заказы сами уходят в 1С по расписанию. Без обзвона агентов и сведения тетрадей.",
+          "Tushum, qarzlar va qoldiqlar — hisobotlarda, agentlarning kunlik marshruti — xaritada, yetkazilgan buyurtmalar esa 1C ga jadval bo'yicha o'zi ketadi. Agentlarga qo'ng'iroqsiz, daftarlarni solishtirmasdan.",
         ),
       },
     ],
@@ -105,12 +105,12 @@ function LedgerSection() {
   const rows = [
     { title: tr("Склад и остатки", "Ombor va qoldiqlar"), desc: tr("Приходы, резервы, движения, контроль лежалого товара по каждому складу.", "Kirimlar, rezervlar, harakatlar, har bir ombor bo'yicha turib qolgan tovar nazorati."), where: tr("Склад → Остатки", "Ombor → Qoldiqlar") },
     { title: tr("Заказы и частичная доставка", "Buyurtmalar va qisman yetkazish"), desc: tr("Магазин принял часть — остаток вернулся на склад, долг посчитан по факту.", "Do'kon bir qismini qabul qildi — qolgani omborga qaytdi, qarz fakt bo'yicha hisoblandi."), where: tr("Заказы → Частичная доставка", "Buyurtmalar → Qisman yetkazish"), insert: "partial" },
-    { title: tr("Доставка и курьеры", "Yetkazish va kuryerlar"), desc: tr("Погрузочные листы, маршруты, сбор наличных и сверка в конце дня.", "Yuklash varaqlari, marshrutlar, naqd yig'ish va kun oxirida solishtiruv."), where: tr("Доставка → Курьеры", "Yetkazish → Kuryerlar") },
-    { title: tr("GPS-контроль агентов", "Agentlar GPS nazorati"), desc: tr("Живая карта, история маршрутов, отметки визитов в торговых точках.", "Jonli xarita, marshrutlar tarixi, savdo nuqtalaridagi tashrif belgilari."), where: tr("Агенты → GPS", "Agentlar → GPS") },
+    { title: tr("Доставка и курьеры", "Yetkazish va kuryerlar"), desc: tr("Погрузочные листы, доставки в телефоне курьера, сбор наличных и сверка в конце дня.", "Yuklash varaqalari, kuryer telefonidagi yetkazishlar, naqd yig'ish va kun oxirida solishtiruv."), where: tr("Заказы → Погрузочные листы", "Buyurtmalar → Yuklash varaqalari") },
+    { title: tr("GPS-контроль агентов", "Agentlar GPS nazorati"), desc: tr("Живая карта с маршрутом за сегодня. Любой из последних 90 дней — кнопкой «Как прошёл день» в плане визитов: порядок точек, время в каждой, пробег. Отметки визитов в торговых точках.", "Bugungi marshrutli jonli xarita. Oxirgi 90 kunning istalgan kuni — tashrif rejasidagi «Kun qanday o'tdi» tugmasi bilan: nuqtalar tartibi, har birida o'tkazilgan vaqt, bosib o'tilgan yo'l. Savdo nuqtalaridagi tashrif belgilari."), where: tr("Команда → Карта, План визитов", "Jamoa → Xarita, Tashrif rejasi") },
     { title: tr("Долги магазинов", "Do'konlar qarzlari"), desc: tr("Баланс каждой точки: заказы, оплаты, возвраты — и список должников на утро.", "Har bir nuqta balansi: buyurtmalar, to'lovlar, qaytarishlar — va ertalabki qarzdorlar ro'yxati."), where: tr("Магазины → Долги", "Do'konlar → Qarzlar"), insert: "debt" },
     { title: tr("Аналитика и прибыль", "Tahlil va foyda"), desc: tr("Выручка, маржа, эффективность агентов и KPI — по доставленному, а не по обещанному.", "Tushum, marja, agentlar samaradorligi va KPI — va'da emas, yetkazilgan bo'yicha."), where: tr("Отчёты → Прибыль", "Hisobotlar → Foyda") },
-    { title: tr("Обмен с 1С:Предприятие", "1C:Predpriyatiye bilan almashinuv"), desc: tr("Товары, заказы, контрагенты — двусторонняя синхронизация, без двойного ввода.", "Tovarlar, buyurtmalar, kontragentlar — ikki tomonlama sinxronlash, ikki marta kiritmasdan."), where: tr("Настройки → Обмен с 1С", "Sozlamalar → 1C almashinuvi") },
-    { title: tr("Мобильное приложение", "Mobil ilova"), desc: tr("iOS и Android, офлайн-режим, камера, GPS. Агенту хватает одного дня, чтобы освоить.", "iOS va Android, oflayn rejim, kamera, GPS. Agentga o'rganish uchun bir kun yetadi."), where: tr("Приложение агента", "Agent ilovasi") },
+    { title: tr("Обмен с 1С:Предприятие", "1C:Predpriyatiye bilan almashinuv"), desc: tr("Товары и цены — из 1С, доставленные заказы и наличные оплаты — в 1С; контрагент подбирается к магазину или создаётся в 1С кнопкой. Без двойного ввода.", "Tovarlar va narxlar — 1C dan, yetkazilgan buyurtmalar va naqd to'lovlar — 1C ga; kontragent do'konga moslanadi yoki 1C da tugma bilan yaratiladi. Ikki marta kiritmasdan."), where: tr("Настройки → Обмен с 1С", "Sozlamalar → 1C almashinuvi") },
+    { title: tr("Мобильное приложение", "Mobil ilova"), desc: tr("Android: офлайн-режим, камера, GPS. На iPhone пока работает веб-версия, приложение готовится к выходу в App Store. Агенту хватает одного дня, чтобы освоить.", "Android: oflayn rejim, kamera, GPS. iPhone'da hozircha veb-versiya ishlaydi, ilova App Store'ga chiqishga tayyorlanmoqda. Agentga o'rganish uchun bir kun yetadi."), where: tr("Приложение агента", "Agent ilovasi") },
   ];
 
   const cols = "grid grid-cols-[44px_1fr] md:grid-cols-[56px_260px_1fr_200px]";
@@ -221,7 +221,7 @@ function LedgerSection() {
 
         {/* Роли — одной строкой вместо секции из шести плиток. */}
         <p id="roles" className="mt-6 text-[13px] scroll-mt-24" style={{ color: LX.inkSoft }}>
-          {tr("Шесть ролей — директор, оператор, склад, агент, курьер, супервайзер — у каждой свой набор экранов. ", "Oltita rol — direktor, operator, ombor, agent, kuryer, supervayzer — har birining o'z ekranlari bor. ")}
+          {tr("Шесть ролей — директор, оператор, агент, мерчендайзер, курьер, супервайзер — у каждой свой набор экранов. ", "Oltita rol — direktor, operator, agent, merchandayzer, kuryer, supervayzer — har birining o'z ekranlari bor. ")}
           <a href="#product" className="font-medium underline underline-offset-4" style={{ color: LX.ink, textDecorationColor: LX.ruleStrong }}>
             {tr("Посмотреть интерфейс", "Interfeysni ko'rish")}
           </a>

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { BookOpen, Search, Printer, Languages, ListChecks, Bot } from "lucide-react";
+import { BookOpen, Search, Printer, Languages, ListChecks, MousePointerClick } from "lucide-react";
 import { useTranslate } from "@/i18n";
 import { LX, MONO } from "./landing-tokens";
 import { SectionHead } from "./landing-shared";
@@ -43,11 +43,11 @@ export default function ManualSection() {
 
   const facts = [
     { I: ListChecks, t: tr("По ролям и по дням внедрения — с первого дня до сверки через месяц", "Rollar va joriy etish kunlari bo'yicha — birinchi kundan bir oydan keyingi solishtiruvgacha") },
-    { I: BookOpen, t: tr("56 снимков экранов на каждый язык с пронумерованными выносками", "Har bir tilga 56 ta ekran surati, raqamlangan izohlar bilan") },
+    { I: BookOpen, t: tr("Больше 170 снимков экранов на каждый язык, большинство — с пронумерованными выносками", "Har bir tilga 170 dan ortiq ekran surati, aksariyati raqamlangan izohlar bilan") },
     { I: Languages, t: tr("Русский и узбекский — переключаются одной кнопкой", "Rus va o'zbek tillari — bir tugma bilan almashadi") },
     { I: Search, t: tr("Поиск по всему руководству", "Butun qo'llanma bo'yicha qidiruv") },
     { I: Printer, t: tr("Печать и PDF — для тех, кто учится с бумаги", "Chop etish va PDF — qog'ozdan o'rganadiganlar uchun") },
-    { I: Bot, t: tr("Открывается из бокового меню и командой /manual в Telegram-боте", "Yon menyudan va Telegram-botdagi /manual buyrug'i bilan ochiladi") },
+    { I: MousePointerClick, t: tr("Кнопка «Справка» в боковом меню открывает сразу главу вашей роли на вашем языке", "Yon menyudagi «Qo'llanma» tugmasi rolingizga oid bobni darhol o'z tilingizda ochadi") },
   ];
 
   return (
@@ -68,7 +68,7 @@ export default function ManualSection() {
             ))}
           </ul>
           <p className="mt-6 text-[13px]" style={{ color: LX.inkSoft }}>
-            {tr("Каждая глава заканчивается тем, что сотрудник делает руками — рассказ забывается за сутки, сделанное нет.", "Har bir bob xodim o'z qo'li bilan qiladigan ish bilan tugaydi — aytilgan bir kunda unutiladi, qilingan esa yo'q.")}
+            {tr("Каждый день внедрения и глава каждой роли — с чек-листом «Проверка»: что сотрудник сделал своими руками и что должно сойтись на экране. Рассказ забывается за сутки, сделанное — нет.", "Joriy etishning har bir kuni va har bir rol bobi — «Tekshiruv» ro'yxati bilan: xodim o'z qo'li bilan nima qildi va ekranda nima mos kelishi kerak. Aytilgan bir kunda unutiladi, qilingan — yo'q.")}
           </p>
         </div>
 

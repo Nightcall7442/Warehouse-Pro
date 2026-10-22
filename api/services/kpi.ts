@@ -7,7 +7,7 @@ import { calculateFraudMetrics, calculateFraudMetricsForAgents, type FraudMetric
 import {
   returnsInPeriod, returnedByAgent, returnedOf, type ReturnedValue,
 } from "./revenue-returns";
-import { productRates, salesByProduct, commissionOf, overridesUsed } from "./commission-base";
+import { agentCommission } from "./commission-base";
 import { logger } from "../lib/logger";
 import { bizClock, untilDate } from "../lib/date-range";
 
@@ -879,15 +879,12 @@ export async function calculateSalary(
     совпадение, а свойство разложения: сумма частей равна salesAmount. На него
     стоит отдельная проверка, потому что включение раздела не должно менять
     зарплату тем, кому ничего не меняли.
+
+    Формула общая с «Рассчитать» (commission-router.ts): строка комиссии одна,
+    и посчитанное двумя способами расходилось бы с тем, что утверждают.
   */
-  const rates = await productRates(db, tenantId);
-  const byProduct = rates.size === 0
-    // Ставок нет вовсе — раскладывать незачем: два запроса к order_items и
-    // return_items на каждого человека за ответ, который и так известен.
-    ? new Map<number, number>()
-    : await salesByProduct(db, tenantId, agentId, periodStart, periodEnd, salesAmount);
-  const commissionAmount = commissionOf(byProduct, rates, commissionRate, salesAmount);
-  const productRateCount = overridesUsed(byProduct, rates);
+  const { commissionAmount, productRateCount } =
+    await agentCommission(db, tenantId, agentId, periodStart, periodEnd, salesAmount, commissionRate);
 
   /*
     ── Премии в зарплате больше нет ──────────────────────────────────────────

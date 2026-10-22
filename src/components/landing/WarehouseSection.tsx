@@ -32,15 +32,15 @@ export default function WarehouseSection() {
     { t: tr("Остатки по каждому складу", "Har bir ombor qoldig'i"), d: tr("Остаток, резерв под заказы и свободное — три числа, а не одно", "Qoldiq, buyurtma zaxirasi va bo'sh — bitta emas, uchta raqam") },
     { t: tr("Приходы с партиями", "Partiyali kirimlar"), d: tr("Закупочная цена, партия, срок годности — по каждой позиции", "Xarid narxi, partiya, yaroqlilik muddati — har bir pozitsiyada") },
     { t: tr("Инвентаризация", "Inventarizatsiya"), d: tr("Пересчёт по факту и акт расхождений — кто, когда, на сколько", "Haqiqiy sanoq va farqlar dalolatnomasi — kim, qachon, qancha") },
-    { t: tr("Корректировки", "Tuzatishlar"), d: tr("Каждая — с автором и временем; «просто поправить цифру» нельзя", "Har biri — muallif va vaqt bilan; «shunchaki raqamni to'g'rilash» yo'q") },
+    { t: tr("Корректировки", "Tuzatishlar"), d: tr("Каждая видна в журналах: кто, когда и на сколько; тихо поправить цифру нельзя", "Har biri jurnallarda ko'rinadi: kim, qachon va qanchaga; raqamni jimgina to'g'rilab bo'lmaydi") },
     { t: tr("Движения", "Harakatlar"), d: tr("Что пришло, что ушло, по какому документу", "Nima keldi, nima ketdi, qaysi hujjat bo'yicha") },
     { t: tr("Оценка склада", "Ombor bahosi"), d: tr("Сколько денег лежит на полках прямо сейчас", "Hozir javonlarda qancha pul yotibdi") },
     { t: tr("Лежалый товар и дозаказ", "Turib qolgan mahsulot va qayta buyurtma"), d: tr("Что не продавалось месяц, что скоро просрочится и что заканчивается раньше, чем приедет", "Bir oy sotilmagan, tez orada muddati o'tadigan va kelguncha tugab qoladigan") },
-    { t: tr("Перемещения", "Ko'chirishlar"), d: tr("Между складами: создали, завершили — товар переехал", "Omborlar orasida: yaratdingiz, yakunladingiz — mahsulot ko'chdi") },
+    { t: tr("Перемещения", "Ko'chirishlar"), d: tr("Один документ на много позиций — товар сразу на складе-получателе", "Ko'p pozitsiyaga bitta hujjat — mahsulot darhol qabul qiluvchi omborda") },
     { t: tr("Возвраты", "Qaytarishlar"), d: tr("Отдельный документ после доставки — со статусами и сводкой", "Yetkazishdan keyin alohida hujjat — holatlar va xulosa bilan") },
     { t: tr("Контрагенты", "Kontragentlar"), d: tr("Поставки, платежи поставщику, сверка взаиморасчётов", "Yetkazib beruvchi ta'minoti, to'lovlari, o'zaro hisob solishtiruvi") },
     { t: tr("Отчёты склада", "Ombor hisobotlari"), d: tr("По категориям, движения, топ по стоимости, оборачиваемость", "Kategoriya bo'yicha, harakatlar, qiymat bo'yicha top, aylanma") },
-    { t: tr("1С в обе стороны", "1C ikki tomonlama"), d: tr("Номенклатура и заказы по OData — без двойного ввода", "Nomenklatura va buyurtmalar OData orqali — ikki marta kiritishsiz") },
+    { t: tr("1С в обе стороны", "1C ikki tomonlama"), d: tr("По OData: номенклатура и цены — из 1С, доставленные заказы сами уходят в 1С «Реализацией»", "OData orqali: nomenklatura va narxlar — 1C dan, yetkazilgan buyurtmalar 1C ga sotuv hujjati («Realizatsiya») bo'lib o'zi ketadi") },
   ];
 
   const root = useAnime<HTMLDivElement>(({ animate }, el) => {
@@ -65,7 +65,7 @@ export default function WarehouseSection() {
           index="07"
           label={tr("Склад", "Ombor")}
           title={tr("Склад, который сходится с полкой", "Javon bilan mos keladigan ombor")}
-          lead={tr("Остаток не пишут руками — он выводится из приходов, отгрузок, приёмок и возвратов. Программа отгружает то, что портится раньше.", "Qoldiq qo'lda yozilmaydi — u kirim, jo'natish, qabul va qaytarishlardan chiqariladi. Dastur avval buziladigan mahsulotni birinchi jo'natadi.")}
+          lead={tr("Остаток складывается из приходов, отгрузок, приёмок и возвратов, а пересчёт и ручная корректировка оставляют след в движениях. Программа отгружает то, что портится раньше.", "Qoldiq kirim, jo'natish, qabul va qaytarishlardan yig'iladi, qayta sanash va qo'lda tuzatish esa harakatlarda iz qoldiradi. Dastur avval buziladigan mahsulotni birinchi jo'natadi.")}
         />
 
         {/* Одно число главы: остаток — три числа, а не одно; доступно — то, что можно продать. */}
@@ -76,7 +76,7 @@ export default function WarehouseSection() {
             { value: 11, label: tr("Резерв под заказы", "Buyurtmalar zaxirasi") },
             { value: 115, label: tr("Доступно к продаже", "Sotuvga tayyor"), brass: true },
           ]}
-          note={tr("демо-данные · остаток выводится из приходов, отгрузок и возвратов, а не пишется руками", "demo-ma'lumotlar · qoldiq kirim, jo'natish va qaytarishlardan chiqariladi, qo'lda yozilmaydi")}
+          note={tr("демо-данные · остаток складывается из приходов, отгрузок и возвратов; ручные правки и инвентаризация тоже попадают в историю движений", "demo-ma'lumotlar · qoldiq kirim, jo'natish va qaytarishlardan yig'iladi; qo'lda tuzatishlar va inventarizatsiya ham harakat tarixiga tushadi")}
         />
 
         <Stage

@@ -94,7 +94,7 @@ export default function ProductWindow() {
               <div className="hidden sm:flex gap-1.5" aria-hidden="true">
                 {[0, 1, 2].map(i => <span key={i} className="w-2.5 h-2.5 rounded-full" style={{ background: LX.faintOnInk }} />)}
               </div>
-              <span className="hidden md:block text-[11px]" style={{ ...MONO, color: LX.softOnInk }}>app.warehouse-pro.uz</span>
+              <span className="hidden md:block text-[11px]" style={{ ...MONO, color: LX.softOnInk }}>www.warehouse-pro.uz</span>
               <div
                 role="tablist"
                 aria-label={tr("Разделы приложения", "Ilova bo'limlari")}
@@ -157,7 +157,7 @@ export default function ProductWindow() {
                   >
                     <Phone shot="catalog" alt={tr("Каталог с фото и ценой магазина", "Surat va do'kon narxi bilan katalog")} width={Math.round(pw * 0.86)} className="hidden sm:block" style={{ transform: "rotateY(22deg) translateX(10px) scale(0.92)", transformOrigin: "100% 50%" }} />
                     <Phone shot="home" alt={tr("Главная агента: план визитов и заказы", "Agent bosh sahifasi: tashriflar rejasi va buyurtmalar")} width={pw} style={{ zIndex: 2 }} />
-                    <Phone shot="deliveries" alt={tr("Доставки курьера на сегодня", "Kuryerning bugungi yetkazishlari")} width={Math.round(pw * 0.86)} className="hidden md:block" style={{ transform: "rotateY(-22deg) translateX(-10px) scale(0.92)", transformOrigin: "0% 50%" }} />
+                    <Phone shot="deliveries" alt={tr("Доставки курьера: назначенные и в пути", "Kuryer yetkazishlari: tayinlangan va yo'ldagi")} width={Math.round(pw * 0.86)} className="hidden md:block" style={{ transform: "rotateY(-22deg) translateX(-10px) scale(0.92)", transformOrigin: "0% 50%" }} />
                   </div>
                 )}
               </div>

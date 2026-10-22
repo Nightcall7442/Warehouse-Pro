@@ -55,8 +55,8 @@ export default function ApiSection({ status }: { status: DemoStatus | null }) {
             <Mono>{tr("CHEGARALAR VA XATOLAR", "ЛИМИТЫ И ОШИБКИ")}</Mono>
             <p style={{ fontSize: 14, lineHeight: 1.6, color: "var(--soft)", margin: "10px 0 12px" }}>
               {tr(
-                "Chegara — har bir kalit uchun daqiqasiga (standart 100, sandbox kaliti 60). Sahifa: buyurtmalar 100 tadan, ko'pi bilan 200, cursor bilan; qolganlari limit/offset, standart 50, ko'pi bilan 200. Har bir javobda X-Warehouse-Environment: sandbox yoki production.",
-                "Лимит — на ключ в минуту (по умолчанию 100, ключ песочницы 60). Страница: заказы по 100, максимум 200, курсором; остальное limit/offset, по умолчанию 50, максимум 200. В каждом ответе X-Warehouse-Environment: sandbox или production.",
+                "Chegara — har bir kalit uchun daqiqasiga (standart 100, sandbox kaliti 60). Sahifa: buyurtmalar 100 tadan, ko'pi bilan 200, cursor bilan; qolganlari limit/offset, standart 50, ko'pi bilan 200. Kirishdagi rad javoblaridan (401, 402, kalit, tashkilot yoki tarif bo'yicha 403, 429) tashqari har bir javobda X-Warehouse-Environment sarlavhasi: sandbox yoki production.",
+                "Лимит — на ключ в минуту (по умолчанию 100, ключ песочницы 60). Страница: заказы по 100, максимум 200, курсором; остальное limit/offset, по умолчанию 50, максимум 200. В каждом ответе, кроме отказов на входе (401, 402, 403 по ключу, организации или тарифу, 429), — заголовок X-Warehouse-Environment: sandbox или production.",
               )}
             </p>
             <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>

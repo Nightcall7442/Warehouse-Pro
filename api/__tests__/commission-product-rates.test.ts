@@ -171,6 +171,7 @@ describe("ставка товара и ставка человека", () => {
 const read = (p: string) => fs.readFileSync(path.resolve(process.cwd(), p), "utf8").replace(/\r\n/g, "\n");
 const BASE = read("api/services/commission-base.ts");
 const KPI = read("api/services/kpi.ts");
+const ROUTER = read("api/commission-router.ts");
 
 describe("откуда берутся продажи и возвраты", () => {
   it("продажи — только те заказы, что считаются выручкой", () => {
@@ -218,6 +219,21 @@ describe("откуда берутся продажи и возвраты", () =>
     const body = KPI.slice(at, KPI.indexOf("\nfunction calculateCompositeScore", at));
     expect(body, "комиссия снова считается на месте")
       .not.toContain("salesAmount * (commissionRate / 100)");
-    expect(body, "разложение по товарам не запрашивается").toContain("commissionOf(byProduct");
+    expect(body, "зарплата считает комиссию не общей формулой").toContain("agentCommission(");
+    const shared = BASE.slice(BASE.indexOf("export async function agentCommission"));
+    expect(shared, "разложение по товарам не запрашивается").toContain("commissionOf(byProduct");
+  });
+
+  it("«Рассчитать» зовёт тот же общий расчёт, что и зарплата", () => {
+    /*
+      Аудит 19.10.2026: «Рассчитать» умножал продажи на процент человека, а
+      зарплата считала по товарам, — и оба писали в одну строку комиссии.
+      Утверждалось то, что посчиталось последним.
+    */
+    const at = ROUTER.indexOf("calculate: operatorQuery");
+    const body = ROUTER.slice(at, ROUTER.indexOf("productRates: authedQuery", at));
+    expect(body, "«Рассчитать» снова умножает на один процент")
+      .not.toMatch(/salesAmount \* \(Number\(agent\.commissionRate\) \/ 100\)/);
+    expect(body, "«Рассчитать» считает комиссию не общей формулой").toContain("agentCommission(");
   });
 });

@@ -135,7 +135,7 @@ export default function TallyField() {
         className="max-w-[1240px] mx-auto px-6 flex items-baseline justify-between mb-5 text-[11px] uppercase"
         style={{ ...MONO, fontWeight: 500, color: LX.inkFaint, letterSpacing: "0.08em" }}
       >
-        <span>{COLS} × {ROWS} — {tr("занятость ячеек", "katakchalar bandligi")}</span>
+        <span>{COLS} × {ROWS} — {tr("иллюстрация: остаток и резерв", "illyustratsiya: qoldiq va zaxira")}</span>
         <span className="hidden sm:inline">{tr("обновляется на глазах", "ko'z oldingizda yangilanadi")}</span>
       </div>
       <svg

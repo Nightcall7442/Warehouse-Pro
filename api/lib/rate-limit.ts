@@ -19,6 +19,18 @@ export type RateLimitOptions = {
   windowMs: number;
   limit: number;
   namespace: string;
+  /**
+   * Считать в памяти процесса, не спрашивая Redis.
+   *
+   * Для пределов, которые стоят на КАЖДОМ запросе (общий предел и пределы
+   * записи по ролям, middleware.ts): иначе каждый запрос ждёт Redis до
+   * базы. 20.10.2026 это стоило ~170 мс на запрос, а при потерях в канале
+   * до Redis — минут (lib/redis.ts). Цена: при нескольких репликах каждая
+   * считает своё, и предел человека умножается на их число. Для грубой
+   * защиты от перебора и залипших циклов это приемлемо; пределы входа,
+   * паролей и регистрации остаются в Redis — им нужен общий счёт.
+   */
+  local?: true;
 };
 
 /**
@@ -32,7 +44,7 @@ export type RateLimitOptions = {
 export async function checkRateLimit(key: string | null, opts: RateLimitOptions): Promise<boolean> {
   if (key === null) return true;
   if (env.rateLimitDisabled) return true; // нагрузочный стенд, см. env.ts
-  if (isRedisAvailable()) {
+  if (!opts.local && isRedisAvailable()) {
     return checkRateLimitRedis(key, opts);
   }
   return checkRateLimitMemory(key, opts);
