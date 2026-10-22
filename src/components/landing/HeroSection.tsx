@@ -179,7 +179,7 @@ export default function HeroSection() {
             <p data-hero-step="1" className="mt-7 lg:mt-8 text-[18px] lg:text-[20px]" style={{ lineHeight: 1.5, maxWidth: 520, color: LX.inkSoft }}>
               {tr(
                 "Один источник данных для директора, склада, агентов и курьеров — вместо тетрадей, Excel и звонков «довезли или нет?».",
-                "Direktor, ombor, agentlar va kuryerlar uchun yagona manba — daftar, Excel va «yetkazdingmi?» qo'ng'iroqlari o'rniga.",
+                "Direktor, ombor, agentlar va kuryerlar uchun yagona manba — daftar, Excel va «yetkazildimi?» qo'ng'iroqlari o'rniga.",
               )}
             </p>
 

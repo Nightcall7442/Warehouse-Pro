@@ -360,8 +360,8 @@ export const PROBLEMS: Array<{ topic: L; problem: L; solution: L }> = [
       ru: "Возврат — на бумаге: списан ли он с долга, вернулся ли на склад — точно не знает никто.",
     },
     solution: {
-      uz: "Agent qaytarishni sababi bilan veb-versiyada, buyurtma kartochkasida kiritadi, ofis o'tkazadi — ombor qoldig'i va do'kon qarzi o'zi o'zgaradi; sabablar bo'yicha tahlil.",
-      ru: "Агент заводит возврат с причиной в веб-версии, в карточке заказа, офис проводит — остаток на складе и долг магазина меняются сами; разбор по причинам.",
+      uz: "Agent qaytarishni sababi bilan veb-versiyada, buyurtma kartasida kiritadi, ofis o'tkazadi — ombor qoldig'i va do'kon qarzi o'zi o'zgaradi; sabablar bo'yicha tahlil.",
+      ru: "Агент заводит возврат с причиной в карточке заказа (в веб-версии), офис его проводит — остаток на складе и долг магазина меняются сами; разбор по причинам.",
     },
   },
   {
@@ -382,8 +382,8 @@ export const PROBLEMS: Array<{ topic: L; problem: L; solution: L }> = [
       ru: "Зарплату агентов и курьеров считают в конце месяца в Excel вручную — каждый месяц спор.",
     },
     solution: {
-      uz: "Reja va bajarilishi hammaga ko'rinadi; ish haqi tizimda hisoblanadi: kuryerga — har bir yetkazish uchun summa yoki yetkazilganidan foiz, agentga — yetkazilganidan foiz, alohida tovarlar uchun o'z stavkasi bilan; stavkalar — har bir xodimga alohida.",
-      ru: "План и выполнение видны всем; зарплата считается в системе: курьеру — сумма за каждую доставку или процент от довезённого, агенту — процент от доставленного, можно свой для отдельных товаров; ставки — отдельно по каждому.",
+      uz: "Reja va bajarilishi hammaga ko'rinadi; ish haqi tizimda hisoblanadi: kuryerga — har bir yetkazish uchun summa yoki yetkazilganidan foiz, agentga — yetkazilganidan foiz, alohida tovarlarga o'z foizini qo'yish mumkin; stavkalar — har bir xodimga alohida.",
+      ru: "План и выполнение видны всем; зарплата считается в системе: курьеру — сумма за каждую доставку или процент от довезённого, агенту — процент от доставленного, для отдельных товаров можно задать свой; ставки — отдельно по каждому.",
     },
   },
   {
@@ -426,7 +426,7 @@ export const PROBLEMS: Array<{ topic: L; problem: L; solution: L }> = [
       ru: "Кто поменял цену, кто удалил заказ — не найти; каждый сотрудник видит всё.",
     },
     solution: {
-      uz: "Harakatlar jurnali: kim, qachon, nima qildi; kirish rol bilan cheklangan, operator huquqlarini esa har bir tashkilot o'zi sozlaydi.",
+      uz: "Harakatlar jurnali: kim, qachon, nima qildi; ruxsat rolga qarab cheklangan, operator huquqlarini esa har bir tashkilot o'zi sozlaydi.",
       ru: "Журнал действий: кто, когда и что сделал; доступ ограничен ролью, а права оператора каждая организация настраивает под себя.",
     },
   },

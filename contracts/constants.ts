@@ -165,7 +165,7 @@ export const FEATURES: Record<FeatureKey, { ru: string; uz: string; enforced: bo
   supportPriority: { ru: "Приоритетная поддержка",                  uz: "Ustuvor yordam",                               enforced: false },
 
   supportChat:     { ru: "Чат с поддержкой прямо в системе",        uz: "Tizim ichida qo'llab-quvvatlash chati",        enforced: true  },
-  api:             { ru: "API на чтение: заказы, товары, остатки, магазины", uz: "O'qish uchun API: buyurtmalar, tovarlar, qoldiqlar, do'konlar", enforced: true  },
+  api:             { ru: "API на чтение: заказы, товары, остатки, магазины", uz: "O'qish uchun API: buyurtmalar, mahsulotlar, qoldiqlar, do'konlar", enforced: true  },
   whiteLabel:      { ru: "Оформление под свой бренд",               uz: "O'z brendi ostida rasmiylashtirish",           enforced: false },
   dataMigration:   { ru: "Перенос данных из Excel и 1С",            uz: "Excel va 1C dan ma'lumot ko'chirish",          enforced: false },
   dedicatedServer: { ru: "Выделенный сервер",                       uz: "Ajratilgan server",                            enforced: false },

@@ -162,7 +162,7 @@ export function ExtraLimitsCard({ t }: { t: (ru: string, uz: string) => string }
       <p style={{ fontSize: "12px", color: "var(--color-text-tertiary)" }}>
         {t(
           "Оплата пока принимается вручную: оператор перезвонит и включит надбавку. Она действует, пока вы на прежнем тарифе: на «Стандарте» пределов нет, и докупать ничего не нужно.",
-          "To'lov hozircha qo'lda qabul qilinadi: operator qo'ng'iroq qilib qo'shimchani yoqadi. U avvalgi tarifda turganingizcha amal qiladi: «Standart»da cheklov yo'q va hech narsa sotib olish shart emas.",
+          "To'lov hozircha qo'lda qabul qilinadi: operator qo'ng'iroq qilib qo'shimchani yoqadi. U avvalgi tarifda qolar ekansiz amal qiladi: «Standart»da cheklov yo'q va qo'shimcha hech narsa sotib olish shart emas.",
         )}
       </p>
     </div>

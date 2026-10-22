@@ -74,7 +74,7 @@ function FactsStrip() {
           ))}
         </div>
         <p className="py-3 text-[12px]" style={{ ...MONO, color: LX.inkSoft }}>
-          {tr(`Данные рабочей базы на ${TRACTION.asOf}`, `Ishchi baza ma'lumotlari, ${TRACTION.asOf} holatiga`)}
+          {tr(`Данные рабочей базы на ${TRACTION.asOf}`, `${TRACTION.asOf} holatiga jonli baza ma'lumotlari`)}
         </p>
       </div>
     </section>
@@ -89,8 +89,8 @@ function FaqSection() {
       {
         q: tr("Работает ли обмен с 1С:Предприятие?", "1C:Predpriyatiye bilan almashinuv ishlaydimi?"),
         a: tr(
-          "Да, в обе стороны, по расписанию: товары и цены приходят из 1С, контрагенты сопоставляются с магазинами, а доставленные заказы уходят в 1С проведёнными реализациями, наличные оплаты — приходными ордерами. При подключении помогаем настроить обмен бесплатно.",
-          "Ha, ikki tomonga, jadval bo'yicha: tovarlar va narxlar 1C dan keladi, kontragentlar do'konlar bilan moslanadi, yetkazilgan buyurtmalar esa 1C ga o'tkazilgan sotuv hujjati, naqd to'lovlar — kirim orderi bo'lib ketadi. Ulanishda almashinuvni bepul sozlab beramiz.",
+          "Да, в обе стороны, по расписанию: товары и цены приходят из 1С, контрагенты сопоставляются с магазинами, доставленные заказы уходят в 1С проведёнными реализациями. Если включить обмен оплатами, наличные уходят приходными кассовыми ордерами (ПКО), а переводы и оплаты картой подтверждаются по поступлениям на счёт в 1С. Остатки и оплаты 1С может присылать и сама — через вебхук, его настраивает программист 1С. При подключении помогаем настроить обмен бесплатно.",
+          "Ha, ikki tomonga, jadval bo'yicha: tovarlar va narxlar 1C dan keladi, kontragentlar do'konlar bilan moslanadi, yetkazilgan buyurtmalar 1C da o'tkazilgan sotuv hujjati bo'lib tushadi. To'lovlar almashinuvi yoqilsa, naqd to'lovlar kassa kirim orderi (KKO) bo'lib ketadi, o'tkazma va karta to'lovlari esa 1C dagi hisobga tushumlar bo'yicha tasdiqlanadi. Qoldiq va to'lovlarni 1C o'zi ham yubora oladi — vebhuk orqali, uni 1C dasturchisi sozlaydi. Ulanishda almashinuvni bepul sozlab beramiz.",
         ),
       },
       {

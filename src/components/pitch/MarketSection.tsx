@@ -119,8 +119,8 @@ export default function MarketSection() {
           </h3>
           <p className="lg:col-span-6" style={{ margin: 0, fontSize: 15.5, lineHeight: 1.6, color: "var(--soft)", maxWidth: "58ch" }}>
             {tr(
-              "Quyida — distribyutorning asosiy jarayonlari, Smartup va Sales Doctor hal qiladigan vazifalar doirasi. Har bir band ishlab turgan funksiyaga tayanadi, ko'pini demoda sinab ko'rish mumkin. Ularning ustiga — o'zimiz o'ylab topgan yechimlar.",
-              "Ниже — основные процессы дистрибьютора, тот же круг задач, что решают Smartup и Sales Doctor. Каждый пункт стоит на работающей функции, большую часть можно попробовать в демо. А поверх них — решения, которые мы придумали сами.",
+              "Quyida — distribyutorning asosiy jarayonlari: Smartup va Sales Doctor'ga ham aynan shular uchun murojaat qilishadi. Har bir band ishlab turgan funksiyaga tayanadi, ko'pini demoda sinab ko'rish mumkin. Ularning ustiga — o'zimiz o'ylab topgan yechimlar, hozircha nimamiz yo'qligi esa pastda ochiq aytilgan.",
+              "Ниже — основные процессы дистрибьютора, те, за которыми приходят и к Smartup, и к Sales Doctor. Каждый пункт опирается на работающую функцию, большую часть можно попробовать в демо. Поверх них — решения, которые мы придумали сами, а чего у нас пока нет — сказано ниже прямо.",
             )}
           </p>
         </div>

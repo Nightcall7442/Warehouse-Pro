@@ -34,7 +34,7 @@ export default function OrdersSection() {
     { t: tr("Комментарии", "Izohlar"), d: tr("Переписка по заказу остаётся в самом заказе", "Buyurtma bo'yicha yozishma buyurtmaning o'zida qoladi") },
     { t: tr("Печать пачкой", "Ommaviy chop etish"), d: tr("Накладные на весь рейс — одним документом", "Butun reys uchun yuk xatlari — bitta hujjat") },
     { t: tr("Удалить и вернуть", "O'chirish va tiklash"), d: tr("Удалённый заказ восстанавливается; кто и когда — в журнале", "O'chirilgan buyurtma tiklanadi; kim va qachon — jurnalda") },
-    { t: tr("Обещанная дата", "Va'da qilingan sana"), d: tr("Когда магазину обещали — видно в карточке заказа, опоздание подсвечено", "Do'konga qachon va'da berilgan — buyurtma kartochkasida ko'rinadi, kechikish ajratib ko'rsatiladi") },
+    { t: tr("Обещанная дата", "Va'da qilingan sana"), d: tr("Когда магазину обещали — видно в карточке заказа, опоздание подсвечено", "Do'konga qachon va'da berilgan — buyurtma kartasida ko'rinadi, kechikish ajratib ko'rsatiladi") },
   ];
 
   const root = useAnime<HTMLDivElement>(({ animate, stagger, createTimeline, utils }, el) => {

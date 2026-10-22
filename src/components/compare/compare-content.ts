@@ -96,8 +96,8 @@ export const AREAS: Area[] = [
   {
     area: { ru: "Долги и стоп отгрузки", uz: "Qarzlar va yuklashni to'xtatish" },
     ours: {
-      ru: "Долг по каждому заказу со сроком; заказ в долг сверх кредитного лимита система не примет, а при просрочке (включается в настройках) заказ агента встаёт в «Ожидает» до решения офиса, причина записана в заказе.",
-      uz: "Har bir buyurtma bo'yicha muddatli qarz; kredit limitidan oshgan nasiya buyurtmani tizim qabul qilmaydi, muddat o'tganda esa (sozlamalarda yoqiladi) agent buyurtmasi ofis qaroriga qadar «Kutishda» holatiga o'tadi, sababi buyurtmada yoziladi.",
+      ru: "Долг по каждому заказу со сроком; заказ в долг сверх кредитного лимита система не примет, а при просрочке (если это включено в настройках) заказ агента получает статус «Ожидает» до решения офиса, причина записана в заказе.",
+      uz: "Har bir buyurtma bo'yicha muddatli qarz; kredit limitidan oshgan nasiya buyurtmani tizim qabul qilmaydi, muddat o'tganda esa (agar bu sozlamalarda yoqilgan bo'lsa) agent buyurtmasi ofis qaroriga qadar «Kutishda» holatiga o'tadi, sababi buyurtmada yoziladi.",
     },
     salesDoctor: { text: { ru: "Заявлены оплаты и финансовый учёт.", uz: "To'lovlar va moliyaviy hisob e'lon qilingan." }, source: "sd-interview" },
     smartup: { text: { ru: "Заявлены финансы и дебиторская задолженность.", uz: "Moliya va debitorlik qarzi e'lon qilingan." }, source: "smartup" },

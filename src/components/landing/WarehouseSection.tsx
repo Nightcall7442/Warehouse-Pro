@@ -40,7 +40,7 @@ export default function WarehouseSection() {
     { t: tr("Возвраты", "Qaytarishlar"), d: tr("Отдельный документ после доставки — со статусами и сводкой", "Yetkazishdan keyin alohida hujjat — holatlar va xulosa bilan") },
     { t: tr("Контрагенты", "Kontragentlar"), d: tr("Поставки, платежи поставщику, сверка взаиморасчётов", "Yetkazib beruvchi ta'minoti, to'lovlari, o'zaro hisob solishtiruvi") },
     { t: tr("Отчёты склада", "Ombor hisobotlari"), d: tr("По категориям, движения, топ по стоимости, оборачиваемость", "Kategoriya bo'yicha, harakatlar, qiymat bo'yicha top, aylanma") },
-    { t: tr("1С в обе стороны", "1C ikki tomonlama"), d: tr("По OData: номенклатура и цены — из 1С, доставленные заказы сами уходят в 1С «Реализацией»", "OData orqali: nomenklatura va narxlar — 1C dan, yetkazilgan buyurtmalar 1C ga «Sotuv» hujjati bo'lib o'zi ketadi") },
+    { t: tr("1С в обе стороны", "1C ikki tomonlama"), d: tr("По OData: номенклатура и цены — из 1С, доставленные заказы сами уходят в 1С «Реализацией»", "OData orqali: nomenklatura va narxlar — 1C dan, yetkazilgan buyurtmalar 1C ga sotuv hujjati («Realizatsiya») bo'lib o'zi ketadi") },
   ];
 
   const root = useAnime<HTMLDivElement>(({ animate }, el) => {
@@ -76,7 +76,7 @@ export default function WarehouseSection() {
             { value: 11, label: tr("Резерв под заказы", "Buyurtmalar zaxirasi") },
             { value: 115, label: tr("Доступно к продаже", "Sotuvga tayyor"), brass: true },
           ]}
-          note={tr("демо-данные · остаток складывается из приходов, отгрузок и возвратов; ручные правки и инвентаризация тоже попадают в журнал движений", "demo-ma'lumotlar · qoldiq kirim, jo'natish va qaytarishlardan yig'iladi; qo'lda tuzatishlar va inventarizatsiya ham harakatlar jurnaliga tushadi")}
+          note={tr("демо-данные · остаток складывается из приходов, отгрузок и возвратов; ручные правки и инвентаризация тоже попадают в историю движений", "demo-ma'lumotlar · qoldiq kirim, jo'natish va qaytarishlardan yig'iladi; qo'lda tuzatishlar va inventarizatsiya ham harakat tarixiga tushadi")}
         />
 
         <Stage

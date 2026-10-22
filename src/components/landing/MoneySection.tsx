@@ -60,7 +60,7 @@ export default function MoneySection() {
     { t: tr("По способам оплаты", "To'lov usullari bo'yicha"), d: tr("Наличные, карта, перевод, в долг", "Naqd, karta, o'tkazma, qarzga") },
     { t: tr("Продажи по магазинам и товарам", "Do'kon va mahsulot bo'yicha savdo"), d: tr("Топ товаров, агент × товар — на чём зарабатывает каждый", "Top mahsulotlar, agent × mahsulot — har kim nimadan topadi") },
     { t: tr("Эффективность агентов", "Agentlar samaradorligi"), d: tr("Заказы, средний чек, визиты без заказа", "Buyurtmalar, o'rtacha chek, buyurtmasiz tashriflar") },
-    { t: tr("Экспорт в Excel", "Excel ga eksport"), d: tr("Любой отчёт — одной кнопкой", "Istalgan hisobot — bir tugma bilan") },
+    { t: tr("Экспорт в Excel", "Excel'ga eksport"), d: tr("Любой отчёт — одной кнопкой", "Istalgan hisobot — bir tugma bilan") },
     { t: tr("Печатные формы", "Chop shakllari"), d: tr("Накладные, погрузочный лист, выписка магазину", "Yuk xatlari, yuklash varaqasi, do'konga ko'chirma") },
   ];
   const payCaps = [

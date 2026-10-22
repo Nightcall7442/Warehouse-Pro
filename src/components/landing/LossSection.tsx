@@ -64,7 +64,7 @@ export default function LossSection() {
         ),
         where: tr(
           "Разбор дня по GPS: когда агент приехал в точку, сколько в ней пробыл, сколько проехал за день и какие отметки визита координатами не подтверждены. И отчёт о визитах без заказа с их причинами.",
-          "Kunning GPS tahlili: agent nuqtaga qachon keldi, unda qancha turdi, kun davomida qancha yo'l bosdi va qaysi tashrif belgilari koordinatalar bilan tasdiqlanmadi. Hamda buyurtmasiz tashriflar hisoboti, sabablari bilan.",
+          "Kunning GPS tahlili: agent nuqtaga qachon keldi, unda qancha vaqt bo'ldi, kun davomida qancha yo'l bosdi va qaysi tashrif belgilari koordinatalar bilan tasdiqlanmadi. Shuningdek, buyurtmasiz tashriflar hisoboti — sabablari bilan.",
         ),
       },
       {
