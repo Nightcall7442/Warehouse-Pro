@@ -178,7 +178,7 @@ export const PARITY: L[] = [
   { uz: "Oflayn buyurtma, katalog, qoldiq va do'kon narxi", ru: "Офлайн-заказ, каталог, остаток и цена магазина" },
   { uz: "Narx varaqlari, miqdor pog'onalari, chegirma chegarasi", ru: "Прайс-листы, ступени по количеству, порог скидки" },
   { uz: "Buyurtma bo'yicha qarz, kredit limiti, yuklashni to'xtatish", ru: "Долг по заказу, кредитный лимит, стоп отгрузки" },
-  { uz: "Ombor: partiyalar, muddatlar, FEFO, bir nechta ombor", ru: "Склад: партии, сроки, FEFO, несколько складов" },
+  { uz: "Ombor: partiyalar, muddatlar, FEFO; bir nechta ombor, sotuv — asosiy ombordan", ru: "Склад: партии, сроки, FEFO; несколько складов, продажа — с основного" },
   { uz: "Kirim, ta'minotchi qarzi va unga qaytarish", ru: "Приход, долг поставщику и возврат ему" },
   { uz: "Kuryer yetkazishi, naqd pul va kamomad", ru: "Доставка курьером, наличные и недостача" },
   { uz: "Qaytarishlar sababi bilan", ru: "Возвраты с причиной" },
@@ -188,7 +188,7 @@ export const PARITY: L[] = [
   { uz: "P&L, ABC, foyda tahlili, savdo xaritasi", ru: "P&L, ABC, разбор прибыли, карта продаж" },
   { uz: "1C (OData), ochiq API, Excel, Telegram xabarnomalari", ru: "1С (OData), открытый API, Excel, уведомления в Telegram" },
   { uz: "Rollar, huquqlar va harakatlar jurnali", ru: "Роли, права и журнал действий" },
-  { uz: "iOS, Android va veb; o'zbek va rus tillari", ru: "iOS, Android и веб; узбекский и русский" },
+  { uz: "Android ilovasi, istalgan telefonda veb (iPhone'da ham); o'zbek va rus tillari", ru: "Android-приложение, веб на любом телефоне (и на iPhone); узбекский и русский" },
 ];
 
 /** Свои находки — то, что в продукте придумано, а не повторено. */
@@ -360,8 +360,8 @@ export const PROBLEMS: Array<{ topic: L; problem: L; solution: L }> = [
       ru: "Возврат — на бумаге: списан ли он с долга, вернулся ли на склад — точно не знает никто.",
     },
     solution: {
-      uz: "Agent qaytarishni sababi bilan telefondan kiritadi, ofis o'tkazadi — ombor qoldig'i va do'kon qarzi o'zi o'zgaradi; sabablar bo'yicha tahlil.",
-      ru: "Агент заводит возврат с причиной из телефона, офис проводит — остаток на складе и долг магазина меняются сами; разбор по причинам.",
+      uz: "Agent qaytarishni sababi bilan veb-versiyada, buyurtma kartochkasida kiritadi, ofis o'tkazadi — ombor qoldig'i va do'kon qarzi o'zi o'zgaradi; sabablar bo'yicha tahlil.",
+      ru: "Агент заводит возврат с причиной в веб-версии, в карточке заказа, офис проводит — остаток на складе и долг магазина меняются сами; разбор по причинам.",
     },
   },
   {
@@ -382,8 +382,8 @@ export const PROBLEMS: Array<{ topic: L; problem: L; solution: L }> = [
       ru: "Зарплату агентов и курьеров считают в конце месяца в Excel вручную — каждый месяц спор.",
     },
     solution: {
-      uz: "Reja va bajarilishi hammaga ko'rinadi; ish haqi tizimda hisoblanadi: dona uchun yoki yetkazilganidan foiz, har bir xodimga alohida.",
-      ru: "План и выполнение видны всем; зарплата считается в системе: за штуку или процентом от доставленного, отдельно по каждому.",
+      uz: "Reja va bajarilishi hammaga ko'rinadi; ish haqi tizimda hisoblanadi: kuryerga — har bir yetkazish uchun summa yoki yetkazilganidan foiz, agentga — yetkazilganidan foiz, alohida tovarlar uchun o'z stavkasi bilan; stavkalar — har bir xodimga alohida.",
+      ru: "План и выполнение видны всем; зарплата считается в системе: курьеру — сумма за каждую доставку или процент от довезённого, агенту — процент от доставленного, можно свой для отдельных товаров; ставки — отдельно по каждому.",
     },
   },
   {
@@ -426,8 +426,8 @@ export const PROBLEMS: Array<{ topic: L; problem: L; solution: L }> = [
       ru: "Кто поменял цену, кто удалил заказ — не найти; каждый сотрудник видит всё.",
     },
     solution: {
-      uz: "Harakatlar jurnali: kim, qachon, nima qildi; rollar va har bir tashkilot uchun sozlanadigan huquqlar.",
-      ru: "Журнал действий: кто, когда и что сделал; роли и права, настраиваемые под каждую организацию.",
+      uz: "Harakatlar jurnali: kim, qachon, nima qildi; kirish rol bilan cheklangan, operator huquqlarini esa har bir tashkilot o'zi sozlaydi.",
+      ru: "Журнал действий: кто, когда и что сделал; доступ ограничен ролью, а права оператора каждая организация настраивает под себя.",
     },
   },
 ];
@@ -456,8 +456,8 @@ export const WHY_US: Array<{ t: L; d: L }> = [
   {
     t: { uz: "Oflayn va ikki tilda", ru: "Офлайн и на двух языках" },
     d: {
-      uz: "Agent ilovasi internet yo'q joyda ishlaydi; interfeys o'zbek va rus tillarida. Veb, PWA, iOS va Android.",
-      ru: "Приложение агента работает без интернета; интерфейс на узбекском и русском. Веб, PWA, iOS и Android.",
+      uz: "Agent ilovasi internet yo'q joyda ishlaydi; interfeys o'zbek va rus tillarida. Veb va PWA istalgan telefonda, Android ilovasi; iPhone ilovasi — TestFlight'da, App Store'ga chiqishga tayyorlanmoqda.",
+      ru: "Приложение агента работает без интернета; интерфейс на узбекском и русском. Веб и PWA на любом телефоне, приложение для Android; приложение для iPhone — в TestFlight, готовится к выходу в App Store.",
     },
   },
   {
@@ -475,7 +475,7 @@ export const ROADMAP: Array<{ key: StageKey; name: L; d: L }> = [
   { key: "idea", name: { uz: "G'oya", ru: "Идея" }, d: { uz: "Distribyutorning qog'oz, Telegram va Excel ishini bitta tizimga yig'ish.", ru: "Собрать бумагу, Telegram и Excel дистрибьютора в одну систему." } },
   { key: "prototype", name: { uz: "Prototip", ru: "Прототип" }, d: { uz: "Ombor, buyurtma va agent ilovasi. Birinchi commit — 03.07.2026.", ru: "Склад, заказы и приложение агента. Первый коммит — 03.07.2026." } },
   { key: "mvp", name: { uz: "MVP", ru: "MVP" }, d: { uz: "Agent buyurtmasi, qarzlar, ombor partiyalari, direktor hisobotlari.", ru: "Заказ агента, долги, партии на складе, отчёты директора." } },
-  { key: "launched", name: { uz: "Ishga tushirilgan", ru: "Запущен" }, d: { uz: "Mahsulot ishlab turibdi: warehouse-pro.uz, iOS ilovasi App Store tekshiruvida, Android APK.", ru: "Продукт работает: warehouse-pro.uz, iOS-приложение на проверке в App Store, Android APK." } },
+  { key: "launched", name: { uz: "Ishga tushirilgan", ru: "Запущен" }, d: { uz: "Mahsulot ishlab turibdi: warehouse-pro.uz, Android APK; iOS ilovasi — TestFlight'da, App Store'ga chiqishga tayyorlanmoqda.", ru: "Продукт работает: warehouse-pro.uz, Android APK; iOS-приложение — в TestFlight, готовится к выходу в App Store." } },
 ];
 export const CURRENT_STAGE: StageKey = "launched";
 
@@ -535,7 +535,7 @@ export const STAGES: Array<{ name: L; d: L; state: StepState }> = [
   { state: "done", name: { uz: "Ofis va ombor", ru: "Офис и склад" }, d: { uz: "Buyurtmani yopish, qarzlar, partiyalar va muddatlar, kuryer yetkazishi.", ru: "Закрытие заказа, долги, партии и сроки, доставка курьером." } },
   { state: "done", name: { uz: "Direktor", ru: "Директор" }, d: { uz: "P&L, foyda tahlili, ABC, reja prognozi, savdo xaritasi, ish haqi.", ru: "P&L, разбор прибыли, ABC, прогноз плана, карта продаж, зарплаты." } },
   { state: "done", name: { uz: "Integratsiyalar", ru: "Интеграции" }, d: { uz: "1C (OData), ochiq API, Telegram xabarnomalari, 2FA.", ru: "1С (OData), открытый API, уведомления в Telegram, 2FA." } },
-  { state: "now", name: { uz: "Ilova do'konlari", ru: "Магазины приложений" }, d: { uz: "App Store (tekshiruvda) va Google Play.", ru: "App Store (на проверке) и Google Play." } },
+  { state: "now", name: { uz: "Ilova do'konlari", ru: "Магазины приложений" }, d: { uz: "iOS — TestFlight'da, Android — APK; keyingi qadam — App Store va Google Play.", ru: "iOS — в TestFlight, Android — APK; следующий шаг — App Store и Google Play." } },
   { state: "planned", name: { uz: "AI", ru: "ИИ" }, d: { uz: "Talab prognozi modeli va hisobotlarga savol — pastdagi rejaga qarang.", ru: "Модель прогноза спроса и вопросы к отчётам — см. план ниже." } },
 ];
 

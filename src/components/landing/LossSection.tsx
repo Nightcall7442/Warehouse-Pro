@@ -63,8 +63,8 @@ export default function LossSection() {
           "Marshrut bajarilgan deb belgilangan, lekin agent nuqtalarning yarmida bo'lmagan. Yoki bo'lgan — va buyurtmasiz ketgan, va hech kim so'ramagan.",
         ),
         where: tr(
-          "Отметка визита по GPS, история маршрутов и визиты, закончившиеся без заказа.",
-          "GPS bo'yicha tashrif belgisi, marshrutlar tarixi va buyurtmasiz tugagan tashriflar.",
+          "Разбор дня по GPS: когда агент приехал в точку, сколько в ней пробыл, сколько проехал за день и какие отметки визита координатами не подтверждены. И отчёт о визитах без заказа с их причинами.",
+          "Kunning GPS tahlili: agent nuqtaga qachon keldi, unda qancha turdi, kun davomida qancha yo'l bosdi va qaysi tashrif belgilari koordinatalar bilan tasdiqlanmadi. Hamda buyurtmasiz tashriflar hisoboti, sabablari bilan.",
         ),
       },
       {

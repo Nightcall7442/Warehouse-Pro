@@ -55,7 +55,7 @@ export default function HeroSection() {
   const { lang } = useLang();
 
   const rows: Array<{ t: string; title: string; note: string; value: string; tone: keyof typeof TONE }> = [
-    { t: "07:30", title: tr("Рейс собран", "Reys yig'ildi"), note: tr("18 точек, маршрут в телефоне агента", "18 nuqta, marshrut agent telefonida"), value: "18", tone: "neutral" },
+    { t: "07:30", title: tr("Рейс собран", "Reys yig'ildi"), note: tr("18 точек, доставки в телефоне курьера", "18 nuqta, yetkazishlar kuryer telefonida"), value: "18", tone: "neutral" },
     { t: "09:15", title: tr("Доставлено", "Yetkazildi"), note: tr("первые четыре точки, оплата наличными", "birinchi to'rt nuqta, naqd to'lov"), value: "24 / 24", tone: "good" },
     { t: "11:40", title: tr("Частичная приёмка", "Qisman qabul"), note: tr("магазин принял 80 из 100, остаток — на склад", "do'kon 100 dan 80 qabul qildi, qolgani — omborga"), value: "80 / 100", tone: "warn" },
     { t: "14:05", title: tr("Нет связи", "Aloqa yo'q"), note: tr("заказ сохранён в телефоне, уйдёт при сети", "buyurtma telefonda saqlandi, tarmoqda jo'naydi"), value: tr("в очереди", "navbatda"), tone: "neutral" },
@@ -178,8 +178,8 @@ export default function HeroSection() {
 
             <p data-hero-step="1" className="mt-7 lg:mt-8 text-[18px] lg:text-[20px]" style={{ lineHeight: 1.5, maxWidth: 520, color: LX.inkSoft }}>
               {tr(
-                "Один источник данных для директора, склада, агентов и курьеров — вместо тетрадей, Excel и звонков «где машина?».",
-                "Direktor, ombor, agentlar va kuryerlar uchun yagona manba — daftar, Excel va «mashina qayerda?» qo'ng'iroqlari o'rniga.",
+                "Один источник данных для директора, склада, агентов и курьеров — вместо тетрадей, Excel и звонков «довезли или нет?».",
+                "Direktor, ombor, agentlar va kuryerlar uchun yagona manba — daftar, Excel va «yetkazdingmi?» qo'ng'iroqlari o'rniga.",
               )}
             </p>
 

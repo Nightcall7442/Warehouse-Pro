@@ -106,18 +106,21 @@ export default function MarketSection() {
       </div>
 
       {/*
-        Функции — наравне, задумка — своя, пробелы — названы. Отдельно от
-        «Альтернатив»: там — что такое чужие продукты, здесь — что умеем мы.
+        Основа — своя и проверяемая, задумка — своя, пробелы — названы.
+        Отдельно от «Альтернатив»: там — что такое чужие продукты, здесь — что
+        умеем мы. «Наравне со Smartup и Sales Doctor» здесь больше не пишем:
+        их систем изнутри мы не видели, а у них публично есть то, чего нет у
+        нас (маркировка, счёт-фактура напрямую) — то же правило, что у /compare.
       */}
       <div data-testid="pitch-parity" style={{ marginTop: 64 }}>
         <div className="grid lg:grid-cols-12" style={{ gap: "16px 64px", alignItems: "end" }}>
           <h3 className="lg:col-span-6" style={{ margin: 0, fontSize: "clamp(24px, 3vw, 34px)", fontWeight: 800, letterSpacing: "-0.03em", lineHeight: 1.15 }}>
-            {tr("Funksiyalar bo'yicha — Smartup va Sales Doctor bilan bir qatorda", "По функциям — наравне со Smartup и Sales Doctor")}
+            {tr("Asos allaqachon mahsulotda: buyurtmadan agent ish haqigacha", "Основа уже в продукте: от заказа до зарплаты агента")}
           </h3>
           <p className="lg:col-span-6" style={{ margin: 0, fontSize: 15.5, lineHeight: 1.6, color: "var(--soft)", maxWidth: "58ch" }}>
             {tr(
-              "Distribyutorning asosiy jarayonlari to'liq qamrab olingan — har bir band ishlab turgan funksiya, demoda tekshirish mumkin. Ustiga — o'zimiz o'ylab topgan yechimlar.",
-              "Основные процессы дистрибьютора закрыты полностью — каждый пункт работающая функция, её можно проверить в демо. Сверху — решения, которые мы придумали сами.",
+              "Quyida — distribyutorning asosiy jarayonlari, Smartup va Sales Doctor hal qiladigan vazifalar doirasi. Har bir band ishlab turgan funksiyaga tayanadi, ko'pini demoda sinab ko'rish mumkin. Ularning ustiga — o'zimiz o'ylab topgan yechimlar.",
+              "Ниже — основные процессы дистрибьютора, тот же круг задач, что решают Smartup и Sales Doctor. Каждый пункт стоит на работающей функции, большую часть можно попробовать в демо. А поверх них — решения, которые мы придумали сами.",
             )}
           </p>
         </div>

@@ -183,7 +183,7 @@ function StepInvite({ onFinish }: { onFinish: () => void }) {
           {t("ШАГ 3 ИЗ 3", "3 QADAMDAN 3-CHI")}
         </p>
         <h2 className="font-display text-2xl text-primary">{t("Пригласите первого агента", "Birinchi agentni taklif qiling")}</h2>
-        <p className="text-sm text-secondary mt-1.5">{t("Агент сразу получит доступ к мобильному приложению", "Agent mobil ilovaga darhol kirish huquqini oladi")}</p>
+        <p className="text-sm text-secondary mt-1.5">{t("По ссылке из письма агент задаст пароль и сможет войти в приложение", "Xatdagi havola orqali agent parol o'rnatadi va ilovaga kira oladi")}</p>
       </div>
       <div className="space-y-3">
         <div>

@@ -110,7 +110,7 @@ export default function TrackingSection() {
           />
           <ul className="mt-8 space-y-4">
             {[
-              tr("Живая карта и след маршрута за день, неделю, месяц", "Jonli xarita va kun, hafta, oy bo'yicha yo'nalish izi"),
+              tr("Живая карта и след маршрута за сегодня; за последние 90 дней — пробег и разбор каждого визита по времени", "Jonli xarita va bugungi yo'nalish izi; oxirgi 90 kun uchun — bosib o'tilgan yo'l va har bir tashrifning vaqt bo'yicha tahlili"),
               tr("Автопробег в километрах — с телефона агента, не со слов", "Avtomatik yurish masofasi kilometrda — agent telefonidan, so'zdan emas"),
               tr("Заряд телефона каждого: разряжен — значит, точки перестанут приходить", "Har birining telefon quvvati: quvvat tugasa — nuqtalar kelmay qoladi"),
               tr("Визиты: был в точке, проехал мимо или ушёл без заказа — видно всё", "Tashriflar: nuqtada bo'ldi, o'tib ketdi yoki buyurtmasiz ketdi — hammasi ko'rinadi"),
@@ -141,7 +141,7 @@ export default function TrackingSection() {
             поверх — маршруты трёх агентов, бегущие точки и зажигающиеся визиты.
           */}
           <div className="relative overflow-hidden" style={{ borderRadius: 12, aspectRatio: MAP_CROP_ASPECT, border: `1px solid ${LX.ruleOnInk}` }}>
-            <img src={mapCrop(lang)} alt={tr("Карта слежения: агенты и курьеры на карте", "Nazorat xaritasi: xaritadagi agentlar va kuryerlar")} loading="lazy" decoding="async" className="absolute inset-0 w-full h-full" style={{ objectFit: "cover" }} />
+            <img src={mapCrop(lang)} alt={tr("Карта слежения: агенты и магазины на карте", "Nazorat xaritasi: xaritadagi agentlar va do'konlar")} loading="lazy" decoding="async" className="absolute inset-0 w-full h-full" style={{ objectFit: "cover" }} />
             <svg viewBox="0 0 1400 1220" preserveAspectRatio="xMidYMid slice" className="absolute inset-0 w-full h-full" aria-hidden="true">
               {agents.map((a, i) => (
                 <g key={a.name}>
