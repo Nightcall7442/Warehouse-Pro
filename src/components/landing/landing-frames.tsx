@@ -68,7 +68,7 @@ export function Browser({
             <span key={i} className="w-2 h-2 rounded-full" style={{ background: dark ? LX.faintOnInk : LX.ruleStrong }} />
           ))}
         </span>
-        <span className="text-[10.5px]" style={{ ...MONO, color: dark ? LX.softOnInk : LX.inkFaint, letterSpacing: "0.02em" }}>app.warehouse-pro.uz</span>
+        <span className="text-[10.5px]" style={{ ...MONO, color: dark ? LX.softOnInk : LX.inkFaint, letterSpacing: "0.02em" }}>www.warehouse-pro.uz</span>
       </div>
       <div className="relative" style={{ aspectRatio: aspect ?? (content ? WEB_CONTENT_ASPECT : WEB_ASPECT), background: dark ? LX.ink : LX.appCanvas }}>
         {shot && (

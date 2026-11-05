@@ -29,8 +29,8 @@ export function UsageSection({ usage, limits, extra, t }: UsageSectionProps) {
         used={usage.users}
         max={limits.maxUsers}
         label={t("Пользователи", "Foydalanuvchilar")}
-        atLimit={t("На пределе новых сотрудников не добавить — сначала тариф выше.",
-          "Limitda yangi xodim qo'shib bo'lmaydi — avval yuqori tarif.")}
+        atLimit={t("На пределе новых сотрудников не добавить — докупите места или перейдите на «Стандарт».",
+          "Limitda yangi xodim qo'shib bo'lmaydi — joy sotib oling yoki «Standart»ga o'ting.")}
         noLimit={t("Без ограничения по числу сотрудников", "Xodimlar soni cheklanmagan")}
         note={extra && extra.users > 0
           ? t(`включая ${extra.users} докупленных сверх тарифа`, `tarifdan tashqari ${extra.users} ta qo'shilgan`)

@@ -159,13 +159,13 @@ export const FEATURES: Record<FeatureKey, { ru: string; uz: string; enforced: bo
   reportsBasic:    { ru: "Базовые отчёты",                          uz: "Asosiy hisobotlar",                            enforced: false },
   supportEmail:    { ru: "Поддержка по почте",                      uz: "Pochta orqali yordam",                         enforced: false },
 
-  gps:             { ru: "GPS-контроль агентов и курьеров",         uz: "Agentlar va kuryerlar GPS nazorati",           enforced: false },
+  gps:             { ru: "GPS-контроль агентов и мерчендайзеров",   uz: "Agentlar va merchandayzerlar GPS nazorati",    enforced: false },
   onec:            { ru: "Двусторонний обмен с 1С",                 uz: "1C bilan ikki tomonlama almashinuv",           enforced: false },
   analytics:       { ru: "Полная аналитика: прибыль, KPI, долги",   uz: "To'liq tahlil: foyda, KPI, qarzlar",           enforced: false },
   supportPriority: { ru: "Приоритетная поддержка",                  uz: "Ustuvor yordam",                               enforced: false },
 
   supportChat:     { ru: "Чат с поддержкой прямо в системе",        uz: "Tizim ichida qo'llab-quvvatlash chati",        enforced: true  },
-  api:             { ru: "Доступ по API",                           uz: "API orqali kirish",                            enforced: true  },
+  api:             { ru: "API на чтение: заказы, товары, остатки, магазины", uz: "O'qish uchun API: buyurtmalar, mahsulotlar, qoldiqlar, do'konlar", enforced: true  },
   whiteLabel:      { ru: "Оформление под свой бренд",               uz: "O'z brendi ostida rasmiylashtirish",           enforced: false },
   dataMigration:   { ru: "Перенос данных из Excel и 1С",            uz: "Excel va 1C dan ma'lumot ko'chirish",          enforced: false },
   dedicatedServer: { ru: "Выделенный сервер",                       uz: "Ajratilgan server",                            enforced: false },

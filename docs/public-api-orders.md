@@ -143,8 +143,10 @@ Date filters apply to **`created_at`** (and `updated_at` for `updated_since`).
 
 ### 2.4 Response
 
-Every response — including refusals — carries `X-Warehouse-Environment`
-(`production` or `sandbox`).
+Every response that gets past the key check — including refusals such as `400`,
+`404`, `405` and a `403` for a missing scope — carries `X-Warehouse-Environment`
+(`production` or `sandbox`). The refusals issued before that point (`401`, `403`
+for the key, organisation or plan, `402` and `429`) come without it.
 
 ```json
 {
@@ -221,8 +223,10 @@ that carry the field. We do not fill it with `delivered_at` or `created_at + N`
 — §17-G forbids the guess, and an invented promise would become an invented
 missed delivery in your report.
 
-Once an order is closed (`delivered`, `cancelled`, `returned`) the promise can
-no longer be changed, so a late delivery cannot be tidied away afterwards.
+Once an order is closed (`delivered`, `cancelled`, `returned`), the order card in
+the web and mobile apps stops offering to move the promise, and the date-change
+request it sends is refused for closed orders, for the agent and the office
+alike.
 
 ### `warehouse_id`
 
@@ -284,7 +288,10 @@ new ──▶ processing ──▶ shipped ──▶ delivered
                               delivered ──▶ returned
 ```
 
-`pending` is a holding state used when an order waits on the customer.
+`pending` is a holding state: the order waits for the office to confirm or
+cancel it — for example because a field employee gave a discount above the
+company's threshold, or because the shop has an overdue debt and the company has
+turned on the overdue-debt hold. Stock stays reserved for the order meanwhile.
 A delivered order can be reopened for correction; it then re-enters the flow
 and its `created_at` moves to the day of reopening — which is why paging is
 ordered by id.
@@ -336,7 +343,8 @@ reconciliation checks below pass.
 
 ## 8. What we log on our side
 
-Every call to `GET /orders` is recorded for 30 days: the moment, the mode, the
+Every call to `GET /orders` that gets past the access checks (key, organisation,
+plan, subscription, rate limit) and does not fail with a `5xx` is recorded for 30 days: the moment, the mode, the
 cursor you sent, the cursor we returned, the HTTP status, the number of rows and
 the reconciliation totals of that response.
 

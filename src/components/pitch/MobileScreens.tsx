@@ -18,8 +18,8 @@ export function MobileScreens() {
       kicker={tr("Yechim · mobil ilova", "Решение · мобильное приложение")}
       title={tr("Agent, kuryer va supervayzer — telefonda", "Агент, курьер и супервайзер — в телефоне")}
       lead={tr(
-        "iOS va Android uchun ilova: buyurtma, tashrif, qarz va xarita. Internet yo'qolsa ham ishlaydi — ma'lumot telefonda saqlanadi va aloqa tiklanganda o'zi jo'natiladi.",
-        "Приложение для iOS и Android: заказ, визит, долг и карта. Работает и без интернета — данные сохраняются на телефоне и уходят сами, когда связь вернётся.",
+        "Android uchun ilova: buyurtma, tashrif, qarzlar va xarita. Internet yo'qolsa ham ishlaydi — ma'lumot telefonda saqlanadi va aloqa tiklanganda o'zi jo'natiladi. iPhone versiyasi App Store'ga chiqishga tayyorlanmoqda.",
+        "Приложение для Android: заказ, визит, долги и карта. Работает и без интернета — данные сохраняются на телефоне и уходят сами, когда связь вернётся. Версия для iPhone готовится к выходу в App Store.",
       )}
       band
     >

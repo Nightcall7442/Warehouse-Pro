@@ -295,7 +295,10 @@ export default function Register() {
             </button>
 
             <p className="text-xs text-center" style={{ color: "var(--color-text-tertiary, #6b6760)" }}>
-              {tr("Нажимая «Зарегистрироваться», вы соглашаетесь с условиями", "«Ro'yxatdan o'tish» tugmasini bosish orqali siz shartlarga rozilik bildirasiz")}
+              {/* Здесь стояло «…с условиями» без ссылки: страницы условий нет, есть только /privacy. */}
+              {tr("Нажимая «Зарегистрироваться», вы соглашаетесь с ", "«Ro'yxatdan o'tish» tugmasini bosish orqali siz ")}
+              <Link to="/privacy" className="underline">{tr("политикой конфиденциальности", "maxfiylik siyosatiga")}</Link>
+              {tr("", " rozilik bildirasiz")}
             </p>
           </form>
         </div>

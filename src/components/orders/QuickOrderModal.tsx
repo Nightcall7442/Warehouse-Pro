@@ -9,6 +9,7 @@ import { notify } from "@/lib/toast";
 import { useTranslate } from "@/i18n";
 import { useShopSearch, SHOP_PICK_LIMIT, type PickedShop } from "@/hooks/useShopSearch";
 import { useCurrency } from "@/hooks/useCurrency";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { colorMix } from "@/lib/color-mix";
 import { priceAt } from "@contracts/price-tiers";
 import { holdReasonText } from "@contracts/hold-reason";
@@ -155,7 +156,19 @@ export function QuickOrderModal({ open, onOpenChange, preselectedShopId, initial
   const { shops: filteredShops, more: moreShops } = useShopSearch(shopSearch, { enabled: open, pinned: pickedShop });
   const priceLists = trpc.priceList.forShop.useQuery({ shopId: shopId ?? 0 }, { enabled: open && !!shopId });
   const effectivePriceListId = priceListId === undefined ? (priceLists.data?.current?.id ?? null) : priceListId;
-  const { data: productsData } = trpc.product.listAll.useQuery({ search: productSearch || undefined, shopId, priceListId: effectivePriceListId });
+  /*
+    Каталог — только у открытого окна, и поиском после паузы, а не на каждую букву.
+
+    Окно стоит на странице «Заказы» всегда, и закрытое тянуло весь каталог
+    (до 10 000 товаров с ценами по спискам) при каждом заходе. Тот же запрос
+    шёл в одной пачке со списком заказов, и таблица ждала каталог, которого
+    никто не открывал (аудит медленной работы 20.10.2026).
+  */
+  const productQuery = useDebouncedValue(productSearch);
+  const { data: productsData } = trpc.product.listAll.useQuery(
+    { search: productQuery || undefined, shopId, priceListId: effectivePriceListId },
+    { enabled: open },
+  );
   // Корзина переценивается вслед за списком на отрисовке: цены — из того же
   // ответа, что и каталог; в заказ уходят только товар и количество.
   // Цена — по ступени количества строки («от 10 — 8500»), тем же priceAt,

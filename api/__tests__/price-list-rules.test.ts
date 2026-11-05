@@ -40,7 +40,8 @@ describe("заказ спрашивает прайс-лист", () => {
     const q = read("src/components/orders/QuickOrderModal.tsx");
     expect(q).toContain('data-testid="quick-order-price-list"');
     expect(q).toContain("trpc.priceList.forShop.useQuery({ shopId: shopId ?? 0 }");
-    expect(q).toContain("trpc.product.listAll.useQuery({ search: productSearch || undefined, shopId, priceListId: effectivePriceListId })");
+    // Каталог — по списку заказа (поиск — после паузы, только у открытого окна).
+    expect(q).toContain("{ search: productQuery || undefined, shopId, priceListId: effectivePriceListId }");
     expect(q).toContain("priceListId: effectivePriceListId,");
     expect(q).toContain('label: t("По карточке товара"');
   });

@@ -177,6 +177,41 @@ export function commissionOf(
 }
 
 /**
+ * Комиссия агента за период — ОДНА формула на весь продукт.
+ *
+ * Её зовут и экран зарплаты (services/kpi.ts, calculateSalary), и
+ * «Рассчитать» (commission-router.ts, calculate). Обе пишут в одну и ту же
+ * строку комиссии, и раньше считали её по-разному: экран — по ставкам
+ * товаров, «Рассчитать» — одним процентом человека на всё. Финансист
+ * утверждал то, что посчиталось последним (аудит 19.10.2026).
+ *
+ * `rates` можно передать готовыми, когда считают сразу многих: ставки — на
+ * организацию, а не на человека. Ставок нет — разложение не нужно вовсе, и
+ * выходит ровно salesAmount × defaultRate / 100.
+ */
+export async function agentCommission(
+  db: Db,
+  tenantId: number,
+  agentId: number,
+  periodStart: Date,
+  periodEnd: Date,
+  salesAmount: number,
+  defaultRate: number,
+  rates?: Map<number, number>,
+): Promise<{ commissionAmount: number; productRateCount: number }> {
+  const r = rates ?? await productRates(db, tenantId);
+  const byProduct = r.size === 0
+    // Ставок нет вовсе — раскладывать незачем: два запроса к order_items и
+    // return_items на каждого человека за ответ, который и так известен.
+    ? new Map<number, number>()
+    : await salesByProduct(db, tenantId, agentId, periodStart, periodEnd, salesAmount);
+  return {
+    commissionAmount: commissionOf(byProduct, r, defaultRate, salesAmount),
+    productRateCount: overridesUsed(byProduct, r),
+  };
+}
+
+/**
  * Сколько строк ставок стоит у товаров, участвовавших в продажах агента.
  *
  * Нужно экрану, чтобы объяснить, откуда взялась сумма: «процент 5%, но по

@@ -182,8 +182,8 @@ function Players() {
       kicker={tr("Bozorda kim bor", "Кто на рынке")}
       title={tr("Yana kimlar bor", "Кто ещё есть на рынке")}
       lead={tr(
-        `Faqat ochiq ma'lumotlar (${CHECKED_AT} da tekshirilgan). Biror narsa eskirgan yoki noaniq bo'lsa — yozing, o'sha kuni tuzatamiz.`,
-        `Только публичные сведения (сверено ${CHECKED_AT}). Если что-то устарело или неточно — напишите, исправим в тот же день.`,
+        `Faqat ochiq ma'lumotlar (${CHECKED_AT} da tekshirilgan). Biror narsa eskirgan yoki noaniq bo'lsa — yozing, tuzatamiz.`,
+        `Только публичные сведения (сверено ${CHECKED_AT}). Если что-то устарело или неточно — напишите, исправим.`,
       )}
       band
       testId="compare-players"
