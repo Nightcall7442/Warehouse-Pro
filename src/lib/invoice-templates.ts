@@ -420,10 +420,18 @@ function copyLabel(i: 0 | 1): string {
 }
 
 /**
- * Один заказ — один лист. Два экземпляра одной накладной друг под другом
- * (отрез между ними) или рядом на альбомном листе, как у образца владельца;
- * следующий заказ — с новой страницы. Сплошная лента невозможна: экспедитор
- * режет лист у магазина, и половина от соседнего заказа ушла бы не в те руки.
+ * Два экземпляра одной накладной друг под другом (отрез между ними) или рядом
+ * на альбомном листе, как у образца владельца.
+ *
+ * По умолчанию следующий заказ — с новой страницы: экспедитор режет лист у
+ * магазина, и половина от соседнего заказа ушла бы не в те руки.
+ *
+ * С «Несколько заказов на листе» (packOrders) заказы идут подряд, между ними
+ * та же линия отреза. Заказ целиком — оба экземпляра — держится на одном
+ * листе (page-break-inside:avoid на обёртке); не влезает остаток листа —
+ * переходит на следующий. Чужая половина на руках у экспедитора не окажется:
+ * каждый заказ — отдельная полоса между линиями отреза, режется заранее.
+ * Арендатор (16.11.2026): «одна накладная на один лист — трата бумаги».
  */
 export function composeInvoicePages(copies: string[], opts: InvoiceOptions, footerNote?: string): string {
   const pages = copies.map(body => {
@@ -435,13 +443,14 @@ export function composeInvoicePages(copies: string[], opts: InvoiceOptions, foot
         <div style="flex:1;min-width:0">${copyLabel(1)}${body}</div>
       </div>`;
     }
-    return `<div class="invoice-container">
+    return `<div class="invoice-container"${opts.packOrders ? ' style="page-break-inside:avoid"' : ""}>
     <div style="page-break-inside:avoid">${copyLabel(0)}${body}</div>
     ${CUT_LINE}
     <div style="page-break-inside:avoid">${copyLabel(1)}${body}</div></div>`;
   });
   const note = (footerNote ?? "").trim();
-  return pages.join('<div style="page-break-before:always"></div>')
+  const between = opts.packOrders ? CUT_LINE : '<div style="page-break-before:always"></div>';
+  return pages.join(between)
     + (note ? `<p style="margin-top:12px;font-size:9pt;color:#555">${escapeHtml(note)}</p>` : "");
 }
 

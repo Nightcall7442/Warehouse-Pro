@@ -25,6 +25,13 @@ export interface InvoiceOptions {
   copies: 1 | 2;
   /** Два экземпляра: друг под другом (портрет) или рядом (альбомный лист, как у образца). */
   copiesLayout: "stack" | "side";
+  /**
+   * Несколько заказов на одном листе. Выключено — каждый заказ с нового листа;
+   * включено — заказы идут подряд, между ними линия отреза, а сам заказ (оба
+   * его экземпляра) не рвётся между листами: маленькие накладные не тратят
+   * по листу на штуку (жалоба арендатора, 16.11.2026).
+   */
+  packOrders: boolean;
   showShopPhone: boolean;
   showShopAddress: boolean;
   showAgent: boolean;
@@ -46,7 +53,7 @@ export interface InvoiceOptions {
 }
 
 export const INVOICE_OPTION_KEYS = [
-  "logo", "copies", "copiesLayout", "showShopPhone", "showShopAddress", "showAgent", "showAgentPhone", "showCourier",
+  "logo", "copies", "copiesLayout", "packOrders", "showShopPhone", "showShopAddress", "showAgent", "showAgentPhone", "showCourier",
   "showProductCode", "showUnit", "showDiscount", "showDebt", "showBarcode", "showPaymentMethod", "showSignatures",
   "showNotes", "showPrintedAt", "fontSize",
 ] as const satisfies readonly (keyof InvoiceOptions)[];
@@ -54,21 +61,21 @@ export const INVOICE_OPTION_KEYS = [
 export const INVOICE_DEFAULTS: Record<InvoiceTemplateId, InvoiceOptions> = {
   // Как печаталось до 19.09.2026: реквизиты, Times, два экземпляра друг под другом.
   classic: {
-    logo: "none", copies: 2, copiesLayout: "stack",
+    logo: "none", copies: 2, copiesLayout: "stack", packOrders: false,
     showShopPhone: false, showShopAddress: true, showAgent: false, showAgentPhone: false, showCourier: false,
     showProductCode: true, showUnit: true, showDiscount: true, showDebt: false, showBarcode: false,
     showPaymentMethod: false, showSignatures: true, showNotes: true, showPrintedAt: false, fontSize: "normal",
   },
   // Образец владельца: половина листа, телефон магазина и агента, знак Warehouse Pro.
   compact: {
-    logo: "warehouse-pro", copies: 2, copiesLayout: "side",
+    logo: "warehouse-pro", copies: 2, copiesLayout: "side", packOrders: false,
     showShopPhone: true, showShopAddress: true, showAgent: true, showAgentPhone: true, showCourier: false,
     showProductCode: true, showUnit: false, showDiscount: true, showDebt: false, showBarcode: false,
     showPaymentMethod: true, showSignatures: true, showNotes: false, showPrintedAt: true, fontSize: "small",
   },
   // Пакетная печать из «Заказов»: долг магазина, штрих-код, примечания.
   detailed: {
-    logo: "none", copies: 2, copiesLayout: "stack",
+    logo: "none", copies: 2, copiesLayout: "stack", packOrders: false,
     showShopPhone: true, showShopAddress: true, showAgent: true, showAgentPhone: false, showCourier: false,
     showProductCode: true, showUnit: true, showDiscount: true, showDebt: true, showBarcode: true,
     showPaymentMethod: true, showSignatures: true, showNotes: true, showPrintedAt: false, fontSize: "normal",
