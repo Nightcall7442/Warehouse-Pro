@@ -145,6 +145,14 @@ export function InvoiceSettings() {
               </div>
             )}
             <div>
+              <p className="text-[13px] font-medium text-secondary mb-1.5">{t("Заказов на листе", "Varaqdagi buyurtmalar")}</p>
+              <Segmented<"one" | "many"> value={opts.packOrders ? "many" : "one"} onChange={v => set("packOrders", v === "many")} ariaLabel={t("Заказов на листе", "Varaqdagi buyurtmalar")}
+                options={[{ value: "one", label: t("Один", "Bitta") }, { value: "many", label: t("Сколько влезет", "Sig'ganicha") }]} />
+              <p className="text-xs text-tertiary mt-1.5">{opts.packOrders
+                ? t("Заказы идут подряд, между ними линия отреза. Заказ не рвётся между листами — не влез, переходит на следующий. Экономит бумагу на маленьких накладных.", "Buyurtmalar ketma-ket, orasida kesish chizig'i. Buyurtma varaqlar orasida bo'linmaydi — sig'masa, keyingisiga o'tadi. Kichik yuk xatlarida qog'oz tejaladi.")
+                : t("Каждый заказ — с нового листа.", "Har bir buyurtma — yangi varaqdan.")}</p>
+            </div>
+            <div>
               <p className="text-[13px] font-medium text-secondary mb-1.5">{t("Размер шрифта", "Shrift o'lchami")}</p>
               <Segmented<InvoiceOptions["fontSize"]> value={opts.fontSize} onChange={v => set("fontSize", v)} ariaLabel={t("Шрифт", "Shrift")}
                 options={[{ value: "small", label: t("Мелкий", "Mayda") }, { value: "normal", label: t("Обычный", "Oddiy") }]} />

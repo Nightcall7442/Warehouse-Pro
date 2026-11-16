@@ -80,6 +80,7 @@ const brandingInput = z.object({
     logo: z.enum(["none", "company", "warehouse-pro"]),
     copies: z.union([z.literal(1), z.literal(2)]),
     copiesLayout: z.enum(["stack", "side"]),
+    packOrders: z.boolean(),
     showShopPhone: z.boolean(), showShopAddress: z.boolean(), showAgent: z.boolean(), showAgentPhone: z.boolean(),
     showCourier: z.boolean(), showProductCode: z.boolean(), showUnit: z.boolean(), showDiscount: z.boolean(),
     showDebt: z.boolean(), showBarcode: z.boolean(), showPaymentMethod: z.boolean(), showSignatures: z.boolean(),

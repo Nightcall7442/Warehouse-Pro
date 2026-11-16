@@ -99,6 +99,26 @@ describe("накладная в двух экземплярах", () => {
     expect(t.lastIndexOf("ORD-001")).toBeLessThan(t.indexOf("ORD-002"));
   });
 
+  it("«Сколько влезет»: заказы подряд через линию отреза, заказ целиком не рвётся", () => {
+    printBatchInvoices(batch, {} as never, COMPANY, "сум", "simple", "detailed", { packOrders: true });
+    const t = text();
+    expect(count(t, "Накладная № ORD-001")).toBe(2);
+    expect(count(t, "Накладная № ORD-002")).toBe(2);
+    // Принудительного разрыва между заказами нет — лист добирается следующим заказом.
+    expect(count(written, "page-break-before:always")).toBe(0);
+    // Отрез между экземплярами каждого заказа и ещё один — между заказами.
+    expect(count(written, "линия отреза")).toBe(3);
+    // Обёртка заказа держит оба экземпляра на одном листе.
+    expect(written).toContain('<div class="invoice-container" style="page-break-inside:avoid">');
+    expect(t.lastIndexOf("ORD-001")).toBeLessThan(t.indexOf("ORD-002"));
+  });
+
+  it("один экземпляр и «Сколько влезет»: накладные подряд, каждая отрезается", () => {
+    printBatchInvoices(batch, {} as never, COMPANY, "сум", "simple", "detailed", { packOrders: true, copies: 1 });
+    expect(count(written, "page-break-before:always")).toBe(0);
+    expect(count(written, "линия отреза")).toBe(1);
+  });
+
   it("ТТН — тоже в двух экземплярах", () => {
     printBatchInvoices([batch[0]], {} as never, COMPANY, "сум", "ttn");
     const t = text();
