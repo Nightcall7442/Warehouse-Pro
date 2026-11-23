@@ -278,6 +278,7 @@ export const SERVER_ERROR_TEXT: Record<string, ErrorText> = {
   "«{0}»: на складе {1}, а в заказе {2}": { uz: "«{0}»: omborda {1}, buyurtmada esa {2}" },
   "Кредитный лимит магазина «{0}» {1} превышен: долг {2} + заказ {3}. Примите оплату или попросите офис поднять лимит.": { uz: "«{0}» do'konining kredit limiti {1} oshib ketdi: qarz {2} + buyurtma {3}. To'lovni qabul qiling yoki ofisdan limitni oshirishni so'rang." },
   "Кредитный лимит магазина «{0}» {1} превышен: после правки долг {2}. Примите оплату или попросите офис поднять лимит.": { uz: "«{0}» do'konining kredit limiti {1} oshib ketdi: tuzatishdan keyin qarz {2}. To'lovni qabul qiling yoki ofisdan limitni oshirishni so'rang." },
+  "Этот прайс-лист не привязан к магазину — оформите заказ по прайс-листу магазина или попросите офис привязать нужный": { uz: "Bu narxlar ro'yxati do'konga biriktirilmagan — buyurtmani do'kon narxlar ro'yxati bo'yicha rasmiylashtiring yoki ofisdan keraklisini biriktirishni so'rang" },
   // Правка состава заказа (services/order-items.ts).
   "Одна и та же позиция указана в правке дважды — пришлите каждую строку один раз": { uz: "Bitta pozitsiya tuzatishda ikki marta ko'rsatilgan — har bir qatorni bir marta yuboring" },
   "Один и тот же товар добавлен в правке дважды — укажите его одной строкой": { uz: "Bitta mahsulot tuzatishda ikki marta qo'shilgan — uni bitta qator bilan ko'rsating" },

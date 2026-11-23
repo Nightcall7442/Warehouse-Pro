@@ -455,6 +455,8 @@ export const orderRouter = createRouter({
             Проверка — в службе, под замком строки магазина.
           */
           checkOverdueDebt: !["ceo", "operator"].includes(ctx.user.role),
+          // Прайс-лист полевому — только магазина; офис выбирает любой.
+          shopPriceListsOnly: !["ceo", "operator"].includes(ctx.user.role),
         });
         // Итоговая причина — от службы: к скидке могла добавиться просрочка.
         const heldFor = "holdReason" in created ? created.holdReason : null;
