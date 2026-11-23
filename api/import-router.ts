@@ -4,10 +4,12 @@ import { existingSpelling } from "./lib/category";
 import { TRPCError } from "@trpc/server";
 import { createRouter, operatorQuery, can } from "./middleware";
 import { getDb } from "./queries/connection";
-import { products, shops, warehouses, territories } from "@db/schema";
+import { products, shops, warehouses, territories, payments } from "@db/schema";
 import { eq, and, sql } from "drizzle-orm";
 import { cache } from "./lib/cache";
 import { recordStockMovement, setStock } from "./services/stock-ledger";
+import { recalcShopDebt } from "./services/shop-debt";
+import { parseImportNumber } from "./lib/import-number";
 import { isSafePhotoValue } from "./lib/photo-value";
 import { zipDeclaredSize } from "./lib/zip-declared-size";
 // Type-only: exceljs itself stays behind the dynamic imports below so it never
@@ -154,6 +156,30 @@ function parseRow(cells: CellValue[], colMap: Record<string, number>): ParsedRow
   return row;
 }
 
+/**
+ * Неотрицательное число из ячейки: пусто — `fallback`, неразборчиво или
+ * меньше нуля — ошибка с названием колонки (lib/import-number.ts).
+ */
+function importAmount(raw: CellValue | undefined, label: string, fallback: number): number | Error {
+  const n = parseImportNumber(raw);
+  if (n === undefined) return fallback;
+  if (n === null) return new Error(`${label}: «${String(raw)}» — не число`);
+  if (n < 0) return new Error(`${label}: ${String(raw)} — не может быть меньше нуля`);
+  return n;
+}
+
+/** Ключи, по которым магазин из файла узнаётся среди уже заведённых. */
+function shopKeys(s: { name: string; phone?: string | null; address?: string | null; taxId?: string | null }): string[] {
+  const name = s.name.toLowerCase().replace(/\s+/g, " ").trim();
+  const phone = String(s.phone ?? "").replace(/\D/g, "").slice(-9);
+  const address = String(s.address ?? "").toLowerCase().replace(/\s+/g, " ").trim();
+  const keys: string[] = [];
+  if (s.taxId) keys.push(`inn:${s.taxId}`);
+  if (phone.length >= 7) keys.push(`np:${name}|${phone}`);
+  else keys.push(`na:${name}|${address}`);
+  return keys;
+}
+
 /*
   Пределы импорта. Файл — не больше 6 МБ (base64 ~8 МБ; прайс на десять
   тысяч строк весит сотни килобайт); xlsx перед разбором сверяется с
@@ -203,7 +229,12 @@ async function parseFile(base64: string, filename: string): Promise<{ headers: s
   }
 
   // CSV
-  // Proper CSV parser that handles quoted fields with commas inside
+  // Proper CSV parser that handles quoted fields with commas inside.
+  //
+  // Разделитель — по строке заголовков: Excel с русской или узбекской
+  // настройкой сохраняет CSV через «;» (запятая там — десятичная), и файл
+  // целиком читался одной колонкой — «нет названия» на каждой строке.
+  let delimiter = ",";
   function parseCsvLine(line: string): string[] {
     const result: string[] = [];
     let current = "";
@@ -217,7 +248,7 @@ async function parseFile(base64: string, filename: string): Promise<{ headers: s
         } else {
           inQuotes = !inQuotes;
         }
-      } else if (ch === "," && !inQuotes) {
+      } else if (ch === delimiter && !inQuotes) {
         result.push(current.trim());
         current = "";
       } else {
@@ -232,6 +263,8 @@ async function parseFile(base64: string, filename: string): Promise<{ headers: s
   const lines = decoded.replace(/\r\n/g, "\n").split("\n").filter(Boolean);
   if (lines.length === 0) throw new TRPCError({ code: "BAD_REQUEST", message: "Файл пуст" });
   const firstLine = lines[0].replace(/^\uFEFF/, "");
+  const count = (ch: string) => firstLine.split(ch).length - 1;
+  if (count(";") > count(",")) delimiter = ";";
   const headers = parseCsvLine(firstLine).map(h => h.replace(/^"|"$/g, ""));
   const rows = lines.slice(1).map(line => parseCsvLine(line).map(c => c.replace(/^"|"$/g, "")));
   if (rows.length > IMPORT_MAX_ROWS) throw new TRPCError({ code: "BAD_REQUEST", message: `Слишком много строк: ${rows.length}, предел ${IMPORT_MAX_ROWS}. Разбейте файл на части` });
@@ -427,16 +460,36 @@ export const importRouter = createRouter({
         const maxVal = Number(firstRow<{ maxCode: string | null }>(currentMax)?.maxCode ?? 0);
         if (maxVal > 0) nextCodeNum = maxVal + 1;
 
+        /*
+          Товар без кода узнаётся по названию.
+
+          Код ему выдаётся новый на каждой загрузке, поэтому уникальный индекс
+          по коду повтора не видит: тот же прайс без кодов, загруженный
+          второй раз, давал второй комплект тех же товаров с кодами 000037…
+          Товар с кодом стережёт сам индекс.
+        */
+        const nameKey = (n: string) => n.toLowerCase().replace(/\s+/g, " ").trim();
+        const knownNames = new Set((await db.select({ name: products.name }).from(products)
+          .where(eq(products.tenantId, tenantId))).map(p => nameKey(String(p.name))));
+
         for (let i = 0; i < dataRows.length; i++) {
           const rowNum = i + 2;
           const row = parseRow(dataRows[i], mapping);
           const name = String(row.name ?? "").trim();
           const rawCode = String(row.code ?? "").trim();
-          const code = rawCode || String(nextCodeNum++).padStart(6, "0");
           if (!name) { errors.push(`Строка ${rowNum}: нет названия`); continue; }
+          if (!rawCode) {
+            if (knownNames.has(nameKey(name))) { skipped.push(`Строка ${rowNum}: «${name}» — уже есть`); continue; }
+          }
+          const code = rawCode || String(nextCodeNum++).padStart(6, "0");
 
-          const rawPrice = String(row.unitPrice ?? "0").replace(/\s/g, "").replace(/[^\d.]/g, "");
-          const rawCost = String(row.costPrice ?? "0").replace(/\s/g, "").replace(/[^\d.]/g, "");
+          const price = importAmount(row.unitPrice, "Цена продажи", 0);
+          const cost = importAmount(row.costPrice, "Себестоимость", 0);
+          const weight = importAmount(row.unitWeight, "Вес", 0);
+          const reorder = importAmount(row.reorderPoint, "Точка заказа", 10);
+          const opening = importAmount(row.initialStock, "Начальный остаток", 0);
+          const numError = [price, cost, weight, reorder, opening].find((v): v is Error => v instanceof Error);
+          if (numError) { errors.push(`Строка ${rowNum}: ${numError.message}`); continue; }
           const validUnits = ["kg", "l", "pcs", "box", "pack", "m", "block"];
           const unitTranslations: Record<string, string> = {
             "шт": "pcs", "штук": "pcs", "дона": "pcs",
@@ -456,16 +509,17 @@ export const importRouter = createRouter({
           const taxError = [ikpu, packageCode, vatRate].find((v): v is Error => v instanceof Error);
           if (taxError) { errors.push(`Строка ${rowNum}: ${taxError.message}`); continue; }
 
+          if (!rawCode) knownNames.add(nameKey(name));
           parsedRows.push({
             rowNum, name, code,
             barcode: String(row.barcode ?? "").trim() || undefined,
             category: String(row.category ?? "").trim() || undefined,
-            costPrice: String(Number(rawCost) || 0),
-            unitPrice: String(Number(rawPrice) || 0),
+            costPrice: String(cost),
+            unitPrice: String(price),
             unit,
-            unitWeight: String(Number(String(row.unitWeight ?? "0").replace(/[^\d.]/g, "")) || 0),
-            reorderPoint: String(Number(row.reorderPoint ?? 10) || 10),
-            initialStock: String(Number(String(row.initialStock ?? "0").replace(/[^\d.]/g, "")) || 0),
+            unitWeight: String(weight),
+            reorderPoint: String(reorder),
+            initialStock: String(opening),
             description: String(row.description ?? "").trim() || undefined,
             /*
               В колонке «фото» чаще всего стоит имя файла («IMG_0042.jpg») или
@@ -625,7 +679,8 @@ export const importRouter = createRouter({
 
           const taxId = importTaxId(row.taxId);
           const vatPayer = importYesNo(row.vatPayer);
-          const taxError = [taxId, vatPayer].find((v): v is Error => v instanceof Error);
+          const debt = importAmount(row.debt, "Долг", 0);
+          const taxError = [taxId, vatPayer, debt].find((v): v is Error => v instanceof Error);
           if (taxError) { errors.push(`Строка ${rowNum}: ${taxError.message}`); continue; }
 
           // Resolve territory
@@ -649,7 +704,7 @@ export const importRouter = createRouter({
             city: String(row.city ?? "").trim() || undefined,
             district: districtName || undefined,
             address: String(row.address ?? "").trim() || undefined,
-            debt: String(Number(String(row.debt ?? "0").replace(/[^\d.]/g, "")) || 0),
+            debt: (debt as number).toFixed(2),
             gpsLat: row.gpsLat ? String(row.gpsLat) : undefined,
             gpsLng: row.gpsLng ? String(row.gpsLng) : undefined,
             territoryId,
@@ -671,52 +726,70 @@ export const importRouter = createRouter({
           }
         }
 
-        // Phase 3: Batch insert shops (chunks of 200)
+        /*
+          Phase 3: магазины — пачками по двести в одной транзакции, построчно.
+
+          ── Долг из файла — строкой журнала, а не числом на магазине ──────────
+          Стояло `debt: shop.debt` прямо в shops. Но долг магазина — не поле, а
+          итог: recalcShopDebt пересчитывает его с нуля по заказам и платежам
+          при первой же оплате или заказе, и импортированные 850 000 молча
+          становились нулём (бизнес-аудит 19.11.2026). Начальный долг —
+          запись «долг» без заказа, как ручное «новый долг»; долг на магазине
+          выводит из неё тот же пересчёт.
+
+          ── Повторная загрузка ────────────────────────────────────────────────
+          Уникального индекса по названию у магазинов нет, и тот же файл,
+          загруженный дважды, давал полный второй комплект магазинов — с
+          долгами. Магазин узнаётся по ИНН, иначе по названию с телефоном,
+          без телефона — по названию с адресом (shopKeys); узнанный
+          пропускается и называется в ответе.
+
+          Построчно, а не одной вставкой на пачку: у каждого магазина с долгом
+          нужен его id, а id пачки MySQL не обещает. Транзакция на пачку
+          держит коммит один на двести строк.
+        */
+        const known = new Set<string>();
+        for (const e of await db.select({ name: shops.name, phone: shops.phone, address: shops.address, taxId: shops.taxId })
+          .from(shops).where(eq(shops.tenantId, tenantId))) {
+          for (const k of shopKeys({ name: String(e.name), phone: e.phone, address: e.address, taxId: e.taxId })) known.add(k);
+        }
+
         const BATCH_SIZE = 200;
         for (let batch = 0; batch < parsedShops.length; batch += BATCH_SIZE) {
           const chunk = parsedShops.slice(batch, batch + BATCH_SIZE);
-          const values = chunk.map(shop => {
-            // Resolve territoryId from map (might have been created in phase 2)
-            let tid = shop.territoryId;
-            if (!tid && shop.district) {
-              tid = territoryMap.get(shop.district.toLowerCase());
-            }
-            return {
-              tenantId, name: shop.name,
-              ownerName: shop.ownerName, phone: shop.phone,
-              city: shop.city, district: shop.district,
-              address: shop.address, debt: shop.debt,
-              gpsLat: shop.gpsLat, gpsLng: shop.gpsLng,
-              territoryId: tid ?? null,
-              notes: shop.notes, status: "active" as const,
-              taxId: shop.taxId, vatPayer: shop.vatPayer,
-            };
-          });
-
-          try {
-            await db.insert(shops).values(values);
-            success += values.length;
-          } catch {
-            // Пакетная вставка не удалась — дальше пробуем построчно, и сама
-            // ошибка для этого не нужна: важен только факт неудачи.
+          await db.transaction(async (tx) => {
             for (const shop of chunk) {
+              const keys = shopKeys(shop);
+              if (keys.some(k => known.has(k))) {
+                skipped.push(`${shop.rowNum}: «${shop.name}» — уже есть`);
+                continue;
+              }
+              let tid = shop.territoryId;
+              if (!tid && shop.district) tid = territoryMap.get(shop.district.toLowerCase());
               try {
-                let tid = shop.territoryId;
-                if (!tid && shop.district) tid = territoryMap.get(shop.district.toLowerCase());
-                await db.insert(shops).values({
+                const [r] = await tx.insert(shops).values({
                   tenantId, name: shop.name, ownerName: shop.ownerName, phone: shop.phone,
-                  city: shop.city, district: shop.district, address: shop.address, debt: shop.debt,
+                  city: shop.city, district: shop.district, address: shop.address, debt: "0.00",
                   gpsLat: shop.gpsLat, gpsLng: shop.gpsLng, territoryId: tid ?? null,
                   notes: shop.notes, status: "active", taxId: shop.taxId, vatPayer: shop.vatPayer,
                 });
+                const shopId = Number(r.insertId);
+                if (Number(shop.debt) > 0) {
+                  await tx.insert(payments).values({
+                    tenantId, shopId, orderId: null, amount: shop.debt, type: "debt",
+                    notes: "Начальный долг (импорт)", createdBy: ctx.user.id,
+                  });
+                  await recalcShopDebt(tx, tenantId, shopId);
+                }
+                for (const k of keys) known.add(k);
                 success++;
               } catch (e: unknown) {
                 const msg = (e as { message?: string })?.message ?? "";
-                if (msg.includes("Duplicate")) skipped.push(`${shop.rowNum}: "${shop.name}" — дубликат`);
+                if (msg.includes("Duplicate")) skipped.push(`${shop.rowNum}: «${shop.name}» — дубликат`);
                 else errors.push(`${shop.rowNum}: ${msg.substring(0, 100)}`);
               }
             }
-          }
+          });
         }
       }
 
