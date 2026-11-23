@@ -13,6 +13,7 @@ import { rateRows, productRates, agentCommission } from "./services/commission-b
 import { businessDayStart, businessDayEnd } from "@contracts/business-time";
 import { invalidateReports } from "./lib/report-cache";
 import { carriedPayTerms } from "./services/pay-terms";
+import { commissionDay } from "./services/commission-day";
 import { recordAudit, auditActor } from "./services/audit-log";
 
 /**
@@ -269,8 +270,9 @@ export const commissionRouter = createRouter({
             eq(orders.agentId, agent.userId),
             inArray(orders.status, REVENUE_ORDER_STATUSES),
             isNull(orders.deletedAt),
-            sinceDay(orders.createdAt, fromDay),
-            untilDay(orders.createdAt, toDay),
+            // По дню первой доставки (services/commission-day.ts), а не оформления.
+            sinceDay(commissionDay, fromDay),
+            untilDay(commissionDay, toDay),
           ));
 
           /*

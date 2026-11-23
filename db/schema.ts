@@ -487,6 +487,13 @@ export const orders = mysqlTable("orders", {
     прогноз спроса — считает текущий круг и берёт `created_at`.
   */
   firstOrderedAt: timestamp("first_ordered_at"),
+  /**
+   * Первая доставка заказа — по ней комиссия агента (решение владельца
+   * 23.11.2026). Пишется только при возврате в работу (order-reopen,
+   * clearDeliveryTrace), когда delivered_at обнуляется; пусто — первая
+   * доставка и есть delivered_at.
+   */
+  firstDeliveredAt: timestamp("first_delivered_at"),
   updatedAt:   timestamp("updated_at").defaultNow().notNull().$onUpdate(() => new Date()),
   }, (t) => ({
     orderNumPerTenant: uniqueIndex("uq_order_number_tenant").on(t.orderNumber, t.tenantId),

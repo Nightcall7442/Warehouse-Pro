@@ -66,12 +66,12 @@ export function onDay(col: AnyMySqlColumn, day: string): SQL {
 }
 
 /** Equivalent of `DATE(col) >= day` for a timestamp column — day by Tashkent. */
-export function sinceDay(col: AnyMySqlColumn, day: string): SQL {
+export function sinceDay(col: AnyMySqlColumn | SQL, day: string): SQL {
   return sql`${col} >= ${dayStartUtc(day)}`;
 }
 
 /** Equivalent of `DATE(col) <= day` for a timestamp column — day by Tashkent. */
-export function untilDay(col: AnyMySqlColumn, day: string): SQL {
+export function untilDay(col: AnyMySqlColumn | SQL, day: string): SQL {
   return sql`${col} < ${dayEndUtc(day)}`;
 }
 
