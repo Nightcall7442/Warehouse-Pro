@@ -1,7 +1,8 @@
 import { eq, and, sql, isNull, inArray } from "drizzle-orm";
 import { applyStockEffect, releaseStock, reserveStock, shipStock } from "./stock-ledger";
 import { alias } from "drizzle-orm/mysql-core";
-import { orders, orderItems, warehouseStock, users, products, warehouses, payments, debtReminders, orderAdjustments, returns, returnItems } from "@db/schema";
+import { orders, orderItems, warehouseStock, users, products, warehouses, payments, debtReminders, orderAdjustments, returns, returnItems, shops, settings } from "@db/schema";
+import { businessToday } from "@contracts/business-time";
 import { recalcShopDebt } from "./shop-debt";
 import { ORDER_STATUS_LABELS, holdsStock, deductsStock } from "../lib/order-status";
 import { FIELD_EDITABLE_ORDER_STATUSES } from "@contracts/constants";
@@ -779,6 +780,52 @@ export { tiyin };
  * одновременные оплаты по РАЗНЫМ заказам ловили друг друга на вставке —
  * ER_LOCK_DEADLOCK, и платёж курьера или офиса откатывался целиком.
  */
+/*
+  Срок оплаты, который ставит полевой (агент, курьер), — в пределах отсрочки.
+
+  Срок из напоминания главнее отсрочки при расчёте просрочки
+  (shop-debt.overdueDebtByShop), а значит и удержания отгрузки. Поле срока
+  было свободной строкой: агент вносил 1 сум по просроченному заказу со сроком
+  2099-12-31 — просрочка становилась нулём, и следующий заказ магазина
+  проходил без удержания (бизнес-аудит 19.11.2026, п. 6). Теперь полевой:
+    · не ставит срок в прошлом и дальше сегодня + отсрочка магазина
+      (shops.payment_grace_days, иначе settings.overdue_grace_days);
+    · не отодвигает уже назначенный срок — только оставляет или приближает.
+  Дольше и перенос — решение офиса: его пути (order.close) сюда не заходят.
+*/
+export async function assertFieldDueDate(
+  tx: Tx, tenantId: number, r: { shopId: number; orderId: number; dueDate: string },
+): Promise<void> {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(r.dueDate);
+  const asked = m ? Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : NaN;
+  if (!m || Number.isNaN(asked) || new Date(asked).toISOString().slice(0, 10) !== r.dueDate) {
+    throw new Error(`Такой даты не существует: ${r.dueDate}. Укажите дату в формате ГГГГ-ММ-ДД`);
+  }
+  const today = businessToday();
+  if (r.dueDate < today) throw new Error("Срок оплаты не может быть в прошлом");
+
+  const [shop] = await tx.select({ grace: shops.paymentGraceDays }).from(shops)
+    .where(and(eq(shops.id, r.shopId), eq(shops.tenantId, tenantId))).limit(1);
+  const [cfg] = await tx.select({ grace: settings.overdueGraceDays }).from(settings)
+    .where(eq(settings.tenantId, tenantId)).limit(1);
+  const grace = Math.max(0, shop?.grace ?? cfg?.grace ?? 14);
+  const [ty, tm, td] = today.split("-").map(Number);
+  const latest = new Date(Date.UTC(ty, tm - 1, td + grace)).toISOString().slice(0, 10);
+  if (r.dueDate > latest) {
+    throw new Error(`Срок оплаты — не позже ${latest}: отсрочка магазина ${grace} дн. Дольше может назначить офис`);
+  }
+
+  const [open] = await tx.select({ due: sql<string>`DATE_FORMAT(${debtReminders.dueDate}, '%Y-%m-%d')` }).from(debtReminders)
+    .where(and(
+      eq(debtReminders.tenantId, tenantId), eq(debtReminders.orderId, r.orderId),
+      inArray(debtReminders.status, ["pending", "sent", "overdue"]),
+    ))
+    .limit(1);
+  if (open?.due && r.dueDate > open.due) {
+    throw new Error(`Срок оплаты по заказу уже назначен — ${open.due}. Перенести его может офис`);
+  }
+}
+
 export async function upsertDebtReminder(
   tx: Tx, tenantId: number,
   r: { shopId: number; orderId: number; amount: string; dueDate: string | Date },
@@ -882,6 +929,7 @@ export async function applyPartialPayment(
 
   // Остаток и срок — в напоминание заказа (одно на заказ, см. upsertDebtReminder).
   if (debt > 0 && input.debtDueDate) {
+    if (!office) await assertFieldDueDate(tx, tenantId, { shopId: order.shopId, orderId: order.id, dueDate: input.debtDueDate });
     await upsertDebtReminder(tx, tenantId, { shopId: order.shopId, orderId: order.id, amount: debt.toFixed(2), dueDate: input.debtDueDate });
   }
 
@@ -962,6 +1010,20 @@ export async function applyPartialDelivery(
   // Обе операции при этом возвращают успех, и оператор ничего не замечает.
   if (order.status === "cancelled" || order.status === "returned" || order.status === "delivered") {
     throw badRequest(`Нельзя оформить доставку по заказу в статусе «${ORDER_STATUS_LABELS[order.status]}»`);
+  }
+  /*
+    «Ожидает» — заказ ждёт решения офиса: скидка выше порога, просроченный
+    долг магазина. Снять ожидание может только офис (updateStatus —
+    operatorQuery), а доставка полевого его обходила: агент давал 40% при
+    пороге 10%, заказ вставал в «ожидает» — и тут же сам проводил его
+    доставленным по всем строкам (бизнес-аудит 19.11.2026, п. 8). Для оплаты
+    эту дыру закрыли раньше, для доставки — нет.
+  */
+  if (order.status === "pending") {
+    const { isOffice } = await import("./order-close");
+    if (!isOffice(actor.role)) {
+      throw badRequest("Заказ ждёт решения офиса — провести доставку можно после того, как офис его подтвердит");
+    }
   }
 
   // Доставка закрывает заказ целиком, поэтому в запросе обязаны быть ВСЕ его

@@ -20,18 +20,27 @@ const dropCatalogCache = (tenantId: number) => cache.invalidatePrefix(`products:
 
 export const priceListRouter = createRouter({
   /**
-   * Что нужно форме заказа: список магазина по умолчанию и все активные
-   * списки — выбрать другой. Полевым ролям тоже: агент оформляет заказ.
+   * Что нужно форме заказа: список магазина по умолчанию и списки, из
+   * которых можно выбрать. Офису — все активные; полевым — только
+   * привязанные к этому магазину (решение владельца 23.11.2026; сервер
+   * держит то же правило в order-create).
    */
   forShop: fieldSalesQuery
     .input(z.object({ shopId: z.number().int().positive() }))
     .query(async ({ input, ctx }) => {
       const db = getDb();
       const { shopPriceList } = await import("./services/price-resolver");
+      const office = ctx.user.role === "ceo" || ctx.user.role === "operator";
+      const columns = { id: priceLists.id, name: priceLists.name, markupPct: priceLists.markupPct };
+      const active = and(eq(priceLists.tenantId, ctx.tenant.id), eq(priceLists.isActive, true));
       const [current, all] = await Promise.all([
         shopPriceList(db, ctx.tenant.id, input.shopId),
-        db.select({ id: priceLists.id, name: priceLists.name, markupPct: priceLists.markupPct }).from(priceLists)
-          .where(and(eq(priceLists.tenantId, ctx.tenant.id), eq(priceLists.isActive, true))).orderBy(desc(priceLists.priority), priceLists.name),
+        office
+          ? db.select(columns).from(priceLists).where(active).orderBy(desc(priceLists.priority), priceLists.name)
+          : db.select(columns).from(priceLists)
+              .innerJoin(priceListAssignments, eq(priceListAssignments.priceListId, priceLists.id))
+              .where(and(active, eq(priceListAssignments.shopId, input.shopId)))
+              .orderBy(desc(priceLists.priority), priceLists.name),
       ]);
       return { current, lists: all.map(l => ({ id: Number(l.id), name: l.name, markupPct: l.markupPct })) };
     }),

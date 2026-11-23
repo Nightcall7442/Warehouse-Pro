@@ -1,7 +1,7 @@
 import { inBackground } from "../lib/graceful-shutdown";
 import { eq, and, sql } from "drizzle-orm";
 import { expiredByProduct, reserveStock } from "./stock-ledger";
-import { orders, orderItems, warehouseStock, shops, users, products, priceLists } from "@db/schema";
+import { orders, orderItems, warehouseStock, shops, users, products, priceLists, priceListAssignments } from "@db/schema";
 import { resolvePrices } from "./price-resolver";
 import { recalcShopDebt } from "./shop-debt";
 import { overdueHold } from "./overdue-hold";
@@ -13,7 +13,7 @@ import { isDuplicateEntry } from "../lib/db-errors";
 import type { Db } from "./order-shared";
 import { mergeDuplicateItems, resolveOrderWarehouse, nextOrderNumber, isIdempotencyDuplicate } from "./order-shared";
 
-export async function create(db: Db, tenantId: number, agentId: number, input: { shopId: number; warehouseId?: number; items: Array<{ productId: number; quantity: string }>; notes?: string; discount?: string; idempotencyKey?: string; paymentMethod?: "cash" | "card" | "transfer" | "debt"; promisedDeliveryAt?: Date | null; /** Причина, по которой заказ ждёт офиса: создаётся в pending. */ holdReason?: string | null; /** Прайс-лист заказа; пусто — списки магазина. */ priceListId?: number | null; /** Просроченный долг магазина ставит заказ в «ожидает» (полевые роли; офис решает сам). */ checkOverdueDebt?: boolean }) {
+export async function create(db: Db, tenantId: number, agentId: number, input: { shopId: number; warehouseId?: number; items: Array<{ productId: number; quantity: string }>; notes?: string; discount?: string; idempotencyKey?: string; paymentMethod?: "cash" | "card" | "transfer" | "debt"; promisedDeliveryAt?: Date | null; /** Причина, по которой заказ ждёт офиса: создаётся в pending. */ holdReason?: string | null; /** Прайс-лист заказа; пусто — списки магазина. */ priceListId?: number | null; /** Просроченный долг магазина ставит заказ в «ожидает» (полевые роли; офис решает сам). */ checkOverdueDebt?: boolean; /** Прайс-лист — только привязанный к магазину (полевые роли; офис выбирает любой). */ shopPriceListsOnly?: boolean }) {
   // discount is a percentage (0-100) entered by the user — converted to a
   // money amount below and stored as such (orders.discount stays a money
   // column so revenue/P&L reports that SUM it keep meaning "money discounted").
@@ -89,6 +89,19 @@ export async function create(db: Db, tenantId: number, agentId: number, input: {
       const [pl] = await tx.select({ id: priceLists.id }).from(priceLists)
         .where(and(eq(priceLists.id, input.priceListId), eq(priceLists.tenantId, tenantId))).limit(1);
       if (!pl) throw new Error("Прайс-лист не найден");
+      /*
+        Полевой — только по прайс-листу своего магазина (решение владельца
+        23.11.2026). Агент ставил розничной точке «Опт VIP» с наценкой до
+        −99%: цена падала, а порог полевой скидки не срабатывал — скидки на
+        заказе не было, держать его на одобрении было не за что (бизнес-аудит
+        19.11.2026, п. 10). Цены другого списка магазину назначает офис —
+        привязкой в карточке магазина.
+      */
+      if (input.shopPriceListsOnly) {
+        const [linked] = await tx.select({ id: priceListAssignments.priceListId }).from(priceListAssignments)
+          .where(and(eq(priceListAssignments.priceListId, input.priceListId), eq(priceListAssignments.shopId, input.shopId))).limit(1);
+        if (!linked) throw new Error("Этот прайс-лист не привязан к магазину — оформите заказ по прайс-листу магазина или попросите офис привязать нужный");
+      }
     }
 
     // Цена магазина поверх цены карточки: прайс-листы, привязанные к

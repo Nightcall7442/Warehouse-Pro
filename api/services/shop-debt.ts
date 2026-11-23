@@ -53,13 +53,23 @@ const PAID_ON_ORDER = sql`COALESCE((
  *   • any other order owes only once the goods actually left, i.e. the order
  *     reached "delivered";
  *   • in both cases what's owed is the total minus whatever has been paid
- *     against that specific order.
+ *     against that specific order — and that may be NEGATIVE.
+ *
+ * Без нижней границы на заказе — нарочно (бизнес-аудит 19.11.2026, п. 5).
+ * Сумма заказа может упасть уже после оплаты: скидка, частичная доставка,
+ * правка состава. Стояло GREATEST(0, total − paid) на каждом заказе: магазин
+ * заплатил вперёд 1 000 000, довезли на 600 000 — и 400 000 его денег
+ * пропадали, не гася ни один другой его заказ. Переплата — право магазина на
+ * деньги, и это право гасит другие его долги. Записать оплату сверх остатка
+ * заказа нельзя (order-shared), так что минус здесь — только уменьшившаяся
+ * сумма, а не ошибка ввода.
  *
  * Plus shop-level entries not tied to any order: manual "новый долг" rows add,
  * manual payments subtract. Completed returns subtract too — the goods came
  * back, so their value is no longer owed.
  *
- * Floored at zero: an overpayment is not a negative debt.
+ * Floored at zero for the SHOP as a whole: what is left over after every debt
+ * is settled is not a negative debt (receivables never go below zero).
  */
 export async function recalcShopDebt(tx: Tx, tenantId: number, shopId: number): Promise<void> {
   await tx.execute(sql`
@@ -71,7 +81,7 @@ export async function recalcShopDebt(tx: Tx, tenantId: number, shopId: number): 
           CASE
             WHEN o.status IN ('cancelled', 'returned') THEN 0
             WHEN o.payment_method = 'debt' OR o.status = 'delivered'
-              THEN GREATEST(0, CAST(o.total AS DECIMAL(15,2)) - ${PAID_ON_ORDER})
+              THEN CAST(o.total AS DECIMAL(15,2)) - ${PAID_ON_ORDER}
             ELSE 0
           END
         )

@@ -8,6 +8,7 @@ import {
   returnsInPeriod, returnedByAgent, returnedOf, type ReturnedValue,
 } from "./revenue-returns";
 import { agentCommission } from "./commission-base";
+import { commissionDay } from "./commission-day";
 import { logger } from "../lib/logger";
 import { bizClock, untilDate } from "../lib/date-range";
 
@@ -850,8 +851,9 @@ export async function calculateSalary(
       eq(orders.agentId, agentId),
       inArray(orders.status, REVENUE_ORDER_STATUSES),
       isNull(orders.deletedAt),
-      gte(orders.createdAt, periodStart),
-      lte(orders.createdAt, periodEnd),
+      // По дню первой доставки (services/commission-day.ts), а не оформления.
+      sql`${commissionDay} >= ${periodStart}`,
+      sql`${commissionDay} <= ${periodEnd}`,
     ));
 
   /*

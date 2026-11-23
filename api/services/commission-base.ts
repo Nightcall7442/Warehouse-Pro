@@ -48,6 +48,7 @@ import {
   orderItems, orders, returnItems, returns, commissionProductRates,
 } from "@db/schema";
 import { revenueOrderConditions, deliveredQty } from "../lib/order-status";
+import { commissionDay } from "./commission-day";
 
 type Db = ReturnType<typeof import("../queries/connection").getDb>;
 
@@ -100,8 +101,9 @@ export async function salesByProduct(
     .where(and(
       ...revenueOrderConditions(tenantId),
       eq(orders.agentId, agentId),
-      sql`${orders.createdAt} >= ${periodStart}`,
-      sql`${orders.createdAt} <= ${periodEnd}`,
+      // По дню первой доставки (services/commission-day.ts) — как salesAmount.
+      sql`${commissionDay} >= ${periodStart}`,
+      sql`${commissionDay} <= ${periodEnd}`,
     ))
     .groupBy(orderItems.productId);
 

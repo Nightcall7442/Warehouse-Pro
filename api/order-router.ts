@@ -242,10 +242,10 @@ export const orderRouter = createRouter({
           CASE
             WHEN ${orders.status} IN ('cancelled','returned') THEN 0
             WHEN ${orders.paymentMethod} = 'debt' OR ${orders.status} = 'delivered'
-              THEN GREATEST(0, CAST(${orders.total} AS DECIMAL(15,2)) - COALESCE((
+              THEN CAST(${orders.total} AS DECIMAL(15,2)) - COALESCE((
                 SELECT SUM(CAST(p.amount AS DECIMAL(15,2))) FROM ${payments} p
                 WHERE p.order_id = ${orders.id} AND p.type = 'payment'
-              ), 0)) - COALESCE((
+              ), 0) - COALESCE((
                 SELECT SUM(CAST(r.total_amount AS DECIMAL(15,2))) FROM ${returns} r
                 WHERE r.order_id = ${orders.id} AND r.status = 'completed'
               ), 0)
@@ -455,6 +455,8 @@ export const orderRouter = createRouter({
             Проверка — в службе, под замком строки магазина.
           */
           checkOverdueDebt: !["ceo", "operator"].includes(ctx.user.role),
+          // Прайс-лист полевому — только магазина; офис выбирает любой.
+          shopPriceListsOnly: !["ceo", "operator"].includes(ctx.user.role),
         });
         // Итоговая причина — от службы: к скидке могла добавиться просрочка.
         const heldFor = "holdReason" in created ? created.holdReason : null;
@@ -1019,7 +1021,7 @@ export const orderRouter = createRouter({
       orderId: z.number().int().positive(),
       paidAmount: z.string().refine(v => Number(v) > 0, "Сумма должна быть положительной"),
       method: z.enum(["cash", "card", "transfer"]),
-      debtDueDate: z.string().optional(),
+      debtDueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Дата в формате ГГГГ-ММ-ДД").optional(),
       notes: z.string().max(500).optional(),
       idempotencyKey: z.string().min(8).max(100).optional(),
     }))
@@ -1054,7 +1056,7 @@ export const orderRouter = createRouter({
       payment: z.object({
         paidAmount: z.string().refine(v => Number(v) >= 0, "Сумма не может быть отрицательной"),
         method: z.enum(["cash", "card", "transfer"]),
-        debtDueDate: z.string().optional(),
+        debtDueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Дата в формате ГГГГ-ММ-ДД").optional(),
         notes: z.string().max(500).optional(),
         idempotencyKey: z.string().min(8).max(100).optional(),
       }),

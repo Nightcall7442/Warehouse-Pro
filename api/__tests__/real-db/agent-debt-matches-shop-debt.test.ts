@@ -94,10 +94,10 @@ describeIf("долг по агенту повторяет долг магази�
         CASE
           WHEN o.status IN ('cancelled','returned') THEN 0
           WHEN o.payment_method = 'debt' OR o.status = 'delivered'
-            THEN GREATEST(0, CAST(o.total AS DECIMAL(15,2)) - COALESCE((
+            THEN CAST(o.total AS DECIMAL(15,2)) - COALESCE((
               SELECT SUM(CAST(p.amount AS DECIMAL(15,2))) FROM payments p
               WHERE p.order_id = o.id AND p.type = 'payment'
-            ), 0)) - COALESCE((
+            ), 0) - COALESCE((
               SELECT SUM(CAST(r.total_amount AS DECIMAL(15,2))) FROM returns r
               WHERE r.order_id = o.id AND r.status = 'completed'
             ), 0)
@@ -159,6 +159,20 @@ describeIf("долг по агенту повторяет долг магази�
 
     expect(await agentDebt()).toBe(380);
     expect(await shopDebt()).toBe(380);
+  });
+
+  it("заказ подешевел после оплаты — переплата гасит соседний заказ", async () => {
+    /*
+      Бизнес-аудит 19.11.2026, п. 5: заплатили вперёд 1 000 000, довезли на
+      600 000 (сумма заказа уменьшилась). Пол на каждом заказе съедал 400 000
+      магазина: долг по соседнему заказу оставался 500 000 целиком.
+    */
+    const shrunk = await order({ total: "600000.00" });
+    await pay(shrunk, "1000000.00");
+    await order({ total: "500000.00", status: "new", paymentMethod: "debt" });
+
+    expect(await agentDebt()).toBe(100000);
+    expect(await shopDebt()).toBe(100000);
   });
 
   it("незаявленный возврат долг не трогает", async () => {

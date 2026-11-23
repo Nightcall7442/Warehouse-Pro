@@ -89,7 +89,15 @@ describe.skipIf(!hasRealDb)("закрытие расчёта: срок долг�
     await op.assignCourier({ orderId: id, courierId: s.courierId });
     await courier.markOutForDelivery({ orderId: id });
     // 3 × 100 = 300; магазин отдал курьеру 100, обещал остаток к 10-му.
-    await courier.completeDelivery({ orderId: id, result: "partial_paid", paymentMethod: "cash", paidAmount: "100", debtDueDate: "2026-10-10" });
+    // Срок курьера — в пределах отсрочки от «сегодня» (order-shared.assertFieldDueDate):
+    // «сегодня» здесь — 1 октября.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-01T06:00:00Z"));
+    try {
+      await courier.completeDelivery({ orderId: id, result: "partial_paid", paymentMethod: "cash", paidAmount: "100", debtDueDate: "2026-10-10" });
+    } finally {
+      vi.useRealTimers();
+    }
     expect(await reminders(id)).toEqual([{ shopId: s.shopId, amount: 200, dueDate: "2026-10-10", status: "pending" }]);
 
     // Офис: курьер сдал 100, остаток — в долг до 20-го.

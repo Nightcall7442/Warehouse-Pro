@@ -70,7 +70,7 @@ describe.skipIf(!hasRealDb)("инвентаризация на настояще�
     const [[p]] = await db.execute(sql`SELECT name FROM products WHERE id = ${s.productId}`) as unknown as [Array<{ name: string }>];
     await expect(c.applyCount({ id })).rejects.toMatchObject({
       code: "PRECONDITION_FAILED",
-      message: expect.stringContaining(`«${p.name}»: на полке 3.00, а под заказы отложено 4.00`),
+      message: expect.stringContaining(`«${p.name}»: после акта остаётся 3.00, а под заказы отложено 4.00`),
     });
 
     expect(await stockOf(s.productId)).toMatchObject({ current: 10, reserved: 4, available: 6 });

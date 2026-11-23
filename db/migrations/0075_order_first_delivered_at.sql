@@ -1,0 +1,1 @@
+ALTER TABLE `orders` ADD `first_delivered_at` timestamp;

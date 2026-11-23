@@ -117,9 +117,15 @@ function evalCond(row: any, cond: any): boolean {
         pairs.push([vals[i], String(strs[i + 1] ?? "").trim(), vals[i + 1]]);
       }
       const at = (v: unknown) => v instanceof Date ? v.getTime() : Date.parse(`${String(v).replace(" ", "T")}Z`);
-      if (pairs.length > 0 && pairs.every(([l, o, r]) => colInfo.has(l) && [">=", "<", "<=", ">"].includes(o) && typeof r === "string" && !Number.isNaN(at(r)))) {
+      // День комиссии (services/commission-day.ts) — COALESCE из колонок заказа:
+      // первое непустое значение строки.
+      const isCoalesce = (v: any) => v?.__kind === "sql" && String(v.strings?.[0] ?? "").trim().startsWith("COALESCE(");
+      const readExpr = (v: any) => isCoalesce(v)
+        ? ((v.values ?? []) as unknown[]).map(c => readCol(row, c)).find(x => x != null) ?? null
+        : readCol(row, v);
+      if (pairs.length > 0 && pairs.every(([l, o, r]) => (colInfo.has(l) || isCoalesce(l)) && [">=", "<", "<=", ">"].includes(o) && (typeof r === "string" || r instanceof Date) && !Number.isNaN(at(r)))) {
         return pairs.every(([l, o, r]) => {
-          const actual = readCol(row, l);
+          const actual = readExpr(l);
           if (actual == null) return false;
           const a = at(actual), b = at(r);
           return o === ">=" ? a >= b : o === "<" ? a < b : o === "<=" ? a <= b : a > b;

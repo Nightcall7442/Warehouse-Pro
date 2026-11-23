@@ -184,6 +184,16 @@ function rawSqlCondition(cond: Row, row: Row): boolean {
     }
   };
   const valueOf = (col: unknown): unknown => {
+    // День комиссии (services/commission-day.ts): COALESCE(первая доставка,
+    // доставка, оформление) — первое непустое из колонок строки.
+    const expr = col as { __kind?: string; strings?: string[]; values?: unknown[] } | null;
+    if (expr?.__kind === "sql" && String(expr.strings?.[0] ?? "").trim().startsWith("COALESCE(")) {
+      for (const inner of expr.values ?? []) {
+        const k = fieldOf(inner);
+        if (k !== undefined && row[k] != null) return row[k];
+      }
+      return null;
+    }
     const key = fieldOf(col);
     if (key === undefined) throw new Error("Сырой sql ссылается на неизвестную колонку");
     if (!(key in row)) throw new Error(`Строка стенда не содержит «${key}»`);

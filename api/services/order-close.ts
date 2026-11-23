@@ -301,9 +301,19 @@ export const OrderCloseService = {
   },
 
   /** Недостачи сотрудника за срок — в удержание из зарплаты (services/kpi.ts) и в индекс риска. */
+  /*
+    Недостача в зарплате — по дате самой недостачи (shortage_at), как в
+    «Контроле», а не по дате закрытия расчёта.
+
+    Возврат заказа в работу обнуляет closed_at, а недостачу оставляет; при
+    повторном закрытии без новой недостачи closed_at встаёт в новый месяц —
+    и те же 200 000 удерживались из зарплаты второй раз (бизнес-аудит
+    19.11.2026, п. 17). shortage_at ставится, только когда недостача записана,
+    и при повторном закрытии не двигается.
+  */
   async shortageIn(db: Db, tenantId: number, userId: number, from: Date, to: Date): Promise<{ count: number; amount: number }> {
     const [r] = await db.select({ n: sql<number>`count(*)`, s: sql<string>`coalesce(sum(${orders.courierShortage}), 0)` }).from(orders)
-      .where(and(eq(orders.tenantId, tenantId), eq(orders.shortageUserId, userId), sql`${orders.courierShortage} > 0`, isNotNull(orders.closedAt), gte(orders.closedAt, from), lt(orders.closedAt, to)));
+      .where(and(eq(orders.tenantId, tenantId), eq(orders.shortageUserId, userId), sql`${orders.courierShortage} > 0`, isNotNull(orders.shortageAt), gte(orders.shortageAt, from), lt(orders.shortageAt, to)));
     return { count: Number(r?.n ?? 0), amount: Number(r?.s ?? 0) };
   },
 

@@ -166,8 +166,18 @@ export function reversesRevenue(from: string, to: string): boolean {
  * на склад не то количество, которое заказ на самом деле держал.
  */
 export async function clearDeliveryTrace(tx: Tx, tenantId: number, orderId: number): Promise<void> {
+  /*
+    Первая доставка запоминается до того, как delivered_at обнулится: по ней
+    заказ стоит в комиссии агента (services/commission-day.ts). Комиссия за
+    тот месяц могла быть уже выплачена — тогда повторная доставка в другом
+    месяце не начисляет её второй раз. Чтение и запись, а не COALESCE в
+    UPDATE, — по той же причине, что в dateSecondLife ниже.
+  */
+  const [was] = await tx.select({ deliveredAt: orders.deliveredAt, firstDeliveredAt: orders.firstDeliveredAt })
+    .from(orders).where(and(eq(orders.id, orderId), eq(orders.tenantId, tenantId))).limit(1);
   await tx.update(orders)
     .set({
+      firstDeliveredAt: was?.firstDeliveredAt ?? was?.deliveredAt ?? null,
       deliveryStatus: "not_assigned",
       deliveredAt:    null,
       deliveryResult: null,

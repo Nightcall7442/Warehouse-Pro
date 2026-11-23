@@ -11,7 +11,7 @@ import { productLabel } from "./order";
 import { releaseStock, shipStock } from "./stock-ledger";
 import { NotificationService } from "./NotificationService";
 import { invalidateReports } from "../lib/report-cache";
-import { orderWarehouseId, upsertDebtReminder, type Db } from "./order-shared";
+import { orderWarehouseId, upsertDebtReminder, assertFieldDueDate, type Db } from "./order-shared";
 import { eventTime } from "../lib/event-time";
 
 /*
@@ -283,6 +283,19 @@ export async function completeDelivery(db: Db, tenantId: number, courierId: numb
   // Initialized rather than left definite-assignment-only: it is always
   // overwritten inside the transaction below before being read, but TS
   // cannot see that across the async closure boundary.
+  /*
+    Возврат целиком — денег не берут (бизнес-аудит 19.11.2026, п. 19).
+
+    Курьер отмечал заказ на 300 000 «возврат» и вписывал 300 000 наличными:
+    магазину шёл кредит, а расчёт по заказу закрыть было нельзя (он не
+    доставлен) — деньги навсегда висели у курьера на руках. Офисный путь
+    оплату по возвращённому заказу уже отклонял; курьерский — нет. Срок долга
+    по возврату тоже не ставится: долга нет.
+  */
+  if (input.result === "returned" && (Number(input.paidAmount ?? 0) > 0 || input.debtDueDate)) {
+    throw new Error("Заказ возвращён целиком — оплату и срок долга по нему не указывают");
+  }
+
   let finalStatus: "new" | "processing" | "shipped" | "pending" | "delivered" | "cancelled" | "returned" = "delivered";
   let paidAmount = 0;
   let debtAmount = 0;
@@ -615,7 +628,9 @@ export async function completeDelivery(db: Db, tenantId: number, courierId: numb
     await recalcShopDebt(tx, tenantId, order.shopId);
 
     // ── Create debt reminder if partial payment ──
-    if (debtAmount > 0 && debtDueDate) {
+    if (debtAmount > 0 && debtDueDate && input.debtDueDate) {
+      // Курьер — полевой: срок в пределах отсрочки и не позже уже назначенного.
+      await assertFieldDueDate(tx, tenantId, { shopId: order.shopId, orderId: order.id, dueDate: input.debtDueDate });
       await upsertDebtReminder(tx, tenantId, { shopId: order.shopId, orderId: order.id, amount: String(debtAmount), dueDate: debtDueDate });
     }
   });

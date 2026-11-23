@@ -46,7 +46,16 @@ export interface ReturnableLine {
   returned: number;
   /** Сколько ещё можно вернуть; не меньше нуля. */
   left: number;
-  /** Цена строки заказа — по ней магазин платил, по ней и возврат. */
+  /**
+   * Цена единицы, которую магазин заплатил: цена строки за вычетом доли
+   * скидки заказа. По ней и возврат.
+   *
+   * Стояла цена строки ДО скидки. Скидка хранится на заказе (orders.discount),
+   * а не в строке, поэтому заказ 100 шт × 10 000 со скидкой 20% (к оплате
+   * 800 000) возвращался целиком на 1 000 000 — лишние 200 000 гасили другие
+   * долги магазина и занижали выручку (бизнес-аудит 19.11.2026, п. 7).
+   * Частичная доставка долю скидки уже пересчитывала, возврат — нет.
+   */
   unitPrice: number;
 }
 
@@ -65,6 +74,8 @@ export async function returnableLines(db: Db, tenantId: number, orderId: number)
       quantity: orderItems.quantity,
       deliveredQuantity: orderItems.deliveredQuantity,
       unitPrice: orderItems.unitPrice,
+      orderSubtotal: orders.subtotal,
+      orderDiscount: orders.discount,
     }).from(orderItems)
       .innerJoin(orders, eq(orderItems.orderId, orders.id))
       .where(and(eq(orderItems.orderId, orderId), eq(orders.tenantId, tenantId)))
@@ -84,7 +95,10 @@ export async function returnableLines(db: Db, tenantId: number, orderId: number)
     const productId = Number(l.productId);
     if (out.has(productId)) continue;
     const shipped = Number(l.deliveredQuantity ?? l.quantity);
-    out.set(productId, { productId, shipped, returned: 0, left: shipped, unitPrice: Number(l.unitPrice) });
+    const subtotal = Number(l.orderSubtotal);
+    const kept = subtotal > 0 ? Math.max(0, 1 - Number(l.orderDiscount) / subtotal) : 1;
+    const paid = Math.round(Number(l.unitPrice) * kept * 100) / 100;
+    out.set(productId, { productId, shipped, returned: 0, left: shipped, unitPrice: paid });
   }
   for (const b of back) {
     const line = out.get(Number(b.productId));
