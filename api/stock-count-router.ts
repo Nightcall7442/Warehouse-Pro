@@ -116,7 +116,7 @@ export const stockCountRouter = createRouter({
       const count = await loadCount(db, ctx.tenant.id, input.id);
       if (count.status !== "draft") throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Документ уже применён или отменён" });
 
-      const [item] = await db.select({ id: stockCountItems.id, counted: stockCountItems.counted }).from(stockCountItems)
+      const [item] = await db.select({ id: stockCountItems.id }).from(stockCountItems)
         .where(and(eq(stockCountItems.countId, count.id), eq(stockCountItems.productId, input.productId))).limit(1);
       let itemId = item?.id;
       if (!itemId) {
@@ -127,20 +127,48 @@ export const stockCountRouter = createRouter({
         const [r] = await db.insert(stockCountItems).values({ countId: count.id, productId: p.id, expected: "0.00" });
         itemId = Number(r.insertId);
       }
-      const base = item?.counted != null ? Number(item.counted) : 0;
-      const next = input.delta != null ? Math.max(0, base + input.delta) : input.counted ?? null;
-      await db.update(stockCountItems)
-        .set({ counted: next == null ? null : money2(next), ...(input.note !== undefined ? { note: input.note } : {}) })
-        .where(eq(stockCountItems.id, itemId));
-      return { counted: next };
+      /*
+        Учётный остаток в минуту первого счёта — book_at_count. По нему акт
+        потом двигает остаток (applyCount), а не ставит «посчитано» поверх
+        продаж и приходов, прошедших между счётом и применением.
+
+        Прибавка сканера (+1) — одним UPDATE в базе, а не «прочитал — прибавил —
+        записал»: два сканера на одном товаре теряли друг у друга прибавку.
+      */
+      const current = sql`(SELECT ws.current_stock FROM warehouse_stock ws
+        WHERE ws.tenant_id = ${ctx.tenant.id} AND ws.warehouse_id = ${count.warehouseId} AND ws.product_id = ${input.productId} LIMIT 1)`;
+      const note = input.note !== undefined ? { note: input.note } : {};
+      if (input.delta != null) {
+        await db.update(stockCountItems).set({
+          counted: sql`GREATEST(0, COALESCE(${stockCountItems.counted}, 0) + ${input.delta})`,
+          bookAtCount: sql`COALESCE(${stockCountItems.bookAtCount}, ${current}, 0)`,
+          ...note,
+        }).where(eq(stockCountItems.id, itemId));
+      } else {
+        const counted = input.counted ?? null;
+        await db.update(stockCountItems).set({
+          counted: counted == null ? null : money2(counted),
+          // «Не считали» снова — и снимок забывается: посчитают заново — снимут заново.
+          bookAtCount: counted == null ? null : sql`COALESCE(${stockCountItems.bookAtCount}, ${current}, 0)`,
+          ...note,
+        }).where(eq(stockCountItems.id, itemId));
+      }
+      const [after] = await db.select({ counted: stockCountItems.counted }).from(stockCountItems)
+        .where(eq(stockCountItems.id, itemId)).limit(1);
+      return { counted: after?.counted == null ? null : Number(after.counted) };
     }),
 
   /**
    * Применить: каждой посчитанной строке — setStock (дверь обрезает резерв и
    * подрезает партии), разница — в журнал движений. Непосчитанные строки не
-   * трогаются: «не считали» — не «ноль». Ожидалось сверяется с ТЕКУЩИМ
-   * остатком, а не со снимком: за время счёта могли продать, и движение
-   * пишется от того, что в учёте сейчас.
+   * трогаются: «не считали» — не «ноль».
+   *
+   * Остаток двигается на расхождение, найденное при счёте, — «посчитано»
+   * минус учёт в ту минуту (book_at_count), — а не ставится равным
+   * «посчитано». Стояло второе: посчитали 100, потом курьер увёз 20, акт
+   * применили — снова 100 и «излишек 20» в журнале; приход после счёта
+   * списывался как недостача (бизнес-аудит 19.11.2026, п. 3). Строки без
+   * снимка (посчитаны до колонки) применяются по-старому.
    */
   // «apply» — служебное слово у tRPC (router({}) его не принимает), поэтому applyCount.
   applyCount: operatorQuery.use(can("warehouse.adjust"))
@@ -153,7 +181,7 @@ export const stockCountRouter = createRouter({
         if (!count) throw new TRPCError({ code: "NOT_FOUND", message: "Инвентаризация не найдена" });
         if (count.status !== "draft") throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Документ уже применён или отменён" });
 
-        const items = await tx.select({ productId: stockCountItems.productId, counted: stockCountItems.counted })
+        const items = await tx.select({ productId: stockCountItems.productId, counted: stockCountItems.counted, bookAtCount: stockCountItems.bookAtCount })
           .from(stockCountItems).where(eq(stockCountItems.countId, count.id));
         const toApply = items.filter(i => i.counted != null);
         if (toApply.length === 0) throw new TRPCError({ code: "BAD_REQUEST", message: "Ни одна строка не посчитана — применять нечего" });
@@ -165,10 +193,13 @@ export const stockCountRouter = createRouter({
             .where(and(eq(warehouseStock.tenantId, ctx.tenant.id), eq(warehouseStock.warehouseId, count.warehouseId), eq(warehouseStock.productId, it.productId)))
             .for("update").limit(1);
           const current = Number(row?.current ?? 0);
-          const diff = counted - current;
+          const target = it.bookAtCount != null
+            ? Math.max(0, Math.round((current + counted - Number(it.bookAtCount)) * 100) / 100)
+            : counted;
+          const diff = target - current;
           if (Math.abs(diff) < 0.005) continue;
           try {
-            await setStock(tx, { tenantId: ctx.tenant.id, warehouseId: count.warehouseId, productId: it.productId, quantity: counted });
+            await setStock(tx, { tenantId: ctx.tenant.id, warehouseId: count.warehouseId, productId: it.productId, quantity: target });
           } catch (e) {
             // На полке насчитали меньше, чем отложено под заказы. Дверь
             // отказывает числом — здесь называем товар: без имени отказ
@@ -177,13 +208,15 @@ export const stockCountRouter = createRouter({
             const [p] = await tx.select({ name: products.name }).from(products).where(eq(products.id, it.productId)).limit(1);
             throw new TRPCError({
               code: "PRECONDITION_FAILED",
-              message: `«${p?.name ?? `товар #${it.productId}`}»: на полке ${money2(counted)}, а под заказы отложено ${money2(e.reserved)}. Сначала проведите или отмените заказы, занявшие резерв, — потом примените акт.`,
+              message: `«${p?.name ?? `товар #${it.productId}`}»: после акта остаётся ${money2(target)}, а под заказы отложено ${money2(e.reserved)}. Сначала проведите или отмените заказы, занявшие резерв, — потом примените акт.`,
             });
           }
           await recordStockMovement(tx, {
             tenantId: ctx.tenant.id, warehouseId: count.warehouseId, productId: it.productId,
             type: diff > 0 ? "in" : "out", quantity: Math.abs(diff), reason: "inventory", referenceId: count.id,
-            notes: `${count.number}: по учёту ${money2(current)}, на полке ${money2(counted)}`,
+            notes: it.bookAtCount != null
+              ? `${count.number}: при счёте по учёту ${money2(Number(it.bookAtCount))}, на полке ${money2(counted)}`
+              : `${count.number}: по учёту ${money2(current)}, на полке ${money2(counted)}`,
           });
           if (diff > 0) surplus += diff; else shortage += -diff;
           changed++;

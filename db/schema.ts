@@ -897,6 +897,13 @@ export const stockCountItems = mysqlTable("stock_count_items", {
   expected:  decimal("expected", { precision: 12, scale: 2 }).notNull(),
   /** Что насчитали на полке. Пусто — ещё не считали; такая строка при применении пропускается. */
   counted:   decimal("counted", { precision: 12, scale: 2 }),
+  /**
+   * Остаток по учёту в ту минуту, когда товар посчитали (первое касание).
+   * Применение акта двигает остаток на «посчитано − это», а не ставит
+   * «посчитано»: продажи и приходы между счётом и применением не стираются
+   * (бизнес-аудит 19.11.2026, п. 3). Пусто — строки старше колонки.
+   */
+  bookAtCount: decimal("book_at_count", { precision: 12, scale: 2 }),
   note:      varchar("note", { length: 255 }),
 }, (t) => ({
   countProductUq: uniqueIndex("uq_stock_count_items_count_product").on(t.countId, t.productId),

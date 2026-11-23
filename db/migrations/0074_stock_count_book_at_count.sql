@@ -1,0 +1,1 @@
+ALTER TABLE `stock_count_items` ADD `book_at_count` decimal(12,2);

@@ -9,7 +9,7 @@ describe("документ инвентаризации", () => {
   const router = readFileSync("api/stock-count-router.ts", "utf-8");
 
   it("применяет через дверь остатка и пишет движение «inventory»; непосчитанное не трогает; применённый не правится", () => {
-    expect(router).toContain("await setStock(tx, { tenantId: ctx.tenant.id, warehouseId: count.warehouseId, productId: it.productId, quantity: counted });");
+    expect(router).toContain("await setStock(tx, { tenantId: ctx.tenant.id, warehouseId: count.warehouseId, productId: it.productId, quantity: target });");
     expect(router).toContain('reason: "inventory"');
     expect(router).toContain("const toApply = items.filter(i => i.counted != null);");
     expect(router).toMatch(/if \(count\.status !== "draft"\) throw new TRPCError\(\{ code: "PRECONDITION_FAILED"/);

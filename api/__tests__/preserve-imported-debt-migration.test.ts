@@ -5,9 +5,17 @@ import path from "node:path";
 /*
   Миграция 0073 записывает строкой «долг» ту часть shops.debt, которую записи
   не объясняют (долг из старого импорта). «Не объясняют» — значит больше, чем
-  дал бы recalcShopDebt. Если формула в миграции хоть словом разойдётся с
-  кодом, магазину запишется долг, которого нет, — и первый же пересчёт сделает
-  его настоящим. Поэтому формулы сверяются здесь буква в букву.
+  дал бы recalcShopDebt. Если формула миграции даст долг МЕНЬШЕ, чем код, —
+  магазину запишется долг, которого нет, и первый же пересчёт сделает его
+  настоящим. Поэтому формулы сверяются здесь буква в букву.
+
+  С одним известным расхождением. Миграцию писали, когда на каждом заказе
+  стоял пол GREATEST(0, total − paid); потом его сняли (переплата гасит
+  соседние заказы, бизнес-аудит 19.11.2026, п. 5). Пол только поднимает
+  расчётный долг, значит зазор у миграции не больше, чем был бы по новой
+  формуле, — она запишет не больше настоящего. Сверка ниже возвращает пол в
+  формулу кода и требует совпадения во всём остальном: любое другое
+  расхождение — уже не это и падает.
 */
 const root = process.cwd();
 const read = (p: string) => readFileSync(path.join(root, p), "utf8");
@@ -36,11 +44,16 @@ describe("миграция 0073: долг считается той же фор�
 
   const paidOnOrder = between(code, "const PAID_ON_ORDER = sql`", "`;");
   const recalc = between(code, "export async function recalcShopDebt", "WHERE s.id = ${shopId}");
-  const fromCode = recalc.slice(recalc.indexOf("SET s.debt = ") + "SET s.debt = ".length)
+  const PER_ORDER = "THEN CAST(o.total AS DECIMAL(15,2)) - ${PAID_ON_ORDER}";
+  const recalcTail = recalc.slice(recalc.indexOf("SET s.debt = ") + "SET s.debt = ".length);
+  // Формула кода с полом на заказе, как в день миграции (см. выше).
+  const fromCode = recalcTail
+    .replace(PER_ORDER, "THEN GREATEST(0, CAST(o.total AS DECIMAL(15,2)) - ${PAID_ON_ORDER})")
     .replace("${PAID_ON_ORDER}", paidOnOrder);
   const fromMigration = between(migration, "ROUND(CAST(s.debt AS DECIMAL(15,2)) - ", ", 2) AS gap");
 
-  it("формулы совпадают", () => {
+  it("формулы совпадают во всём, кроме снятого потом пола на заказе", () => {
+    expect(recalcTail, "у recalcShopDebt изменилась ветка заказа — пересмотрите сверку").toContain(PER_ORDER);
     expect(normalize(fromMigration)).toBe(normalize(fromCode));
   });
 

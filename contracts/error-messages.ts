@@ -279,6 +279,10 @@ export const SERVER_ERROR_TEXT: Record<string, ErrorText> = {
   "Кредитный лимит магазина «{0}» {1} превышен: долг {2} + заказ {3}. Примите оплату или попросите офис поднять лимит.": { uz: "«{0}» do'konining kredit limiti {1} oshib ketdi: qarz {2} + buyurtma {3}. To'lovni qabul qiling yoki ofisdan limitni oshirishni so'rang." },
   "Кредитный лимит магазина «{0}» {1} превышен: после правки долг {2}. Примите оплату или попросите офис поднять лимит.": { uz: "«{0}» do'konining kredit limiti {1} oshib ketdi: tuzatishdan keyin qarz {2}. To'lovni qabul qiling yoki ofisdan limitni oshirishni so'rang." },
   "Этот прайс-лист не привязан к магазину — оформите заказ по прайс-листу магазина или попросите офис привязать нужный": { uz: "Bu narxlar ro'yxati do'konga biriktirilmagan — buyurtmani do'kon narxlar ro'yxati bo'yicha rasmiylashtiring yoki ofisdan keraklisini biriktirishni so'rang" },
+  // Срок оплаты полевого (services/order-shared.ts, assertFieldDueDate).
+  "Срок оплаты не может быть в прошлом": { uz: "To'lov muddati o'tgan sana bo'lishi mumkin emas" },
+  "Срок оплаты — не позже {0}: отсрочка магазина {1} дн. Дольше может назначить офис": { uz: "To'lov muddati — {0} dan kechiktirmay: do'kon kechiktirishi {1} kun. Uzoqroq muddatni ofis belgilashi mumkin" },
+  "Срок оплаты по заказу уже назначен — {0}. Перенести его может офис": { uz: "Buyurtma bo'yicha to'lov muddati allaqachon belgilangan — {0}. Uni ofis ko'chirishi mumkin" },
   // Правка состава заказа (services/order-items.ts).
   "Одна и та же позиция указана в правке дважды — пришлите каждую строку один раз": { uz: "Bitta pozitsiya tuzatishda ikki marta ko'rsatilgan — har bir qatorni bir marta yuboring" },
   "Один и тот же товар добавлен в правке дважды — укажите его одной строкой": { uz: "Bitta mahsulot tuzatishda ikki marta qo'shilgan — uni bitta qator bilan ko'rsating" },
@@ -391,7 +395,7 @@ export const SERVER_ERROR_TEXT: Record<string, ErrorText> = {
   "Инвентаризация не найдена": { uz: "Inventarizatsiya topilmadi" },
   "Документ уже применён или отменён": { uz: "Hujjat allaqachon qo'llangan yoki bekor qilingan" },
   "Ни одна строка не посчитана — применять нечего": { uz: "Birorta qator sanalmagan — qo'llaydigan narsa yo'q" },
-  "«{0}»: на полке {1}, а под заказы отложено {2}. Сначала проведите или отмените заказы, занявшие резерв, — потом примените акт.": { uz: "«{0}»: tokchada {1}, buyurtmalar uchun esa {2} ajratilgan. Avval zahirani band qilgan buyurtmalarni o'tkazing yoki bekor qiling — keyin dalolatnomani qo'llang." },
+  "«{0}»: после акта остаётся {1}, а под заказы отложено {2}. Сначала проведите или отмените заказы, занявшие резерв, — потом примените акт.": { uz: "«{0}»: dalolatnomadan keyin {1} qoladi, buyurtmalar uchun esa {2} ajratilgan. Avval zahirani band qilgan buyurtmalarni o'tkazing yoki bekor qiling — keyin dalolatnomani qo'llang." },
   "Отменить можно только черновик": { uz: "Faqat qoralamani bekor qilish mumkin" },
   "Сменить склад по умолчанию нельзя: открытых заказов {0}, позиций с резервом {1}. Довезите или отмените открытые заказы и повторите.": { uz: "Asosiy omborni almashtirib bo'lmaydi: ochiq buyurtmalar {0}, zahiradagi pozitsiyalar {1}. Ochiq buyurtmalarni yetkazing yoki bekor qiling va qayta urinib ko'ring." },
   "Перемещение не найдено или уже выполнено": { uz: "Ko'chirish topilmadi yoki allaqachon bajarilgan" },

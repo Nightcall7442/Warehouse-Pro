@@ -559,8 +559,16 @@ describe("courier.completeDelivery: возврат без позиций, дат
   });
 
   it("правильная дата проходит и попадает в напоминание о долге", async () => {
+    // Срок полевого — не в прошлом и в пределах отсрочки (order-shared.assertFieldDueDate):
+    // «сегодня» — 10 сентября, срок — через пять дней.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-09-10T06:00:00Z"));
     const c = await caller();
-    await c.completeDelivery({ orderId: 1, result: "partial_paid", paidAmount: "300000", debtDueDate: "2026-09-15" });
+    try {
+      await c.completeDelivery({ orderId: 1, result: "partial_paid", paidAmount: "300000", debtDueDate: "2026-09-15" });
+    } finally {
+      vi.useRealTimers();
+    }
     expect(ordersT.find(o => o.id === 1)!.status).toBe("delivered");
     expect(paymentsT).toHaveLength(1);
     expect(Number(paymentsT[0].paidAmount)).toBe(300000);

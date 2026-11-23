@@ -11,7 +11,7 @@ import { productLabel } from "./order";
 import { releaseStock, shipStock } from "./stock-ledger";
 import { NotificationService } from "./NotificationService";
 import { invalidateReports } from "../lib/report-cache";
-import { orderWarehouseId, upsertDebtReminder, type Db } from "./order-shared";
+import { orderWarehouseId, upsertDebtReminder, assertFieldDueDate, type Db } from "./order-shared";
 import { eventTime } from "../lib/event-time";
 
 /*
@@ -615,7 +615,9 @@ export async function completeDelivery(db: Db, tenantId: number, courierId: numb
     await recalcShopDebt(tx, tenantId, order.shopId);
 
     // ── Create debt reminder if partial payment ──
-    if (debtAmount > 0 && debtDueDate) {
+    if (debtAmount > 0 && debtDueDate && input.debtDueDate) {
+      // Курьер — полевой: срок в пределах отсрочки и не позже уже назначенного.
+      await assertFieldDueDate(tx, tenantId, { shopId: order.shopId, orderId: order.id, dueDate: input.debtDueDate });
       await upsertDebtReminder(tx, tenantId, { shopId: order.shopId, orderId: order.id, amount: String(debtAmount), dueDate: debtDueDate });
     }
   });
