@@ -13,6 +13,7 @@ import { rateRows, productRates, agentCommission } from "./services/commission-b
 import { businessDayStart, businessDayEnd } from "@contracts/business-time";
 import { invalidateReports } from "./lib/report-cache";
 import { carriedPayTerms } from "./services/pay-terms";
+import { recordAudit, auditActor } from "./services/audit-log";
 
 /**
  * Проверить, что сотрудник, которому назначают ставку, из этой организации.
@@ -127,6 +128,15 @@ export const commissionRouter = createRouter({
       const db = getDb();
 
       await assertUserBelongsToTenant(db, ctx.tenant.id, input.userId);
+      /*
+        Свою ставку оператор не назначает (бизнес-аудит 19.11.2026, п. 20).
+        «Управлять комиссиями» по умолчанию открыто оператору, и он ставил
+        себе 100% и суточные в сто миллионов. Ставку оператора меняет
+        руководитель — как оклад (kpi.setSalary, adminQuery).
+      */
+      if (input.userId === ctx.user.id && ctx.user.role !== "ceo") {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Свою ставку меняет руководитель" });
+      }
 
       // Update or create monthly commission record for current period.
       // Ключ месяца — общий с расчётом зарплаты (api/services/kpi.ts): две
@@ -179,13 +189,22 @@ export const commissionRouter = createRouter({
         });
       }
 
+      // Ставки — деньги человека: кто и что поменял, должно остаться в журнале.
+      await recordAudit(db, {
+        ...auditActor(ctx), action: "commission.rate_set", targetType: "user", targetId: input.userId,
+        meta: {
+          from: existing ? { commissionRate: existing.commissionRate, deliveryRate: existing.deliveryRate, mealAllowance: existing.mealAllowance, travelAllowance: existing.travelAllowance } : null,
+          to: { commissionRate: input.commissionRate, deliveryRate: input.deliveryRate, courierPayMode: input.courierPayMode, mealAllowance: input.mealAllowance, travelAllowance: input.travelAllowance },
+        },
+      });
       cache.invalidate(CacheKeys.commissions(ctx.tenant.id));
       await invalidateReports(ctx.tenant.id, "commission");
       return { success: true };
     }),
 
   // Calculate commissions for a period
-  calculate: operatorQuery
+  // Пересчёт переписывает суммы к выплате — тем же правом, что и ставки.
+  calculate: operatorQuery.use(can("commission.manage"))
     .input(z.object({
       periodType: z.enum(["monthly", "quarterly"]),
       periodStart: z.string(),
@@ -379,6 +398,7 @@ export const commissionRouter = createRouter({
         });
       }
 
+      await recordAudit(db, { ...auditActor(ctx), action: "commission.product_rate_set", targetType: "product", targetId: input.productId, meta: { rate: input.rate } });
       cache.invalidate(CacheKeys.commissions(ctx.tenant.id));
       await invalidateReports(ctx.tenant.id, "commission");
       return { success: true };
@@ -399,12 +419,21 @@ export const commissionRouter = createRouter({
           eq(commissionProductRates.tenantId, ctx.tenant.id),
           eq(commissionProductRates.productId, input.productId),
         ));
+      await recordAudit(db, { ...auditActor(ctx), action: "commission.product_rate_delete", targetType: "product", targetId: input.productId });
       cache.invalidate(CacheKeys.commissions(ctx.tenant.id));
       await invalidateReports(ctx.tenant.id, "commission");
       return { success: true };
     }),
 
-  // Approve/paid commission
+  /*
+    Утвердить / выплатить комиссию — только вперёд.
+
+    Стоял любой переход: «выплачено» → «черновик», и следующий «Рассчитать»
+    молча переписывал выплаченную сумму, без следа в журнале (бизнес-аудит
+    19.11.2026, п. 20). Теперь: черновик → утверждено → выплачено; утверждение
+    можно снять, пока не выплатили; выплаченное не меняется. Каждый переход —
+    в журнал действий, с суммой.
+  */
   updateStatus: operatorQuery.use(can("commission.manage"))
     .input(z.object({
       id: z.number(),
@@ -412,9 +441,25 @@ export const commissionRouter = createRouter({
     }))
     .mutation(async ({ input, ctx }) => {
       const db = getDb();
+      const [row] = await db.select({ status: commissions.status, userId: commissions.userId, amount: commissions.commissionAmount, periodStart: commissions.periodStart })
+        .from(commissions)
+        .where(and(eq(commissions.id, input.id), eq(commissions.tenantId, ctx.tenant.id))).limit(1);
+      if (!row) throw new TRPCError({ code: "NOT_FOUND", message: "Строка комиссии не найдена" });
+      if (row.status === input.status) return { success: true };
+      const allowed: Record<string, string[]> = { pending: ["approved"], approved: ["paid", "pending"], paid: [] };
+      if (!(allowed[row.status] ?? []).includes(input.status)) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: row.status === "paid" ? "Выплаченная комиссия не меняется" : "Выплатить можно только утверждённую комиссию",
+        });
+      }
       await db.update(commissions)
         .set({ status: input.status })
-        .where(and(eq(commissions.id, input.id), eq(commissions.tenantId, ctx.tenant.id)));
+        .where(and(eq(commissions.id, input.id), eq(commissions.tenantId, ctx.tenant.id), eq(commissions.status, row.status)));
+      await recordAudit(db, {
+        ...auditActor(ctx), action: "commission.status", targetType: "user", targetId: row.userId,
+        meta: { commissionId: input.id, from: row.status, to: input.status, amount: row.amount, periodStart: row.periodStart },
+      });
       await invalidateReports(ctx.tenant.id, "commission.status");
       return { success: true };
     }),

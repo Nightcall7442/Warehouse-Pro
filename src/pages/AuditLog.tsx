@@ -116,6 +116,10 @@ const ACTION_CONFIG: Record<string, { icon: LucideIcon; gradient: string }> = {
   // Расчёт по заказу и безнал
   "order.closed":                    { icon: Wallet, gradient: SUCCESS },
   "price_list.shop_set":             { icon: Tag, gradient: PRIMARY },
+  "commission.rate_set":             { icon: Wallet, gradient: WARNING },
+  "commission.product_rate_set":     { icon: Wallet, gradient: WARNING },
+  "commission.product_rate_delete":  { icon: Wallet, gradient: WARNING },
+  "commission.status":               { icon: Wallet, gradient: SUCCESS },
   "price_list.shops_set":            { icon: Tag, gradient: PRIMARY },
   "price_list.items_set":            { icon: Tag, gradient: PRIMARY },
   "payment.bank_confirm":            { icon: Wallet, gradient: SUCCESS },

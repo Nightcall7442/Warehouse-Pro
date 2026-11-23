@@ -279,6 +279,11 @@ export const SERVER_ERROR_TEXT: Record<string, ErrorText> = {
   "Кредитный лимит магазина «{0}» {1} превышен: долг {2} + заказ {3}. Примите оплату или попросите офис поднять лимит.": { uz: "«{0}» do'konining kredit limiti {1} oshib ketdi: qarz {2} + buyurtma {3}. To'lovni qabul qiling yoki ofisdan limitni oshirishni so'rang." },
   "Кредитный лимит магазина «{0}» {1} превышен: после правки долг {2}. Примите оплату или попросите офис поднять лимит.": { uz: "«{0}» do'konining kredit limiti {1} oshib ketdi: tuzatishdan keyin qarz {2}. To'lovni qabul qiling yoki ofisdan limitni oshirishni so'rang." },
   "Этот прайс-лист не привязан к магазину — оформите заказ по прайс-листу магазина или попросите офис привязать нужный": { uz: "Bu narxlar ro'yxati do'konga biriktirilmagan — buyurtmani do'kon narxlar ro'yxati bo'yicha rasmiylashtiring yoki ofisdan keraklisini biriktirishni so'rang" },
+  "Заказ возвращён целиком — оплату и срок долга по нему не указывают": { uz: "Buyurtma to'liq qaytarilgan — u bo'yicha to'lov va qarz muddati ko'rsatilmaydi" },
+  "Свою ставку меняет руководитель": { uz: "O'z stavkangizni rahbar o'zgartiradi" },
+  "Строка комиссии не найдена": { uz: "Komissiya qatori topilmadi" },
+  "Выплаченная комиссия не меняется": { uz: "To'langan komissiya o'zgartirilmaydi" },
+  "Выплатить можно только утверждённую комиссию": { uz: "Faqat tasdiqlangan komissiyani to'lash mumkin" },
   // Срок оплаты полевого (services/order-shared.ts, assertFieldDueDate).
   "Срок оплаты не может быть в прошлом": { uz: "To'lov muddati o'tgan sana bo'lishi mumkin emas" },
   "Срок оплаты — не позже {0}: отсрочка магазина {1} дн. Дольше может назначить офис": { uz: "To'lov muddati — {0} dan kechiktirmay: do'kon kechiktirishi {1} kun. Uzoqroq muddatni ofis belgilashi mumkin" },
