@@ -43,11 +43,12 @@ vi.mock("../lib/logger", () => ({
 let mockDb: any;
 vi.mock("../queries/connection", () => ({ getDb: () => mockDb }));
 
-import { products, shops, warehouseStock, warehouses } from "@db/schema";
+import { products, shops, warehouseStock, warehouses, payments } from "@db/schema";
 import { makeConditionEvaluator } from "./helpers/fake-conditions";
 
 let productsTable: any[] = [];
 let shopsTable: any[] = [];
+let paymentsTable: any[] = [];
 let warehouseStockTable: any[] = [];
 let warehousesTable: any[] = [];
 let nextId = 500;
@@ -55,6 +56,7 @@ let nextId = 500;
 function resetTables() {
   productsTable = [];
   shopsTable = [];
+  paymentsTable = [];
   warehouseStockTable = [];
   warehousesTable = [
     { id: 1, tenantId: 1, name: "Main", isDefault: true, status: "active" },
@@ -148,6 +150,7 @@ function makeMockDb() {
         if (table === products) productsTable.push({ id, ...v, createdAt: new Date() });
         else if (table === shops) shopsTable.push({ id, ...v, createdAt: new Date() });
         else if (table === warehouses) warehousesTable.push({ id, ...v });
+        else if (table === payments) paymentsTable.push({ id, ...v });
       }
       return [{ insertId: firstId }];
     }),
@@ -420,5 +423,80 @@ describe("import.executeImport", () => {
     const result = await caller.executeImport({ type: "products", base64, filename: "empty.csv" });
     expect(result.success).toBe(0);
     expect(result.total).toBe(0);
+  });
+});
+
+/*
+  Бизнес-аудит 19.11.2026: долг из файла пропадал при первом пересчёте, числа
+  с запятой читались в сто раз больше, повторная загрузка давала дубли.
+*/
+describe("импорт: долг, числа, повторная загрузка", () => {
+  const shopsCsv = (rows: string[][]) => csvBase64(["Название", "Телефон", "Адрес", "Долг"], rows);
+
+  it("начальный долг магазина — строкой журнала «долг» без заказа, а не числом на магазине", async () => {
+    const { importRouter } = await import("../import-router");
+    const caller = importRouter.createCaller(buildCtx());
+    await caller.executeImport({ type: "shops", base64: shopsCsv([["Барока Market", "+998901112233", "ул. Беруний", "850000"], ["Без долга", "+998901112244", "", ""]]), filename: "s.csv" });
+
+    expect(shopsTable.every(sh => sh.debt === "0.00")).toBe(true);
+    expect(paymentsTable).toHaveLength(1);
+    expect(paymentsTable[0]).toMatchObject({ shopId: shopsTable[0].id, orderId: null, type: "debt", amount: "850000.00", tenantId: 1 });
+  });
+
+  it("CSV через «;» и долг «1 200 000,50» читаются как в русском Excel", async () => {
+    const lines = ["Название;Телефон;Долг", "Альфа;+998901112233;1 200 000,50"].join("\n");
+    const base64 = Buffer.from("\uFEFF" + lines, "utf-8").toString("base64");
+    const { importRouter } = await import("../import-router");
+    const caller = importRouter.createCaller(buildCtx());
+    const result = await caller.executeImport({ type: "shops", base64, filename: "s.csv" });
+    expect(result.success).toBe(1);
+    expect(paymentsTable[0].amount).toBe("1200000.50");
+  });
+
+  it("неразборчивый долг — ошибка строки, а не ноль", async () => {
+    const { importRouter } = await import("../import-router");
+    const caller = importRouter.createCaller(buildCtx());
+    const result = await caller.executeImport({ type: "shops", base64: shopsCsv([["Альфа", "+998901112233", "", "много"]]), filename: "s.csv" });
+    expect(result.success).toBe(0);
+    expect(result.errors.join(" ")).toContain("Долг");
+    expect(shopsTable).toHaveLength(0);
+  });
+
+  it("тот же файл второй раз не заводит магазины и долги заново", async () => {
+    const { importRouter } = await import("../import-router");
+    const caller = importRouter.createCaller(buildCtx());
+    const file = () => shopsCsv([["Альфа", "+998 90 111 22 33", "", "100000"], ["Бета", "", "ул. Хонқа 5", "0"]]);
+    await caller.executeImport({ type: "shops", base64: file(), filename: "a.csv" });
+    const second = await caller.executeImport({ type: "shops", base64: file(), filename: "b.csv" });
+    expect(second.success).toBe(0);
+    expect(second.skipped).toHaveLength(2);
+    expect(shopsTable).toHaveLength(2);
+    expect(paymentsTable).toHaveLength(1);
+  });
+
+  it("одноимённые магазины с разными телефонами — разные магазины", async () => {
+    const { importRouter } = await import("../import-router");
+    const caller = importRouter.createCaller(buildCtx());
+    const result = await caller.executeImport({ type: "shops", base64: shopsCsv([["Korzinka", "+998901110001", "", ""], ["Korzinka", "+998901110002", "", ""]]), filename: "s.csv" });
+    expect(result.success).toBe(2);
+  });
+
+  it("цена «12 000,50» в товаре — 12000.5, а не 1200050", async () => {
+    const base64 = csvBase64(["Название", "Цена продажи", "Себестоимость"], [["Печенье", "\"12 000,50\"", "\"9 000\""]]);
+    const { importRouter } = await import("../import-router");
+    const caller = importRouter.createCaller(buildCtx());
+    await caller.executeImport({ type: "products", base64, filename: "p.csv" });
+    expect(productsTable[0]).toMatchObject({ unitPrice: "12000.5", costPrice: "9000" });
+  });
+
+  it("товар без кода, загруженный второй раз, не дублируется", async () => {
+    const { importRouter } = await import("../import-router");
+    const caller = importRouter.createCaller(buildCtx());
+    const file = () => csvBase64(["Название", "Цена продажи"], [["Вафли", "5000"], ["вафли ", "5000"]]);
+    const first = await caller.executeImport({ type: "products", base64: file(), filename: "a.csv" });
+    expect(first.success).toBe(1);
+    const second = await caller.executeImport({ type: "products", base64: file(), filename: "b.csv" });
+    expect(second.success).toBe(0);
+    expect(productsTable).toHaveLength(1);
   });
 });

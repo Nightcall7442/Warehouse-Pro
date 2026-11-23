@@ -247,6 +247,9 @@ export const SERVER_ERROR_TEXT: Record<string, ErrorText> = {
   "Файл слишком большой для импорта: разбейте его на части": { uz: "Fayl import uchun juda katta: uni qismlarga bo'ling" },
   "Файл пуст": { uz: "Fayl bo'sh" },
   "Слишком много строк: {0}, предел {1}. Разбейте файл на части": { uz: "Qatorlar juda ko'p: {0}, chegara {1}. Faylni qismlarga bo'ling" },
+  // Число из ячейки импорта (lib/import-number.ts); {0} — название колонки из файла.
+  "{0}: «{1}» — не число": { uz: "{0}: «{1}» — son emas" },
+  "{0}: {1} — не может быть меньше нуля": { uz: "{0}: {1} — noldan kichik bo'lishi mumkin emas" },
 
   // ── Заказы ────────────────────────────────────────────────────────────────
   "Заказ не найден": { uz: "Buyurtma topilmadi" },
