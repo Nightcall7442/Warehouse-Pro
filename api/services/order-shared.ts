@@ -366,13 +366,22 @@ export async function applyStockDelta(
   }
 
   // "consumed" — the goods are already gone; more units means less on hand.
+  /*
+    Сверка со СВОБОДНЫМ остатком, а не с лежащим на складе.
+
+    Стояло current_stock: на складе 100, все 100 отложены под другие заказы —
+    проверка «100 ≥ 20» проходила, и доставленный заказ забирал 20 чужих:
+    свободно −20, а у тех заказов резерв без товара (бизнес-аудит 19.11.2026,
+    п. 12). Ручное списание (services/stock.ts) сверяет свободное — так и здесь.
+  */
   if (delta > 0) {
-    const [stock] = await tx.select({ currentStock: warehouseStock.currentStock })
+    const [stock] = await tx.select({ available: warehouseStock.available })
       .from(warehouseStock)
       .where(and(eq(warehouseStock.productId, productId), eq(warehouseStock.tenantId, tenantId), eq(warehouseStock.warehouseId, warehouseId)))
       .limit(1);
-    if (Number(stock?.currentStock ?? 0) < delta) {
-      throw new Error(`Недостаточно товара: «${await productLabel(tx, tenantId, productId)}» — остаток ${Number(stock?.currentStock ?? 0)}, нужно ещё ${delta}`);
+    const free = Number(stock?.available ?? 0);
+    if (free < delta) {
+      throw new Error(`Недостаточно товара: «${await productLabel(tx, tenantId, productId)}» — свободно ${free}, нужно ещё ${delta}`);
     }
   }
   // The units are leaving (or coming back to) the warehouse outright: this

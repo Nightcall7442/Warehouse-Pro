@@ -1,9 +1,42 @@
-import { eq, and, isNull, inArray } from "drizzle-orm";
-import { orders, orderItems, warehouseStock, products } from "@db/schema";
+import { eq, and, isNull, inArray, ne } from "drizzle-orm";
+import { orders, orderItems, warehouseStock, products, shops, returns, settings } from "@db/schema";
 import { resolvePrices } from "./price-resolver";
 import { invalidateReports } from "../lib/report-cache";
 import type { Db, AuditActor } from "./order-shared";
 import { orderWarehouseId, settleShopDebt, stockModeFor, productLabel, applyStockDelta, traceOrderChange } from "./order-shared";
+
+type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
+
+/*
+  Кредитный лимит — и при правке, а не только при оформлении.
+
+  Лимит проверялся одним местом — order-create. Заказ «в долг» на 100 000
+  проходил под лимит, а затем правка состава ставила ×10 или офис переводил
+  его в «долг» — и долг магазина уходил за лимит без единого отказа
+  (бизнес-аудит 19.11.2026, п. 9).
+
+  Сравнивается долг ДО и ПОСЛЕ пересчёта той же формулой (recalcShopDebt), а
+  не прибавка, посчитанная здесь: сколько правка добавляет к долгу, зависит от
+  статуса, оплат и возвратов заказа, и вторая копия этих правил рано или
+  поздно разошлась бы с первой. Отказ — только если долг вырос И стал выше
+  лимита: уменьшение заказа у магазина, который уже за лимитом, не держится.
+  Строка магазина — под замком, как в order-create (заказ → остаток → магазин).
+*/
+async function settleWithinCreditLimit(tx: Tx, tenantId: number, shopId: number): Promise<void> {
+  const [before] = await tx.select({ debt: shops.debt, creditLimit: shops.creditLimit, name: shops.name }).from(shops)
+    .where(and(eq(shops.id, shopId), eq(shops.tenantId, tenantId))).for("update").limit(1);
+  await settleShopDebt(tx, tenantId, shopId);
+  if (!before || before.creditLimit == null) return;
+  const [after] = await tx.select({ debt: shops.debt }).from(shops)
+    .where(and(eq(shops.id, shopId), eq(shops.tenantId, tenantId))).limit(1);
+  const limit = Number(before.creditLimit);
+  const was = Number(before.debt), now = Number(after?.debt ?? 0);
+  if (now > was + 0.005 && now > limit + 0.005) {
+    throw new Error(
+      `Кредитный лимит магазина «${before.name}» ${limit.toFixed(0)} превышен: после правки долг ${now.toFixed(0)}. Примите оплату или попросите офис поднять лимит.`,
+    );
+  }
+}
 
 export async function update(
   db: Db, tenantId: number, orderId: number,
@@ -70,7 +103,7 @@ export async function update(
     }
     // Re-discounting and switching to/from "в долг" both change what this
     // order owes; re-deriving covers either without case analysis.
-    await settleShopDebt(tx, tenantId, order.shopId);
+    await settleWithinCreditLimit(tx, tenantId, order.shopId);
   });
 
   await invalidateReports(tenantId, "order");
@@ -139,6 +172,49 @@ export async function updateItems(
     // повторная отметка доставки, где доставленное и есть предмет разговора.
     // Отказ здесь честнее, чем попытка угадать намерение в функции с пятью
     // ветками: цифры расходятся молча, а разбирать их потом по бумагам.
+    /*
+      Одна строка — один раз за вызов.
+
+      Цикл ниже читает строку из снимка existingById, сделанного до него, а
+      сумму копит на каждую запись. Тот же itemId дважды —
+      [{itemId:1, qty:15}, {itemId:1, qty:15}] — давал строку на 15 штук и
+      сумму, долг и комиссию за 30; пара «0, потом 5» дважды освобождала резерв
+      и снимала его у чужих заказов (бизнес-аудит 19.11.2026, п. 4). Две новые
+      строки одного товара — тот же конфликт, его называет проверка ниже.
+    */
+    const seenItems = new Set<number>();
+    const seenNewProducts = new Set<number>();
+    for (const line of data.items) {
+      if (line.itemId !== undefined) {
+        if (seenItems.has(line.itemId)) throw new Error("Одна и та же позиция указана в правке дважды — пришлите каждую строку один раз");
+        seenItems.add(line.itemId);
+      } else if (line.productId !== undefined) {
+        if (seenNewProducts.has(line.productId)) throw new Error("Один и тот же товар добавлен в правке дважды — укажите его одной строкой");
+        seenNewProducts.add(line.productId);
+      }
+    }
+
+    /*
+      По заказу оформлен возврат — состав этой функцией не правится.
+
+      Возврат уже вернул товар на склад и снял долг. Правка доставленного
+      заказа в режиме consumed считает уменьшение количества тоже возвратом:
+      доставили 10, вернули 4, оператор «для порядка» ставит 6 — и на склад
+      приходят ещё 4, которых нет (бизнес-аудит 19.11.2026, п. 11). Защита ниже
+      смотрит только на delivered_quantity, а у полностью доставленного заказа
+      оно пустое. Возврат на рассмотрении считается тоже: проведут его — и
+      товар придёт второй раз так же.
+    */
+    const [hasReturn] = await tx.select({ id: returns.id }).from(returns)
+      .where(and(eq(returns.orderId, orderId), eq(returns.tenantId, tenantId), ne(returns.status, "rejected")))
+      .limit(1);
+    if (hasReturn) {
+      throw new Error(
+        "По заказу оформлен возврат — состав менять нельзя. " +
+        "Дальнейшие изменения оформите ещё одним возвратом: он учитывает уже возвращённое.",
+      );
+    }
+
     const partiallyDelivered = existingItems.find(i => i.deliveredQuantity !== null);
     if (partiallyDelivered) {
       throw new Error(
@@ -269,6 +345,25 @@ export async function updateItems(
 
     // Keep the discount proportional to the order's new size.
     const discountPct = Number(order.subtotal) > 0 ? (Number(order.discount) / Number(order.subtotal)) * 100 : 0;
+
+    /*
+      Скидку выше порога офис одобрил на ТОТ состав.
+
+      Заказ со скидкой 40% при пороге 10% встаёт в «ожидает», офис его
+      подтверждает — и раньше агент мог потом поднять количество с 50 000 до
+      5 000 000: скидка пересчитывается пропорционально и ложится на новый
+      объём без второго взгляда офиса (бизнес-аудит 19.11.2026, п. 9).
+      Уменьшать полевым можно, увеличивать такой заказ — офису.
+    */
+    if (actor && !["ceo", "operator"].includes(actor.role) && discountPct > 0 && newSubtotal > Number(order.subtotal) + 0.005) {
+      const [cfg] = await tx.select({ max: settings.maxFieldDiscountPct }).from(settings)
+        .where(eq(settings.tenantId, tenantId)).limit(1);
+      if (cfg?.max != null && discountPct > Number(cfg.max) + 0.005) {
+        throw new Error(
+          `Скидка ${discountPct.toFixed(1).replace(/\.0$/, "")}% выше порога ${Number(cfg.max)}% одобрена на прежний состав — увеличить заказ может офис`,
+        );
+      }
+    }
     const newDiscount = newSubtotal * (discountPct / 100);
     const newTotal = newSubtotal - newDiscount;
     totals.before = String(order.total); totals.after = newTotal.toFixed(2);
@@ -279,7 +374,7 @@ export async function updateItems(
       total: newTotal.toFixed(2),
     }).where(and(eq(orders.id, orderId), eq(orders.tenantId, tenantId)));
 
-    await settleShopDebt(tx, tenantId, order.shopId);
+    await settleWithinCreditLimit(tx, tenantId, order.shopId);
   });
 
   await invalidateReports(tenantId, "order");
