@@ -30,9 +30,18 @@ export async function create(db: Db, tenantId: number, agentId: number, input: {
   const items = mergeDuplicateItems(input.items);
 
   // P0-1 FIX: Validate shop belongs to this tenant
-  const [shop] = await db.select({ id: shops.id, name: shops.name }).from(shops)
+  const [shop] = await db.select({ id: shops.id, name: shops.name, status: shops.status }).from(shops)
     .where(and(eq(shops.id, input.shopId), eq(shops.tenantId, tenantId))).limit(1);
   if (!shop) throw new Error("Магазин не найден в вашей организации");
+  /*
+    Точке в архиве заказ не оформляют — тем же правилом, что «Повторить»
+    (order-repeat). Агент оформлял заказ офлайн, офис тем временем отправлял
+    магазин в архив — и при синхронизации резерв и долг ложились на архивную
+    точку (бизнес-аудит 19.11.2026).
+  */
+  if (shop.status === "inactive") {
+    throw new Error(`Магазин «${shop.name}» в архиве — заказ на него не оформляется. Верните магазин из архива или выберите другой`);
+  }
 
   // #FIX1-IDEMPOTENCY: Check for existing order with same key
   if (input.idempotencyKey) {

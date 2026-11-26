@@ -32,6 +32,7 @@
  */
 import { sql } from "drizzle-orm";
 import { REVENUE_ORDER_STATUSES } from "../lib/order-status";
+import { returnsInPeriod } from "./revenue-returns";
 
 type Db = ReturnType<typeof import("../queries/connection").getDb>;
 
@@ -102,6 +103,32 @@ export async function actualsForTargets(
     GROUP BY t.id
   `));
 
+  /*
+    Возвраты — общим правилом (services/revenue-returns.ts, returnsInPeriod),
+    тем же, что у KPI, комиссии и прогноза: проведённые, по дате проведения в
+    периоде плана, по агенту и магазину ЗАКАЗА. Без них «выполнено» у плана
+    расходилось с прогнозом на ту же норму: продал 10 млн, вернули на 2 —
+    план показывал 10, прогноз 8 (бизнес-аудит 19.11.2026).
+  */
+  const plans = rowsOf(await db.execute(sql`
+    SELECT id AS targetId, user_id AS userId, shop_id AS shopId,
+           DATE_FORMAT(period_start, '%Y-%m-%d') AS fromDay, DATE_FORMAT(period_end, '%Y-%m-%d') AS toDay
+    FROM sales_targets WHERE tenant_id = ${tenantId} AND id IN (${ids})
+  `));
+  const returnedBy = new Map<number, number>();
+  if (plans.length > 0) {
+    const from = plans.map(p => String(p.fromDay)).sort()[0];
+    const to = plans.map(p => String(p.toDay)).sort().at(-1)!;
+    const back = await returnsInPeriod(db, tenantId, from, to);
+    for (const p of plans) {
+      const sum = back
+        .filter(r => r.agentId === Number(p.userId) && (p.shopId == null || r.shopId === Number(p.shopId))
+          && r.day >= String(p.fromDay) && r.day <= String(p.toDay))
+        .reduce((t, r) => t + Number(r.amount), 0);
+      if (sum > 0) returnedBy.set(Number(p.targetId), sum);
+    }
+  }
+
   const visits = rowsOf(await db.execute(sql`
     SELECT
       t.id AS targetId,
@@ -124,6 +151,11 @@ export async function actualsForTargets(
     if (!entry) continue;
     entry.revenue = Number(row.revenue ?? 0);
     entry.orderCount = Number(row.orderCount ?? 0);
+  }
+  for (const [targetId, returned] of returnedBy) {
+    const entry = out.get(targetId);
+    if (!entry) continue;
+    entry.revenue = Math.max(0, Math.round((entry.revenue - returned) * 100) / 100);
   }
 
   for (const row of visits) {

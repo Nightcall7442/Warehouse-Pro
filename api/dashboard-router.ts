@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { createRouter, fieldSalesQuery, supervisorQuery } from "./middleware";
 import { orders, warehouseStock, users, shops, agentLocations, dailyPlans, orderItems } from "@db/schema";
-import { eq, and, or, sql, desc, isNull, inArray } from "drizzle-orm";
+import { eq, and, or, sql, desc, isNull, inArray, notInArray } from "drizzle-orm";
 import { REVENUE_ORDER_STATUSES, OPEN_ORDER_STATUSES, deliveredQty } from "./lib/order-status";
 import { businessDaysAgo, businessToday } from "@contracts/business-time";
 import { reportCached, ReportTTL } from "./lib/report-cache";
@@ -244,8 +244,11 @@ export const dashboardRouter = createRouter({
     const today    = businessToday();
 
     const [agentOrders, assignedShops] = await Promise.all([
+      // Отменённый и возвращённый — не выручка: заказ на 3 млн, отменённый
+      // утром, весь день висел в «выручке сегодня» агента (бизнес-аудит 19.11.2026).
       db.select({ count: sql<number>`count(*)`, total: sql<string>`COALESCE(SUM(${orders.total}), 0)` })
-        .from(orders).where(and(eq(orders.tenantId, tenantId), eq(orders.agentId, userId), onDay(orders.createdAt, today), isNull(orders.deletedAt))),
+        .from(orders).where(and(eq(orders.tenantId, tenantId), eq(orders.agentId, userId), onDay(orders.createdAt, today), isNull(orders.deletedAt),
+          notInArray(orders.status, ["cancelled", "returned"]))),
       // Долг берётся тем же запросом, что и число магазинов: агенту он нужен
       // на первом экране — это то, за чем он и едет, — а лишнего обращения к
       // базе это не стоит.

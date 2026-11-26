@@ -43,6 +43,24 @@ import { businessDaysAgo } from "@contracts/business-time";
 
   Не кэшируются shopRevenueTrend и debtReport — см. у самих ручек.
 */
+/*
+  Прошлый период — той же длины в днях, вплотную перед текущим.
+
+  Обе границы включительны, поэтому дней (to − from) + 1. Стояло
+  prevFrom = from − (to − from): неделя 07–13 сравнивалась с 01–06 — на день
+  короче, и неизменные продажи показывали «+16,7%»; один день сравнивался с
+  пустым периодом (бизнес-аудит 19.11.2026).
+*/
+export function previousPeriod(from: string, to: string): { prevFrom: string; prevTo: string } {
+  const fromMs = Date.parse(`${from.slice(0, 10)}T00:00:00Z`);
+  const toMs = Date.parse(`${to.slice(0, 10)}T00:00:00Z`);
+  const days = Math.round((toMs - fromMs) / MS_PER_DAY) + 1;
+  return {
+    prevFrom: new Date(fromMs - days * MS_PER_DAY).toISOString().slice(0, 10),
+    prevTo: new Date(fromMs - MS_PER_DAY).toISOString().slice(0, 10),
+  };
+}
+
 export const analyticsRouter = createRouter({
   salesByShop: reportsQuery
     .input(z.object({
@@ -463,12 +481,7 @@ export const analyticsRouter = createRouter({
       const from = input.from;
       const to = input.to;
 
-      const prevFromMs = new Date(from).getTime();
-      const currFromMs = new Date(from).getTime();
-      const currToMs = new Date(to).getTime();
-      const periodMs = currToMs - currFromMs;
-      const prevFrom = new Date(prevFromMs - periodMs).toISOString().slice(0, 10);
-      const prevTo = new Date(currFromMs - MS_PER_DAY).toISOString().slice(0, 10);
+      const { prevFrom, prevTo } = previousPeriod(from, to);
 
       async function calcPeriod(dateFrom: string, dateTo: string) {
         // Выручка и себестоимость — общим расчётом (services/period-gross.ts):
@@ -804,8 +817,11 @@ export const analyticsRouter = createRouter({
 
       // И здесь тот же вычет: карточка «чем платят» стоит на том же экране,
       // что и прибыль за период, и сумма её долей обязана сходиться с ней.
+      // С фильтром агента — только возвраты по ЕГО заказам: стоял вычет
+      // возвратов всех агентов, и у агента с продажами 2 млн и чужими
+      // возвратами 1,5 млн выручка выходила 0,5 млн (бизнес-аудит 19.11.2026).
       const returnsByMethod = groupReturned(
-        await returnsInPeriod(db, tid, input.from, input.to),
+        (await returnsInPeriod(db, tid, input.from, input.to)).filter(r => !input.agentId || r.agentId === input.agentId),
         (r: ReturnRow) => r.paymentMethod);
 
       const cogsByMethod = new Map(cogsRows.map(r => [r.paymentMethod, r.cogs]));
