@@ -378,9 +378,24 @@ export const returnsRouter = createRouter({
           // Returned goods land in one warehouse. Without this filter the quantity
           // was added to every warehouse holding the product, inflating stock by a
           // multiple of the return for multi-warehouse tenants.
-          const [defaultWh] = await tx.select({ id: warehouses.id }).from(warehouses)
-            .where(and(eq(warehouses.tenantId, tenantId), eq(warehouses.isDefault, true))).limit(1);
-          const whId = defaultWh?.id;
+          /*
+            Склад — тот, с которого уехал заказ (orders.warehouse_id), а не
+            склад по умолчанию. Заказ со склада B, возврат на 10 штук ложился
+            на A: свой остаток сходился, а поскладской учёт — нет (на B
+            недостача 10, на A излишек 10; бизнес-аудит 19.11.2026). Возврат без
+            заказа и старые заказы без склада — на склад по умолчанию, как раньше.
+          */
+          let whId: number | undefined;
+          if (ret.orderId) {
+            const [o] = await tx.select({ warehouseId: orders.warehouseId }).from(orders)
+              .where(and(eq(orders.id, ret.orderId), eq(orders.tenantId, tenantId))).limit(1);
+            whId = o?.warehouseId ?? undefined;
+          }
+          if (!whId) {
+            const [defaultWh] = await tx.select({ id: warehouses.id }).from(warehouses)
+              .where(and(eq(warehouses.tenantId, tenantId), eq(warehouses.isDefault, true))).limit(1);
+            whId = defaultWh?.id;
+          }
           if (!whId) throw new Error("Склад по умолчанию не найден");
 
           // Lock stock rows and add items back to inventory
