@@ -289,6 +289,9 @@ export const SERVER_ERROR_TEXT: Record<string, ErrorText> = {
   "Срок оплаты — не позже {0}: отсрочка магазина {1} дн. Дольше может назначить офис": { uz: "To'lov muddati — {0} dan kechiktirmay: do'kon kechiktirishi {1} kun. Uzoqroq muddatni ofis belgilashi mumkin" },
   "Срок оплаты по заказу уже назначен — {0}. Перенести его может офис": { uz: "Buyurtma bo'yicha to'lov muddati allaqachon belgilangan — {0}. Uni ofis ko'chirishi mumkin" },
   "Магазин «{0}» в архиве — заказ на него не оформляется. Верните магазин из архива или выберите другой": { uz: "«{0}» do'koni arxivda — unga buyurtma rasmiylashtirilmaydi. Do'konni arxivdan qaytaring yoki boshqasini tanlang" },
+  "Отчёт — по магазину этого плана визита": { uz: "Hisobot — ushbu tashrif rejasining do'koni bo'yicha" },
+  "Перенести магазин в другую территорию может офис": { uz: "Do'konni boshqa hududga ofis ko'chira oladi" },
+  "У организации уже {0} ключей API — отзовите ненужный, чтобы выпустить новый": { uz: "Tashkilotda allaqachon {0} ta API kaliti bor — yangisini chiqarish uchun keraksizini bekor qiling" },
   // Правка состава заказа (services/order-items.ts).
   "Одна и та же позиция указана в правке дважды — пришлите каждую строку один раз": { uz: "Bitta pozitsiya tuzatishda ikki marta ko'rsatilgan — har bir qatorni bir marta yuboring" },
   "Один и тот же товар добавлен в правке дважды — укажите его одной строкой": { uz: "Bitta mahsulot tuzatishda ikki marta qo'shilgan — uni bitta qator bilan ko'rsating" },

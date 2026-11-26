@@ -1,13 +1,20 @@
 import { z } from "zod";
+import { isSafePhotoValue, PHOTO_VALUE_ERROR } from "./lib/photo-value";
 import { createRouter, merchQuery, reportsQuery } from "./middleware";
 import { MerchandiserService } from "./services/merchandiser";
+
+// Снимок отчёта — та же проверка, что у фото визита и магазина: картинка или
+// ссылка по https, а не имя файла и не svg (бизнес-аудит 19.11.2026).
+const reportPhoto = z.string()
+  .refine(v => v.length <= 2_800_000, "Файл слишком большой (макс. 2 МБ)")
+  .refine(isSafePhotoValue, PHOTO_VALUE_ERROR);
 
 export const merchandiserRouter = createRouter({
   submitReport: merchQuery
     .input(z.object({
       planId: z.number().int().positive(),
       shopId: z.number().int().positive(),
-      photos: z.array(z.string()).default([]),
+      photos: z.array(reportPhoto).max(20).default([]),
       checklist: z.array(z.object({
         productId: z.number(),
         productName: z.string(),

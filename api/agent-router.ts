@@ -1131,6 +1131,20 @@ export const agentRouter = createRouter({
 
       if (rest.territoryId != null) {
         await assertTenantOwnsTerritories(db, ctx.tenant.id, [rest.territoryId]);
+        /*
+          Территорию магазину полевой ставит, только если её ещё нет.
+
+          Карточку открыли всем полевым на всю организацию (решение владельца
+          27.09.2026) — ради названия, телефона и фото. Заодно агент мог
+          переложить любую точку в любую территорию и так забрать выгодные
+          магазины коллеги: маршруты, планы и отчёты по территориям менялись
+          молча (бизнес-аудит 19.11.2026). Перенос между территориями — офис.
+        */
+        const [cur] = await db.select({ territoryId: shops.territoryId }).from(shops)
+          .where(and(eq(shops.id, id), eq(shops.tenantId, ctx.tenant.id))).limit(1);
+        if (cur?.territoryId != null && cur.territoryId !== rest.territoryId) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Перенести магазин в другую территорию может офис" });
+        }
       }
 
       const sanitized: Record<string, unknown> = { ...rest };

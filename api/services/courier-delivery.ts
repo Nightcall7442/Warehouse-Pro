@@ -123,6 +123,12 @@ export async function markDelivered(db: Db, tenantId: number, courierId: number,
       .where(and(
         eq(orders.id, input.orderId), eq(orders.tenantId, tenantId),
         sql`${orders.deliveryStatus} IN ('assigned', 'out_for_delivery')`,
+        // Отмена не сбрасывает deliveryStatus: без этого условия курьер,
+        // нажавший «Доставлен» в ту же секунду, что оператор отменил заказ,
+        // списывал товар отменённого заказа и снимал резерв у чужих
+        // (бизнес-аудит 19.11.2026).
+        sql`${orders.status} NOT IN ('cancelled', 'returned', 'delivered')`,
+        isNull(orders.deletedAt),
       ));
     if ((statusUpdateResult as { affectedRows?: number }).affectedRows !== 1) {
       throw new Error("Заказ уже завершён — повторное выполнение невозможно");
@@ -340,7 +346,7 @@ export async function completeDelivery(db: Db, tenantId: number, courierId: numb
     // second time for goods and cash that only moved once.
     const [locked] = await tx.select({
       total: orders.total, subtotal: orders.subtotal, discount: orders.discount,
-      deliveryStatus: orders.deliveryStatus, warehouseId: orders.warehouseId,
+      deliveryStatus: orders.deliveryStatus, warehouseId: orders.warehouseId, status: orders.status,
     }).from(orders)
       .where(and(
         eq(orders.id, input.orderId),
@@ -352,6 +358,11 @@ export async function completeDelivery(db: Db, tenantId: number, courierId: numb
       .limit(1);
     if (!locked || (locked.deliveryStatus !== "assigned" && locked.deliveryStatus !== "out_for_delivery")) {
       throw new Error("Заказ уже завершён — повторное выполнение невозможно");
+    }
+    // Статус — под тем же замком: отмена в ту же секунду не сбрасывает
+    // deliveryStatus, и проверка выше её не видит (бизнес-аудит 19.11.2026).
+    if (locked.status === "cancelled" || locked.status === "returned" || locked.status === "delivered") {
+      throw new Error(`Заказ уже завершён (статус «${ORDER_STATUS_LABELS[locked.status]}») — повторное списание невозможно`);
     }
     orderTotal = Number(locked.total);
     order.subtotal = locked.subtotal;

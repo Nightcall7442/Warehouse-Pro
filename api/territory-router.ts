@@ -159,6 +159,14 @@ export const territoryRouter = createRouter({
       .where(eq(territories.tenantId, ctx.tenant.id))
       .groupBy(territories.id)
       .orderBy(territories.name);
+    /*
+      Долг по территориям — сводка денег: руководству и супервайзеру, а не
+      курьеру и мерчандайзеру, которым список нужен ради названий и цветов
+      (бизнес-аудит 19.11.2026). Остальным — null: «нет доступа», не «ноль».
+    */
+    if (!["ceo", "operator", "supervisor"].includes(ctx.user.role)) {
+      return rows.map(r => ({ ...r, totalDebt: null as string | null }));
+    }
     return rows;
   }),
 

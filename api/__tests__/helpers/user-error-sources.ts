@@ -134,6 +134,18 @@ function evaluate(expr: ts.Expression, consts: Map<string, ConstRef>, sf: ts.Sou
   return { forms: [], unresolved: [expr.getText(sf)] };
 }
 
+/** Выражение — схема zod: цепочка вызовов от `z.` или константа с такой цепочкой. */
+function isZodSchema(expr: ts.Expression, consts: Map<string, ConstRef>, depth = 0): boolean {
+  if (depth > 6) return false;
+  if (ts.isIdentifier(expr)) {
+    const c = consts.get(expr.text) ?? GLOBAL_CONSTS.get(expr.text);
+    return !!c && isZodSchema(c.expr, consts, depth + 1);
+  }
+  let e: ts.Expression = expr;
+  while (ts.isCallExpression(e) || ts.isPropertyAccessExpression(e)) e = e.expression;
+  return e !== expr && ts.isIdentifier(e) && e.text === "z";
+}
+
 export function collectMessageSites(dirs: string[], root: string): MessageSite[] {
   const sites: MessageSite[] = [];
   const parsed = dirs.flatMap((d) => walkFiles(path.join(root, d))).map((file) => {
@@ -190,6 +202,9 @@ export function collectMessageSites(dirs: string[], root: string): MessageSite[]
               }
             }
             if (!target || ts.isArrowFunction(target) || ts.isFunctionExpression(target) || ts.isRegularExpressionLiteral(target)) continue;
+            // z.array(схема) — аргумент сам схема, а не текст отказа; её проверки
+            // сканер найдёт там, где схема объявлена.
+            if (isZodSchema(target, consts)) continue;
             const { forms, unresolved } = evaluate(target, consts, sf);
             const human = forms.filter((f) => CYRILLIC.test(f));
             const loose = unresolved.filter((u) => /ERROR|MESSAGE|\.ru\b/.test(u));

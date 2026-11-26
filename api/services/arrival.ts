@@ -546,6 +546,17 @@ export async function deleteArrival(db: Db, tenantId: number, arrivalId: number)
   }
 
   await db.transaction(async (tx) => {
+    /*
+      Статус — ещё раз, под замком строки прихода. Проверка выше идёт до
+      транзакции: одна вкладка проводила приход, другая в ту же секунду его
+      удаляла — товар уже на складе, а документ, строки и долг поставщику
+      исчезали (бизнес-аудит 19.11.2026). Проведение берёт тот же замок,
+      поэтому кто второй — видит уже итог первого.
+    */
+    const [locked] = await tx.select({ status: arrivals.status }).from(arrivals)
+      .where(and(eq(arrivals.id, arrivalId), eq(arrivals.tenantId, tenantId))).for("update").limit(1);
+    if (!locked) throw new Error("Приход не найден");
+    if (locked.status === "completed") throw new Error("Нельзя удалить завершённый приход");
     // Delete items first (FK) — use sql template for safe parameterization
     await tx.execute(sql`DELETE FROM arrival_items WHERE arrival_id = ${arrivalId}`);
     if (linkedSupply) {
