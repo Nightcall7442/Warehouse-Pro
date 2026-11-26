@@ -5,6 +5,7 @@ import { tenants, users } from "@db/schema";
 import { sendTelegram } from "../lib/telegram";
 import { answerSummary, currencyOf, type Reply } from "../telegram/answers";
 import { logger } from "../lib/logger";
+import { hasSubscriptionAccess } from "../lib/feature-gating";
 import type { Lang } from "../telegram/texts";
 
 /**
@@ -61,18 +62,29 @@ export async function runTelegramDigest(): Promise<{ sent: number; tenants: numb
   const currencies = new Map<number, string>();
   let sent = 0;
 
+  /*
+    Сводка — тем, у кого доступ открыт (подписка не кончилась), и по
+    получателю под своим try: ошибка расчёта у одной организации оставляла
+    без сводки всех следующих (бизнес-аудит 19.11.2026, пп. 14 и 26).
+  */
+  const open = new Map<number, boolean>();
   for (const row of rows) {
     const lang: Lang = row.lang === "uz" ? "uz" : "ru";
     const key = `${row.tenantId}:${lang}`;
-
-    let reply = ready.get(key);
-    if (!reply) {
-      let currency = currencies.get(row.tenantId);
-      if (!currency) { currency = await currencyOf(row.tenantId); currencies.set(row.tenantId, currency); }
-      reply = await answerSummary({ tenantId: row.tenantId, lang, currency }, "today");
-      ready.set(key, reply);
+    try {
+      if (!open.has(row.tenantId)) open.set(row.tenantId, await hasSubscriptionAccess(row.tenantId));
+      if (!open.get(row.tenantId)) continue;
+      let reply = ready.get(key);
+      if (!reply) {
+        let currency = currencies.get(row.tenantId);
+        if (!currency) { currency = await currencyOf(row.tenantId); currencies.set(row.tenantId, currency); }
+        reply = await answerSummary({ tenantId: row.tenantId, lang, currency }, "today");
+        ready.set(key, reply);
+      }
+      if (await sendTelegram(row.chatId!, reply.text, reply.extra)) sent++;
+    } catch (e) {
+      logger.warn("telegram digest: получатель пропущен", { tenantId: row.tenantId, error: e instanceof Error ? e.message : String(e) });
     }
-    if (await sendTelegram(row.chatId!, reply.text, reply.extra)) sent++;
   }
 
   logger.info("telegram digest sent", { sent, recipients: rows.length });

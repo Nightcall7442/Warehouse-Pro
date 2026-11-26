@@ -63,6 +63,12 @@ export const T = {
     ru: "Это бот Warehouse Pro.\n\nВаш Telegram ID: <code>{id}</code>\n\nОтправьте его руководителю — он подключит вас в настройках, и сюда начнут приходить рабочие уведомления.",
     uz: "Bu Warehouse Pro boti.\n\nSizning Telegram ID'ingiz: <code>{id}</code>\n\nUni rahbaringizga yuboring — u sizni sozlamalarda ulaydi va bu yerga ish bildirishnomalari kela boshlaydi.",
   },
+  // Организация приостановлена или подписка кончилась — бот молчит о данных,
+  // как молчат сайт и мобилка (бизнес-аудит 19.11.2026, п. 26).
+  accessClosed: {
+    ru: "Доступ организации к Warehouse Pro закрыт: подписка закончилась или организация приостановлена. После продления бот снова начнёт отвечать.",
+    uz: "Tashkilotning Warehouse Pro'ga kirishi yopilgan: obuna tugagan yoki tashkilot to'xtatilgan. Uzaytirilgandan keyin bot yana javob beradi.",
+  },
   planRequired: {
     ru: "Ответы бота входят в тарифы Pro и Exclusive (и в пробный период). Уведомления работают на любом тарифе.",
     uz: "Bot javoblari Pro va Exclusive tariflariga (va sinov davriga) kiradi. Bildirishnomalar har qanday tarifda ishlaydi.",

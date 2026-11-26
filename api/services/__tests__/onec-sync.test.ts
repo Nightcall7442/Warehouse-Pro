@@ -273,7 +273,8 @@ describe("реализация в 1С", () => {
     expect(doc).toMatchObject({
       Организация_Key: "org-1", Контрагент_Key: "shop-uuid", Склад_Key: "wh-1",
       ДоговорКонтрагента_Key: contract.Ref_Key, ВидОперации: "РеализацияТоваров",
-      Date: "2026-08-27T10:00:00.000", Комментарий: "Warehouse Pro: заказ ORD-001", Posted: true,
+      // Доставлено 10:00 UTC — в 1С 15:00 по Ташкенту (onec-transform.to1CDate).
+      Date: "2026-08-27T15:00:00", Комментарий: "Warehouse Pro: заказ ORD-001", Posted: true,
     });
     expect(doc.Товары).toEqual([
       { LineNumber: 1, Номенклатура_Key: "prod-5", Количество: 3, Цена: 200, Сумма: 600, СтавкаНДС: "НДС12", СуммаНДС: 64.29 },

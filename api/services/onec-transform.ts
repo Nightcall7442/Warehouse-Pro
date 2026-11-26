@@ -1,10 +1,23 @@
+import { BUSINESS_OFFSET_MS } from "@contracts/business-time";
+
+/*
+  Даты 1С — местное время без пояса (OData: «2026-11-01T02:00:00»).
+
+  Стояло toISOString() без «Z»: момент уходил по UTC, а 1С читала его как
+  местное. Доставка 1 ноября в 02:00 по Ташкенту попадала в «Реализацию»
+  31 октября в 21:00 — в прошлый месяц бухгалтерии, и ПКО так же
+  (бизнес-аудит 19.11.2026, п. 22). Обратно — так же: строка без пояса из
+  1С — ташкентское время, а не UTC сервера.
+*/
 export function from1CDate(date1C: string | Date): Date {
-  const d = typeof date1C === "string" ? new Date(date1C) : date1C;
-  return d;
+  if (date1C instanceof Date) return date1C;
+  const s = String(date1C).trim();
+  if (/(Z|[+-]\d{2}:?\d{2})$/.test(s)) return new Date(s);
+  return new Date(Date.parse(`${s}Z`) - BUSINESS_OFFSET_MS);
 }
 
 export function to1CDate(date: Date): string {
-  return date.toISOString().replace("Z", "");
+  return new Date(date.getTime() + BUSINESS_OFFSET_MS).toISOString().slice(0, 19);
 }
 
 export function normalizeMoney(value: string | number): string {

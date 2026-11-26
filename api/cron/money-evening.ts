@@ -3,6 +3,7 @@ import { getDb } from "../queries/connection";
 import { tenants } from "@db/schema";
 import { notifyTenantRole, tgEscape, fmtMoney } from "../lib/telegram";
 import { logger } from "../lib/logger";
+import { hasSubscriptionAccess } from "../lib/feature-gating";
 import { ControlService } from "../services/control";
 
 /**
@@ -31,6 +32,8 @@ export async function runMoneyEvening(): Promise<{ tenants: number }> {
   let sent = 0;
   for (const t of rows) {
     try {
+      // Деньги вечера — только организациям с открытым доступом.
+      if (!(await hasSubscriptionAccess(t.id))) continue;
       const text = moneyEveningText(await ControlService.money(db, t.id));
       if (!text) continue;
       await notifyTenantRole(t.id, "ceo", text);

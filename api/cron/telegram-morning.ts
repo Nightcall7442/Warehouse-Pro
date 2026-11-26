@@ -3,6 +3,7 @@ import { getDb } from "../queries/connection";
 import { plansWithProTools } from "../../contracts/constants";
 import { tenants, users } from "@db/schema";
 import { logger } from "../lib/logger";
+import { hasSubscriptionAccess } from "../lib/feature-gating";
 import { notifyEvent } from "../services/telegram-notify";
 import { morningForAgent, morningForTeam, currencyOf } from "../telegram/answers";
 import type { Lang } from "../telegram/texts";
@@ -53,9 +54,13 @@ export async function runTelegramMorning(): Promise<{ agents: number; managers: 
   // Сводка команды считается один раз на организацию и язык.
   const teamReady = new Map<string, { text: string; extra?: Record<string, unknown> }>();
 
+  // Утренний план — только организациям с открытым доступом (подписка не кончилась).
+  const open = new Map<number, boolean>();
   for (const u of rows) {
     const lang: Lang = u.lang === "uz" ? "uz" : "ru";
     try {
+      if (!open.has(u.tenantId)) open.set(u.tenantId, await hasSubscriptionAccess(u.tenantId));
+      if (!open.get(u.tenantId)) continue;
       if (u.role === "agent" || u.role === "merchandiser") {
         const text = await morningForAgent({ tenantId: u.tenantId, lang, currency: await currency(u.tenantId), agentId: u.id, agentName: u.name });
         const r = await notifyEvent({ tenantId: u.tenantId, event: "plan.morning", onlyUserId: u.id, text });

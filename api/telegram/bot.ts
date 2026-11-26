@@ -6,6 +6,7 @@ import { tenants, telegramGroups, users } from "@db/schema";
 import { env } from "../lib/env";
 import { planHasProTools } from "../../contracts/constants";
 import { logger } from "../lib/logger";
+import { hasSubscriptionAccess } from "../lib/feature-gating";
 import { safeEqual } from "../lib/safe-compare";
 import { checkRateLimit } from "../lib/rate-limit";
 import { sendTelegram, tgEscape, answerCallback } from "../lib/telegram";
@@ -74,6 +75,8 @@ interface Linked {
   lang: Lang | null;
   plan: string;
   brand: string;
+  /** Статус организации: приостановленной бот не отвечает (tenantOpen). */
+  tenantStatus: string;
 }
 
 const keyboard = (role: string, lang: Lang) => ({
@@ -106,6 +109,20 @@ const langButtons = {
   },
 };
 
+/*
+  Открыт ли организации доступ — тем же правилом, что калитка сайта и мобилки.
+
+  findByChat смотрел только на статус сотрудника, а вебхук бота — отдельный
+  маршрут Hono, мимо калитки подписки tRPC. После конца пробного периода и
+  после приостановки директор и агенты продолжали получать в Telegram выручку,
+  заказы, долги и остатки — бесплатно и без срока (бизнес-аудит 19.11.2026,
+  п. 26). План (planHasBot) говорит, ЧТО входит в тариф; это — оплачен ли он.
+*/
+async function tenantOpen(user: { tenantId: number; tenantStatus?: string | null }): Promise<boolean> {
+  if (user.tenantStatus !== "active") return false;
+  return hasSubscriptionAccess(user.tenantId);
+}
+
 async function findByChat(chatId: string): Promise<Linked | null> {
   const [row] = await getDb()
     .select({
@@ -115,6 +132,7 @@ async function findByChat(chatId: string): Promise<Linked | null> {
       role: users.role,
       lang: users.telegramLang,
       plan: tenants.plan,
+      tenantStatus: tenants.status,
       brand: tenants.name,
       status: users.status,
     })
@@ -284,7 +302,7 @@ telegramBot.post("/api/webhooks/telegram", async (c) => {
         return c.json({ ok: true });
       }
       const user = await findByChat(chatId);
-      if (!user || !user.lang || !planHasBot(user.plan)) return c.json({ ok: true });
+      if (!user || !user.lang || !planHasBot(user.plan) || !(await tenantOpen(user))) return c.json({ ok: true });
       if (!(await checkRateLimit(`tg:${chatId}`, { windowMs: 60_000, limit: 20, namespace: "telegram-bot" }))) return c.json({ ok: true });
       const reply = await answerCallbackData(user, user.lang, data);
       if (reply) await sendTelegram(chatId, reply.text, reply.extra);
@@ -402,6 +420,10 @@ telegramBot.post("/api/webhooks/telegram", async (c) => {
     }
 
     // ── Ворота ─────────────────────────────────────────────────────────────
+    if (!(await tenantOpen(user)) && detectIntent(text) !== "help") {
+      await sendTelegram(chatId, T.accessClosed[lang]);
+      return c.json({ ok: true });
+    }
     // Помощь показывается на любом тарифе: человек должен видеть, что бот умеет.
     if (!planHasBot(user.plan) && detectIntent(text) !== "help") {
       await sendTelegram(chatId, T.planRequired[lang]);
