@@ -135,13 +135,84 @@ export function splitStatements(sqlText) {
 
 const id = (conn, name) => conn.escapeId(name);
 
+/*
+  Столбцы, которые переносятся: все, кроме ВЫЧИСЛЯЕМЫХ (VIRTUAL/STORED).
+
+  Стояло «EXTRA NOT LIKE '%GENERATED%'» — и оно отсекало заодно обычные
+  столбцы со значением по умолчанию из выражения: MySQL помечает
+  `created_at timestamp DEFAULT (now())` как DEFAULT_GENERATED. Первое
+  восстановление (Fresh MCHJ, 26.11.2026) поэтому потеряло все даты
+  оформления и входа: они встали временем восстановления. Ту же ошибку
+  однажды делала выгрузка (db-dump, 09.10.2026).
+*/
 async function columnsOf(conn, schema, table) {
   const [rows] = await conn.query(
     `SELECT COLUMN_NAME AS c FROM information_schema.COLUMNS
-     WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND EXTRA NOT LIKE '%GENERATED%' ORDER BY ORDINAL_POSITION`,
+     WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?
+       AND EXTRA NOT LIKE '%VIRTUAL GENERATED%' AND EXTRA NOT LIKE '%STORED GENERATED%'
+     ORDER BY ORDINAL_POSITION`,
     [schema, table],
   );
   return rows.map(r => r.c);
+}
+
+/** Столбцы со значением по умолчанию из выражения — те, что первое восстановление потеряло. */
+async function defaultGeneratedOf(conn, schema, table) {
+  const [rows] = await conn.query(
+    `SELECT COLUMN_NAME AS c FROM information_schema.COLUMNS
+     WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND EXTRA LIKE '%DEFAULT_GENERATED%' ORDER BY ORDINAL_POSITION`,
+    [schema, table],
+  );
+  return rows.map(r => r.c);
+}
+
+async function primaryKeyOf(conn, schema, table) {
+  const [rows] = await conn.query(
+    `SELECT COLUMN_NAME AS c FROM information_schema.KEY_COLUMN_USAGE
+     WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND CONSTRAINT_NAME = 'PRIMARY' ORDER BY ORDINAL_POSITION`,
+    [schema, table],
+  );
+  return rows.map(r => r.c);
+}
+
+/**
+ * Вернуть строкам организации даты из копии — столбцы DEFAULT_GENERATED
+ * (created_at, updated_at, lastSignInAt…), которые потеряло первое
+ * восстановление. Строки сопоставляются по первичному ключу; новых строк и
+ * чужих организаций не касается. commit=false — проба с откатом.
+ */
+export async function fixTenantDates(conn, { source, target, tenantId, commit }) {
+  await conn.query("SET FOREIGN_KEY_CHECKS = 1, UNIQUE_CHECKS = 1");
+  const updated = {};
+  await conn.beginTransaction();
+  try {
+    for (const step of restoreOrder()) {
+      const dated = await defaultGeneratedOf(conn, source, step.table);
+      if (dated.length === 0) continue;
+      const tgtCols = new Set(await columnsOf(conn, target, step.table));
+      const cols = dated.filter(c => tgtCols.has(c));
+      const pk = await primaryKeyOf(conn, source, step.table);
+      if (cols.length === 0 || pk.length === 0) continue;
+      const S = `${id(conn, source)}.${id(conn, step.table)}`;
+      const T = `${id(conn, target)}.${id(conn, step.table)}`;
+      const on = pk.map(k => `t.${id(conn, k)} = s.${id(conn, k)}`).join(" AND ");
+      const set = cols.map(c => `t.${id(conn, c)} = s.${id(conn, c)}`).join(", ");
+      let sql;
+      if (step.self) sql = `UPDATE ${T} t JOIN ${S} s ON ${on} SET ${set} WHERE s.id = ?`;
+      else if (step.via) {
+        sql = `UPDATE ${T} t JOIN ${S} s ON ${on}
+               JOIN ${id(conn, source)}.${id(conn, step.via.parent)} p ON p.id = s.${id(conn, step.via.column)}
+               SET ${set} WHERE p.tenant_id = ?`;
+      } else sql = `UPDATE ${T} t JOIN ${S} s ON ${on} SET ${set} WHERE s.tenant_id = ?`;
+      const [res] = await conn.query(sql, [tenantId]);
+      if (res.affectedRows > 0) updated[step.table] = res.affectedRows;
+    }
+    if (commit) await conn.commit(); else await conn.rollback();
+  } catch (e) {
+    await conn.rollback().catch(() => {});
+    throw e;
+  }
+  return { updated, total: Object.values(updated).reduce((a, b) => a + b, 0), committed: Boolean(commit) };
 }
 
 /**
@@ -201,7 +272,7 @@ async function main() {
   // переводов строк по краям. Ключ S3 с хвостовым переводом строки приложению
   // не мешает, а подпись запроса без обрезки не сходится.
   const env = Object.fromEntries(Object.entries(process.env).map(([k, v]) => [k, typeof v === "string" ? v.trim() : v]));
-  const mode = env.RESTORE_MODE === "apply" ? "apply" : env.RESTORE_MODE === "check" ? "check" : "plan";
+  const mode = ["apply", "check", "fixdates", "fixdates-apply"].includes(env.RESTORE_MODE) ? env.RESTORE_MODE : "plan";
   const name = (env.RESTORE_TENANT_NAME ?? "").trim();
   if (!env.DATABASE_URL || !name) throw new Error("нужны DATABASE_URL и RESTORE_TENANT_NAME");
 
@@ -270,9 +341,14 @@ async function main() {
       await conn.query(`USE ${id(conn, target)}`);
       log("копия развёрнута в черновую базу", { source });
 
-      if (mode === "apply") {
+      if (mode === "apply" || mode === "fixdates-apply") {
         const [[t]] = await conn.query(`SELECT slug FROM ${id(conn, source)}.tenants WHERE id = ?`, [audit.tenantId]);
         if (!t || env.RESTORE_CONFIRM !== t.slug) throw new Error(`для записи задайте RESTORE_CONFIRM=${t?.slug ?? "<slug>"}`);
+      }
+      if (mode === "fixdates" || mode === "fixdates-apply") {
+        const fixed = await fixTenantDates(conn, { source, target, tenantId: audit.tenantId, commit: mode === "fixdates-apply" });
+        console.log("RESTORE-FIXDATES " + JSON.stringify({ mode, backup: chosen.Key, ...fixed }));
+        return;
       }
       const report = await copyTenant(conn, { source, target, tenantId: audit.tenantId, commit: mode === "apply" });
       const deleted = meta?.deleted ?? {};

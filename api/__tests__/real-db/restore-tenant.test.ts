@@ -20,7 +20,7 @@ import { hasRealDb, connectRealDb, closeRealDb, truncateAll, seed, countOf, TEST
 import { OrderService } from "../../services/order";
 import { offboardTenant, countTenantRows } from "../../services/tenant-offboard";
 // @ts-expect-error — скрипт на чистом JS, без объявлений типов.
-import { copyTenant, splitStatements } from "../../../scripts/restore-tenant.mjs";
+import { copyTenant, fixTenantDates, splitStatements } from "../../../scripts/restore-tenant.mjs";
 
 describe.skipIf(!hasRealDb)("восстановление удалённой организации из копии", () => {
   let db: ServiceDb;
@@ -36,6 +36,10 @@ describe.skipIf(!hasRealDb)("восстановление удалённой о�
     s = await seed("10.000");
     await OrderService.create(db, s.tenantId, s.agentId, { shopId: s.shopId, paymentMethod: "debt", items: [{ productId: s.productId, quantity: "2" }] });
     conn = await mysql.createConnection({ uri: TEST_DATABASE_URL });
+    // Даты из прошлого — их нельзя спутать с моментом восстановления.
+    await conn.query(`UPDATE orders SET created_at = '2026-11-10 08:30:00' WHERE tenant_id = ?`, [s.tenantId]);
+    await conn.query(`UPDATE users SET lastSignInAt = '2026-11-12 09:00:00' WHERE tenant_id = ?`, [s.tenantId]);
+    await conn.query(`UPDATE tenants SET created_at = '2026-01-05 10:00:00' WHERE id = ?`, [s.tenantId]);
   }, 180_000);
   afterAll(async () => {
     await conn?.query(`DROP DATABASE IF EXISTS \`${source}\``).catch(() => {});
@@ -81,5 +85,26 @@ describe.skipIf(!hasRealDb)("восстановление удалённой о�
     expect(await countOf("shops", `tenant_id = ${s.otherTenantId}`), "соседа задело").toBe(neighbourShops);
 
     await expect(copyTenant(conn, { source, target, tenantId: s.tenantId, commit: true })).rejects.toThrow(/уже есть/);
+
+    // Даты — из копии, а не момент восстановления (DEFAULT_GENERATED-столбцы).
+    const dates = async () => {
+      const [[o]] = await conn.query(`SELECT DATE_FORMAT(created_at, '%Y-%m-%d %H:%i') AS d FROM orders WHERE tenant_id = ? LIMIT 1`, [s.tenantId]) as any;
+      const [[u]] = await conn.query(`SELECT DATE_FORMAT(MIN(lastSignInAt), '%Y-%m-%d %H:%i') AS d FROM users WHERE tenant_id = ?`, [s.tenantId]) as any;
+      const [[t2]] = await conn.query(`SELECT DATE_FORMAT(created_at, '%Y-%m-%d %H:%i') AS d FROM tenants WHERE id = ?`, [s.tenantId]) as any;
+      return { order: o.d, user: u.d, tenant: t2.d };
+    };
+    const expected = { order: "2026-11-10 08:30", user: "2026-11-12 09:00", tenant: "2026-01-05 10:00" };
+    expect(await dates(), "даты потерялись при переносе").toEqual(expected);
+
+    // Починка дат после переноса, потерявшего их: проба не пишет, запись возвращает.
+    await conn.query(`UPDATE orders SET created_at = NOW() WHERE tenant_id = ?`, [s.tenantId]);
+    await conn.query(`UPDATE users SET lastSignInAt = NOW() WHERE tenant_id = ?`, [s.tenantId]);
+    await conn.query(`UPDATE tenants SET created_at = NOW() WHERE id = ?`, [s.tenantId]);
+    const dry = await fixTenantDates(conn, { source, target, tenantId: s.tenantId, commit: false });
+    expect(dry.updated.orders).toBe(1);
+    expect((await dates()).order).not.toBe(expected.order);
+    await fixTenantDates(conn, { source, target, tenantId: s.tenantId, commit: true });
+    expect(await dates()).toEqual(expected);
+    expect(await countOf("shops", `tenant_id = ${s.otherTenantId}`), "соседа задело").toBe(neighbourShops);
   }, 180_000);
 });
