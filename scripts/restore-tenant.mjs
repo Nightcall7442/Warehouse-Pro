@@ -197,7 +197,10 @@ export async function copyTenant(conn, { source, target, tenantId, commit }) {
 async function main() {
   const mysql = (await import("mysql2/promise")).default;
   const { S3Client, ListObjectsV2Command, GetObjectCommand } = await import("@aws-sdk/client-s3");
-  const env = process.env;
+  // Переменные — как их читает приложение (api/lib/env.ts): без пробелов и
+  // переводов строк по краям. Ключ S3 с хвостовым переводом строки приложению
+  // не мешает, а подпись запроса без обрезки не сходится.
+  const env = Object.fromEntries(Object.entries(process.env).map(([k, v]) => [k, typeof v === "string" ? v.trim() : v]));
   const mode = env.RESTORE_MODE === "apply" ? "apply" : "plan";
   const name = (env.RESTORE_TENANT_NAME ?? "").trim();
   if (!env.DATABASE_URL || !name) throw new Error("нужны DATABASE_URL и RESTORE_TENANT_NAME");
@@ -218,8 +221,10 @@ async function main() {
 
     const s3 = new S3Client({
       region: env.S3_REGION || "auto",
+      requestHandler: { connectionTimeout: 10_000, requestTimeout: 300_000 },
       endpoint: env.S3_ENDPOINT || undefined,
-      forcePathStyle: env.S3_FORCE_PATH === "true" || env.S3_FORCE_PATH === "1" || Boolean(env.S3_ENDPOINT),
+      // Как в приложении: S3_FORCE_PATH непустой — путь, иначе по умолчанию SDK.
+      forcePathStyle: Boolean(env.S3_FORCE_PATH),
       credentials: { accessKeyId: env.S3_ACCESS_KEY, secretAccessKey: env.S3_SECRET_KEY },
     });
     const bucket = (env.S3_BACKUP_BUCKET || env.S3_BUCKET || "").trim();
