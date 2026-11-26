@@ -428,6 +428,7 @@ export const SERVER_ERROR_TEXT: Record<string, ErrorText> = {
   "1С: HTTP {0}": { uz: "1C: HTTP {0}" },
   // Текст самой 1С — её словами: это ответ чужой программы, как строка из базы.
   "1С: {0}": { uz: "1C: {0}" },
+  "1С: {0} — больше {1} строк, список не дочитан": { uz: "1C: {0} — {1} qatordan ko'p, ro'yxat oxirigacha o'qilmadi" },
   "Некорректный адрес.": { uz: "Manzil noto'g'ri." },
   "Разрешены только адреса http и https, получено «{0}».": { uz: "Faqat http va https manzillarga ruxsat bor, «{0}» berildi." },
   "Адрес указывает во внутреннюю сеть.": { uz: "Manzil ichki tarmoqqa ishora qiladi." },

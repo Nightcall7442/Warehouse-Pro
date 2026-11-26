@@ -124,14 +124,23 @@ export class OneCBridge {
   }
 
   /** Вся выборка постранично: у 1С нет своего предела, но у нас — есть, чтобы не тянуть базу целиком в память за раз. */
+  /*
+    Постранично — с порядком и только целиком.
+
+    Без $orderby сервер 1С не обещает один и тот же порядок от страницы к
+    странице: строка на стыке могла выпасть, и обмен товаров считал её
+    «удалённой из 1С» — и отключал товар. Упёрлись в предел страниц — список
+    неполный, и отдавать его как полный нельзя: отказ.
+  */
   async queryAll<T = Record<string, unknown>>(set: string, params: Record<string, string> = {}, pageSize = 500, maxPages = 400): Promise<T[]> {
     const out: T[] = [];
+    const ordered = { $orderby: "Ref_Key", ...params };
     for (let page = 0; page < maxPages; page++) {
-      const rows = await this.query<T>(set, { ...params, $top: String(pageSize), $skip: String(page * pageSize) });
+      const rows = await this.query<T>(set, { ...ordered, $top: String(pageSize), $skip: String(page * pageSize) });
       out.push(...rows);
-      if (rows.length < pageSize) break;
+      if (rows.length < pageSize) return out;
     }
-    return out;
+    throw new OneCError(`1С: ${set} — больше ${maxPages * pageSize} строк, список не дочитан`, 0);
   }
 
   async getOne<T = Record<string, unknown>>(set: string, key: string, select?: string): Promise<T | null> {
@@ -146,7 +155,10 @@ export class OneCBridge {
 
   /** Срез последних регистра сведений по условию (например, цены выбранного типа). */
   async sliceLast<T = Record<string, unknown>>(register: string, condition: string, params: Record<string, string> = {}): Promise<T[]> {
-    const period = new Date().toISOString().slice(0, 19);
+    // Срез «на сейчас» по Ташкенту: 1С читает время без пояса как местное
+    // (onec-transform.to1CDate), а UTC отставал на 5 часов — цена, введённая
+    // утром, подхватывалась только после 05:00.
+    const period = new Date(Date.now() + 5 * 3_600_000).toISOString().slice(0, 19);
     const cond = condition.replace(/'/g, "''");
     const path = `${register}/SliceLast(Period=datetime'${period}', Condition='${cond}')`;
     const qs = Object.entries(params).map(([k, v]) => `${k}=${encodeURIComponent(v)}`).join("&");

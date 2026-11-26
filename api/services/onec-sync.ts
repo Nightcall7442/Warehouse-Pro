@@ -10,7 +10,7 @@ import { getBridgeForTenant, guid, OneCError, type OneCBridge } from "../lib/one
 import { OneCMapper } from "./onec-mapper";
 import { OnecJournal } from "./onec-journal";
 import { syncCounterparties } from "./onec-counterparties";
-import { mapUnit, to1CDate, sanitizeText } from "./onec-transform";
+import { mapUnit, to1CDate, from1CDate, sanitizeText } from "./onec-transform";
 import { logger } from "../lib/logger";
 import { updateSyncStatus } from "./onec-status";
 import { record1CSync } from "../lib/metrics";
@@ -188,12 +188,21 @@ export class OneCSyncService {
         }
       }
 
-      // Deactivate products that no longer exist in 1C
+      /*
+        Отключаются товары, которых нет в ответе 1С, — а не те, что не
+        прошли обмен.
+
+        Стояло «не в touchedExternalIds»: товар, на строке которого обмен
+        споткнулся (цена не число, конфликт кода, сбой базы), попадал в
+        «удалённые из 1С» и отключался, а обновление статус не трогает —
+        отключённым он оставался навсегда, хотя в 1С он есть (бизнес-аудит
+        19.11.2026, п. 21). Неполный список сюда не доходит: queryAll читает
+        с порядком и отказывает, если не дочитал.
+      */
+      const presentIds = new Set(items.map(i => String(i.Ref_Key)));
       const staleIds: number[] = [];
       for (const [extId, intId] of externalToInternal) {
-        if (!touchedExternalIds.has(extId)) {
-          staleIds.push(intId);
-        }
+        if (!presentIds.has(extId)) staleIds.push(intId);
       }
       if (staleIds.length > 0) {
         await db.update(products)
@@ -211,7 +220,13 @@ export class OneCSyncService {
       if (blockedByPlan > 0) {
         logger.warn(`Обмен с 1С: ${blockedByPlan} позиций не заведено — предел тарифа ${planRoom.limit}`, { tenantId });
       }
-      await updateSyncStatus(tenantId, "product", "from1c", "completed", synced);
+      // С ошибками на строках обмен не «прошёл»: 2999 упавших из 3000
+      // показывались зелёной галочкой.
+      if (errors > 0) {
+        await updateSyncStatus(tenantId, "product", "from1c", "failed", synced, `${errors} из ${items.length} позиций не обработаны — подробности в журнале`);
+      } else {
+        await updateSyncStatus(tenantId, "product", "from1c", "completed", synced);
+      }
       record1CSync("product", "from1c", Date.now() - startTime, errors === 0);
     } catch (e) {
       logger.error(`Product sync failed for tenant ${tenantId}`, { error: String(e) });
@@ -571,7 +586,7 @@ export class OneCSyncService {
       .where(and(eq(idMappings.tenantId, tenantId), eq(idMappings.entityType, "bank_receipt"), inArray(idMappings.externalId, keys))) : [];
     const usedKeys = new Set(used.map(u => u.externalId));
     const receipts = rows.filter(r => !usedKeys.has(String(r.Ref_Key))).map(r => ({
-      key: String(r.Ref_Key), number: String(r.Number ?? ""), date: new Date(String(r[b.fields.date]) + (String(r[b.fields.date]).endsWith("Z") ? "" : "Z")),
+      key: String(r.Ref_Key), number: String(r.Number ?? ""), date: from1CDate(String(r[b.fields.date])),
       counterparty: String(r[b.fields.counterparty]), sum: Number(r[b.fields.sum]),
     }));
 
