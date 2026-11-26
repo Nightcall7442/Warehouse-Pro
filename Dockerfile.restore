@@ -1,0 +1,11 @@
+# Разовая задача: вернуть удалённую организацию из резервной копии
+# (scripts/restore-tenant.mjs). Собирается отдельным сервисом Railway с
+# RAILWAY_DOCKERFILE_PATH=Dockerfile.restore и политикой перезапуска «никогда»:
+# скрипт отрабатывает один раз и выходит.
+FROM node:24-alpine
+WORKDIR /app
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev --legacy-peer-deps --ignore-scripts && npm cache clean --force
+COPY scripts/restore-tenant.mjs scripts/restore-tenant.mjs
+ENV NODE_ENV=production
+CMD ["node", "scripts/restore-tenant.mjs"]
