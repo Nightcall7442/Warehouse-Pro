@@ -272,7 +272,7 @@ async function main() {
   // переводов строк по краям. Ключ S3 с хвостовым переводом строки приложению
   // не мешает, а подпись запроса без обрезки не сходится.
   const env = Object.fromEntries(Object.entries(process.env).map(([k, v]) => [k, typeof v === "string" ? v.trim() : v]));
-  const mode = ["apply", "check", "fixdates", "fixdates-apply"].includes(env.RESTORE_MODE) ? env.RESTORE_MODE : "plan";
+  const mode = ["apply", "check", "fixdates", "fixdates-apply", "extend"].includes(env.RESTORE_MODE) ? env.RESTORE_MODE : "plan";
   const name = (env.RESTORE_TENANT_NAME ?? "").trim();
   if (!env.DATABASE_URL || !name) throw new Error("нужны DATABASE_URL и RESTORE_TENANT_NAME");
 
@@ -286,6 +286,40 @@ async function main() {
       `SELECT tenant_id AS tenantId, tenant_name AS tenantName, created_at AS at, meta FROM platform_audit
        WHERE action = 'tenant.offboarded' AND tenant_name = ? ORDER BY id DESC LIMIT 1`, [name]);
     if (!audit) throw new Error(`в platform_audit нет удаления организации «${name}»`);
+    if (mode === "extend") {
+      /*
+        Продлить доступ вернувшейся организации — как «Тариф» суперадмина
+        (tenant-router.updatePlan): от конца оплаченного, если он впереди,
+        иначе от сегодня; tenants.plan_expires_at и subscriptions — вместе,
+        след — в platform_audit. Оплаченный период мог кончиться, пока
+        организации не было в базе.
+      */
+      const days = Number(env.RESTORE_EXTEND_DAYS);
+      if (!(days >= 1 && days <= 366)) throw new Error("RESTORE_EXTEND_DAYS — от 1 до 366");
+      const t = audit.tenantId;
+      const [[tenant]] = await conn.query(`SELECT id, name, slug, plan FROM tenants WHERE id = ?`, [t]);
+      if (!tenant) throw new Error(`организации #${t} нет в базе — сначала восстановите её`);
+      if (env.RESTORE_CONFIRM !== tenant.slug) throw new Error(`для продления задайте RESTORE_CONFIRM=${tenant.slug}`);
+      const [[sub]] = await conn.query(`SELECT plan, status, current_period_ends AS ends FROM subscriptions WHERE tenant_id = ? LIMIT 1`, [t]);
+      const now = new Date();
+      const base = sub?.ends && new Date(sub.ends) > now ? new Date(sub.ends) : now;
+      const until = new Date(base.getTime() + days * 86_400_000);
+      await conn.beginTransaction();
+      try {
+        await conn.query(`UPDATE tenants SET plan_expires_at = ?, updated_at = NOW() WHERE id = ?`, [until, t]);
+        await conn.query(`UPDATE subscriptions SET status = 'active', current_period_ends = ?, expiry_notice_at = NULL, updated_at = NOW() WHERE tenant_id = ?`, [until, t]);
+        await conn.query(
+          `INSERT INTO platform_audit (actor_id, actor_name, action, tenant_id, tenant_name, \`before\`, \`after\`, meta)
+           VALUES (NULL, 'restore-tenant', 'tenant.plan', ?, ?, ?, ?, ?)`,
+          [t, tenant.name, JSON.stringify({ plan: sub?.plan ?? tenant.plan, periodEnds: sub?.ends ?? null }),
+           JSON.stringify({ plan: sub?.plan ?? tenant.plan, periodEnds: until }),
+           JSON.stringify({ days, reason: env.RESTORE_EXTEND_REASON || "восстановление после удаления" })],
+        );
+        await conn.commit();
+      } catch (e) { await conn.rollback().catch(() => {}); throw e; }
+      console.log("RESTORE-EXTEND " + JSON.stringify({ tenantId: t, from: sub?.ends ?? null, until, days }));
+      return;
+    }
     if (mode === "check") {
       // Только чтение: что видит вход и калитка подписки у вернувшейся организации.
       const t = audit.tenantId;
