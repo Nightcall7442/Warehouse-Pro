@@ -201,7 +201,7 @@ async function main() {
   // переводов строк по краям. Ключ S3 с хвостовым переводом строки приложению
   // не мешает, а подпись запроса без обрезки не сходится.
   const env = Object.fromEntries(Object.entries(process.env).map(([k, v]) => [k, typeof v === "string" ? v.trim() : v]));
-  const mode = env.RESTORE_MODE === "apply" ? "apply" : "plan";
+  const mode = env.RESTORE_MODE === "apply" ? "apply" : env.RESTORE_MODE === "check" ? "check" : "plan";
   const name = (env.RESTORE_TENANT_NAME ?? "").trim();
   if (!env.DATABASE_URL || !name) throw new Error("нужны DATABASE_URL и RESTORE_TENANT_NAME");
 
@@ -215,6 +215,24 @@ async function main() {
       `SELECT tenant_id AS tenantId, tenant_name AS tenantName, created_at AS at, meta FROM platform_audit
        WHERE action = 'tenant.offboarded' AND tenant_name = ? ORDER BY id DESC LIMIT 1`, [name]);
     if (!audit) throw new Error(`в platform_audit нет удаления организации «${name}»`);
+    if (mode === "check") {
+      // Только чтение: что видит вход и калитка подписки у вернувшейся организации.
+      const t = audit.tenantId;
+      const [[tenant]] = await conn.query(`SELECT id, name, slug, status, plan, trial_ends_at, plan_expires_at FROM tenants WHERE id = ?`, [t]);
+      const [subs] = await conn.query(`SELECT id, plan, status, trial_ends_at, current_period_ends, expiry_notice_at FROM subscriptions WHERE tenant_id = ?`, [t]);
+      const [users] = await conn.query(
+        `SELECT id, role, status, (password_hash IS NOT NULL AND password_hash <> '') AS hasPassword,
+                CONCAT(LEFT(email, 2), '***', SUBSTRING(email, LOCATE('@', email))) AS email, lastSignInAt
+         FROM users WHERE tenant_id = ? ORDER BY id`, [t]);
+      const counts = {};
+      for (const table of ["orders", "shops", "products", "payments", "warehouse_stock"]) {
+        const [[c]] = await conn.query(`SELECT COUNT(*) AS n FROM ${id(conn, table)} WHERE tenant_id = ?`, [t]);
+        counts[table] = Number(c.n);
+      }
+      const [[last]] = await conn.query(`SELECT MAX(created_at) AS lastOrder FROM orders WHERE tenant_id = ?`, [t]);
+      console.log("RESTORE-CHECK " + JSON.stringify({ tenant, subscriptions: subs, users, counts, lastOrder: last.lastOrder, now: new Date() }));
+      return;
+    }
     const deletedAt = new Date(audit.at);
     const meta = typeof audit.meta === "string" ? JSON.parse(audit.meta) : audit.meta;
     log("удаление найдено", { tenantId: audit.tenantId, deletedAt: deletedAt.toISOString(), deletedTotal: meta?.total });
