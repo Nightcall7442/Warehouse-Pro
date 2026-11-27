@@ -142,6 +142,7 @@ export const PaymentService = {
         id: payments.id, shopId: payments.shopId, orderId: payments.orderId, amount: payments.amount,
         type: payments.type, paymentMethod: payments.paymentMethod, createdBy: payments.createdBy,
         reversalOf: payments.reversalOf, status: payments.status,
+        receivedAt: payments.receivedAt, receivedBy: payments.receivedBy,
       }).from(payments)
         .where(and(eq(payments.id, input.paymentId), eq(payments.tenantId, tenantId)))
         .for("update").limit(1);
@@ -160,6 +161,10 @@ export const PaymentService = {
         createdBy: p.createdBy,
         reversalOf: p.id,
         paidAt: new Date(),
+        // Сторно стоит там же, где оригинал: принятые офисом наличные
+        // сторнируются принятыми — иначе сторно не вернуло бы долг магазина
+        // (на руках наличные долг не гасят, services/shop-debt.ts).
+        receivedAt: p.receivedAt, receivedBy: p.receivedBy,
       });
       reversalId = Number(row.insertId);
       await tx.update(payments).set({ status: "reversed" }).where(eq(payments.id, p.id));
@@ -282,10 +287,11 @@ export function splitExcess(orderTotal: number, priorPaid: number, amount: numbe
 }
 
 export async function recordExcess(
-  tx: Tx, tenantId: number, shopId: number, orderNumber: string, excess: number, createdBy: number,
+  tx: Tx, tenantId: number, shopId: number, order: { id: number; orderNumber: string }, excess: number, createdBy: number,
 ): Promise<void> {
+  const orderNumber = order.orderNumber;
   await tx.insert(payments).values({
-    tenantId, shopId, orderId: null,
+    tenantId, shopId, orderId: null, excessOfOrderId: order.id,
     amount: excess.toFixed(2), type: "payment",
     notes: `Излишек сверх остатка по заказу ${orderNumber}`,
     createdBy,

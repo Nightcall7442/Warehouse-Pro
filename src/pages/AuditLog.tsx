@@ -115,6 +115,7 @@ const ACTION_CONFIG: Record<string, { icon: LucideIcon; gradient: string }> = {
   "payment.reverse":                 { icon: Undo2, gradient: DANGER },
   // Расчёт по заказу и безнал
   "order.closed":                    { icon: Wallet, gradient: SUCCESS },
+  "order.excess_received":           { icon: Wallet, gradient: SUCCESS },
   "price_list.shop_set":             { icon: Tag, gradient: PRIMARY },
   "commission.rate_set":             { icon: Wallet, gradient: WARNING },
   "commission.product_rate_set":     { icon: Wallet, gradient: WARNING },

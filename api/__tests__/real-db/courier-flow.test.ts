@@ -61,7 +61,12 @@ describe.skipIf(!hasRealDb)("курьер: назначить → выехал �
     expect(Number(order.total)).toBe(300);
     expect(await countOf("payments", `order_id = ${orderId}`)).toBe(1);
     const [[shop]] = await (db as any).execute(sql`SELECT debt FROM shops WHERE id = ${s.shopId}`) as unknown as [Array<{ debt: string }>];
-    expect(Number(shop.debt)).toBe(100);
+    // 200 — у курьера: долг гасит оператор, когда курьер их сдал (решение 27.11.2026).
+    expect(Number(shop.debt)).toBe(300);
+    const { OrderCloseService } = await import("../../services/order-close");
+    await OrderCloseService.close(db as never, s.tenantId, { id: s.agentId, name: "Оператор", role: "operator" }, { orderId, cashReceived: 200, acceptDebt: true });
+    const [[closed]] = await (db as any).execute(sql`SELECT debt FROM shops WHERE id = ${s.shopId}`) as unknown as [Array<{ debt: string }>];
+    expect(Number(closed.debt)).toBe(100);
     expect(await countOf("stock_movements", `reference_type = 'order_delivery' AND reference_id = ${orderId}`)).toBeGreaterThanOrEqual(1);
 
     // В истории движений — номер заказа с накладной, а не сквозной id строки:
@@ -94,7 +99,8 @@ describe.skipIf(!hasRealDb)("курьер: назначить → выехал �
     await expect(courier.markFailed({ orderId, reason: "закрыт" })).rejects.toThrow();
     // сумма больше остатка по заказу — отказ ещё до записи
     const [[shop]] = await (db as any).execute(sql`SELECT debt FROM shops WHERE id = ${s.shopId}`) as unknown as [Array<{ debt: string }>];
-    expect(Number(shop.debt)).toBe(0);
+    // Все 400 — у курьера: долг гасится, когда оператор их примет.
+    expect(Number(shop.debt)).toBe(400);
   });
 
   it("курьер читает свой заказ (экран «Оформить подробно»), чужой — нет", async () => {

@@ -19,9 +19,21 @@ type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
   idx_payments_order. Результат тот же: прежний JOIN группировал по order_id
   и подставлял строку с тем же условием, что стоит теперь в WHERE.
 */
+/*
+  Долг гасят только деньги, дошедшие до офиса.
+
+  Наличные, записанные в поле, — на руках у курьера или агента, пока оператор
+  не принял их при закрытии расчёта (received_at). Раньше они гасили долг
+  магазина сразу, в момент записи на телефоне: деньги ещё у курьера, а долг
+  уже закрыт. Решение владельца 27.11.2026: долг гасит только оператор, когда
+  курьер сдал ему деньги. Карта и перевод — как прежде (их подтверждает банк,
+  services/noncash.ts). Условие — для строки платежа под псевдонимом p.
+*/
+export const COUNTS_FOR_DEBT = sql`NOT (p.payment_method = 'cash' AND p.received_at IS NULL)`;
+
 const PAID_ON_ORDER = sql`COALESCE((
   SELECT SUM(CAST(p.amount AS DECIMAL(15,2))) FROM payments p
-  WHERE p.order_id = o.id AND p.type = 'payment'
+  WHERE p.order_id = o.id AND p.type = 'payment' AND ${COUNTS_FOR_DEBT}
 ), 0)`;
 
 /**
@@ -94,8 +106,8 @@ export async function recalcShopDebt(tx: Tx, tenantId: number, shopId: number): 
         WHERE shop_id = s.id AND tenant_id = s.tenant_id AND type = 'debt' AND order_id IS NULL
       ), 0)
       - COALESCE((
-        SELECT SUM(CAST(amount AS DECIMAL(15,2))) FROM payments
-        WHERE shop_id = s.id AND tenant_id = s.tenant_id AND type = 'payment' AND order_id IS NULL
+        SELECT SUM(CAST(p.amount AS DECIMAL(15,2))) FROM payments p
+        WHERE p.shop_id = s.id AND p.tenant_id = s.tenant_id AND p.type = 'payment' AND p.order_id IS NULL AND ${COUNTS_FOR_DEBT}
       ), 0)
       /*
         Оплата заказа, который БОЛЬШЕ НИЧЕГО НЕ ДОЛЖЕН.
@@ -115,10 +127,10 @@ export async function recalcShopDebt(tx: Tx, tenantId: number, shopId: number): 
         по нему. Засчитать её значило бы выдать магазину придуманный кредит.
       */
       - COALESCE((
-        SELECT SUM(CAST(p2.amount AS DECIMAL(15,2)))
-        FROM payments p2
-        JOIN orders o2 ON o2.id = p2.order_id
-        WHERE p2.shop_id = s.id AND p2.tenant_id = s.tenant_id AND p2.type = 'payment'
+        SELECT SUM(CAST(p.amount AS DECIMAL(15,2)))
+        FROM payments p
+        JOIN orders o2 ON o2.id = p.order_id
+        WHERE p.shop_id = s.id AND p.tenant_id = s.tenant_id AND p.type = 'payment' AND ${COUNTS_FOR_DEBT}
           AND o2.deleted_at IS NULL
           AND NOT (
             o2.status NOT IN ('cancelled', 'returned')

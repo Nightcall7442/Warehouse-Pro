@@ -81,6 +81,7 @@ describeIf("старение долга магазинов на настояще
         amount: opts.paid,
         type: "payment",
         paymentMethod: "cash",
+        receivedAt: new Date(),
       } as never);
     }
     return orderId;

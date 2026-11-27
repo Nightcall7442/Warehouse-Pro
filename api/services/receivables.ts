@@ -39,6 +39,7 @@
  * которого агент едет разговаривать. Два месяца — деньги, которые уже принято
  * считать трудными.
  */
+import { COUNTS_FOR_DEBT } from "./shop-debt";
 import { sql } from "drizzle-orm";
 
 // Тот же приём, что у соседних служб: тип берётся у самого соединения.
@@ -221,7 +222,7 @@ export async function receivablesAging(db: Db, tenantId: number): Promise<Receiv
         END AS bucket,
         SUM(GREATEST(0, CAST(o.total AS DECIMAL(15,2)) - COALESCE((
           SELECT SUM(CAST(p.amount AS DECIMAL(15,2))) FROM payments p
-          WHERE p.order_id = o.id AND p.type = 'payment'
+          WHERE p.order_id = o.id AND p.type = 'payment' AND ${COUNTS_FOR_DEBT}
         ), 0))) AS amount,
         MAX(DATEDIFF(DATE(UTC_TIMESTAMP() + INTERVAL 5 HOUR), DATE(COALESCE(o.first_ordered_at, o.created_at) + INTERVAL 5 HOUR))) AS oldestDays
       FROM orders o
@@ -231,7 +232,7 @@ export async function receivablesAging(db: Db, tenantId: number): Promise<Receiv
         AND (o.payment_method = 'debt' OR o.status = 'delivered')
         AND CAST(o.total AS DECIMAL(15,2)) > COALESCE((
           SELECT SUM(CAST(p.amount AS DECIMAL(15,2))) FROM payments p
-          WHERE p.order_id = o.id AND p.type = 'payment'
+          WHERE p.order_id = o.id AND p.type = 'payment' AND ${COUNTS_FOR_DEBT}
         ), 0)
       GROUP BY o.shop_id, bucket
     ) d ON d.shop_id = s.id

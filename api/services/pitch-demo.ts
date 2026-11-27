@@ -205,7 +205,7 @@ export async function seedPitchDemoExtras(db: Db, tenantId: number, now: Date = 
       const total = Number(o.total);
       if (o.method !== "debt") {
         rows.push({ tenantId, shopId: Number(o.shopId), orderId: Number(o.id), amount: total.toFixed(2), type: "payment",
-          paymentMethod: o.method, status: "paid", totalOrderAmount: total.toFixed(2), paidAmount: total.toFixed(2), debtAmount: "0.00", paidAt: at, createdAt: at,
+          paymentMethod: o.method, status: "paid", totalOrderAmount: total.toFixed(2), paidAmount: total.toFixed(2), debtAmount: "0.00", paidAt: at, createdAt: at, receivedAt: o.method === "cash" ? at : null,
           // Безнал в демо уже подтверждён банком — иначе он висел бы «ждёт банка» у всех.
           bankConfirmedAt: o.method === "cash" ? null : at });
         continue;
@@ -216,7 +216,7 @@ export async function seedPitchDemoExtras(db: Db, tenantId: number, now: Date = 
         const due = new Date(at.getTime() + 14 * 86_400_000);
         rows.push({ tenantId, shopId: Number(o.shopId), orderId: Number(o.id), amount: part.toFixed(2), type: "payment",
           paymentMethod: "cash", status: "partially_paid", totalOrderAmount: total.toFixed(2), paidAmount: part.toFixed(2),
-          debtAmount: (total - part).toFixed(2), debtDueDate: due, paidAt: at, createdAt: at });
+          debtAmount: (total - part).toFixed(2), debtDueDate: due, paidAt: at, createdAt: at, receivedAt: at });
       }
     }
     const shopIds = [...new Set(delivered.map(o => Number(o.shopId)))];

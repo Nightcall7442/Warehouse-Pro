@@ -66,6 +66,17 @@ export async function planClaimed(db: Db, tenantId: number, orderIds: number[]):
     id: payments.id, orderId: payments.orderId, amount: payments.amount, method: payments.paymentMethod, type: payments.type,
     reversalOf: payments.reversalOf, receivedAt: payments.receivedAt,
   }).from(payments).where(and(eq(payments.tenantId, tenantId), inArray(payments.orderId, ids)));
+  // Излишек сверх остатка с этих заказов: курьер сдаёт его вместе с заказом (п. 18 аудита).
+  const excess = await db.select({
+    id: payments.id, excessOf: payments.excessOfOrderId, amount: payments.amount, method: payments.paymentMethod, type: payments.type,
+    reversalOf: payments.reversalOf, receivedAt: payments.receivedAt,
+  }).from(payments).where(and(eq(payments.tenantId, tenantId), inArray(payments.excessOfOrderId, ids)));
+  const excessIds = excess.map(e => e.id);
+  const excessReversals = excessIds.length
+    ? await db.select({ id: payments.id, excessOf: payments.excessOfOrderId, amount: payments.amount, method: payments.paymentMethod, type: payments.type, reversalOf: payments.reversalOf, receivedAt: payments.receivedAt })
+      .from(payments).where(and(eq(payments.tenantId, tenantId), inArray(payments.reversalOf, excessIds)))
+    : [];
+  const excessPending = onHandsOf([...excess, ...excessReversals]);
 
   const byOrder = new Map(found.map(o => [o.id, o]));
   const rows: ClaimPlanRow[] = ids.map(id => {
@@ -73,10 +84,11 @@ export async function planClaimed(db: Db, tenantId: number, orderIds: number[]):
     if (!o) return { id, number: null, shopName: null, courierName: null, total: 0, claimed: 0, due: 0, reason: "not_found" };
     const own = pays.filter(p => p.orderId === id);
     const claimedT = onHandsOf(own).reduce((t, p) => t + tiyin(Number(p.amount)), 0);
+    const excessT = excessPending.filter(e => e.excessOf === id).reduce((t, e) => t + tiyin(Number(e.amount)), 0);
     const paidT = own.filter(p => p.type === "payment").reduce((t, p) => t + tiyin(Number(p.amount)), 0);
     const totalT = tiyin(Number(o.total));
     return {
-      id, number: o.number, shopName: o.shopName, courierName: o.courierName, total: money(totalT), claimed: money(claimedT), due: money(totalT - paidT + claimedT),
+      id, number: o.number, shopName: o.shopName, courierName: o.courierName, total: money(totalT), claimed: money(claimedT + excessT), due: money(totalT - paidT + claimedT),
       reason: claimVerdict({ status: o.status, closed: o.closedAt != null, totalT, paidT, claimedT }),
     };
   });
