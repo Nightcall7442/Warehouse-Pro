@@ -149,6 +149,9 @@ app.post("/payment", async (c) => {
           notes: `1C: ${reference ?? "Payment"}`,
           idempotencyKey,
           ...(method !== "cash" ? { bankConfirmedAt: new Date(), bankRef: `1С ${reference ?? ""}`.trim().slice(0, 64) } : {}),
+          // Наличные, проведённые в 1С, — уже в кассе: на руках они не висят
+          // и долг гасят сразу (services/shop-debt.ts, COUNTS_FOR_DEBT).
+          ...(method === "cash" ? { receivedAt: new Date() } : {}),
         });
 
         await recalcShopDebt(tx, tenantId, shopId);

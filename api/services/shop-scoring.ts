@@ -1,3 +1,4 @@
+import { COUNTS_FOR_DEBT } from "./shop-debt";
 import { sql } from "drizzle-orm";
 import type { getDb } from "../queries/connection";
 
@@ -212,7 +213,7 @@ export async function shopScores(db: Db, tenantId: number, limit = 500): Promise
         AND (o.payment_method = 'debt' OR o.status = 'delivered')
         AND CAST(o.total AS DECIMAL(15,2)) > COALESCE((
           SELECT SUM(CAST(p.amount AS DECIMAL(15,2))) FROM payments p
-          WHERE p.order_id = o.id AND p.type = 'payment'
+          WHERE p.order_id = o.id AND p.type = 'payment' AND ${COUNTS_FOR_DEBT}
         ), 0)
       GROUP BY o.shop_id
     ) u ON u.shop_id = s.id

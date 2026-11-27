@@ -76,11 +76,13 @@ async function settledReminderIds(db: Db, reminders: Reminder[]): Promise<Set<nu
 
   // Оплаты — обычной выборкой со сложением в JS: строк единицы, зато запрос
   // остаётся в том куске построителя, который умеют служебные заглушки.
-  const paymentRows = await db.select({ orderId: payments.orderId, amount: payments.amount })
+  const paymentRows = await db.select({ orderId: payments.orderId, amount: payments.amount, method: payments.paymentMethod, receivedAt: payments.receivedAt })
     .from(payments)
     .where(and(inArray(payments.orderId, orderIds), eq(payments.type, "payment")));
   const paidByOrder = new Map<number, number>();
   for (const p of paymentRows) {
+    // Наличные на руках у курьера долг ещё не гасят — как в shops.debt (COUNTS_FOR_DEBT).
+    if (p.method === "cash" && p.receivedAt == null) continue;
     const key = Number(p.orderId);
     paidByOrder.set(key, (paidByOrder.get(key) ?? 0) + (Number(p.amount) || 0));
   }

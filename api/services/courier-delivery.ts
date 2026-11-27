@@ -195,7 +195,7 @@ export async function markDelivered(db: Db, tenantId: number, courierId: number,
         notes: `Доставка ${order.orderNumber} — наличные от курьера`,
         createdBy: courierId,
       });
-      if (excess > 0) await recordExcess(tx, tenantId, order.shopId, order.orderNumber, excess, courierId);
+      if (excess > 0) await recordExcess(tx, tenantId, order.shopId, order, excess, courierId);
     }
 
     // The order is now delivered and the cash (if any) is recorded, so
@@ -632,7 +632,7 @@ export async function completeDelivery(db: Db, tenantId: number, courierId: numb
         notes: input.notes ? sanitizeString(input.notes) : null,
         createdBy: courierId,
       });
-      if (split.excess > 0) await recordExcess(tx, tenantId, order.shopId, order.orderNumber, split.excess, courierId);
+      if (split.excess > 0) await recordExcess(tx, tenantId, order.shopId, order, split.excess, courierId);
     }
 
     // Status and payment are both written; re-derive what the shop owes.

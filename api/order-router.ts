@@ -1,3 +1,4 @@
+import { COUNTS_FOR_DEBT } from "./services/shop-debt";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { monthlyOrderRoom } from "./lib/plan-limits";
@@ -244,7 +245,7 @@ export const orderRouter = createRouter({
             WHEN ${orders.paymentMethod} = 'debt' OR ${orders.status} = 'delivered'
               THEN CAST(${orders.total} AS DECIMAL(15,2)) - COALESCE((
                 SELECT SUM(CAST(p.amount AS DECIMAL(15,2))) FROM ${payments} p
-                WHERE p.order_id = ${orders.id} AND p.type = 'payment'
+                WHERE p.order_id = ${orders.id} AND p.type = 'payment' AND ${COUNTS_FOR_DEBT}
               ), 0) - COALESCE((
                 SELECT SUM(CAST(r.total_amount AS DECIMAL(15,2))) FROM ${returns} r
                 WHERE r.order_id = ${orders.id} AND r.status = 'completed'
@@ -1097,6 +1098,10 @@ export const orderRouter = createRouter({
       note: z.string().max(300).optional(),
     }))
     .mutation(({ input, ctx }) => OrderCloseService.close(getDb(), ctx.tenant.id, { id: ctx.user.id, name: ctx.user.name, role: ctx.user.role }, input)),
+  // Излишек по уже рассчитанному заказу — тем же правом, что «Закрыть расчёт».
+  acceptExcess: operatorQuery.use(can("payments.accept"))
+    .input(z.object({ orderId: z.number().int().positive() }))
+    .mutation(({ input, ctx }) => OrderCloseService.acceptExcess(getDb(), ctx.tenant.id, { id: ctx.user.id, name: ctx.user.name, role: ctx.user.role }, input.orderId)),
   /*
     Вечерняя сдача курьера пачкой (services/order-close-batch.ts): итог до
     нажатия и «Принять по заявленному». Право — то же, что у одиночного

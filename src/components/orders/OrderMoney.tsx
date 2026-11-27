@@ -73,6 +73,10 @@ export function MoneyBlock({ orderId, status, courierName }: { orderId: number; 
     },
     onError: e => notify.error(errorText(e)),
   });
+  const acceptExcess = trpc.order.acceptExcess.useMutation({
+    onSuccess: r => { refresh(); notify.success(t(`Излишек ${clean(r.amount)} ${symbol} принят`, `Ortiqcha ${clean(r.amount)} ${symbol} qabul qilindi`)); },
+    onError: e => notify.error(errorText(e)),
+  });
   const confirmBank = trpc.order.confirmBank.useMutation({
     onSuccess: () => { refresh(); notify.success(t("Отмечено: пришло на счёт", "Belgilandi: hisobga keldi")); },
     onError: e => notify.error(errorText(e)),
@@ -115,6 +119,14 @@ export function MoneyBlock({ orderId, status, courierName }: { orderId: number; 
         <Row label={t("Итого по заказу", "Buyurtma jami")} value={money(m.total)} strong />
         <Row label={t("Получено", "Olindi")} value={money(m.received)} tone={COLORS.successText} />
         {m.claimed > 0 && <Row label={`${t("На руках", "Qo'lda")}${m.holders.length ? ` · ${m.holders.map(h => h.name).join(", ")}` : ""}`} value={money(m.claimed)} tone={COLORS.warningText} />}
+        {m.excessPending > 0 && m.closedAt && canClose && (
+          <div className="flex items-center justify-between gap-2 rounded-lg px-3 py-2" style={{ fontSize: "12px", background: "var(--color-warning-subtle)", color: COLORS.warningText }} data-testid="order-excess-pending">
+            <span>{t("Излишек сверх заказа на руках", "Buyurtmadan ortiqcha pul qo'lda")} · {money(m.excessPending)}</span>
+            <button type="button" className="neo-btn neo-btn-xs" disabled={acceptExcess.isPending} onClick={() => acceptExcess.mutate({ orderId })} data-testid="accept-excess">
+              {t("Принять", "Qabul qilish")}
+            </button>
+          </div>
+        )}
         {m.inTransit > 0 && <Row label={t("Безнал в пути", "Naqdsiz yo'lda")} value={money(m.inTransit)} tone={COLORS.textSecondary} />}
         <Row label={m.closedAt ? t("Долг магазина", "Do'kon qarzi") : t("Остаток", "Qoldiq")} value={money(m.remainder)} tone={m.remainder > 0 ? COLORS.dangerText : COLORS.textTertiary} />
         {m.shortage && (
@@ -130,7 +142,7 @@ export function MoneyBlock({ orderId, status, courierName }: { orderId: number; 
             const Icon = METHOD_ICON[p.method ?? "cash"] ?? Banknote;
             const reversal = p.reversalOf != null || p.status === "reversed";
             const pm = PAYMENT[p.method ?? "cash"];
-            const state = reversal ? t("сторно", "storno") : p.settled ? t("получено", "olindi") : p.method === "cash" ? t("на руках", "qo'lda") : t("в пути", "yo'lda");
+            const state = p.excess && !reversal ? `${t("излишек", "ortiqcha")} · ${p.settled ? t("получено", "olindi") : t("на руках", "qo'lda")}` : reversal ? t("сторно", "storno") : p.settled ? t("получено", "olindi") : p.method === "cash" ? t("на руках", "qo'lda") : t("в пути", "yo'lda");
             const canConfirm = canClose && !reversal && !p.settled && p.method !== "cash" && p.type === "payment";
             return (
               <div key={p.id} className="flex items-center justify-between gap-3" style={{ fontSize: "12px", opacity: reversal ? 0.6 : 1 }} data-testid={`order-payment-${p.id}`}>

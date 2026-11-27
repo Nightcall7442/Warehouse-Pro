@@ -47,9 +47,21 @@ describe("миграция 0073: долг считается той же фор�
   const PER_ORDER = "THEN CAST(o.total AS DECIMAL(15,2)) - ${PAID_ON_ORDER}";
   const recalcTail = recalc.slice(recalc.indexOf("SET s.debt = ") + "SET s.debt = ".length);
   // Формула кода с полом на заказе, как в день миграции (см. выше).
-  const fromCode = recalcTail
+  // И без правила «наличные на руках долг не гасят» (COUNTS_FOR_DEBT, 27.11.2026):
+  // в день миграции платёж гасил долг в момент записи.
+  const before2711 = (t: string) => t
+    .replaceAll(" AND ${COUNTS_FOR_DEBT}", "")
+    .replace(
+      "SELECT SUM(CAST(p.amount AS DECIMAL(15,2))) FROM payments p\n        WHERE p.shop_id = s.id AND p.tenant_id = s.tenant_id AND p.type = 'payment' AND p.order_id IS NULL",
+      "SELECT SUM(CAST(amount AS DECIMAL(15,2))) FROM payments\n        WHERE shop_id = s.id AND tenant_id = s.tenant_id AND type = 'payment' AND order_id IS NULL",
+    )
+    .replace(
+      "SELECT SUM(CAST(p.amount AS DECIMAL(15,2)))\n        FROM payments p\n        JOIN orders o2 ON o2.id = p.order_id\n        WHERE p.shop_id = s.id AND p.tenant_id = s.tenant_id AND p.type = 'payment'",
+      "SELECT SUM(CAST(p2.amount AS DECIMAL(15,2)))\n        FROM payments p2\n        JOIN orders o2 ON o2.id = p2.order_id\n        WHERE p2.shop_id = s.id AND p2.tenant_id = s.tenant_id AND p2.type = 'payment'",
+    );
+  const fromCode = before2711(recalcTail)
     .replace(PER_ORDER, "THEN GREATEST(0, CAST(o.total AS DECIMAL(15,2)) - ${PAID_ON_ORDER})")
-    .replace("${PAID_ON_ORDER}", paidOnOrder);
+    .replace("${PAID_ON_ORDER}", before2711(paidOnOrder));
   const fromMigration = between(migration, "ROUND(CAST(s.debt AS DECIMAL(15,2)) - ", ", 2) AS gap");
 
   it("формулы совпадают во всём, кроме снятого потом пола на заказе", () => {

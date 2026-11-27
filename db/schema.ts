@@ -1167,12 +1167,23 @@ export const payments = mysqlTable("payments", {
     Наличные получены офисом. Наличный платёж, записанный в поле, — деньги на
     руках у курьера или агента, пока офис не принял их при закрытии расчёта по
     заказу (services/order-close.ts). Платёж, записанный офисом, получен сразу.
+    Долг магазина гасят только полученные наличные (services/shop-debt.ts):
+    долг закрывает оператор, когда курьер сдал деньги (решение владельца
+    27.11.2026).
   */
   receivedAt: timestamp("received_at"),
   receivedBy: bigint("received_by", { mode: "number", unsigned: true }).references(() => users.id, { onDelete: "set null" }),
+  /*
+    Излишек сверх остатка — с какого заказа он пришёл. Строка излишка без
+    order_id (она гасит долг магазина по другим заказам), и сдать её офису
+    было не через что: она навсегда висела «на руках» у курьера (бизнес-аудит
+    19.11.2026, п. 18). Теперь офис принимает её вместе с расчётом этого заказа.
+  */
+  excessOfOrderId: bigint("excess_of_order_id", { mode: "number", unsigned: true }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 }, (t) => ({
   tenantIdx: index("idx_payments_tenant").on(t.tenantId),
+  excessOfIdx: index("idx_payments_excess_of").on(t.excessOfOrderId),
   shopIdx:   index("idx_payments_shop").on(t.shopId),
   orderIdx:  index("idx_payments_order").on(t.orderId),
   tenantShopIdx: index("idx_payments_tenant_shop").on(t.tenantId, t.shopId),

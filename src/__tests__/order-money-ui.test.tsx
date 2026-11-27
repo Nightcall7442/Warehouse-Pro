@@ -39,6 +39,7 @@ const stub = vi.hoisted(() => {
         money: { useQuery: q(() => state.money) },
         close: { useMutation: mut(v => { state.close(v); return { shortage: 0, remainder: 0 }; }) },
         confirmBank: { useMutation: mut(v => { state.confirmBank(v); return { confirmed: 1 }; }) },
+        acceptExcess: { useMutation: mut(() => ({ amount: 0, number: "" })) },
       },
       useUtils: () => ({ order: { money: { invalidate: state.invalidate }, getById: { invalidate: state.invalidate }, list: { invalidate: state.invalidate }, stats: { invalidate: state.invalidate } } }),
     },
