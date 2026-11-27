@@ -69,6 +69,7 @@ describe.skipIf(!hasRealDb)("деньги: недостача и удалённ�
     // Недостача случилась «в прошлом месяце»: сдвигаем её дату и дату закрытия назад.
     const past = new Date(Date.now() - 40 * 86_400_000);
     await (db as any).execute(sql`UPDATE orders SET shortage_at = ${past}, closed_at = ${past} WHERE id = ${id}`);
+    await (db as any).execute(sql`UPDATE order_shortages SET created_at = ${past} WHERE order_id = ${id}`);
     // Второй круг: расчёт открыли заново (как order-reopen: closedAt снят,
     // недостача осталась) и закрыли сегодня — заявлять больше нечего.
     await (db as any).execute(sql`UPDATE orders SET closed_at = NULL WHERE id = ${id}`);
@@ -79,6 +80,24 @@ describe.skipIf(!hasRealDb)("деньги: недостача и удалённ�
     expect(thisMonth.map(x => x.number), "старая недостача попала в новый период").toEqual([]);
     const lastMonth = await ControlService.shortages(db as any, s.tenantId, { from: new Date(Date.now() - 60 * 86_400_000), to: new Date(Date.now() - 20 * 86_400_000) });
     expect(lastMonth.map(x => [x.number, x.amount])).toEqual([["№3002", 50]]);
+  });
+
+  it("второе закрытие с новой недостачей не затирает первую: обе — в отчёте и в удержании", async () => {
+    const { OrderCloseService } = await import("../../services/order-close");
+    const { ControlService } = await import("../../services/control");
+    const id = await deliveredOrder("№3003", "500.00");
+    await fieldCash(id, "300.00", s.courierId);
+    await OrderCloseService.close(db as any, s.tenantId, ceo(), { orderId: id, cashReceived: 250, acceptDebt: true });
+    // Заказ вернули в работу, курьер снова заявил наличные — и снова не довёз 30.
+    await (db as any).execute(sql`UPDATE orders SET closed_at = NULL WHERE id = ${id}`);
+    await fieldCash(id, "100.00", s.courierId);
+    await OrderCloseService.close(db as any, s.tenantId, ceo(), { orderId: id, cashReceived: 70, acceptDebt: true });
+
+    expect((await row(id)).courierShortage, "в заказе — сумма недостач").toBe("80.00");
+    const range = { from: new Date(Date.now() - 86_400_000), to: new Date(Date.now() + 86_400_000) };
+    const list = await ControlService.shortages(db as any, s.tenantId, range);
+    expect(list.map(x => x.amount).sort((a, b) => a - b)).toEqual([30, 50]);
+    expect(await OrderCloseService.shortageIn(db as any, s.tenantId, s.courierId, range.from, range.to)).toEqual({ count: 2, amount: 80 });
   });
 
   it("курьер не проводит удалённый заказ: склад и платежи не тронуты", async () => {

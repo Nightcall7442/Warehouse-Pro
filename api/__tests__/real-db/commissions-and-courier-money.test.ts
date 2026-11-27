@@ -82,12 +82,15 @@ describe.skipIf(!hasRealDb)("комиссии и деньги курьера", (
   });
 
   it("недостача — в месяце, когда её записали, а не когда расчёт закрыли повторно", async () => {
-    await db.insert(schema.orders).values({
+    const [o] = await db.insert(schema.orders).values({
       tenantId: s.tenantId, shopId: s.shopId, agentId: s.agentId, courierId: s.courierId,
       orderNumber: "№S-1", status: "delivered" as never, paymentMethod: "cash" as never, subtotal: "1000.00", total: "1000.00",
       courierShortage: "200.00", shortageUserId: s.courierId,
       shortageAt: new Date("2026-09-20T07:00:00Z"), closedAt: new Date("2026-10-05T07:00:00Z"),
     } as never);
+    await db.insert(schema.orderShortages).values({
+      tenantId: s.tenantId, orderId: Number(o.insertId), userId: s.courierId, amount: "200.00", createdAt: new Date("2026-09-20T07:00:00Z"),
+    });
     const sep = await OrderCloseService.shortageIn(db, s.tenantId, s.courierId, new Date("2026-08-31T19:00:00Z"), new Date("2026-09-30T19:00:00Z"));
     const oct = await OrderCloseService.shortageIn(db, s.tenantId, s.courierId, new Date("2026-09-30T19:00:00Z"), new Date("2026-10-31T19:00:00Z"));
     expect(sep).toEqual({ count: 1, amount: 200 });
