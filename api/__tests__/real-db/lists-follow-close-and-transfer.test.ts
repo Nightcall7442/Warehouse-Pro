@@ -65,10 +65,10 @@ describe.skipIf(!hasRealDb)("закрытие расчёта и перемеще
     await courierRouter.createCaller(ctxFor(db, s.tenantId, s.agentId, "operator")).assignCourier({ orderId: id, courierId: s.courierId });
     const courier = courierRouter.createCaller(ctxFor(db, s.tenantId, s.courierId, "courier"));
     await courier.markOutForDelivery({ orderId: id });
-    // 3 × 100 = 300; магазин отдал курьеру 100 — долг 200.
+    // 3 × 100 = 300; магазин отдал курьеру 100 — долг 300, пока курьер не сдал деньги.
     await courier.completeDelivery({ orderId: id, result: "partial_paid", paymentMethod: "cash", paidAmount: "100" });
-    expect(await shopDebt()).toBe(200);
-    expect(await directoryDebt()).toBe(200);
+    expect(await shopDebt()).toBe(300);
+    expect(await directoryDebt()).toBe(300);
 
     const [ceo] = await (db as any).insert(schema.users).values({ tenantId: s.tenantId, name: "Директор", email: "ceo@test.local", passwordHash: "x", role: "ceo" });
     const { OrderCloseService } = await import("../../services/order-close");

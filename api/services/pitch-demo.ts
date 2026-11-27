@@ -205,7 +205,7 @@ export async function seedPitchDemoExtras(db: Db, tenantId: number, now: Date = 
       const total = Number(o.total);
       if (o.method !== "debt") {
         rows.push({ tenantId, shopId: Number(o.shopId), orderId: Number(o.id), amount: total.toFixed(2), type: "payment",
-          paymentMethod: o.method, status: "paid", totalOrderAmount: total.toFixed(2), paidAmount: total.toFixed(2), debtAmount: "0.00", paidAt: at, createdAt: at,
+          paymentMethod: o.method, status: "paid", totalOrderAmount: total.toFixed(2), paidAmount: total.toFixed(2), debtAmount: "0.00", paidAt: at, createdAt: at, receivedAt: o.method === "cash" ? at : null,
           // Безнал в демо уже подтверждён банком — иначе он висел бы «ждёт банка» у всех.
           bankConfirmedAt: o.method === "cash" ? null : at });
         continue;

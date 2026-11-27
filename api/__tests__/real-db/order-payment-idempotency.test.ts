@@ -16,6 +16,7 @@ import { describe, it, expect, beforeAll, beforeEach, afterAll } from "vitest";
 import { eq, and } from "drizzle-orm";
 import * as schema from "@db/schema";
 import { OrderService } from "../../services/order";
+import { recalcShopDebt } from "../../services/shop-debt";
 import {
   hasRealDb, connectRealDb, closeRealDb, truncateAll, seed, countOf,
   type ServiceDb, type Seeded,
@@ -63,7 +64,10 @@ describeIf("повтор оплаты по заказу на настоящей 
     expect(first).toMatchObject({ success: true });
     expect(second).toEqual({ success: true, duplicate: true });
     expect(await countOf("payments", `order_id = ${orderId}`)).toBe(1);
-    // Долг: 1000 − 400, а не 1000 − 800.
+    // Долг: 1000 − 400, а не 1000 − 800 — когда офис примет наличные агента.
+    expect(await shopDebt(), "наличные у агента уже погасили долг").toBe(1000);
+    await db.update(schema.payments).set({ receivedAt: new Date() } as never).where(eq(schema.payments.orderId, orderId));
+    await db.transaction(tx => recalcShopDebt(tx as never, s.tenantId, s.shopId));
     expect(await shopDebt()).toBe(600);
   });
 
@@ -76,6 +80,8 @@ describeIf("повтор оплаты по заказу на настоящей 
       orderId, paidAmount: "600", method: "cash", idempotencyKey: "aaaaaaaa-0000-0000-0000-000000000002",
     });
     expect(await countOf("payments", `order_id = ${orderId}`)).toBe(2);
+    await db.update(schema.payments).set({ receivedAt: new Date() } as never).where(eq(schema.payments.orderId, orderId));
+    await db.transaction(tx => recalcShopDebt(tx as never, s.tenantId, s.shopId));
     expect(await shopDebt()).toBe(0);
   });
 

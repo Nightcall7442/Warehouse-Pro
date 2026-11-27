@@ -73,7 +73,7 @@ describe.skipIf(!hasRealDb)("светофор магазина", () => {
     return Number(r.insertId);
   }
   async function paid(shopId: number, orderId: number, amount: string) {
-    await db.insert(schema.payments).values({ tenantId: s.tenantId, shopId, orderId, amount, type: "payment" } as never);
+    await db.insert(schema.payments).values({ tenantId: s.tenantId, shopId, orderId, amount, type: "payment", receivedAt: new Date() } as never);
   }
   const recalc = (shopId: number, tenantId = s.tenantId) => db.transaction(tx => recalcShopDebt(tx, tenantId, shopId));
 

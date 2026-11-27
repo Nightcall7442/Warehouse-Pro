@@ -34,7 +34,7 @@ describeIf("оплата не отмечает доставку", () => {
     return o!;
   };
 
-  it("платёж по заказу «в долг» в статусе new: заказ остаётся new, склад не тронут, долг уменьшен", async () => {
+  it("платёж по заказу «в долг» в статусе new: заказ остаётся new, склад не тронут, долг ждёт сдачи наличных", async () => {
     const { id } = await OrderService.create(db, s.tenantId, s.agentId, {
       shopId: s.shopId, items: [{ productId: s.productId, quantity: "3" }], paymentMethod: "debt", idempotencyKey: "pnd-1",
     } as never);
@@ -48,7 +48,8 @@ describeIf("оплата не отмечает доставку", () => {
     expect(await stockOf(s.productId), "склад изменился без доставки").toEqual({ current: 10, reserved: 3, available: 7 });
     const [shop] = await db.select({ debt: schema.shops.debt }).from(schema.shops).where(eq(schema.shops.id, s.shopId));
     const [order] = await db.select({ total: schema.orders.total }).from(schema.orders).where(eq(schema.orders.id, id));
-    expect(Math.round(Number(shop!.debt) * 100)).toBe(Math.round((Number(order!.total) - 1) * 100));
+    // Наличные агента долг не гасят, пока их не принял офис (решение 27.11.2026).
+    expect(Math.round(Number(shop!.debt) * 100)).toBe(Math.round(Number(order!.total) * 100));
   });
 
   it("сбор старого долга не переписывает дату доставки", async () => {

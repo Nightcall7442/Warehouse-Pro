@@ -57,7 +57,7 @@ describeIf("долг по агенту повторяет долг магази�
   async function pay(orderId: number, amount: string) {
     await db.insert(schema.payments).values({
       tenantId: s.tenantId, shopId: s.shopId, orderId,
-      amount, type: "payment", paymentMethod: "cash",
+      amount, type: "payment", paymentMethod: "cash", receivedAt: new Date(),
     } as never);
   }
 

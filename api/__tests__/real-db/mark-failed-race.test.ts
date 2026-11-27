@@ -70,11 +70,11 @@ describe.skipIf(!hasRealDb)("«Не довёз» и доставка в одну
       .rejects.toThrow(/уже завершён/);
 
     expect(await order()).toMatchObject({ status: "delivered", ds: "delivered", courierId: s.courierId });
-    // Списано один раз, долг магазина — 300 из 400, оплата — одна.
+    // Списано один раз, оплата — одна; долг 400 целиком: 100 у курьера, офис их ещё не принял.
     expect(await stockOf(s.productId)).toMatchObject({ current: 6, reserved: 0 });
     expect(await countOf("payments", `order_id = ${orderId}`)).toBe(1);
     const [[shop]] = await (db as any).execute(sql`SELECT debt FROM shops WHERE id = ${s.shopId}`) as unknown as [Array<{ debt: string }>];
-    expect(Number(shop.debt)).toBe(300);
+    expect(Number(shop.debt)).toBe(400);
   });
 
   it("обычный «не довёз» по-прежнему снимает заказ с курьера, повтор из очереди — дубль", async () => {
