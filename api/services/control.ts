@@ -1,5 +1,5 @@
 import { and, eq, gte, lt, isNull, isNotNull, inArray, desc, sql } from "drizzle-orm";
-import { orders, shops, users, settings, auditLog, payments } from "@db/schema";
+import { orders, orderShortages, shops, users, settings, auditLog, payments } from "@db/schema";
 import { alias } from "drizzle-orm/mysql-core";
 import { badRequest } from "../lib/errors";
 import { sanitizeString } from "../lib/sanitize";
@@ -157,9 +157,9 @@ export const ControlService = {
       db.select({ actorId: auditLog.actorId, n: sql<number>`count(*)` }).from(auditLog)
         .where(and(eq(auditLog.tenantId, tenantId), inArray(auditLog.action, ["order.reopened", "order.revenue_reversed"]), gte(auditLog.createdAt, input.from), lt(auditLog.createdAt, input.to), isNotNull(auditLog.actorId)))
         .groupBy(auditLog.actorId),
-      db.select({ userId: orders.shortageUserId, n: sql<number>`count(*)`, s: sql<number>`coalesce(sum(${orders.courierShortage}), 0)` }).from(orders)
-        .where(and(eq(orders.tenantId, tenantId), sql`${orders.courierShortage} > 0`, isNotNull(orders.shortageAt), gte(orders.shortageAt, input.from), lt(orders.shortageAt, input.to)))
-        .groupBy(orders.shortageUserId),
+      db.select({ userId: orderShortages.userId, n: sql<number>`count(*)`, s: sql<number>`coalesce(sum(${orderShortages.amount}), 0)` }).from(orderShortages)
+        .where(and(eq(orderShortages.tenantId, tenantId), gte(orderShortages.createdAt, input.from), lt(orderShortages.createdAt, input.to)))
+        .groupBy(orderShortages.userId),
     ]);
     const holder = new Map(hands.map(h => [h.userId, h]));
     const bank = new Map(nonCash.byEmployee.map(e => [e.id, e]));
@@ -234,15 +234,17 @@ export const ControlService = {
   /** Недостачи за срок: заявил больше, чем сдал, — кто, когда, сколько, кто принял. */
   async shortages(db: Db, tenantId: number, input: { from: Date; to: Date }) {
     const closer = alias(users, "closer");
+    // Строка — недостача, а не заказ: заказ, закрытый дважды с недостачей, — две строки.
     return db.select({
-      id: orders.id, number: orders.orderNumber, closedAt: orders.closedAt, amount: orders.courierShortage, note: orders.shortageNote,
-      shopName: shops.name, userId: orders.shortageUserId, userName: users.name, closedByName: closer.name, total: orders.total,
-    }).from(orders)
+      shortageId: orderShortages.id, id: orders.id, number: orders.orderNumber, closedAt: orderShortages.createdAt, amount: orderShortages.amount, note: orderShortages.note,
+      shopName: shops.name, userId: orderShortages.userId, userName: users.name, closedByName: closer.name, total: orders.total,
+    }).from(orderShortages)
+      .innerJoin(orders, and(eq(orders.id, orderShortages.orderId), eq(orders.tenantId, tenantId)))
       .innerJoin(shops, eq(shops.id, orders.shopId))
-      .leftJoin(users, eq(users.id, orders.shortageUserId))
-      .leftJoin(closer, eq(closer.id, orders.closedBy))
-      .where(and(eq(orders.tenantId, tenantId), sql`${orders.courierShortage} > 0`, isNotNull(orders.shortageAt), gte(orders.shortageAt, input.from), lt(orders.shortageAt, input.to)))
-      .orderBy(desc(orders.closedAt))
+      .leftJoin(users, eq(users.id, orderShortages.userId))
+      .leftJoin(closer, eq(closer.id, orderShortages.recordedBy))
+      .where(and(eq(orderShortages.tenantId, tenantId), gte(orderShortages.createdAt, input.from), lt(orderShortages.createdAt, input.to)))
+      .orderBy(desc(orderShortages.createdAt), desc(orderShortages.id))
       .then(rows => rows.map(r => ({ ...r, amount: Number(r.amount), total: Number(r.total) })));
   },
 

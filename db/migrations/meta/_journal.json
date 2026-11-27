@@ -533,6 +533,20 @@
       "when": 1795467192532,
       "tag": "0075_order_first_delivered_at",
       "breakpoints": true
+    },
+    {
+      "idx": 76,
+      "version": "5",
+      "when": 1795750041292,
+      "tag": "0076_order_shortages",
+      "breakpoints": true
+    },
+    {
+      "idx": 77,
+      "version": "5",
+      "when": 1795750042292,
+      "tag": "0077_order_shortages_history",
+      "breakpoints": true
     }
   ]
 }

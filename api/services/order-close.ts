@@ -1,6 +1,6 @@
 import { inBackground } from "../lib/graceful-shutdown";
-import { and, eq, isNull, isNotNull, inArray, asc, gte, lt, sql } from "drizzle-orm";
-import { orders, payments, users, shops } from "@db/schema";
+import { and, eq, isNull, inArray, asc, gte, lt, sql } from "drizzle-orm";
+import { orders, orderShortages, payments, users, shops } from "@db/schema";
 import { badRequest } from "../lib/errors";
 import { sanitizeString } from "../lib/sanitize";
 import { notifyTenantRole, tgEscape, fmtMoney } from "../lib/telegram";
@@ -254,10 +254,23 @@ export const OrderCloseService = {
         считал её по closedAt, и заказ, закрытый заново через месяц,
         удерживал ту же недостачу во втором периоде.
       */
+      /*
+        Каждая недостача — своей строкой (order_shortages). Заказ, который
+        вернули в работу и закрыли снова с новой недостачей, перезаписывал
+        первую: из «Контроля» и удержания из зарплаты пропадали её деньги
+        (бизнес-аудит 19.11.2026). В заказе — сумма всех недостач и последняя
+        из них: это карточка заказа, а считают по таблице.
+      */
       shortageUser = m.shortage > 0 ? (onHands[0]?.createdBy ?? o.courierId ?? null) : null;
+      const shortageNote = input.note ? sanitizeString(input.note).slice(0, 300) : null;
+      if (m.shortage > 0) {
+        await tx.insert(orderShortages).values({
+          tenantId, orderId: o.id, userId: shortageUser, amount: m.shortage.toFixed(2), note: shortageNote, recordedBy: actor.id, createdAt: now,
+        });
+      }
       await tx.update(orders).set({
         closedAt: now, closedBy: actor.id,
-        ...(m.shortage > 0 ? { courierShortage: m.shortage.toFixed(2), shortageUserId: shortageUser, shortageAt: now, shortageNote: input.note ? sanitizeString(input.note).slice(0, 300) : null } : {}),
+        ...(m.shortage > 0 ? { courierShortage: sql`${orders.courierShortage} + ${m.shortage.toFixed(2)}`, shortageUserId: shortageUser, shortageAt: now, shortageNote } : {}),
       }).where(and(eq(orders.tenantId, tenantId), eq(orders.id, o.id)));
       if (added.length) await recalcShopDebt(tx, tenantId, o.shopId);
 
@@ -308,12 +321,13 @@ export const OrderCloseService = {
     Возврат заказа в работу обнуляет closed_at, а недостачу оставляет; при
     повторном закрытии без новой недостачи closed_at встаёт в новый месяц —
     и те же 200 000 удерживались из зарплаты второй раз (бизнес-аудит
-    19.11.2026, п. 17). shortage_at ставится, только когда недостача записана,
-    и при повторном закрытии не двигается.
+    19.11.2026, п. 17). Каждая недостача — строка order_shortages со своей
+    датой: повторное закрытие добавляет новую, а не двигает и не затирает
+    прежнюю.
   */
   async shortageIn(db: Db, tenantId: number, userId: number, from: Date, to: Date): Promise<{ count: number; amount: number }> {
-    const [r] = await db.select({ n: sql<number>`count(*)`, s: sql<string>`coalesce(sum(${orders.courierShortage}), 0)` }).from(orders)
-      .where(and(eq(orders.tenantId, tenantId), eq(orders.shortageUserId, userId), sql`${orders.courierShortage} > 0`, isNotNull(orders.shortageAt), gte(orders.shortageAt, from), lt(orders.shortageAt, to)));
+    const [r] = await db.select({ n: sql<number>`count(*)`, s: sql<string>`coalesce(sum(${orderShortages.amount}), 0)` }).from(orderShortages)
+      .where(and(eq(orderShortages.tenantId, tenantId), eq(orderShortages.userId, userId), gte(orderShortages.createdAt, from), lt(orderShortages.createdAt, to)));
     return { count: Number(r?.n ?? 0), amount: Number(r?.s ?? 0) };
   },
 

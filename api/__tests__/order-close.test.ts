@@ -127,7 +127,7 @@ describe("KPI и контроль", () => {
     expect(riskScore({ ...quiet, onHand: 500, onHandSince: new Date("2026-09-18T10:00:00Z") }, now).factors).toEqual([]);
     const control = read("api/services/control.ts");
     expect(control).toContain("OrderCloseService.onHands(db, tenantId)");
-    expect(control).toContain("orders.shortageUserId");
+    expect(control).toContain("orderShortages.userId");
   });
 });
 

@@ -164,7 +164,7 @@ export default function Control() {
                 <table style={{ width: "100%", borderCollapse: "collapse", minWidth: "720px" }}>
                   <thead><tr><th style={thStyle}>{t("Заказ", "Buyurtma")}</th><th style={thStyle}>{t("Магазин", "Do'kon")}</th><th style={thStyle}>{t("На ком", "Kimda")}</th><th style={thStyle}>{t("Когда", "Qachon")}</th><th style={{ ...thStyle, textAlign: "right" }}>{t("Недостача", "Kamomad")}</th><th style={thStyle}>{t("Заметка", "Izoh")}</th><th style={thStyle}>{t("Принял", "Qabul qildi")}</th></tr></thead>
                   <tbody>{(shortages.data ?? []).map(x => (
-                    <tr key={x.id} className="row-hover" data-testid={`shortage-${x.id}`} style={{ cursor: "pointer" }} onClick={() => navigate(`/orders/${x.id}`)}>
+                    <tr key={x.shortageId} className="row-hover" data-testid={`shortage-${x.id}`} style={{ cursor: "pointer" }} onClick={() => navigate(`/orders/${x.id}`)}>
                       <td style={{ ...tdStyle, fontWeight: 600, whiteSpace: "nowrap" }}>{x.number} <ExternalLink size={11} style={{ display: "inline", color: COLORS.textTertiary }} /></td>
                       <td style={tdStyle}>{x.shopName}</td>
                       <td style={tdStyle}>{x.userName ?? "—"}</td>

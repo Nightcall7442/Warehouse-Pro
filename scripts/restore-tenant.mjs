@@ -63,6 +63,7 @@ export const OFFBOARD_ORDER = [
   "onec_journal",
   "order_adjustments",
   "order_comments",
+  "order_shortages",
   { table: "order_items", via: { column: "order_id", parent: "orders" } },
   { table: "password_reset_tokens", via: { column: "user_id", parent: "users" } },
   "payments",

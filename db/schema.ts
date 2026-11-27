@@ -2167,6 +2167,32 @@ export type InsertOrderComment = typeof orderComments.$inferInsert;
 // ============================================
 // DEBT REMINDERS — напоминания о долгах
 // ============================================
+/*
+  Недостачи по заказу — строкой на каждое закрытие расчёта.
+
+  Недостача жила одним полем заказа (orders.courier_shortage): заказ
+  возвращали в работу, закрывали снова с новой недостачей — и первая
+  перезаписывалась, из «Контроля» и удержаний из зарплаты пропадали деньги
+  первой (бизнес-аудит 19.11.2026). Поле заказа осталось суммой — для
+  карточки заказа; считать — по этой таблице.
+*/
+export const orderShortages = mysqlTable("order_shortages", {
+  id:         serial("id").primaryKey(),
+  tenantId:   bigint("tenant_id", { mode: "number", unsigned: true }).notNull().references(() => tenants.id, { onDelete: "restrict" }),
+  orderId:    bigint("order_id", { mode: "number", unsigned: true }).notNull().references(() => orders.id, { onDelete: "cascade" }),
+  /** На ком недостача: кто заявил наличные (курьер или агент). */
+  userId:     bigint("user_id", { mode: "number", unsigned: true }).references(() => users.id, { onDelete: "set null" }),
+  amount:     decimal("amount", { precision: 12, scale: 2 }).notNull(),
+  note:       varchar("note", { length: 300 }),
+  /** Кто закрыл расчёт. */
+  recordedBy: bigint("recorded_by", { mode: "number", unsigned: true }).references(() => users.id, { onDelete: "set null" }),
+  createdAt:  timestamp("created_at").defaultNow().notNull(),
+}, (t) => ({
+  tenantAtIdx: index("idx_order_shortages_tenant_at").on(t.tenantId, t.createdAt),
+  userAtIdx:   index("idx_order_shortages_user_at").on(t.tenantId, t.userId, t.createdAt),
+  orderIdx:    index("idx_order_shortages_order").on(t.orderId),
+}));
+
 export const debtReminders = mysqlTable("debt_reminders", {
   id:        serial("id").primaryKey(),
   tenantId:  bigint("tenant_id", { mode: "number", unsigned: true }).notNull().references(() => tenants.id, { onDelete: "restrict" }),

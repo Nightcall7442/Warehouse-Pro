@@ -26,7 +26,7 @@ const stub = vi.hoisted(() => {
       ],
       awaiting: { count: 3, total: 2_500_000, oldestAt: "2026-09-15T09:00:00.000Z" },
     },
-    shortages: [{ id: 88, number: "№1004", closedAt: "2026-09-16T14:00:00.000Z", amount: 70_000, note: "не хватило пачки", shopName: "Магазин Альфа", userId: 3, userName: "Курьер Ботир", closedByName: "Дилноза", total: 300_000 }],
+    shortages: [{ shortageId: 1, id: 88, number: "№1004", closedAt: "2026-09-16T14:00:00.000Z", amount: 70_000, note: "не хватило пачки", shopName: "Магазин Альфа", userId: 3, userName: "Курьер Ботир", closedByName: "Дилноза", total: 300_000 }],
     setEnabled: vi.fn(), exportToExcel: vi.fn(), navigate: vi.fn(), invalidate: vi.fn(),
   };
   const q = (get: () => unknown) => (_input?: unknown, _opts?: unknown) => ({ data: get(), isLoading: false, isError: false, refetch: vi.fn() });
