@@ -16,7 +16,7 @@ import { MerchandiserService } from "../services/merchandiser";
 /** Двойник базы: планы и отчёты по таблицам, вставка возвращает растущий id. */
 function fakeDb() {
   const rows = new Map<unknown, Record<string, unknown>[]>([
-    [dailyPlans, [{ id: 5, tenantId: 1, agentId: 10, status: "planned", visitedAt: null }]],
+    [dailyPlans, [{ id: 5, tenantId: 1, agentId: 10, shopId: 3, status: "planned", visitedAt: null }]],
     [visitReports, []],
   ]);
   let nextId = 100;
@@ -56,6 +56,12 @@ describe("merchandiser.submitReport", () => {
   it("чужой план — отказ, как и раньше", async () => {
     const db = fakeDb();
     await expect(MerchandiserService.submitReport(db as never, 1, 11, input)).rejects.toThrow("другому сотруднику");
+    expect(db.rows.get(visitReports)!).toHaveLength(0);
+  });
+
+  it("отчёт по другому магазину на чужой план визита — отказ", async () => {
+    const db = fakeDb();
+    await expect(MerchandiserService.submitReport(db as never, 1, 10, { ...input, shopId: 4 })).rejects.toThrow("по магазину этого плана");
     expect(db.rows.get(visitReports)!).toHaveLength(0);
   });
 });

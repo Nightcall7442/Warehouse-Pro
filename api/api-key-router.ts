@@ -6,11 +6,14 @@ import { z } from "zod";
 import { createRouter, authedQuery } from "./middleware";
 import { getDb } from "./queries/connection";
 import { apiKeys } from "../db/schema";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, sql } from "drizzle-orm";
 import { createHash, randomBytes } from "crypto";
 import { TRPCError } from "@trpc/server";
 import { exportHealth, recentExports } from "./public/export-log";
 import { recordAudit, auditActor } from "./services/audit-log";
+
+/** Сколько ключей API может держать одна организация. */
+export const MAX_KEYS = 10;
 
 const SCOPE_LIST = ["read", "write", "orders", "products", "stock", "shops", "webhooks"] as const;
 
@@ -78,7 +81,11 @@ export const apiKeyRouter = createRouter({
     .input(z.object({
       name: z.string().min(1).max(100),
       scopes: z.array(z.enum(SCOPE_LIST)).min(1),
-      rateLimit: z.number().min(10).max(10000).default(100),
+      // Предел запросов на ключ задаёт сам арендатор — но не выше 1000 в минуту,
+      // и ключей у организации не больше MAX_KEYS: иначе десятком ключей по
+      // 10 000 один арендатор выгружал миллионы строк в минуту с общей базы
+      // (бизнес-аудит 19.11.2026).
+      rateLimit: z.number().min(10).max(1000).default(100),
       expiresInDays: z.number().min(1).max(3650).optional(),
     }))
     .mutation(async ({ ctx, input }) => {
@@ -86,6 +93,11 @@ export const apiKeyRouter = createRouter({
         throw new TRPCError({ code: "FORBIDDEN", message: "Only CEO or SuperAdmin can manage API keys." });
       }
       const db = getDb();
+      const [{ n }] = await db.select({ n: sql<number>`COUNT(*)`.mapWith(Number) }).from(apiKeys)
+        .where(eq(apiKeys.tenantId, ctx.user.tenantId));
+      if (n >= MAX_KEYS) {
+        throw new TRPCError({ code: "PRECONDITION_FAILED", message: `У организации уже ${MAX_KEYS} ключей API — отзовите ненужный, чтобы выпустить новый` });
+      }
       const { raw, hash, prefix } = generateApiKey();
       const expiresAt = input.expiresInDays
         ? new Date(Date.now() + input.expiresInDays * 86_400_000)

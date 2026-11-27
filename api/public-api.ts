@@ -48,7 +48,8 @@ app.use("*", async (c, next) => {
   // await matters: checkRateLimit is async, and `!promise` is always false —
   // without it this branch never ran and every key's configured rateLimit was
   // decoration.
-  if (!(await sharedCheckRateLimit(keyHash, { windowMs: 60_000, limit: key.rateLimit, namespace: "public-api" }))) {
+  // Не выше 1000 в минуту — и для ключей, выпущенных до предела в api-key-router.
+  if (!(await sharedCheckRateLimit(keyHash, { windowMs: 60_000, limit: Math.min(key.rateLimit, 1000), namespace: "public-api" }))) {
     /*
       Retry-After ЗАГОЛОВКОМ, а не только в теле.
 

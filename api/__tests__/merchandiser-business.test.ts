@@ -43,7 +43,7 @@ describe("merchandiser.submitReport", () => {
     const result = await caller.submitReport({
       planId: 1,
       shopId: 1,
-      photos: ["photo1.jpg"],
+      photos: ["https://s3.test/visits/photo1.jpg"],
       checklist: [{ productId: 1, productName: "Product A", present: true }],
       competitorNotes: "Competitor X has promo",
     });
